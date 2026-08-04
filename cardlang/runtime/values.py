@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.types import Flavor
 
 # Suits shared by the French-suited decks. Rank ordering is not a global:
@@ -448,7 +449,7 @@ class Seating:
         value (a `none`-valued `Player?`, an unrefined pronoun), which would
         otherwise die on a bare `TypeError` inside the comprehension."""
         if leader not in self.players:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"cannot start a round from {leader!r}: not a seat of this "
                 f"{self.count}-player game — the `from` expression bound a "
                 f"non-player value"

@@ -57,6 +57,7 @@ from cardlang.runtime.belote import (
     belote_trump_height,
     decomposition,
 )
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import Card
 
 BELOTE = Path(__file__).parent.parent / "docs" / "games" / "belote.cardlang"
@@ -160,14 +161,14 @@ def test_best_combination_ordering_class_then_height_then_trump() -> None:
 
 
 def test_trump_height_rejects_a_non_pack_rank() -> None:
-    with pytest.raises(RuntimeError, match="not a skat32 rank"):
+    with pytest.raises(OwnerGuardError, match="not a skat32 rank"):
         belote_trump_height(Card("2", "hearts"))
 
 
 def test_best_is_rejects_a_non_class_argument() -> None:
     # The class wall fires before any bundle read, so no runtime state is
     # needed to probe it (the argument is a literal in the game file).
-    with pytest.raises(RuntimeError, match="not a declaration class"):
+    with pytest.raises(OwnerGuardError, match="not a declaration class"):
         belote_best_is(
             cast(sidecar.EngineFacts, None), cast(reads.GameReads, None), 0, 7, "A", False
         )

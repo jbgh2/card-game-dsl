@@ -9,10 +9,10 @@ hand-enumerating cells per game. Only the grid family is registered at rung
 
 from __future__ import annotations
 
-from cardlang.runtime.errors import OwnerGuardError
-
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from cardlang.runtime.errors import OwnerGuardError
 
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
 

@@ -56,6 +56,7 @@ from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 
 def _game(body: str, extra_state: str = "") -> str:
@@ -267,7 +268,7 @@ def test_no_eligible_participant_is_a_loud_error() -> None:
         ),
         "test.cardlang",
     )
-    with pytest.raises(RuntimeError, match="no eligible participant"):
+    with pytest.raises(OwnerGuardError, match="no eligible participant"):
         play_game(game, random.Random(0))
 
 
@@ -309,7 +310,7 @@ def test_non_seat_leader_is_a_loud_typed_error() -> None:
         _game("  phase p { turns t from (0 + 5) over all players until stop { score[t] += 1 } }"),
         "test.cardlang",
     )
-    with pytest.raises(RuntimeError, match="not a seat"):
+    with pytest.raises(OwnerGuardError, match="not a seat"):
         play_game(game, random.Random(0))
 
 
@@ -364,5 +365,5 @@ def test_decisionless_nontermination_hits_the_iteration_backstop() -> None:
         ),
         "test.cardlang",
     )
-    with pytest.raises(RuntimeError, match="max_length"):
+    with pytest.raises(OwnerGuardError, match="max_length"):
         play_game(game, random.Random(0))

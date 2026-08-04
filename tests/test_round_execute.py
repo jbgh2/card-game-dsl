@@ -5,6 +5,7 @@ import pytest
 
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 SRC = """
 game G {
@@ -125,7 +126,7 @@ def test_round_state_read_without_a_round_fails_loudly() -> None:
     # validates the field, not the read's position in game flow), so the loud
     # failure is a typed RuntimeError — the runtime's currency — not an assert.
     game = check_dsl(NO_ROUND_SRC, "g.cardlang")
-    with pytest.raises(RuntimeError, match="no active or just-completed round"):
+    with pytest.raises(OwnerGuardError, match="no active or just-completed round"):
         play_game(game, random.Random(0))
 
 

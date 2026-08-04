@@ -18,6 +18,7 @@ from typing import Any, Protocol
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime import observe, phases, reads, rules, sidecar
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
 from cardlang.runtime.values import Player
@@ -181,7 +182,7 @@ class TrickForm:
             # No implicit pass: a player on turn must have a legal play. An empty
             # set means a rule filtered every card with no `if_impossible` fallback,
             # or the player's hand is exhausted — both malformed for a trick.
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"player {actor} has no legal play in the trick; a constraining "
                 f"rule needs an `if_impossible` clause, or the participants are wrong"
             )
@@ -371,12 +372,17 @@ class AuctionForm:
         while True:
             state["guard"] += 1
             if state["guard"] > 1000:  # ring steps, not productive turns
-                raise RuntimeError("auction did not terminate within 1000 ring steps")
+                raise OwnerGuardError(
+                    "auction did not terminate within 1000 ring steps — a fixed "
+                    "engine limit, not the game's `max_length`, so raising that "
+                    "declaration will not help: the `until` predicate and the "
+                    "participants clause must between them end the ring"
+                )
             participants = set(evaluate(self.stmt.participants, ctx))
             if self.stmt.order_mode == n.ROUND_ORDER_PRIORITY:
                 player = next((p for p in order if p in participants), None)
                 if player is None:
-                    raise RuntimeError(
+                    raise OwnerGuardError(
                         "priority round: no participant is pending but the `until` "
                         "predicate is unsatisfied (the termination and participants "
                         "clauses disagree)"
@@ -413,7 +419,7 @@ class AuctionForm:
             # candidate set is a malformed game: a missing always-legal move (give
             # `pass` no `when:`), or a participants filter that should have dropped
             # this player.
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"auction: participant {actor} has no legal move. Give an "
                 f"always-legal move (e.g. an unguarded `pass`) or exclude "
                 f"dropped-out players from the participants clause "
@@ -507,7 +513,7 @@ class ClimbForm:
             # Runtime DATA, not a compiler invariant: nobody satisfies `over`,
             # so there is no one to lead and no one to follow. Report it in
             # the participants' currency — the leader is not the problem.
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"round climb: no participant to lead — the `over` set is "
                 f"empty, so the round has no actor (leader was "
                 f"{self.leader}); make `until` cover this state"
@@ -544,7 +550,13 @@ class ClimbForm:
         while True:
             state["guard"] += 1
             if state["guard"] > 5000:
-                raise RuntimeError("climb trick exceeded 5000 plays without resolving")
+                raise OwnerGuardError(
+                    "climb trick exceeded 5000 plays without resolving — a "
+                    "fixed engine limit, not the game's `max_length`, so "
+                    "raising that declaration will not help: make the `until` "
+                    "predicate reachable, or drop players who can never play "
+                    "from the `over` clause"
+                )
             pointer: int = state["idx"]
             turn = ring[pointer % len(ring)]
             if state["current"] is not None and turn == state["last"]:

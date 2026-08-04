@@ -15,9 +15,10 @@ from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
-from cardlang.domains import role_members, require_role
+from cardlang.domains import require_role, role_members
 from cardlang.runtime import phases
 from cardlang.runtime.chooser import random_chooser
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.execute import execute
 from cardlang.runtime.execute import run_body as run_stmts
@@ -137,7 +138,7 @@ def play_game(
         # decisions per iteration is caught here, not silently under-bounded.
         rs.decisions_made += n
         if rs.decisions_made > rs.max_length:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"the game made {rs.decisions_made} decisions, exceeding its "
                 f"declared max_length ({rs.max_length}) — non-termination, or "
                 "raise max_length if this game genuinely runs this long"
@@ -206,7 +207,7 @@ def play_game(
             # `loser:` takes any expression and the checker leaves its type
             # open, so the player-ness of the result is checked here — a
             # game-description error in the runtime's currency.
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
                 f"not a player"
             )
@@ -292,7 +293,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 # Owner Guard.
                 guard += 1
                 if guard > ctx.rs.max_length:
-                    raise RuntimeError(
+                    raise OwnerGuardError(
                         f"phase '{phase.name}' repeated {guard} times without its "
                         "`repeat until` condition holding, exceeding the game's "
                         f"declared max_length ({ctx.rs.max_length}) — non-termination, "
@@ -373,7 +374,7 @@ def run_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             if target <= i:
                 # `continue to` is forward-only — a backward jump would re-run the
                 # producer and loop forever. Fail loudly rather than hang.
-                raise RuntimeError(
+                raise OwnerGuardError(
                     f"`continue to {jump.target}` is not a forward phase from "
                     f"'{phase.name}'"
                 )

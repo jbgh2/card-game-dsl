@@ -16,6 +16,7 @@ from cardlang.ast import nodes as n
 from cardlang.ir import emit
 from cardlang.openspiel.infostate import information_state
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -140,13 +141,13 @@ def test_reveal_reaches_the_derived_information_state() -> None:
 
 def test_reveal_fails_loudly_when_the_filter_matches_nothing() -> None:
     ctx, _logs, stmt = _setup([KING_CLUBS])  # no queen in the zone
-    with pytest.raises(RuntimeError, match="reveal"):
+    with pytest.raises(OwnerGuardError, match="reveal"):
         execute(stmt, ctx)
 
 
 def test_reveal_fails_loudly_on_an_empty_zone() -> None:
     ctx, _logs, stmt = _setup([])
-    with pytest.raises(RuntimeError, match="reveal"):
+    with pytest.raises(OwnerGuardError, match="reveal"):
         execute(stmt, ctx)
 
 
@@ -162,7 +163,7 @@ def test_reveal_without_a_filter_takes_the_first_card_and_leaves_the_zone_alone(
 
 def test_reveal_without_a_filter_fails_loudly_on_an_empty_zone() -> None:
     ctx, _logs, stmt = _setup([], src=SRC_NO_FILTER)
-    with pytest.raises(RuntimeError, match="reveal"):
+    with pytest.raises(OwnerGuardError, match="reveal"):
         execute(stmt, ctx)
 
 

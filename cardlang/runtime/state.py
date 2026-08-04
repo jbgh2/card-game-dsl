@@ -21,6 +21,7 @@ from cardlang.domains import (
     role_of,
     role_static_members,
 )
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -181,7 +182,7 @@ class ZoneStore:
 
     def single(self, name: str) -> Zone:
         if name not in self.singles:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"no single zone '{name}' in this game — this asks for a zone "
                 f"the game never declared"
             )
@@ -209,7 +210,7 @@ class ZoneStore:
         # a typed error. A board-minted family keys by a cell name (str), so
         # the key is `int | str`.
         if name not in self.families:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"no zone family '{name}' in this game — this asks for a "
                 f"family the game never declared"
             )
@@ -217,7 +218,7 @@ class ZoneStore:
         if key not in family:
             role = self.zone_index.get(name)
             indexed = f"indexed by '{role}'" if role else "indexed"
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"zone family '{name}' is {indexed} and has no instance "
                 f"keyed {key!r} — its instances are keyed "
                 f"{sorted(family)}"
@@ -392,7 +393,7 @@ class Ctx:
         (`for each`, the simultaneous pass, move effects) always pass a real
         seat, so this never fires for them."""
         if player not in self.rs.seating.players:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"cannot act as {player!r}: not a seat of this "
                 f"{len(self.rs.seating.players)}-player game — the player "
                 f"expression bound a non-player value"
@@ -405,7 +406,7 @@ class Ctx:
         fail loudly rather than silently attributing it to player 0. (Seat
         validity is enforced upstream, when the player is bound — `acting_as`.)"""
         if self.current_player is None:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"{what} with no acting player; make it part of a per-player "
                 f"context (`as <player>` for one decider, `for each player p` "
                 f"for all) so the chooser knows who decides"

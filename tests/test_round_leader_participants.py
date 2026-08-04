@@ -129,6 +129,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import mechanics
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import ChooserAbort
 from cardlang.runtime.values import GAME_DIRECTIONS
 
@@ -386,7 +387,7 @@ def test_leader_participants_grid(
         # runtime's currency — silently normalizing `9` to seat 1 and running
         # the round with the wrong leader is the defect issue #168 names.
         check_dsl(src, "grid.cardlang")  # accepted statically, by design
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(OwnerGuardError) as excinfo:
             _first_actor(src)
         assert "not a seat" in str(excinfo.value)
         return

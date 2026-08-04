@@ -72,6 +72,7 @@ from cardlang.domains import (
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.mechanics import param_domain
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 
@@ -256,10 +257,15 @@ def test_positions_are_unowned_for_every_observer() -> None:
 # --- the runtime backstop behind the bare-reference wall ---------------------
 
 
+@pytest.mark.expects_shadow_guard
 def test_bare_position_family_read_is_a_typed_runtime_error() -> None:
-    """resolve walls the DSL spelling (rejection corpus); the runtime
-    backstop must fail typed — never a phantom-key KeyError — if a
-    construction path ever bypasses it."""
+    """`resolve._check_position_family_refs` is the Owner Guard for the DSL
+    spelling (rejection corpus); this Shadow Guard must fail typed — never a
+    phantom-key KeyError — if a construction path ever bypasses it.
+
+    Marked `expects_shadow_guard`: constructing one is the engine gap the
+    suite-wide Pin catches, and this test does it deliberately.
+    """
     from cardlang.ast import nodes as n
     from cardlang.runtime.evaluate import evaluate
     from cardlang.runtime.state import Ctx, RuntimeState
@@ -276,8 +282,9 @@ def test_bare_position_family_read_is_a_typed_runtime_error() -> None:
     )
     ctx = Ctx(rs=captured["rs"], chooser=chooser).acting_as(0)
     ref = n.NameRef("pile", ref_kind="zone")
-    with pytest.raises(RuntimeError, match="must be subscripted"):
+    with pytest.raises(ShadowGuardError, match="must be subscripted") as caught:
         evaluate(ref, ctx)
+    assert caught.value.leaked == "resolve._check_position_family_refs"
 
 
 # --- `to each` over a position family (the existing wall owns the class) -----
@@ -388,7 +395,7 @@ def test_top_is_the_sequence_end_and_bottom_the_front() -> None:
 
     assert native_call("top_of", [pile], ctx) == Card("A", "spades")
     assert native_call("bottom_of", [pile], ctx) == Card("2", "spades")
-    with pytest.raises(RuntimeError, match="the collection is empty"):
+    with pytest.raises(OwnerGuardError, match="the collection is empty"):
         native_call("top_of", [zones.single("deck")], ctx)
-    with pytest.raises(RuntimeError, match="expects a collection of cards"):
+    with pytest.raises(OwnerGuardError, match="expects a collection of cards"):
         native_call("top_of", [[1, 2]], ctx)

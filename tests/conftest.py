@@ -25,7 +25,6 @@ reset around it, so an unmarked neighbour cannot inherit the exemption.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
 
 import pytest
 

@@ -18,6 +18,7 @@ recomputes winners from (tests/test_playout_doppelkopf.py).
 from __future__ import annotations
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
@@ -62,7 +63,7 @@ def doko_trick_winner(
     if len(cards) != 4:
         # The pile's live size is the hosting game's runtime data, so a wrong
         # call site is the description's error, in the runtime's currency.
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"doko_trick_winner: trick pile holds {len(cards)} cards, expected "
             f"a completed 4-card trick"
         )

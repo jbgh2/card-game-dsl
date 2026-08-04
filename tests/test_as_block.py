@@ -65,6 +65,7 @@ from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 
 def _as_blocks(game: n.Game) -> list[n.AsBlock]:
@@ -161,7 +162,7 @@ def test_out_of_range_player_is_a_loud_runtime_error() -> None:
     game = _decision_game(
         "as (0 + 5) { move chosen 1 cards from hand[dealer] to discard }"
     )
-    with pytest.raises(RuntimeError, match="not a seat"):
+    with pytest.raises(OwnerGuardError, match="not a seat"):
         _run_capturing(game)
 
 
@@ -172,7 +173,7 @@ def test_tany_non_player_bound_as_actor_is_a_loud_runtime_error() -> None:
     game = _decision_game(
         "as active_rules { move chosen 1 cards from hand[dealer] to discard }"
     )
-    with pytest.raises(RuntimeError, match="not a seat"):
+    with pytest.raises(OwnerGuardError, match="not a seat"):
         _run_capturing(game)
 
 

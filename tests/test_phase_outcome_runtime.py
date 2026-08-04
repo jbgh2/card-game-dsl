@@ -7,6 +7,7 @@ import pytest
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import state
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 
 def test_phase_outcome_dispatches_to_arm_and_binds_payload() -> None:
@@ -174,7 +175,7 @@ game G {
     game = check_dsl(src, "g.cardlang")
     # A conditional non-production is the description's error, so the raise is
     # a typed RuntimeError — the runtime's currency — not an assert.
-    with pytest.raises(RuntimeError, match="did not produce"):
+    with pytest.raises(OwnerGuardError, match="did not produce"):
         play_game(game, random.Random(0))
 
 

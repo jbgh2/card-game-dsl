@@ -154,6 +154,7 @@ from cardlang.pipeline import check_dsl
 from cardlang.resolve import _COLLECTION_NOUNS
 from cardlang.runtime.builtins import _lines
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, axis_attributes
@@ -813,7 +814,7 @@ def test_lines_out_of_range_at_runtime_is_a_typed_error() -> None:
     RuntimeError, never let the underlying ValueError escape the boundary."""
     game = check_dsl(_board_probe_src("done"), "probe.cardlang")
     ctx = _board_ctx(game, {})
-    with pytest.raises(RuntimeError, match=r"lines\(k\) requires k in 1\.\.3"):
+    with pytest.raises(OwnerGuardError, match=r"lines\(k\) requires k in 1\.\.3"):
         _lines(ctx, 99)
 
 

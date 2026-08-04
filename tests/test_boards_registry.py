@@ -138,8 +138,8 @@ import itertools
 
 import pytest
 
-from cardlang.stdlib import boards
 from cardlang.runtime.errors import OwnerGuardError
+from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
 
 GRIDS: list[tuple[int, int]] = [(1, 1), (2, 5), (5, 2), (16, 16), (3, 3)]

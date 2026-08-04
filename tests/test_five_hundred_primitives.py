@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import pytest
 
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.five_hundred import (
     five_hundred_bid_level,
     five_hundred_bid_value,
@@ -118,11 +119,11 @@ def test_joker_pseudo_strain_is_never_biddable() -> None:
 
 def test_off_ladder_ordinals_refuse_loudly() -> None:
     for bad in (0, 5, 37, 105 + 1, 251, -10):
-        with pytest.raises(RuntimeError, match="not a contract ordinal"):
+        with pytest.raises(OwnerGuardError, match="not a contract ordinal"):
             five_hundred_bid_value(bad)
     # The misères have no trick target; asking is the description's error.
     for bad in (105, 235, 0, 37):
-        with pytest.raises(RuntimeError, match="not a suit/no-trump contract"):
+        with pytest.raises(OwnerGuardError, match="not a suit/no-trump contract"):
             five_hundred_bid_level(bad)
 
 
