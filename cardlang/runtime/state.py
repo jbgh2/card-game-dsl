@@ -21,7 +21,7 @@ from cardlang.domains import (
     role_of,
     role_static_members,
 )
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -153,17 +153,21 @@ class ZoneStore:
                 # deliberately-empty () sources and build a zero-instance
                 # family — every later access would then be refused for a
                 # missing key, far from the declaration that caused it.
-                # Resolve's Owner Guard rejects these declarations; reaching
-                # this raise means a construction path bypassed it.
+                # `resolve._resolve_zone` is the Owner Guard for these
+                # declarations; reaching this raise means a construction path
+                # bypassed it. Typed as a Shadow Guard rather than asserted so
+                # the suite-wide Pin can see it — an assert is invisible to
+                # both that Pin and the site census, which would leave a
+                # self-described Shadow Guard that no check could observe.
                 if (
                     role_of(decl.index) not in ZONE_INDEX_ROLES
                     and decl.index not in positions
                 ):
-                    raise AssertionError(
+                    raise ShadowGuardError(
+                        "resolve._resolve_zone",
                         f"zone family '{decl.name}' is indexed by "
                         f"'{decl.index}', which is not a zone-index role or a "
-                        f"declared position domain (resolve rejects this "
-                        f"declaration)"
+                        f"declared position domain",
                     )
                 keys = role_static_members(
                     decl.index,
