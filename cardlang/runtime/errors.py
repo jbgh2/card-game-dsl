@@ -33,10 +33,10 @@ than `RuntimeError`: rooting at `RuntimeError` would silently make every
 `error(...)` deliberately and the move being refused IS the rule working. It
 stays a plain `Exception`.
 
-The corpus/checkout layout failures (`openspiel/registry.py`, `libraries.py`)
-fire at import with no game running, so the faulty artifact is the checkout or
-the wheel. They stay outside: a harness catching `GameDescriptionError` must
-never swallow a missing corpus directory.
+`InstallationError` is defined here but is deliberately NOT under
+`GameDescriptionError` — see its own docstring. It lives in this module because
+this is where the engine says who must act on a failure, and "the person who
+installed it" is one of those people.
 """
 
 from __future__ import annotations
@@ -80,3 +80,25 @@ class ShadowGuardError(GameDescriptionError):
         """
         super().__init__(f"{leaked} should have refused this earlier — {message}")
         self.leaked = leaked
+
+
+class InstallationError(Exception):
+    """The engine's own data files are missing or malformed in this checkout.
+
+    Author: whoever installed or checked out cardlang. Not the game author (no
+    game is running — these fire while the engine is still loading itself), not
+    the engine maintainer (the source is fine; what shipped alongside it is
+    not). The corpus of games and the family libraries both load from paths
+    relative to the package, so a partial wheel or a moved directory is a real
+    and recurring failure with nobody else to blame.
+
+    Deliberately NOT under `GameDescriptionError`: a harness catching that base
+    to report "this game is illegal" must never swallow a missing corpus
+    directory and carry on with an empty game list. Keeping it a sibling is
+    what makes the two impossible to confuse.
+
+    Having a type at all is what lets the site census key on the TYPE rather
+    than on a list of file:line exclusions — an exclusion list would go stale
+    the first time these modules were edited, and would silently swallow a
+    genuine game-description guard added to them later.
+    """

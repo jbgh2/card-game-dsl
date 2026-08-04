@@ -74,8 +74,13 @@ def test_derive_games_raises_on_an_empty_directory(tmp_path: Path) -> None:
     # The packaging failure made loud: an empty (or missing) corpus directory
     # would derive an empty registry and register no games silently.
     from cardlang.openspiel.registry import _derive_games
+    from cardlang.runtime.errors import InstallationError
 
-    with pytest.raises(RuntimeError, match="no .cardlang games found"):
+    # `InstallationError`, not `RuntimeError`: the type is the claim about WHO
+    # must act (the person who installed or checked this out), and it is a
+    # sibling of `GameDescriptionError` so a harness reporting illegal games
+    # cannot swallow a missing corpus.
+    with pytest.raises(InstallationError, match="no .cardlang games found"):
         _derive_games(tmp_path)
 
 
@@ -84,10 +89,11 @@ def test_derive_games_raises_on_a_short_name_collision(tmp_path: Path) -> None:
     # (`-` vs `_`) map to one OpenSpiel name; a dict would keep the last
     # silently, dropping a game.
     from cardlang.openspiel.registry import _derive_games
+    from cardlang.runtime.errors import InstallationError
 
     (tmp_path / "go-fish.cardlang").write_text("")
     (tmp_path / "go_fish.cardlang").write_text("")
-    with pytest.raises(RuntimeError, match="same OpenSpiel short name"):
+    with pytest.raises(InstallationError, match="same OpenSpiel short name"):
         _derive_games(tmp_path)
 
 

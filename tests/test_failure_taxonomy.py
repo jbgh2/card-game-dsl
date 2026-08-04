@@ -108,6 +108,11 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # --- Author: the primitive-module maintainer ---------------------------
     # Disjoint from the tree BY ROOT, not by a list anyone maintains.
     "PrimitiveReadError": {"in_game_description_tree": False, "is_runtime_error": True},
+    # --- Author: whoever installed or checked the package out --------------
+    # A sibling, never a child: a harness catching `GameDescriptionError` to
+    # report an illegal game must not swallow a missing corpus directory and
+    # carry on with an empty game list.
+    "InstallationError": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},
