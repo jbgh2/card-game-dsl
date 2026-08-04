@@ -255,8 +255,29 @@ def compare_arms(
     only executes it. Pairing is by SEED, so the same deal is compared across
     arms and the deal draw cannot explain a difference.
     """
-    control = {r["seed"]: r for r in _load(control_path)}
-    arm = {r["seed"]: r for r in _load(arm_path)}
+    def _key(record: dict[str, Any]) -> tuple[int, str]:
+        """The experimental unit: a deal PLUS which seat the model sat in.
+
+        Not the seed alone. Under balanced seating each seed is played once per
+        seating, so keying on the seed would keep whichever game came last and
+        silently discard half the run — and not at random, since the survivor is
+        always the same seating. Measured before this was keyed properly: 150 of
+        300 games dropped, every one of the survivors with the model at seat 1.
+        """
+        seat = next(s for s, name in record["seats"].items() if name.startswith("llm"))
+        return int(record["seed"]), str(seat)
+
+    control_records = _load(control_path)
+    arm_records = _load(arm_path)
+    control = {_key(r): r for r in control_records}
+    arm = {_key(r): r for r in arm_records}
+    if len(control) != len(control_records) or len(arm) != len(arm_records):
+        raise ValueError(
+            f"transcripts hold repeated (seed, seat) units — control "
+            f"{len(control_records)} games to {len(control)} units, arm "
+            f"{len(arm_records)} to {len(arm)}. Pairing would drop games "
+            f"silently, which is what this check exists to prevent."
+        )
     shared = sorted(set(control) & set(arm))
 
     def rate(record: dict[str, Any]) -> tuple[int, int]:
@@ -273,9 +294,9 @@ def compare_arms(
 
     pairs: list[tuple[float, float]] = []
     ca = cd = aa = ad = 0
-    for seed in shared:
-        ct, co = rate(control[seed])
-        at, ao = rate(arm[seed])
+    for unit in shared:
+        ct, co = rate(control[unit])
+        at, ao = rate(arm[unit])
         ca += ct
         cd += co
         aa += at
@@ -285,8 +306,11 @@ def compare_arms(
     up, down, tied, p = sign_test(pairs)
     return {
         "endpoint": endpoint,
-        "seeds_shared": len(shared),
-        "seeds_with_an_opportunity_in_both": len(pairs),
+        "units_shared": len(shared),
+        "units_are": "(deal seed, seat the model sat in)",
+        "games_control": len(control_records),
+        "games_arm": len(arm_records),
+        "units_with_an_opportunity_in_both": len(pairs),
         "control": {"taken": ca, "offered": cd, "rate": _rate(ca, cd)},
         "arm": {"taken": aa, "offered": ad, "rate": _rate(aa, ad)},
         "paired_sign_test": {"up": up, "down": down, "tied": tied, "p_two_sided": p},

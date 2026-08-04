@@ -38,12 +38,15 @@
 == the pre-registered A/B (PREREGISTRATION_KUHN.md)
 {
   "endpoint": "dominated_action_rate",
-  "seeds_shared": 150,
-  "seeds_with_an_opportunity_in_both": 14,
+  "units_shared": 300,
+  "units_are": "(deal seed, seat the model sat in)",
+  "games_control": 300,
+  "games_arm": 300,
+  "units_with_an_opportunity_in_both": 14,
   "control": {
     "taken": 8,
-    "offered": 14,
-    "rate": 0.5714285714285714
+    "offered": 38,
+    "rate": 0.21052631578947367
   },
   "arm": {
     "taken": 0,

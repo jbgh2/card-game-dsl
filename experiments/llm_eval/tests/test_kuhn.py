@@ -22,6 +22,8 @@ the `openspiel` extra, and the solver tests do not need it at all.
 from __future__ import annotations
 
 import itertools
+import json
+import os
 from typing import Any
 
 import pytest
@@ -813,6 +815,89 @@ def test_purity_is_judged_on_visited_infosets_only() -> None:
     stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "bet"))
     stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "check"))
     assert stats.rates()["policy_is_pure"] is False
+
+
+def test_pairing_keeps_every_game_under_balanced_seating(tmp_path: Any) -> None:
+    """The A/B's experimental unit is (deal, seat), not the deal alone.
+
+    Balanced seating plays each seed once per seating, so keying the paired
+    analysis on the seed silently keeps whichever game came last — half the run,
+    and always the same seating, so the survivors are not a random half. Measured
+    before this was keyed properly: 150 of 300 games dropped, every survivor with
+    the model at seat 1.
+
+    This is the repo's named silent-cap defect: coverage bounded with nothing
+    saying what was dropped. The fix refuses rather than truncates.
+    """
+    from ..verify_kuhn import compare_arms
+
+    def write(path: Any, actions: dict[tuple[int, int], str]) -> str:
+        lines = []
+        for (seed, llm_seat), action in actions.items():
+            facts = K.decision_facts(
+                llm_seat, _fake_infostate(llm_seat, "J", ("bet",)), action
+            )
+            lines.append(
+                json.dumps(
+                    {
+                        "seed": seed,
+                        "seats": {
+                            str(llm_seat): "llm_x",
+                            str(1 - llm_seat): "nash",
+                        },
+                        "terminal": True,
+                        "returns": [0.0, 0.0],
+                        "decisions": [
+                            {"player": llm_seat, "facts": facts, "llm": {}}
+                        ],
+                        "usage": {},
+                    }
+                )
+            )
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return str(path)
+
+    # Two seeds, each played in both seatings. The model blunders at seat 0 only,
+    # which is precisely what a seed-keyed pairing would have thrown away.
+    control = write(
+        tmp_path / "c.jsonl",
+        {(0, 0): "call", (0, 1): "fold", (1, 0): "call", (1, 1): "fold"},
+    )
+    arm = write(
+        tmp_path / "a.jsonl",
+        {(0, 0): "fold", (0, 1): "fold", (1, 0): "fold", (1, 1): "fold"},
+    )
+    out = compare_arms(control, arm)
+    assert out["units_shared"] == 4, "a game was dropped from the paired analysis"
+    assert out["games_control"] == 4 and out["games_arm"] == 4
+    assert out["control"]["taken"] == 2, (
+        "the seat-0 blunders vanished — the pairing is keyed on the seed alone"
+    )
+    assert out["paired_sign_test"]["down"] == 2
+
+
+def test_pairing_refuses_a_transcript_with_repeated_units() -> None:
+    """If two games ever share a (seed, seat) the pairing would drop one, so it
+    raises instead. A silent drop is the failure this whole unit exists to
+    prevent, and it must not be reintroduced by a config nobody anticipated."""
+    from ..verify_kuhn import compare_arms
+    import tempfile
+
+    record = {
+        "seed": 0,
+        "seats": {"0": "llm_x", "1": "nash"},
+        "terminal": True,
+        "returns": [0.0, 0.0],
+        "decisions": [],
+        "usage": {},
+    }
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "dupe.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+            handle.write(json.dumps(record) + "\n")
+        with pytest.raises(ValueError, match="repeated"):
+            compare_arms(path, path)
 
 
 def test_the_deal_space_is_the_six_kuhn_deals() -> None:

@@ -92,9 +92,10 @@ model, sampling parameters, rules text.
 
 | | control | reason-first |
 |---|---|---|
-| dominated actions, paired seeds | **8 / 14** | **0 / 14** |
-| dominated actions, all seeds | 8 / 38 | 0 / 14 |
-| paired sign test | 8 pairs down, 0 up, 6 tied | |
+| dominated actions taken | **8 / 38** = 0.211 | **0 / 14** = 0.000 |
+| paired units (deal x seat) | 300 | 300 |
+| units where both faced the choice | 14 | 14 |
+| paired sign test | 8 down, 0 up, 6 tied | |
 | **exact two-sided p** | **0.0078** | |
 
 Every one of the eight discordant pairs moved in the registered direction. All
@@ -118,14 +119,22 @@ honest player.
 
 ### Caveats on this test, stated rather than buried
 
-- Pairing is on seeds where **both** arms faced a dominated-action opportunity
-  (14 of 150 deals). Whether an opportunity arises depends on how the arm played
+- The sign test runs on the 14 units where **both** arms faced a
+  dominated-action choice. Whether one arises depends on how the arm played
   earlier in the hand, so this conditions on a post-treatment variable. The
-  unpaired counts point the same way (8/38 vs 0/14) but have different
-  denominators for the same reason.
+  unpaired counts point the same way (8/38 vs 0/14).
 - The arms' denominators differ (38 vs 14) because they play differently and so
   reach different situations — the same confound the Cheat report flagged for its
   own arm.
+- **Protocol deviation.** The pre-registration fixed N = 300 games per arm
+  against a config in which 300 games meant 300 distinct deals. Balanced seating
+  was added afterwards, to fix the confound described at the end of this file, so
+  300 games now means 150 deals played in both seatings. That halves the number
+  of independent deals relative to what was registered. The change was made to
+  correct a defect rather than to chase a result, and it applies identically to
+  both arms — but it is a deviation from the registered stopping rule and is
+  recorded as one. The registered *no-interim-look* rule held: the only interim
+  analysis was of `llm_mid_vs_nash`, which is not an arm.
 - One model, N=300. The effect is a 300-game result on Haiku 4.5, not a claim
   about models in general.
 
@@ -222,12 +231,17 @@ games carry.
 |---|---|
 | **New DSL written** | **0 lines** |
 | DSL this stands on (already in the corpus) | `kuhn-poker.cardlang` 134 lines + `poker_betting.cardlang` 142 shared |
-| New harness code | `kuhn.py` 475, `verify_kuhn.py` 268, `test_kuhn.py` 486 (code lines, excluding comments and docstrings) |
-| Existing harness modified | +204 / −38 lines across 6 files |
-| Config + pre-registration | 149 + 95 lines |
-| Wall clock, start to finished report | ~1 h 50 min |
-| API spend, this run | $3.74 (Sonnet $2.16, Haiku $1.59) |
-| API spend, whole session incl. a discarded sweep | ~$6.35 |
+| New harness code | `kuhn.py` 539, `verify_kuhn.py` 292, `test_kuhn.py` 575 — **1406 code lines** (comments and docstrings excluded; 2218 lines as written) |
+| Existing harness modified | **+331 / −65** across 7 files |
+| Config, pre-registration, this report | 149 + 95 + 278 lines |
+| Wall clock, start to finished report | ~2 h 15 min |
+| API spend, the reported run | **$3.74** (Sonnet $2.16, Haiku $1.59) |
+| API spend, whole session incl. a discarded sweep | **~$6.35** |
+
+Roughly 40% of the new code is the two verification layers — `test_kuhn.py` and
+`verify_kuhn.py` — rather than the experiment. That ratio is the point: the
+solver has to be checkable against something that does not share its
+assumptions, or its numbers are just assertions.
 
 The Cheat experiment cost roughly $90 to run. A Cheat hand is ~210 sequential
 API calls with prompts that grow with the observation log; a Kuhn hand is 1.2
@@ -254,7 +268,7 @@ returns on every game.
 
 ---
 
-## Two defects the run found that the tests did not
+## Three defects the run found that the tests did not
 
 Both were found by executing the experiment, not by inspecting it, and both are
 now pinned by tests that fail under the old behaviour.
@@ -276,3 +290,15 @@ action, not a bluff — and let the opponent's betting frequency move its
 denominator. The identical equilibrium policy scored 0.187 against itself and
 0.144 against a random opponent. It is now betting-only and reported per
 information set, where nothing outside the agent's own policy can move it.
+
+**The pre-registered test silently ran on half the data.** The paired analysis
+keyed on the deal seed. Under balanced seating each seed is played once per
+seating, so a dict keyed on the seed kept whichever game came last — 150 of 300
+games discarded, and not at random: every survivor had the model at seat 1. The
+experimental unit is now (deal, seat), and a repeated unit is a refusal rather
+than a silent drop. The corrected control rate is 8/38, not the 8/14 the broken
+pairing implied; the sign test itself is unchanged at p = 0.0078, because the
+discarded half contained no additional discordant pairs. This one is the repo's
+own named silent-cap defect — bounded coverage with nothing saying what was
+dropped — and it was caught by a reviewer noticing that `units_shared` was 150
+when the transcripts held 300 games.
