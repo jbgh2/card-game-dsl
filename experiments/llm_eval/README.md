@@ -1,8 +1,13 @@
-# LLM evaluation harness — Cheat through the derived-information-set interface
+# LLM evaluation harness — corpus games through the derived-information-set interface
 
-An LLM plays **Cheat** (four players, one standard deck) against non-LLM
-baselines, through the engine's *derived* information sets, and is measured on
-deception-relevant behaviour: how often it lies when it could have told the
+An LLM plays a **corpus game** against non-LLM baselines, through the engine's
+*derived* information sets. Two games are wired up today: **Cheat** (four
+players, one standard deck), which carries the published deception result, and
+**heads-up fixed-limit Hold'em**, which exists to measure what a second game
+costs. Everything game-specific is a `packs.py` entry; see "A second game"
+below.
+
+On Cheat the model is measured on deception-relevant behaviour: how often it lies when it could have told the
 truth, how well it tells a provable lie from a merely improbable one, and how
 often it accuses wrongly.
 
@@ -190,6 +195,53 @@ missing-at-random: games run long exactly when nobody is shedding.
 
 ---
 
+## A second game — heads-up limit Hold'em
+
+The harness plays more than Cheat. Everything game-specific lives in a **pack**
+(`packs.py`): the rules text, the per-decision facts, and the baseline policy.
+Everything else — the referee, the providers, the transcript format, the budget,
+and the win-rate/fallback/token statistics — is game-generic and was not touched
+to add the second game.
+
+```bash
+# Baseline separation. No API key. ~10 seconds for 400 hands.
+python -m experiments.llm_eval.run_eval \
+  --config experiments/llm_eval/config_holdem.yaml --matchup rule_vs_random
+
+# Everything, including the LLM matchups.
+python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_holdem.yaml
+
+# The independent recomputation. `--game` is required for a non-Cheat
+# transcript: a game's rate table run over another game's data prints
+# `0 / 0 = None` for every rate and reads like a clean audit.
+python -m experiments.llm_eval.verify --game cardlang_holdem_heads_up \
+  --dir experiments/llm_eval/results_holdem/transcripts
+```
+
+**Output goes to a separate tree**, `results_holdem/`. `study.py` and `verify.py`
+default to `results/transcripts`, the curated Cheat archive; another game's
+transcripts inside that glob would silently fold poker hands into the published
+Cheat numbers.
+
+**What is measured, and what is not.** Win rate, mean chip delta, and
+offer-conditioned action rates (`fold_rate` is folds over the decisions where
+folding was *legal* — over all decisions it would mix "declined to fold" with
+"could not fold"). Deliberately **no deception metric**: Cheat's
+`provably_false` works because a claim is checkable against the observer's own
+cards, and a raise has no such check. A bluff ground truth for poker is separate
+work and inventing one here would be a number with nothing behind it.
+
+**Read mean chip delta, not win rate.** Heads-up with two forced blinds, a
+player can win a minority of hands and still finish ahead. The first version of
+this baseline did exactly that — 33.8% of hands won, +43 chips over 400 — which
+is why `tests/test_holdem_pack.py` asserts the baseline's edge over random in
+**chips**, and why win rate alone could not have caught it.
+
+To add a third game: write its pack, register it in `PACKS`, drop it from
+`UNPACKED`, and add a config. `tests/test_packs.py` fails if a corpus game is in
+neither collection, and `pack_for` refuses an unpacked game rather than
+defaulting to Cheat's rules text.
+
 ## Adding an experiment
 
 Add a matchup to `config.yaml`. To vary the response format, add a `ResponseArm`
@@ -207,6 +259,9 @@ registered endpoint carries `*`.
 
 ```
 agents.py      Agent protocol + DecisionView; Random, Rule and LLM agents
+packs.py       The per-game seam: rules text, decision facts, baseline, registry
+cheat_pack.py  Cheat's pack (names the existing modules; moves no code)
+holdem_pack.py Heads-up Hold'em's pack: rules text, infostate parser, baseline
 prompts.py     Rules text, build_prompt (pure), response arms, parsing
 providers.py   Model-API abstraction (Anthropic, Fake), usage and pricing
 infostate.py   Pure parser over the engine's information-state string
@@ -219,6 +274,7 @@ verify.py      Independent recomputation; --deep replays, --order audits an arm
 compare.py     Two matchups side by side, with the pre-registered endpoint
 study.py       Rebuild the study summary + figure from the archive
 figure.py      The one matplotlib figure
-config.yaml    Matchups, N, seeds, models, token caps
+config.yaml    Matchups, N, seeds, models, token caps (Cheat)
+config_holdem.yaml  The same, for heads-up Hold'em
 tests/         Offline tests (fake provider only, no network)
 ```
