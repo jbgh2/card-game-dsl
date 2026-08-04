@@ -67,3 +67,4 @@ coverage.xml
 .env
 .superpowers
 experiments/llm_eval/results_kuhn/runs/
+experiments/llm_eval/results_kuhn/estimate/

@@ -2,7 +2,7 @@
   "config": "/Users/benh/Projects/Card game DSL/.claude/worktrees/mystifying-nightingale-c446da/experiments/llm_eval/config_kuhn.yaml",
   "game": "cardlang_kuhn_poker",
   "run": "2026-08-04T04-12-50Z",
-  "run_dir": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z",
+  "run_dir": "experiments/llm_eval/results_kuhn",
   "matchups": [
     {
       "games": 600,
@@ -295,7 +295,7 @@
       "games_this_invocation": 600,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/nash_vs_random.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/nash_vs_random.jsonl.gz",
       "usage": {}
     },
     {
@@ -451,7 +451,7 @@
       "games_this_invocation": 600,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/nash_vs_nash.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/nash_vs_nash.jsonl.gz",
       "usage": {}
     },
     {
@@ -728,7 +728,7 @@
       "games_this_invocation": 300,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/llm_mid_vs_nash.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_mid_vs_nash.jsonl.gz",
       "usage": {
         "mid": {
           "input_tokens": 602764,
@@ -1023,7 +1023,7 @@
       "games_this_invocation": 300,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/llm_cheap_rendered_nash.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_rendered_nash.jsonl.gz",
       "usage": {
         "cheap": {
           "input_tokens": 239892,
@@ -1314,7 +1314,7 @@
       "games_this_invocation": 300,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/llm_cheap_control_nash.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_control_nash.jsonl.gz",
       "usage": {
         "cheap": {
           "input_tokens": 486651,
@@ -1596,7 +1596,7 @@
       "games_this_invocation": 300,
       "stopped_early": null,
       "aborted": null,
-      "transcript": "experiments/llm_eval/results_kuhn/runs/2026-08-04T04-12-50Z/transcripts/llm_cheap_reason_first_nash.jsonl",
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_reason_first_nash.jsonl.gz",
       "usage": {
         "cheap": {
           "input_tokens": 398700,
@@ -1633,5 +1633,6 @@
       "cost_usd": 1.5867,
       "model": "claude-haiku-4-5"
     }
-  }
+  },
+  "promoted_from_run": "2026-08-04T04-12-50Z"
 }
