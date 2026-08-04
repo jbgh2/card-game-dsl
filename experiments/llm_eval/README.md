@@ -242,6 +242,58 @@ To add a third game: write its pack, register it in `PACKS`, drop it from
 neither collection, and `pack_for` refuses an unpacked game rather than
 defaulting to Cheat's rules text.
 
+### What it found
+
+One invocation, 2026-08-04T06:09:30Z to 07:11:50Z — **62 minutes**, **$6.33**.
+Every rate below recomputes from the committed archive with the command above.
+
+| matchup | N | mean net chips/hand | *t* | win rate | fallback |
+|---|---|---|---|---|---|
+| rule vs random | 400 | **+1.35** ± 0.80 | +3.31 | 0.513 ± 0.049 | 0.0000 |
+| Haiku 4.5 vs random | 200 | +0.41 ± 0.78 | +1.02 | 0.465 ± 0.069 | 0.0000 |
+| Haiku 4.5 vs rule | 200 | +0.68 ± 0.86 | +1.54 | 0.505 ± 0.069 | 0.0000 |
+| Sonnet 5 vs rule | 200 | **+1.21** ± 0.96 | +2.47 | 0.545 ± 0.069 | 0.0000 |
+
+Intervals are 95%; `t` is over the per-hand chip delta with seats alternating.
+No game truncated.
+
+**Two claims survive their intervals, and only two.** The rule baseline beats
+random (*t* = 3.31). Sonnet's edge over that baseline is *marginal* (*t* = 2.47,
+p ≈ 0.014 two-sided) and was **not pre-registered**, so it is suggestive rather
+than established. Everything else — Haiku against either opponent, and Sonnet
+against Haiku (+0.53 ± 1.29, both measured on the same baseline) — sits inside
+noise.
+
+**Haiku did not establish an edge over random**, which is the sentence to use
+rather than "Haiku lost". Its action profile says why: it checks 91% of the
+times checking is free and bets 11% of the times betting is available — a nearly
+pure check/call posture. Sonnet's is much more balanced (56% check, 53% bet).
+
+**The fallback rate is 0.0000 across all 1,511 model decisions.** No response
+failed to parse twice, at either model, on the first version of the rules text —
+so nothing here is a comprehension artifact, and the prompt needed no iteration.
+
+### What the second game cost
+
+The point of the exercise. Split by what a *third* game would and would not pay
+again:
+
+| | files | +lines | −lines | paid again per game? |
+|---|---|---|---|---|
+| corpus game (`.cardlang`, twin, primitive, proof + playout tests, 4 registry rows) | 12 | 932 | 0 | yes |
+| harness **seam** (packs, referee/metrics/agents/verify/study, their tests) | 13 | 633 | 57 | **no — one-time** |
+| harness **pack** (rules text, infostate parser, baseline, config, its tests) | 4 | 785 | 0 | yes |
+| docs | 1 | 61 | 5 | yes |
+
+So a third game costs roughly **1,700 lines** and none of the 633-line seam.
+Runtime cost, measured: $0.005/game on Haiku and $0.021 on Sonnet, against
+~$1.10/game for a Cheat episode — a Hold'em hand is 2–3 model calls where a
+Cheat episode is ~210.
+
+Dollars are **tokens × the list-price table in `providers.py`**, not a billing
+figure. The $6.33 above is the main invocation; the smoke ($0.0006) and the
+`--estimate 5` recon ($0.0264) bring the session to **$6.36**.
+
 ## Adding an experiment
 
 Add a matchup to `config.yaml`. To vary the response format, add a `ResponseArm`
