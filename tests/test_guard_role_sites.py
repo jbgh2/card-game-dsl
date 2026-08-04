@@ -130,84 +130,84 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     # --- engine maintainer: invariants over the engine's own registry data ---
     ("cardlang/stdlib/boards.py", "ValueError"): (
         20,
-        "BoardEntry.__post_init__ pins the family BUILDER's output; the "
+        ("BoardEntry.__post_init__ pins the family BUILDER's output; the "
         "messages say 'registry bug' and mean it. Deliberately NOT role-typed: "
         "resolve's catch narrows to OwnerGuardError precisely so these "
         "propagate as engine failures instead of becoming a diagnostic on the "
         "designer's `board:` line. Giving them an engine-bug TYPE is the "
-        "assert-currency question, which tests/test_assert_triage.py owns.",
+        "assert-currency question, which tests/test_assert_triage.py owns."),
     ),
     ("cardlang/runtime/values.py", "ValueError"): (
         4,
-        "Deck / ComponentSet __post_init__ invariants over the COMPONENT_SETS "
+        ("Deck / ComponentSet __post_init__ invariants over the COMPONENT_SETS "
         "registry literal. The grammar's only deck surface is a registry "
         "LOOKUP (`cards: NAME`), so no game file can construct one of these "
-        "and reach them; they fire at module import if the table is wrong.",
+        "and reach them; they fire at module import if the table is wrong."),
     ),
     ("cardlang/diagnostics.py", "ValueError"): (
         1,
-        "Span.__post_init__ (end precedes start). A malformed span is a "
-        "compile-pass bug; no game description can express one.",
+        ("Span.__post_init__ (end precedes start). A malformed span is a "
+        "compile-pass bug; no game description can express one."),
     ),
     # --- primitive-module maintainer -----------------------------------------
     ("cardlang/runtime/reads.py", "TypeError"): (
         3,
-        "deep_freeze's immutability refusals. Author is whoever declared the "
+        ("deep_freeze's immutability refusals. Author is whoever declared the "
         "Python type (`frozen=True, slots=True` is the fix), which is a "
         "different class from PrimitiveReadError's name/declaration coupling — "
-        "same audience, different artifact, so not that type either.",
+        "same audience, different artifact, so not that type either."),
     ),
     ("cardlang/runtime/tichu.py", "ValueError"): (
         1,
-        "The combo codec's play-universe refusal. Firing means the codec and "
+        ("The combo codec's play-universe refusal. Firing means the codec and "
         "the combination engine drifted — both Python in cardlang/runtime/, "
-        "neither reachable from a .cardlang file.",
+        "neither reachable from a .cardlang file."),
     ),
     # --- deliberate signals, caught by type ----------------------------------
     ("cardlang/runtime/state.py", "KeyError"): (
         2,
-        "_frame_of's miss is a SIGNAL: runtime/reads.py:409 catches KeyError "
+        ("_frame_of's miss is a SIGNAL: runtime/reads.py:409 catches KeyError "
         "by type and converts it to PrimitiveReadError, so retyping it breaks "
         "that conversion silently. ZoneStore.locate's is unreachable by "
-        "construction (Zone is instantiated only inside ZoneStore.__init__).",
+        "construction (Zone is instantiated only inside ZoneStore.__init__)."),
     ),
     ("cardlang/libraries.py", "KeyError"): (
         1,
-        "load_library on an unregistered name. Its own comment says resolve "
+        ("load_library on an unregistered name. Its own comment says resolve "
         "diagnoses the author-facing case with a span this module cannot see, "
-        "so reaching here is a caller bug, not a game-description one.",
+        "so reaching here is a caller bug, not a game-description one."),
     ),
     ("cardlang/libraries.py", "ValueError"): (
         1,
-        "A library file whose declared `library <name>` disagrees with its "
-        "filename. Author is the library author, not the game author.",
+        ("A library file whose declared `library <name>` disagrees with its "
+        "filename. Author is the library author, not the game author."),
     ),
     # --- the Interop boundary -------------------------------------------------
     ("cardlang/openspiel/encoding.py", "ValueError"): (
         5,
-        "Action-id and card-encoding misses at the OpenSpiel adapter seam. "
+        ("Action-id and card-encoding misses at the OpenSpiel adapter seam. "
         "Author is the adapter maintainer; OpenSpiel's own contract is what "
         "these enforce, and Interop is an anti-corruption layer whose "
-        "vocabulary is deliberately separate (glossary section 4).",
+        "vocabulary is deliberately separate (glossary section 4)."),
     ),
     # --- not defects: deferred surface ---------------------------------------
     ("cardlang/openspiel/encoding.py", "NotImplementedError"): (
         5,
-        "Encoder cases not yet built. NotImplementedError is self-describing "
+        ("Encoder cases not yet built. NotImplementedError is self-describing "
         "about both Author and remedy, which is why it is not being retyped: "
-        "'nobody implemented this yet' is not a guard refusing anything.",
+        "'nobody implemented this yet' is not a guard refusing anything."),
     ),
     ("cardlang/domains.py", "NotImplementedError"): (1, "Deferred domain surface — see the encoding row."),
     ("cardlang/runtime/evaluate.py", "NotImplementedError"): (1, "Deferred evaluator surface — see the encoding row."),
     ("cardlang/runtime/values.py", "NotImplementedError"): (
         1,
-        "component_set's registry miss. Its docstring names "
+        ("component_set's registry miss. Its docstring names "
         "resolve._resolve_component_set as the Owner Guard, so this is really "
         "a Shadow Guard wearing the wrong currency — the one row here that is "
         "a genuine mis-typing rather than a different Author. Left because its "
         "test pins NotImplementedError by name and the fix is a separate, "
         "provable change; recorded rather than swept so it is not mistaken "
-        "for a decision.",
+        "for a decision."),
     ),
 }
 
