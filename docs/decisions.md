@@ -1479,7 +1479,7 @@ complex-receiver dot form exists. Koenigrufen's runtime-chosen
 called king is the named reopener if a future game's relational
 subject resists this flattening.
 
-## The permissive top and the lookup-miss walls
+## `Any` means the top, never a failed lookup
 
 `Any` is the type checker's top: it is compatible with every type in
 both directions, and every operand guard short-circuits on it. That is
@@ -3688,7 +3688,7 @@ registries — the type checker cannot see it, so a pin substitutes for it:
 route through one check, deriving its axes from the registry it guards so
 it widens with that registry rather than going stale. Visibility is
 itself a choice, not a fact of nature: a string domain the checker cannot
-see can usually be promoted to one it can (see "Prefer the wall you
+see can usually be promoted to one it can (see "Prefer the guard you
 cannot need"), and the pin is the right mechanism only where that
 promotion is genuinely priced and declined. The domain table's role ids
 are the worked example of the promotion: they are `domains.Role`, a plain
@@ -3737,8 +3737,8 @@ above applies to a domain whose membership is enumerable — a union, a
 registry, a table. Over an OPEN domain the same shape is a defect in the
 other direction: an allow-list there would refuse values the language is
 deliberately permissive about, and a guard that manufactures an error is
-exactly what the gradual-typing promise forbids (see "The permissive top
-and the lookup-miss walls", which owns that case — `TAny` passes, and a
+exactly what the gradual-typing promise forbids (see "`Any` means the top,
+never a failed lookup", which owns that case — `TAny` passes, and a
 *lookup miss* against a table the program does have raises rather than
 falling back). The two rules meet at the same principle: a fallback
 standing in for an answer the program could have looked up is a silent
@@ -3746,7 +3746,7 @@ wrong answer. Deciding which side a domain sits on is therefore the first
 question, not an afterthought — and "unsure" resolves to closed, because
 an unnecessary loud failure is cheap and a silent default is not.
 
-### Prefer the wall you cannot need
+### Prefer the guard you cannot need
 
 Enforcement has a ladder, and each rung down costs more to hold:
 

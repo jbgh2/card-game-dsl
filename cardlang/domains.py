@@ -91,7 +91,7 @@ class Role(enum.Enum):
     cannot disagree — there is no second list to keep in step. Widening the
     registry means adding a member here, and every exhaustive `match` over
     `Role` then fails to compile until it answers for the new row, which is
-    what makes this a rung-1 Owner Guard (decisions.md "Prefer the wall you
+    what makes this a rung-1 Owner Guard (decisions.md "Prefer the guard you
     cannot need") rather than a scrape that has to be maintained.
 
     Deliberately NOT a `str` subclass. A `StrEnum` would compare equal to its
@@ -394,7 +394,7 @@ CARD_PARAM_DOMAINS: frozenset[str] = frozenset(
 # actor). The `Role` parameter now makes an unknown role unwritable, so the
 # only way the lookup could still miss is a member declared here without a row
 # — which is this one assert, over a four-element domain, instead of three
-# raises no caller can reach (decisions.md "Prefer the wall you cannot need":
+# raises no caller can reach (decisions.md "Prefer the guard you cannot need":
 # the fact moved from rung 2 to rung 1, and this is the residue that has to
 # stay).
 assert set(BY_ID) == set(Role), (

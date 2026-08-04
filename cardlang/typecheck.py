@@ -305,8 +305,8 @@ def _provisional_structs(game: Game) -> dict[str, TStruct]:
     `struct_and_function_registries`.
 
     The top here is deliberate and local — written at the site that introduces
-    it rather than reached as a lookup fallback (decisions.md, "The permissive
-    top and the lookup-miss walls") — and it does not survive the fixpoint for
+    it rather than reached as a lookup fallback (decisions.md, "`Any` means the
+    top, never a failed lookup") — and it does not survive the fixpoint for
     any field whose type is derivable.
     """
     structs: dict[str, TStruct] = {}
@@ -586,8 +586,8 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
     A LOOKUP that cannot legitimately miss raises instead of returning the top
     (`_env_miss`, `_untyped_operator`): the top satisfies every constraint, so
     missed lookup would silently switch off every Owner Guard below it rather than
-    merely losing precision. See decisions.md, "The permissive top and the
-    lookup-miss walls"; the audited top sites are pinned by
+    merely losing precision. See decisions.md, "`Any` means the top, never a
+    failed lookup"; the audited top sites are pinned by
     tests/test_permissive_top.py."""
     match e:
         case n.IntLit():
@@ -766,8 +766,9 @@ def _env_miss(kind: str, name: str, env_field: str, builder: str) -> AssertionEr
     is incomplete, which is a checker bug rather than a program error.
 
     This is the amplifier the permissive `TAny` used to hide (decisions.md
-    "Closed-domain completeness"; the resolution recorded in decisions.md, "The
-    permissive top and the lookup-miss walls"). A miss here used to return the
+    "Closed-domain completeness"; the resolution recorded in
+    decisions.md, "`Any` means the top, never a failed lookup"). A miss here
+    used to return the
     permissive top, and `TAny` satisfies EVERY constraint — so one unthreaded
     binder silently exempted every expression below it from every type Owner Guard,
     and the checker reported success. Both bugs the split was motivated by had

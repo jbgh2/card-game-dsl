@@ -168,7 +168,7 @@ def test_a_name_outside_the_registry_never_reaches_role_type() -> None:
     lives at the classification step instead, which is where a parsed name
     stops being a string. It used to return the permissive `TAny`, which types
     the binder as the top and silently exempts every use of it from every type
-    wall (decisions.md, "The permissive top and the lookup-miss walls").
+    wall (decisions.md, "`Any` means the top, never a failed lookup").
 
     red under: return `None` instead of raising from `domains.require_role`."""
     with pytest.raises(AssertionError) as ei:

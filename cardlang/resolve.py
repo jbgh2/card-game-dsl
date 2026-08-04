@@ -4024,7 +4024,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     `function f(x : Integar) = x is hearts` was accepted while the
     correctly-spelled `Integer` version was rejected. Making a type name worse
     must never make the checker more permissive (decisions.md "Surface
-    totality"; "The permissive top and the lookup-miss walls").
+    totality"; "`Any` means the top, never a failed lookup").
 
     Both positions here are built with the struct registry threaded
     (`type_from_name(..., structs)`), so a user-declared `type` is legal
@@ -4690,7 +4690,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     # had its parameter domains unchecked entirely — and an unchecked domain
     # name falls through `typecheck.type_from_name` to the permissive top,
     # which silently exempts the parameter from every downstream guard
-    # (decisions.md, "The permissive top and the lookup-miss walls"). Declaring
+    # (decisions.md, "`Any` means the top, never a failed lookup"). Declaring
     # a move type is what makes its parameters real; whether some phase happens
     # to offer it is not the checker's business — and gating at the declaration
     # also stops a move named by two vocabularies from reporting one defect
