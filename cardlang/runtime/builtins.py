@@ -100,14 +100,12 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
         raise RuntimeError(
             "lines() reads the board's lines, but the game declares no `board:`"
         )
-    try:
-        return board.lines(k)
-    except ValueError as exc:
-        # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds
-        # check at the call site); a non-literal `k` (no rung-1 witness) is
-        # only knowable at runtime, so its out-of-range value surfaces here as
-        # a typed runtime error, never a bare ValueError escaping the boundary.
-        raise RuntimeError(str(exc)) from exc
+    # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds check
+    # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
+    # at runtime. `lines` raises `OwnerGuardError` for both, so there is
+    # nothing to convert here — the bound's Owner Guard already speaks the
+    # runtime's typed currency and names the game author.
+    return board.lines(k)
 
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
