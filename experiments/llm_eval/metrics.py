@@ -21,7 +21,7 @@ Illegal after: reporting a rate without its denominator.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -188,8 +188,23 @@ class AgentStats:
     provable_hand_only_opportunities: int = 0
     provable_hand_only_caught: int = 0
 
+    # OFFER-CONDITIONED action counts, for games whose pack declares
+    # `action_verbs`. Two tallies per verb because only their ratio is
+    # meaningful: a fold count over all decisions conflates "declined to fold"
+    # with "was never offered the choice" — checking is free and folding is not
+    # on the table then — so the denominator is the decisions where the verb
+    # was actually legal.
+    verb_chosen: dict[str, int] = field(default_factory=dict)
+    verb_offered: dict[str, int] = field(default_factory=dict)
+
     def rates(self) -> dict[str, float | None]:
         return {
+            **{
+                f"{verb}_rate": _rate(
+                    self.verb_chosen.get(verb, 0), self.verb_offered.get(verb, 0)
+                )
+                for verb in sorted(self.verb_offered)
+            },
             # Per-game token spend (spec §5). Denominated in games this agent
             # actually played, so a matchup where it sat out does not dilute it.
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
@@ -220,8 +235,18 @@ class AgentStats:
         return {**asdict(self), **self.rates()}
 
 
-def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    """Fold a run's transcripts into per-agent statistics."""
+def aggregate(
+    records: Iterable[dict[str, Any]], action_verbs: Sequence[str] = ()
+) -> dict[str, Any]:
+    """Fold a run's transcripts into per-agent statistics.
+
+    The win-rate, fallback and token statistics are game-generic. The lie and
+    challenge statistics are Cheat's: they are driven off `facts["kind"]`, and a
+    game whose decisions carry another kind simply contributes nothing to them,
+    so every one of those rates comes out `None` — "was never asked" — rather
+    than a fabricated 0.0. `action_verbs` comes from the playing game's pack and
+    turns on the offer-conditioned verb rates.
+    """
     stats: dict[str, AgentStats] = {}
     games = 0
     truncated = 0
@@ -258,6 +283,13 @@ def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
             total_decisions += 1
             if d.get("llm", {}).get("fallback"):
                 s.fallbacks += 1
+            if action_verbs:
+                offered = d["facts"].get("offered", d.get("legal", []))
+                for verb in action_verbs:
+                    if verb in offered:
+                        s.verb_offered[verb] = s.verb_offered.get(verb, 0) + 1
+                        if d["facts"].get("verb", d["action"]) == verb:
+                            s.verb_chosen[verb] = s.verb_chosen.get(verb, 0) + 1
 
         for play in reconstruct_plays(record["decisions"]):
             s = stat(seats[play.actor])

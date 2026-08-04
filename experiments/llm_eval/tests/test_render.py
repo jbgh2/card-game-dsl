@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from .. import infostate as istate
+from ..packs import CHEAT
 from ..agents import DecisionView, LLMAgent, RandomAgent, RuleAgent
 from ..prompts import (
     RESPONSE_ARMS,
@@ -45,7 +46,7 @@ def states() -> list[str]:
     for seed in range(4):
         seats: dict[int, Any] = {p: RandomAgent(seed=seed * 10 + p) for p in range(4)}
         seats[0] = RuleAgent(seed=seed, challenge_prob=0.3, bluff_prob=0.4)
-        rec = play_game(game, seats, seed=seed, matchup="r", game_index=0, max_decisions=140)
+        rec = play_game(game, seats, seed=seed, matchup="r", game_index=0, facts=CHEAT.facts, max_decisions=140)
         out.extend(v.infostate for v in replay_views(game, rec.seed, rec.history))
     assert len(out) > 300
     return out

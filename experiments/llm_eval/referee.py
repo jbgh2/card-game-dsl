@@ -19,11 +19,15 @@ Illegal after: passing a `pyspiel.State` into anything in `agents.py`.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .agents import Agent, DecisionView
-from .metrics import decision_facts
+
+# One game's per-decision facts function, supplied by its pack (`packs.py`).
+# Taken as a parameter rather than imported, so the referee holds no game.
+FactsFn = Callable[[DecisionView, str], dict[str, Any]]
 
 # The adapter samples the deal space at the root chance node; see
 # `cardlang/openspiel/game.py`. Seeds outside the range are not addressable, so
@@ -88,6 +92,7 @@ def play_game(
     seed: int,
     matchup: str,
     game_index: int,
+    facts: FactsFn,
     max_decisions: int = 0,
     store_prompts: bool = False,
     store_infostates: bool = False,
@@ -97,6 +102,11 @@ def play_game(
     A truncated game has `terminal=False` and is excluded from win rates, which
     are reported alongside the truncation count — a game silently scored as a
     loss for whoever happened to be behind would be a fabricated result.
+
+    `facts` is the playing game's own per-decision facts function, from its
+    pack. The referee stays game-generic: it reads `information_state_string`,
+    `legal_actions` and `action_to_string` off the state and knows nothing else
+    about the game.
     """
     started = time.monotonic()
     state = game.new_initial_state()
@@ -148,7 +158,7 @@ def play_game(
                 action_id=action,
                 action=chosen,
                 legal=strings,
-                facts=decision_facts(view, chosen),
+                facts=facts(view, chosen),
                 llm=trace,
                 infostate=info if store_infostates else "",
             )

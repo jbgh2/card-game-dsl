@@ -392,17 +392,49 @@ def test_prompt_carries_nothing_but_its_arguments() -> None:
         assert "4242" not in provider.prompts[0]
 
 
-def test_the_built_agent_carries_the_modules_rules_text() -> None:
-    """Every agent a config can build reads the module's own rules constant for
-    its arm. `rules` is resolved at construction and is not reachable from
-    `build_agent`, so nothing a run can configure substitutes a different rules
-    text — which would make two arms' numbers incomparable while every other
-    pin stayed green."""
+def test_the_built_agent_carries_its_packs_rules_text() -> None:
+    """Every agent a config can build reads its GAME PACK's rules constant for
+    its arm. `rules` is resolved at construction from the pack's raw/rendered
+    PAIR, and the pair is not separately reachable from `build_agent`, so
+    nothing a run can configure substitutes a different rules text — which
+    would make two arms' numbers incomparable while every other pin stayed
+    green.
+
+    The pack is what keeps that invariant now that the harness plays more than
+    one game: the two texts still come from one place, and that place is chosen
+    by the `game:` key rather than by an agent block."""
     from ..agents import build_agent
+    from ..packs import CHEAT
 
     for render, expected in ((False, RULES_RAW), (True, RULES_RENDERED)):
         agent = build_agent(
-            {"kind": "llm", "render": render}, seed=0, provider=FakeProvider(replies=[])
+            {"kind": "llm", "render": render},
+            seed=0,
+            provider=FakeProvider(replies=[]),
+            pack=CHEAT,
         )
         assert isinstance(agent, LLMAgent)
         assert agent.rules == expected
+
+
+def test_a_pack_without_a_rendered_arm_refuses_render() -> None:
+    """A game whose pack declares no rendered text must REFUSE `render: true`,
+    not quietly serve the raw text. Serving it would put two incomparable arms
+    under one matchup name — the same failure the pairing above prevents, from
+    the other direction.
+
+    red under: change `LLMAgent.__post_init__` to fall back to `rules_raw` when
+    `rules_rendered is None`. RUN, not predicted: this test fails on the
+    `pytest.raises`, and no other test in the tree moves — which is why it is
+    here."""
+    from ..agents import build_agent
+    from ..packs import HOLDEM_HEADS_UP
+
+    assert HOLDEM_HEADS_UP.rules_rendered is None
+    with pytest.raises(ValueError, match="no rendered rules text"):
+        build_agent(
+            {"kind": "llm", "render": True},
+            seed=0,
+            provider=FakeProvider(replies=[]),
+            pack=HOLDEM_HEADS_UP,
+        )

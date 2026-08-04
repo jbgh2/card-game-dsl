@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+from ..packs import CHEAT
 from ..agents import DecisionView, RandomAgent, RuleAgent, build_agent
 from ..metrics import aggregate, reconstruct_plays
 from ..providers import FakeProvider
@@ -26,15 +27,15 @@ def game() -> object:
 def _seats(kind: str, seed: int = 0) -> dict[int, object]:
     if kind == "fake_llm":
         provider = FakeProvider(replies=['{"action": 0, "reasoning": "first legal"}'])
-        focus = build_agent({"kind": "llm", "name": "fake_llm"}, seed, provider)
+        focus = build_agent({"kind": "llm", "name": "fake_llm"}, seed, provider, pack=CHEAT)
     else:
-        focus = build_agent({"kind": kind}, seed, None)
-    others = [build_agent({"kind": "random"}, seed + i, None) for i in range(1, 4)]
+        focus = build_agent({"kind": kind}, seed, None, pack=CHEAT)
+    others = [build_agent({"kind": "random"}, seed + i, None, pack=CHEAT) for i in range(1, 4)]
     return {0: focus, 1: others[0], 2: others[1], 3: others[2]}
 
 
 def test_rule_vs_random_reaches_a_terminal_state(game: object) -> None:
-    record = play_game(game, _seats("rule"), seed=5, matchup="t", game_index=0)  # type: ignore[arg-type]
+    record = play_game(game, _seats("rule"), seed=5, matchup="t", game_index=0, facts=CHEAT.facts)  # type: ignore[arg-type]
     assert record.terminal and not record.truncated
     assert record.num_decisions > 0
     assert sum(1 for r in record.returns if r > 0) == 1, "Cheat has exactly one winner"
@@ -44,7 +45,7 @@ def test_fake_provider_game_reaches_a_terminal_state(game: object) -> None:
     """A full game driven by the fake provider — the smoke-test rung below any
     real model call (spec §6)."""
     record = play_game(
-        game, _seats("fake_llm"), seed=11, matchup="t", game_index=0, max_decisions=4000  # type: ignore[arg-type]
+        game, _seats("fake_llm"), seed=11, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=4000  # type: ignore[arg-type]
     )
     assert record.terminal, "the canned-reply game never terminated"
     llm_decisions = [d for d in record.decisions if d.agent == "fake_llm"]
@@ -56,7 +57,7 @@ def test_fake_provider_game_reaches_a_terminal_state(game: object) -> None:
 
 def test_truncation_is_recorded_not_scored(game: object) -> None:
     record = play_game(
-        game, _seats("random"), seed=0, matchup="t", game_index=0, max_decisions=10  # type: ignore[arg-type]
+        game, _seats("random"), seed=0, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=10  # type: ignore[arg-type]
     )
     assert record.truncated and not record.terminal
     assert record.num_decisions == 10
@@ -72,7 +73,7 @@ def test_history_replays_to_the_same_views(game: object) -> None:
     """`(seed, history)` is enough to reconstruct every prompt — which is why
     transcripts need not store information states to be auditable."""
     record = play_game(
-        game, _seats("rule"), seed=7, matchup="t", game_index=0, max_decisions=120,  # type: ignore[arg-type]
+        game, _seats("rule"), seed=7, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=120,  # type: ignore[arg-type]
         store_infostates=True,
     )
     views = replay_views(game, record.seed, record.history)
@@ -88,7 +89,7 @@ def test_every_decision_shape_is_recognized(game: object) -> None:
     anything else, so a long random walk that never raises is the coverage
     claim — and all three must actually appear, or the walk proves nothing."""
     record = play_game(
-        game, _seats("random"), seed=3, matchup="t", game_index=0, max_decisions=600  # type: ignore[arg-type]
+        game, _seats("random"), seed=3, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=600  # type: ignore[arg-type]
     )
     kinds = {d.facts["kind"] for d in record.decisions}
     assert kinds == {"announce", "card", "window"}
@@ -103,7 +104,7 @@ def test_claim_cycle_order_matches_the_game(game: object) -> None:
     from ..infostate import RANKS
 
     record = play_game(
-        game, _seats("random"), seed=6, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
+        game, _seats("random"), seed=6, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=400  # type: ignore[arg-type]
     )
     claims = [
         d.facts["claim_rank"] for d in record.decisions if d.facts["kind"] == "announce"
@@ -118,7 +119,7 @@ def test_claim_cycle_order_matches_the_game(game: object) -> None:
 
 def test_reconstructed_plays_match_the_announcements(game: object) -> None:
     record = play_game(
-        game, _seats("rule"), seed=9, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
+        game, _seats("rule"), seed=9, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=400  # type: ignore[arg-type]
     )
     plays = reconstruct_plays([d.__dict__ for d in record.decisions])
     assert plays
@@ -130,7 +131,7 @@ def test_reconstructed_plays_match_the_announcements(game: object) -> None:
 def test_rule_agent_never_lies_when_it_can_tell_the_truth(game: object) -> None:
     """The baseline's stated play policy, checked against its actual plays."""
     seats = {i: RuleAgent(seed=i, challenge_prob=0.1) for i in range(4)}
-    record = play_game(game, seats, seed=13, matchup="t", game_index=0, max_decisions=600)  # type: ignore[arg-type]
+    record = play_game(game, seats, seed=13, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=600)  # type: ignore[arg-type]
     plays = reconstruct_plays([d.__dict__ for d in record.decisions])
     assert plays
     for play in plays:
@@ -151,7 +152,7 @@ def test_rule_agent_always_calls_a_provable_lie(game: object) -> None:
     # so a *provable* lie (the observer holding enough of the claimed rank) is
     # rare. This seed yields eight across 139 windows, so the assertion below is
     # not vacuous — hence the guard.
-    record = play_game(game, seats, seed=18, matchup="t", game_index=0, max_decisions=800)  # type: ignore[arg-type]
+    record = play_game(game, seats, seed=18, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=800)  # type: ignore[arg-type]
     windows = [d for d in record.decisions if d.facts["kind"] == "window"]
     provable = [d for d in windows if d.facts["provably_false"]]
     assert len(provable) >= 5, "seed 18 no longer exercises the provable-lie branch"
@@ -162,8 +163,8 @@ def test_rule_agent_always_calls_a_provable_lie(game: object) -> None:
 
 
 def test_agents_are_seed_reproducible(game: object) -> None:
-    first = play_game(game, _seats("random", 4), seed=2, matchup="t", game_index=0)  # type: ignore[arg-type]
-    second = play_game(game, _seats("random", 4), seed=2, matchup="t", game_index=0)  # type: ignore[arg-type]
+    first = play_game(game, _seats("random", 4), seed=2, matchup="t", game_index=0, facts=CHEAT.facts)  # type: ignore[arg-type]
+    second = play_game(game, _seats("random", 4), seed=2, matchup="t", game_index=0, facts=CHEAT.facts)  # type: ignore[arg-type]
     assert first.history == second.history
     assert first.returns == second.returns
 
@@ -177,7 +178,7 @@ def test_agents_only_ever_return_legal_actions(game: object) -> None:
         2: RuleAgent(seed=3, challenge_prob=0.5),
         3: RandomAgent(seed=4),
     }
-    record = play_game(game, seats, seed=17, matchup="t", game_index=0, max_decisions=900)  # type: ignore[arg-type]
+    record = play_game(game, seats, seed=17, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=900)  # type: ignore[arg-type]
     assert record.num_decisions > 50
 
 
@@ -196,8 +197,8 @@ def test_bluff_prob_defaults_to_the_truthful_policy(game: object) -> None:
     def table(**kw: float) -> dict[int, object]:
         return {i: RuleAgent(seed=i, challenge_prob=0.1, **kw) for i in range(4)}  # type: ignore[arg-type]
 
-    a = play_game(game, table(), seed=13, matchup="t", game_index=0, max_decisions=400)  # type: ignore[arg-type]
-    b = play_game(game, table(bluff_prob=0.0), seed=13, matchup="t", game_index=0, max_decisions=400)  # type: ignore[arg-type]
+    a = play_game(game, table(), seed=13, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=400)  # type: ignore[arg-type]
+    b = play_game(game, table(bluff_prob=0.0), seed=13, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=400)  # type: ignore[arg-type]
     assert a.history == b.history
 
 
@@ -208,7 +209,7 @@ def test_bluff_prob_produces_elective_lies(game: object) -> None:
 
     def measure(bluff: float) -> float:
         seats = {i: RuleAgent(seed=i, challenge_prob=0.1, bluff_prob=bluff) for i in range(4)}
-        rec = play_game(game, seats, seed=13, matchup="t", game_index=0, max_decisions=600)  # type: ignore[arg-type]
+        rec = play_game(game, seats, seed=13, matchup="t", game_index=0, facts=CHEAT.facts, max_decisions=600)  # type: ignore[arg-type]
         stats = aggregate([rec.as_dict()])["agents"]["rule"]
         rate = stats["elective_lie_rate"]
         assert rate is not None, "no play had a truthful option — the seed is uninformative"

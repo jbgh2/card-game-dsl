@@ -199,6 +199,69 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
     return c
 
 
+def holdem_tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
+    """The heads-up Hold'em recomputation, independent of `metrics.aggregate`.
+
+    Deliberately reads the referee's OWN record of each decision — `legal` and
+    `action`, written by the game loop — and never `facts["offered"]` or
+    `facts["verb"]`, which `holdem_pack.decision_facts` produced. So a bug in
+    the pack's facts function shows up here as a disagreement rather than being
+    reproduced by an auditor that shares its input.
+
+    Offer-conditioned throughout: a verb's denominator is the decisions where it
+    was LEGAL. Over all decisions instead, `fold_rate` would silently mix
+    "declined to fold" with "could not fold", and every rate would drift with
+    how often the game happens to offer a free check.
+    """
+    c: Counter[str] = Counter()
+    for record in records:
+        seats = {int(k): v for k, v in record["seats"].items()}
+        mine = [s for s, name in seats.items() if name == who]
+        if not mine:
+            continue
+        c["games"] += 1
+        if record["terminal"]:
+            for seat in mine:
+                c["terminal_games"] += 1
+                net = record["returns"][seat]
+                if net > 0:
+                    c["wins"] += 1
+                elif net == 0:
+                    c["splits"] += 1
+                # Chip delta, summed so the mean can be taken against
+                # `terminal_games` — the metric the blinds do not swamp.
+                c["net_total"] += int(net)
+        for d in record["decisions"]:
+            if seats[d["player"]] != who:
+                continue
+            c["decisions"] += 1
+            if d.get("llm", {}).get("fallback"):
+                c["fallbacks"] += 1
+            for verb in ("check", "bet", "call", "raise", "fold"):
+                if verb in d["legal"]:
+                    c[f"{verb}_offered"] += 1
+                    if d["action"] == verb:
+                        c[f"{verb}_chosen"] += 1
+    return c
+
+
+HOLDEM_RATES: list[tuple[str, str, str]] = [
+    ("win_rate", "wins", "terminal_games"),
+    ("fallback_rate", "fallbacks", "decisions"),
+    ("check_rate", "check_chosen", "check_offered"),
+    ("bet_rate", "bet_chosen", "bet_offered"),
+    ("call_rate", "call_chosen", "call_offered"),
+    ("raise_rate", "raise_chosen", "raise_offered"),
+    ("fold_rate", "fold_chosen", "fold_offered"),
+]
+
+# The recomputation and its rate table, per game. A game absent here has no
+# audit path and `main` refuses it, rather than printing Cheat's rates over
+# another game's transcript — every one of which would read `0 / 0 = None` and
+# look like a clean result.
+AUDITS: dict[str, tuple[Any, list[tuple[str, str, str]]]] = {}
+
+
 RATES: list[tuple[str, str, str]] = [
     ("win_rate", "wins", "terminal_games"),
     ("fallback_rate", "fallbacks", "decisions"),
@@ -213,13 +276,21 @@ RATES: list[tuple[str, str, str]] = [
 ]
 
 
-def report(label: str, c: Counter[str]) -> None:
+AUDITS.update(
+    {
+        "cardlang_cheat": (tally, RATES),
+        "cardlang_holdem_heads_up": (holdem_tally, HOLDEM_RATES),
+    }
+)
+
+
+def report(label: str, c: Counter[str], rates: list[tuple[str, str, str]]) -> None:
     print(f"\n=== {label} ===")
     print(f"  {'RAW COUNTS':38}")
     for k in sorted(c):
         print(f"    {k:34} {c[k]}")
     print(f"  {'RATE':34}{'= num / den':>22}")
-    for name, num, den in RATES:
+    for name, num, den in rates:
         if c[den]:
             print(f"    {name:32} {c[num]:>6} / {c[den]:<6} = {c[num]/c[den]:.4f}")
         else:
@@ -354,6 +425,16 @@ def main(argv: list[str] | None = None) -> int:
         "evidence, not whichever run happened to finish last.",
     )
     ap.add_argument("--matchup", action="append", help="restrict to these (repeatable)")
+    ap.add_argument(
+        "--game",
+        default="cardlang_cheat",
+        choices=sorted(AUDITS),
+        help="which game's recomputation to run. Defaults to Cheat so the "
+        "documented audit command keeps covering the published evidence; a "
+        "transcript of another game needs its own flag, because a game's rate "
+        "table run over a different game prints `0 / 0 = None` for every rate "
+        "and reads like a clean audit.",
+    )
     ap.add_argument("--deep", action="store_true", help="replay and recompute every fact")
     ap.add_argument(
         "--order",
@@ -379,6 +460,15 @@ def main(argv: list[str] | None = None) -> int:
         if not records:
             continue
         if args.deep:
+            if args.game != "cardlang_cheat":
+                raise SystemExit(
+                    f"--deep replays through `deep_facts`, which reconstructs "
+                    f"CHEAT's per-decision facts; it has no counterpart for "
+                    f"{args.game}. Drop --deep: the level-1 recomputation below "
+                    f"already reads the referee's own `legal`/`action` record "
+                    f"rather than the pack's facts, so it does not trust the "
+                    f"layer it audits."
+                )
             print(f"\n[replaying {_stem(f)} — recomputing every fact from (seed, history)]")
             records = [{**r, "decisions": deep_facts(r)} for r in records]
         agents = sorted({n for r in records for n in r["seats"].values()})
@@ -388,8 +478,13 @@ def main(argv: list[str] | None = None) -> int:
                 if c["decisions"]:
                     report_arm(f"{_stem(f)} :: {who}  ARM AUDIT (N={len(records)})", c)
                 continue
-            c = tally(records, who)
-            report(f"{_stem(f)} :: {who}  (N={c['games']}{' DEEP' if args.deep else ''})", c)
+            audit, rates = AUDITS[args.game]
+            c = audit(records, who)
+            report(
+                f"{_stem(f)} :: {who}  (N={c['games']}{' DEEP' if args.deep else ''})",
+                c,
+                rates,
+            )
     return 0
 
 

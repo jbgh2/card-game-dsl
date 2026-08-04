@@ -37,6 +37,7 @@ import yaml
 
 from . import layout
 from .agents import Agent, build_agent
+from .packs import GamePack, pack_for
 from .metrics import aggregate
 from .prompts import parse_response
 from .providers import PRICES, Provider, Usage, make_provider
@@ -83,6 +84,7 @@ def _build_seats(
     seed: int,
     providers: dict[str, Provider],
     rotate: bool,
+    pack: GamePack,
 ) -> dict[int, Agent]:
     """Assign the roster to seats, rotating the first entry's seat per game so
     position effects wash out (spec §4). The roster is filled in order around
@@ -98,7 +100,9 @@ def _build_seats(
         seat = (focus + offset) % num_players
         provider = providers.get(spec["model"]) if spec.get("model") else None
         # Distinct per-seat seeds so two Random seats do not play identically.
-        seats[seat] = build_agent(spec, seed=seed * 100 + seat, provider=provider)
+        seats[seat] = build_agent(
+            spec, seed=seed * 100 + seat, provider=provider, pack=pack
+        )
     return seats
 
 
@@ -209,7 +213,9 @@ def run_matchup(
             f"the adapter only addresses {NUM_SEEDS} deals — reduce n or the start"
         )
 
-    game = load_game(config.get("game", "cardlang_cheat"))
+    short_name = config.get("game", "cardlang_cheat")
+    game = load_game(short_name)
+    pack = pack_for(short_name)
     num_players = game.num_players()
     used = sorted({spec["model"] for spec in roster if spec.get("model")})
     # `m` deliberately, not `n`: `n` is the game count in this scope, and a
@@ -317,7 +323,13 @@ def run_matchup(
 
             seed = seed_start + i
             seats = _build_seats(
-                roster, num_players, i, seed, providers, bool(matchup.get("rotate", True))
+                roster,
+                num_players,
+                i,
+                seed,
+                providers,
+                bool(matchup.get("rotate", True)),
+                pack,
             )
             try:
                 record: GameRecord = play_game(
@@ -326,6 +338,7 @@ def run_matchup(
                     seed=seed,
                     matchup=name,
                     game_index=i,
+                    facts=pack.facts,
                     max_decisions=int(config.get("max_decisions", 0)),
                     store_prompts=bool(config.get("store_prompts", False)),
                     store_infostates=bool(config.get("store_infostates", False)),
@@ -366,7 +379,7 @@ def run_matchup(
                 f"({record.wall_seconds}s)"
             )
 
-    summary = aggregate(existing + records)
+    summary = aggregate(existing + records, pack.action_verbs)
     summary["matchup"] = name
     summary["n_requested"] = int(matchup["n"])
     summary["n_completed"] = len(existing) + len(records)

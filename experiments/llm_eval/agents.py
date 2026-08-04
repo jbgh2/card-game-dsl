@@ -23,7 +23,10 @@ from __future__ import annotations
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:  # the pack is data to this module; importing it would cycle
+    from .packs import GamePack
 
 from . import infostate as istate
 from .prompts import (
@@ -202,10 +205,16 @@ class LLMAgent:
     # (one removes the reasoning field, the other moves it), and as two booleans
     # their both-true combination would be accepted and silently resolved.
     arm: str = "reasoning"
-    # DERIVED from `render`, not a constructor parameter: the two arms' rules
-    # texts differ only in their format guide, so a caller-supplied third text
-    # would make the two arms' numbers incomparable — and no config path ever
-    # supplied one.
+    # The game's two rules texts, which arrive as a PAIR and are never chosen
+    # separately: they differ only in their format guide, so a caller-supplied
+    # third text would make the two arms' numbers incomparable. `packs.py` is
+    # the single place both come from, and `build_agent` there is the only
+    # caller — which is what keeps that invariant after the harness stopped
+    # being one game's. `rules_rendered = None` means the game has no rendered
+    # arm; `render=True` is then refused rather than served the raw text.
+    rules_raw: str = RULES_RAW
+    rules_rendered: str | None = RULES_RENDERED
+    # DERIVED from `render` and the pair above, not a constructor parameter.
     rules: str = field(init=False)
     _rng: random.Random = field(init=False)
     _arm: ResponseArm = field(init=False)
@@ -213,7 +222,18 @@ class LLMAgent:
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
-        self.rules = RULES_RENDERED if self.render else RULES_RAW
+        if self.render and self.rules_rendered is None:
+            raise ValueError(
+                "this game's pack has no rendered rules text, so `render: true` "
+                "has nothing to render against — remove the flag, or add a "
+                "rendered arm to the pack. Falling back to the raw text would "
+                "put two incomparable arms under one matchup name."
+            )
+        self.rules = (
+            self.rules_rendered
+            if self.render and self.rules_rendered is not None
+            else self.rules_raw
+        )
         # Resolve at construction, not at the first decision: an unknown arm
         # name must fail before a run starts spending, not on move one of game
         # one after the roster and providers are already up.
@@ -272,18 +292,23 @@ class LLMAgent:
         return trace
 
 
-def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> Agent:
-    """Construct one agent from a config block."""
+def build_agent(
+    spec: dict[str, Any], seed: int, provider: Provider | None, pack: GamePack
+) -> Agent:
+    """Construct one agent from a config block, for the game `pack` describes.
+
+    `pack` is required, with no default. A default would be Cheat's, and a
+    Cheat baseline seated at another game reads that game's information state
+    with Cheat's parser: it would raise, or worse, not raise. The only two
+    kinds that are genuinely game-generic — `random`, which needs no game
+    knowledge, and the LLM's plumbing, which needs only the pack's rules text —
+    are the two that look game-generic here.
+    """
     kind = spec["kind"]
     if kind == "random":
         return RandomAgent(seed=seed, name=spec.get("name", "random"))
     if kind == "rule":
-        return RuleAgent(
-            seed=seed,
-            challenge_prob=float(spec.get("challenge_prob", 0.1)),
-            bluff_prob=float(spec.get("bluff_prob", 0.0)),
-            name=spec.get("name", "rule"),
-        )
+        return pack.build_rule_agent(spec, seed)
     if kind == "llm":
         if provider is None:
             raise ValueError("an 'llm' agent needs a provider")
@@ -293,6 +318,8 @@ def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> A
             name=spec.get("name", "llm"),
             render=bool(spec.get("render", False)),
             arm=str(spec.get("arm", "reasoning")),
+            rules_raw=pack.rules_raw,
+            rules_rendered=pack.rules_rendered,
         )
     raise ValueError(f"unknown agent kind {kind!r} (expected random | rule | llm)")
 
