@@ -286,9 +286,19 @@ again:
 | docs | 1 | 61 | 5 | yes |
 
 So a third game costs roughly **1,700 lines** and none of the 633-line seam.
-Runtime cost, measured: $0.005/game on Haiku and $0.021 on Sonnet, against
-~$1.10/game for a Cheat episode — a Hold'em hand is 2–3 model calls where a
-Cheat episode is ~210.
+
+Runtime cost, per matchup rather than blended — the two Haiku matchups differ in
+decisions per game, so one figure for "Haiku" would not be comparable to the
+`--estimate 5` recon, which was run against `vs_rule` alone:
+
+| matchup | calls | $/game |
+|---|---|---|
+| Haiku vs random | 450 | $0.0050 |
+| Haiku vs rule | 534 | $0.0059 |
+| Sonnet vs rule | 534 | $0.0208 |
+
+Against **~$1.10/game for a Cheat episode**: a Hold'em hand is 2–3 model calls
+where a Cheat episode is ~210.
 
 Dollars are **tokens × the list-price table in `providers.py`**, not a billing
 figure. The $6.33 above is the main invocation; the smoke ($0.0006) and the
