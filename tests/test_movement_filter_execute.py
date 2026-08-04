@@ -13,9 +13,9 @@ from typing import Any
 
 import pytest
 
-from cardlang.runtime.errors import OwnerGuardError
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
