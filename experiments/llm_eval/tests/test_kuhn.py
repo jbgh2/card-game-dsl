@@ -587,6 +587,138 @@ def test_every_infoset_key_is_reachable_and_offered_two_actions() -> None:
         assert set(K.uniform_policy(seat)) == set(K.infoset_keys(seat))
 
 
+def test_a_bluff_is_a_bet_and_never_a_dominated_call() -> None:
+    """The two metric families are disjoint.
+
+    Calling a bet with a Jack is a dominated action, not a bluff. Counting it as
+    both reported a blunder as deception AND made the rate move with the
+    opponent: the identical policy scored one number against one opponent and a
+    different one against another, purely because they put it in front of a bet
+    at different rates. Pinned as disjointness, which is the property that fails
+    if the definitions ever drift back together.
+    """
+    for card in K.CARDS:
+        for history in ((), ("check",), ("bet",), ("check", "bet")):
+            for action in K._OFFERED[history]:
+                flags = K.classify(card, history, action)
+                assert not (flags["bluff"] and flags["dominated"])
+                assert not (flags["bluff_offered"] and flags["dominated_offered"])
+                if flags["bluff"]:
+                    assert action == "bet" and card == "J"
+
+
+def test_the_bluff_rate_does_not_move_with_the_opponent() -> None:
+    """The regression this metric actually had.
+
+    The SAME policy must score the same bluff rate whoever it faces. The broken
+    definition pooled facing-a-bet decisions into the denominator, so an
+    opponent that bet more changed the number without the policy changing at
+    all. Simulated here by aggregating one fixed set of decisions twice, once
+    with extra facing-a-bet decisions appended.
+    """
+    base = [
+        K.decision_facts(0, _fake_infostate(0, "J", ()), "bet"),
+        K.decision_facts(0, _fake_infostate(0, "J", ()), "check"),
+    ]
+    facing = [
+        K.decision_facts(0, _fake_infostate(0, "J", ("check", "bet")), "fold"),
+        K.decision_facts(0, _fake_infostate(0, "J", ("check", "bet")), "fold"),
+        K.decision_facts(0, _fake_infostate(0, "J", ("check", "bet")), "fold"),
+    ]
+    quiet = K.aggregate([_record({0: "a", 1: "b"}, base, [1.0, -1.0])])
+    noisy = K.aggregate([_record({0: "a", 1: "b"}, base + facing, [1.0, -1.0])])
+    assert quiet["agents"]["a"]["bluff_rate"] == pytest.approx(0.5)
+    assert noisy["agents"]["a"]["bluff_rate"] == pytest.approx(0.5)
+
+
+def test_the_named_frequencies_read_the_equilibrium_targets() -> None:
+    """`bluff_rate_first_to_act` and friends are per-information-set, so they
+    have exact Nash targets and nothing outside the agent's own policy can move
+    them. Checked against a policy built to hit them."""
+    stats = K.KuhnStats(agent="a")
+    for _ in range(3):
+        stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "check"))
+    stats.observe(K.decision_facts(0, _fake_infostate(0, "J", ()), "bet"))
+    assert stats.rates()["bluff_rate_first_to_act"] == pytest.approx(0.25)
+    # Never in the other three, so each is null rather than zero.
+    for key in (
+        "bluff_rate_after_a_check",
+        "folds_the_best_hand_rate",
+        "calls_with_the_worst_hand_rate",
+    ):
+        assert stats.rates()[key] is None
+
+    blunder = K.KuhnStats(agent="b")
+    blunder.observe(K.decision_facts(1, _fake_infostate(1, "K", ("bet",)), "fold"))
+    assert blunder.rates()["folds_the_best_hand_rate"] == pytest.approx(1.0)
+
+
+def test_balanced_seating_cancels_the_card_advantage(game: Any) -> None:
+    """The confound that made a model "beat" a provably unbeatable opponent.
+
+    Under the original scheme the seed and the focus seat are the same number,
+    so which seat an agent takes is a function of which deal was drawn — and the
+    adapter's seed-to-deal map is not balanced across seed parities. A real
+    300-game run had the model holding a King 112 times to the baseline's 97,
+    and reporting +0.09 chips per hand against an exact equilibrium.
+
+    Balanced seating plays every deal in every seating, so the advantage cancels
+    by construction. Asserted as an EXACT tie in total card rank, because
+    "cancels by construction" is a stronger claim than "averages out", and only
+    the exact form would catch the scheme silently reverting.
+    """
+    from ..run_eval import seat_plan
+
+    rank = {c: i for i, c in enumerate(K.CARDS)}
+
+    def advantage(balanced: bool, games: int) -> tuple[int, int]:
+        held = [0, 0]
+        for index in range(games):
+            offset, focus = seat_plan(index, 2, rotate=True, balanced=balanced)
+            state = _state(game, offset)
+            cards = [K.parse(state.information_state_string(s)).card for s in (0, 1)]
+            # The roster's first entry sits at `focus`; the second takes the rest.
+            held[0] += rank[cards[focus]]
+            held[1] += rank[cards[1 - focus]]
+        return held[0], held[1]
+
+    first, second = advantage(balanced=True, games=300)
+    assert first == second, (
+        f"balanced seating still favours a roster position: {first} vs {second}"
+    )
+
+    # And the check is not vacuous: the original scheme really is skewed on the
+    # same seeds, which is what makes the fix necessary rather than cosmetic.
+    skew_first, skew_second = advantage(balanced=False, games=300)
+    assert skew_first != skew_second, (
+        "the unbalanced scheme came out even on these seeds, so this test "
+        "cannot tell the two schemes apart and proves nothing"
+    )
+
+
+def test_balanced_seating_covers_each_deal_in_every_seating() -> None:
+    """`n` games cover `n / num_players` deals, each played in every seating."""
+    from ..run_eval import seat_plan
+
+    plans = [seat_plan(i, 2, rotate=True, balanced=True) for i in range(8)]
+    assert plans == [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1), (3, 0), (3, 1)]
+    # Unbalanced keeps the original mapping exactly, so Cheat's committed
+    # archive stays comparable with anything measured after this change.
+    assert [seat_plan(i, 4, rotate=True, balanced=False) for i in range(5)] == [
+        (0, 0),
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 0),
+    ]
+    # `rotate: false` pins the roster to its seats under either scheme.
+    assert [seat_plan(i, 2, rotate=False, balanced=True) for i in range(3)] == [
+        (0, 0),
+        (1, 0),
+        (2, 0),
+    ]
+
+
 def test_the_deal_space_is_the_six_kuhn_deals() -> None:
     assert len(K.DEALS) == 6
     assert all(a != b for a, b in K.DEALS)

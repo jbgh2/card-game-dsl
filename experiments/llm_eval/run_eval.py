@@ -76,24 +76,54 @@ class Budget:
         return None
 
 
+def seat_plan(
+    game_index: int, num_players: int, rotate: bool, balanced: bool
+) -> tuple[int, int]:
+    """Which deal to draw and which seat the roster's first entry takes, as
+    `(seed_offset, focus)`.
+
+    Two schemes, because the obvious one has a confound that only bites when the
+    deal matters more than the play.
+
+    `balanced=False` — the original. `seed_offset` and `focus` are both
+    `game_index`, so THE SEAT IS A FUNCTION OF THE SEED. That is fine when a
+    seat's advantage comes from position (Cheat, where the deal is 13 cards and
+    an episode is hundreds of decisions), and wrong when it comes from the cards
+    (Kuhn, where the deal is one card and the hand is one decision): the
+    adapter's seed-to-deal map is not balanced across seed parities, so seat
+    rotation hands one agent systematically better cards. Measured on a real
+    300-game run before this existed: the model held a King 112 times to the
+    baseline's 97 and "beat" an opponent that is provably unbeatable.
+
+    `balanced=True` — every seed is played in EVERY seating, `num_players`
+    games per deal. The card advantage then cancels by construction rather than
+    by averaging, which is what makes a chips-per-hand comparison between two
+    agents mean anything. `n` is games, not deals, so a matchup of `n` games
+    covers `n // num_players` deals.
+    """
+    if not rotate:
+        return game_index, 0
+    if balanced:
+        return game_index // num_players, game_index % num_players
+    return game_index, game_index % num_players
+
+
 def _build_seats(
     roster: list[dict[str, Any]],
     num_players: int,
-    game_index: int,
+    focus: int,
     seed: int,
     providers: dict[str, Provider],
-    rotate: bool,
     game: str = "cheat",
 ) -> dict[int, Agent]:
-    """Assign the roster to seats, rotating the first entry's seat per game so
-    position effects wash out (spec §4). The roster is filled in order around
-    the table from the focus seat."""
+    """Assign the roster to seats from the focus seat, filling in order around
+    the table. Which seat is the focus is `seat_plan`'s decision, not this
+    function's — the two schemes differ only there."""
     if len(roster) != num_players:
         raise ValueError(
             f"matchup roster has {len(roster)} agents but the game seats "
             f"{num_players}"
         )
-    focus = game_index % num_players if rotate else 0
     seats: dict[int, Agent] = {}
     for offset, spec in enumerate(roster):
         seat = (focus + offset) % num_players
@@ -165,6 +195,10 @@ def treatment(config: dict[str, Any], matchup: dict[str, Any]) -> dict[str, Any]
         "game": config.get("game", "cardlang_cheat"),
         "agents": matchup["agents"],
         "rotate": bool(matchup.get("rotate", True)),
+        # Which seating scheme produced these games. It changes WHICH DEALS the
+        # matchup saw and in which seatings, so appending games from the other
+        # scheme to the same transcript would mix two designs into one N.
+        "balanced_seating": bool(config.get("balanced_seating", False)),
         "max_decisions": int(config.get("max_decisions", 0)),
         "seed_start": int(config.get("seeds", {}).get("start", 0)),
         "models": {m: config["models"][m] for m in used},
@@ -206,14 +240,30 @@ def run_matchup(
     resume = int(matchup.get("resume_from", 0))
     if not 0 <= resume <= n:
         raise ValueError(f"resume_from {resume} is outside 0..{n} for {name!r}")
-    if seed_start + n > NUM_SEEDS:
-        raise ValueError(
-            f"matchup {name!r} needs seeds {seed_start}..{seed_start + n - 1}, but "
-            f"the adapter only addresses {NUM_SEEDS} deals — reduce n or the start"
-        )
-
     game = load_game(config.get("game", "cardlang_cheat"))
     num_players = game.num_players()
+    # How far the seed cursor actually travels, which is `n` under the original
+    # scheme and `n / num_players` under balanced seating. Derived from
+    # `seat_plan` rather than restated, so the guard cannot disagree with the
+    # loop it is guarding.
+    last_offset = (
+        max(
+            seat_plan(
+                i,
+                num_players,
+                bool(matchup.get("rotate", True)),
+                bool(config.get("balanced_seating", False)),
+            )[0]
+            for i in range(n)
+        )
+        if n
+        else 0
+    )
+    if seed_start + last_offset >= NUM_SEEDS:
+        raise ValueError(
+            f"matchup {name!r} needs seeds {seed_start}..{seed_start + last_offset}, "
+            f"but the adapter only addresses {NUM_SEEDS} deals — reduce n or the start"
+        )
     # One name, derived once, used for both the agents' rules text and the
     # metrics. Deriving it from the LOADED game rather than from the config key
     # means a config naming one game cannot show the model another's rules.
@@ -253,7 +303,16 @@ def run_matchup(
             )
         with path.open(encoding="utf-8") as fh:
             existing = [json.loads(line) for line in fh if line.strip()]
-        want = list(range(seed_start, seed_start + resume))
+        # Derived from the SAME scheme the run loop uses, not from a bare range:
+        # under balanced seating a seed appears once per seating, so an
+        # ascending-and-distinct expectation would refuse every legitimate
+        # resume while looking like a data-integrity check.
+        balanced = bool(config.get("balanced_seating", False))
+        rotating = bool(matchup.get("rotate", True))
+        want = [
+            seed_start + seat_plan(i, num_players, rotating, balanced)[0]
+            for i in range(resume)
+        ]
         got = [r["seed"] for r in existing]
         if got != want:
             raise ValueError(
@@ -322,15 +381,15 @@ def run_matchup(
                 stopped = f"{reason} reached across the run's models"
                 break
 
-            seed = seed_start + i
-            seats = _build_seats(
-                roster,
-                num_players,
+            offset, focus = seat_plan(
                 i,
-                seed,
-                providers,
+                num_players,
                 bool(matchup.get("rotate", True)),
-                game_name,
+                bool(config.get("balanced_seating", False)),
+            )
+            seed = seed_start + offset
+            seats = _build_seats(
+                roster, num_players, focus, seed, providers, game_name
             )
             try:
                 record: GameRecord = play_game(

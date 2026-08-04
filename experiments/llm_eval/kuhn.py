@@ -508,6 +508,38 @@ def render_state(infostate: str) -> str:
 # --- per-decision facts -----------------------------------------------------
 
 
+def classify(card: str, history: tuple[str, ...], action: str) -> dict[str, bool]:
+    """The metric classification of one decision, from primitives alone.
+
+    Factored out and called from BOTH `decision_facts` (at run time, so the
+    transcript is readable) and `KuhnStats.observe` (at aggregation time, from
+    `card`/`history`/`action`), so a transcript written before a definition
+    changed still aggregates under the current one. The flags in an old
+    transcript are then a record of what was thought at the time and never an
+    input to a published rate.
+
+    A BLUFF is betting the card that cannot win a showdown, and only where
+    betting is what is on offer. Calling a bet with a Jack is NOT a bluff — it
+    is a dominated action, and `dominated` already owns it. Pooling the two
+    made the rate opponent-dependent: the identical `NashAgent` scored 0.187
+    against itself and 0.144 against a random opponent, purely because the
+    two matchups put it in front of a bet at different rates.
+
+    The denominator still mixes the opening bluff (equilibrium frequency
+    `alpha`) with the bluff after a check (equilibrium frequency 1/3), which is
+    why `rates` also reports each separately, straight off the per-information-
+    set visit counts where neither the opponent nor the seat share can move it.
+    """
+    facing_bet = history[-1:] == ("bet",)
+    return {
+        "dominated_offered": facing_bet and card in ("J", "K"),
+        "dominated": facing_bet
+        and ((card == "K" and action == "fold") or (card == "J" and action == "call")),
+        "bluff_offered": card == "J" and not facing_bet,
+        "bluff": card == "J" and not facing_bet and action == "bet",
+    }
+
+
 def decision_facts(player: int, infostate: str, action: str) -> dict[str, Any]:
     """The metric-relevant facts of one decision, from the acting seat's own
     information state plus the action it chose.
@@ -519,9 +551,6 @@ def decision_facts(player: int, infostate: str, action: str) -> dict[str, Any]:
     to call those errors, which is what makes the rate quotable on its own.
     """
     info = parse(infostate)
-    dominated = info.facing_bet and (
-        (info.card == "K" and action == "fold") or (info.card == "J" and action == "call")
-    )
     return {
         "kind": "response" if info.facing_bet else "open",
         "seat": player,
@@ -529,17 +558,7 @@ def decision_facts(player: int, infostate: str, action: str) -> dict[str, Any]:
         "history": "-".join(info.history) or "open",
         "infoset": info.key,
         "action": action,
-        # A dominated action was OFFERED here: the denominator for `dominated`.
-        # Every decision facing a bet with a J or a K offers one, and no other
-        # decision does.
-        "dominated_offered": info.facing_bet and info.card in ("J", "K"),
-        "dominated": dominated,
-        # Betting or calling with the card that cannot win a showdown: Kuhn's
-        # bluff. Unlike `dominated`, a bluff is correct at some frequency —
-        # equilibrium bluffs a Jack — so this is a frequency to compare, not an
-        # error to count.
-        "bluff_offered": info.card == "J",
-        "bluff": info.card == "J" and action in ("bet", "call"),
+        **classify(info.card, info.history, action),
     }
 
 
@@ -577,13 +596,20 @@ class KuhnStats:
     visits: dict[str, dict[str, int]] = field(default_factory=dict)
 
     def observe(self, facts: Mapping[str, Any]) -> None:
-        if facts.get("dominated_offered"):
+        # Re-derived from `card`/`history`/`action` rather than read off the
+        # recorded flags, so a transcript written under an older definition
+        # aggregates under the current one. The flags stay in the transcript as
+        # a readable record; they are never an input to a published rate.
+        history_text = str(facts["history"])
+        history = () if history_text == "open" else tuple(history_text.split("-"))
+        flags = classify(str(facts["card"]), history, str(facts["action"]))
+        if flags["dominated_offered"]:
             self.dominated_offered += 1
-            if facts.get("dominated"):
+            if flags["dominated"]:
                 self.dominated_taken += 1
-        if facts.get("bluff_offered"):
+        if flags["bluff_offered"]:
             self.bluff_offered += 1
-            if facts.get("bluff"):
+            if flags["bluff"]:
                 self.bluffs += 1
         key = str(facts["infoset"])
         action = str(facts["action"])
@@ -686,8 +712,44 @@ class KuhnStats:
             "infoset_coverage": self.infoset_coverage(),
             # The error rate that needs no equilibrium to interpret.
             "dominated_action_rate": _rate(self.dominated_taken, self.dominated_offered),
+            # Betting the card that cannot win a showdown. Pooled across the two
+            # places a bluff is possible, so its denominator mix still moves with
+            # how often the agent sat in each seat — the two rates below are the
+            # per-information-set forms, which nothing outside the agent's own
+            # policy can move, and are what a comparison should quote.
             "bluff_rate": _rate(self.bluffs, self.bluff_offered),
+            # Equilibrium target: alpha (1/6 at the configured opponent).
+            "bluff_rate_first_to_act": self._frequency(infoset(0, "J", ()), "bet"),
+            # Equilibrium target: 1/3, and unique — every member of the family
+            # agrees here, so a deviation is unambiguous.
+            "bluff_rate_after_a_check": self._frequency(
+                infoset(1, "J", ("check",)), "bet"
+            ),
+            # The two dominated actions, separately: Nash plays both at zero.
+            "folds_the_best_hand_rate": self._frequency(
+                infoset(0, "K", ("check", "bet")), "fold", infoset(1, "K", ("bet",))
+            ),
+            "calls_with_the_worst_hand_rate": self._frequency(
+                infoset(0, "J", ("check", "bet")), "call", infoset(1, "J", ("bet",))
+            ),
         }
+
+    def _frequency(self, key: str, action: str, *also: str) -> float | None:
+        """How often this agent took `action` at the named information set(s).
+
+        Pooled over the keys given, which is how a seat-agnostic rate is formed
+        when the same decision exists for both seats — `folds the best hand`
+        happens at `P0|K|check-bet` and at `P1|K|bet`, and an agent that rotates
+        meets both. `None` when it was never in any of them.
+        """
+        taken = total = 0
+        for candidate in (key, *also):
+            counts = self.visits.get(candidate)
+            if not counts:
+                continue
+            taken += counts.get(action, 0)
+            total += sum(counts.values())
+        return _rate(taken, total)
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {**asdict(self), **self.rates()}
