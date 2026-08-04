@@ -73,8 +73,8 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from functools import cache
 
 import pytest
 
@@ -129,26 +129,25 @@ _EXPECTED: dict[str, dict[str, bool]] = {
 }
 
 
-def _engine_exception_classes() -> dict[str, type[BaseException]]:
+@cache
+def _engine_exception_classes() -> Mapping[str, type[BaseException]]:
     """Every exception class DEFINED in the `cardlang` package, by qualname.
 
-    Derived, not listed: import every module, then read back the classes whose
-    `__module__` is inside the package. Filtering on `__module__` is what makes
-    it "defined here" rather than "imported here" — `errors.py`'s names are
-    visible from a dozen modules and would otherwise multiply-count.
-    """
-    for info in pkgutil.walk_packages(cardlang.__path__, prefix="cardlang."):
-        importlib.import_module(info.name)
+    Derived, not listed: import every module the package walk yields, then read
+    back the classes whose `__module__` is inside the package. Filtering on
+    `__module__` is what makes it "defined here" rather than "imported here" —
+    `errors.py`'s names are visible from a dozen modules and would otherwise
+    multiply-count.
 
-    # Walk the imported module table rather than `cardlang`'s own namespace:
-    # most modules are not re-exported from the package root.
+    The walk's own module list is the domain, deliberately NOT `sys.modules`:
+    the global table holds whatever a prior test happened to import, so reading
+    it would make this axis depend on what else ran and on the order it ran in.
+    A solo run and a full-suite run must derive the same set.
+    """
     found: dict[str, type[BaseException]] = {}
-    for mod_name, mod in list(sys.modules.items()):
-        if not (mod_name == "cardlang" or mod_name.startswith("cardlang.")):
-            continue
-        if mod is None:
-            continue
-        for obj in vars(mod).values():
+    walked = ["cardlang", *(i.name for i in pkgutil.walk_packages(cardlang.__path__, prefix="cardlang."))]
+    for mod_name in walked:
+        for obj in vars(importlib.import_module(mod_name)).values():
             if (
                 isinstance(obj, type)
                 and issubclass(obj, BaseException)
