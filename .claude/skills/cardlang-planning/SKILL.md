@@ -1,6 +1,6 @@
 ---
 name: cardlang-planning
-description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, wall, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it."
+description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it."
 ---
 
 # Cardlang planning

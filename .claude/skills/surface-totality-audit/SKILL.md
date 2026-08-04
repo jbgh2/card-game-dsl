@@ -1,6 +1,6 @@
 ---
 name: surface-totality-audit
-description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
+description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker guard or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
 ---
 
 # Surface-totality audit
