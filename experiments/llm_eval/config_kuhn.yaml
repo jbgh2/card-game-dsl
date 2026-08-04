@@ -1,0 +1,136 @@
+# Kuhn poker evaluation — run configuration.
+#
+# Run:   python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_kuhn.yaml
+# Recon: python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_kuhn.yaml \
+#          --matchup llm_cheap_vs_nash --estimate 20
+#
+# `nash_vs_random` needs no API key and is the end-to-end smoke test.
+#
+# WHY A SECOND CONFIG RATHER THAN MORE MATCHUPS IN THE FIRST. The two games'
+# matchups are not interchangeable: a Cheat roster has four seats and a Kuhn
+# roster has two, and `_build_seats` refuses a roster that does not match the
+# loaded game. Keeping them in one file would make every `--matchup` selection
+# a chance to load one game and roster the other.
+
+game: cardlang_kuhn_poker
+results_dir: experiments/llm_eval/results_kuhn
+
+seeds:
+  start: 0            # game i uses seed start+i; the adapter addresses 4096 deals
+
+# A Kuhn hand is at most THREE decisions, so the cap that exists to stop a
+# runaway Cheat episode is inert here. Set anyway, and deliberately just above
+# the tree's depth: if it ever bites, the game is not Kuhn and the truncation
+# count says so loudly.
+max_decisions: 8
+
+store_prompts: false
+store_infostates: false
+
+# Kuhn changes the economics completely. Cheat spends ~210 sequential calls and
+# ~1.05M input tokens per game; a Kuhn hand spends 1-2 calls and ~2k tokens. The
+# same money therefore buys two more orders of magnitude of games — which is what
+# lets this experiment report per-information-set frequencies with real
+# denominators where the Cheat one could only report N=10 win rates.
+#
+#     ~2 calls/game, ~1.6k input + ~60 output tokens/game
+#       ->  ~$0.0016/game on Haiku 4.5      (N=300 is well under a dollar)
+#       ->  ~$0.006/game  on Sonnet 5
+token_budget:
+  max_input_tokens: 20000000
+  max_output_tokens: 400000
+  max_cost_usd: 15.0
+
+models:
+  frontier:
+    kind: anthropic
+    model: claude-opus-5
+    params:
+      max_tokens: 512
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  mid:
+    kind: anthropic
+    model: claude-sonnet-5
+    params:
+      max_tokens: 512
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  cheap:
+    kind: anthropic
+    model: claude-haiku-4-5
+    params:
+      max_tokens: 512
+      temperature: 0
+
+# The opponent is the EXACT equilibrium, not a heuristic. `alpha` selects a
+# member of Kuhn's one-parameter family of optima; every member is
+# unexploitable and every member has the same value, so this is a free choice
+# among ceilings. 1/6 is the midpoint of [0, 1/3] — it bluffs a Jack sometimes
+# and slow-plays a King sometimes, so a model facing it meets every information
+# set rather than only the ones an extreme member reaches.
+matchups:
+  # 0. Floor + acceptance test. No API key needed.
+  #    Nash must beat uniform-random decisively; if it does not, the harness is
+  #    wrong before any model is involved.
+  - name: nash_vs_random
+    n: 600
+    rotate: true
+    agents:
+      - {kind: nash, alpha: 0.16666666666666666}
+      - {kind: random}
+
+  # 0b. The self-play control: two equilibrium seats. Chips per hand must land
+  #     near the game's value of -1/18 for seat 0, and exploitability at 0.
+  - name: nash_vs_nash
+    n: 600
+    rotate: true
+    agents:
+      - {kind: nash, alpha: 0.16666666666666666}
+      - {kind: nash, alpha: 0.16666666666666666}
+
+  # 1. THE HEADLINE. A model against the ceiling, raw information state.
+  - name: llm_cheap_vs_nash
+    n: 300
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap}
+      - {kind: nash, alpha: 0.16666666666666666}
+
+  # 2. Capability gradient — two points, not one.
+  - name: llm_mid_vs_nash
+    n: 300
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid}
+      - {kind: nash, alpha: 0.16666666666666666}
+
+  # 3. The rendered arm: English instead of the engine's raw string. Same
+  #    information, different presentation — a pure function of the same bytes.
+  - name: llm_cheap_rendered_nash
+    n: 300
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true}
+      - {kind: nash, alpha: 0.16666666666666666}
+
+  # 4. THE PRE-REGISTERED A/B. Control and arm differ in ONE key: the response
+  #    format. Same seeds, same opponent, same model, same sampling parameters.
+  #    Registered endpoint: `dominated_action_rate` (see compare.PRIMARY_ENDPOINT).
+  #    Registered prediction: reason-first LOWERS it — deliberation before
+  #    committing should catch "I am folding the best possible hand".
+  - name: llm_cheap_control_nash
+    n: 300
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, arm: reasoning}
+      - {kind: nash, alpha: 0.16666666666666666}
+
+  - name: llm_cheap_reason_first_nash
+    n: 300
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, arm: reason_first}
+      - {kind: nash, alpha: 0.16666666666666666}

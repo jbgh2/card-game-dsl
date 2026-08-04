@@ -21,11 +21,12 @@ Illegal after: an agent method taking a game state.
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from . import infostate as istate
+from . import kuhn
 from .prompts import (
     ResponseArm,
     RULES_RAW,
@@ -40,25 +41,49 @@ from .providers import Provider
 
 @dataclass(frozen=True)
 class DecisionView:
-    """Everything an agent is allowed to see at one decision point."""
+    """Everything an agent is allowed to see at one decision point.
+
+    Game-neutral by construction: seat number, information-state string, and the
+    legal actions with their renderings. Nothing here knows which game is being
+    played, which is what lets the leak-freeness guarantee cover a second one
+    without being restated. Cheat's decision-shape classifier lives in
+    `infostate.decision_kind`, not here.
+    """
 
     player: int
     infostate: str
     legal_actions: list[int]
     legal_strings: list[str]
 
-    def kind(self) -> str:
-        """Which of Cheat's three decision shapes this is, from the legal moves
-        alone. Raises on anything else rather than guessing: a new decision
-        shape must be handled deliberately, not silently routed to the card
-        branch."""
-        if self.legal_strings == ["allow", "call_cheat"]:
-            return "window"
-        if all(s.startswith("play_") for s in self.legal_strings):
-            return "announce"
-        if all(istate.rank_of(s) in istate.RANKS for s in self.legal_strings):
-            return "card"
-        raise ValueError(f"unrecognized decision shape: {self.legal_strings}")
+
+# The per-game static text a decision reads. Two entries, so the structure that
+# keeps them apart is exercised rather than asserted: an agent's rules text is a
+# function of (game, arm) and of nothing a run can configure, which is what makes
+# two arms' numbers comparable and two GAMES' numbers not silently mixed.
+#
+# `render` is the arm that hands the model English instead of the engine's raw
+# string. Both entries' renderers are pure functions of the same information
+# state, so the leak-freeness argument is per-game unchanged.
+GAME_TEXT: dict[str, tuple[str, str, Callable[[str], str]]] = {
+    # game: (rules for the raw arm, rules for the rendered arm, renderer)
+    "cheat": (RULES_RAW, RULES_RENDERED, render_state),
+    "kuhn": (kuhn.RULES_RAW, kuhn.RULES_RENDERED, kuhn.render_state),
+}
+
+
+def game_text(name: str) -> tuple[str, str, Callable[[str], str]]:
+    """Look up a game's static text, refusing anything not in the registry.
+
+    A silently-ignored game name would be this harness's worst failure: the run
+    would complete, cost real money, and report one game's numbers having shown
+    the model another game's rules.
+    """
+    try:
+        return GAME_TEXT[name]
+    except KeyError:
+        raise ValueError(
+            f"unknown game {name!r} (expected one of {sorted(GAME_TEXT)})"
+        ) from None
 
 
 class Agent(Protocol):
@@ -125,7 +150,7 @@ class RuleAgent:
 
     def choose(self, view: DecisionView) -> int:
         info = istate.parse(view.infostate)
-        kind = view.kind()
+        kind = istate.decision_kind(view.legal_strings)
         if kind == "window":
             return self._challenge(view, info)
         if kind == "announce":
@@ -179,6 +204,57 @@ class RuleAgent:
 
 
 @dataclass
+class NashAgent:
+    """Kuhn's exact equilibrium — the baseline the Cheat harness could not have.
+
+    Cheat has no solution, so its baseline was a hand-written heuristic and
+    "beat the baseline" meant "beat somebody's guess at competent play". Kuhn is
+    solved, so the baseline is the game-theoretic optimum: it is unexploitable by
+    construction, it concedes exactly 1/18 of a chip per hand as seat 0, and no
+    policy can do better against it. A model measured against this is measured
+    against the ceiling, not against a person's idea of one.
+
+    `alpha` selects a member of the equilibrium family. Every member is
+    unexploitable and every member has the same value, so this is a free choice
+    among optima — it is recorded in the run summary because it changes the
+    opponent's observable BEHAVIOUR (how often it bluffs a Jack) without
+    changing its strength, and the model's best response to it therefore
+    differs.
+
+    Decides from the `DecisionView` like every other agent: it reads the
+    information state, not the state.
+    """
+
+    seed: int
+    alpha: float = 1.0 / 6.0
+    name: str = "nash"
+    _rng: random.Random = field(init=False)
+    _policy: kuhn.Policy = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._rng = random.Random(self.seed)
+        # Resolve at construction: an out-of-range alpha must fail before a run
+        # starts, not on move one after the roster is already up.
+        self._policy = kuhn.nash_policy(self.alpha)
+
+    def choose(self, view: DecisionView) -> int:
+        info = kuhn.parse(view.infostate)
+        dist = self._policy[info.key]
+        # Sample over the ENGINE's own action order, so the draw does not depend
+        # on dictionary ordering anywhere in this file.
+        roll = self._rng.random()
+        cumulative = 0.0
+        for index, action in enumerate(view.legal_strings):
+            cumulative += dist.get(action, 0.0)
+            if roll < cumulative:
+                return view.legal_actions[index]
+        return view.legal_actions[-1]
+
+    def pop_trace(self) -> dict[str, Any]:
+        return {}
+
+
+@dataclass
 class LLMAgent:
     """A frontier model, reading the raw information state.
 
@@ -202,25 +278,32 @@ class LLMAgent:
     # (one removes the reasoning field, the other moves it), and as two booleans
     # their both-true combination would be accepted and silently resolved.
     arm: str = "reasoning"
-    # DERIVED from `render`, not a constructor parameter: the two arms' rules
-    # texts differ only in their format guide, so a caller-supplied third text
-    # would make the two arms' numbers incomparable — and no config path ever
-    # supplied one.
+    # Which game's rules text and renderer to use. A name from `GAME_TEXT`, so an
+    # unrecognized game is refused rather than silently defaulting to Cheat's
+    # rules — which would produce a complete, expensive, entirely meaningless run.
+    game: str = "cheat"
+    # DERIVED from `game` and `render`, never constructor parameters: the two
+    # arms' rules texts differ only in their format guide, so a caller-supplied
+    # third text would make the two arms' numbers incomparable — and no config
+    # path ever supplied one.
     rules: str = field(init=False)
+    _render: Callable[[str], str] = field(init=False)
     _rng: random.Random = field(init=False)
     _arm: ResponseArm = field(init=False)
     _trace: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
-        self.rules = RULES_RENDERED if self.render else RULES_RAW
+        raw, rendered, renderer = game_text(self.game)
+        self.rules = rendered if self.render else raw
+        self._render = renderer
         # Resolve at construction, not at the first decision: an unknown arm
         # name must fail before a run starts spending, not on move one of game
         # one after the roster and providers are already up.
         self._arm = response_arm(self.arm)
 
     def choose(self, view: DecisionView) -> int:
-        state = render_state(view.infostate) if self.render else view.infostate
+        state = self._render(view.infostate) if self.render else view.infostate
         prompt = build_prompt(
             self.rules, state, view.legal_strings, self._arm.instruction
         )
@@ -272,7 +355,9 @@ class LLMAgent:
         return trace
 
 
-def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> Agent:
+def build_agent(
+    spec: dict[str, Any], seed: int, provider: Provider | None, game: str = "cheat"
+) -> Agent:
     """Construct one agent from a config block."""
     kind = spec["kind"]
     if kind == "random":
@@ -284,6 +369,12 @@ def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> A
             bluff_prob=float(spec.get("bluff_prob", 0.0)),
             name=spec.get("name", "rule"),
         )
+    if kind == "nash":
+        return NashAgent(
+            seed=seed,
+            alpha=float(spec.get("alpha", 1.0 / 6.0)),
+            name=spec.get("name", "nash"),
+        )
     if kind == "llm":
         if provider is None:
             raise ValueError("an 'llm' agent needs a provider")
@@ -293,8 +384,11 @@ def build_agent(spec: dict[str, Any], seed: int, provider: Provider | None) -> A
             name=spec.get("name", "llm"),
             render=bool(spec.get("render", False)),
             arm=str(spec.get("arm", "reasoning")),
+            game=game,
         )
-    raise ValueError(f"unknown agent kind {kind!r} (expected random | rule | llm)")
+    raise ValueError(
+        f"unknown agent kind {kind!r} (expected random | rule | nash | llm)"
+    )
 
 
 def seat_agents(agents: Sequence[Agent]) -> dict[int, Agent]:

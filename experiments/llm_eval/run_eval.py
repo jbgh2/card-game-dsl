@@ -37,7 +37,7 @@ import yaml
 
 from . import layout
 from .agents import Agent, build_agent
-from .metrics import aggregate
+from .metrics import aggregate, game_key
 from .prompts import parse_response
 from .providers import PRICES, Provider, Usage, make_provider
 from .referee import NUM_SEEDS, GameRecord, load_game, play_game
@@ -83,6 +83,7 @@ def _build_seats(
     seed: int,
     providers: dict[str, Provider],
     rotate: bool,
+    game: str = "cheat",
 ) -> dict[int, Agent]:
     """Assign the roster to seats, rotating the first entry's seat per game so
     position effects wash out (spec §4). The roster is filled in order around
@@ -98,7 +99,9 @@ def _build_seats(
         seat = (focus + offset) % num_players
         provider = providers.get(spec["model"]) if spec.get("model") else None
         # Distinct per-seat seeds so two Random seats do not play identically.
-        seats[seat] = build_agent(spec, seed=seed * 100 + seat, provider=provider)
+        seats[seat] = build_agent(
+            spec, seed=seed * 100 + seat, provider=provider, game=game
+        )
     return seats
 
 
@@ -211,6 +214,10 @@ def run_matchup(
 
     game = load_game(config.get("game", "cardlang_cheat"))
     num_players = game.num_players()
+    # One name, derived once, used for both the agents' rules text and the
+    # metrics. Deriving it from the LOADED game rather than from the config key
+    # means a config naming one game cannot show the model another's rules.
+    game_name = game_key(game.get_type().short_name)
     used = sorted({spec["model"] for spec in roster if spec.get("model")})
     # `m` deliberately, not `n`: `n` is the game count in this scope, and a
     # comprehension that reuses it reads like a shadow even though it is not one.
@@ -317,7 +324,13 @@ def run_matchup(
 
             seed = seed_start + i
             seats = _build_seats(
-                roster, num_players, i, seed, providers, bool(matchup.get("rotate", True))
+                roster,
+                num_players,
+                i,
+                seed,
+                providers,
+                bool(matchup.get("rotate", True)),
+                game_name,
             )
             try:
                 record: GameRecord = play_game(
@@ -366,7 +379,7 @@ def run_matchup(
                 f"({record.wall_seconds}s)"
             )
 
-    summary = aggregate(existing + records)
+    summary = aggregate(existing + records, game_name)
     summary["matchup"] = name
     summary["n_requested"] = int(matchup["n"])
     summary["n_completed"] = len(existing) + len(records)

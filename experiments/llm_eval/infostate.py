@@ -260,3 +260,22 @@ def provably_false(
     """
     seat = info.claimant if claimant is None else claimant
     return _excluded_count(info, claim_rank, seat) + claim_count > COPIES_PER_RANK
+
+
+def decision_kind(legal_strings: list[str]) -> str:
+    """Which of Cheat's three decision shapes a decision is, from its legal
+    moves alone. Raises on anything else rather than guessing: a new decision
+    shape must be handled deliberately, not silently routed to the card branch.
+
+    A free function over the rendered legal actions rather than a method on
+    `DecisionView`, because the classification is Cheat's and `DecisionView` is
+    the harness's game-neutral carrier. A Cheat classifier living on the shared
+    type is what makes a second game look like a violation of it.
+    """
+    if legal_strings == ["allow", "call_cheat"]:
+        return "window"
+    if all(s.startswith("play_") for s in legal_strings):
+        return "announce"
+    if all(rank_of(s) in RANKS for s in legal_strings):
+        return "card"
+    raise ValueError(f"unrecognized decision shape: {legal_strings}")
