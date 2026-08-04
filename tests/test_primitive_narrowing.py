@@ -762,7 +762,7 @@ _MODULE_HANDLE_CELLS = [
 
 @pytest.mark.parametrize(("module", "handle"), _MODULE_HANDLE_CELLS)
 def test_game_module_is_free_of_engine_handle(module: str, handle: str) -> None:
-    """The crossed wall. A module is only green once EVERY primitive it
+    """The crossed grid. A module is only green once EVERY primitive it
     implements is migrated; until then each of its cells is a strict xfail,
     so finishing a module without updating MIGRATED fails loudly."""
     scan = _scan_module(module)

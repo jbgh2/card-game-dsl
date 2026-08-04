@@ -10,7 +10,7 @@ crashes — they are wrong meanings delivered confidently. A crash reaches a
 designer as a bug report; a silent misread reaches them as a wrong game they
 trust. Generic review angles are tuned for crashes and null derefs; run
 head-to-head against a pipeline-aware review of the same branch, they found
-line-level items but missed every misparse and every cross-context wall hole —
+line-level items but missed every misparse and every cross-context guard hole —
 the highest-severity classes here, visible only by *running* the pipeline and
 tracing constructs *across* layers. This skill encodes those two motions.
 
@@ -26,7 +26,7 @@ loud failure is the system working; silence is the enemy.
    (decisions.md "Surface totality").
 3. **Silently-false** — typechecks clean but is unsatisfiable or vacuous at
    runtime: cross-enum comparison, a string literal never validated against
-   its domain, a `TAny` leak past a wall, a predicate checked without its
+   its domain, a `TAny` leak past a guard, a predicate checked without its
    binder's type bound.
 4. **Vacuously-green** — a test or check presented as a guarantee that cannot
    fail: an assertion loop over nodes a retired construct can no longer
@@ -62,7 +62,7 @@ allocates backwards.
    docs prose, tests/goldens. The classification selects the conditional
    angles below — do not run angles whose trigger the diff does not match.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
-   grammar surface, a checker wall or diagnostic, a stdlib registry, or any
+   grammar surface, a checker Owner Guard or diagnostic, a stdlib registry, or any
    closed-domain mechanism (the `surface-totality-audit` trigger) — including
    a diff that ANSWERS AN EARLIER FINDING on one, which must additionally
    carry that skill's **class ledger** showing the finding was swept as a
@@ -121,7 +121,7 @@ dominant cause of misses.
   or creates (query `where`, movement/reveal filters, `demands` /
   `applies_when`, `transition_to … where`, aggregation bodies and defaults,
   quantifier bodies), ask three questions: what binds here, what type does
-  the checker believe it has, and does the wall that guards this shape in
+  the checker believe it has, and does the Owner Guard that guards this shape in
   *other* contexts fire in this one? Hunt `TAny` leaks specifically:
   pronoun-rooted members (`action.card.*`), subscripts landing in generic
   postfix positions, and any value that crosses a layer without its type.
@@ -133,8 +133,8 @@ dominant cause of misses.
   lark/Python exception escaping (the `VisitError`-unwrap class — check
   every `transform` call site, not just the one that motivated the unwrap).
   Every new guard passes the write-time triage (decisions.md
-  "Closed-domain completeness"): it is a wall at the owning layer, or a
-  backstop whose comment names the wall it shadows — a guard that names
+  "Closed-domain completeness"): it is an Owner Guard at the owning layer, or a
+  Shadow Guard whose comment names the Owner Guard it shadows — a guard that names
   neither is a finding (class 5 or 6) even if the condition it checks is
   true.
   Grep each new diagnostic's quoted syntax against the grammar: a message

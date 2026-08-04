@@ -24,7 +24,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               every other holder. A pass that wants to change a node builds a
               new one with ``dataclasses.replace``.
 
-              Four walls hold that, each closing a different route, all
+              Four Owner Guards hold that, each closing a different route, all
               enumerated in tests/test_node_registry.py: ``frozen=True``
               refuses every ordinary ``setattr`` (CPython's frozen
               ``__setattr__`` raises for ANY name on a direct instance, not
@@ -33,7 +33,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               writes, which a frozen non-slots node would accept; a scrape
               refuses ``object.__setattr__`` of a DECLARED field, the one
               route neither of the others can — it is the same call frozen's
-              own ``__init__`` uses, so it is walled by not appearing at all;
+              own ``__init__`` uses, so it is guarded by not appearing at all;
               and a field-type check refuses mutable containers, since a
               ``list`` field would be writable THROUGH the node with no
               ``setattr`` for the other three to catch.
@@ -41,7 +41,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               Sharing itself is not new — ``openspiel/replay.py``'s ``load()``
               has been cached since 2026-06-07. Memoizing here makes it the
               default rather than opt-in, which is what turns those four from
-              properties the code happens to have into walls.
+              properties the code happens to have into Owner Guards.
 Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
               and the per-construct parse tests; the memo's own liveness and
               key correctness by tests/test_parse.py's caching pins.
@@ -992,8 +992,8 @@ class _Builder(Transformer[Token, n.Game]):
         # for a bare form the domain to enumerate) is the singular, derived by
         # stripping a trailing `s` from a plural spelling; `spelled` keeps the
         # raw noun so resolve can quote it in the plural-mismatch diagnostic.
-        # Whether the plural was actually well-formed is resolve's wall — this
-        # only recovers the intended singular so the body's binder resolves.
+        # Whether the plural was actually well-formed is resolve's Owner Guard —
+        # this only recovers the intended singular so the body's binder resolves.
         spelled = str(noun)
         binder = spelled[:-1] if kind != "any" and spelled.endswith("s") else spelled
         return n.DomainQuery(
@@ -1325,7 +1325,7 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.UsesDecl):
                 # No `once`: a game uses as many libraries as it draws on. A
                 # REPEATED name is still a defect (the second import is a no-op),
-                # and is walled in resolve, where the library names are known.
+                # and is guarded in resolve, where the library names are known.
                 uses.append(item)
             elif isinstance(item, n.Phase):
                 phases.append(item)
@@ -1342,7 +1342,7 @@ class _Builder(Transformer[Token, n.Game]):
         # clauses the AST itself makes mandatory (`Game.players` /
         # `Game.deck` are non-optional), so this builder is the last layer
         # where their absence exists to report — the optionally-representable
-        # mandatory clauses (`max_length:`, `winner:`/`loser:`) are walled in
+        # mandatory clauses (`max_length:`, `winner:`/`loser:`) are guarded in
         # resolve instead. Bag-first so a game missing both hears about both
         # at once (resolve's `_raise_if_errors` idiom).
         bag = DiagnosticBag()
@@ -1374,8 +1374,8 @@ class _Builder(Transformer[Token, n.Game]):
             if len(bag.items) > 1:
                 error.add_note(bag.format())
             raise error
-        # Backstop for mypy narrowing only: the bag raise above is the wall
-        # (players present, and exactly one content clause).
+        # Shadow Guard for mypy narrowing only: the bag raise above is the
+        # Owner Guard (players present, and exactly one content clause).
         assert players is not None
         content: _Deck | _Pieces | None = deck if deck is not None else pieces
         assert content is not None
@@ -1522,9 +1522,9 @@ class _Builder(Transformer[Token, n.Game]):
 
     def start(self, meta: Meta, c: list[object]) -> n.Game:
         # `start: top_item+` accepts any mix of definitions, so game-count
-        # errors are reachable from source: without these walls a source with
-        # no game would fail as an index error rather than a diagnostic, and a
-        # second game would be silently discarded (decisions.md "Surface
+        # errors are reachable from source: without these Owner Guards a source
+        # with no game would fail as an index error rather than a diagnostic,
+        # and a second game would be silently discarded (decisions.md "Surface
         # totality"). One game per source.
         games = [x for x in c if isinstance(x, n.Game)]
         if not games:

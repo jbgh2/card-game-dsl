@@ -78,7 +78,8 @@ def play_game(
     assert game.winner is not None or game.loser is not None, (
         "resolve() must reject a game with neither `winner:` nor `loser:`"
     )
-    # resolve() walls `direction:` to GAME_DIRECTIONS; None means clockwise.
+    # resolve()'s Owner Guard confines `direction:` to GAME_DIRECTIONS; None
+    # means clockwise.
     seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
     teams = tuple(range(len(game.partnerships)))
     team_of = {
@@ -198,7 +199,7 @@ def play_game(
         pick = RANK_DIR_TO_PICK[game.winner.rank_dir]
         winner = pick(scores, key=lambda p: scores[p])
     else:
-        # winner is None here, so resolve's winner-or-loser wall leaves a loser
+        # winner is None here, so resolve's winner-or-loser Owner Guard leaves a loser
         assert game.loser is not None
         selected = evaluate(game.loser.selection, ctx)
         if not isinstance(selected, int):
@@ -288,7 +289,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 # failure, not a stuck process, against the game's declared
                 # `max_length` (docs/decisions.md, "Game length as a declared
                 # contract"). The statement-level `repeat until` has the same
-                # backstop.
+                # Owner Guard.
                 guard += 1
                 if guard > ctx.rs.max_length:
                     raise RuntimeError(
@@ -390,7 +391,7 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
             # set — the same table cell `for each <role>` iterates. The old
             # `teams if index == "team" else players` silently keyed every
             # other role by players, which is exactly how `state { x[suit] }`
-            # ran as a per-player store until resolve walled it.
+            # ran as a per-player store until resolve's Owner Guard rejected it.
             keys = role_members(
                 require_role(decl.index, "state-variable index role"), ctx
             )

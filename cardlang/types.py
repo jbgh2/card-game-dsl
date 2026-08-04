@@ -30,7 +30,7 @@ from typing import Literal, TypeAlias
 
 # The two content flavors a game declares (`cards:` vs `pieces:`) -- the value
 # of `Game.content_flavor` and `ComponentSet.flavor`, and the dispatch key for
-# the flavor-aware walls. Not a `Type` (it types no expression); it lives in
+# the flavor-aware guards. Not a `Type` (it types no expression); it lives in
 # this leaf module so the AST, the resolver, the checker, and the runtime
 # registry all import it without any of them importing each other.
 Flavor: TypeAlias = Literal["card", "piece"]
@@ -122,7 +122,7 @@ class TCollection:
     ``key`` is the subscript's domain when the collection is a KEYED map — a
     per-player/per-team state variable, an indexed `let` — and ``None`` for
     positional collections and untracked shapes. It drives the
-    subscript/indexed-assignment key checks and the keyed-membership wall.
+    subscript/indexed-assignment key checks and the keyed-membership Owner Guard.
     Facets do not decide TOP-LEVEL compatibility: `assignable`'s collection
     arm compares elements only, and `unify` preserves facets the two sides
     agree on rather than judging by them. (Nested collections compare
@@ -211,9 +211,9 @@ def unify(a: Type, b: Type) -> Type | None:
     element type (a chip stack is `Collection<Any>` precisely because that part of
     the object model is unrefined) would be judged disjoint from `Collection<Card>`.
     Every caller that asks "are these compatible?" would inherit that: the equality
-    wall would MANUFACTURE a `can never be equal` diagnostic for a comparison whose
-    only uncertainty is in the element. Gradual typing has to be gradual all the way
-    down, or it is just a top-level special case.
+    Owner Guard would MANUFACTURE a `can never be equal` diagnostic for a comparison
+    whose only uncertainty is in the element. Gradual typing has to be gradual all
+    the way down, or it is just a top-level special case.
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
@@ -228,15 +228,15 @@ def unify(a: Type, b: Type) -> Type | None:
         # would erase them: `if c then hand[0] else hand[1]` — two genuine
         # zones — would unify to a non-zone and be falsely rejected at every
         # endpoint, and two same-keyed maps would unify to an unkeyed one,
-        # sending the keyed-map wall dark through any IfExpr. The two facets
-        # merge in OPPOSITE directions because they feed opposite wall polarities:
-        # `zone` PERMITS (an endpoint requires a definite zone, so a maybe-
-        # zone must not qualify — AND), while `key` PROHIBITS (membership on
-        # a maybe-map is still ambiguous at runtime, so keyedness must be
-        # STICKY: agreeing keys keep their domain; a map merged with a
-        # non-map, or a differently-keyed map, stays keyed with the domain
-        # unknowable — TAny, which the subscript check accepts and the
-        # membership wall still fires on).
+        # sending the keyed-map Owner Guard dark through any IfExpr. The two
+        # facets merge in OPPOSITE directions because they feed opposite
+        # guard polarities: `zone` PERMITS (an endpoint requires a definite
+        # zone, so a maybe-zone must not qualify — AND), while `key`
+        # PROHIBITS (membership on a maybe-map is still ambiguous at runtime,
+        # so keyedness must be STICKY: agreeing keys keep their domain; a map
+        # merged with a non-map, or a differently-keyed map, stays keyed with
+        # the domain unknowable — TAny, which the subscript check accepts and
+        # the membership Owner Guard still fires on).
         if a.key == b.key:
             key: Type | None = a.key
         else:

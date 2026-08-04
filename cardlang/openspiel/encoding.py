@@ -252,7 +252,7 @@ class ActionSpace:
                 # predicate's root call (the climb-engine pattern one
                 # construct over): `gin_arrange_ok(...)` → the gin meld
                 # codec. A predicate whose root is not a registered call is
-                # walled below — loudly, not silently absent from the space.
+                # refused below — loudly, not silently absent from the space.
                 root = node.filter
                 fn = root.func if isinstance(root, n.Call) else None
                 if fn not in joint_engines:
@@ -281,7 +281,7 @@ class ActionSpace:
                     key=lambda p: (p.size, p.kind, sorted(card_to_action(c) for c in p.cards)),
                 )
         if joint_engines:
-            # Corpus-first walls, all loud (issue #139 records the deferrals):
+            # Corpus-first guards, all loud (issue #139 records the deferrals):
             # the combo block serves one subset universe per game, so a game
             # mixing climb and joint selections — or two joint predicates with
             # different universes — needs a codec-composition design no game

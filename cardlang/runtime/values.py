@@ -264,10 +264,10 @@ def component_set(name: str) -> ComponentSet | None:
 
 
 def _require_component_set(name: str) -> ComponentSet:
-    """The named set, or a loud `NotImplementedError` — resolve walls an
-    unknown/mis-flavored name, so every runtime lookup miss is a driver bug,
-    never a designer error. One raise for `build_deck`/`component_deck`/
-    `axis_attributes`."""
+    """The named set, or a loud `NotImplementedError` — resolve's Owner Guard
+    rejects an unknown/mis-flavored name, so every runtime lookup miss is a
+    driver bug, never a designer error. One raise for `build_deck`/
+    `component_deck`/`axis_attributes`."""
     cs = component_set(name)
     if cs is None:
         raise NotImplementedError(
@@ -387,9 +387,9 @@ RANKING_CONVENTIONS: dict[str, tuple[str, ...]] = {
 def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...]:
     """A convention's operative ranking for a deck: the template filtered to
     the deck's real ranks, order preserved. Total for every deck whose ranks
-    are all French — the resolver walls the rest (`resolve.py::
-    _expand_ranking`) before this runs, so filtering can never silently drop
-    a deck rank."""
+    are all French — the resolver's Owner Guard rejects the rest
+    (`resolve.py::_expand_ranking`) before this runs, so filtering can never
+    silently drop a deck rank."""
     members = set(deck_ranks(deck_name))
     return tuple(r for r in RANKING_CONVENTIONS[convention] if r in members)
 
@@ -398,8 +398,9 @@ def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...
 Player = int
 
 # The closed value set of the game-level `direction:` clause (grammatically a
-# bare NAME). resolve's `_resolve_direction` walls membership; `driver.py`
-# maps the value onto `Seating.clockwise`. An omitted clause means clockwise.
+# bare NAME). resolve's `_resolve_direction` is the Owner Guard for
+# membership; `driver.py` maps the value onto `Seating.clockwise`. An omitted
+# clause means clockwise.
 GAME_DIRECTIONS: tuple[str, ...] = ("clockwise", "counterclockwise")
 
 
@@ -441,7 +442,7 @@ class Seating:
         modular arithmetic below cannot fail: it would silently normalize an
         out-of-range seat (`9` in a 4-player game becomes seat 1) and run the
         round with the wrong leader. `from` is a game expression and the
-        static seat-range wall only recognizes a direct literal, so `from
+        static seat-range check only recognizes a direct literal, so `from
         4 + 5` reaches here unchallenged — runtime DATA, reported in the
         runtime's currency. The membership test also catches a non-`Player`
         value (a `none`-valued `Player?`, an unrefined pronoun), which would

@@ -72,5 +72,5 @@ def enum_values(deck: str) -> frozenset[str]:
     """All bare-name enum values visible in a game with the given deck.
     Name-form ranks resolve bare (`card.rank == Duke`); numeric ranks can
     never appear here (a bare `10` lexes as an Integer literal) and keep the
-    string spelling, validated by the type checker's comparison wall."""
+    string spelling, validated by the type checker's comparison Owner Guard."""
     return suit_names(deck) | rank_names(deck) | SEAT_DIRECTION_VALUES

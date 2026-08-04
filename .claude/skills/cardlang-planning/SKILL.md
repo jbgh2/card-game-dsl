@@ -1,6 +1,6 @@
 ---
 name: cardlang-planning
-description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, wall, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it."
+description: "MANDATORY planning gate for this repo — invoke BEFORE exploring, brainstorming a design, or entering plan mode for ANY new feature, construct, guard, registry, game, or machinery change. Orders the planning motions: find the decision's owner, classify the change, state the acceptance criteria, and (for audit-triggering work) run the surface-totality-audit's Step 1 inside planning so the grid exists red before implementation. Every plan step names the artifact that proves it."
 ---
 
 # Cardlang planning
@@ -8,7 +8,7 @@ description: "MANDATORY planning gate for this repo — invoke BEFORE exploring,
 Plans in this repo fail in a specific way: not by omitting steps, but by
 inheriting the implementation's frame before any gate can see it. The
 permissive-top branch scoped a five-position type-name axis to the two
-positions its plan happened to wall — and every downstream gate then
+positions its plan happened to guard — and every downstream gate then
 audited the narrowed frame faithfully. The planning stage is where the
 frame is set, so it is where the frame must be checked. This skill orders
 the motions; the content lives with its owners (CLAUDE.md, decisions.md,
@@ -39,7 +39,7 @@ Classify exactly as the review skill's Phase 0 will at the other end:
 grammar surface, parse builder, AST, resolve, typecheck, IR, runtime,
 stdlib registry, corpus game, docs, tests/goldens. The classification
 decides which gates the plan must SCHEDULE — if the change adds or
-extends surface, a wall, a diagnostic, a registry, or any closed-domain
+extends surface, an Owner Guard, a diagnostic, a registry, or any closed-domain
 mechanism, the surface-totality-audit fires and Gate 4 applies. It fires
 just as hard when the work ANSWERS A REVIEW FINDING on such a mechanism:
 that path is where the gate has actually been skipped, because a finding
@@ -76,7 +76,7 @@ Before the task list: state the change's reachability (R1–R4, decisions.md
 "Reachability ranks the work") — who meets the defect it fixes or the
 surface it adds — and check the effort against it. An R1/R2 defect
 justifies what it costs. An R3/R4 whose fix is more than small routes to
-record-and-file: the wall, the ledger row, and the record its tag calls
+record-and-file: the guard, the ledger row, and the record its tag calls
 for — an issue for R3, the ledger alone for a non-rigor-critical R4
 (decisions.md, "Reachability ranks the work") — not the fix. This
 gate exists because locally-correct choices compound: each finding
@@ -115,7 +115,7 @@ without the check having run.
 
 A cardlang plan is a list of red things to make green. Each step names
 the artifact that proves it — a grid row, a rejection golden, a proof
-module, a byte-identical trace, a wall plus a tracker record (issue #N) for
+module, a byte-identical trace, a guard plus a tracker record (issue #N) for
 anything deferred — and where the artifact can exist at plan time, it exists and
 is red (`xfail(strict=True)` for grid cells, a failing test for
 behavior). A step with no named artifact is not a plan step; it is a

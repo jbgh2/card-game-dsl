@@ -35,7 +35,7 @@ Contract:
                the primitive's module has a `PRIMITIVE_READS` row.
   establishes  a game module receives values only — no engine handle
                crosses the boundary, so purity is structural (pinned by the
-               crossed wall in tests/test_primitive_narrowing.py).
+               crossed grid in tests/test_primitive_narrowing.py).
   illegal after it
                `Ctx`, `RuntimeState`, `ZoneStore` or `Chooser` appearing in
                any module under `cardlang/runtime/` outside the engine core.

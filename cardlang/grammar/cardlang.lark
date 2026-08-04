@@ -98,12 +98,13 @@ direction: _DIRECTION_KW ":" NAME
 
 // Content clauses: each names a COMPONENT_SETS entry of its flavor (`cards:`
 // a card deck, `pieces:` a piece set). Exactly one per game — both/neither
-// are parse walls (parse.py `game()`); a cross-flavor name is a resolve wall.
+// are parse Owner Guards (parse.py `game()`); a cross-flavor name is a
+// resolve Owner Guard.
 cards: _CARDS_KW ":" NAME
 pieces: _PIECES_KW ":" NAME
 
 // A per-game bound on decision/loop iterations (docs/decisions.md, "Game
-// length as a declared contract"): the runtime's non-termination backstop
+// length as a declared contract"): the runtime's non-termination Owner Guard
 // and the OpenSpiel adapter's `max_game_length` both read this one number.
 max_length: _MAX_LENGTH_KW ":" INT
 // Either an explicit strongest-first rank enumeration, or a ranking
@@ -293,7 +294,7 @@ dist_clause: _AS_EQUALLY_AS_POSSIBLE_KW  -> dist_equally
 // The `jointly` form instead binds `cards` — the candidate SET — and the
 // selection is over the source's subsets satisfying the joint predicate
 // (decisions.md "Joint-predicate selection"); requires `chosen` (resolve
-// walls the rest of the matrix).
+// rejects the rest of the matrix).
 where_clause: _WHERE_KW _JOINTLY_KW expr -> where_jointly
             | _WHERE_KW expr             -> where_each
 selection: [select_mode] amount NAME
@@ -511,7 +512,7 @@ card_query: _CARDS_KW _IN_KW zone_expr _WHERE_KW expr                     -> cq_
 // tests/test_cell_queries.py). Resolve validates the noun against the game's
 // declared domains (bare) or the admitted `{line, cell}` set (collection);
 // the plural convention (`any` singular, `all`/`number of` plural) is a
-// resolve wall, not a grammar one.
+// resolve Owner Guard, not a grammar one.
 quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
           | _ALL_KW _PLAYERS_KW _WHERE_KW expr       -> q_all_player
           | _ANY_KW _TEAM_KW _WHERE_KW expr          -> q_any_team

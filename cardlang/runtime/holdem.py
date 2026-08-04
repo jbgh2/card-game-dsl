@@ -45,8 +45,8 @@ def holdem_next_entrant(facts: EngineFacts, gr: reads.GameReads, player: Player)
     seat that busted out; the blinds and every street's opening seat are
     positional and must skip such seats. Total by construction at every call
     site: the hand only runs while at least two seats hold chips, so some
-    entrant always exists — the exhausted-ring raise below is a backstop in the
-    runtime's currency, not a game-reachable error."""
+    entrant always exists — the exhausted-ring raise below is a Shadow Guard
+    in the runtime's currency, not a game-reachable error."""
     in_hand = gr.state["in_hand"]
     for seat in facts.seating.turn_order_from(player):
         if in_hand[seat]:

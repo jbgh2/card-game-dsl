@@ -21,7 +21,7 @@ reached through a VARIABLE is caught the same way, which no scrape could do.
 Every consumer that dispatches on a role takes a `Role`, and the one bridge
 from parsed text (`domains.role_of`) returns `Role | None` so a caller must
 say what a miss means. That is the rung-1 form of this module's original
-guarantee (decisions.md "Prefer the wall you cannot need"), and it retired the
+guarantee (decisions.md "Prefer the guard you cannot need"), and it retired the
 marker scrape this module used to be: markers, marker reasons, and the
 "is this literal in a dispatch position" proxy are all gone, because mypy
 answers the question they approximated.

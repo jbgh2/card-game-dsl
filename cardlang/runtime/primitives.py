@@ -561,7 +561,7 @@ def joint_codec_function(name: str) -> Any | None:
     (`climb_codec_function` below) one construct over: pure card-set <->
     action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
     over the predicate's satisfying-subset universe. Keyed corpus-first; a
-    joint predicate with no registered codec is walled loudly at
+    joint predicate with no registered codec meets a loud Owner Guard at
     `ActionSpace.for_game`, never silently absent from the action space."""
     match name:
         case "gin_arrange_ok" | "gin_valid_meld":

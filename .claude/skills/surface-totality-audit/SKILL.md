@@ -1,6 +1,6 @@
 ---
 name: surface-totality-audit
-description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker wall or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
+description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker guard or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
 ---
 
 # Surface-totality audit
@@ -15,7 +15,7 @@ implementation exists**, and **probe the surface adversarially with the
 sentences an author would plausibly get wrong**. Where this repo mechanized
 completeness (the `assert_never` node dispatches, the glob↔registry pin,
 the movement matrix), changes at scale shipped with zero coverage misses;
-where the doctrine stayed prose, walls shipped with holes. This skill
+where the doctrine stayed prose, guards shipped with holes. This skill
 converts the prose into artifacts, under one law: **an author-filled
 artifact inherits the author's blind spot.** Every completeness claim this
 repo lodged in prose drifted; every claim lodged in a check that runs held.
@@ -32,15 +32,15 @@ tell that this step is being skipped.
 
 **Each AXIS of the domain derives from its own registry in code** — the
 operator axis from the operator terminal (ALL of it: ordering and arithmetic
-ops, not only the ones the wall handles), the node axis from the Expr union,
+ops, not only the ones the Owner Guard handles), the node axis from the Expr union,
 the context axis from the full predicate-position list, the value axis from
 the type registry, the declaration-position axis from the grammar
 productions that reference the position's nonterminal (every production
 naming `type_name` or `payload_type`, not the ones the change happens to
-touch). Never derive an axis from the wall's existing coverage:
+touch). Never derive an axis from the Owner Guard's existing coverage:
 **a ledger whose `domain` rows match its `covered` rows exactly is the tell**
 that the domain was read off the implementation instead of the registry —
-the audit is then measuring the wall against itself.
+the audit is then measuring the Owner Guard against itself.
 
 **An axis with no defining site in code gets one as the change's first
 deliverable.** Some universes are real but implicit — scattered across
@@ -55,7 +55,7 @@ fails loud.
 **When a change gives an existing domain a second definition site** (a new
 deck-derived namespace beside a declared ordering, a new registry beside an
 old declaration list), the sources' reconciliation IS part of the domain:
-enumerate what happens when they disagree, and either wall the disagreement
+enumerate what happens when they disagree, and either guard the disagreement
 at resolve time or record it. Two sources with no reconciliation check is a
 residual row, not background.
 
@@ -79,10 +79,10 @@ collection-producing query × the existing emptiness / membership /
 subscript / movement clauses). Per-construct enumeration misses defects that
 live in the products of constructs.
 
-A wall guards its whole class **at the layer that owns the class**: an
+An Owner Guard guards its whole class **at the layer that owns the class**: an
 operand-compatibility rule belongs in the type layer consulted by every
 comparison-shaped context, not at the first site that motivated it. If the
-wall is being written inline at one site, say why the class has exactly one
+Owner Guard is being written inline at one site, say why the class has exactly one
 member.
 
 **The framing check (mandatory, before outcomes are authored).** The grid
@@ -110,7 +110,7 @@ smuggles your framing back in through the input list. Diff its list against your
 grid or a recorded residual. The context that produced an implementation
 plan frames the domain as the implementation's shape (a change statement
 reading "validates function-param and variant-payload type names" has
-already narrowed a five-position axis to the two positions it walls); a
+already narrowed a five-position axis to the two positions it guards); a
 fresh context is the same cure Step 2 applies to probes, applied where it
 matters more — the frame.
 
@@ -121,7 +121,7 @@ or reject with a named diagnostic. A genuinely undecided cell is never
 guessed into the grid to complete the parametrization: a guess pinned by a
 passing row carries the authority of an executed decision nobody made, and
 the next author reads its flip as a regression rather than as an open
-question surfacing. Undecided cells go to `residual` with the same wall
+question surfacing. Undecided cells go to `residual` with the same guard
 and roadmap record as an uncovered cell — the symmetric gate still
 applies, so this is no cheap out. The grid pins decisions that have been
 made; it is not a device for making them. Then run it. The red cells are the work list, and the red run is the proof the grid
@@ -177,8 +177,8 @@ which map one-to-one onto this repo's historical misses:
    predicate written inside each context that accepts predicates (query
    `where`, movement/reveal filters, rule `demands`/`applies_when`,
    `transition_to … where`, aggregation bodies and defaults, quantifier
-   bodies). A wall that fires in one context and not another is a hole, not
-   a wall. Include pronoun-rooted members (`action.card.*`), which type
+   bodies). An Owner Guard that fires in one context and not another is a hole, not
+   an Owner Guard. Include pronoun-rooted members (`action.card.*`), which type
    differently from binder-rooted ones.
 3. **Old-register / retired spelling** — must be rejected with the
    replacement named, not accepted with different semantics.
@@ -190,7 +190,7 @@ which map one-to-one onto this repo's historical misses:
 
 Probes that correctly fail loud become **rejection tests** in the change.
 Probes that reveal a silent misread or a wrong-currency failure are defects
-to fix before the change ships — or loud walls plus a roadmap record if
+to fix before the change ships — or loud guards plus a roadmap record if
 genuinely deferred.
 
 **A cell without an executed row is residual by definition.** Step 1's grid
@@ -205,7 +205,7 @@ For a large surface (several interacting productions), run the probes via a
 **fresh adversarial subagent** given only the surface spec and told to break
 it: the context that produced an implementation is conditioned to believe
 it, and a fresh context is the cheap cure. **Slice by ledger**: one audit
-run per ledger's surface (one wall, one construct family), not one run over
+run per ledger's surface (one Owner Guard, one construct family), not one run over
 a whole branch — a single context auditing everything under-probes every
 ledger; parallel narrow runs probe each domain to its edges.
 
@@ -234,7 +234,7 @@ so the line reads as the job; it arrives while you are closing a loop rather
 than opening a problem; and its specificity reads as a specification —
 "at minimum handle X and Y" invites doing exactly X and Y. **A finding is
 one row of a class. It is never the spec for the fix.** decisions.md already
-requires the sweep ("When a wall fails or a gap is found, sweep the class
+requires the sweep ("When an Owner Guard fails or a gap is found, sweep the class
 before patching the instance … the sweep binds at find time, not fix time");
 this step exists because that rule has been read and violated anyway, three
 times in one branch, each violation shipped as a fix that a later reviewer
@@ -248,7 +248,7 @@ finding:  <what the reviewer named, verbatim in one line>
 class:    <the closed domain that finding is one member of>
 members:  <the members, DERIVED from the registry that defines them>
 covered:  <which the fix closes>
-residual: <which it does not, each with its wall and roadmap line>
+residual: <which it does not, each with its guard and roadmap line>
 ```
 
 The value is that it cannot be satisfied by intending to sweep. Writing
@@ -279,7 +279,7 @@ registry:   <where each axis is derived in code — the grid reads these>
 covered:    <the grid: module + parametrization, not a prose cell list>
 sampled:    <cells covered by example only, and why that is enough>
 residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
-             its wall, its reachability (R1–R4, decisions.md "Reachability
+             its guard, its reachability (R1–R4, decisions.md "Reachability
              ranks the work"), and its tracker record (issue #N; R4 records
              here and needs no issue unless the guarantee is rigor-critical)>
 ```
@@ -288,12 +288,12 @@ residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
 executed parametrization that crosses them — complementary rows, not
 restatements.)
 
-The gate is symmetric: **a residual row without both a wall and a record
+The gate is symmetric: **a residual row without both a guard and a record
 fails the audit, and a `covered` claim without an executed grid row fails
 it equally.** "No corpus witness" is never by itself a reason to leave a
 residual cell silent — corpus-first governs which mechanisms exist, not how
 completely a mechanism covers its own domain (decisions.md "Closed-domain
-completeness"). When you notice a gap and defer it: write the wall or write
+completeness"). When you notice a gap and defer it: write the guard or write
 the roadmap line — never neither. And when the construct itself has no
 corpus witness, the change ships a minimal witness fixture — a complete
 game exercising it end to end — because a corpus hole is an integration

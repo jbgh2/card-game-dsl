@@ -78,9 +78,9 @@ def zone_projection(zone_type: str, is_owner: bool) -> str:
 
 
 # library type name -> the maximum cards a zone of this type may ever hold, or
-# None for unbounded. Enforced as a runtime wall in the movement executor
-# (cardlang/runtime/execute.py) — a class of overfill the registry owns, not a
-# per-game guard.
+# None for unbounded. Enforced as a runtime Owner Guard in the movement
+# executor (cardlang/runtime/execute.py) — a class of overfill the registry
+# owns, not a per-game guard.
 ZONE_CAPACITY: dict[str, int | None] = {
     "Deck": None,
     "Hand": None,

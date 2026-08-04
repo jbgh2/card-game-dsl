@@ -87,7 +87,7 @@ library's `requires { seen[rank] : Integer }` is rejected on the same
 grounds and in the library's own currency, since a requirement names
 state the including game declares and no game may declare that index. A
 per-value tally is expressible today as per-player state plus a query;
-lift the wall when a game genuinely wants the store (the runtime's
+lift the guard when a game genuinely wants the store (the runtime's
 key-set plumbing already reads the domain table, so the extension is a
 table row plus an observation-encoding decision, not a rewrite).
 The `turns` form has no `direction` override clause (rotation follows the

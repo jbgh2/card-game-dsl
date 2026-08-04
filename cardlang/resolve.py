@@ -35,7 +35,7 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass;
               the runtime hard-fails on an unclassified name
-              (``runtime/evaluate.py``, ``_name``) as its backstop. Also
+              (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
               a ``state { }`` default that cannot be evaluated where it
               is written — one reading state not yet declared, calling a
               function, or containing a ``choose``
@@ -50,7 +50,7 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
               rather than in the type layer.
-Verified by:  the per-wall diagnostic tests; the runtime backstop above.
+Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
               accepted cell rather than only resolving it, since
@@ -111,7 +111,7 @@ from cardlang.types import Flavor, TPlayer
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
 # is the other's backward, the 180-degree opposite (cardlang/stdlib/boards.py).
 # Derived as exactly the board verbs taking a player argument, so a later
-# player-taking board verb joins this set (and its two-seat wall) by
+# player-taking board verb joins this set (and its two-seat Owner Guard) by
 # construction rather than by a hand-list that would drift. The player-free
 # board calls (`lines`, `is_diagonal`) are not frame reads and stay unaffected.
 _FRAME_CALL_FUNCS = frozenset(
@@ -124,17 +124,17 @@ _FRAME_CALL_FUNCS = frozenset(
 # domain table, not a hand-written local list.
 _KNOWN_ROLES = ZONE_INDEX_ROLES
 
-# The EMPTY-DOMAIN walls below (a team-indexed state/zone declaration in a game
+# The EMPTY-DOMAIN Owner Guards below (a team-indexed state/zone declaration in a game
 # that declares no `partnerships:`) implement the `team` row only, because
 # `team` is the one role domain a game can leave undeclared: seats come from the
 # mandatory `players:` clause, the card axes from the deck. That is a fact about
 # the registry, so it is pinned against the registry rather than assumed — the
 # same contract `runtime/execute.py` keeps for `SIMULTANEOUS_ROLES`. Without
 # this, adding a zone-indexable role whose domain can also be empty would slip
-# past those walls silently, which is the drift the domain table exists to end
-# (domains.py, `zone_key_of`).
+# past those Owner Guards silently, which is the drift the domain table exists
+# to end (domains.py, `zone_key_of`).
 # This IS the registry reconciliation: the assert exists so a new
-# zone-indexable role fails here BY NAME rather than escaping the walls
+# zone-indexable role fails here BY NAME rather than escaping the Owner Guards
 # below, which implement the `team` row only.
 assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
     f"resolve's empty-domain walls implement the `team` row only; "
@@ -237,9 +237,9 @@ def _check_reserved(
 
 # Every definition kind a `library { }` may hold, as (Game/Library field name,
 # the noun a diagnostic calls it). This tuple IS the closed domain the import
-# tier's collision walls sweep: `_apply_uses` derives its per-kind loops from it,
-# so a seventh definition form added to `Library` without an entry here is a
-# static failure in `tests/test_family_libraries.py`, not a silently unwalled
+# tier's collision Owner Guards sweep: `_apply_uses` derives its per-kind loops
+# from it, so a seventh definition form added to `Library` without an entry here
+# is a static failure in `tests/test_family_libraries.py`, not a silently unguarded
 # collision. Zones and state are absent as far as the corpus has forced, not
 # permanently — what a library needs from the game it names in `requires`.
 _LIBRARY_DEF_KINDS: tuple[tuple[str, str], ...] = (
@@ -596,7 +596,7 @@ class _StateClaims:
     the libraries it uses.
 
     `provided` maps a surviving provided name to the library that owns it — the
-    input to both the read-only wall and the splice. `contested` is the names a
+    input to both the read-only Owner Guard and the splice. `contested` is the names a
     claim collision has already been reported for, which `_check_requires` skips
     so one bad name yields one diagnostic instead of two."""
 
@@ -605,7 +605,7 @@ class _StateClaims:
 
 
 def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
-    """Resolve every `uses <library>` line: load the named libraries, wall the
+    """Resolve every `uses <library>` line: load the named libraries, refuse the
     three-way collisions, check each library's `requires` contract against the
     game's declared state, and splice the definitions into the game.
 
@@ -657,7 +657,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     # Imported definitions come FIRST, in `uses` order, then the game's own: the
     # import is the base a game extends, which is the order the game file itself
     # reads in (`uses` sits at the top). Names are unique across the two by the
-    # collision walls above, so order carries no meaning beyond IR stability —
+    # collision Owner Guards above, so order carries no meaning beyond IR stability —
     # but it must be STABLE, since `ir.emit` prints these tuples in order and the
     # goldens pin the printout.
     spliced: dict[str, tuple[object, ...]] = {}
@@ -705,7 +705,7 @@ def _check_library_collisions(
     a game's definitions: rules (library rules splice into `game.rules`) and call
     functions. Stdlib MOVE types are deliberately not a cell: they and a game's
     `move_type` definitions are two disjoint consult paths that never merge
-    (`stdlib/moves.py`, and Stud/Skat/Schnapsen/Coup all rely on it), so a wall
+    (`stdlib/moves.py`, and Stud/Skat/Schnapsen/Coup all rely on it), so a guard
     here would reject four games that are correct today."""
     for field, noun in _LIBRARY_DEF_KINDS:
         local = {d.name: d for d in getattr(game, field)}
@@ -869,7 +869,7 @@ def _check_library_shadows_game(
             if hit is None:
                 continue
             game_noun, game_span = hit
-            # The two pairs other walls already report — skip them so one clash
+            # The two pairs other Owner Guards already report — skip them so one clash
             # yields one diagnostic. Same-kind definition collisions are
             # `_check_library_collisions` ("does not inherit"); a provided name
             # over the game's own state is `_check_state_claims`.
@@ -892,7 +892,7 @@ def _check_state_claims(
     libraries: list[tuple[n.UsesDecl, n.Library]],
     bag: DiagnosticBag,
 ) -> _StateClaims:
-    """Wall every way two claims on one state name can collide, and report which
+    """Refuse every way two claims on one state name can collide, and report which
     names survive as PROVIDED.
 
     A state name can be claimed from three places — the game's own `state { }`, a
@@ -993,10 +993,10 @@ def _check_provided_readonly(
 
     Matched by NAME rather than by `ref_kind`, because `_apply_uses` runs before
     classification — deliberately, since the splice is what later passes must see
-    a flat game after. That is sound for the class this wall owns: a write target
-    must classify as a state variable (`_bad_write_target`), and a provided name
-    IS one. The one case where the two readings differ is a game-local binder
-    named after a provided variable, which this wall reports as the write it
+    a flat game after. That is sound for the class this Owner Guard owns: a write
+    target must classify as a state variable (`_bad_write_target`), and a provided
+    name IS one. The one case where the two readings differ is a game-local binder
+    named after a provided variable, which this Owner Guard reports as the write it
     refuses rather than as the shadow `_bad_write_target` would call it — a
     different sentence about the same defect, and the fix (rename) is the same.
 
@@ -1021,7 +1021,7 @@ def _check_provided_readonly(
 class _SlotLeak:
     """One bare-string reference in a library that names something the library
     does not have — the slot registry's finding, in the currency the
-    encapsulation wall reports."""
+    encapsulation Owner Guard reports."""
 
     node: object
     field: str
@@ -1050,7 +1050,7 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     could have collided with either — a game's `positions { }` and a library's
     own `type`s — are refused the zone spellings where they are DECLARED
     (`_reserved_domain_names`, `_check_zone_type_names_are_not_taken`). Without
-    those walls this function would be picking one meaning of an ambiguous name
+    those Owner Guards this function would be picking one meaning of an ambiguous name
     with nowhere to record the choice."""
     return want.type_name in LIBRARY_ZONE_TYPES
 
@@ -1413,7 +1413,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     The class is bounded by the reference-slot registry rather than by which
     slots anyone remembered: a name reaching a namespace `_library_slot_names`
     covers is refused, and every remaining namespace carries its reason in
-    `_LIBRARY_UNSWEPT`. That is the property this wall can be read as proving —
+    `_LIBRARY_UNSWEPT`. That is the property this Owner Guard can be read as proving —
     it is no longer "everything the classifier happens to see".
 
     Reported in the LIBRARY's currency: the span is in the library file, because
@@ -1454,11 +1454,11 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
             getattr(leak.node, "span", None),
         )
     # A PROVIDED default reaching the contract is in scope for the general
-    # declare-order wall too (`_check_state_default_scope`), which would refuse
+    # declare-order Owner Guard too (`_check_state_default_scope`), which would refuse
     # it after the splice with a span in this same file. It is caught here as
     # well, and first, because the splice destroys the distinction the library
     # author needs: post-splice a required name is just a state variable
-    # declared later, so the general wall's advice — declare it earlier — is
+    # declared later, so the general Owner Guard's advice — declare it earlier — is
     # advice they cannot take. Only the game can declare required state, and it
     # always lands after the library's own.
     required = {r.name for r in library.requires}
@@ -1505,8 +1505,11 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     into the first, and deliberately: the two report in different currencies (a
     library's own file, against the library alone; a game's declaration, while
     resolving it) and run at different times, so sharing a body would mean
-    threading a currency through it. The copy is a backstop naming the wall it
-    shadows (decisions.md "Closed-domain completeness", write-time triage), and
+    threading a currency through it. This copy is the Owner Guard of its own
+    class, not a Shadow Guard of `_resolve_zone`'s: a library author can write
+    `x : Hand` with no game in sight, `_resolve_zone` never runs on that path,
+    and so nothing else can decide the case (decisions.md "Closed-domain
+    completeness", write-time triage). Duplication is not a shadow relation —
     the two are pinned EQUAL over the whole registry by
     `tests/test_family_libraries.py`'s
     `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be` —
@@ -1583,7 +1586,7 @@ def _check_zone_requirement(
     reason: `zones { }` is a game-level block with no phase-local form, so a
     second declaration is already a duplicate (`_check_duplicate_names`). The
     count is still checked here so the contract's guarantee does not depend on
-    another wall's coverage.
+    another Owner Guard's coverage.
 
     Reported on the game's `uses` line, in the game's currency — the shape
     questions the LIBRARY could get wrong are `_check_contract_shapes`', and
@@ -1667,8 +1670,8 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     index against the declaration's and reports a SHAPE mismatch — so the
     library's typo was echoed back as though `hearts` were a role the game had
     failed to use, in a sentence whose two halves both read "per-player". The
-    game side of the same class was walled (a `state { x[hearts] }` is
-    refused); this is its library twin.
+    game side of the same class already had an Owner Guard (a
+    `state { x[hearts] }` is refused); this is its library twin.
 
     Does NOT honour `_check_requires`'s `skip` set, deliberately. `skip`
     suppresses a SECOND report of one defect — a name already ruled on as
@@ -1734,7 +1737,7 @@ def _check_requires(
     tests/test_family_libraries.py. Narrowing the contract to game-level
     declarations would not close it either, and would reject Stud.
 
-    Exactly one, and the count is the wall — not a tie broken by declaration
+    Exactly one, and the count is the Owner Guard — not a tie broken by declaration
     order. Cross-block shadowing is legal in general (`_check_duplicate_names`),
     but the two shadowed declarations are answers to different questions and no
     fixed bias picks correctly: a shadow in the phase where the library's
@@ -1765,10 +1768,10 @@ def _check_requires(
     # Matched by SPAN rather than by re-deriving which requirements are
     # well-formed. That is what makes this complete over the class rather than
     # over the two members known today: a requirement is malformed exactly when
-    # some wall has already reported against its own span, so a future wall on
-    # a new `RequireDecl` field is covered the day it lands, with nothing to
-    # remember here. Both malformation walls run before this pass, in
-    # `_apply_uses`'s loop, and report at the requirement's span
+    # some Owner Guard has already reported against its own span, so a future
+    # Owner Guard on a new `RequireDecl` field is covered the day it lands,
+    # with nothing to remember here. Both malformation Owner Guards run before
+    # this pass, in `_apply_uses`'s loop, and report at the requirement's span
     # (`_check_require_indexes` for the index, `_check_library_encapsulation`
     # for the type name).
     #
@@ -1821,7 +1824,7 @@ def _check_requires(
             # roles Bridge and Belote both use (issue #144). Both sides are
             # classified rather than assumed: `_check_require_indexes` has
             # already refused a requirement whose index names no role, and
-            # resolve's state-index wall the declaration's.
+            # resolve's state-index Owner Guard the declaration's.
             got = index_phrase(role_of(have.index) if have.index else None)
             need = index_phrase(role_of(want.index) if want.index else None)
             bag.error(
@@ -1859,7 +1862,7 @@ def resolve(game: n.Game) -> n.Game:
     _resolve_max_length(game, bag)
     position_names = _resolve_positions(game, bag)
     # The board mints its `cell` domain into `game.positions` (after the
-    # declared positions are validated, so the collision wall reads the
+    # declared positions are validated, so the collision Owner Guard reads the
     # pre-injection names); from here `game.positions` is the union and
     # `position_names` names both kinds for the zone-index and move-parameter
     # checks below.
@@ -2303,7 +2306,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
 
 def _check_rule_delta_subphases(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
-    """Validate every rule-delta sub-phase — two walls over the config-only
+    """Validate every rule-delta sub-phase — two Owner Guards over the config-only
     `_is_rule_delta` children the runtime folds conditionally.
 
     **A rule-delta sub-phase may not carry `legal_moves:`.** It is never
@@ -2410,7 +2413,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
     reading one of the library's `requires` names reaches a variable the game
     declares strictly later — never in scope, whatever the game does. That
     subclass is refused before the splice, in the library's own currency, by
-    `_check_library_encapsulation`; this wall is what owns the general class,
+    `_check_library_encapsulation`; this Owner Guard is what owns the general class,
     and would catch it here too if the library check were removed.
 
     Two constructs are refused outright rather than analysed, both because a
@@ -2579,11 +2582,11 @@ def _check_actor_alias_comparisons(game: n.Game, bag: DiagnosticBag) -> None:
     `binds_actor` column of the domain registry), and the `actor` pronoun reads
     the acting player — so `p is actor` is true for every `p`, and `p is not
     actor` guards a body that never runs. Both operands are `Player`, so no
-    type wall can see it (`typecheck`'s always-false wall compares TYPES, and
-    these agree); and a branch that is never taken cannot fail at runtime
-    either. That leaves it silently accepted, which for a designer tool is the
-    worst outcome — "an operand comparing as always-false", decisions.md
-    "Surface totality".
+    guard in the type layer can see it (`typecheck`'s always-false Owner Guard
+    compares TYPES, and these agree); and a branch that is never taken cannot
+    fail at runtime either. That leaves it silently accepted, which for a
+    designer tool is the worst outcome — "an operand comparing as
+    always-false", decisions.md "Surface totality".
 
     The class is the aliasing, not the `for each` spelling, so this sweeps
     every construct that binds a seat AND rebinds the acting player to it
@@ -2621,14 +2624,14 @@ def _sweep_aliases(
         _check_alias_operands(node, aliases, bag)
     match node:
         # Both role tests are membership-guarded before the registry lookup:
-        # `_resolve_phase_level` walls these roles against the same two sets,
+        # `_resolve_phase_level` checks these roles against the same two sets,
         # but it reports into the SAME bag rather than halting, so this sweep
         # still walks a tree holding a role no row defines (`for each column
         # c`, a declared position domain). The registry answers such a role
         # with a compiler-currency raise — correct for a registry divergence,
         # wrong here, where it would replace the located diagnostic the author
         # needs with an assert and suppress every other diagnostic in the file.
-        # Backstop, not a wall: the role's legality is decided above.
+        # Not the Owner Guard: the role's legality is decided above.
         case n.ForEach() if (
             (role := role_of(node.role)) is not None
             and role in _ITERATION_ROLES
@@ -2773,7 +2776,7 @@ def _check_alias_operands(
 def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
     """A game names its result. `winner:` and `loser:` are each optional
     grammar positions, so their joint absence is checked here; without this
-    wall a game with neither would compile clean and then reach a driver that
+    Owner Guard a game with neither would compile clean and then reach a driver that
     requires at least one of them before it can play a single decision."""
     if game.winner is None and game.loser is None:
         bag.error(
@@ -2860,7 +2863,7 @@ def _reserved_domain_names(game: n.Game) -> frozenset[str]:
 
 
 def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
-    """Wall the `positions { }` block (decisions.md "Position domains and
+    """Validate the `positions { }` block (decisions.md "Position domains and
     positional zones"): static, non-empty, bounded ranges, and names that can
     never collide with a built-in domain id or declared-type spelling — the
     reconciliation between the two definition sites (the closed
@@ -2868,7 +2871,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     lookup that consults positions first can never shadow a built-in row.
     Duplicates are rejected by `_check_duplicate_names`, with every other
     declaration namespace. Returns the declared names for the consumers
-    (zone indexes, move parameters, the bare-reference wall)."""
+    (zone indexes, move parameters, the bare-reference Owner Guard)."""
     taken = _reserved_domain_names(game)
     for p in game.positions:
         if p.lo > p.hi:
@@ -2898,7 +2901,7 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
 def _resolve_board(
     game: n.Game, bag: DiagnosticBag, declared_positions: frozenset[str]
 ) -> n.Game:
-    """Wall the `board:` clause and mint its `cell` position domain
+    """Validate the `board:` clause and mint its `cell` position domain
     (decisions.md "Boards and cells"). A board mints one named-member domain
     (`cell`) whose members are the board's cells; it rides the `positions { }`
     substrate, so the minted domain is injected into `game.positions` as a
@@ -2916,14 +2919,14 @@ def _resolve_board(
     # `cell` domain (a named-member PositionDecl, `members_named` set) and must
     # neither re-mint it nor misread it as a user collision. A user-DECLARED
     # `cell` (integer range, `members_named is None`) is not this case — it is
-    # the collision the wall below reports.
+    # the collision the Owner Guard below reports.
     if any(
         p.name == BOARD_DOMAIN and p.members_named is not None for p in game.positions
     ):
         return game
     # `board:` requires `pieces:`. Parse enforces cards XOR pieces, so a
     # non-piece flavor here is exactly a card game — the `board: + cards:`
-    # rejection and the `board: without pieces:` one are the same wall (no game
+    # rejection and the `board: without pieces:` one are the same Owner Guard (no game
     # has witnessed needing a board on a card deck).
     if game.content_flavor != "piece":
         bag.error(
@@ -2935,7 +2938,7 @@ def _resolve_board(
         )
         return game
     # Collision: the minted `cell` may shadow neither a declared `positions { }`
-    # name (name both sites) nor a built-in spelling (the standing wall, reused
+    # name (name both sites) nor a built-in spelling (the standing Owner Guard, reused
     # so a future built-in named `cell` cannot land silently). `declared_positions`
     # names only the user's declared domains (this runs right after
     # `_resolve_positions`, before the mint below appends to `game.positions`).
@@ -3081,10 +3084,10 @@ def _check_position_family_refs(
     """A position-indexed family must always be subscripted: the bare-family
     actor sugar (`hand` = the acting player's hand) keys the family by the
     acting SEAT, and a position family has no seat keys — the runtime read
-    would land outside the key set. Walled here, after classification (so a
+    would land outside the key set. Refused here, after classification (so a
     local binder shadowing the family name is exempt: only `ref_kind ==
     "zone"` references are family reads). The runtime's phantom-key error in
-    `evaluate._name` is the backstop shadowing this wall."""
+    `evaluate._name` is the Shadow Guard behind this Owner Guard."""
     pos_families = {z.name for z in game.zones if z.index in positions}
     if not pos_families:
         return
@@ -3118,10 +3121,10 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
     would silently re-open this hole for the new member.
 
     Runs after `_instantiate_rules`, so spliced library rules and instantiated
-    templates are walled on the same path as hand-written ones.
+    templates are checked on the same path as hand-written ones.
 
     Widening enforcement (draughts' mandatory capture, morris's removal
-    restriction) retires these walls — the surface returns with an
+    restriction) retires these Owner Guards — the surface returns with an
     implementation behind it. Until then it is deferred, not deleted:
     docs/roadmap.md "Grammar surface deferred by the checker",
     docs/open-questions/rule-scope-beyond-trick-play.md.
@@ -3146,7 +3149,7 @@ def _check_rule_reaches_a_reader(rule: n.RuleDef, bag: DiagnosticBag) -> None:
             f"question ({where}).",
             rule.span,
         )
-        return  # the clause walls below would pile onto the same broken rule
+        return  # the clause Owner Guards below would pile onto the same broken rule
     if rule.demands is not None and rule.demands.kind != n.DEMAND_KIND_CARDS:
         bag.error(
             f"rule '{rule.name}' has a `demands: actions where …` move-shape "
@@ -3305,7 +3308,7 @@ class _Categories:
     functions: frozenset[str]
     ranks: frozenset[str]
     suits: frozenset[str]
-    # `Game.content_flavor` — the dispatch key for the flavor-aware walls
+    # `Game.content_flavor` — the dispatch key for the flavor-aware Owner Guards
     # (decisions.md, "Component sets: cards and pieces").
     flavor: Flavor = "card"
 
@@ -3347,7 +3350,7 @@ def _categories(game: n.Game) -> _Categories:
         # `ranking:`, which is an ORDERING (optional, and legitimately
         # partial: it narrows the Rank move-param domain, not which cards
         # can be named). Deck-vs-ranking is the same two-source divergence
-        # `_resolve_ranking` walls from the other side.
+        # `_resolve_ranking` guards from the other side.
         ranks=rank_names(game.deck) if _component_known(game.deck) else frozenset(),
         suits=suit_names(game.deck) if _component_known(game.deck) else frozenset(),
         flavor=game.content_flavor,
@@ -3573,7 +3576,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
 
 
 def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
-    """`direction:` is grammatically a bare NAME; an unwalled unknown value
+    """`direction:` is grammatically a bare NAME; an unguarded unknown value
     (`direction: anticlockwise`) would silently seat the turn ring clockwise —
     driver.py reads the clause as `clockwise = direction != "counterclockwise"`
     (Surface totality: accepted-with-different-semantics)."""
@@ -3599,7 +3602,7 @@ def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
     `rank_index`, the OpenSpiel action space) reads the expanded tuple and
     never learns conventions exist.
 
-    The wall: a convention is only meaningful for a deck whose ranks all
+    The Owner Guard: a convention is only meaningful for a deck whose ranks all
     have a place in the French template — for any other deck (tarot78's
     atouts, tichu56's specials, coup15's characters) filtering would
     silently produce a partial or empty ranking, an accepted-but-ignored
@@ -3655,13 +3658,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     move-parameter domain to fewer than the deck's ranks. A card whose rank
     falls outside a partial ranking still crashes `rank_value`'s
     `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
-    accepted residual, walled only by that runtime KeyError, not by this
+    accepted residual, guarded only by that runtime KeyError, not by this
     check; the ledger is tests/test_ranking_wall.py."""
     if game.ranking_convention is not None:
         # Convention arm: `_expand_ranking` built the tuple from the deck's
         # own ranks filtered through a registry template — unique and
         # deck-member by construction, so re-validating it here would be
-        # re-deriving an established fact. The convention's walls (French
+        # re-deriving an established fact. The convention's Owner Guards (French
         # deck, known spelling) live in `_expand_ranking` and the grammar.
         return
     if not game.ranking or not _deck_known(game.deck):
@@ -3809,7 +3812,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
                 )
                 hint = f" (`{noun}` is bound only inside {where})"
             # Not a role dispatch: `player` is the unresolved NAME this hint
-            # is about, so it stays a string (walled as a coincidence in
+            # is about, so it stays a string (guarded as a coincidence in
             # tests/test_role_comparison_pin.py).
             elif node.name == "player":
                 hint = " (`player` is bound only inside a player query or quantifier)"
@@ -4017,23 +4020,23 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 
     Validating a declared type name is resolve's job, and it was being done in
     only some of the positions that declare one: `StateDecl` and `StructField`
-    were walled and move parameters had their own domain gate, while function
+    were guarded and move parameters had their own domain gate, while function
     parameters and outcome payloads were not checked at all.
     `typecheck.type_from_name` maps an unknown name to the permissive `TAny`,
-    so a mere TYPO exempted the annotated value from every downstream wall —
+    so a mere TYPO exempted the annotated value from every downstream guard —
     `function f(x : Integar) = x is hearts` was accepted while the
     correctly-spelled `Integer` version was rejected. Making a type name worse
     must never make the checker more permissive (decisions.md "Surface
-    totality"; "The permissive top and the lookup-miss walls").
+    totality"; "`Any` means the top, never a failed lookup").
 
     Both positions here are built with the struct registry threaded
     (`type_from_name(..., structs)`), so a user-declared `type` is legal
     alongside the built-ins — the allowed set mirrors exactly what the builder
-    can resolve, since a wall admitting a name its builder still maps to
+    can resolve, since a guard admitting a name its builder still maps to
     `TAny` would trade one silent hole for another.
 
     The other declaring positions are deliberately absent, each already owned
-    by a wall at least as tight: move parameters by `_check_move_params`
+    by an Owner Guard at least as tight: move parameters by `_check_move_params`
     (which additionally requires an ENUMERABLE domain, and now runs for every
     declared move type), procedure parameters by `_PROCEDURE_DOMAINS`, and
     rule-template parameters by `_check_template`'s Suit-only gate. Adding a
@@ -4137,7 +4140,7 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 #                                  count, which a second `run` changes
 #   `_check_misplaced_produce`     `produce` terminates the enclosing `define`
 #   outcome binding                a `round` binds its own `outcome` for the statements
-#                                  after it, which the body's pronoun wall cannot tell
+#                                  after it, which the body's pronoun guard cannot tell
 #                                  from the caller's call-site `outcome`
 #
 # Every statement those checks govern is rejected in a body. The two remaining
@@ -4155,7 +4158,7 @@ _WINNER_BINDING_STMTS = (n.Round,)
 # is the only thing they can write — so a write target must classify as a state
 # variable, full stop.
 #
-# This is one rule and not three walls because the target is a `NameRef`: it goes
+# This is one rule and not three Owner Guards because the target is a `NameRef`: it goes
 # through `_classify` like every read, so "what is this name?" is already answered by
 # the time we get here. Were it a bare `str` that no name check ever saw, the three
 # ways it can go wrong would need three separate hand-written checks — and the easiest
@@ -4211,7 +4214,7 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
     value (`let h = hand[0]`), and which one it holds is a TYPE question —
     typecheck's `_check_movement`/EpistemicOp arms decide it from the binder's
     inferred type (decisions.md, "`let` bindings scope forward and carry
-    their type"). The executor's typed error remains the backstop for the
+    their type"). The executor's typed error remains the Owner Guard for the
     deliberately-loose initializers (`outcome`, unregistered action fields)."""
     root = expr
     while isinstance(root, (n.Subscript, n.Member)):
@@ -4233,7 +4236,7 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
     it introduces, and game/phase state, never the caller's locals and never the
     call-site pronouns, so its meaning cannot depend on where it is run from.
 
-    Only ONE hygiene wall lives here, because `expand` makes the rest unnecessary
+    Only ONE hygiene Owner Guard lives here, because `expand` makes the rest unnecessary
     by construction: it binds each argument to a `let` in the CALLER's context
     before the body runs (so nothing in the body can capture an argument, and an
     argument naming the actor cannot be re-read under a construct that rebinds it),
@@ -4267,7 +4270,7 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                     p.span,
                 )
 
-        # Binders the body introduces, and the name-capture wall: a binder
+        # Binders the body introduces, and the name-capture Owner Guard: a binder
         # sharing a parameter's name would capture it instead of substituting.
         # A procedure body can hold a movement, so its filter binder follows
         # the game's flavor (a piece game's `piece`, not `card`).
@@ -4587,14 +4590,14 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
 
     A BARE form (`source is None`) ranges over a declared position domain; a
     COLLECTION form (`in <expr>`) over one of the rung-1 collection nouns
-    {line, cell}. The plural convention is a resolve wall, not a grammar one:
+    {line, cell}. The plural convention is a resolve Owner Guard, not a grammar one:
     `any` takes the singular noun, `all`/`number of` the plural (singular +
     "s"); a singular where the plural is required is guided to the plural
     spelling, an unknown noun to the declared universe.
 
     suit/rank quantifiers never reach here: QNOUN excludes those spellings, so
-    `any suit where …` is the fixed `Quantifier` form (walled in a piece game
-    by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that wall."""
+    `any suit where …` is the fixed `Quantifier` form (guarded in a piece game
+    by the CARD_AXIS_ROLES case below) -- the noun exclusion IS that guard."""
     phrase = n.DOMAIN_QUERY_KIND_PHRASE[nd.kind]
     if nd.source is None:
         declared = {p.name for p in game.positions}
@@ -4646,7 +4649,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
         )
         return
     # A frame verb reads the grid's two-seat per-player frame, defined only for
-    # players 0 and 1. Without this wall a game with three-plus (or one) seats
+    # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
     # resolves clean and then dies at setup/play with the frame's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
     # failing at runtime, in the wrong currency. Require exactly two players (a
@@ -4677,7 +4680,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_defines = {d.name for d in game.defines}
     defined_functions = {f.name for f in game.functions}
     # Which role (if any) each declared zone family is keyed by — the fact the
-    # `to each <family>` wall needs (the executor keys parcels per PLAYER).
+    # `to each <family>` Owner Guard needs (the executor keys parcels per PLAYER).
     zone_index = {z.name: z.index for z in game.zones}
     # A `produces:` consumer may also name an outcome-declaring phase (its outcome
     # is produced as the phase runs, then dispatched by a sibling consumer).
@@ -4689,8 +4692,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     # vocabulary call sites, so a move type no `offer`/`round offering` names
     # had its parameter domains unchecked entirely — and an unchecked domain
     # name falls through `typecheck.type_from_name` to the permissive top,
-    # which silently exempts the parameter from every downstream wall
-    # (decisions.md, "The permissive top and the lookup-miss walls"). Declaring
+    # which silently exempts the parameter from every downstream guard
+    # (decisions.md, "`Any` means the top, never a failed lookup"). Declaring
     # a move type is what makes its parameters real; whether some phase happens
     # to offer it is not the checker's business — and gating at the declaration
     # also stops a move named by two vocabularies from reporting one defect
@@ -4698,7 +4701,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     declared_positions = frozenset(p.name for p in game.positions)
     # `for each <role>` iterates the closed seat/axis roles plus a board's
     # NAMED-MEMBER position domain (`cell`) -- breakthrough's fixed setup array
-    # is the witness that lifts it. Integer `positions {}` domains stay walled:
+    # is the witness that lifts it. Integer `positions {}` domains stay refused:
     # no game addresses columns by loop (guards and parameters cover both
     # solitaires), so they stay rejected rather than accepted-and-unwitnessed
     # (issue #111). A boardless game
@@ -4754,7 +4757,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
             case n.NamedArg():
-                # Accepted-but-crashing surface walled off (Surface totality):
+                # Accepted-but-crashing surface refused outright (Surface totality):
                 # the grammar admits `f(x = 1)`, but typecheck skips the value
                 # expression and the runtime raises. Reject until a game needs
                 # named arguments (recorded in roadmap.md, "Grammar surface
@@ -4778,7 +4781,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         nd.span,
                     )
                 if nd.index is not None and role_of(nd.index) not in ZONE_INDEX_ROLES:
-                    # Same wall as a zone's index role, same registry. Before
+                    # Same guard as a zone's index role, same registry. Before
                     # it existed, `state { x[suit] : Integer = 0 }` checked
                     # clean and the runtime silently keyed it BY PLAYERS (the
                     # driver's key-set dispatch defaulted every non-team role
@@ -4798,7 +4801,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 ):
                     # A team-indexed store in a game with no partnerships has
                     # an EMPTY key set: it declares fine, holds nothing, and
-                    # every later `x[…] := …` hits the runtime key wall far
+                    # every later `x[…] := …` hits the runtime key guard far
                     # from the real mistake (the missing `partnerships:`).
                     bag.error(
                         f"state variable '{nd.name}' is indexed by 'team' but "
@@ -4833,8 +4836,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 nd.type_name not in KNOWN_TYPE_NAMES
                 and nd.type_name not in defined_types
             ):
-                # The sole struct-field declaration-type wall (an unknown name
-                # would silently type TAny and skip every operand wall). A
+                # The sole struct-field declaration-type Owner Guard (an unknown
+                # name would silently type TAny and skip every operand guard). A
                 # struct field types via scalars/enums/structs only; a position
                 # domain is deliberately NOT admitted here (main's type-name
                 # grid, tests/test_type_name_positions.py P2). Function-param
@@ -4896,7 +4899,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 #
                 # The reason comes FROM the executor's own requirement
                 # (`n.simultaneous_body_error`), not from a hand-written copy of it:
-                # the first version of this wall mirrored only the first of five
+                # the first version of this Owner Guard mirrored only the first of five
                 # requirements, so `move chosen one card …` still reached the assert.
                 bag.error(
                     f"`each {nd.role} simultaneously` runs one chosen movement per "
@@ -4993,7 +4996,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.dest_each and not isinstance(nd.dest, n.NameRef):
                     # The executor keys the family by BARE name per seat, so a
                     # subscripted or computed destination has no meaning under
-                    # `each`. Before this wall, `to each hand[0]` checked
+                    # `each`. Before this Owner Guard, `to each hand[0]` checked
                     # clean and reached an executor that requires this
                     # destination to be a bare name it can key per seat.
                     bag.error(
@@ -5006,7 +5009,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 if nd.dest_each and isinstance(nd.dest, n.NameRef):
                     # `to each X` deals one parcel per PLAYER (the executor
                     # iterates seats and keys `X[player]`), so X must be a
-                    # player-indexed family. Before this wall, `to each deck`
+                    # player-indexed family. Before this Owner Guard, `to each deck`
                     # (a singleton) checked clean and then asked the zone store
                     # for a player-keyed family of that name, which it requires
                     # to be declared and refuses at play time;

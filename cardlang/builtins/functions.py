@@ -211,9 +211,9 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # The classification of every CALL_FUNCS member by the game feature its
 # semantics READ. A call that reads a card's suit or rank, the ranking order,
 # card-point values, or follow/trump/lead machinery cannot mean anything in a
-# piece game (no suit/rank/points), so it is a resolve-time FLAVOR wall
+# piece game (no suit/rank/points), so it is a resolve-time FLAVOR Owner Guard
 # (DECK_ONLY_CALL_FUNCS); a call that reads the `board:` entry cannot mean
-# anything in a boardless game, so it is a resolve-time BOARD wall
+# anything in a boardless game, so it is a resolve-time BOARD Owner Guard
 # (BOARD_ONLY_CALL_FUNCS -- the deck-only classification's board twin, keyed on
 # `game.board is None` rather than the flavor); ANY_FLAVOR_CALL_FUNCS -- functions
 # This partition is ORTHOGONAL to the Builtin/Primitive split above and does not

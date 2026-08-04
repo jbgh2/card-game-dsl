@@ -1,4 +1,4 @@
-"""The permissive top (`TAny`) and the lookup-miss walls.
+"""`TAny` means the top, never a failed lookup.
 
 `TAny` is the type checker's top type: `types.assignable` returns true whenever
 either side is `TAny`, and ~20 sites in `typecheck.py` short-circuit their
@@ -13,8 +13,8 @@ env typed `TAny`, so `src is hearts` passed).
 
 The split is at the PRODUCERS, not in the type: a lookup that cannot miss now
 RAISES instead of returning the top, and the sites that remain permissive are an
-audited set. Consulted design: decisions.md, "The permissive top and the
-lookup-miss walls".
+audited set. Consulted design: decisions.md, "`Any` means the top, never a
+failed lookup".
 
 Completeness ledger
 -------------------

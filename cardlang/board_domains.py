@@ -23,18 +23,19 @@ from cardlang.ast import nodes as n
 from cardlang.stdlib.boards import board_entry
 
 # The name of the position domain a `board:` clause mints. Fixed (no game
-# names its board's domain); the collision walls in resolve keep it from
-# clashing with a declared `positions { }` name or a built-in spelling.
+# names its board's domain); the collision Owner Guards in resolve keep it
+# from clashing with a declared `positions { }` name or a built-in spelling.
 BOARD_DOMAIN = "cell"
 
 # The name of the SECOND domain a `board:` clause mints -- the movement
 # directions (decisions.md "Boards and cells", rung-2 movement). Unlike
 # `cell`, `dir` is NOT injected into `game.positions`: it is a separate
 # per-game source (`directions_of`) consulted ONLY by the move-parameter
-# enumeration, so the position walls (zone index, quantifier, `for each`)
-# reject `dir` for free. The collision wall in `_resolve_board` keeps it from
-# clashing with a declared `positions { }` name (the `cell` twin); `direction`
-# is a reserved clause keyword and the turn-order enum's tag, hence `dir`.
+# enumeration, so the position Owner Guards (zone index, quantifier,
+# `for each`) reject `dir` for free. The collision Owner Guard in
+# `_resolve_board` keeps it from clashing with a declared `positions { }`
+# name (the `cell` twin); `direction` is a reserved clause keyword and the
+# turn-order enum's tag, hence `dir`.
 DIRECTION_DOMAIN = "dir"
 
 
