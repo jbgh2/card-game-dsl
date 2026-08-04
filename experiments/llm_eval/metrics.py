@@ -232,7 +232,15 @@ class AgentStats:
         }
 
     def as_dict(self) -> dict[str, Any]:
-        return {**asdict(self), **self.rates()}
+        out = {**asdict(self), **self.rates()}
+        if not self.verb_offered:
+            # A game whose pack declares no `action_verbs` emits neither tally.
+            # Two empty dicts in a Cheat summary would read as "measured zero"
+            # rather than "not applicable" — and would rewrite every committed
+            # summary in the archive for a field that says nothing.
+            out.pop("verb_chosen", None)
+            out.pop("verb_offered", None)
+        return out
 
 
 def aggregate(
