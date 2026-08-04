@@ -197,6 +197,16 @@ class AgentStats:
     verb_chosen: dict[str, int] = field(default_factory=dict)
     verb_offered: dict[str, int] = field(default_factory=dict)
 
+    # Terminal score summed over this agent's scored seat-games, for a game
+    # whose pack declares `reports_chip_delta`. Its mean is the outcome metric
+    # win rate cannot replace: heads-up with forced blinds, a player can win a
+    # minority of hands and still finish ahead, so a win rate and a chip figure
+    # can point in OPPOSITE directions. Off by default because a game whose
+    # returns are +/-1 gains nothing — there the mean return is just
+    # `2 * win_rate - 1`.
+    net_total: int = 0
+    net_games: int = 0
+
     def rates(self) -> dict[str, float | None]:
         return {
             **{
@@ -205,6 +215,11 @@ class AgentStats:
                 )
                 for verb in sorted(self.verb_offered)
             },
+            **(
+                {"mean_net_chips": _rate(self.net_total, self.net_games)}
+                if self.net_games
+                else {}
+            ),
             # Per-game token spend (spec §5). Denominated in games this agent
             # actually played, so a matchup where it sat out does not dilute it.
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
@@ -233,6 +248,9 @@ class AgentStats:
 
     def as_dict(self) -> dict[str, Any]:
         out = {**asdict(self), **self.rates()}
+        if not self.net_games:
+            out.pop("net_total", None)
+            out.pop("net_games", None)
         if not self.verb_offered:
             # A game whose pack declares no `action_verbs` emits neither tally.
             # Two empty dicts in a Cheat summary would read as "measured zero"
@@ -244,7 +262,9 @@ class AgentStats:
 
 
 def aggregate(
-    records: Iterable[dict[str, Any]], action_verbs: Sequence[str] = ()
+    records: Iterable[dict[str, Any]],
+    action_verbs: Sequence[str] = (),
+    chip_delta: bool = False,
 ) -> dict[str, Any]:
     """Fold a run's transcripts into per-agent statistics.
 
@@ -252,8 +272,9 @@ def aggregate(
     challenge statistics are Cheat's: they are driven off `facts["kind"]`, and a
     game whose decisions carry another kind simply contributes nothing to them,
     so every one of those rates comes out `None` — "was never asked" — rather
-    than a fabricated 0.0. `action_verbs` comes from the playing game's pack and
-    turns on the offer-conditioned verb rates.
+    than a fabricated 0.0. `action_verbs` and `chip_delta` come from the playing
+    game's pack and turn on the offer-conditioned verb rates and the mean chip
+    delta respectively.
     """
     stats: dict[str, AgentStats] = {}
     games = 0
@@ -278,6 +299,9 @@ def aggregate(
                 s.games_scored += 1
                 if record["returns"][seat] > 0:
                     s.wins += 1
+                if chip_delta:
+                    s.net_games += 1
+                    s.net_total += int(record["returns"][seat])
 
         for name, tally in record.get("usage", {}).items():
             s = stat(name)

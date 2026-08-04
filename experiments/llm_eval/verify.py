@@ -246,6 +246,10 @@ def holdem_tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
 
 
 HOLDEM_RATES: list[tuple[str, str, str]] = [
+    # Chips first: it is the metric that survives the blinds. A player can win a
+    # minority of hands and still finish ahead, and the first version of this
+    # game's baseline did exactly that.
+    ("mean_net_chips", "net_total", "terminal_games"),
     ("win_rate", "wins", "terminal_games"),
     ("fallback_rate", "fallbacks", "decisions"),
     ("check_rate", "check_chosen", "check_offered"),

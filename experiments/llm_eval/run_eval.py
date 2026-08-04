@@ -379,7 +379,9 @@ def run_matchup(
                 f"({record.wall_seconds}s)"
             )
 
-    summary = aggregate(existing + records, pack.action_verbs)
+    summary = aggregate(
+        existing + records, pack.action_verbs, pack.reports_chip_delta
+    )
     summary["matchup"] = name
     summary["n_requested"] = int(matchup["n"])
     summary["n_completed"] = len(existing) + len(records)

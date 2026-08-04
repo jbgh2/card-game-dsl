@@ -75,6 +75,12 @@ class GamePack:
     # challenge, which have their own metrics.
     action_verbs: tuple[str, ...] = ()
 
+    # Whether this game's OpenSpiel returns are chip-denominated, so their mean
+    # is worth reporting. On for a betting game, where win rate and chip delta
+    # can point in opposite directions; off for a game scored +/-1, where the
+    # mean return is just `2 * win_rate - 1`.
+    reports_chip_delta: bool = False
+
 
 CHEAT = GamePack(
     short_name="cardlang_cheat",
@@ -95,6 +101,7 @@ HOLDEM_HEADS_UP = GamePack(
     facts=holdem_pack.decision_facts,
     build_rule_agent=holdem_pack.build_rule_agent,
     action_verbs=("check", "bet", "call", "raise", "fold"),
+    reports_chip_delta=True,
 )
 
 
