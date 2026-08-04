@@ -234,7 +234,7 @@ games carry.
 | New harness code | `kuhn.py` 539, `verify_kuhn.py` 292, `test_kuhn.py` 575 — **1406 code lines** (comments and docstrings excluded; 2218 lines as written) |
 | Existing harness modified | **+331 / −65** across 7 files |
 | Config, pre-registration, this report | 149 + 95 + 278 lines |
-| Wall clock, start to finished report | ~2 h 15 min |
+| Wall clock, start to finished report | ~2 h 10 min |
 | API spend, the reported run | **$3.74** (Sonnet $2.16, Haiku $1.59) |
 | API spend, whole session incl. a discarded sweep | **~$6.35** |
 
