@@ -25,6 +25,7 @@ from __future__ import annotations
 from cardlang.runtime import reads
 from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
 from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
@@ -477,7 +478,10 @@ class TichuComboCodec:
             # Shadow Guard of the codec's own window tables: offsets/sizes
             # partition the segment, so an in-bounds index always matched above
             raise AssertionError("unreachable pairseq index")
-        raise ValueError(f"combo index {index} out of range 0..{self.size - 1}")
+        raise ShadowGuardError(
+                "openspiel.encoding.ActionSpace.decode",
+                f"combo index {index} out of range 0..{self.size - 1}",
+            )
 
     def kind_of(self, index: int) -> str:
         for base, kind in (
@@ -487,7 +491,10 @@ class TichuComboCodec:
         ):
             if index < base:
                 return kind
-        raise ValueError(f"combo index {index} out of range 0..{self.size - 1}")
+        raise ShadowGuardError(
+                "openspiel.encoding.ActionSpace.decode",
+                f"combo index {index} out of range 0..{self.size - 1}",
+            )
 
 
 TICHU_COMBO_CODEC = TichuComboCodec()
