@@ -199,6 +199,16 @@ them with equilibrium play give **identical** exploitability for every model
 measured (`exploitability_fill_sensitivity` = 0.00000). For the mixing Nash
 baseline the same quantity is non-zero, so the check is not vacuous.
 
+**Seat fairness is now checked for every game, exactly.** The confound below was
+found by noticing an impossible result, which only worked because Kuhn's opponent
+has a known value. `tests/test_seating.py` replaces that luck with a property:
+under balanced seating each roster position sits in every seat of every deal
+exactly once, so all positions must see an *identical multiset of dealt hands*.
+It is asserted as equality, plays no games, needs no opponent of known value, and
+is parametrised off the harness's own game registry — so a game added later is
+covered without its author knowing any of this. Verified by planting the defect
+and watching both games redden.
+
 **Leak-freeness is inherited, not re-argued.** `DecisionView` carries a seat
 number, an information-state string, and the legal actions with their renderings
 — nothing else, enforced by type. Cheat's decision-shape classifier moved off it
