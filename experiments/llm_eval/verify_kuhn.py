@@ -299,12 +299,25 @@ def compare_arms(
         )
     shared = sorted(set(control) & set(arm))
 
-    def rate(record: dict[str, Any]) -> tuple[int, int]:
+    def rate(record: dict[str, Any], skip_fallbacks: bool = False) -> tuple[int, int]:
+        """Dominated actions taken over dominated actions offered, for the model.
+
+        `skip_fallbacks` drops decisions where the model failed to parse twice
+        and the harness played uniformly at random. Those are not the model's
+        decisions, and a random choice facing a bet holding a Jack or a King
+        takes the dominated action half the time — so leaving them in lets the
+        harness's own parse failures contribute to the endpoint. Reported
+        alongside the as-registered figure rather than instead of it: the
+        pre-registration did not exclude them, and silently changing the
+        denominator after the fact is the thing pre-registration exists to stop.
+        """
         seats = {int(k): v for k, v in record["seats"].items()}
         taken = offered_ = 0
         for decision in record["decisions"]:
             facts = decision["facts"]
             if not seats[int(decision["player"])].startswith("llm"):
+                continue
+            if skip_fallbacks and (decision.get("llm") or {}).get("fallback"):
                 continue
             if facts.get("dominated_offered"):
                 offered_ += 1
@@ -313,6 +326,7 @@ def compare_arms(
 
     pairs: list[tuple[float, float]] = []
     ca = cd = aa = ad = 0
+    cnf_t = cnf_o = anf_t = anf_o = 0          # the same, fallbacks excluded
     for unit in shared:
         ct, co = rate(control[unit])
         at, ao = rate(arm[unit])
@@ -320,6 +334,12 @@ def compare_arms(
         cd += co
         aa += at
         ad += ao
+        t, o = rate(control[unit], skip_fallbacks=True)
+        cnf_t += t
+        cnf_o += o
+        t, o = rate(arm[unit], skip_fallbacks=True)
+        anf_t += t
+        anf_o += o
         if co and ao:
             pairs.append((ct / co, at / ao))
     up, down, tied, p = sign_test(pairs)
@@ -332,6 +352,14 @@ def compare_arms(
         "units_with_an_opportunity_in_both": len(pairs),
         "control": {"taken": ca, "offered": cd, "rate": _rate(ca, cd)},
         "arm": {"taken": aa, "offered": ad, "rate": _rate(aa, ad)},
+        # The sensitivity the report quotes. Computed here so it is reproducible
+        # from a committed tool rather than by hand.
+        "control_excluding_fallbacks": {
+            "taken": cnf_t, "offered": cnf_o, "rate": _rate(cnf_t, cnf_o)
+        },
+        "arm_excluding_fallbacks": {
+            "taken": anf_t, "offered": anf_o, "rate": _rate(anf_t, anf_o)
+        },
         "paired_sign_test": {"up": up, "down": down, "tied": tied, "p_two_sided": p},
     }
 

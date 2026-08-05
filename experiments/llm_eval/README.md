@@ -275,7 +275,7 @@ it.
 To add a fourth game: write its module, add a row to `GAME_TEXT` and to
 `GAME_KEYS`, and add a config. `game_text` and `game_key` each refuse an
 unregistered game rather than defaulting to Cheat's, and
-`tests/test_seating.py::test_every_harness_game_is_covered` fails if the two
+`experiments/llm_eval/tests/test_seat_fairness.py::test_every_harness_game_is_covered` fails if the two
 registries name different sets — so a game registered in one and forgotten in the
 other cannot run half-configured.
 
@@ -317,7 +317,7 @@ and the archive above rests on the second.
 `_build_seats` ties seat parity to seed parity, so where the deal dominates the
 outcome one roster position can be dealt systematically better cards. A single
 Hold'em hand *is* deal-dominated, so this is the at-risk shape, not the safe one
-— and `tests/test_seating.py::test_the_unbalanced_scheme_really_does_favour_a_
+— and `experiments/llm_eval/tests/test_seat_fairness.py::test_the_unbalanced_scheme_really_does_favour_a_
 position[cardlang_holdem_heads_up]` passes, which says exactly that: under the
 unbalanced scheme the two roster positions see *different multisets of dealt
 cards*. That check is exact and needs no sample size, which is why it settles a

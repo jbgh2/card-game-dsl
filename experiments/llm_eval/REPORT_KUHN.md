@@ -213,7 +213,7 @@ either. For the *mixing* Nash baseline the same quantity is non-zero (up to
 
 **Seat fairness is exact.** Balanced seating from the start, so every roster
 position sits in every seat of every deal exactly once. Pinned by
-`tests/test_seating.py` as an identical multiset of dealt hands, verified by
+`experiments/llm_eval/tests/test_seat_fairness.py` as an identical multiset of dealt hands, verified by
 planting the defect.
 
 ## What is not established

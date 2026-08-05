@@ -20,6 +20,17 @@ The only Kuhn model transcripts in existence at that point are the N = 300
 archive from [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md), whose results
 are stated below as the predictions being tested.
 
+**Where that archive is now.** Promoting this run overwrote it — one archive
+holds the evidence behind the published number, and keeping both would leave a
+reader guessing which. The N = 300 transcripts are therefore not in the working
+tree, and every N = 300 figure quoted below is checkable only from history, at
+commit `1ea30df`:
+
+```bash
+git cat-file -p 1ea30df:experiments/llm_eval/results_kuhn/transcripts/llm_mid_vs_nash.jsonl.gz \
+  | gzip -dc | wc -l          # 300
+```
+
 This is a **replication**, not a fresh exploration. The first run's job was to
 find out whether the harness could measure anything; its answers are now
 hypotheses with a direction and, in one case, a value. Registering them as such

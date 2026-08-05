@@ -204,7 +204,7 @@ The standing caveats are in `docs/open-questions/structural-infoset-proofs.md`.
 **Seat fairness is exact, and was not always.** A Kuhn run once reported a model
 *beating* an opponent that is provably unbeatable: seat rotation and the deal were
 both functions of the game index, and the adapter's seed-to-deal map is not
-parity-balanced. `tests/test_seating.py` now asserts, for every game in the
+parity-balanced. `experiments/llm_eval/tests/test_seat_fairness.py` now asserts, for every game in the
 registry, that balanced seating deals every roster position an identical multiset
 of hands — exact, playing no games, needing no opponent of known value. It also
 asserts the unbalanced scheme genuinely differs, so it is a filter and not a
