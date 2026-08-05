@@ -2489,27 +2489,42 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
         descend(phase, top)
 
 
-# `Game` fields whose state references another guard owns, so `_check_state_scope`
-# does not walk them at game level. Pinned against the node's real field set by
-# tests/test_state_scope.py, so a new field forces a decision instead of silently
-# joining whichever side it happens to fall on.
-_GAME_LEVEL_OWNED_ELSEWHERE = frozenset(
+# `Game` fields `_check_state_scope` does not walk at game level, split by WHY —
+# the two reasons are not interchangeable, and collapsing them once already hid
+# a defect: `types` sat under the residual comment while the set's name claimed
+# a guard owned it, and nothing did.
+#
+# Pinned against the node's real field set by tests/test_state_scope.py, so a
+# new field forces a decision instead of silently joining whichever side it
+# happens to fall on.
+
+# Another guard owns these, and does check them.
+_GAME_LEVEL_OWNED_BY_ANOTHER_GUARD = frozenset(
     {
         # each phase carries its own scope; `descend` walks these
         "phases",
         # a default is bounded by what exists YET, a different rule:
         # `_check_state_default_scope` owns it
         "state",
-        # callable bodies have no enclosing phase — legality depends on which
-        # phase invokes them, which is reachability, not lexical scope (#242)
-        "rules",
-        "move_types",
-        "functions",
-        "procedures",
-        "defines",
-        "types",
     }
 )
+
+# NOBODY checks these. A callable body has no enclosing phase, so whether its
+# state reads are live depends on which phase invokes it — reachability, not
+# lexical scope. 112 callable bodies across 15 corpus games legitimately read
+# phase-scoped state, so no conservative rule is available and this is a
+# recorded residual, not a guarantee (issue #242).
+#
+# `types` is deliberately NOT here. A `derived { }` body has the same shape —
+# evaluated lazily at member access, so it too has no single lexical phase —
+# but NO corpus game declares one, so the conservative rule that is unavailable
+# above is free here: a derived body may read game-level state only. It is
+# walked with the rest.
+_GAME_LEVEL_UNCHECKED = frozenset(
+    {"rules", "move_types", "functions", "procedures", "defines"}
+)
+
+_GAME_LEVEL_SKIP = _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD | _GAME_LEVEL_UNCHECKED
 
 
 def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
@@ -2607,9 +2622,14 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     # remembers it. `loser:` was found missing here by review, and it was found
     # because it had been enumerated by hand.
     for field in game.__dataclass_fields__:
-        if field in _GAME_LEVEL_OWNED_ELSEWHERE:
+        if field in _GAME_LEVEL_SKIP:
             continue
-        for node in _walk(getattr(game, field, None)):
+        # `_child_nodes`, not `_walk`: most of these fields hold a TUPLE of
+        # nodes, and `_walk` returns immediately on anything that is not a
+        # dataclass. Walking them with `_walk` visits nothing at all and the
+        # loop looks total while checking only the handful of single-node
+        # fields.
+        for node in _child_nodes(getattr(game, field, None)):
             if isinstance(node, n.NameRef):
                 report(node, top)
 

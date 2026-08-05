@@ -62,7 +62,11 @@ sampled:    the many expression positions that all reduce to shape 1 (a
             that did NOT reduce to one of the four shapes would be a residual,
             and `_KINDS`' derivation note above is what makes that visible.
 residual:   callable bodies — move types, rules, functions, procedures, defines
-            — are OUT of this domain and stay unchecked. Their legality depends
+            — are OUT of this domain and stay unchecked. A `derived { }` body
+            has the same shape (lazily evaluated at member access, so no single
+            lexical phase) but is NOT residual: no corpus game declares one, so
+            the conservative rule unavailable for the others is free here and
+            a derived body may read game-level state only. Their legality depends
             on which phase invokes them, not on where they are written, so it is
             a reachability analysis rather than a traversal; 112 callable bodies
             across 15 corpus games legitimately reference phase-scoped state, so
@@ -248,33 +252,71 @@ game G {{
 def test_every_game_field_is_decided() -> None:
     """The game-level walk is derived, and its skip set is total over `Game`.
 
-    `_check_state_scope` walks every `Game` field except those another guard
-    owns. That is only a completeness claim while the skip set is checked
-    against the node's real fields — otherwise a field added to `Game` joins
-    whichever side it happens to fall on, silently. `loser:` was missed exactly
-    once, by hand-enumeration; this is what stops the next one.
+    Two sets, not one, because the reasons are not interchangeable: a field
+    another guard checks is covered, a field nobody checks is a residual. They
+    were one set once, `types` sat in it under the residual comment while the
+    name claimed ownership, and nothing checked derived bodies at all.
 
-    red under: add a name to `_GAME_LEVEL_OWNED_ELSEWHERE` that `Game` does not
-    declare, or remove `phases` from it. Verified.
+    red under: add a name to either set that `Game` does not declare, or remove
+    `phases` from the owned set. Verified.
     """
     from cardlang.ast import nodes as n
-    from cardlang.resolve import _GAME_LEVEL_OWNED_ELSEWHERE
+    from cardlang.resolve import (
+        _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD,
+        _GAME_LEVEL_SKIP,
+        _GAME_LEVEL_UNCHECKED,
+    )
 
     fields = set(n.Game.__dataclass_fields__)
-    unknown = _GAME_LEVEL_OWNED_ELSEWHERE - fields
+    unknown = _GAME_LEVEL_SKIP - fields
     assert not unknown, (
-        f"the skip set names {sorted(unknown)}, which `Game` does not declare — "
+        f"the skip sets name {sorted(unknown)}, which `Game` does not declare — "
         f"a renamed field silently stops being skipped, or was never a field"
     )
-    # The walked half is everything else; naming it here means a NEW `Game`
-    # field shows up in this diff as a decision, not as an accident.
-    walked = sorted(fields - _GAME_LEVEL_OWNED_ELSEWHERE)
+    assert not (_GAME_LEVEL_OWNED_BY_ANOTHER_GUARD & _GAME_LEVEL_UNCHECKED), (
+        "a field cannot be both checked by another guard and unchecked"
+    )
+    # Naming the walked half means a NEW `Game` field shows up in this diff as
+    # a decision rather than joining whichever side it happens to land on.
+    walked = sorted(fields - _GAME_LEVEL_SKIP)
     assert walked == [
         "board", "content_flavor", "deck", "direction", "loser", "max_length",
         "name", "partnerships", "players", "positions", "ranking",
-        "ranking_convention", "span", "trump", "uses", "winner", "zones",
+        "ranking_convention", "span", "trump", "types", "uses", "winner",
+        "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
-        f"reference in it runs inside a phase (skip it, and say which guard "
-        f"owns it) or at game level (leave it walked), then update this list."
+        f"reference in it runs inside a phase (skip it, and say which set) or "
+        f"at game level (leave it walked), then update this list."
     )
+
+
+def test_the_game_level_walk_is_not_vacuous() -> None:
+    """The walk must actually visit the tuple-valued fields.
+
+    `resolve._walk` returns immediately on anything that is not a dataclass,
+    and most walked `Game` fields hold a TUPLE of nodes — so walking them with
+    `_walk` visits nothing while the loop reads as total. That shipped once and
+    was caught only because a reviewer asked about one specific field.
+
+    This pins the property directly: a state reference inside a tuple-valued
+    field (`types`) must be found. A grid cell would not have caught it —
+    every out-of-scope cell it covers lives in a single-node field.
+
+    red under: change `_child_nodes` back to `_walk` in the game-level loop of
+    `_check_state_scope`. Verified.
+    """
+    src = """
+game G {
+  players: 2
+  max_length: 200
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { box : T = T { x: 1 } }
+  phase p { state { phase_var : Player = 0 } }
+  loser: box.y
+}
+type T = { x : Integer } derived { y = phase_var }
+"""
+    with pytest.raises(DiagnosticError, match="phase_var"):
+        check_dsl(src, "t.cardlang")
