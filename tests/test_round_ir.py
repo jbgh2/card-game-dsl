@@ -20,5 +20,5 @@ def test_round_early_termination_ir() -> None:
     ir: Any = emit(check_dsl(EARLY_SRC, "g.cardlang"))
     items = ir["phases"][0]["items"]
     rnd = next(i for i in items if i["kind"] == "round")
-    assert rnd["early_termination"] == "on_play_of_tochoo"
+    assert rnd["early_termination"] == "on_play_off_led_suit"
     assert rnd["trump"] is None

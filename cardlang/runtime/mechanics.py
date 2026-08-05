@@ -197,8 +197,9 @@ class TrickForm:
         if state["led_suit"] is None:
             state["led_suit"] = choice.suit
         _fire_transitions(self.transitions, Move(choice, actor), self.trick_ctx)
-        # A tochoo (off-suit play, only possible when void) ends the trick: the
-        # highest led-suit card so far becomes the winner and picks up the pile.
+        # An `early` predicate ends the trick mid-pass; the winner function
+        # picks from the plays so far (Getaway: a void player's off-led-suit
+        # play, with the winner then picking up the pile).
         if self.early_term is not None and self.early_term(choice, state["led_suit"]):
             state["trick_terminated_early"] = True
         return state

@@ -117,7 +117,7 @@ def test_early_predicates_are_dispatchable() -> None:
     PRIMITIVE_EARLY_PREDICATES comment), so a name added to the set without a
     dispatch arm passes resolve and then Assertion-fails mid-trick.
 
-    red under: delete the `case "on_play_of_tochoo"` arm from `value_function`
+    red under: delete the `case "on_play_off_led_suit"` arm from `value_function`
     (cardlang/runtime/primitives.py).
     """
     from cardlang.runtime.primitives import value_function

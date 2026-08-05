@@ -46,10 +46,10 @@ game G {
   phase play {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
-    // A tochoo ends the trick, so hands deplete unevenly; only non-empty hands
-    // play, and we stop once at most one player still holds cards.
+    // An off-led-suit play ends the trick, so hands deplete unevenly; only
+    // non-empty hands play, and we stop once at most one player holds cards.
     repeat until (number of players where hand[player] is not empty) <= 1 {
-      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
+      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_off_led_suit
       move all cards from trick_pile to waste
       tricks_won[winner] += 1
       leader := winner
@@ -61,7 +61,7 @@ game G {
 
 
 def test_round_early_termination_ends_tricks_early() -> None:
-    # A tochoo (off-suit play, only possible when void) must end the trick: with
+    # An off-led-suit play (only possible when void) must end the trick: with
     # the early predicate wired, some tricks see fewer than 4 plays.
     game = check_dsl(EARLY_SRC, "g.cardlang")
     early_terminations = 0
@@ -76,10 +76,10 @@ def test_round_early_termination_ends_tricks_early() -> None:
     assert early_terminations > 0
 
 
-def test_round_early_termination_fires_only_on_a_tochoo() -> None:
+def test_round_early_termination_fires_only_on_an_off_led_suit_play() -> None:
     # Not just "fires at all": when a trick ends early, the breaking (last) card
-    # must be off the led suit — a genuine tochoo. Guards against an over-eager
-    # predicate that fires on a legal follow. (A tochoo by the last player in turn
+    # must be off the led suit. Guards against an over-eager predicate that
+    # fires on a legal follow. (An off-led-suit play by the last player in turn
     # order still ends the trick, so play count alone is not the signal.)
     game = check_dsl(EARLY_SRC, "g.cardlang")
     checked = 0
@@ -93,7 +93,7 @@ def test_round_early_termination_fires_only_on_a_tochoo() -> None:
             elif e == "trick_end":
                 if d["early"]:
                     led = plays[0].suit  # noqa: B023 -- consumed before the loop advances
-                    assert plays[-1].suit != led  # the tochoo is off-suit  # noqa: B023 -- consumed before the loop advances
+                    assert plays[-1].suit != led  # the breaking play is off-suit  # noqa: B023 -- consumed before the loop advances
                     checked += 1
                 plays.clear()  # noqa: B023 -- consumed before the loop advances
 
@@ -144,7 +144,7 @@ game G {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
     repeat until (number of players where hand[player] is not empty) <= 1 {
-      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
+      round play_to_trick from leader over players where hand[player] is not empty source hand into trick_pile winner highest_of_led_suit early on_play_off_led_suit
       // Read the just-finished round's terminal state in the surrounding body.
       if state.trick_terminated_early { tricks_won[winner] += 1 }
       move all cards from trick_pile to waste

@@ -353,7 +353,7 @@ but to the waste otherwise — it is an `if` over the round's terminal state:
 ```cardlang-fragment play_phase
 phase play {
   round play_to_trick from leader over players where not eliminated[player]
-        source hand into trick_pile winner highest_of_led_suit early on_play_of_tochoo
+        source hand into trick_pile winner highest_of_led_suit early on_play_off_led_suit
   if state.trick_terminated_early { move all cards from trick_pile to hand[winner] }
   else { move all cards from trick_pile to waste }
 }

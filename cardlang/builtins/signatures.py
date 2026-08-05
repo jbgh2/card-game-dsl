@@ -209,7 +209,7 @@ VALUE_SIGS: dict[str, Type] = {
 # Early-termination predicates named by a `round`'s `early` clause. Signature is
 # (card, led_suit) -> Boolean; the table is loose (TAny) like the value callbacks.
 EARLY_SIGS: dict[str, Type] = {
-    "on_play_of_tochoo": TAny(),
+    "on_play_off_led_suit": TAny(),
 }
 
 # Zone type name -> contents. Card containers hold cards; the resource zone holds
