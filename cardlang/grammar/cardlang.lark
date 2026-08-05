@@ -268,8 +268,8 @@ produces_stmt: NAME _PRODUCES_KW ":" produce_arm+
 produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 
 // The built-in operations use prose statement syntax — game actions read as
-// rulebook commands, not function calls (decisions.md, on the closed set of
-// built-in operations). Call syntax (`name(args)`) is reserved for
+// rulebook commands, not function calls (decisions.md, on the three operation
+// families). Call syntax (`name(args)`) is reserved for
 // value-returning functions and named user operations, which appear in
 // expression position.
 
