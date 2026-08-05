@@ -2489,6 +2489,29 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
         descend(phase, top)
 
 
+# `Game` fields whose state references another guard owns, so `_check_state_scope`
+# does not walk them at game level. Pinned against the node's real field set by
+# tests/test_state_scope.py, so a new field forces a decision instead of silently
+# joining whichever side it happens to fall on.
+_GAME_LEVEL_OWNED_ELSEWHERE = frozenset(
+    {
+        # each phase carries its own scope; `descend` walks these
+        "phases",
+        # a default is bounded by what exists YET, a different rule:
+        # `_check_state_default_scope` owns it
+        "state",
+        # callable bodies have no enclosing phase — legality depends on which
+        # phase invokes them, which is reachability, not lexical scope (#242)
+        "rules",
+        "move_types",
+        "functions",
+        "procedures",
+        "defines",
+        "types",
+    }
+)
+
+
 def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     """A state reference names a variable live at its lexical position.
 
@@ -2577,9 +2600,22 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     for phase in game.phases:
         descend(phase, top)
 
-    # `winner: <dir> NAME` is evaluated at game end, in no phase at all, so it
-    # sees game-level state only. `Winner.target` is a bare `str` (issue #243),
-    # invisible to the walk above, so it is named directly.
+    # Game-level clauses run outside every phase — every frame has been popped
+    # by then — so they see game-level state only. DERIVED, not listed: walk the
+    # `Game` node's own fields and skip the ones another guard owns, so a clause
+    # added later is covered the day it exists rather than the day someone
+    # remembers it. `loser:` was found missing here by review, and it was found
+    # because it had been enumerated by hand.
+    for field in game.__dataclass_fields__:
+        if field in _GAME_LEVEL_OWNED_ELSEWHERE:
+            continue
+        for node in _walk(getattr(game, field, None)):
+            if isinstance(node, n.NameRef):
+                report(node, top)
+
+    # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
+    # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
+    # see it.
     if game.winner is not None and game.winner.target not in top:
         where = declared_at.get(game.winner.target, [])
         home = " or ".join(f"phase '{w}'" for w in where) or "a phase"

@@ -45,7 +45,15 @@ registry:   `_TREE` (the phase shapes, and `_ancestors` derived from it) and
             a bare `str` with no `ref_kind` at all). Every other position in the
             grammar reaches the checker as one of the first two shapes.
 covered:    `test_scope_grid` — the full cross product of `_TREE` sites x
-            `_KINDS`, expected computed by `_in_scope`.
+            `_KINDS`, expected computed by `_in_scope`; plus
+            `test_winner_target_scope` and `test_loser_selection_scope`, the
+            two game-level clauses, and `test_every_game_field_is_decided`,
+            which pins the guard's game-level skip set against `Game`'s real
+            field set so a field added later forces a decision.
+            The game-level half of the guard is DERIVED — it walks every
+            `Game` field but the skipped ones — after review found `loser:`
+            missing from a hand-enumerated list. The enumeration was the
+            defect; the pin above is what keeps the derivation honest.
 sampled:    the many expression positions that all reduce to shape 1 (a
             `NameRef` read) are covered by one representative each, not one per
             grammar production: the check walks the resolved AST, so a read
@@ -203,3 +211,70 @@ game G {{
         return
     with pytest.raises(DiagnosticError, match="tally"):
         check_dsl(src, "t.cardlang")
+
+
+@pytest.mark.parametrize("decl", _SITES)
+def test_loser_selection_scope(decl: str | None) -> None:
+    """`loser: <expr>` is the second game-level clause, and the one review
+    caught missing.
+
+    It runs only when a game declares no `winner:` (`runtime/driver.py`
+    evaluates it on the winner-is-None branch), which is why a fixture carrying
+    both clauses does NOT reproduce the defect — the winner branch is taken and
+    the loser expression is never evaluated. Stated because it cost a wrong
+    "cannot reproduce" before the real witness was built.
+    """
+    src = f"""
+game G {{
+  players: 2
+  max_length: 200
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  {"state { out : Player = 0 }" if decl is None else ""}
+  phase a {{ {"state { out : Player = 0 }" if decl == "a" else ""}
+    phase a_inner {{ {"state { out : Player = 0 }" if decl == "a_inner" else ""} }}
+  }}
+  phase b {{ {"state { out : Player = 0 }" if decl == "b" else ""} }}
+  loser: out
+}}
+"""
+    if decl is None:
+        check_dsl(src, "t.cardlang")
+        return
+    with pytest.raises(DiagnosticError, match="out"):
+        check_dsl(src, "t.cardlang")
+
+
+def test_every_game_field_is_decided() -> None:
+    """The game-level walk is derived, and its skip set is total over `Game`.
+
+    `_check_state_scope` walks every `Game` field except those another guard
+    owns. That is only a completeness claim while the skip set is checked
+    against the node's real fields — otherwise a field added to `Game` joins
+    whichever side it happens to fall on, silently. `loser:` was missed exactly
+    once, by hand-enumeration; this is what stops the next one.
+
+    red under: add a name to `_GAME_LEVEL_OWNED_ELSEWHERE` that `Game` does not
+    declare, or remove `phases` from it. Verified.
+    """
+    from cardlang.ast import nodes as n
+    from cardlang.resolve import _GAME_LEVEL_OWNED_ELSEWHERE
+
+    fields = set(n.Game.__dataclass_fields__)
+    unknown = _GAME_LEVEL_OWNED_ELSEWHERE - fields
+    assert not unknown, (
+        f"the skip set names {sorted(unknown)}, which `Game` does not declare — "
+        f"a renamed field silently stops being skipped, or was never a field"
+    )
+    # The walked half is everything else; naming it here means a NEW `Game`
+    # field shows up in this diff as a decision, not as an accident.
+    walked = sorted(fields - _GAME_LEVEL_OWNED_ELSEWHERE)
+    assert walked == [
+        "board", "content_flavor", "deck", "direction", "loser", "max_length",
+        "name", "partnerships", "players", "positions", "ranking",
+        "ranking_convention", "span", "trump", "uses", "winner", "zones",
+    ], (
+        f"`Game` gained or lost a field: {walked}. Decide whether a state "
+        f"reference in it runs inside a phase (skip it, and say which guard "
+        f"owns it) or at game level (leave it walked), then update this list."
+    )
