@@ -34,8 +34,8 @@ Key design notes:
   round runs.
 
 - **`early <predicate>` is optional.** Most games omit it (the pass proceeds until
-  all participants have played). Getaway uses `early on_play_of_tochoo`: a tochoo
-  (an off-suit play, only possible when void) ends the trick.
+  all participants have played). Getaway uses `early on_play_off_led_suit`: an
+  off-led-suit play (only possible when void — the game's *tochoo*) ends the trick.
 
 - **`trump <expr>` is optional.** Omitted, the round uses the game-level `trump:`
   declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each

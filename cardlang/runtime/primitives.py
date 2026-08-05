@@ -453,8 +453,8 @@ def value_function(name: str) -> Callable[..., Any]:
             return highest_of_led_suit
         case "highest_trump_or_led_suit":
             return highest_trump_or_led_suit
-        case "on_play_of_tochoo":
-            return on_play_of_tochoo
+        case "on_play_off_led_suit":
+            return on_play_off_led_suit
         case "tarot_trick_winner":
             from cardlang.runtime.tarot import tarot_trick_winner
 
@@ -623,10 +623,10 @@ def highest_trump_or_led_suit(
     return highest_of_led_suit(played, led_suit, trump, rank_index)
 
 
-def on_play_of_tochoo(card: Card, led_suit: str) -> bool:
-    """A tochoo is a card that fails to follow the led suit; playing one (only
-    possible when void) ends the trick early (Getaway: the highest led-suit
-    card then picks up the pile)."""
+def on_play_off_led_suit(card: Card, led_suit: str) -> bool:
+    """The played card fails to follow the led suit; playing one ends the
+    trick early. Under a must-follow rule only a void player can do so
+    (Getaway, where the highest led-suit card then picks up the pile)."""
     return card.suit != led_suit
 
 

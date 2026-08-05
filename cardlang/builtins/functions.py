@@ -51,7 +51,7 @@ PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCT
 # is an implementation detail of the runtime, not a shared namespace.
 PRIMITIVE_EARLY_PREDICATES: frozenset[str] = frozenset(
     {
-        "on_play_of_tochoo",  # Getaway: a tochoo (off-suit play when void) ends the trick
+        "on_play_off_led_suit",  # an off-led-suit play ends the trick (Getaway's tochoo)
     }
 )
 

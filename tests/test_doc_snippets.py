@@ -257,7 +257,7 @@ def _wrap_first_trick_phase(frag: str) -> str:
 
 def _wrap_play_phase(frag: str) -> str:
     # References only stdlib names (play_to_trick, highest_of_led_suit,
-    # on_play_of_tochoo) and shared-skeleton state (leader, eliminated).
+    # on_play_off_led_suit) and shared-skeleton state (leader, eliminated).
     return _game(f"{frag}\n  winner: highest score")
 
 
