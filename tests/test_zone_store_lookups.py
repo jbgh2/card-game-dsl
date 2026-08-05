@@ -1,6 +1,6 @@
 """`ZoneStore`'s name- and key-keyed lookups fail typed — completeness ledger.
 
-property:   every failing lookup on `ZoneStore` raises a typed `RuntimeError`
+property:   every failing lookup on `ZoneStore` raises `OwnerGuardError`
             naming what it could not find and, for a key miss, the keys the
             family actually has. Never a bare `KeyError` off the underlying
             dict: the name and the instance key are equally capable of
@@ -54,6 +54,7 @@ import inspect
 import pytest
 
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import ZoneStore
 
 # The lookup axis, derived from the class. A new keyed lookup lands in this
@@ -137,15 +138,18 @@ def test_instance_returns_the_declared_family_member() -> None:
 
 
 def test_single_refuses_an_undeclared_zone_name() -> None:
-    # `pytest.raises(RuntimeError)` IS the currency assertion: KeyError is not
-    # a RuntimeError, so a bare one escaping this block fails the test here.
-    with pytest.raises(RuntimeError) as excinfo:
+    # `pytest.raises(OwnerGuardError)` IS the assertion, not scaffolding for
+    # the message check below: a bare `KeyError` off the underlying dict is not
+    # an `OwnerGuardError`, so one escaping this block fails the test here.
+    # Narrower than the `RuntimeError` this used to name, which would also have
+    # accepted a `PrimitiveReadError` — a different Author entirely.
+    with pytest.raises(OwnerGuardError) as excinfo:
         _seated_store().single("nonesuch")
     assert "nonesuch" in str(excinfo.value)
 
 
 def test_instance_refuses_an_undeclared_family_name() -> None:
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         _seated_store().instance("nonesuch", 0)
     assert "nonesuch" in str(excinfo.value)
 
@@ -156,14 +160,14 @@ def test_instance_refuses_an_undeclared_family_name() -> None:
 def test_instance_refuses_a_key_a_team_family_does_not_cover() -> None:
     """`captured` is TEAM-indexed, so it covers team ids (0, 1) and not seat
     3 — the shape a caller conflating seats with teams produces."""
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         _seated_store().instance("captured", 3)
     message = str(excinfo.value)
     assert "captured" in message and "team" in message and "[0, 1]" in message
 
 
 def test_instance_refuses_a_key_a_player_family_does_not_cover() -> None:
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         _seated_store().instance("hand", 9)
     message = str(excinfo.value)
     assert "hand" in message and "player" in message and "[0, 1, 2, 3]" in message
@@ -173,7 +177,7 @@ def test_instance_refuses_a_key_a_position_family_does_not_cover() -> None:
     """The role that is neither seats nor teams. A message naming the key
     domain as "seating and teams" is wrong here, and Klondike/FreeCell are
     in-corpus users of position-indexed zones."""
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         _positional_store().instance("foundation", 99)
     message = str(excinfo.value)
     assert "foundation" in message and "fslot" in message

@@ -22,6 +22,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
 
@@ -90,7 +91,7 @@ def test_live_range_exceeding_ceiling_raises() -> None:
     # guard is on the RANGE, so it fires regardless of which value is drawn —
     # the failure a value-only check would miss whenever the draw is small.
     src = _game("n : Integer = 15  x[player] : Integer = 0", "choose integer in 0 .. n up to 10")
-    with pytest.raises(RuntimeError, match="escaped its declared domain"):
+    with pytest.raises(OwnerGuardError, match="escaped its declared domain"):
         play_game(check_dsl(src, "t"), random.Random(0))
 
 

@@ -72,6 +72,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -143,7 +144,7 @@ def _ctx(
 def test_two_cards_dealt_into_an_empty_cell_overfills() -> None:
     game, stmt = _parse("move 2 cards from hand[0] to slot[0]")
     ctx = _ctx(game, [HEARTS_A, HEARTS_2])
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         execute(stmt, ctx)
     assert str(excinfo.value) == (
         "zone 'slot[0]' is a Cell (capacity 1) and already holds 0 — the "
@@ -161,7 +162,7 @@ def test_one_card_into_an_empty_cell_succeeds_and_fills_it() -> None:
 def test_one_more_card_into_an_already_full_cell_overfills() -> None:
     game, stmt = _parse("move 1 cards from hand[0] to slot[0]")
     ctx = _ctx(game, [HEARTS_2], slot_cards=[HEARTS_A])
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(OwnerGuardError) as excinfo:
         execute(stmt, ctx)
     assert str(excinfo.value) == (
         "zone 'slot[0]' is a Cell (capacity 1) and already holds 1 — the "

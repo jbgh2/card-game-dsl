@@ -42,6 +42,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
@@ -154,11 +155,11 @@ def _meld_of(gr: reads.GameReads, team: int, rank: str) -> list[Card]:
     for r, cards in _meld_zones(gr, team):
         if r == rank:
             return cards
-    raise RuntimeError(
+    raise OwnerGuardError(
         f"canasta: no meld pile for rank {rank!r} — the meldable ranks are "
         f"{list(NATURAL_MELD_RANKS)} plus the go-out black-three pile; the "
-        f"`ranking:` declaration and the start/take guards are the walls "
-        f"that keep this unreachable"
+        f"`ranking:` declaration and the start/take guards are what keep "
+        f"this unreachable"
     )
 
 
@@ -184,10 +185,10 @@ def _team_score(gr: reads.GameReads, team: int) -> int:
 def _top_card(gr: reads.GameReads) -> Card:
     top = _pile_top(gr)
     if not top:
-        raise RuntimeError(
+        raise OwnerGuardError(
             "canasta: the discard pile is empty — the take-pile guard "
-            "(canasta_can_take_pile) and the deal's turn-up are the walls "
-            "that keep top-of-pile reads reachable only on a non-empty pile"
+            "(canasta_can_take_pile) and the deal's turn-up are what keep "
+            "top-of-pile reads reachable only on a non-empty pile"
         )
     return top[-1]
 
@@ -311,10 +312,11 @@ def _live_attempt(facts: EngineFacts, gr: reads.GameReads, p: Player) -> _Attemp
     `meld_rank` / `taking_pile` state the announce wrote."""
     rank = gr.state["meld_rank"]
     if rank is None:
-        raise RuntimeError(
+        raise OwnerGuardError(
             "canasta: no meld attempt is open (meld_rank is none) — "
             "stage/close guards are only offered inside an open attempt; "
-            "the offer placement in canasta.cardlang is the wall"
+            "the offer placement in canasta.cardlang is what keeps this "
+            "unreachable"
         )
     taking = bool(gr.state["taking_pile"])
     return _attempt(facts, gr, p, str(rank), _stage(gr, p), _hand(gr, p), taking)

@@ -73,12 +73,13 @@ cardlang = ["grammar/*.lark", "stdlib/*.cardlang"]
 #         replacement is deliberately typed loosely.
 #   PLC0414 `import X as X` IS the explicit re-export `no_implicit_reexport`
 #         demands; dropping the alias breaks every importer.
-#   TRY004 asks for a `TypeError` on an `isinstance` refusal. This repo runs a
-#         two-currency doctrine — `RuntimeError` for anything a game
-#         description can cause, `AssertionError` for a compiler bug — and
-#         tests/test_assert_triage.py is the gate that enforces it. Every
-#         site already raises one of those two, so the rule asks for a third
-#         currency the repo's own wall forbids.
+#   TRY004 asks for a `TypeError` on an `isinstance` refusal. A raise here
+#         says WHO must act, not what Python thinks the value was: anything a
+#         game description can cause raises `OwnerGuardError` (or
+#         `ShadowGuardError` when an Owner Guard leaked), a compiler bug
+#         asserts, and `TypeError` names neither Author.
+#         tests/test_assert_triage.py and tests/test_failure_taxonomy.py are
+#         the checks that hold the split.
 #   PLC0206 wants `.items()` where a loop iterates keys and indexes the dict.
 #         Every site either uses the key to build a value (`Card(tr, s)`) or
 #         indexes a SECOND dict by the same key, so `.items()` removes at most

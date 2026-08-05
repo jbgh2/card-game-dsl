@@ -3640,9 +3640,16 @@ downstream layer *requires* — the thing that actually justifies the guard:
 "without this guard, it would reach the executor, which requires a zone in
 this position and refuses anything else at play time". The warning survives
 a change of currency; the coupling does not. The exception type is
-load-bearing in exactly one place: an argument *about* failure currency
+load-bearing in two places. The first is an argument *about* failure currency
 ("a typed error, not a bare `KeyError`"), where the type is the subject
-rather than incidental colour.
+rather than incidental colour. The second is a type that carries a guard's
+ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary section 5) — where
+the type IS the classification rather than a report of it. Mobility still runs
+in the direction this rule was written for: bare to typed is an upgrade in
+specificity, and it stays free. What is no longer free is a guard changing
+ROLE, which now changes its type, and deliberately so — a guard moving from
+authoritative to redundant, or one layer to another, is a design change, and
+the type is what makes it visible instead of silent.
 
 State the consequence in the subjunctive — "would check clean and die" —
 not as a past event ("checked clean and died") and not as a present claim

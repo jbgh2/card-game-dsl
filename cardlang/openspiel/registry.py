@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cardlang.runtime.errors import InstallationError
+
 _GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
 
@@ -58,14 +60,14 @@ def _derive_games(games_dir: Path) -> dict[str, str]:
     for p in sorted(games_dir.glob("*.cardlang")):
         name = _short_name(p.name)
         if name in games:
-            raise RuntimeError(
+            raise InstallationError(
                 f"two corpus files derive the same OpenSpiel short name "
                 f"{name!r}: {games[name]!r} and {p.name!r} (their stems differ "
                 f"only by '-' vs '_') — rename one."
             )
         games[name] = p.name
     if not games:
-        raise RuntimeError(
+        raise InstallationError(
             f"no .cardlang games found under {games_dir} — the OpenSpiel "
             f"registry derives from that directory and would otherwise register "
             f"nothing. In a checkout the path is wrong; in a packaged install "

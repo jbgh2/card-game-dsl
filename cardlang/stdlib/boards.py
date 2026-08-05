@@ -12,6 +12,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from cardlang.runtime.errors import OwnerGuardError
+
 _FILES = "abcdefghijklmnop"  # grid's declared arg ceiling is 16
 
 # The seat-relative forward directions a grid mints, in fixed order (decisions.md
@@ -53,7 +55,9 @@ def _cell_coords(name: str) -> tuple[int, int]:
 def _grid_lines(width: int, height: int, k: int) -> tuple[tuple[str, ...], ...]:
     span = max(width, height)
     if not (1 <= k <= span):
-        raise ValueError(f"lines(k) requires k in 1..{span} for grid({width}, {height}), got {k}")
+        raise OwnerGuardError(
+            f"lines(k) requires k in 1..{span} for grid({width}, {height}), got {k}"
+        )
     found: set[tuple[str, ...]] = set()
     if width >= k:
         for row in range(height):
@@ -318,16 +322,16 @@ def board_entry(family: str, args: tuple[int, ...]) -> BoardEntry:
     diagnostics at the `board:` clause."""
     declared = BOARD_FAMILIES.get(family)
     if declared is None:
-        raise ValueError(
+        raise OwnerGuardError(
             f"unknown board family {family!r} (registered families: {sorted(BOARD_FAMILIES)})"
         )
     if len(args) != declared.arity:
-        raise ValueError(
+        raise OwnerGuardError(
             f"board family {family!r} takes {declared.arity} argument(s), got {len(args)}"
         )
     for value in args:
         if not (declared.lo <= value <= declared.hi):
-            raise ValueError(
+            raise OwnerGuardError(
                 f"board family {family!r} arguments must be in "
                 f"{declared.lo}..{declared.hi}, got {value}"
             )

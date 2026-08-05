@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import Counter
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
@@ -65,8 +66,8 @@ def pinochle_meld_value(
     trump = gr.state["trump_suit"]
     if not isinstance(trump, str):
         # Whether trump has been declared yet is live game state, so scoring
-        # meld before it is the description's error, in the runtime's currency.
-        raise RuntimeError(
+        # meld before it is the description's error, so this raise is its Owner Guard.
+        raise OwnerGuardError(
             "pinochle_meld_value: meld is scored only after `trump_suit` is "
             "declared"
         )

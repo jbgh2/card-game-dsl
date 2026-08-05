@@ -17,6 +17,7 @@ from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError, Span
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 
 def _run(src: str) -> None:
@@ -40,7 +41,7 @@ move_type never { when: false  effect { coins[actor] += 1 } }
 def test_offer_with_no_legal_move_raises() -> None:
     # The only move's guard is always false, so the player has nothing legal —
     # the offer must raise, not silently no-op.
-    with pytest.raises(RuntimeError, match="none of.*is legal"):
+    with pytest.raises(OwnerGuardError, match="none of.*is legal"):
         _run(OFFER_NO_LEGAL)
 
 
@@ -64,7 +65,7 @@ game G {
 def test_choose_over_empty_range_raises() -> None:
     # A range empty at runtime offers no candidate — `choose` must raise, not
     # pick a silent default.
-    with pytest.raises(RuntimeError, match="empty range"):
+    with pytest.raises(OwnerGuardError, match="empty range"):
         _run(CHOOSE_EMPTY_RANGE)
 
 
@@ -242,7 +243,7 @@ def test_auction_with_no_legal_move_raises() -> None:
     # An auction participant offered a turn with nothing legal must raise — the
     # same fail-loud contract as `offer`, but in run_auction's ring (no silent
     # skip). Distinct code path from test_offer_with_no_legal_move_raises.
-    with pytest.raises(RuntimeError, match="has no legal move"):
+    with pytest.raises(OwnerGuardError, match="has no legal move"):
         _run(AUCTION_NO_LEGAL_MOVE)
 
 
@@ -272,7 +273,7 @@ def test_offer_of_parameterized_move_is_accepted() -> None:
     _run(OFFER_OF_PARAMETERIZED_MOVE)
 
 
-# --- runtime DATA conditions fail in the runtime's currency --------------------
+# --- runtime DATA conditions fail as Owner Guards ------------------------------
 #
 # The runtime-assert census (walls-at-the-right-level) converted these from bare
 # asserts / silent absences into typed RuntimeErrors: each is a condition only
@@ -296,7 +297,7 @@ game G {
 
 def test_pick_query_without_a_unique_match_raises() -> None:
     # Nobody satisfies the predicate, so `the player where …` has no referent.
-    with pytest.raises(RuntimeError, match="expected exactly 1"):
+    with pytest.raises(OwnerGuardError, match="expected exactly 1"):
         _run(PICK_WITH_NO_MATCH)
 
 
@@ -317,7 +318,7 @@ def test_player_holding_with_no_holder_raises() -> None:
     # Nothing was dealt: the two of clubs is in the deck, in nobody's hand.
     # CALL_SIGS declares Player, not Player?, so the absence is an error at the
     # call — not a silent None.
-    with pytest.raises(RuntimeError, match="no hand contains"):
+    with pytest.raises(OwnerGuardError, match="no hand contains"):
         _run(HOLDING_A_CARD_NOBODY_HOLDS)
 
 
@@ -338,7 +339,7 @@ def test_suit_of_an_empty_zone_raises() -> None:
     # The return signature is a plain Suit; an empty zone has no card to read a
     # suit from, and that is a game-logic error at the cause — never a silent
     # `none` into the Suit? target.
-    with pytest.raises(RuntimeError, match="zone is empty"):
+    with pytest.raises(OwnerGuardError, match="zone is empty"):
         _run(SUIT_OF_AN_EMPTY_ZONE)
 
 
@@ -359,7 +360,7 @@ def test_suit_of_a_non_card_raises_a_typed_error() -> None:
     # suit_of's argument is TAny (deliberately polymorphic: card or zone), so a
     # wrong-typed value is user-reachable and must get a typed error, not a
     # bare assert.
-    with pytest.raises(RuntimeError, match="expects a card or a zone"):
+    with pytest.raises(OwnerGuardError, match="expects a card or a zone"):
         _run(SUIT_OF_A_NON_CARD)
 
 
@@ -390,7 +391,7 @@ def test_climb_round_with_no_participants_raises() -> None:
     # who is merely absent from a NON-empty participant set is a different
     # matter and is NOT an error: the ring starts at the first participant
     # after them (tests/test_round_leader_participants.py).
-    with pytest.raises(RuntimeError, match="no participant to lead"):
+    with pytest.raises(OwnerGuardError, match="no participant to lead"):
         _run(CLIMB_WITH_NO_PARTICIPANTS)
 
 
@@ -412,7 +413,7 @@ def test_bare_family_read_without_an_actor_raises() -> None:
     # phase body, where nobody is acting. The static wall needs
     # statement-position context resolve does not thread yet, so the runtime
     # error carries the fix instead.
-    with pytest.raises(RuntimeError, match="no acting player"):
+    with pytest.raises(OwnerGuardError, match="no acting player"):
         _run(BARE_FAMILY_WITHOUT_AN_ACTOR)
 
 
@@ -439,7 +440,7 @@ def test_a_write_outside_the_declared_key_set_raises() -> None:
     # store's key set is the index domain's member set; a write outside it is
     # a runtime error at the write. A LITERAL seat 9 is rejected earlier (the
     # static player-literal wall); this is the backstop for the computed key.
-    with pytest.raises(RuntimeError, match="outside the variable's declared domain"):
+    with pytest.raises(OwnerGuardError, match="outside the variable's declared domain"):
         _run(PHANTOM_KEY_WRITE)
 
 
@@ -449,7 +450,7 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     # typed), so reaching this branch from a checked program needs a value
     # the checker deliberately leaves loose (`outcome`, an unregistered
     # action field) — hence a constructed statement: the backstop is not a
-    # dead branch, and it must answer in the runtime's currency, not with a
+    # dead branch, and it must answer as an Owner Guard, not with a
     # bare assert.
     import random
 
@@ -469,7 +470,7 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
         dest=n.NameRef(name="deck", ref_kind="zone"),
         dest_each=False,
     )
-    with pytest.raises(RuntimeError, match="movement source is not a zone"):
+    with pytest.raises(OwnerGuardError, match="movement source is not a zone"):
         execute(stmt, ctx)
 
 
@@ -496,6 +497,6 @@ def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
     # The runtime backstop behind the static `loser:` type wall. A non-player
     # selection the checker CAN type (`loser: "oops"`) is rejected statically; a
     # selection typed `TAny` slips past, and the driver checks the value's
-    # player-ness in the runtime's currency.
-    with pytest.raises(RuntimeError, match="not a player"):
+    # player-ness as an Owner Guard.
+    with pytest.raises(OwnerGuardError, match="not a player"):
         _run(LOSER_NOT_A_PLAYER)

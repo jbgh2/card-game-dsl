@@ -15,6 +15,7 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.execute import execute
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -112,7 +113,7 @@ def test_fail_loud_when_the_filtered_pool_is_too_small() -> None:
         "move 2 cards from hand[0] where card.suit is hearts to pile"
     )
     ctx = _ctx(game, [HEARTS_A, CLUBS_K], chooser=None)  # only one heart available
-    with pytest.raises(ValueError):
+    with pytest.raises(OwnerGuardError):
         execute(stmt, ctx)
 
 

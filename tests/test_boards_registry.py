@@ -138,6 +138,7 @@ import itertools
 
 import pytest
 
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.stdlib import boards
 from cardlang.stdlib.boards import BOARD_FAMILIES, BoardEntry, board_entry
 
@@ -267,7 +268,11 @@ BAD_ARGS_CASES: list[tuple[str, tuple[int, ...], str]] = [
 def test_board_entry_rejects_bad_args(
     family: str, args: tuple[int, ...], expected_substring: str
 ) -> None:
-    with pytest.raises(ValueError, match=expected_substring):
+    # `OwnerGuardError`, not `ValueError`: these judge the DESIGNER's `board:`
+    # arguments, and resolve narrows its catch to that type so a registry
+    # invariant (which stays `ValueError`) can no longer be converted into a
+    # diagnostic on the designer's line.
+    with pytest.raises(OwnerGuardError, match=expected_substring):
         board_entry(family, args)
 
 
@@ -353,13 +358,14 @@ def test_brute_force_matches_generator_on_small_grids(width: int, height: int) -
 
 def test_lines_k_zero_raises() -> None:
     entry = board_entry("grid", (3, 3))
-    with pytest.raises(ValueError, match="1..3"):
+    # The designer wrote `lines(0)`; the bound's Owner Guard names them.
+    with pytest.raises(OwnerGuardError, match="1..3"):
         entry.lines(0)
 
 
 def test_lines_k_too_large_raises() -> None:
     entry = board_entry("grid", (3, 3))
-    with pytest.raises(ValueError, match="1..3"):
+    with pytest.raises(OwnerGuardError, match="1..3"):
         entry.lines(17)
 
 
@@ -693,3 +699,37 @@ def test_movement_methods_reject_a_family_outside_the_registry() -> None:
         entry.home(0)
     with pytest.raises(ValueError, match="unknown board family"):
         entry.far_row(0)
+
+
+def test_the_boards_author_split_is_carried_by_the_type() -> None:
+    """A board refusal's TYPE says who must act, and the two are disjoint.
+
+    `board_entry` validates the designer's `board:` arguments; `BoardEntry.
+    __post_init__` validates the registry builder's own output. Both used to
+    raise `ValueError`, and `resolve._resolve_board`'s `except ValueError`
+    wrapped the whole call — so all fourteen `__post_init__` invariants were
+    converted into a diagnostic on the designer's `board:` line. A correct game
+    could be rejected at compile time with a message about a registry bug.
+
+    The catch now narrows by type. That is only a fix while the split holds,
+    and nothing else pins it: both halves still live in one module, one call
+    deep, and re-unifying them is a one-word edit that no behavioural test
+    notices.
+
+    red under: change any of `board_entry`'s three refusals back to
+    `ValueError` — the first loop fails naming that argument shape. Verified.
+    """
+    for args in [("hex", (3,)), ("grid", (3,)), ("grid", (0, 3))]:
+        with pytest.raises(OwnerGuardError):
+            board_entry(*args)
+
+    good = board_entry("grid", (3, 3))
+    for cells in [good.cells + (good.cells[0],), ()]:
+        with pytest.raises(ValueError) as caught:
+            BoardEntry(family=good.family, args=good.args, cells=cells)
+        assert not isinstance(caught.value, OwnerGuardError), (
+            "a registry-builder invariant raised the game author's type — "
+            "resolve's narrowed catch will convert it into a diagnostic on "
+            "the designer's `board:` line, which is the defect this split "
+            "exists to prevent"
+        )

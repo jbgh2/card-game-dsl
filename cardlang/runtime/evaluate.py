@@ -14,6 +14,7 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, Move, StructValue, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -102,7 +103,7 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
     ceiling = n.static_ceiling(e)
     assert ceiling is not None  # resolve rejects a choose with no static ceiling
     if lo < 0 or hi > ceiling:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"`choose integer in {lo} .. {hi}` escaped its declared domain "
             f"0 .. {ceiling}: every legal value must have an OpenSpiel action id "
             f"within the ceiling reserved up front (raise the `up to` bound "
@@ -110,7 +111,7 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
         )
     candidates = list(range(lo, hi + 1))
     if not candidates:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"`choose integer in {lo} .. {hi}` has no value to choose (empty range): "
             f"a choice must offer at least one candidate"
         )
@@ -159,21 +160,21 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
                 # instance to sugar to, and `instance(name, seat)` would
                 # key-error far from the cause.
                 if ctx.rs.zones.zone_index[e.name] in ctx.rs.position_domains:
-                    raise RuntimeError(
+                    raise ShadowGuardError(
+                        "resolve._check_position_family_refs",
                         f"'{e.name}' is a position-indexed zone family and "
                         f"must be subscripted — it has no per-player "
-                        f"instances (resolve walls this reference)"
+                        f"instances",
                     )
                 if ctx.current_player is None:
                     # The bare-family actor sugar (`hand` = the acting
                     # player's hand) read outside any acting context — a phase
                     # body has no actor. User-reachable (`shuffle hand` in a
-                    # phase body checks clean today), so it fails in the
-                    # runtime's currency with the fix named, not a bare
-                    # assert. A static Owner Guard needs statement-position
+                    # phase body checks clean today), so it fails as an
+                    # Owner Guard with the fix named, not a bare assert. A static Owner Guard needs statement-position
                     # context (which construct encloses this read) that no
                     # pass threads today.
-                    raise RuntimeError(
+                    raise OwnerGuardError(
                         f"'{e.name}' is a per-player zone family read with no "
                         f"acting player — subscript it (`{e.name}[p]`) or use "
                         f"it where an actor is bound (a move effect, a `for "
@@ -203,11 +204,11 @@ def _pronoun(name: str, ctx: Ctx) -> Any:
             # Reading `state` with neither active — a body that reads `state.x`
             # before any round has run — is a game-description error (the
             # checker validates the field, not the read's position in time),
-            # so it fails in the runtime's currency, not a stale/empty frame.
+            # so it fails as an Owner Guard, not a stale/empty frame.
             if ctx.rs.mech_state:
                 return ctx.rs.mech_state[-1]
             if ctx.rs.last_round_state is None:
-                raise RuntimeError(
+                raise OwnerGuardError(
                     "`state` read with no active or just-completed round — "
                     "`state.` is defined only inside a `round` or directly "
                     "after one returns"
@@ -268,7 +269,7 @@ def _member(obj: Any, field: str) -> Any:
             # (`idx`, `order`, …), and naming those here would advertise, in the
             # engine's own voice, the exact spellings the checker rejects.
             published = sorted(k for k in obj if k in ROUND_STATE_FIELDS)
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"this round publishes no `{field}` — it publishes "
                 f"{', '.join(f'`{k}`' for k in published) or 'nothing'}. "
                 f"`state.` reads the round that is actually running, and the checker "
@@ -277,8 +278,8 @@ def _member(obj: Any, field: str) -> Any:
         return obj[field]
     # Reachable when a value the checker deliberately leaves loose (an
     # `outcome` payload, an unregistered action field — TAny) is dereferenced
-    # at play time: a game-description error in the runtime's currency.
-    raise RuntimeError(
+    # at play time: a game-description error, refused by its Owner Guard.
+    raise OwnerGuardError(
         f"cannot read field '{field}' of {obj!r} — the checker leaves this "
         f"value's type open, so the read is checked here"
     )
@@ -344,10 +345,10 @@ def _is_check(e: n.IsCheck, ctx: Ctx) -> bool:
             # is a typed runtime error, never a bare assert.
             if not hasattr(value, "__len__"):
                 neg = "not " if e.kind == "not_empty" else ""
-                raise RuntimeError(
+                raise OwnerGuardError(
                     f"`is {neg}empty` expects a zone or collection, got "
-                    f"{value!r} — typecheck should have rejected this "
-                    "statically (a checker gap, not a game bug)"
+                    f"{value!r} — this value's type is left open by the "
+                    "checker, so the read is checked here"
                 )
             empty = len(value) == 0
             return not empty if e.kind == "not_empty" else empty
@@ -386,7 +387,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
                 # the game author wrote a `the player where …` whose premise
                 # failed, and they should hear that in the runtime's failure
                 # currency.
-                raise RuntimeError(
+                raise OwnerGuardError(
                     f"`the player where …` matched {len(matches)} players, "
                     f"expected exactly 1"
                 )

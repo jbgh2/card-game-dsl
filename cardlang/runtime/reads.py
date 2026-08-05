@@ -455,7 +455,7 @@ def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int | str) -> 
             f"zone family {name!r} (declared for {r.module} serving "
             f"{r.game_file}) has no instance keyed {key!r} — instance keys "
             f"come from the game's seating/teams, so a miss is the calling "
-            f"primitive's error, in the runtime's currency"
+            f"primitive's error"
         ) from None
 
 

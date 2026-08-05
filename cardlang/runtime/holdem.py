@@ -28,6 +28,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.poker import side_pot_payouts
 from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
@@ -45,13 +46,16 @@ def holdem_next_entrant(facts: EngineFacts, gr: reads.GameReads, player: Player)
     seat that busted out; the blinds and every street's opening seat are
     positional and must skip such seats. Total by construction at every call
     site: the hand only runs while at least two seats hold chips, so some
-    entrant always exists — the exhausted-ring raise below is a Shadow Guard
-    in the runtime's currency, not a game-reachable error."""
+    entrant always exists — the exhausted-ring raise below is this class's
+    Owner Guard, and a well-formed hand sequence never reaches it. It is not a
+    Shadow Guard: what keeps it unreachable is holdem.cardlang's own hand
+    sequence, not an engine guard it could name, so a firing means the game
+    description is at fault."""
     in_hand = gr.state["in_hand"]
     for seat in facts.seating.turn_order_from(player):
         if in_hand[seat]:
             return seat
-    raise RuntimeError(
+    raise OwnerGuardError(
         f"holdem_next_entrant({player}): no seat entered this hand — the hand "
         f"sequence runs only while at least two seats hold chips"
     )

@@ -68,6 +68,7 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.stdlib.enums import rank_names
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
@@ -301,5 +302,5 @@ def test_a_partial_ranking_accepts_at_check_time() -> None:
 )
 def test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_currency() -> None:
     game = check_dsl(_PARTIAL_RANKING_GAME, "partial.cardlang")
-    with pytest.raises(RuntimeError):
+    with pytest.raises(OwnerGuardError):
         play_game(game, random.Random(0))

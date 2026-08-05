@@ -21,6 +21,7 @@ from __future__ import annotations
 import math
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
@@ -97,7 +98,7 @@ def _trump_order(game_type: str, trump_suit: str | None) -> list[tuple[str, str]
         # docstrings of the consumers say the game guards for it), so being
         # called without one is the description's error, in the runtime's
         # currency.
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"skat trump order consulted for a {game_type!r} contract with no "
             f"trump suit declared"
         )
@@ -142,8 +143,8 @@ def skat_trick_winner(
     cards = gr.singles["trick_pile"]
     if len(cards) != 3:
         # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, in the runtime's currency.
-        raise RuntimeError(
+        # call site is the description's error, so this raise is its Owner Guard.
+        raise OwnerGuardError(
             f"skat_trick_winner: trick pile holds {len(cards)} cards, expected "
             f"a completed 3-card trick"
         )

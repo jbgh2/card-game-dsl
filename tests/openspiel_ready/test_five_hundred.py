@@ -12,7 +12,7 @@ in 55 steps, so `adapter_terminal_steps` walks it to the end and compares
 terminal returns.
 
 The auction-mask probes double as this change's misuse-probe rejection tests
-in the runtime's currency (an illegal bid is an absent action, not a crash):
+as Owner Guards (an illegal bid is an absent action, not a crash):
 misère before any seven bid, a raise above 10NT, and the deck-derived
 "joker" pseudo-strain as a bid or a nomination must all be masked out.
 """
@@ -83,7 +83,7 @@ def _drive_open_misere(seed: int) -> tuple[list[int], Pause] | None:
 
 
 def test_auction_masks_are_the_ladder_rules() -> None:
-    """The bid guards in the runtime's currency: an illegal bid is an absent
+    """The bid guards as Owner Guards: an illegal bid is an absent
     action. At the empty auction: misère is masked (no seven bid yet), open
     misère and every real strain are open, and the deck-derived "joker"
     pseudo-strain is masked. After ♠6-♠7, misère opens; above its rung it

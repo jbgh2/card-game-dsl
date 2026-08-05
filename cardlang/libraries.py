@@ -32,6 +32,7 @@ from pathlib import Path
 
 from cardlang.ast import nodes as n
 from cardlang.parse import parse_library
+from cardlang.runtime.errors import InstallationError
 
 _LIBRARIES_DIR = Path(__file__).resolve().parent.parent / "docs" / "libraries"
 
@@ -41,7 +42,7 @@ def _libraries_dir() -> Path:
         # Loud rather than "zero libraries available", which would degrade every
         # `uses` line into the unknown-library diagnostic and read as an author
         # typo instead of a missing checkout (registry.py takes the same line).
-        raise RuntimeError(
+        raise InstallationError(
             f"family-library directory not found: {_LIBRARIES_DIR}. Libraries "
             f"load from the checkout (see this module's docstring on packaging)."
         )
