@@ -51,9 +51,9 @@ store_infostates: false
 #       ->  ~$0.0016/game on Haiku 4.5      (N=300 is well under a dollar)
 #       ->  ~$0.006/game  on Sonnet 5
 token_budget:
-  max_input_tokens: 20000000
-  max_output_tokens: 400000
-  max_cost_usd: 15.0
+  max_input_tokens: 60000000
+  max_output_tokens: 1500000
+  max_cost_usd: 35.0
 
 models:
   frontier:
@@ -90,7 +90,7 @@ matchups:
   #    Nash must beat uniform-random decisively; if it does not, the harness is
   #    wrong before any model is involved.
   - name: nash_vs_random
-    n: 600
+    n: 1500
     rotate: true
     agents:
       - {kind: nash, alpha: 0.16666666666666666}
@@ -99,7 +99,7 @@ matchups:
   # 0b. The self-play control: two equilibrium seats. Chips per hand must land
   #     near the game's value of -1/18 for seat 0, and exploitability at 0.
   - name: nash_vs_nash
-    n: 600
+    n: 1500
     rotate: true
     agents:
       - {kind: nash, alpha: 0.16666666666666666}
@@ -114,7 +114,7 @@ matchups:
 
   # 2. Capability gradient — two points, not one.
   - name: llm_mid_vs_nash
-    n: 300
+    n: 1500
     rotate: true
     agents:
       - {kind: llm, name: llm_mid, model: mid}
@@ -123,7 +123,7 @@ matchups:
   # 3. The rendered arm: English instead of the engine's raw string. Same
   #    information, different presentation — a pure function of the same bytes.
   - name: llm_cheap_rendered_nash
-    n: 300
+    n: 1500
     rotate: true
     agents:
       - {kind: llm, name: llm_cheap, model: cheap, render: true}
@@ -135,14 +135,14 @@ matchups:
   #    Registered prediction: reason-first LOWERS it — deliberation before
   #    committing should catch "I am folding the best possible hand".
   - name: llm_cheap_control_nash
-    n: 300
+    n: 1500
     rotate: true
     agents:
       - {kind: llm, name: llm_cheap, model: cheap, arm: reasoning}
       - {kind: nash, alpha: 0.16666666666666666}
 
   - name: llm_cheap_reason_first_nash
-    n: 300
+    n: 1500
     rotate: true
     agents:
       - {kind: llm, name: llm_cheap, model: cheap, arm: reason_first}
