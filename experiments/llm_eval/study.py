@@ -17,6 +17,14 @@ it said the study was two games. Deriving it from the archive instead means it
 cannot disagree with the transcripts it claims to summarize, and it can be
 rebuilt by anyone holding the repo.
 
+This module is CHEAT's study and says so in its output (`"study":
+"cheat_llm_eval"`). It has no per-game seam — `aggregate` is called with no
+`action_verbs` and no `chip_delta` — so pointing it at another game's archive
+would emit a block labelled as the Cheat study, carrying neither that game's
+action rates nor its chip delta, and every Cheat rate null. `main` refuses a
+non-default `--results` for that reason; a second game's numbers come from
+`verify.py --game`, which does have the seam.
+
 Contract
 --------
 Assumes: `results/transcripts/` holds the transcripts behind the published
@@ -74,6 +82,15 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     results = Path(args.results)
+    if results.resolve() != DEFAULT_RESULTS.resolve():
+        raise SystemExit(
+            f"{results} is not the Cheat archive, and this module is Cheat's "
+            f"study: it labels its output `cheat_llm_eval` and folds without "
+            f"any game's action verbs or chip delta. For another game's "
+            f"numbers use\n"
+            f"  python -m experiments.llm_eval.verify --game <short_name> "
+            f"--dir {results / layout.ARCHIVE}"
+        )
     summary = study_summary(layout.archive_dir(results))
     out = results / "summary.json"
     out.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")

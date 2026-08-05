@@ -1,0 +1,32 @@
+{
+  "game": "cardlang_holdem_heads_up",
+  "agents": [
+    {
+      "kind": "llm",
+      "name": "llm_mid",
+      "model": "mid"
+    },
+    {
+      "kind": "rule",
+      "aggression": 0.25
+    }
+  ],
+  "rotate": true,
+  "max_decisions": 200,
+  "seed_start": 0,
+  "models": {
+    "mid": {
+      "kind": "anthropic",
+      "model": "claude-sonnet-5",
+      "params": {
+        "max_tokens": 512,
+        "thinking": {
+          "type": "disabled"
+        },
+        "output_config": {
+          "effort": "low"
+        }
+      }
+    }
+  }
+}

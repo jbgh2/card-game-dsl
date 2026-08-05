@@ -1,0 +1,131 @@
+# Heads-up fixed-limit Hold'em — run configuration.
+#
+# Run:   python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_holdem.yaml --matchup rule_vs_random
+# Recon: python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_holdem.yaml --matchup llm_cheap_vs_rule --estimate 5
+#
+# `rule_vs_random` needs no API key and is the end-to-end smoke test.
+
+game: cardlang_holdem_heads_up
+
+# A SEPARATE results tree, and not a stylistic choice. `study.py` and
+# `verify.py` default to `experiments/llm_eval/results/transcripts`, which is
+# the curated archive behind the numbers in REVIEWER.md. Writing another game's
+# transcripts anywhere that glob can reach would silently fold poker hands into
+# the published Cheat study. Isolation by construction beats remembering not to
+# promote.
+results_dir: experiments/llm_eval/results_holdem
+
+seeds:
+  start: 0            # game i uses seed start+i; the adapter addresses 4096 deals
+
+# ON, and this game is the reason the option exists. `_build_seats` otherwise
+# ties the seat to the seed, so where the DEAL dominates the outcome one roster
+# position gets systematically better cards (issue #233, measured on Kuhn). A
+# single Hold'em hand is deal-dominated, which is the at-risk shape rather than
+# the safe one — Cheat is safe because its deal is 13 cards and its episode is
+# hundreds of decisions.
+#
+# The committed archive PREDATES this: it was produced under the unbalanced
+# scheme, before #234 merged. Three probes (README, "What it found") measured no
+# bias at those sample sizes, and re-running the free baseline balanced gives
+# +1.14 +/- 0.54 against the published +1.35 +/- 0.80 — same conclusion, tighter
+# interval. So the archive stands and future runs are unbiased by construction
+# rather than by measurement.
+#
+# `n` is GAMES, not deals: a matchup of n games covers n // num_players deals.
+balanced_seating: true
+
+# One HAND is the whole game here (the Leduc model, not three-handed Hold'em's
+# play-until-one-player-holds-every-chip), so an episode is bounded by the rules
+# rather than by this cap: four streets, at most four aggressive actions each,
+# and no all-in is reachable. Measured over 40 random playouts: 1-12 decisions,
+# median 4. The cap is two orders of magnitude clear of that and exists only as
+# a backstop against a future rules change; `games_truncated` should be 0, and
+# if it is not, something changed in the game and not in the agents.
+max_decisions: 200
+
+store_prompts: false
+store_infostates: false
+
+# Hard ceiling for the WHOLE run. Sized from the operator's $20 cap for this
+# experiment, with headroom left deliberately unused: the runner stops cleanly
+# between games once a cap is reached and records the partial N, so a ceiling
+# BELOW the intended spend would silently truncate a matchup instead.
+#
+# The per-game cost is tiny compared with Cheat's. A Cheat episode is ~210 LLM
+# calls at ~5k tokens; one Hold'em hand is a handful of decisions, of which the
+# focus seat makes about half. Confirm with `--estimate 5` on your own account
+# before raising N — the figure below is this repo's measurement, not a quote.
+token_budget:
+  max_input_tokens: 8000000
+  max_output_tokens: 400000
+  max_cost_usd: 15.0
+
+models:
+  # Configured to match config.yaml exactly, so the two games' runs differ in
+  # the game and not in the sampling.
+  mid:
+    kind: anthropic
+    model: claude-sonnet-5
+    params:
+      max_tokens: 512
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  cheap:
+    kind: anthropic
+    model: claude-haiku-4-5
+    params:
+      max_tokens: 512
+      temperature: 0
+
+matchups:
+  # 0. Baseline separation, no API key needed. This is the acceptance test for
+  # the whole seam AND the question that makes every later number readable: if
+  # the rule baseline does not beat random, nothing an LLM scores against it
+  # means anything. Run at high N because it is free and the per-hand variance
+  # is large — heads-up, one hand, with two forced blinds.
+  - name: rule_vs_random
+    n: 400
+    rotate: true
+    agents:
+      - {kind: rule, aggression: 0.25}
+      - {kind: random}
+
+  # N=200 on all three LLM matchups, equal so they stay comparable.
+  #
+  # Sized from MEASURED cost and measured variance, not from the N>=20 floor in
+  # the brief. `--estimate 5` put the cheap model at $0.005/game and the mid one
+  # at roughly $0.015, so 3 x 200 games is about $5 — the $20 cap was never the
+  # binding constraint here, and stopping at 20 would have bought a win rate with
+  # a +/-22-point interval, which cannot separate any two players.
+  #
+  # What binds is variance and wall clock. The per-hand chip delta has a standard
+  # deviation of ~8 chips (measured over 400 baseline hands), so the standard
+  # error of mean net is ~0.57 at N=200 against ~1.05 at N=60 — and the baseline's
+  # own edge over random is +1.35 chips/hand, so N=60 could not resolve an effect
+  # of the size we already know exists. At ~6 s/game a matchup is ~20 minutes.
+  #
+  # 1. Floor sanity: the model against the weakest possible opponent.
+  - name: llm_cheap_vs_random
+    n: 200
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap}
+      - {kind: random}
+
+  # 2. The cheap-model headline.
+  - name: llm_cheap_vs_rule
+    n: 200
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap}
+      - {kind: rule, aggression: 0.25}
+
+  # 3. The mid-model headline — the N>=20 matchup the budget is reserved for.
+  - name: llm_mid_vs_rule
+    n: 200
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid}
+      - {kind: rule, aggression: 0.25}

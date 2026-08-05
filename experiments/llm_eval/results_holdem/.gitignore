@@ -1,0 +1,20 @@
+# Heads-up Hold'em's results tree — same rules as `../results/.gitignore`, which
+# is the Cheat study's. A SEPARATE tree because `study.py` and `verify.py`
+# default to `../results/transcripts`: another game's transcripts inside that
+# glob would silently fold poker hands into the published Cheat numbers.
+#
+# Transcripts are committed GZIPPED (`*.jsonl.gz`); the uncompressed working
+# copies a run produces are ignored. Transcripts are NOT regenerable — they
+# contain real model responses, which are not deterministic — so the .gz files
+# are the record, not a cache. `metrics.iter_jsonl` and `verify.py` read either
+# form:
+#
+#   python -m experiments.llm_eval.verify --game cardlang_holdem_heads_up \
+#       --dir experiments/llm_eval/results_holdem/transcripts
+*.jsonl
+estimate/
+
+# Per-run directories (`runs/<UTC stamp>/`, see layout.py). Their `summary.json`
+# IS tracked: it is the only record of what one invocation spent and how far it
+# got.
+runs/*/figure.png

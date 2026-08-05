@@ -1,8 +1,8 @@
 # LLM evaluation harness — playing through the derived-information-set interface
 
 An LLM plays a corpus game against non-LLM baselines, through the engine's
-*derived* information sets. Two games, chosen because they can be measured in
-ways the other cannot:
+*derived* information sets. Three games, chosen because each can be measured in
+a way the others cannot:
 
 - **Cheat** (four players, one standard deck) — measured on deception-relevant
   behaviour: how often it lies when it could have told the truth, how well it
@@ -13,11 +13,15 @@ ways the other cannot:
   the exact equilibrium and the headline metric is **exploitability**: how many
   chips per hand a best-responding opponent extracts, against a floor of zero.
   Its A/B is pre-registered in [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md).
+- **Heads-up fixed-limit Hold'em** (two players, one hand) — neither solved nor
+  deception-shaped, and there on purpose: it exists to measure what a *third*
+  game costs once the seam exists. Chips per hand and offer-conditioned action
+  rates; see "A second game" below.
 
-The two share everything except the game-specific half: the referee, the
+The three share everything except the game-specific half: the referee, the
 providers, the budget, the run layout, the response arms, and the leak-freeness
 pins are one implementation. `DecisionView` is game-neutral, which is what lets
-the leak-freeness guarantee cover a second game without being restated.
+the leak-freeness guarantee cover a new game without being restated.
 
 The model sees only what the rules entitle its seat to see. That is enforced by
 signature rather than convention: `build_prompt` takes strings, and every agent
@@ -166,8 +170,28 @@ results/
 
 A **run** summary records one invocation. The **study** summary is the published
 result across the whole archive and is *derived* — rebuild it with `study.py`.
-Promotion into the archive is deliberate (gzip, commit), because it asserts the
-data backs a number someone will read.
+
+**Promote with `promote.py`, not by hand.** Promotion asserts the data backs a
+number someone will read, and every archive here was once promoted by a typed
+`cp` that lost something different: sidecars left behind so nothing named the
+game, summary pointers into a gitignored run directory, a missing archive
+summary. Same shape each time — the run wrote the fact, the copy dropped it.
+
+```bash
+python -m experiments.llm_eval.promote \
+  --results experiments/llm_eval/results_holdem --run <UTC stamp>
+```
+
+It gzips each transcript, carries its `.treatment.json` across, writes an
+archive summary whose pointers are repo-root-relative (the form
+`tests/test_layout.py` resolves and checks `git ls-files` against), and
+regenerates `AUDIT.txt`. `--run` is
+repeatable because one experiment is not always one invocation. It REFUSES a
+run whose sidecar is missing, a matchup that appears in two runs, and runs that
+name different games — each of which would produce an archive that reads
+complete and is not. The property it exists for:
+*promote, delete the run directory, and the archive still identifies its own
+game* — the state a fresh clone is in.
 
 Transcripts are **not regenerable** — they hold real model responses, which are
 not deterministic — so the archive is the record, not a cache.
@@ -202,6 +226,147 @@ missing-at-random: games run long exactly when nobody is shedding.
 > registry. It bounds one run, not a day's work.
 
 ---
+
+## A second game — heads-up limit Hold'em
+
+The harness plays more than Cheat. Everything game-specific lives in a **pack**
+(`packs.py`): the rules text, the per-decision facts, and the baseline policy.
+Everything else — the referee, the providers, the transcript format, the budget,
+and the win-rate/fallback/token statistics — is game-generic and was not touched
+to add the second game.
+
+```bash
+# Baseline separation. No API key. ~10 seconds for 400 hands.
+python -m experiments.llm_eval.run_eval \
+  --config experiments/llm_eval/config_holdem.yaml --matchup rule_vs_random
+
+# Everything, including the LLM matchups.
+python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_holdem.yaml
+
+# The independent recomputation. `--game` is required for a non-Cheat
+# transcript: a game's rate table run over another game's data prints
+# `0 / 0 = None` for every rate and reads like a clean audit.
+python -m experiments.llm_eval.verify --game cardlang_holdem_heads_up \
+  --dir experiments/llm_eval/results_holdem/transcripts
+```
+
+**Output goes to a separate tree**, `results_holdem/`. `study.py` and `verify.py`
+default to `results/transcripts`, the curated Cheat archive; another game's
+transcripts inside that glob would silently fold poker hands into the published
+Cheat numbers.
+
+**What is measured, and what is not.** Win rate, mean chip delta, and
+offer-conditioned action rates (`fold_rate` is folds over the decisions where
+folding was *legal* — over all decisions it would mix "declined to fold" with
+"could not fold"). Deliberately **no deception metric**: Cheat's
+`provably_false` works because a claim is checkable against the observer's own
+cards, and a raise has no such check. A bluff ground truth for poker is separate
+work and inventing one here would be a number with nothing behind it.
+
+**Read mean chip delta, not win rate.** Heads-up with two forced blinds, a
+player can win a minority of hands and still finish ahead. The first version of
+this baseline did exactly that — 33.8% of hands won, +43 chips over 400 — which
+is why `tests/test_holdem_pack.py` asserts the baseline's edge over random in
+**chips**, and why win rate alone could not have caught it.
+
+To add a third game: write its pack, register it in `PACKS`, drop it from
+`UNPACKED`, and add a config. `tests/test_packs.py` fails if a corpus game is in
+neither collection, and `pack_for` refuses an unpacked game rather than
+defaulting to Cheat's rules text.
+
+### What it found
+
+One invocation, 2026-08-04T06:09:30Z to 07:11:50Z — **62 minutes**, **$6.33**.
+Every rate below recomputes from the committed archive with the command above.
+
+| matchup | N | mean net chips/hand | *t* | win rate | fallback |
+|---|---|---|---|---|---|
+| rule vs random | 400 | **+1.35** ± 0.80 | +3.31 | 0.513 ± 0.049 | 0.0000 |
+| Haiku 4.5 vs random | 200 | +0.41 ± 0.78 | +1.02 | 0.465 ± 0.069 | 0.0000 |
+| Haiku 4.5 vs rule | 200 | +0.68 ± 0.86 | +1.54 | 0.505 ± 0.069 | 0.0000 |
+| Sonnet 5 vs rule | 200 | **+1.21** ± 0.96 | +2.47 | 0.545 ± 0.069 | 0.0000 |
+
+Intervals are 95%; `t` is over the per-hand chip delta with seats alternating.
+No game truncated.
+
+**Two claims survive their intervals, and only two.** The rule baseline beats
+random (*t* = 3.31). Sonnet's edge over that baseline is *marginal* (*t* = 2.47,
+p ≈ 0.014 two-sided) and was **not pre-registered**, so it is suggestive rather
+than established. Everything else — Haiku against either opponent, and Sonnet
+against Haiku (+0.53 ± 1.29, both measured on the same baseline) — sits inside
+noise.
+
+**Haiku did not establish an edge over random**, which is the sentence to use
+rather than "Haiku lost". Its action profile says why: it checks 91% of the
+times checking is free and bets 11% of the times betting is available — a nearly
+pure check/call posture. Sonnet's is much more balanced (56% check, 53% bet).
+
+**The fallback rate is 0.0000 across all 1,511 model decisions.** No response
+failed to parse twice, at either model, on the first version of the rules text —
+so nothing here is a comprehension artifact, and the prompt needed no iteration.
+
+**The seating confound (issue #233) is structurally present in this game, and
+its magnitude was below detection at these sample sizes.** Two separate facts,
+and the archive above rests on the second.
+
+`_build_seats` ties seat parity to seed parity, so where the deal dominates the
+outcome one roster position can be dealt systematically better cards. A single
+Hold'em hand *is* deal-dominated, so this is the at-risk shape, not the safe one
+— and `tests/test_seating.py::test_the_unbalanced_scheme_really_does_favour_a_
+position[cardlang_holdem_heads_up]` passes, which says exactly that: under the
+unbalanced scheme the two roster positions see *different multisets of dealt
+cards*. That check is exact and needs no sample size, which is why it settles a
+question three statistical probes could only bound.
+
+What the probes bound is the SIZE, and the archive was produced under the
+unbalanced scheme, so this is the number that matters for reading it:
+
+| probe | result |
+|---|---|
+| focus seat wins the showdown on a pure check-down (N=400) | 0.4817 (−0.72 SE) |
+| identically-policied random vs random, rotation on (N=800) | −0.415 ± 0.470 |
+| identically-policied rule vs rule, rotation on (N=800) | +0.276 ± 0.654 |
+
+The two agent probes point in **opposite** directions and neither reaches 2 SE.
+Re-running the free baseline under balanced seating gives **+1.14 ± 0.54,
+t = 4.12** against the published **+1.35 ± 0.80, t = 3.31** — same conclusion,
+tighter interval, point estimate inside both. So the imbalance is real but too
+small to move these numbers at N = 200–800; the published result stands and its
+residual is bounded by those probes rather than shown to be zero.
+
+`config_holdem.yaml` now sets `balanced_seating: true`, so every future run is
+unbiased by construction instead of by measurement.
+
+### What the second game cost
+
+The point of the exercise. Split by what a *third* game would and would not pay
+again:
+
+| | files | +lines | −lines | paid again per game? |
+|---|---|---|---|---|
+| corpus game (`.cardlang`, twin, primitive, proof + playout tests, 4 registry rows) | 12 | 932 | 0 | yes |
+| harness **seam** (packs, referee/metrics/agents/verify/study, their tests) | 13 | 633 | 57 | **no — one-time** |
+| harness **pack** (rules text, infostate parser, baseline, config, its tests) | 4 | 785 | 0 | yes |
+| docs | 1 | 61 | 5 | yes |
+
+So a third game costs roughly **1,700 lines** and none of the 633-line seam.
+
+Runtime cost, per matchup rather than blended — the two Haiku matchups differ in
+decisions per game, so one figure for "Haiku" would not be comparable to the
+`--estimate 5` recon, which was run against `vs_rule` alone:
+
+| matchup | calls | $/game |
+|---|---|---|
+| Haiku vs random | 450 | $0.0050 |
+| Haiku vs rule | 534 | $0.0059 |
+| Sonnet vs rule | 534 | $0.0208 |
+
+Against **~$1.10/game for a Cheat episode**: a Hold'em hand is 2–3 model calls
+where a Cheat episode is ~210.
+
+Dollars are **tokens × the list-price table in `providers.py`**, not a billing
+figure. The $6.33 above is the main invocation; the smoke ($0.0006) and the
+`--estimate 5` recon ($0.0264) bring the session to **$6.36**.
 
 ## Adding an experiment
 
@@ -253,8 +418,32 @@ config_kuhn.yaml     Matchups, N, seeds, models, token caps
 PREREGISTRATION_KUHN.md   Endpoint and prediction, dated before any model ran
 ```
 
+Hold'em's half:
+
 ```
-tests/         Offline tests (fake provider only, no network), both games
+holdem.py      Rules text, information-state parser, a coarse hand read, the
+               tight-aggressive baseline, per-decision facts and aggregation
+config_holdem.yaml   Matchups, N, seeds, models, token caps
+```
+
+**`verify.py` is the single audit entry point for all three games.** It reads the
+game off the transcript — the per-record `game` field, the `treatment.json`
+sidecar, or the archive's `summary.json` — so the command is the same whichever
+archive it is pointed at, and `--game` is only needed for the pre-field Cheat
+archive:
+
+```bash
+python -m experiments.llm_eval.verify --dir experiments/llm_eval/results_kuhn/transcripts
+```
+
+Each game keeps its own output shape rather than being flattened into a shared
+one: Cheat and Hold'em report counts then ratios, Kuhn reports exploitability
+against the exact equilibrium (delegated to `verify_kuhn`, which also
+cross-checks the engine's returns against the solver). `verify_kuhn.py` keeps
+its own CLI for the pre-registered A/B, whose Cheat analogue is `compare.py`.
+
+```
+tests/         Offline tests (fake provider only, no network), all three games
 ```
 
 To run Kuhn, point `--config` at its file. The offline acceptance test is

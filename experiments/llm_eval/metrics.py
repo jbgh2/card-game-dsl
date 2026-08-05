@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from . import infostate as istate
+from . import holdem
 from . import kuhn
 from .agents import DecisionView
 
@@ -38,6 +39,7 @@ _ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 
 GAME_KEYS: dict[str, str] = {
     "cardlang_cheat": "cheat",
     "cardlang_kuhn_poker": "kuhn",
+    "cardlang_holdem_heads_up": "holdem_hu",
 }
 
 
@@ -59,6 +61,8 @@ def decision_facts(
     information state plus the action they chose."""
     if game == "kuhn":
         return kuhn.decision_facts(view.player, view.infostate, action)
+    if game == "holdem_hu":
+        return holdem.decision_facts(view, action)
     info = istate.parse(view.infostate)
     kind = istate.decision_kind(view.legal_strings)
     if kind == "announce":
@@ -251,6 +255,8 @@ def aggregate(
     """Fold a run's transcripts into per-agent statistics."""
     if game == "kuhn":
         return kuhn.aggregate(records)
+    if game == "holdem_hu":
+        return holdem.aggregate(records)
     stats: dict[str, AgentStats] = {}
     games = 0
     truncated = 0

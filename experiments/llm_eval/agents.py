@@ -25,7 +25,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from . import infostate as istate
+from . import holdem, infostate as istate
 from . import kuhn
 from .prompts import (
     ResponseArm,
@@ -68,6 +68,12 @@ GAME_TEXT: dict[str, tuple[str, str, Callable[[str], str]]] = {
     # game: (rules for the raw arm, rules for the rendered arm, renderer)
     "cheat": (RULES_RAW, RULES_RENDERED, render_state),
     "kuhn": (kuhn.RULES_RAW, kuhn.RULES_RENDERED, kuhn.render_state),
+    # Heads-up Hold'em has no rendered arm: that arm exists to ask whether
+    # English helps comprehension, which was answered on Cheat and is not
+    # re-asked here. The raw text stands in both slots rather than `None`, so
+    # `render: true` reads the same state it would anyway instead of failing
+    # a run mid-flight; the config never sets it.
+    "holdem_hu": (holdem.RULES_RAW, holdem.RULES_RAW, lambda s: s),
 }
 
 
@@ -363,6 +369,11 @@ def build_agent(
     if kind == "random":
         return RandomAgent(seed=seed, name=spec.get("name", "random"))
     if kind == "rule":
+        # The baseline is the one agent kind that cannot be game-generic: it
+        # plays. Cheat's is a lie/challenge heuristic, Hold'em's a
+        # tight-aggressive band policy; Kuhn's baseline is `nash`, exact.
+        if game == "holdem_hu":
+            return holdem.build_rule_agent(spec, seed)
         return RuleAgent(
             seed=seed,
             challenge_prob=float(spec.get("challenge_prob", 0.1)),

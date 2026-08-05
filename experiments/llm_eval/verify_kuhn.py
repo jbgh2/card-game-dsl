@@ -1,4 +1,13 @@
-"""Independent recomputation of every published Kuhn number, plus the A/B test.
+"""Kuhn's arithmetic: the recomputation, the solver cross-check, and the A/B.
+
+The RECOMPUTATION is reached through the harness's single audit entry point,
+which identifies the game from the transcript and delegates here:
+
+    python -m experiments.llm_eval.verify --dir experiments/llm_eval/results_kuhn/transcripts
+
+This module keeps its own CLI for the part that has no counterpart in the other
+games — the pre-registered paired sign test over two arms (`--control`/`--arm`),
+whose Cheat analogue is `compare.py`:
 
     python -m experiments.llm_eval.verify_kuhn --dir experiments/llm_eval/results_kuhn/runs/<stamp>
 
@@ -70,8 +79,18 @@ def _reconstruct(record: dict[str, Any]) -> tuple[tuple[str, str], tuple[str, ..
 
 
 def verify_transcript(path: str) -> dict[str, Any]:
-    """Recompute one matchup's numbers from its transcript."""
-    records = _load(path)
+    """Recompute one matchup's numbers from its transcript on disk."""
+    return verify_records(os.path.basename(path), _load(path))
+
+
+def verify_records(name: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+    """The fold itself, over records already in hand.
+
+    Separate from the loading so `verify.py --game` — the one entry point for
+    every game's recomputation — can pass records it has already read and
+    identified, without this module re-reading the file or re-deciding which
+    game it is.
+    """
     per_agent: dict[str, Counter[str]] = defaultdict(Counter)
     visits: dict[str, dict[str, dict[str, int]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(int))
@@ -147,7 +166,7 @@ def verify_transcript(path: str) -> dict[str, Any]:
             visits[name][infoset(seat, card, hist)][action] += 1
 
     out: dict[str, Any] = {
-        "transcript": os.path.basename(path),
+        "transcript": name,
         "games": len(records),
         "deals": dict(sorted(deals.items())),
         "payoff_mismatches": payoff_mismatches,
@@ -317,6 +336,40 @@ def compare_arms(
     }
 
 
+def report_records(name: str, records: list[dict[str, Any]]) -> int:
+    """Print one matchup's recomputation; return the payoff-mismatch count.
+
+    The solver cross-check is the part no rate table can carry: the engine wrote
+    `returns` and this package's own table says what that line of that deal is
+    worth, so agreement is evidence from two entirely separate computations.
+    """
+    result = verify_records(name, records)
+    print(f"\n== {result['transcript']}  ({result['games']} games)")
+    print(f"   deals: {result['deals']}")
+    if result["payoff_mismatches"]:
+        for line in result["payoff_mismatches"][:5]:
+            print(f"   !! PAYOFF MISMATCH {line}")
+    else:
+        print("   solver agrees with the engine's returns on every game")
+    for agent_name, stats in result["agents"].items():
+
+        def fmt(key: str, _s: dict[str, Any] = stats) -> str:
+            value = _s.get(key)
+            return f"{value:+.4f}" if isinstance(value, float) else "   n/a"
+
+        print(
+            f"   {agent_name:10s} chips/hand={fmt('chips_per_hand')} "
+            f"expl={fmt('exploitability')} "
+            f"floor={fmt('exploitability_noise_floor')} "
+            f"cov={fmt('infoset_coverage')} "
+            f"dominated={fmt('dominated_action_rate')}"
+            f" ({stats['dominated_taken']}/{stats['dominated_offered']})"
+            f" bluff={fmt('bluff_rate')}"
+            f" fallback={fmt('fallback_rate')}"
+        )
+    return len(result["payoff_mismatches"])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -349,31 +402,7 @@ def main() -> int:
     print(f"# recomputed independently of kuhn.aggregate, from {run_dir}\n")
     mismatches = 0
     for path in transcripts:
-        result = verify_transcript(path)
-        print(f"== {result['transcript']}  ({result['games']} games)")
-        print(f"   deals: {result['deals']}")
-        if result["payoff_mismatches"]:
-            mismatches += len(result["payoff_mismatches"])
-            for line in result["payoff_mismatches"][:5]:
-                print(f"   !! PAYOFF MISMATCH {line}")
-        else:
-            print("   solver agrees with the engine's returns on every game")
-        for name, stats in result["agents"].items():
-            def fmt(key: str) -> str:
-                value = stats.get(key)
-                return f"{value:+.4f}" if isinstance(value, float) else "   n/a"
-
-            print(
-                f"   {name:10s} chips/hand={fmt('chips_per_hand')} "
-                f"expl={fmt('exploitability')} "
-                f"floor={fmt('exploitability_noise_floor')} "
-                f"cov={fmt('infoset_coverage')} "
-                f"dominated={fmt('dominated_action_rate')}"
-                f" ({stats['dominated_taken']}/{stats['dominated_offered']})"
-                f" bluff={fmt('bluff_rate')}"
-                f" fallback={fmt('fallback_rate')}"
-            )
-        print()
+        mismatches += report_records(os.path.basename(path), _load(path))
 
     def _find(matchup: str) -> str:
         """The transcript for a matchup, gzipped or not — the archive holds one

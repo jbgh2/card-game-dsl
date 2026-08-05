@@ -1,0 +1,26 @@
+{
+  "game": "cardlang_holdem_heads_up",
+  "agents": [
+    {
+      "kind": "llm",
+      "name": "llm_cheap",
+      "model": "cheap"
+    },
+    {
+      "kind": "random"
+    }
+  ],
+  "rotate": true,
+  "max_decisions": 200,
+  "seed_start": 0,
+  "models": {
+    "cheap": {
+      "kind": "anthropic",
+      "model": "claude-haiku-4-5",
+      "params": {
+        "max_tokens": 512,
+        "temperature": 0
+      }
+    }
+  }
+}

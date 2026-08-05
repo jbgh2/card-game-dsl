@@ -63,6 +63,11 @@ class GameRecord:
     matchup: str
     game_index: int
     seed: int
+    # The registered OpenSpiel short name. Recorded per RECORD, not only in the
+    # run summary and the treatment sidecar beside it, because a transcript that
+    # travels alone otherwise loses its identity — which is what let `verify.py`
+    # fold a poker archive with Cheat's rate table and exit 0.
+    game: str
     seats: dict[int, str]
     history: list[int]
     decisions: list[Decision]
@@ -169,6 +174,7 @@ def play_game(
         matchup=matchup,
         game_index=game_index,
         seed=seed,
+        game=game.get_type().short_name,
         seats={p: a.name for p, a in agents.items()},
         history=history,
         decisions=decisions,

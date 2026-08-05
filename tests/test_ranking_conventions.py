@@ -327,6 +327,12 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # expansion would NOT change what beats what — it would silently desync the
     # declared order from the one the showdown actually compares through.
     "holdem": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
+    # The heads-up variant, on the same row for the same reason: its showdown
+    # goes through the same `poker.py` evaluator, which ranks against its OWN
+    # fixed ace-high scale rather than the game's `ranking:`. A template edit
+    # that reordered this expansion would not change what beats what — it would
+    # silently desync the declared order from the compared one.
+    "holdem-heads-up": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
 }
 
 

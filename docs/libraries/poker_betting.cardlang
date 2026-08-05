@@ -1,7 +1,11 @@
-// Fixed-limit poker betting — the family library shared by every poker game in
-// the corpus (Kuhn, Leduc, Seven-Card Stud). "Betting proceeds as in standard
-// poker" is the rulebook sentence a game's `uses poker_betting` line stands in
-// for, and this file is that sentence written out.
+// Fixed-limit poker betting — the family library every poker game in the corpus
+// imports. "Betting proceeds as in standard poker" is the rulebook sentence a
+// game's `uses poker_betting` line stands in for, and this file is that sentence
+// written out. The membership is not listed here: a consumer joins on arrival
+// simply by writing `uses poker_betting`, and a count in this comment would go
+// stale silently the next time one does. `tests/metamorphic/test_inline.py`'s
+// `test_the_library_procedure_games_are_pinned_as_uncovered` holds the current
+// set, derived and pinned in both directions.
 //
 // What is here is the ZONE-FREE core: check, bet, call, raise, the three ring
 // predicates that keep a betting round's `over` filter and `until` terminator
@@ -19,10 +23,14 @@
 // offers it alongside the four imported moves in one vocabulary list.
 //
 // Variation across the family is carried by state the game declares and sets,
-// not by parameters on the import. `raise_cap` — the number of raises allowed
-// per street, Kuhn 1, Leduc 2, Stud 3 — is a per-GAME constant, so it is
-// required: provided state has exactly one default and no default is right for
-// three games. `limit` is not a per-game constant at all but a per-STREET one
+// not by parameters on the import. `raise_cap` — the number of AGGRESSIONS
+// allowed per street, counting the opening bet, so Kuhn 1, Leduc 2, Stud 3 and
+// both Hold'em variants 4 — is a per-GAME constant, so it is required: provided
+// state has exactly one default and no default is right for every consumer. The
+// "including the opening bet" half is load-bearing rather than pedantic: `bet`
+// sets `raises := 1` and `raise` gates on `raises < raise_cap`, so a game
+// reading the cap as "raises on top of a bet" plays a street one bet longer
+// than it declares. `limit` is not a per-game constant at all but a per-STREET one
 // (Stud runs 5/5/10/10/10), so no declaration could carry it either; it is
 // provided, and `open_street` takes it as an argument, which puts the bet size
 // at the street it belongs to rather than in a state block far away.

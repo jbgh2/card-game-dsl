@@ -1,4 +1,16 @@
-"""Independent recomputation of every reported number, for audit.
+"""Independent recomputation of every reported number, for audit — every game.
+
+THE entry point. `--game` selects the recomputation and defaults to reading the
+game off the transcript itself, so the command is the same whichever archive it
+is pointed at:
+
+    python -m experiments.llm_eval.verify --dir <any archive>
+
+Each game brings its own output shape rather than being flattened into a shared
+one: Cheat and Hold'em report counts then ratios, Kuhn reports exploitability
+against the exact equilibrium (delegated to `verify_kuhn`, which additionally
+cross-checks the engine's returns against the solver). A single rate table over
+all three would have to drop whichever metric did not fit.
 
 This deliberately does NOT call `metrics.aggregate`. It re-derives the headline
 statistics straight from the transcript JSONL with its own arithmetic, so a bug
@@ -30,6 +42,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from . import holdem
 from . import infostate as istate
 from . import layout
 
@@ -68,6 +81,54 @@ def _transcripts(root: Path) -> list[Path]:
 
 
 DEFAULT_RESULTS = Path("experiments/llm_eval/results")
+
+# The one game whose archive predates the per-record `game` field, and the only
+# one `--deep` can replay. Named rather than repeated, so the flag's default and
+# the guards that test against it cannot drift apart.
+DEFAULT_GAME = "cardlang_cheat"
+
+
+def game_of(path: Path, records: list[dict[str, Any]]) -> str | None:
+    """The game a transcript is OF, read from the transcript itself.
+
+    Three sources, each written by the run that produced the data: the
+    per-record `game` field, the `<matchup>.treatment.json` sidecar beside it,
+    and the archive's own `summary.json` one level up. Any is enough; `None`
+    means none exists, which is true only of archives written before any of them
+    did — the published Cheat archive is that case, and its fallback to the
+    flag's default is correct for it.
+
+    The third source is not redundant: the Kuhn archive carries neither of the
+    first two, so without it that archive resolved to `None`, fell through to
+    the Cheat default, and was audited with Cheat's rate table — printing a real
+    Kuhn win rate beside `0 / 0 = None` for every deception metric. The same
+    failure this function exists to prevent, found by pointing the aligned
+    entry point at all three archives.
+
+    This exists because `--game` alone is a PROXY: it validates that a name is
+    known, never that it matches the data. The documented audit command run
+    against another game's archive therefore produced a full Cheat-shaped
+    report and exited 0 — a real win rate beside `0 / 0 = None` for every
+    deception rate, which is exactly the "reads like a clean audit" failure the
+    flag was added to prevent.
+    """
+    for record in records:
+        named = record.get("game")
+        if named:
+            return str(named)
+    sidecar = path.parent / f"{_stem(path)}.treatment.json"
+    if sidecar.is_file():
+        declared = json.loads(sidecar.read_text()).get("game")
+        if declared:
+            return str(declared)
+    # The archive's own summary. Cheat's is a STUDY summary with no `game` key,
+    # which is why it still resolves to None and keeps the flag's default.
+    summary = path.parent.parent / "summary.json"
+    if summary.is_file():
+        declared = json.loads(summary.read_text()).get("game")
+        if declared:
+            return str(declared)
+    return None
 
 
 def resolve_dir(explicit: str | None, run: str | None) -> Path:
@@ -199,6 +260,83 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
     return c
 
 
+def holdem_tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
+    """The heads-up Hold'em recomputation, independent of `metrics.aggregate`.
+
+    Deliberately reads the referee's OWN record of each decision — `legal` and
+    `action`, written by the game loop — and never `facts["offered"]` or
+    `facts["verb"]`, which `holdem_pack.decision_facts` produced. So a bug in
+    the pack's facts function shows up here as a disagreement rather than being
+    reproduced by an auditor that shares its input.
+
+    Offer-conditioned throughout: a verb's denominator is the decisions where it
+    was LEGAL. Over all decisions instead, `fold_rate` would silently mix
+    "declined to fold" with "could not fold", and every rate would drift with
+    how often the game happens to offer a free check.
+    """
+    c: Counter[str] = Counter()
+    for record in records:
+        seats = {int(k): v for k, v in record["seats"].items()}
+        mine = [s for s, name in seats.items() if name == who]
+        if not mine:
+            continue
+        c["games"] += 1
+        if record["terminal"]:
+            for seat in mine:
+                c["terminal_games"] += 1
+                net = record["returns"][seat]
+                if net > 0:
+                    c["wins"] += 1
+                elif net == 0:
+                    c["splits"] += 1
+                # Chip delta, summed so the mean can be taken against
+                # `terminal_games` — the metric the blinds do not swamp.
+                c["net_total"] += int(net)
+        for d in record["decisions"]:
+            if seats[d["player"]] != who:
+                continue
+            c["decisions"] += 1
+            if d.get("llm", {}).get("fallback"):
+                c["fallbacks"] += 1
+            for verb in holdem.ACTION_VERBS:
+                if verb in d["legal"]:
+                    c[f"{verb}_offered"] += 1
+                    if d["action"] == verb:
+                        c[f"{verb}_chosen"] += 1
+    return c
+
+
+# DERIVED from the game module, never restated here. Restated, the auditor and
+# the published summary drift silently: dropping a verb from one leaves the
+# other still reporting it, and `verify.py` stops being a recomputation of what
+# was published while every test stays green.
+HOLDEM_RATES: list[tuple[str, str, str]] = [
+    # Chips first: it is the metric that survives the blinds. A player can win a
+    # minority of hands and still finish ahead, and the first version of this
+    # game's baseline did exactly that.
+    ("mean_net_chips", "net_total", "terminal_games"),
+    ("win_rate", "wins", "terminal_games"),
+    ("fallback_rate", "fallbacks", "decisions"),
+] + [
+    (f"{verb}_rate", f"{verb}_chosen", f"{verb}_offered")
+    for verb in holdem.ACTION_VERBS
+]
+
+# One AUDIT per game: `(label_stem, records) -> None`, printing that game's own
+# recomputation. A game absent here has no audit path and `main` refuses it,
+# rather than printing Cheat's rates over another game's transcript — every one
+# of which would read `0 / 0 = None` and look like a clean result.
+#
+# A CALLABLE rather than a `(tally, rates)` pair, because not every game's
+# statistics are counts-and-ratios. Cheat and Hold'em are, and share
+# `_counter_audit`; Kuhn's headline is exploitability, computed by
+# reconstructing an empirical policy per information set, which has no numerator
+# and no denominator. Forcing it into a rate table would flatten the better
+# metric to fit the weaker shape — the same error as running one game's rate
+# table over another game's data, made from the other direction.
+AUDITS: dict[str, Any] = {}
+
+
 RATES: list[tuple[str, str, str]] = [
     ("win_rate", "wins", "terminal_games"),
     ("fallback_rate", "fallbacks", "decisions"),
@@ -213,13 +351,50 @@ RATES: list[tuple[str, str, str]] = [
 ]
 
 
-def report(label: str, c: Counter[str]) -> None:
+def _counter_audit(
+    tally_fn: Any, rates: list[tuple[str, str, str]], deep: bool = False
+) -> Any:
+    """The counts-then-ratios audit shape, for the games that fit it."""
+
+    def run(stem: str, records: list[dict[str, Any]]) -> None:
+        for who in sorted({n for r in records for n in r["seats"].values()}):
+            c = tally_fn(records, who)
+            report(f"{stem} :: {who}  (N={c['games']}{' DEEP' if deep else ''})", c, rates)
+
+    return run
+
+
+def _kuhn_audit(stem: str, records: list[dict[str, Any]]) -> None:
+    """Kuhn's recomputation, which owns its own output shape.
+
+    Delegates to `verify_kuhn`, which additionally cross-checks the engine's
+    recorded returns against the solver's payoff table — evidence no rate table
+    can carry. This module is the ENTRY POINT for every game's recomputation;
+    `verify_kuhn` remains the home of Kuhn's arithmetic and of the
+    pre-registered A/B (`--control`/`--arm`), which has no counterpart here
+    (Cheat's is `compare.py`).
+    """
+    from . import verify_kuhn
+
+    verify_kuhn.report_records(stem, records)
+
+
+AUDITS.update(
+    {
+        "cardlang_cheat": _counter_audit(tally, RATES),
+        "cardlang_holdem_heads_up": _counter_audit(holdem_tally, HOLDEM_RATES),
+        "cardlang_kuhn_poker": _kuhn_audit,
+    }
+)
+
+
+def report(label: str, c: Counter[str], rates: list[tuple[str, str, str]]) -> None:
     print(f"\n=== {label} ===")
     print(f"  {'RAW COUNTS':38}")
     for k in sorted(c):
         print(f"    {k:34} {c[k]}")
     print(f"  {'RATE':34}{'= num / den':>22}")
-    for name, num, den in RATES:
+    for name, num, den in rates:
         if c[den]:
             print(f"    {name:32} {c[num]:>6} / {c[den]:<6} = {c[num]/c[den]:.4f}")
         else:
@@ -354,6 +529,16 @@ def main(argv: list[str] | None = None) -> int:
         "evidence, not whichever run happened to finish last.",
     )
     ap.add_argument("--matchup", action="append", help="restrict to these (repeatable)")
+    ap.add_argument(
+        "--game",
+        default=DEFAULT_GAME,
+        choices=sorted(AUDITS),
+        help="which game's recomputation to run. Defaults to Cheat so the "
+        "documented audit command keeps covering the published evidence; a "
+        "transcript of another game needs its own flag, because a game's rate "
+        "table run over a different game prints `0 / 0 = None` for every rate "
+        "and reads like a clean audit.",
+    )
     ap.add_argument("--deep", action="store_true", help="replay and recompute every fact")
     ap.add_argument(
         "--order",
@@ -378,18 +563,48 @@ def main(argv: list[str] | None = None) -> int:
         records = _load(f)
         if not records:
             continue
+        # Identity from the DATA beats the flag. When a transcript knows what it
+        # is, an explicit `--game` that disagrees is a contradiction rather than
+        # a precedence question; when it does not — the Cheat archive predates
+        # the field — the flag stands.
+        recorded = game_of(f, records)
+        game_name = recorded or args.game
+        if recorded and args.game != DEFAULT_GAME and args.game != recorded:
+            raise SystemExit(
+                f"{f.name} is a transcript of {recorded!r} but --game says "
+                f"{args.game!r} — one game's rate table over another game's "
+                f"data prints `0 / 0 = None` for every rate and reads like a "
+                f"clean audit. Drop the flag; it is read from the transcript."
+            )
+        if game_name not in AUDITS:
+            raise SystemExit(
+                f"{f.name} is a transcript of {game_name!r}, which has no "
+                f"recomputation here. Add one to AUDITS; auditing it with "
+                f"another game's rate table reports nothing and looks clean. "
+                f"Known: {sorted(AUDITS)}"
+            )
         if args.deep:
+            if game_name != DEFAULT_GAME:
+                raise SystemExit(
+                    f"--deep replays through `deep_facts`, which reconstructs "
+                    f"CHEAT's per-decision facts; it has no counterpart for "
+                    f"{game_name}. Drop --deep: the level-1 recomputation below "
+                    f"already reads the referee's own `legal`/`action` record "
+                    f"rather than the pack's facts, so it does not trust the "
+                    f"layer it audits."
+                )
             print(f"\n[replaying {_stem(f)} — recomputing every fact from (seed, history)]")
             records = [{**r, "decisions": deep_facts(r)} for r in records]
-        agents = sorted({n for r in records for n in r["seats"].values()})
-        for who in agents:
-            if args.order:
+        if args.order:
+            for who in sorted({n for r in records for n in r["seats"].values()}):
                 c = arm_audit(records, who)
                 if c["decisions"]:
                     report_arm(f"{_stem(f)} :: {who}  ARM AUDIT (N={len(records)})", c)
-                continue
-            c = tally(records, who)
-            report(f"{_stem(f)} :: {who}  (N={c['games']}{' DEEP' if args.deep else ''})", c)
+            continue
+        if game_name == DEFAULT_GAME and args.deep:
+            _counter_audit(tally, RATES, deep=True)(_stem(f), records)
+        else:
+            AUDITS[game_name](_stem(f), records)
     return 0
 
 
