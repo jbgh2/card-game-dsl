@@ -64,8 +64,9 @@ Known outlier / residual: `Card`
 `Card` is deliberately NOT a row. It is a legal move-parameter domain, but its
 domain is *state-dependent* (the actor's live hand, which changes every play)
 and *container-anchored* (it reads `hand[actor]`, not the deck's value sets),
-and its OpenSpiel action ids are the shared card block rather than a vocab
-entry. `mechanics.param_domain` handles it specially, ahead of this table, and
+and its OpenSpiel action ids are the shared card block rather than an
+offering-block entry. `mechanics.param_domain` handles it specially, ahead of
+this table, and
 `enumerate_domain` refuses it. It is neither iterable as a role nor a binder
 type here — so it has no honest row, and a fabricated one would be four dead
 cells plus a lie in the `members` column.

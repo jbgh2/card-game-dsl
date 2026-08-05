@@ -417,7 +417,7 @@ def test_every_slot_shape_is_one_of_four() -> None:
 def test_slot_strings_reads_every_shape_whole() -> None:
     """One real node per shape, so the reader is exercised rather than reasoned
     about. The `tuple` row is the one that matters: a consumer taking only the
-    first element would see `Offer.move_types`' first move type and miss the
+    first element would see `Offer.offering`' first move type and miss the
     rest, which is coverage that looks total and is not.
 
     red under: make `slot_strings` return `(value,)` for a tuple slot, or drop
@@ -445,8 +445,8 @@ def test_slot_strings_reads_every_shape_whole() -> None:
     )
     assert slot_strings(set_optional, "again") == ("flag",)
 
-    many = n.Offer(player=n.NameRef("p"), move_types=("bid", "pass"))
-    assert slot_strings(many, "move_types") == ("bid", "pass")
+    many = n.Offer(player=n.NameRef("p"), offering=("bid", "pass"))
+    assert slot_strings(many, "offering") == ("bid", "pass")
 
     union = n.Movement(
         verb="deal",
@@ -469,3 +469,41 @@ def test_slot_namespace_answers_only_for_references() -> None:
     assert slot_namespace(n.Call("f", ()), "func") == "function"
     assert slot_namespace(n.Call("f", ()), "args") is None
     assert slot_namespace(n.StrLit("x"), "value") is None
+
+
+def test_the_offering_rename_is_complete_in_the_package() -> None:
+    """"vocabulary" is retired from `cardlang/` (issue #206, glossary section 2).
+
+    The word had three senses in code — the OFFERING (a menu of moves presented
+    to a decider), the word-stock the DSL gives designers, and assorted closed
+    name-sets. Only the second survives the ruling, and it survives in DOCS:
+    `principles.md`'s "the vocabulary IS the syntax" and this glossary's own
+    section 5 heading. Inside the package the word is gone, which is what makes
+    it grep-checkable rather than a judgment call at every future edit.
+
+    Pinned here rather than left as an issue's acceptance line, because an
+    acceptance line is checked once and a pin is checked forever: the next
+    `vocab_ids` local would otherwise reintroduce the spelling silently.
+
+    red under: put `vocab` back anywhere in `cardlang/` — a comment is enough.
+    Verified.
+    """
+    import pathlib
+
+    import cardlang
+
+    root = pathlib.Path(str(cardlang.__file__)).parent
+    offenders = [
+        f"{path.relative_to(root.parent)}:{i}"
+        for path in sorted(root.rglob("*"))
+        if path.suffix in {".py", ".lark"}
+        for i, line in enumerate(path.read_text().splitlines(), 1)
+        if "vocab" in line.lower()
+    ]
+    assert not offenders, (
+        f"{len(offenders)} site(s) still spell the retired word:\n  "
+        + "\n  ".join(offenders)
+        + "\n\nThe menu of moves a construct presents is an OFFERING. If the "
+        "site means the word-stock the DSL gives designers, that sense lives "
+        "in docs — say what the thing is in plain terms instead."
+    )

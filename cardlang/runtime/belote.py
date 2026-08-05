@@ -42,7 +42,8 @@ Rank parameter (`declare_tierce(K)`, `declare_carre(J)`, …), never a state
 write: a player's information set derives from their observation log plus
 zone projections, and a decision's announce event carries exactly the move
 name and parameter — so what was announced must be spelled there (the
-Doppelkopf announcement-vocabulary precedent; belote.md, "Declarations").
+Doppelkopf announcement move types are the precedent; belote.md,
+"Declarations").
 
 The canonical best combination (documented in belote.md, "Declarations"):
 over the decomposition that takes carrés first (J/9/A/10/K/Q only — 8s and
@@ -234,7 +235,7 @@ def _best_combo(facts: EngineFacts, gr: reads.GameReads, p: Player) -> _Combo | 
     return combos[0] if combos else None
 
 
-# The declaration vocabulary's (class, trump_flag) per move name — the guard
+# Each declaration move name carries its own (class, trump_flag) — the guard
 # checks a declaration states the best combination exactly, and the height
 # parameter arrives as a Rank name, mapped through the order the class uses.
 _HEIGHT_OF_CLASS = {1: _NATURAL, 2: _NATURAL, 3: _NATURAL, 4: _CARRE_HEIGHT}

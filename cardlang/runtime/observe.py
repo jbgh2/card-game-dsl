@@ -1,14 +1,15 @@
 """Per-observer observation emission — the projection substrate.
 
-Every event is a plain, deterministic, human-readable tuple. The vocabulary:
+Every event is a plain, deterministic, human-readable tuple. The event types:
 
   ("chose", <rendered value>)             delivered to the actor only, at the
                                           moment of the chooser draw (perfect
                                           recall of one's own decisions)
-  ("announce", actor, <rendered value>)   a public vocabulary decision — a bid,
-                                          bet, pass, offer pick, or `choose`
-                                          result (state variables are public,
-                                          so their decisions are announcements)
+  ("announce", actor, <rendered value>)   a decision whose chosen value is
+                                          public — a bid, bet, pass, offer
+                                          pick, or `choose` result (state
+                                          variables are public, so their
+                                          decisions are announcements)
   ("move", src_label, src_view, dst_label, dst_view)
                                           what THIS observer learned of a card
                                           transfer through each side's declared
@@ -29,7 +30,7 @@ from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
 
-# The closed observation-event vocabulary (closed-domain completeness,
+# The closed set of observation-event types (closed-domain completeness,
 # decisions.md): every event any emission site delivers to an observer log
 # carries one of these tags. Emission sites: `choice`/`announce`/`movement`
 # below, the replay chooser's per-draw `chose`, and execute._reveal. Pinned

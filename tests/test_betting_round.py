@@ -49,7 +49,7 @@ def _round_node(game: a.nodes.Game) -> a.nodes.Round:
 def test_betting_round_parses_without_an_outcome_clause() -> None:
     game = check_dsl(SRC, "betting.cardlang")
     rnd = _round_node(game)
-    assert rnd.move_types == ("bump", "stop")
+    assert rnd.offering == ("bump", "stop")
     assert rnd.outcome_fn is None  # the betting form omits the outcome
 
 

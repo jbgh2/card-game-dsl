@@ -60,7 +60,7 @@ def test_single_card_param_via_plain_offer_encodes_to_the_card_block() -> None:
     vocabulary, Schnapsen's `play_card` in test_openspiel_encoding.py).
     `check_dsl` (not
     bare `parse_text`) proves the game is actually ACCEPTED — a `hand[player]`
-    zone is declared, so `_check_card_vocabulary` (resolve.py) has nothing to
+    zone is declared, so `_check_card_offering` (resolve.py) has nothing to
     reject. `ActionSpace` mints no vocab id for `play_card`: its candidates
     ARE the card block, exactly like a bare card play (Option B, the module
     docstring in cardlang/openspiel/encoding.py)."""

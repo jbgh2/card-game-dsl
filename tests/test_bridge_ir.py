@@ -3,7 +3,7 @@
 The full pipeline (parse -> resolve -> typecheck -> emit) on the real
 bridge.cardlang, pinned with a golden so any change to the IR shape — in
 particular the auction form of `round` (the `offering`/`until` axes) and the bid
-move_types — is a reviewable diff. Regenerate deliberately with
+offering — is a reviewable diff. Regenerate deliberately with
 ``UPDATE_GOLDEN=1 pytest``.
 """
 
@@ -39,6 +39,6 @@ def test_bridge_auction_round_is_well_formed() -> None:
         p for p in rubber["items"] if p.get("kind") == "phase" and p["name"] == "auction"
     )
     rnd = next(i for i in auction["items"] if i["kind"] == "round")
-    assert rnd["move_types"] == ["pass", "submit_bid", "double", "redouble"]
+    assert rnd["offering"] == ["pass", "submit_bid", "double", "redouble"]
     assert rnd["termination"] is not None
     assert rnd["move_type"] is None and rnd["source_zone"] is None

@@ -30,4 +30,4 @@ def test_parses_move_types_and_offer() -> None:
     phase = game.phases[0]
     foreach = next(i for i in phase.items if isinstance(i, n.ForEach))
     assert isinstance(foreach.body, n.Offer)
-    assert foreach.body.move_types == ("take_one", "take_two")
+    assert foreach.body.offering == ("take_one", "take_two")

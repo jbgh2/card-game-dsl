@@ -267,10 +267,11 @@ produce_stmt: _PRODUCE_KW NAME ["(" expr ("," expr)* ")"]
 produces_stmt: NAME _PRODUCES_KW ":" produce_arm+
 produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 
-// The built-in operation vocabulary uses prose statement syntax — game actions
-// read as rulebook commands, not function calls (decisions.md "The operation
-// vocabulary"). Call syntax (`name(args)`) is reserved for value-returning
-// functions and named user operations, which appear in expression position.
+// The built-in operations use prose statement syntax — game actions read as
+// rulebook commands, not function calls (decisions.md, on the three operation
+// families). Call syntax (`name(args)`) is reserved for
+// value-returning functions and named user operations, which appear in
+// expression position.
 
 // One movement primitive, used as a statement or (in some arg positions) a value.
 // The verb is sugar over a single IR node; the amount is an expression and the
@@ -314,8 +315,8 @@ move_dest: _TO_KW _EACH_KW zone_expr -> dest_each
          | _TO_KW zone_expr          -> dest_one
 vis_clause: "," _VISIBILITY_KW "=" expr
 
-// Epistemic operations are prose statements like the rest of the operation
-// vocabulary. A closed family: one alternative per op, added corpus-first as a
+// Epistemic operations are prose statements like the rest of the built-in
+// operations. A closed family: one alternative per op, added corpus-first as a
 // game needs it (Hearts needs `shuffle`, Coup needs `reveal`). peek/hide/
 // announce/expose_top/forget join here, in prose, as their games are
 // formalized. `reveal` publicly identifies one matching card without moving
@@ -363,14 +364,14 @@ offer: _OFFER_KW _TO_KW expr _ONE_KW _OF_KW "[" NAME ("," NAME)* "]"
 // which names a function producing a tagged `(tag, payloads)` outcome — the two
 // senses the glossary keeps apart (docs/glossary.md, Outcome / Winner).
 round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _WINNER_KW NAME [_TRUMP_KW expr] [_EARLY_KW NAME]   -> round_stmt
-// The auction/betting form of `round`: a continuous ring over a move vocabulary
-// (`offering`) that loops until the termination predicate holds (`until`). The
+// The auction/betting form of `round`: a continuous ring over an `offering`
+// that loops until the termination predicate holds (`until`). The
 // `outcome` clause is optional: an auction supplies one and the function produces
 // the typed outcome when the ring closes; a betting round omits it — each action
 // mutates shared chip/fold state directly, so the closed ring just returns and
 // play moves to the next street. No card source/into zones — these moves
 // (bids/passes/bets) don't move cards. (decisions.md "Interactive decisions": the
-// same `round` kernel, configured along the move-vocabulary, accumulator, and
+// same `round` kernel, configured along the offering, accumulator, and
 // termination axes.)
 // The optional `order` clause selects the ring-traversal model (the order axis):
 // absent / `order ring` is the continuous ring (each turn advances the pointer);
@@ -388,7 +389,7 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // `winner` for the surrounding body, which routes the pile and the next lead;
 // there is no winner *function* — the winner is the loop's last player, not a
 // function of the cards. (decisions.md "Interactive decisions": the same `round`
-// kernel along the move-vocabulary / order / termination axes.)
+// kernel along the offering / order / termination axes.)
 climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr   -> climb_stmt
 named_arg: NAME "=" arg_value
 ?arg_value: movement

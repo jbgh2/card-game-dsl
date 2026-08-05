@@ -245,7 +245,7 @@
           "items": [
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "transfer_between_hands"
               ]
             },
@@ -331,7 +331,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "play_to_trick"
               ]
             },
@@ -368,7 +368,7 @@
               "outcome_fn": "highest_of_led_suit",
               "trump": null,
               "early_termination": null,
-              "move_types": null,
+              "offering": null,
               "termination": null,
               "order_mode": null,
               "combos_fn": null,
@@ -433,7 +433,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "play_to_trick"
               ]
             },
@@ -541,7 +541,7 @@
                   "outcome_fn": "highest_of_led_suit",
                   "trump": null,
                   "early_termination": null,
-                  "move_types": null,
+                  "offering": null,
                   "termination": null,
                   "order_mode": null,
                   "combos_fn": null,

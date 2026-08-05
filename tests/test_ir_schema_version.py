@@ -83,7 +83,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:item', 'key:items', 'key:kind', 'key:leader', 'key:left',
         'key:lo', 'key:loser', 'key:low', 'key:max_length', 'key:members',
         'key:mode', 'key:move_type', 'key:move_types', 'key:name',
-        'key:names', 'key:obj', 'key:op', 'key:operand', 'key:optional',
+         'key:obj', 'key:offering', 'key:op', 'key:operand', 'key:optional',
         'key:order_mode', 'key:otherwise', 'key:outcome_cases',
         'key:outcome_fn', 'key:params', 'key:participants',
         'key:partnerships', 'key:payload_types', 'key:payloads',

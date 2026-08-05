@@ -308,7 +308,7 @@ def _written_state_name(node: object) -> str | None:
 #                 names are in scope where; this only records that the slot is
 #                 one).
 #   reference   — names something declared elsewhere, as a bare string.
-#   keyword     — a closed grammar vocabulary word, not a name: no namespace can
+#   keyword     — a word from a closed grammar set, not a name: no namespace can
 #                 supply it and nothing can shadow it.
 #   opaque      — arbitrary author text (a string literal, an echoed spelling).
 #   classified  — a `NameRef`'s own name, owned by `_rewrite`. Distinct from
@@ -381,15 +381,15 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.StructLit, "type_name"): "type",
     (n.OutcomeCase, "payload_types"): "type",
     # Definitions, by kind. The move-type slots split across two namespaces and
-    # the split is load-bearing, not a nicety: a VOCABULARY names move types the
-    # game defines (`_check_vocabulary_moves` against `defined_move_types`),
+    # the split is load-bearing, not a nicety: an OFFERING names move types the
+    # game defines (`_check_offering_moves` against `defined_move_types`),
     # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
     # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
     # the first pair is a channel an importing game can feed.
-    (n.Offer, "move_types"): "move_type",
-    (n.Round, "move_types"): "move_type",
+    (n.Offer, "offering"): "move_type",
+    (n.Round, "offering"): "move_type",
     (n.Round, "move_type"): "stdlib_move_type",
-    (n.LegalMoves, "names"): "stdlib_move_type",
+    (n.LegalMoves, "move_types"): "stdlib_move_type",
     (n.MoveEvent, "move_type"): "stdlib_move_type",
     (n.RuleDef, "constrains"): "stdlib_move_type",
     (n.RuleRef, "name"): "rule",
@@ -440,7 +440,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Movement, "item"): "content_kind",
 }
 
-# Closed grammar vocabulary: a word the parser puts there from a fixed set of
+# Closed grammar keyword: a word the parser puts there from a fixed set of
 # productions. Not a name, so no namespace supplies it and nothing shadows it.
 _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
@@ -2966,7 +2966,7 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
 # The bound on a declared position domain's member count: a Suit-sized or
 # column-sized layout is orders of magnitude below it, and a cross-product of
 # two runaway domains would otherwise silently explode the OpenSpiel
-# vocabulary block (every member pair mints an action id). No physical
+# offering block (every member pair mints an action id). No physical
 # tabletop layout approaches it.
 _POSITION_MEMBER_CEILING = 256
 
@@ -3419,7 +3419,7 @@ def _resolve_phase_item(
                     ref.span,
                 )
     elif isinstance(item, n.LegalMoves):
-        for name in item.names:
+        for name in item.move_types:
             if name not in LIBRARY_MOVE_TYPES:
                 bag.error(f"legal_moves names unknown move type '{name}'", item.span)
     elif isinstance(item, n.TransitionTo):
@@ -4253,7 +4253,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     # Move parameters are deliberately NOT checked here: `_check_move_params`
     # already owns them with a stricter, better-worded gate (it names the legal
     # domains, including the game's declared position domains). Its gap was
-    # REACH, not strength — it ran only for a move a vocabulary enumerates —
+    # REACH, not strength — it ran only for a move an offering enumerates —
     # and the fix is to run it for every declared move type, at its own call
     # site, rather than to shadow it with a second diagnostic in a different
     # currency (two messages for one defect is noise).
@@ -4583,7 +4583,7 @@ def _check_move_params(
     deck: str,
 ) -> None:
     """Totality gate for a parameterized move offered/enumerated in a decision
-    (an `offer` statement or a `round offering` vocabulary). Fixed-from-type
+    (an `offer` statement or a `round offering`). Fixed-from-type
     domains (`Suit`/`Suit?`/`Rank`/`Player`) and a single `Card` parameter are
     allowed; a `Card` parameter combined with any other parameter, a
     bounded-`Integer` parameter (deferred), two parameters sharing a name, and
@@ -4673,14 +4673,14 @@ def _check_move_params(
             )
 
 
-def _check_card_vocabulary(
+def _check_card_offering(
     names: tuple[str, ...],
     move_type_defs: dict[str, n.MoveTypeDef],
     game: n.Game,
     bag: DiagnosticBag,
     span: Span | None,
 ) -> None:
-    """The Card domain's constraints on a vocabulary of move types, wherever
+    """The Card domain's constraints on an offering of move types, wherever
     one is enumerated (a plain `offer` or the auction `round offering` — both
     fold a Card-parameterized move through the same `param_domain`/
     `card_to_action` machinery, decisions.md "Declared parameter
@@ -4700,7 +4700,7 @@ def _check_card_vocabulary(
     ]
     if len(card_param_moves) > 1:
         bag.error(
-            f"vocabulary declares more than one Card-parameterized move "
+            f"offering declares more than one Card-parameterized move "
             f"({', '.join(card_param_moves)}); a card play's action is the "
             f"card itself, so a second Card-parameterized move would be "
             f"indistinguishable — fold them into one move type",
@@ -4713,33 +4713,33 @@ def _check_card_vocabulary(
         for z in game.zones
     ):
         bag.error(
-            f"vocabulary move '{card_param_moves[0]}' takes a Card parameter, "
+            f"offering move '{card_param_moves[0]}' takes a Card parameter, "
             f"which enumerates the actor's `hand[player]` zone — this game "
             f"declares none",
             span,
         )
 
 
-def _check_vocabulary_moves(
+def _check_offering_moves(
     names: tuple[str, ...],
     defined_move_types: set[str],
     bag: DiagnosticBag,
     span: Span | None,
     unknown_msg: str,
 ) -> None:
-    """The shared body of a vocabulary's per-name loop, wherever one is
+    """The shared body of an offering's per-name loop, wherever one is
     enumerated (a plain `offer` or the auction `round offering` —
-    `_check_card_vocabulary`'s docstring has the same "wherever one is
+    `_check_card_offering`'s docstring has the same "wherever one is
     enumerated" rationale): every named move type must be defined.
     `unknown_msg` is the caller-specific wording for an unknown name (the two
-    call sites differ only in this message, "offer ..." vs "round vocabulary
+    call sites differ only in this message, "offer ..." vs "round offering
     ...").
 
     Parameter DOMAINS are deliberately not checked here. They are a property
     of the move type's DECLARATION, so `_validate_refs` gates every declared
-    move type once — which both closes the old gap (a move type no vocabulary
+    move type once — which both closes the old gap (a move type no offering
     named was never gated at all) and stops a move type named by two
-    vocabularies from reporting the same defect once per mention."""
+    offerings from reporting the same defect once per mention."""
     for name in names:
         if name not in defined_move_types:
             bag.error(f"{unknown_msg} '{name}'", span)
@@ -4854,14 +4854,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     }
     # Every DECLARED move type's parameter domains, gated exactly once. The
     # gate itself is unchanged; its REACH was the hole. It used to run from the
-    # vocabulary call sites, so a move type no `offer`/`round offering` names
+    # offering call sites, so a move type no `offer`/`round offering` names
     # had its parameter domains unchecked entirely — and an unchecked domain
     # name falls through `typecheck.type_from_name` to the permissive top,
     # which silently exempts the parameter from every downstream guard
     # (decisions.md, "`Any` means the top, never a failed lookup"). Declaring
     # a move type is what makes its parameters real; whether some phase happens
     # to offer it is not the checker's business — and gating at the declaration
-    # also stops a move named by two vocabularies from reporting one defect
+    # also stops a move named by two offerings from reporting one defect
     # twice.
     declared_positions = frozenset(p.name for p in game.positions)
     # `for each <role>` iterates the closed seat/axis roles plus a board's
@@ -5256,16 +5256,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     nd.span,
                 )
             case n.Offer():
-                _check_vocabulary_moves(
-                    nd.move_types,
+                _check_offering_moves(
+                    nd.offering,
                     defined_move_types,
                     bag,
                     nd.span,
                     "offer names unknown move type",
                 )
-                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
-            case n.Round() if nd.move_types is not None:
-                # Auction form: a vocabulary of game-defined move types, no card
+                _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
+            case n.Round() if nd.offering is not None:
+                # Auction form: an offering of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
                 # generic NameRef pass.
                 #
@@ -5276,15 +5276,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # rejects, would crash `enumerate_domain`/produce an
                 # indistinguishable action id mid-playout. That gate now runs
                 # over every DECLARED move type (above), which covers these and
-                # the ones no vocabulary names.
-                _check_vocabulary_moves(
-                    nd.move_types,
+                # the ones no offering names.
+                _check_offering_moves(
+                    nd.offering,
                     defined_move_types,
                     bag,
                     nd.span,
-                    "round vocabulary names unknown move type",
+                    "round offering names unknown move type",
                 )
-                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
+                _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no outcome); only an auction's outcome fn is validated.
                 if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:

@@ -850,7 +850,7 @@
                   "outcome_fn": null,
                   "trump": null,
                   "early_termination": null,
-                  "move_types": [
+                  "offering": [
                     "check",
                     "bet",
                     "call",
@@ -1240,7 +1240,7 @@
                       "outcome_fn": null,
                       "trump": null,
                       "early_termination": null,
-                      "move_types": [
+                      "offering": [
                         "check",
                         "bet",
                         "call",
@@ -1633,7 +1633,7 @@
                       "outcome_fn": null,
                       "trump": null,
                       "early_termination": null,
-                      "move_types": [
+                      "offering": [
                         "check",
                         "bet",
                         "call",
@@ -2026,7 +2026,7 @@
                       "outcome_fn": null,
                       "trump": null,
                       "early_termination": null,
-                      "move_types": [
+                      "offering": [
                         "check",
                         "bet",
                         "call",
@@ -2419,7 +2419,7 @@
                       "outcome_fn": null,
                       "trump": null,
                       "early_termination": null,
-                      "move_types": [
+                      "offering": [
                         "check",
                         "bet",
                         "call",
