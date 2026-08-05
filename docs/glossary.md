@@ -48,7 +48,7 @@ called, and what each name may mean.
 | **Seat** | A player *position*: an index `0..players-1` into the turn ring. What zones are keyed by, what OpenSpiel calls a player. | `domains.Role.PLAYER` |
 | **Player** | The participant occupying a seat. In today's engine seat and player coincide (`Player = int`); keep the two words distinct anyway — `domain-map.md` lists "seat vs agent identity" as a future forcing point. | `values.Player` |
 | **Actor** | The seat currently acting: the `actor` pronoun, `Ctx.current_player`, `as` rebinding. Prefer "actor" over "current player" / "decider" / "acting seat" in new code. | `state.Ctx` |
-| **Team** | A named grouping of seats — the word everywhere, surface included: the game clause is `teams:` (spec: issue #211; the corpus still spells it `partnerships:` pending migration). Retired: `partnership`, `partnerships:`. | `Role.TEAM` |
+| **Team** | A named grouping of seats — the word everywhere, surface included: the game clause is `teams:`, the same noun the quantifiers range over (`all teams where …`), exactly as `players:` is for seats. Retired: `partnership`, `partnerships:`. | `Role.TEAM` |
 | **Component Set** | The pack a game selects with `cards:`/`pieces:` — either flavor. A **deck** is specifically the card-flavored component set. `Game.deck` currently holds either (→ F-16). | `values.ComponentSet` |
 | **Card / Piece** | The individuated content of zones; a card is the deck specialization of a piece (`model.md`). Runtime represents both as `Card` (→ F-16). | `values.Card` |
 | **Zone** | A named ordered container of cards/pieces. A **zone family** is a zone declared with an index (`hand[player]`); an **instance** is one member; the **owner** is the observer whose key it is. | `state.Zone` |

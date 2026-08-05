@@ -1,9 +1,9 @@
 # Pinochle
 
 The companion formal file is [pinochle.cardlang](pinochle.cardlang); this is the
-readable twin. Partnership Bid Pinochle, single 48-card pack (two copies each of
+readable twin. Team Bid Pinochle, single 48-card pack (two copies each of
 A 10 K Q J 9 per suit; 10 ranks between K and A), four players in fixed
-partnerships sitting across. First team to **150** wins.
+teams sitting across. First team to **150** wins.
 
 Each hand:
 
@@ -40,7 +40,7 @@ combination model.
 game Pinochle {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
+  teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
   max_length: 1000
 

@@ -1,10 +1,10 @@
 // Tichu — formalized DSL (parser/checker/runtime target).
 //
-// Companion to tichu.md. Four-player partnership climbing game on the 56-card
+// Companion to tichu.md. Four-player team climbing game on the 56-card
 // Tichu deck (standard 52 plus Mahjong, Dog, Phoenix, Dragon). Players push one
 // card to each other player, then climb: each play must match the led
 // combination's type and length and beat it, or be a bomb, or pass; a trick
-// ends when action returns to the last player who played. First partnership
+// ends when action returns to the last player who played. First team
 // to 1000 wins.
 //
 // The hand runs fully on the kernel. Each climbing trick is one `round climb`
@@ -43,7 +43,7 @@
 game Tichu {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise
   max_length: 20000
 

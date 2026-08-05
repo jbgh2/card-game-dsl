@@ -39,7 +39,7 @@ registry:   the keying comes from the `winner:` target's `StateDecl.index`
             an unhandled role raises, the same contract as
             `domains.zone_observer_key`. The sign axis is
             `replay.RANK_DIR_TO_SIGN`; `team_of` is built from
-            `game.partnerships` exactly as `runtime/driver` builds it.
+            `game.teams` exactly as `runtime/driver` builds it.
 covered:    the grid below -- every {keying x coincidence} cell with its
             expected returns computed from the game's own structure (the
             authored decision), including the two cells the key-set guess got
@@ -189,7 +189,7 @@ def test_returns_follow_the_score_variables_key_domain(
     scores: dict[int, int],
 ) -> None:
     game = check_dsl(source, f"{cid}.cardlang")
-    assert game.partnerships == partnerships, "fixture drift: partnerships mis-parsed"
+    assert game.teams == partnerships, "fixture drift: partnerships mis-parsed"
     sign = RANK_DIR_TO_SIGN[game.winner.rank_dir] if game.winner else 1
     # The expected column, computed from the game's structure and the authored
     # `team_keyed` decision -- not from `returns_for`.

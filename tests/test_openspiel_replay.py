@@ -99,7 +99,7 @@ def test_returns_for_team_scored_game_maps_players_through_teams() -> None:
     result = GameResult(scores={0: 120, 1: 90}, winner=0, loser=None, hands_played=1)
     rets = returns_for(game, result)
     assert len(rets) == 4
-    team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
+    team_of = {p: ti for ti, members in enumerate(game.teams) for p in members}
     assert rets == [float(result.scores[team_of[p]]) for p in range(4)]
 
 

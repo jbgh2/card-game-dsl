@@ -1,4 +1,4 @@
-// Canasta — Classic Canasta, 4 players in partnerships.
+// Canasta — Classic Canasta, 4 players in teams.
 //
 // Rules source: https://www.pagat.com/rummy/canasta.html (fetched live per
 // CLAUDE.md). Two 52-card packs plus four jokers (108 cards); partners sit
@@ -60,7 +60,7 @@
 game Canasta {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: clockwise
   // Measured over seeded random playouts (tests/test_playout_canasta.py):
   // the longest of seeds 0..29 makes 1224 decisions across the four deals.

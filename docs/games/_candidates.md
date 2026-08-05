@@ -55,7 +55,7 @@ dedicated-deck games outside the current standard-deck corpus.
 
 ### euchre
 
-4 players (partnerships of 2), 24-card deck (9–A only), five-card hands,
+4 players (teams of 2), 24-card deck (9–A only), five-card hands,
 two-round trump-making (order up the turned card, then name a suit), play
 to 10 points.
 
@@ -90,7 +90,7 @@ machinery committed there.
 **Notes.** **Pagat is mandatory** here — Piquet's scoring is
 notoriously edge-case heavy: <https://www.pagat.com/last/piquet.html>.
 
-## Trick-taking with partnerships
+## Trick-taking with teams
 
 ### koenigrufen
 
@@ -118,7 +118,7 @@ player is "picker" against the others — or calls a partner via a specific
 card ("I call the Jack of Diamonds" / a fail-suit ace).
 
 **Why interesting.** *Calling a partner by card identity* creates a
-partnership defined by whoever holds a specific card, and the partner
+team defined by whoever holds a specific card, and the partner
 *knows* they are the partner before anyone else. It **corroborates** the settled access discipline
 ([decisions.md](../decisions.md) "Typed object model") — the "partner"
 reference resolves through a card-holding query — and the verified pass
@@ -187,7 +187,7 @@ Eights first; UNO is a delta with extra card effects.
 
 ### scopa
 
-2 or 4 players (partnerships), 40-card Italian deck. Capture-by-sum:
+2 or 4 players (teams), 40-card Italian deck. Capture-by-sum:
 a played card captures a single table card of equal rank, or a set
 of table cards whose ranks sum to it.
 
@@ -206,7 +206,7 @@ Quindici). So the "player chooses among multiple captures" framing is
 variant-specific. **Pagat** for capture rules and four-way scoring
 (cards, denari, settebello, primiera):
 <https://www.pagat.com/fishing/scopa.html>. Scopone is the 4-player
-partnership variant.
+team variant.
 
 ### cassino
 

@@ -13,7 +13,7 @@ This module is the no. A narrowed primitive receives two frozen bundles of
 plain values and nothing else:
 
   `EngineFacts`  the engine-structural facts — the seating ring, the
-                 partnership map, the rank strengths, the round accumulator
+                 team map, the rank strengths, the round accumulator
                  views, the acting player. A CLOSED set: a primitive that
                  needs a fact not listed here cannot reach it, and adding a
                  field is a visible change with a test that pins where the
@@ -80,7 +80,7 @@ class EngineFacts:
     and `offset_by` come along without an engine handle."""
 
     teams: tuple[int, ...]
-    """Team ids; empty for non-partnership games."""
+    """Team ids; empty for teamless games."""
 
     team_of: Mapping[Player, int]
     """Player -> team id."""

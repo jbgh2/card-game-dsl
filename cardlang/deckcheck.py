@@ -72,7 +72,7 @@ def check_capacity(game: n.Game) -> n.Game:
         suits=sorted(suit_names(game.deck)),
         ranks=list(game.ranking) or sorted(rank_names(game.deck)),
         players=range(players),
-        teams=game.partnerships,
+        teams=game.teams,
     )
     counts = {
         role.value: len(role_static_members(role.value, sources))

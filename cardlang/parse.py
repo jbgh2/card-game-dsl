@@ -105,7 +105,7 @@ class _Trump:
 
 
 @dataclass(frozen=True, slots=True)
-class _Partnerships:
+class _Teams:
     teams: tuple[tuple[int, ...], ...]
     span: Span
 
@@ -318,9 +318,9 @@ class _Builder(Transformer[Token, n.Game]):
     def team_spec(self, meta: Meta, c: list[Token]) -> tuple[int, ...]:
         return tuple(int(x) for x in c)
 
-    def partnerships(self, meta: Meta, c: list[object]) -> _Partnerships:
+    def teams(self, meta: Meta, c: list[object]) -> _Teams:
         teams = tuple(t for t in c if isinstance(t, tuple))
-        return _Partnerships(teams, span=self._span(meta))
+        return _Teams(teams, span=self._span(meta))
 
     def max_length(self, meta: Meta, c: list[Token]) -> _MaxLength:
         return _MaxLength(int(c[0]), span=self._span(meta))
@@ -1245,7 +1245,7 @@ class _Builder(Transformer[Token, n.Game]):
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
         trump: str | None = None
-        partnerships: tuple[tuple[int, ...], ...] = ()
+        teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
         positions: tuple[n.PositionDecl, ...] = ()
         board: n.BoardDecl | None = None
@@ -1304,9 +1304,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
-            elif isinstance(item, _Partnerships):
-                once("partnerships:", item.span)
-                partnerships = item.teams
+            elif isinstance(item, _Teams):
+                once("teams:", item.span)
+                teams = item.teams
             elif isinstance(item, _MaxLength):
                 once("max_length:", item.span)
                 max_length = item.value
@@ -1389,7 +1389,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking=ranking,
             ranking_convention=ranking_convention,
             trump=trump,
-            partnerships=partnerships,
+            teams=teams,
             positions=positions,
             board=board,
             max_length=max_length,

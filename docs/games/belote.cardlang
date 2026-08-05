@@ -1,6 +1,6 @@
 // Belote — formalized DSL (parser/checker/runtime target).
 //
-// Companion to belote.md. Plain four-player partnership Belote (not Coinche),
+// Companion to belote.md. Plain four-player team Belote (not Coinche),
 // 32-card skat32 deck, counterclockwise, first team to 1000. Each hand: deal
 // 3+2 and turn a card up; two take/pass rounds make trump (accept the turned
 // suit, or name another; all pass twice throws the hand in); the deal
@@ -13,7 +13,7 @@
 // offering rounds over shrinking rings (the Skat shape). The tricks run on
 // the trick form of `round`, legality narrowed by the five-rule cascade
 // below — the corpus's richest constrained-follow instance: the trump and
-// over-trump obligations are GATED partnership-relatively (they bind only
+// over-trump obligations are GATED team-relatively (they bind only
 // while an OPPONENT is winning the trick, via `belote_opp_winning()`), the
 // over-trump target is the best trump in the trick from either side, and
 // trump leads must be beaten regardless of who is winning. The mid-play
@@ -31,7 +31,7 @@
 game Belote {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise      // canonical for Belote
   max_length: 20000
 

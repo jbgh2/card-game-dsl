@@ -97,7 +97,7 @@ def test_climbing_legality() -> None:
 def test_30_random_games_satisfy_invariants() -> None:
     game = check_source(TICHU)
     team_of = {
-        p: ti for ti, members in enumerate(game.partnerships) for p in members
+        p: ti for ti, members in enumerate(game.teams) for p in members
     }
     calls: dict[str, int] = {}
     for seed in range(30):

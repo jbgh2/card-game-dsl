@@ -19,7 +19,7 @@ holds only what is not expressible there:
   under the trump order if any trump was played, else highest of the led suit
   under the game's ace-ten `rank_index`.
 - `belote_opp_winning` — is the player currently winning the live, partial
-  trick an OPPONENT of the acting player? The partnership-relative gate on
+  trick an OPPONENT of the acting player? The team-relative gate on
   the trump/over-trump obligations ("if an opponent is currently winning the
   trick, he must trump if he can … if his partner is currently winning he is
   free"). Read off the live round accumulator exactly as the `state` pronoun

@@ -506,7 +506,7 @@ class TypeEnv:
     procedures: Mapping[str, Sig] = field(default_factory=dict)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
     max_players: int = 0  # the game's maximum seat count — bounds player literals
-    max_teams: int = 0  # len(game.partnerships) — bounds team literals (0: no teams)
+    max_teams: int = 0  # len(game.teams) — bounds team literals (0: no teams)
     # Per-game position domains (decisions.md "Position domains and positional
     # zones", "Boards and cells") — name -> the member type a parameter, let
     # binder or subscript key over it carries: `TInteger` for a declared
@@ -996,7 +996,7 @@ def env_from_game(
         max_players=(
             game.players.high if game.players.high is not None else game.players.low
         ),
-        max_teams=len(game.partnerships),
+        max_teams=len(game.teams),
         positions=positions,
         directions=_direction_types(game),
         flavor=game.content_flavor,
@@ -1894,7 +1894,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     on a two-team game -- names a seat or team with no member; the reader (a zone
     family with no such instance, a board frame's per-seat sign, a per-team score)
     then fails at runtime, a typechecked game crashing. The bound is the game's
-    MAXIMUM count -- a range game's `high` for players, `len(partnerships)` for
+    MAXIMUM count -- a range game's `high` for players, `len(teams)` for
     teams -- and is two-sided: the `0 <=` lower bound rejects a NEGATIVE literal
     (an `IntLit` with a negative value; there is no separate negative-literal
     node), so `reserve[-1]` is caught too.
@@ -1903,7 +1903,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     coercion routes through -- so the check applies at EVERY position an integer
     literal reaches a Player or Team, by construction (the pin
     tests/test_operand_choke_point.py enforces it). A non-role `expected` is a
-    no-op, and a count of 0 (a game with no partnerships has `max_teams == 0`)
+    no-op, and a count of 0 (a game with no teams has `max_teams == 0`)
     disables the team bound, mirroring `max_players <= 0`.
 
     An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `assignable`
@@ -1920,11 +1920,11 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
             return
         bound, noun, label = env.max_players, "player", "seat"
     elif isinstance(bare, TTeam):
-        # `max_teams == 0` is the COMMON no-`partnerships:` case: a KNOWN EMPTY
+        # `max_teams == 0` is the COMMON no-`teams:` case: a KNOWN EMPTY
         # team domain, NOT an unknown bound -- so it is NOT skipped, and every
         # team literal (even `0`) is rejected as naming a team the game has none
         # of (`0 <= k < 0` is always false). A team-KEYED zone/state already
-        # requires partnerships at resolve, but a Team-TYPED operand -- a `state`
+        # requires teams at resolve, but a Team-TYPED operand -- a `state`
         # default, a Team call arg, a struct field, a outcome payload -- does
         # not, and reaches here.
         bound, noun, label = env.max_teams, "team", "team"

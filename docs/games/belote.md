@@ -1,8 +1,8 @@
 # Belote
 
-**Variant:** plain four-player partnership Belote (not Coinche; Klaverjas is
+**Variant:** plain four-player team Belote (not Coinche; Klaverjas is
 a separate, later delta), simple two-round trump-making, first team to 1000.
-**Players:** 4, in fixed partnerships sitting across (0+2 vs 1+3).
+**Players:** 4, in fixed teams sitting across (0+2 vs 1+3).
 **Deck:** 32 cards (A K Q J 10 9 8 7 in each suit — the skat32 pack).
 **Executable spec:** [belote.cardlang](belote.cardlang). **Rules source:**
 https://www.pagat.com/jass/belote.html (fetched live). Deliberate departures

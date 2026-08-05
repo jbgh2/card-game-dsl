@@ -1,9 +1,9 @@
 # Tichu
 
 The companion formal file is [tichu.cardlang](tichu.cardlang); this is the
-readable twin. A four-player partnership **climbing** game on a 56-card deck (the
+readable twin. A four-player team **climbing** game on a 56-card deck (the
 standard 52 plus four special cards: Mahjong, Dog, Phoenix, Dragon). First
-partnership to **1000** wins. Rules: Fata Morgana English edition.
+team to **1000** wins. Rules: Fata Morgana English edition.
 
 Each hand:
 
@@ -73,7 +73,7 @@ bombs are omitted.
 game Tichu {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: counterclockwise
   max_length: 20000
 

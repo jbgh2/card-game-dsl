@@ -131,7 +131,7 @@ def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
     shape of the dict, which cannot distinguish the two: a game whose team count
     equals its player count has team keys (`{0, 1}`) indistinguishable from
     player keys, so a key-set test read team scores as player scores and paid the
-    wrong seats — silently, nothing about `partnerships: [[1], [0]]` on two seats
+    wrong seats — silently, nothing about `teams: [[1], [0]]` on two seats
     being malformed.
 
     Dispatched over the role and LOUD for one it does not handle, the same
@@ -162,7 +162,7 @@ def _score_key_by_seat(game: n.Game, n_players: int) -> list[int]:
         return list(range(n_players))
     if role is Role.TEAM:  # the second arm of the same allow-list
         team_of = {
-            p: ti for ti, members in enumerate(game.partnerships) for p in members
+            p: ti for ti, members in enumerate(game.teams) for p in members
         }
         return [team_of[p] for p in range(n_players)]
     raise AssertionError(

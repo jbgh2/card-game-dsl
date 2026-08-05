@@ -64,7 +64,7 @@ def emit(game: n.Game) -> IRDict:
         # None. `ranking` above is always the operative (expanded) order.
         "ranking_convention": game.ranking_convention,
         "trump": game.trump,
-        "partnerships": [list(t) for t in game.partnerships],
+        "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
         # The board-minted movement-direction domain (decisions.md "Boards and
         # cells", rung-2 movement). Keyed ONLY for a board game, like

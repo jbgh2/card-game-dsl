@@ -1,7 +1,7 @@
 // Pinochle — formalized DSL (parser/checker/runtime target).
 //
-// Companion to pinochle.md. Partnership Bid Pinochle, single (48-card) pack,
-// four players in fixed partnerships sitting across. Each hand: an ascending
+// Companion to pinochle.md. Team Bid Pinochle, single (48-card) pack,
+// four players in fixed teams sitting across. Each hand: an ascending
 // auction, the high bidder names trump (a suit he holds a marriage in, else he
 // abandons the bid), both sides score their meld, then twelve strict tricks
 // score 10 per A/10/K captured plus 10 for the last trick. The bidding side must
@@ -23,7 +23,7 @@
 game Pinochle {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
+  teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
   max_length: 1000
 

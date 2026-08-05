@@ -1,6 +1,6 @@
 # 500 (Five Hundred)
 
-**Variant:** four-player partnership Australian 500 — the canonical game:
+**Variant:** four-player team Australian 500 — the canonical game:
 43-card pack, 27-rung bid ladder with misère and open misère, kitty of
 three, play to +500 / out backwards at −500.
 **Players:** 4, partners sitting across. **Deck:** 43 cards — `A K Q J 10 9

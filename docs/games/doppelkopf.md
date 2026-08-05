@@ -109,7 +109,7 @@ are trumps). Every queen and jack is a trump, so plain suits have no Q or J.
   playing a ♣Q, or making a Re-side announcement. By scoring time every
   card has been played, so the public record is the complete partition —
   the rulebook's own deferred evaluation ("the ♦A is left face up and
-  turned over when the partnership becomes clear") made operational.
+  turned over when the team becomes clear") made operational.
 - **The "at any time" window is the quiescence-lap poll** settled in
   [decisions.md](../decisions.md) "Off-the-clock windows": before every
   card decision, while the public gate `window_open()` holds (hand counts
