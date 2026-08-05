@@ -57,8 +57,22 @@ residual:  stdlib exception classes raised directly by the engine
            design question (nothing in the engine defines one); the derivation
            catches one arriving, since it quantifies over `BaseException`.
 
-red under: two, one per disjointness guarantee, both verified by making the
-edit and watching the named cells — and only those — go red.
+class:     the import-at-run-time hazard Codex found here is one member of
+           "test code that imports `cardlang` modules wholesale, on a tree
+           where `openspiel` is deliberately outside `[dev]`". Derived from
+           `tests/`: the only wholesale walk is this module's.
+           `tests/test_guard_role_sites.py` parses source and never imports;
+           `test_trace_emitter_eviction.py` and `test_signatures.py` import
+           specific named modules; `tests/openspiel_ready/*` sits under the
+           `importorskip` umbrella `tests/test_optional_pyspiel.py` pins. One
+           member, examined rather than assumed.
+
+red under: three, each verified by making the edit and watching the named
+cells — and only those — go red.
+  * block `pyspiel` on `sys.meta_path` and run this module: 23 of 26 cells
+    fail before the optional-extra skip exists, all 26 pass after. The
+    existing pin (tests/test_optional_pyspiel.py) could not catch this — it
+    covers COLLECTION and the core path, and this module imported at RUN time.
   * give `IllegalMove` (cardlang/runtime/state.py) the base
     `GameDescriptionError`: fails the `IllegalMove` /
     `in_game_description_tree` cell alone.
@@ -71,7 +85,9 @@ edit and watching the named cells — and only those — go red.
 
 from __future__ import annotations
 
+import ast
 import importlib
+import pathlib
 import pkgutil
 from collections.abc import Callable, Mapping
 from functools import cache
@@ -130,6 +146,38 @@ _EXPECTED: dict[str, dict[str, bool]] = {
 
 
 @cache
+def _declared_exception_class_names() -> frozenset[str]:
+    """Exception classes defined in the package, read from SOURCE — no imports.
+
+    The superset against which the imported set is checked. `cardlang.openspiel.
+    game` and `.report` execute `import pyspiel` at module scope, and the
+    `openspiel` extra is deliberately outside `[dev]` (pinned by
+    tests/test_optional_pyspiel.py), so on a core install importing them raises.
+    Skipping them is correct; skipping them *silently* would let the domain
+    shrink to whatever happens to be installed — a check that quietly stops
+    quantifying over part of its own domain.
+
+    Heuristic, stated so it can be judged: a class is exception-shaped if any
+    base's spelling ends in `Error` or `Exception`. That covers every class in
+    this package (`GameDescriptionError(Exception)`, `OwnerGuardError(
+    GameDescriptionError)`, `IllegalMove(Exception)`, the signals). A class
+    subclassing an exception under some other name would be missed here — but
+    `test_every_engine_exception_is_placed` derives from the IMPORTED set, so
+    such a class still fails that test the moment it exists on any install that
+    can import its module.
+    """
+    root = pathlib.Path(str(cardlang.__file__)).parent
+    names: set[str] = set()
+    for path in sorted(root.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(), str(path))):
+            if isinstance(node, ast.ClassDef) and any(
+                ast.unparse(b).endswith(("Error", "Exception")) for b in node.bases
+            ):
+                names.add(node.name)
+    return frozenset(names)
+
+
+@cache
 def _engine_exception_classes() -> Mapping[str, type[BaseException]]:
     """Every exception class DEFINED in the `cardlang` package, by qualname.
 
@@ -143,11 +191,23 @@ def _engine_exception_classes() -> Mapping[str, type[BaseException]]:
     the global table holds whatever a prior test happened to import, so reading
     it would make this axis depend on what else ran and on the order it ran in.
     A solo run and a full-suite run must derive the same set.
+
+    A module needing an absent OPTIONAL extra is skipped rather than allowed to
+    error the whole module out — see `_declared_exception_class_names`, which is
+    what keeps that skip from shrinking the domain unnoticed. Only a missing
+    third-party dependency is skipped: a `ModuleNotFoundError` naming something
+    inside `cardlang` is a real broken import and still propagates.
     """
     found: dict[str, type[BaseException]] = {}
     walked = ["cardlang", *(i.name for i in pkgutil.walk_packages(cardlang.__path__, prefix="cardlang."))]
     for mod_name in walked:
-        for obj in vars(importlib.import_module(mod_name)).values():
+        try:
+            module = importlib.import_module(mod_name)
+        except ModuleNotFoundError as exc:
+            if exc.name is not None and not exc.name.startswith("cardlang"):
+                continue
+            raise
+        for obj in vars(module).values():
             if (
                 isinstance(obj, type)
                 and issubclass(obj, BaseException)
@@ -155,6 +215,27 @@ def _engine_exception_classes() -> Mapping[str, type[BaseException]]:
             ):
                 found[obj.__name__] = obj
     return found
+
+
+def test_no_exception_class_hides_behind_an_optional_extra() -> None:
+    """The imported set covers every exception class the SOURCE declares.
+
+    Without this, a class defined in `cardlang/openspiel/game.py` would simply
+    vanish from the domain on a core install and every containment cell would
+    still pass — the module reporting a guarantee over a set quietly missing a
+    member. Equality both ways: a name only the AST sees means a skipped module
+    took a class with it, and a name only the import sees means the source
+    heuristic above has gone stale.
+    """
+    imported = set(_engine_exception_classes())
+    declared = set(_declared_exception_class_names())
+    assert imported == declared, (
+        f"only in source: {sorted(declared - imported)}; "
+        f"only imported: {sorted(imported - declared)}. If the first is "
+        f"non-empty, a module was skipped for a missing optional extra and "
+        f"took an exception class out of this module's domain with it — that "
+        f"class needs placing, and the skip needs narrowing."
+    )
 
 
 def test_every_engine_exception_is_placed() -> None:
