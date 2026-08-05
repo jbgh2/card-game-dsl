@@ -44,7 +44,7 @@ class DecisionNode:
 
     player: int
     legal: list[int]  # global action ids, sorted ascending
-    rs: RuntimeState  # the live world at the pause
+    rs: RuntimeState  # the live world at the decision
     obs_logs: dict[int, list[tuple[Any, ...]]]  # per-player observation logs
 
 
@@ -52,9 +52,9 @@ class DecisionNode:
 class TerminalNode:
     """A completed game — the literature's terminal node.
 
-    Not bare `TerminalNode`: that word is the grammar's lexer vocabulary, and the
-    two-word form leaves room for the suffix scheme a native simultaneous-move
-    export would extend (`SimultaneousNode`).
+    The suffix is deliberate twice over: the single-word form collides with the
+    grammar's lexer terminology, and the two-word scheme leaves room for the
+    `SimultaneousNode` a native simultaneous-move export would add.
     """
 
     returns: list[float]
