@@ -1,0 +1,1638 @@
+{
+  "config": "/Users/benh/Projects/Card game DSL/.claude/worktrees/mystifying-nightingale-c446da/experiments/llm_eval/config_kuhn.yaml",
+  "game": "cardlang_kuhn_poker",
+  "run": "2026-08-04T04-12-50Z",
+  "run_dir": "experiments/llm_eval/results_kuhn",
+  "matchups": [
+    {
+      "games": 600,
+      "games_truncated": 0,
+      "decisions": 1381,
+      "deals": {
+        "JK": 114,
+        "JQ": 86,
+        "KJ": 94,
+        "KQ": 96,
+        "QJ": 96,
+        "QK": 114
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "nash": {
+          "agent": "nash",
+          "games": 600,
+          "games_scored": 600,
+          "wins": 292,
+          "chips": 96.0,
+          "decisions": 711,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 166,
+          "dominated_taken": 0,
+          "bluff_offered": 147,
+          "bluffs": 34,
+          "visits": {
+            "P0|J|open": {
+              "bet": 23,
+              "check": 77
+            },
+            "P1|K|bet": {
+              "call": 55
+            },
+            "P0|Q|open": {
+              "check": 105
+            },
+            "P1|K|check": {
+              "bet": 59
+            },
+            "P0|Q|check-bet": {
+              "call": 25,
+              "fold": 23
+            },
+            "P0|K|open": {
+              "check": 46,
+              "bet": 49
+            },
+            "P0|K|check-bet": {
+              "call": 25
+            },
+            "P1|Q|bet": {
+              "fold": 36,
+              "call": 16
+            },
+            "P0|J|check-bet": {
+              "fold": 38
+            },
+            "P1|J|bet": {
+              "fold": 48
+            },
+            "P1|J|check": {
+              "bet": 11,
+              "check": 36
+            },
+            "P1|Q|check": {
+              "check": 39
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.4866666666666667,
+          "chips_per_hand": 0.16,
+          "fallback_rate": 0.0,
+          "exploitability": 0.03179784482346075,
+          "exploitability_nash_fill": 0.03179784482346075,
+          "exploitability_noise_floor": 0.028272590800001912,
+          "exploitability_noise_floor_p95": 0.06460697399527185,
+          "exploitability_above_floor": 0.0035252540234588375,
+          "infoset_coverage": 1.0,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.23129251700680273,
+          "bluff_rate_first_to_act": 0.23,
+          "bluff_rate_after_a_check": 0.23404255319148937,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.77,
+                "bet": 0.23
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.4842105263157895,
+                "bet": 0.5157894736842106
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.4791666666666667,
+                "call": 0.5208333333333334
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.6923076923076923,
+                "call": 0.3076923076923077
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.7659574468085106,
+                "bet": 0.23404255319148937
+              },
+              "P1|Q|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        },
+        "random": {
+          "agent": "random",
+          "games": 600,
+          "games_scored": 600,
+          "wins": 308,
+          "chips": -96.0,
+          "decisions": 670,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 67,
+          "dominated_taken": 35,
+          "bluff_offered": 174,
+          "bluffs": 87,
+          "visits": {
+            "P1|K|bet": {
+              "call": 6,
+              "fold": 7
+            },
+            "P0|J|open": {
+              "bet": 52,
+              "check": 48
+            },
+            "P1|K|check": {
+              "check": 54,
+              "bet": 47
+            },
+            "P0|Q|open": {
+              "check": 54,
+              "bet": 51
+            },
+            "P0|Q|check-bet": {
+              "fold": 18,
+              "call": 19
+            },
+            "P1|Q|check": {
+              "bet": 29,
+              "check": 24
+            },
+            "P0|K|open": {
+              "bet": 52,
+              "check": 43
+            },
+            "P1|J|check": {
+              "check": 39,
+              "bet": 35
+            },
+            "P0|K|check-bet": {
+              "call": 3,
+              "fold": 3
+            },
+            "P1|Q|bet": {
+              "call": 18,
+              "fold": 20
+            },
+            "P0|J|check-bet": {
+              "fold": 11,
+              "call": 16
+            },
+            "P1|J|bet": {
+              "call": 9,
+              "fold": 12
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.5133333333333333,
+          "chips_per_hand": -0.16,
+          "fallback_rate": 0.0,
+          "exploitability": 0.47989027041162097,
+          "exploitability_nash_fill": 0.47989027041162097,
+          "exploitability_noise_floor": 0.027007580606922717,
+          "exploitability_noise_floor_p95": 0.0655618776671408,
+          "exploitability_above_floor": 0.45288268980469826,
+          "infoset_coverage": 1.0,
+          "dominated_action_rate": 0.5223880597014925,
+          "bluff_rate": 0.5,
+          "bluff_rate_first_to_act": 0.52,
+          "bluff_rate_after_a_check": 0.47297297297297297,
+          "folds_the_best_hand_rate": 0.5263157894736842,
+          "calls_with_the_worst_hand_rate": 0.5208333333333334,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.48,
+                "bet": 0.52
+              },
+              "P0|Q|open": {
+                "check": 0.5142857142857142,
+                "bet": 0.4857142857142857
+              },
+              "P0|K|open": {
+                "check": 0.45263157894736844,
+                "bet": 0.5473684210526316
+              },
+              "P0|J|check-bet": {
+                "fold": 0.4074074074074074,
+                "call": 0.5925925925925926
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.4864864864864865,
+                "call": 0.5135135135135135
+              },
+              "P0|K|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 0.5714285714285714,
+                "call": 0.42857142857142855
+              },
+              "P1|Q|bet": {
+                "fold": 0.5263157894736842,
+                "call": 0.47368421052631576
+              },
+              "P1|K|bet": {
+                "fold": 0.5384615384615384,
+                "call": 0.46153846153846156
+              },
+              "P1|J|check": {
+                "check": 0.527027027027027,
+                "bet": 0.47297297297297297
+              },
+              "P1|Q|check": {
+                "check": 0.4528301886792453,
+                "bet": 0.5471698113207547
+              },
+              "P1|K|check": {
+                "check": 0.5346534653465347,
+                "bet": 0.46534653465346537
+              }
+            }
+          }
+        }
+      },
+      "matchup": "nash_vs_random",
+      "n_requested": 600,
+      "n_completed": 600,
+      "resumed_from": null,
+      "games_this_invocation": 600,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/nash_vs_random.jsonl.gz",
+      "usage": {}
+    },
+    {
+      "games": 600,
+      "games_truncated": 0,
+      "decisions": 1446,
+      "deals": {
+        "JK": 114,
+        "JQ": 86,
+        "KJ": 94,
+        "KQ": 96,
+        "QJ": 96,
+        "QK": 114
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "nash": {
+          "agent": "nash",
+          "games": 1200,
+          "games_scored": 1200,
+          "wins": 600,
+          "chips": 0.0,
+          "decisions": 1446,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 174,
+          "dominated_taken": 0,
+          "bluff_offered": 348,
+          "bluffs": 90,
+          "visits": {
+            "P0|J|open": {
+              "bet": 46,
+              "check": 154
+            },
+            "P1|K|bet": {
+              "call": 26
+            },
+            "P0|Q|open": {
+              "check": 210
+            },
+            "P1|K|check": {
+              "bet": 202
+            },
+            "P0|Q|check-bet": {
+              "call": 64,
+              "fold": 76
+            },
+            "P0|K|open": {
+              "check": 92,
+              "bet": 98
+            },
+            "P1|Q|check": {
+              "check": 106
+            },
+            "P1|J|check": {
+              "check": 104,
+              "bet": 44
+            },
+            "P0|K|check-bet": {
+              "call": 18
+            },
+            "P1|Q|bet": {
+              "call": 34,
+              "fold": 42
+            },
+            "P0|J|check-bet": {
+              "fold": 88
+            },
+            "P1|J|bet": {
+              "fold": 42
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.5,
+          "chips_per_hand": 0.0,
+          "fallback_rate": 0.0,
+          "exploitability": 0.03320734268102683,
+          "exploitability_nash_fill": 0.03320734268102683,
+          "exploitability_noise_floor": 0.017778586246020453,
+          "exploitability_noise_floor_p95": 0.04191238230711919,
+          "exploitability_above_floor": 0.01542875643500638,
+          "infoset_coverage": 1.0,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.25862068965517243,
+          "bluff_rate_first_to_act": 0.23,
+          "bluff_rate_after_a_check": 0.2972972972972973,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.77,
+                "bet": 0.23
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.4842105263157895,
+                "bet": 0.5157894736842106
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.5428571428571428,
+                "call": 0.45714285714285713
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.5526315789473685,
+                "call": 0.4473684210526316
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.7027027027027027,
+                "bet": 0.2972972972972973
+              },
+              "P1|Q|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        }
+      },
+      "matchup": "nash_vs_nash",
+      "n_requested": 600,
+      "n_completed": 600,
+      "resumed_from": null,
+      "games_this_invocation": 600,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/nash_vs_nash.jsonl.gz",
+      "usage": {}
+    },
+    {
+      "games": 300,
+      "games_truncated": 0,
+      "decisions": 726,
+      "deals": {
+        "JK": 48,
+        "JQ": 42,
+        "KJ": 48,
+        "KQ": 52,
+        "QJ": 48,
+        "QK": 62
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "llm_mid": {
+          "agent": "llm_mid",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 150,
+          "chips": -8.0,
+          "decisions": 362,
+          "fallbacks": 0,
+          "llm_calls": 362,
+          "input_tokens": 602764,
+          "output_tokens": 23195,
+          "dominated_offered": 38,
+          "dominated_taken": 0,
+          "bluff_offered": 85,
+          "bluffs": 0,
+          "visits": {
+            "P0|J|open": {
+              "check": 45
+            },
+            "P0|J|check-bet": {
+              "fold": 24
+            },
+            "P1|K|bet": {
+              "call": 6
+            },
+            "P0|Q|open": {
+              "check": 55
+            },
+            "P0|Q|check-bet": {
+              "call": 38
+            },
+            "P1|K|check": {
+              "bet": 49
+            },
+            "P0|K|open": {
+              "bet": 50
+            },
+            "P1|Q|check": {
+              "check": 16,
+              "bet": 15
+            },
+            "P1|J|check": {
+              "check": 40
+            },
+            "P1|Q|bet": {
+              "call": 16
+            },
+            "P1|J|bet": {
+              "fold": 8
+            }
+          },
+          "input_tokens_per_game": 2009.2133333333334,
+          "output_tokens_per_game": 77.31666666666666,
+          "llm_calls_per_game": 1.2066666666666668,
+          "win_rate": 0.5,
+          "chips_per_hand": -0.02666666666666667,
+          "fallback_rate": 0.0,
+          "exploitability": 0.16666666666666666,
+          "exploitability_nash_fill": 0.16666666666666666,
+          "exploitability_noise_floor": 0.11024674098440546,
+          "exploitability_noise_floor_p95": 0.16699074074074072,
+          "exploitability_above_floor": 0.0564199256822612,
+          "infoset_coverage": 0.9166666666666666,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.0,
+          "bluff_rate_first_to_act": 0.0,
+          "bluff_rate_after_a_check": 0.0,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P0|K|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|Q|check": {
+                "check": 0.5161290322580645,
+                "bet": 0.4838709677419355
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        },
+        "nash": {
+          "agent": "nash",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 150,
+          "chips": 8.0,
+          "decisions": 364,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 57,
+          "dominated_taken": 0,
+          "bluff_offered": 69,
+          "bluffs": 16,
+          "visits": {
+            "P1|K|check": {
+              "bet": 55
+            },
+            "P0|J|open": {
+              "bet": 9,
+              "check": 36
+            },
+            "P0|Q|open": {
+              "check": 55
+            },
+            "P0|Q|check-bet": {
+              "call": 16,
+              "fold": 15
+            },
+            "P1|Q|bet": {
+              "fold": 16,
+              "call": 10
+            },
+            "P0|K|open": {
+              "check": 29,
+              "bet": 21
+            },
+            "P1|Q|check": {
+              "check": 21
+            },
+            "P0|J|check-bet": {
+              "fold": 27
+            },
+            "P1|J|check": {
+              "check": 17,
+              "bet": 7
+            },
+            "P1|J|bet": {
+              "fold": 24
+            },
+            "P0|K|check-bet": {
+              "call": 6
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.5,
+          "chips_per_hand": 0.02666666666666667,
+          "fallback_rate": 0.0,
+          "exploitability": 0.2272415219189413,
+          "exploitability_nash_fill": 0.02478425696167637,
+          "exploitability_noise_floor": 0.23835098049352058,
+          "exploitability_noise_floor_p95": 0.29340536255858835,
+          "exploitability_above_floor": -0.011109458574579262,
+          "infoset_coverage": 0.9166666666666666,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.2318840579710145,
+          "bluff_rate_first_to_act": 0.2,
+          "bluff_rate_after_a_check": 0.2916666666666667,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.8,
+                "bet": 0.2
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.58,
+                "bet": 0.42
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.4838709677419355,
+                "call": 0.5161290322580645
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.6153846153846154,
+                "call": 0.38461538461538464
+              },
+              "P1|K|bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P1|J|check": {
+                "check": 0.7083333333333334,
+                "bet": 0.2916666666666667
+              },
+              "P1|Q|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        }
+      },
+      "matchup": "llm_mid_vs_nash",
+      "n_requested": 300,
+      "n_completed": 300,
+      "resumed_from": null,
+      "games_this_invocation": 300,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_mid_vs_nash.jsonl.gz",
+      "usage": {
+        "mid": {
+          "input_tokens": 602764,
+          "output_tokens": 23195,
+          "cost_usd": 2.1562,
+          "model": "claude-sonnet-5",
+          "params": {
+            "max_tokens": 512,
+            "thinking": {
+              "type": "disabled"
+            },
+            "output_config": {
+              "effort": "low"
+            }
+          },
+          "run_total": {
+            "calls": 362,
+            "input_tokens": 602764,
+            "output_tokens": 23195,
+            "cost_usd": 2.1562
+          },
+          "cost_usd_per_game": 0.0072
+        }
+      }
+    },
+    {
+      "games": 300,
+      "games_truncated": 0,
+      "decisions": 704,
+      "deals": {
+        "JK": 48,
+        "JQ": 42,
+        "KJ": 48,
+        "KQ": 52,
+        "QJ": 48,
+        "QK": 62
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "llm_cheap": {
+          "agent": "llm_cheap",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 150,
+          "chips": -22.0,
+          "decisions": 324,
+          "fallbacks": 0,
+          "llm_calls": 324,
+          "input_tokens": 239892,
+          "output_tokens": 25745,
+          "dominated_offered": 38,
+          "dominated_taken": 0,
+          "bluff_offered": 85,
+          "bluffs": 0,
+          "visits": {
+            "P0|J|open": {
+              "check": 45
+            },
+            "P0|J|check-bet": {
+              "fold": 24
+            },
+            "P1|K|bet": {
+              "call": 6
+            },
+            "P0|Q|open": {
+              "bet": 55
+            },
+            "P1|K|check": {
+              "bet": 49
+            },
+            "P0|K|open": {
+              "bet": 50
+            },
+            "P1|Q|check": {
+              "bet": 31
+            },
+            "P1|J|check": {
+              "check": 40
+            },
+            "P1|Q|bet": {
+              "call": 16
+            },
+            "P1|J|bet": {
+              "fold": 8
+            }
+          },
+          "input_tokens_per_game": 799.64,
+          "output_tokens_per_game": 85.81666666666666,
+          "llm_calls_per_game": 1.08,
+          "win_rate": 0.5,
+          "chips_per_hand": -0.07333333333333333,
+          "fallback_rate": 0.0,
+          "exploitability": 0.16666666666666666,
+          "exploitability_nash_fill": 0.16666666666666666,
+          "exploitability_noise_floor": 0.11081423611111112,
+          "exploitability_noise_floor_p95": 0.1599537037037037,
+          "exploitability_above_floor": 0.05585243055555554,
+          "infoset_coverage": 0.8333333333333334,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.0,
+          "bluff_rate_first_to_act": 0.0,
+          "bluff_rate_after_a_check": 0.0,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|Q|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|K|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P0|K|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|Q|check": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        },
+        "nash": {
+          "agent": "nash",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 150,
+          "chips": 22.0,
+          "decisions": 380,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 128,
+          "dominated_taken": 0,
+          "bluff_offered": 45,
+          "bluffs": 9,
+          "visits": {
+            "P1|K|check": {
+              "bet": 24
+            },
+            "P0|J|open": {
+              "bet": 9,
+              "check": 36
+            },
+            "P1|K|bet": {
+              "call": 31
+            },
+            "P0|Q|open": {
+              "check": 55
+            },
+            "P0|Q|check-bet": {
+              "call": 16,
+              "fold": 15
+            },
+            "P1|Q|bet": {
+              "fold": 16,
+              "call": 10
+            },
+            "P0|K|open": {
+              "check": 29,
+              "bet": 21
+            },
+            "P0|K|check-bet": {
+              "call": 13
+            },
+            "P1|Q|check": {
+              "check": 21
+            },
+            "P0|J|check-bet": {
+              "fold": 36
+            },
+            "P1|J|bet": {
+              "fold": 48
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.5,
+          "chips_per_hand": 0.07333333333333333,
+          "fallback_rate": 0.0,
+          "exploitability": 0.04134408602150541,
+          "exploitability_nash_fill": 0.017839812517231917,
+          "exploitability_noise_floor": 0.05169041907912873,
+          "exploitability_noise_floor_p95": 0.09278329197684043,
+          "exploitability_above_floor": -0.010346333057623322,
+          "infoset_coverage": 0.9166666666666666,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.2,
+          "bluff_rate_first_to_act": 0.2,
+          "bluff_rate_after_a_check": null,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.8,
+                "bet": 0.2
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.58,
+                "bet": 0.42
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.4838709677419355,
+                "call": 0.5161290322580645
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.6153846153846154,
+                "call": 0.38461538461538464
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.5,
+                "bet": 0.5
+              },
+              "P1|Q|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        }
+      },
+      "matchup": "llm_cheap_rendered_nash",
+      "n_requested": 300,
+      "n_completed": 300,
+      "resumed_from": null,
+      "games_this_invocation": 300,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_rendered_nash.jsonl.gz",
+      "usage": {
+        "cheap": {
+          "input_tokens": 239892,
+          "output_tokens": 25745,
+          "cost_usd": 0.3686,
+          "model": "claude-haiku-4-5",
+          "params": {
+            "max_tokens": 512,
+            "temperature": 0
+          },
+          "run_total": {
+            "calls": 324,
+            "input_tokens": 239892,
+            "output_tokens": 25745,
+            "cost_usd": 0.3686
+          },
+          "cost_usd_per_game": 0.0012
+        }
+      }
+    },
+    {
+      "games": 300,
+      "games_truncated": 0,
+      "decisions": 699,
+      "deals": {
+        "JK": 48,
+        "JQ": 42,
+        "KJ": 48,
+        "KQ": 52,
+        "QJ": 48,
+        "QK": 62
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "llm_cheap": {
+          "agent": "llm_cheap",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 162,
+          "chips": -50.0,
+          "decisions": 324,
+          "fallbacks": 0,
+          "llm_calls": 369,
+          "input_tokens": 486651,
+          "output_tokens": 36166,
+          "dominated_offered": 38,
+          "dominated_taken": 8,
+          "bluff_offered": 85,
+          "bluffs": 40,
+          "visits": {
+            "P0|J|open": {
+              "check": 45
+            },
+            "P0|J|check-bet": {
+              "fold": 24
+            },
+            "P1|K|bet": {
+              "call": 6
+            },
+            "P0|Q|open": {
+              "bet": 55
+            },
+            "P1|K|check": {
+              "check": 45,
+              "bet": 4
+            },
+            "P0|K|open": {
+              "bet": 50
+            },
+            "P1|Q|check": {
+              "bet": 31
+            },
+            "P1|J|check": {
+              "bet": 40
+            },
+            "P1|Q|bet": {
+              "call": 16
+            },
+            "P1|J|bet": {
+              "call": 8
+            }
+          },
+          "input_tokens_per_game": 1622.17,
+          "output_tokens_per_game": 120.55333333333333,
+          "llm_calls_per_game": 1.23,
+          "win_rate": 0.54,
+          "chips_per_hand": -0.16666666666666666,
+          "fallback_rate": 0.0,
+          "exploitability": 0.326530612244898,
+          "exploitability_nash_fill": 0.326530612244898,
+          "exploitability_noise_floor": 0.11081423611111112,
+          "exploitability_noise_floor_p95": 0.1599537037037037,
+          "exploitability_above_floor": 0.21571637613378686,
+          "infoset_coverage": 0.8333333333333334,
+          "dominated_action_rate": 0.21052631578947367,
+          "bluff_rate": 0.47058823529411764,
+          "bluff_rate_first_to_act": 0.0,
+          "bluff_rate_after_a_check": 1.0,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.25,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|Q|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|K|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P0|K|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P1|Q|check": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P1|K|check": {
+                "check": 0.9183673469387755,
+                "bet": 0.08163265306122448
+              }
+            }
+          }
+        },
+        "nash": {
+          "agent": "nash",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 138,
+          "chips": 50.0,
+          "decisions": 375,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 130,
+          "dominated_taken": 0,
+          "bluff_offered": 45,
+          "bluffs": 9,
+          "visits": {
+            "P1|K|check": {
+              "bet": 24
+            },
+            "P0|J|open": {
+              "bet": 9,
+              "check": 36
+            },
+            "P1|K|bet": {
+              "call": 31
+            },
+            "P0|Q|open": {
+              "check": 55
+            },
+            "P1|Q|bet": {
+              "fold": 16,
+              "call": 10
+            },
+            "P0|K|open": {
+              "check": 29,
+              "bet": 21
+            },
+            "P0|K|check-bet": {
+              "call": 29
+            },
+            "P1|Q|check": {
+              "check": 21
+            },
+            "P0|J|check-bet": {
+              "fold": 22
+            },
+            "P1|J|bet": {
+              "fold": 48
+            },
+            "P0|Q|check-bet": {
+              "call": 12,
+              "fold": 12
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.46,
+          "chips_per_hand": 0.16666666666666666,
+          "fallback_rate": 0.0,
+          "exploitability": 0.040000000000000036,
+          "exploitability_nash_fill": 0.016495726495726542,
+          "exploitability_noise_floor": 0.05336698717948716,
+          "exploitability_noise_floor_p95": 0.10146011396011399,
+          "exploitability_above_floor": -0.013366987179487123,
+          "infoset_coverage": 0.9166666666666666,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.2,
+          "bluff_rate_first_to_act": 0.2,
+          "bluff_rate_after_a_check": null,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.8,
+                "bet": 0.2
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.58,
+                "bet": 0.42
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.6153846153846154,
+                "call": 0.38461538461538464
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.5,
+                "bet": 0.5
+              },
+              "P1|Q|check": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        }
+      },
+      "matchup": "llm_cheap_control_nash",
+      "n_requested": 300,
+      "n_completed": 300,
+      "resumed_from": null,
+      "games_this_invocation": 300,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_control_nash.jsonl.gz",
+      "usage": {
+        "cheap": {
+          "input_tokens": 486651,
+          "output_tokens": 36166,
+          "cost_usd": 0.6675,
+          "model": "claude-haiku-4-5",
+          "params": {
+            "max_tokens": 512,
+            "temperature": 0
+          },
+          "run_total": {
+            "calls": 693,
+            "input_tokens": 726543,
+            "output_tokens": 61911,
+            "cost_usd": 1.0361
+          },
+          "cost_usd_per_game": 0.0022
+        }
+      }
+    },
+    {
+      "games": 300,
+      "games_truncated": 0,
+      "decisions": 713,
+      "deals": {
+        "JK": 48,
+        "JQ": 42,
+        "KJ": 48,
+        "KQ": 52,
+        "QJ": 48,
+        "QK": 62
+      },
+      "nash_value_seat0": -0.05555555555555555,
+      "agents": {
+        "llm_cheap": {
+          "agent": "llm_cheap",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 173,
+          "chips": -34.0,
+          "decisions": 300,
+          "fallbacks": 0,
+          "llm_calls": 300,
+          "input_tokens": 398700,
+          "output_tokens": 30380,
+          "dominated_offered": 14,
+          "dominated_taken": 0,
+          "bluff_offered": 85,
+          "bluffs": 85,
+          "visits": {
+            "P0|J|open": {
+              "bet": 45
+            },
+            "P1|K|bet": {
+              "call": 6
+            },
+            "P0|Q|open": {
+              "bet": 55
+            },
+            "P1|K|check": {
+              "bet": 49
+            },
+            "P0|K|open": {
+              "bet": 50
+            },
+            "P1|Q|check": {
+              "bet": 24,
+              "check": 7
+            },
+            "P1|J|check": {
+              "bet": 40
+            },
+            "P1|Q|bet": {
+              "call": 16
+            },
+            "P1|J|bet": {
+              "fold": 8
+            }
+          },
+          "input_tokens_per_game": 1329.0,
+          "output_tokens_per_game": 101.26666666666667,
+          "llm_calls_per_game": 1.0,
+          "win_rate": 0.5766666666666667,
+          "chips_per_hand": -0.11333333333333333,
+          "fallback_rate": 0.0,
+          "exploitability": 0.31451612903225806,
+          "exploitability_nash_fill": 0.31451612903225806,
+          "exploitability_noise_floor": 0.1803549768518518,
+          "exploitability_noise_floor_p95": 0.2281018518518519,
+          "exploitability_above_floor": 0.13416115218040625,
+          "infoset_coverage": 0.75,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 1.0,
+          "bluff_rate_first_to_act": 1.0,
+          "bluff_rate_after_a_check": 1.0,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|Q|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|K|open": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P0|J|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              },
+              "P0|K|check-bet": {
+                "fold": 0.5,
+                "call": 0.5
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.0,
+                "bet": 1.0
+              },
+              "P1|Q|check": {
+                "check": 0.22580645161290322,
+                "bet": 0.7741935483870968
+              },
+              "P1|K|check": {
+                "check": 0.0,
+                "bet": 1.0
+              }
+            }
+          }
+        },
+        "nash": {
+          "agent": "nash",
+          "games": 300,
+          "games_scored": 300,
+          "wins": 127,
+          "chips": 34.0,
+          "decisions": 413,
+          "fallbacks": 0,
+          "llm_calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "dominated_offered": 161,
+          "dominated_taken": 0,
+          "bluff_offered": 45,
+          "bluffs": 9,
+          "visits": {
+            "P1|K|bet": {
+              "call": 55
+            },
+            "P0|J|open": {
+              "bet": 9,
+              "check": 36
+            },
+            "P0|Q|open": {
+              "check": 55
+            },
+            "P0|Q|check-bet": {
+              "call": 28,
+              "fold": 27
+            },
+            "P1|Q|bet": {
+              "fold": 27,
+              "call": 20
+            },
+            "P0|K|open": {
+              "check": 29,
+              "bet": 21
+            },
+            "P0|K|check-bet": {
+              "call": 25
+            },
+            "P0|J|check-bet": {
+              "fold": 33
+            },
+            "P1|J|bet": {
+              "fold": 48
+            }
+          },
+          "input_tokens_per_game": 0.0,
+          "output_tokens_per_game": 0.0,
+          "llm_calls_per_game": 0.0,
+          "win_rate": 0.42333333333333334,
+          "chips_per_hand": 0.11333333333333333,
+          "fallback_rate": 0.0,
+          "exploitability": 0.1240909090909091,
+          "exploitability_nash_fill": 0.02066301310982166,
+          "exploitability_noise_floor": 0.1312559513575467,
+          "exploitability_noise_floor_p95": 0.1715559853857726,
+          "exploitability_above_floor": -0.007165042266637597,
+          "infoset_coverage": 0.75,
+          "dominated_action_rate": 0.0,
+          "bluff_rate": 0.2,
+          "bluff_rate_first_to_act": 0.2,
+          "bluff_rate_after_a_check": null,
+          "folds_the_best_hand_rate": 0.0,
+          "calls_with_the_worst_hand_rate": 0.0,
+          "policy": {
+            "0": {
+              "P0|J|open": {
+                "check": 0.8,
+                "bet": 0.2
+              },
+              "P0|Q|open": {
+                "check": 1.0,
+                "bet": 0.0
+              },
+              "P0|K|open": {
+                "check": 0.58,
+                "bet": 0.42
+              },
+              "P0|J|check-bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P0|Q|check-bet": {
+                "fold": 0.4909090909090909,
+                "call": 0.509090909090909
+              },
+              "P0|K|check-bet": {
+                "fold": 0.0,
+                "call": 1.0
+              }
+            },
+            "1": {
+              "P1|J|bet": {
+                "fold": 1.0,
+                "call": 0.0
+              },
+              "P1|Q|bet": {
+                "fold": 0.574468085106383,
+                "call": 0.425531914893617
+              },
+              "P1|K|bet": {
+                "fold": 0.0,
+                "call": 1.0
+              },
+              "P1|J|check": {
+                "check": 0.5,
+                "bet": 0.5
+              },
+              "P1|Q|check": {
+                "check": 0.5,
+                "bet": 0.5
+              },
+              "P1|K|check": {
+                "check": 0.5,
+                "bet": 0.5
+              }
+            }
+          }
+        }
+      },
+      "matchup": "llm_cheap_reason_first_nash",
+      "n_requested": 300,
+      "n_completed": 300,
+      "resumed_from": null,
+      "games_this_invocation": 300,
+      "stopped_early": null,
+      "aborted": null,
+      "transcript": "experiments/llm_eval/results_kuhn/transcripts/llm_cheap_reason_first_nash.jsonl.gz",
+      "usage": {
+        "cheap": {
+          "input_tokens": 398700,
+          "output_tokens": 30380,
+          "cost_usd": 0.5506,
+          "model": "claude-haiku-4-5",
+          "params": {
+            "max_tokens": 512,
+            "temperature": 0
+          },
+          "run_total": {
+            "calls": 993,
+            "input_tokens": 1125243,
+            "output_tokens": 92291,
+            "cost_usd": 1.5867
+          },
+          "cost_usd_per_game": 0.0018
+        }
+      }
+    }
+  ],
+  "run_totals": {
+    "mid": {
+      "calls": 362,
+      "input_tokens": 602764,
+      "output_tokens": 23195,
+      "cost_usd": 2.1562,
+      "model": "claude-sonnet-5"
+    },
+    "cheap": {
+      "calls": 993,
+      "input_tokens": 1125243,
+      "output_tokens": 92291,
+      "cost_usd": 1.5867,
+      "model": "claude-haiku-4-5"
+    }
+  },
+  "promoted_from_run": "2026-08-04T04-12-50Z"
+}

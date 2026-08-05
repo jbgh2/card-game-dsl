@@ -1,10 +1,23 @@
-# LLM evaluation harness — Cheat through the derived-information-set interface
+# LLM evaluation harness — playing through the derived-information-set interface
 
-An LLM plays **Cheat** (four players, one standard deck) against non-LLM
-baselines, through the engine's *derived* information sets, and is measured on
-deception-relevant behaviour: how often it lies when it could have told the
-truth, how well it tells a provable lie from a merely improbable one, and how
-often it accuses wrongly.
+An LLM plays a corpus game against non-LLM baselines, through the engine's
+*derived* information sets. Two games, chosen because they can be measured in
+ways the other cannot:
+
+- **Cheat** (four players, one standard deck) — measured on deception-relevant
+  behaviour: how often it lies when it could have told the truth, how well it
+  tells a provable lie from a merely improbable one, and how often it accuses
+  wrongly. Cheat has no solution, so its baseline is a hand-written heuristic
+  and every metric is a behavioural proxy.
+- **Kuhn poker** (two players, three-card deck) — *solved*, so the baseline is
+  the exact equilibrium and the headline metric is **exploitability**: how many
+  chips per hand a best-responding opponent extracts, against a floor of zero.
+  Its A/B is pre-registered in [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md).
+
+The two share everything except the game-specific half: the referee, the
+providers, the budget, the run layout, the response arms, and the leak-freeness
+pins are one implementation. `DecisionView` is game-neutral, which is what lets
+the leak-freeness guarantee cover a second game without being restated.
 
 The model sees only what the rules entitle its seat to see. That is enforced by
 signature rather than convention: `build_prompt` takes strings, and every agent
@@ -205,20 +218,48 @@ registered endpoint carries `*`.
 
 ## Layout
 
+Shared — nothing here knows which game is being played:
+
 ```
-agents.py      Agent protocol + DecisionView; Random, Rule and LLM agents
-prompts.py     Rules text, build_prompt (pure), response arms, parsing
+agents.py      Agent protocol + DecisionView; Random, Rule, Nash and LLM agents
+prompts.py     build_prompt (pure), response arms, response parsing
 providers.py   Model-API abstraction (Anthropic, Fake), usage and pricing
-infostate.py   Pure parser over the engine's information-state string
-render.py      Information state as English, plus its inverse for round-tripping
 referee.py     Game loop, transcript, replay reconstruction
-metrics.py     Per-decision facts + aggregate deception metrics
 layout.py      Per-run output directories vs the curated archive
 run_eval.py    CLI, config, budget, cost estimation
+metrics.py     Per-decision facts + aggregates, dispatched by game
+```
+
+Cheat's half:
+
+```
+infostate.py   Pure parser over the engine's information-state string
+render.py      Information state as English, plus its inverse for round-tripping
 verify.py      Independent recomputation; --deep replays, --order audits an arm
 compare.py     Two matchups side by side, with the pre-registered endpoint
 study.py       Rebuild the study summary + figure from the archive
 figure.py      The one matplotlib figure
 config.yaml    Matchups, N, seeds, models, token caps
-tests/         Offline tests (fake provider only, no network)
+```
+
+Kuhn's half:
+
+```
+kuhn.py        Parser, rules text, renderer, the EXACT solver (best response,
+               exploitability, the equilibrium family, the noise floor) and metrics
+verify_kuhn.py Independent policy extraction + the pre-registered sign test;
+               cross-checks the solver against the engine's own returns
+config_kuhn.yaml     Matchups, N, seeds, models, token caps
+PREREGISTRATION_KUHN.md   Endpoint and prediction, dated before any model ran
+```
+
+```
+tests/         Offline tests (fake provider only, no network), both games
+```
+
+To run Kuhn, point `--config` at its file. The offline acceptance test is
+
+```bash
+python -m experiments.llm_eval.run_eval \
+  --config experiments/llm_eval/config_kuhn.yaml --matchup nash_vs_random
 ```

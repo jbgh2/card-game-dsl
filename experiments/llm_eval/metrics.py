@@ -26,16 +26,41 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from . import infostate as istate
+from . import kuhn
 from .agents import DecisionView
 
 _ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
 
+#: The OpenSpiel short name each supported game registers under, mapped to the
+#: harness's own key. Derived from the loaded game rather than passed alongside
+#: it, so a run cannot compute one game's metrics over another game's
+#: transcript — the failure that produces a complete, plausible, wrong result.
+GAME_KEYS: dict[str, str] = {
+    "cardlang_cheat": "cheat",
+    "cardlang_kuhn_poker": "kuhn",
+}
 
-def decision_facts(view: DecisionView, action: str) -> dict[str, Any]:
+
+def game_key(short_name: str) -> str:
+    try:
+        return GAME_KEYS[short_name]
+    except KeyError:
+        raise ValueError(
+            f"no metrics are defined for {short_name!r} (known: "
+            f"{sorted(GAME_KEYS)}). A game with no metrics would run to "
+            f"completion and report nothing measurable."
+        ) from None
+
+
+def decision_facts(
+    view: DecisionView, action: str, game: str = "cheat"
+) -> dict[str, Any]:
     """The metric-relevant facts of one decision, from the acting player's own
     information state plus the action they chose."""
+    if game == "kuhn":
+        return kuhn.decision_facts(view.player, view.infostate, action)
     info = istate.parse(view.infostate)
-    kind = view.kind()
+    kind = istate.decision_kind(view.legal_strings)
     if kind == "announce":
         return {
             "kind": "announce",
@@ -220,8 +245,12 @@ class AgentStats:
         return {**asdict(self), **self.rates()}
 
 
-def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
+def aggregate(
+    records: Iterable[dict[str, Any]], game: str = "cheat"
+) -> dict[str, Any]:
     """Fold a run's transcripts into per-agent statistics."""
+    if game == "kuhn":
+        return kuhn.aggregate(records)
     stats: dict[str, AgentStats] = {}
     games = 0
     truncated = 0

@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .agents import Agent, DecisionView
-from .metrics import decision_facts
+from .metrics import decision_facts, game_key
 
 # The adapter samples the deal space at the root chance node; see
 # `cardlang/openspiel/game.py`. Seeds outside the range are not addressable, so
@@ -99,6 +99,10 @@ def play_game(
     loss for whoever happened to be behind would be a fabricated result.
     """
     started = time.monotonic()
+    # Which game's facts to record, DERIVED from the loaded game rather than
+    # passed beside it. A mismatch between the two would compute one game's
+    # metrics over another's transcript and report them without complaint.
+    key = game_key(game.get_type().short_name)
     state = game.new_initial_state()
     state.apply_action(seed % NUM_SEEDS)  # the root chance node: the deal
 
@@ -148,7 +152,7 @@ def play_game(
                 action_id=action,
                 action=chosen,
                 legal=strings,
-                facts=decision_facts(view, chosen),
+                facts=decision_facts(view, chosen, key),
                 llm=trace,
                 infostate=info if store_infostates else "",
             )

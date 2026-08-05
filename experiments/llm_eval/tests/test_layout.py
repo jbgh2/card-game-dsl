@@ -384,3 +384,65 @@ def test_a_treatment_record_is_written_beside_every_transcript(
     assert recorded["agents"][0]["kind"] == "rule"
     # `n` and `resume_from` must NOT be pinned; they change on every resume.
     assert "n" not in recorded and "resume_from" not in recorded
+
+
+# --- the committed archive must be self-auditing -----------------------------
+#
+# A promoted `summary.json` is the published record: it is what a reader opens
+# and what its own `transcript` fields point at. Promotion is a manual act
+# (gzip, commit), and a naive copy leaves those fields pointing into the RUN
+# directory the summary was produced in — which is gitignored, so every pointer
+# in the published record 404s on a fresh clone while the numbers still look
+# fine. Caught in review on the Kuhn archive; Cheat's was already correct
+# because `study.py` rebuilds its summary FROM the archive.
+#
+# Stated over every archive that exists rather than the one that broke, and
+# derived by globbing rather than by naming them, so a third archive is covered
+# the day it is promoted.
+
+#: Derived from this file's own location, not the working directory: a relative
+#: glob finds nothing when pytest is invoked from elsewhere, and "found nothing"
+#: is the one answer a coverage check must never give quietly.
+_PACKAGE = Path(__file__).resolve().parent.parent
+ARCHIVES = sorted(_PACKAGE.glob("results*/summary.json"))
+_REPO_ROOT = _PACKAGE.parent.parent
+
+
+def test_there_is_at_least_one_committed_archive() -> None:
+    """Without this the parametrised check below would pass by covering
+    nothing."""
+    assert ARCHIVES, "no promoted summary.json found — the checks below are vacuous"
+
+
+@pytest.mark.parametrize("summary", ARCHIVES, ids=lambda p: p.parent.name)
+def test_a_promoted_summary_points_at_committed_files(summary: Path) -> None:
+    """Every path the published record names resolves, and is tracked by git.
+
+    Existence alone is not enough: a file present in the working tree but
+    gitignored passes an `exists()` check on the author's machine and is absent
+    for everybody else, which is precisely the failure mode.
+    """
+    import json
+    import subprocess
+
+    payload = json.loads(summary.read_text(encoding="utf-8"))
+    pointers = [
+        m["transcript"] for m in payload.get("matchups", []) if m.get("transcript")
+    ]
+    assert pointers, f"{summary} names no transcripts — nothing is being checked"
+    for pointer in pointers:
+        resolved = _REPO_ROOT / pointer
+        assert resolved.exists(), (
+            f"{summary} points at {pointer}, which does not exist. A promoted "
+            f"summary must reference the ARCHIVE it was promoted alongside, not "
+            f"the run directory it was produced in."
+        )
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", pointer],
+            capture_output=True,
+            cwd=_REPO_ROOT,
+        )
+        assert tracked.returncode == 0, (
+            f"{summary} points at {pointer}, which exists locally but is not "
+            f"committed — the published record would 404 on a fresh clone."
+        )

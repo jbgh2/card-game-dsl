@@ -181,12 +181,19 @@ def test_agents_only_ever_return_legal_actions(game: object) -> None:
     assert record.num_decisions > 50
 
 
-def test_decision_view_rejects_an_unknown_shape() -> None:
-    """The wall behind `kind()`: an unrecognized legal-move set is loud, not
-    silently routed to the card branch."""
-    view = DecisionView(0, "P0|", [1, 2], ["bid_three", "double"])
+def test_decision_kind_rejects_an_unknown_shape() -> None:
+    """The wall behind Cheat's decision-shape classifier: an unrecognized
+    legal-move set is loud, not silently routed to the card branch.
+
+    The classifier is `infostate.decision_kind`, a free function over the
+    rendered legal actions, rather than a method on `DecisionView` — the view is
+    the harness's game-neutral carrier, and a Cheat classifier hanging off it is
+    what makes a second game look like a violation of it.
+    """
+    from ..infostate import decision_kind
+
     with pytest.raises(ValueError, match="unrecognized decision shape"):
-        view.kind()
+        decision_kind(["bid_three", "double"])
 
 
 def test_bluff_prob_defaults_to_the_truthful_policy(game: object) -> None:
