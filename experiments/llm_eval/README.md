@@ -170,8 +170,28 @@ results/
 
 A **run** summary records one invocation. The **study** summary is the published
 result across the whole archive and is *derived* — rebuild it with `study.py`.
-Promotion into the archive is deliberate (gzip, commit), because it asserts the
-data backs a number someone will read.
+
+**Promote with `promote.py`, not by hand.** Promotion asserts the data backs a
+number someone will read, and every archive here was once promoted by a typed
+`cp` that lost something different: sidecars left behind so nothing named the
+game, summary pointers into a gitignored run directory, a missing archive
+summary. Same shape each time — the run wrote the fact, the copy dropped it.
+
+```bash
+python -m experiments.llm_eval.promote \
+  --results experiments/llm_eval/results_holdem --run <UTC stamp>
+```
+
+It gzips each transcript, carries its `.treatment.json` across, writes an
+archive summary whose pointers are repo-root-relative (the form
+`tests/test_layout.py` resolves and checks `git ls-files` against), and
+regenerates `AUDIT.txt`. `--run` is
+repeatable because one experiment is not always one invocation. It REFUSES a
+run whose sidecar is missing, a matchup that appears in two runs, and runs that
+name different games — each of which would produce an archive that reads
+complete and is not. The property it exists for:
+*promote, delete the run directory, and the archive still identifies its own
+game* — the state a fresh clone is in.
 
 Transcripts are **not regenerable** — they hold real model responses, which are
 not deterministic — so the archive is the record, not a cache.

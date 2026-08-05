@@ -1,0 +1,12 @@
+# SHA-256 manifest of the committed archive.
+# Regenerate with: python -m experiments.llm_eval.promote --results <dir> --run <stamp>
+
+61f43c5862071a451be5a4997ba046b38d3950544c0f6eb743641869a82c255e       2,284  PROVENANCE.md
+64831ab1a2d6effeb2d80c837e82600c13fd622b52f9ab87fc6216ea8660ef63      58,333  llm_cheap_vs_random.jsonl.gz
+09ad60b39bc613deaddee6a1f02db0bf0afd7e6919e4451efc4335e2287ff4de         419  llm_cheap_vs_random.treatment.json
+37070b4301bec6aee4268f84db3f295d945da48f5ed658fa9a76a67c23cd5989      68,060  llm_cheap_vs_rule.jsonl.gz
+00b9c0dc75ba7298672f965833b91fe65f558d4273d9875b6abc84f63f1ff33c         443  llm_cheap_vs_rule.treatment.json
+5bc236b5f815d7a8622f020da56367fa9d475603ce8946aa02500b227b0822f5      44,358  llm_mid_vs_rule.jsonl.gz
+91634c120aedb73698b09f07246eabf17eca2f5fa5560f822863636a9bfed277         536  llm_mid_vs_rule.treatment.json
+4f65b49e33a2e234e44123ab562cc647591f39671f35b698ab172b01513ca8c8      14,932  rule_vs_random.jsonl.gz
+68749c804cff79f47bb8367f6c740714e854dcb49b6e8cb0deed870b0c0030a0         231  rule_vs_random.treatment.json
