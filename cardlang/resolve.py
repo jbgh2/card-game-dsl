@@ -94,6 +94,7 @@ from cardlang.domains import (
 from cardlang.domains import ITERABLE_ROLES as _ITERATION_ROLES
 from cardlang.domains import PARAM_DOMAINS as _FIXED_DOMAINS
 from cardlang.libraries import library_names, load_library
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import content_kind_clause, content_noun
 from cardlang.stdlib.boards import board_entry
 from cardlang.stdlib.enums import (
@@ -2985,12 +2986,17 @@ def _resolve_board(
             f"'{DIRECTION_DOMAIN}')",
             game.board.span,
         )
-    # Family/args validity is the registry's to judge: `board_entry` raises a
-    # ValueError naming the violated bound (unknown family, wrong arity,
+    # Family/args validity is the registry's to judge: `board_entry` raises an
+    # OwnerGuardError naming the violated bound (unknown family, wrong arity,
     # out-of-bounds arg), which becomes a diagnostic at the clause span.
+    # Narrow BY TYPE, not by `ValueError`: the same call builds a `BoardEntry`,
+    # whose `__post_init__` pins the registry's own output. Those address the
+    # engine maintainer, and a `ValueError` catch swallowed all 14 of them into
+    # a diagnostic on the designer's `board:` line — an engine bug presenting
+    # as a compile error on a correct game.
     try:
         entry = board_entry(game.board.family, game.board.args)
-    except ValueError as exc:
+    except OwnerGuardError as exc:
         bag.error(str(exc), game.board.span)
         return game
     # `lo`/`hi` are unread for a named-member domain (`.members` returns
@@ -4669,7 +4675,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     if nd.func == "lines" and len(pos_args) == 1 and isinstance(pos_args[0], n.IntLit):
         try:
             board_entry(game.board.family, game.board.args).lines(pos_args[0].value)
-        except ValueError as exc:
+        except OwnerGuardError as exc:
             bag.error(str(exc), nd.span)
 
 

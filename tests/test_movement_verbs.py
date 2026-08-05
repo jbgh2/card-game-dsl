@@ -64,8 +64,9 @@ covered:    the grid below, each a running row --
             boardless reject (resolve): test_verb_in_boardless_game_is_rejected
             (all five) + message goldens tests/rejections/{neighbor,has_step,
             is_diagonal,home,far_row}_boardless;
-            boardless backstop (runtime): test_verb_runtime_boardless_backstop_
-            raises (all five, typed RuntimeError naming `board:`);
+            boardless Shadow Guard (runtime): test_verb_runtime_boardless_
+            backstop_raises (all five, ShadowGuardError naming the leaked
+            resolve._check_board_call);
             frame verb x player count: the per-player frame is two-seat, so a
             frame verb (the player-taking board verbs, DERIVED into
             _FRAME_CALL_FUNCS -- pinned by test_frame_call_funcs_is_the_player_
@@ -158,6 +159,7 @@ from cardlang.builtins.functions import (
 )
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import native_call as call
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating, axis_attributes
@@ -397,7 +399,7 @@ def test_neighbor_offboard_backstop_raises() -> None:
     game because every call site is `has_step`-gated) raises a typed
     RuntimeError here, never returns None or a bare crash."""
     ctx = _board_ctx("grid", (8, 8))
-    with pytest.raises(RuntimeError, match=r"stepped off the board"):
+    with pytest.raises(OwnerGuardError, match=r"stepped off the board"):
         call("neighbor", ["a1", "ahead_left", 0], ctx)
 
 
@@ -425,10 +427,16 @@ def test_verb_in_boardless_game_is_rejected(verb: str) -> None:
 
 
 @pytest.mark.parametrize("verb", MOVEMENT_VERBS)
+@pytest.mark.expects_shadow_guard
 def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
-    """The runtime backstop behind the resolve wall: should a board-only call
-    ever reach `call()` without a board, it raises a typed RuntimeError naming
-    `board:`, never dereferences None."""
+    """The Shadow Guard behind `resolve._check_board_call`: should a board-only
+    call ever reach `call()` without a board, it raises `ShadowGuardError`
+    naming the guard that leaked, never dereferences None.
+
+    Marked `expects_shadow_guard` because reaching it IS the engine gap the
+    suite-wide Pin exists to catch — this test constructs one on purpose, and
+    without the mark tests/conftest.py fails the run.
+    """
     ctx = _boardless_ctx()
     args_by_verb: dict[str, list[Any]] = {
         "neighbor": ["a1", "ahead", 0],
@@ -437,8 +445,12 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
         "home": [0],
         "far_row": [0],
     }
-    with pytest.raises(RuntimeError, match=r"declares no `board:`"):
+    with pytest.raises(ShadowGuardError, match=r"declares no `board:`") as caught:
         call(verb, args_by_verb[verb], ctx)
+    # The leaked guard is part of the contract, not decoration: a Shadow Guard
+    # that does not name who should have refused earlier sends the maintainer
+    # nowhere.
+    assert caught.value.leaked == "resolve._check_board_call"
 
 
 @pytest.mark.parametrize("verb", ("neighbor", "has_step", "home", "far_row"))
@@ -455,7 +467,7 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
         "home": [5],
         "far_row": [5],
     }
-    with pytest.raises(RuntimeError, match=r"seat 5, not a seat of this 2-player game"):
+    with pytest.raises(OwnerGuardError, match=r"seat 5, not a seat of this 2-player game"):
         call(verb, args_by_verb[verb], ctx)
 
 

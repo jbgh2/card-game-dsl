@@ -91,6 +91,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
@@ -321,8 +322,8 @@ def test_runtime_is_empty_over_a_non_collection_is_a_typed_runtime_error() -> No
     # `RuntimeError`, never a bare `assert`.
     ctx = _ctx()
     empty_check = n.IsCheck(operand=n.IntLit(3), kind="empty")
-    with pytest.raises(RuntimeError, match="is empty"):
+    with pytest.raises(OwnerGuardError, match="is empty"):
         evaluate(empty_check, ctx)
     not_empty_check = n.IsCheck(operand=n.IntLit(3), kind="not_empty")
-    with pytest.raises(RuntimeError, match="is not empty"):
+    with pytest.raises(OwnerGuardError, match="is not empty"):
         evaluate(not_empty_check, ctx)

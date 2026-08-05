@@ -67,6 +67,7 @@ from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import _walk
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 
 def _game(body: str) -> str:
@@ -252,7 +253,7 @@ def test_no_satisfying_subset_is_a_loud_error() -> None:
         ),
         "t.cardlang",
     )
-    with pytest.raises(RuntimeError, match="no subset"):
+    with pytest.raises(OwnerGuardError, match="no subset"):
         play_game(game, random.Random(0))
 
 
@@ -265,7 +266,7 @@ def test_enumeration_bound_is_a_loud_error() -> None:
         ),
         "t.cardlang",
     )
-    with pytest.raises(RuntimeError, match="enumeration bound"):
+    with pytest.raises(OwnerGuardError, match="enumeration bound"):
         play_game(game, random.Random(0))
 
 
@@ -346,7 +347,7 @@ def test_negative_and_zero_amounts_are_loud() -> None:
         _game("  phase p { deal (0 - 2) cards from deck to discard }"),
         "t.cardlang",
     )
-    with pytest.raises(RuntimeError, match="negative"):
+    with pytest.raises(OwnerGuardError, match="negative"):
         play_game(game, random.Random(0))
 
     game = check_dsl(
@@ -356,7 +357,7 @@ def test_negative_and_zero_amounts_are_loud() -> None:
         ),
         "t.cardlang",
     )
-    with pytest.raises(RuntimeError, match="0"):
+    with pytest.raises(OwnerGuardError, match="0"):
         play_game(game, random.Random(0))
 
 
@@ -371,7 +372,7 @@ def test_empty_pool_all_jointly_is_loud_like_some() -> None:
         ),
         "t.cardlang",
     )
-    with pytest.raises(RuntimeError, match="no subset"):
+    with pytest.raises(OwnerGuardError, match="no subset"):
         play_game(game, random.Random(0))
 
 

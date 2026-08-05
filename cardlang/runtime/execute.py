@@ -16,12 +16,13 @@ from cardlang.domains import (
     SIMULTANEOUS_ROLES,
     Role,
     binds_actor,
+    require_role,
     role_members,
     role_names,
     role_of,
-    require_role,
 )
 from cardlang.runtime import mechanics, observe
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
     Ctx,
@@ -143,7 +144,7 @@ def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
     cap = zone_capacity(ztype)
     held = len(dest.cards)
     if cap is not None and held + len(cards) > cap:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"zone '{label}' is a {ztype} (capacity {cap}) and already holds "
             f"{held} — the move would overfill it; guard the move "
             f"(`{label} is empty`)"
@@ -161,7 +162,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         # value the checker deliberately leaves loose (`winner`, an
         # unregistered action field) reaches the runtime as TAny. Typed
         # error, not assert.
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"movement source is not a zone (got {type(source).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
@@ -182,7 +183,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
         assert stmt.dest is not None  # typecheck rejects the dest-less `in <zone>` form
         dest = evaluate(stmt.dest, ctx)
         if not isinstance(dest, Zone):
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"movement destination is not a zone (got {type(dest).__name__}) — "
                 f"the checker leaves this value's type open, so it is checked here"
             )
@@ -243,7 +244,7 @@ def _gather(stmt: n.Movement, ctx: Ctx) -> None:
     assert stmt.amount == "all" and isinstance(stmt.dest, n.NameRef)
     dest = evaluate(stmt.dest, ctx)
     if not isinstance(dest, Zone):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"gather destination is not a zone (got {type(dest).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
@@ -278,12 +279,12 @@ def _check_count(count: int, mode: str | None) -> int:
     no-op (a computed "deal what remains" may legitimately be zero —
     recorded in roadmap.md, "Grammar surface deferred by the checker")."""
     if count < 0:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"movement amount evaluated to {count} — a negative amount is "
             f"never meaningful (a Python slice would silently move the rest)"
         )
     if count == 0 and mode == "chosen":
-        raise RuntimeError(
+        raise OwnerGuardError(
             "a `chosen` movement's amount evaluated to 0 — a decision that "
             "selects nothing is not a decision; guard the movement instead"
         )
@@ -324,7 +325,7 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
             source.remove(card)
         return chosen
     if count > len(source.cards):  # fail loudly like the chosen/random branches
-        raise ValueError(
+        raise OwnerGuardError(
             f"cannot deal {count} cards from a source holding {len(source.cards)}"
         )
     taken = source.cards[:count]  # deal off the top
@@ -348,10 +349,12 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
     the chooser see the same list."""
     pool = list(source.cards)
     if len(pool) > _JOINT_ENUMERATION_BOUND:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"joint selection over {len(pool)} cards exceeds the enumeration "
-            f"bound ({_JOINT_ENUMERATION_BOUND} — 2^{len(pool)} subsets); "
-            f"narrow the source pool"
+            f"bound ({_JOINT_ENUMERATION_BOUND} — 2^{len(pool)} subsets), a "
+            f"fixed engine limit with no game-side setting; select over a "
+            f"smaller pool (narrow the source, or filter it before the "
+            f"`jointly` selection)"
         )
     amount = stmt.amount
     # Subset sizes are always >= 1: a joint selection selects a non-empty
@@ -382,7 +385,7 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         # No implicit skip (decisions.md "No implicit actions"): a decision
         # point must have a candidate — guard the movement so it is only
         # reached when a satisfying subset exists.
-        raise RuntimeError(
+        raise OwnerGuardError(
             "joint selection: no subset of the source satisfies the "
             "predicate — guard the movement (`if <exists> { … }`) so it is "
             "only reached when one exists"
@@ -430,7 +433,7 @@ def _select_filtered(
             source.remove(card)
         return chosen
     if count > len(pool):  # fail loudly like the chosen/random branches
-        raise ValueError(
+        raise OwnerGuardError(
             f"cannot deal {count} cards from a filtered pool holding {len(pool)}"
         )
     taken = pool[:count]  # first match, not top-of-source
@@ -442,7 +445,7 @@ def _select_filtered(
 def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
     zone = evaluate(stmt.target, ctx)
     if not isinstance(zone, Zone):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
@@ -466,7 +469,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     name, key = ctx.rs.zones.locate(zone)
     label = name if key is None else f"{name}[{key}]"
     if not matches:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"reveal one card from {label}: no card matches — a "
             "game-description bug"
         )
@@ -514,7 +517,7 @@ def _assign(stmt: n.AssignStmt, ctx: Ctx) -> None:
             # expression is runtime data (an off-by-one at the ring's edge
             # lands here), so the Owner Guard is a typed runtime error at the
             # write.
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"'{stmt.target.name}[{key!r}]' is outside the variable's "
                 f"declared domain (keys: {sorted(target)}) — the index "
                 f"expression computed a member of no declared seat/team"
@@ -605,7 +608,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
         # bounded too.
         guard += 1
         if guard > ctx.rs.max_length:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"turns exceeded the game's declared max_length "
                 f"({ctx.rs.max_length}) turns — non-termination, or raise "
                 "max_length if this game genuinely runs this long"
@@ -613,7 +616,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
         if current is None:
             leader = evaluate(stmt.leader, ctx)
             if leader not in order:
-                raise RuntimeError(
+                raise OwnerGuardError(
                     f"turns: cannot start from {leader!r}: not a seat of "
                     f"this {len(order)}-player game — the `from` expression "
                     f"bound a non-player value"
@@ -627,7 +630,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
         participants = set(elements(evaluate(stmt.participants, ctx)))
         player = next((p for p in candidate_seq if p in participants), None)
         if player is None:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 "turns: no eligible participant — every seat fails the "
                 "`over` predicate; make the `until` condition cover this "
                 "state so the form is never asked to find a turn nobody "
@@ -666,7 +669,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
         # alternatives are the game's — an always-legal move in the vocabulary (an
         # unguarded `pass`/`decline`), or guarding the offer (`if <able> { offer …
         # }`) so it is only reached when something is legal.
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"offer to player {player}: none of {list(stmt.move_types)} is legal. "
             f"Add an always-legal move (an unguarded `pass`/`decline`) or guard the "
             f"offer so it is only made when the player can act."
@@ -693,8 +696,8 @@ def _produces(stmt: n.Produces, ctx: Ctx) -> None:
         # Whether the producing phase actually produced is runtime DATA
         # (resolve's outcome-scope rule orders producer before consumer, but a
         # conditional body can still complete without producing), so the Owner
-        # Guard is a typed error in the runtime's failure currency.
-        raise RuntimeError(
+        # Guard is an Owner Guard, addressed to the game author.
+        raise OwnerGuardError(
             f"phase '{stmt.define}' did not produce an outcome before its "
             f"consumer — every path through an outcome phase must `produce`"
         )
@@ -728,8 +731,8 @@ def _run_define(name: str, ctx: Ctx) -> tuple[str, list[Any]]:
         return produced.tag, produced.payloads
     # Which path a define's body takes is runtime data — a conditional body
     # can complete without reaching a `produce` — so this is the game
-    # author's error in the runtime's failure currency, not an assert.
-    raise RuntimeError(
+    # author's error, raised as an Owner Guard, not an assert.
+    raise OwnerGuardError(
         f"define '{name}' completed without producing — every path through "
         f"a define body must reach a `produce`"
     )
@@ -778,7 +781,7 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
         # Same class as _movement's endpoint check: a value the checker
         # deliberately leaves loose reaches the runtime as TAny. Typed
         # error, not assert.
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
@@ -803,12 +806,12 @@ def _apply_pass(
     # Same class as _movement's endpoint checks: values the checker leaves
     # loose reach the runtime as TAny. Typed errors, not asserts.
     if not isinstance(source, Zone):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"simultaneous-pass source is not a zone (got {type(source).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
     if not isinstance(dest, Zone):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"simultaneous-pass destination is not a zone (got {type(dest).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
@@ -827,7 +830,7 @@ def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
         run_body(stmt.body, ctx)
         guard += 1
         if guard > ctx.rs.max_length:
-            raise RuntimeError(
+            raise OwnerGuardError(
                 f"repeat-until exceeded the game's declared max_length "
                 f"({ctx.rs.max_length}) iterations — non-termination, or raise "
                 "max_length if this game genuinely runs this long"

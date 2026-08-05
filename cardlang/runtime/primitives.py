@@ -31,6 +31,7 @@ from collections.abc import Callable
 from typing import Any
 
 from cardlang.runtime import reads, sidecar
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
@@ -671,8 +672,8 @@ def bridge_auction_outcome(
     if declarer is None:
         # Whether the history holds the bid that set `made_bid` is runtime
         # data (both come from the hosting game's own moves and state), so a
-        # mismatch is the game description's error, in the runtime's currency.
-        raise RuntimeError(
+        # mismatch is the game description's error, so this raise is its Owner Guard.
+        raise OwnerGuardError(
             f"bridge auction: made_bid is set but no submit_bid in the history "
             f"names the final strain {strain!r} for the high team {high_team} "
             f"(high_bidder={high_bidder})"
@@ -704,8 +705,8 @@ def pinochle_auction_outcome(
         if declarer is None:
             # Whether `opener` was set before the round is runtime data — the
             # hosting game's own setup — so its absence is the description's
-            # error, in the runtime's currency.
-            raise RuntimeError(
+            # error, so this raise is its Owner Guard.
+            raise OwnerGuardError(
                 "pinochle auction: all-pass fallback has no opener — the "
                 "`auction` phase must set `opener := dealer offset_by left` "
                 "before the round"

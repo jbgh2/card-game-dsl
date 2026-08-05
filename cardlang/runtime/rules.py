@@ -16,6 +16,7 @@ always playable, never bound by an obligation, offered last).
 from __future__ import annotations
 
 from cardlang.ast import nodes as n
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, elements
 from cardlang.runtime.values import Card, Player
@@ -57,9 +58,10 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
         if narrowed:
             result = narrowed
         elif rule.if_impossible is None:
-            raise RuntimeError(
+            raise ShadowGuardError(
+                "resolve._resolve_rule",
                 f"rule '{rule.name}' filtered out every legal card for "
-                f"'{move_type}' and declares no `if_impossible` fallback"
+                f"'{move_type}' and declares no `if_impossible` fallback",
             )
         else:
             # error(...) raises here; `elements` is the same Zone -> .cards

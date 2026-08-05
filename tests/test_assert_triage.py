@@ -4,9 +4,11 @@ decisions.md "Closed-domain completeness" (write-time triage): a check lands
 only after naming its owner — an **Owner Guard** (moved to the owning layer,
 in that layer's currency), a **Shadow Guard** (it stays, and its comment names
 the Owner Guard it shadows), or a **missing Owner Guard** (the Owner Guard is
-built upstream and the site becomes a Shadow Guard citing it). The runtime's failure currency for anything a
-game description can cause is the typed ``RuntimeError``; an ``assert`` /
-``raise AssertionError`` is compiler-bug currency only. The runtime-assert
+built upstream and the site becomes a Shadow Guard citing it). Anything a
+game description can cause, the runtime refuses with a role-bearing
+``GameDescriptionError`` (``OwnerGuardError`` / ``ShadowGuardError``,
+cardlang/runtime/errors.py); an ``assert`` / ``raise AssertionError`` addresses
+the engine maintainer and nobody else. The runtime-assert
 census (tests/test_movement_endpoints.py's origin story) applied that triage
 once, by hand; this module makes it mechanical, so an untriaged assert cannot
 land silently between censuses.
@@ -201,14 +203,14 @@ def test_every_runtime_assert_site_is_triaged() -> None:
         f"packages:\n{listing}\n"
         "Write-time triage (decisions.md 'Closed-domain completeness'): a "
         "check lands as an Owner Guard at the owning layer, in that layer's "
-        "currency, or as a Shadow Guard whose comment/message names the Owner "
+        "channel, or as a Shadow Guard whose comment/message names the Owner "
         "Guard it shadows. Tag each site above — in its message, a comment "
         "directly above it, or a trailing comment — with the guarantor it "
         f"shadows ({', '.join(GUARANTOR_WORDS)}), or mark an "
         "exhaustive-dispatch fallthrough with an 'unknown …' / 'no declared "
         "…' message. If the condition is reachable from a game description, "
-        "it is a MISSING Owner Guard: raise a typed RuntimeError (the "
-        "runtime's failure currency) or build the Owner Guard upstream — do "
+        "it is a MISSING Owner Guard: raise OwnerGuardError (the game "
+        "author is who must act) or build the Owner Guard upstream — do "
         "not tag it."
     )
 
@@ -220,8 +222,8 @@ def test_the_scrape_sees_the_census_modules() -> None:
     from one of these, updating this pin is the intended friction."""
     by_module: set[str] = {s.module for s in _runtime_sites()}
     # `builtins.py` is deliberately absent: the Builtins half of the dispatch
-    # (issue #201) states its Shadow Guards as typed `RuntimeError`s, which are
-    # outside this scrape's domain, so it contributes no site to floor.
+    # (issue #201) states its Shadow Guards as raised `ShadowGuardError`s, which
+    # are outside this scrape's domain, so it contributes no site to floor.
     for module in ("execute.py", "evaluate.py", "mechanics.py", "primitives.py"):
         assert module in by_module, f"scrape found no sites in {module}"
 

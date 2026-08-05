@@ -21,6 +21,7 @@ import pytest
 from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 HEARTS = Path(__file__).parent.parent / "docs" / "games" / "hearts.cardlang"
 
@@ -60,7 +61,7 @@ def test_statement_level_repeat_until_respects_declared_max_length() -> None:
         "  }\n"
     )
     game = check_dsl(dsl, "test.cardlang")
-    with pytest.raises(RuntimeError) as e:
+    with pytest.raises(OwnerGuardError) as e:
         play_game(game, random.Random(0))
     assert "max_length (5)" in str(e.value)
 
@@ -68,7 +69,7 @@ def test_statement_level_repeat_until_respects_declared_max_length() -> None:
 def test_phase_level_repeat_until_respects_declared_max_length() -> None:
     dsl = _non_terminating_game("  phase p repeat until false {\n  }\n")
     game = check_dsl(dsl, "test.cardlang")
-    with pytest.raises(RuntimeError) as e:
+    with pytest.raises(OwnerGuardError) as e:
         play_game(game, random.Random(0))
     assert "max_length (5)" in str(e.value)
 
@@ -82,7 +83,7 @@ def test_decision_counter_fires_with_zero_loop_iterations() -> None:
     decision counter (not either loop guard) is what catches this."""
     game = check_source(HEARTS)
     tiny = dataclasses.replace(game, max_length=5)
-    with pytest.raises(RuntimeError) as e:
+    with pytest.raises(OwnerGuardError) as e:
         play_game(tiny, random.Random(0))
     assert "made" in str(e.value) and "decisions" in str(e.value)
     assert "max_length (5)" in str(e.value)

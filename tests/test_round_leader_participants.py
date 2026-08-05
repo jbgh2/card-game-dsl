@@ -129,6 +129,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import mechanics
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import ChooserAbort
 from cardlang.runtime.values import GAME_DIRECTIONS
 
@@ -165,8 +166,8 @@ class NoDecisionReached(Exception):
     expected failure then a fixture that quietly stopped reaching decisions
     for an unrelated reason — an `until` predicate drifting to satisfiable, a
     typo in the source template — would satisfy that cell without proving
-    anything. Deriving from `Exception` rather than `RuntimeError` keeps it
-    outside the tuple the empty cell accepts."""
+    anything. Deriving straight from `Exception` keeps it outside both
+    members of the tuple the empty cell accepts."""
 
 # Authored expected column, independent of `Seating.turn_order_from` (deriving
 # it from the utility under test would be circular). Four seats, leading from
@@ -383,23 +384,26 @@ def test_leader_participants_grid(
     if relationship == "leader_out_of_range_computed":
         # The same seat written as arithmetic escapes that wall entirely and
         # reaches the runtime. Every path must refuse it there, in the
-        # runtime's currency — silently normalizing `9` to seat 1 and running
+        # Owner Guard — silently normalizing `9` to seat 1 and running
         # the round with the wrong leader is the defect issue #168 names.
         check_dsl(src, "grid.cardlang")  # accepted statically, by design
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(OwnerGuardError) as excinfo:
             _first_actor(src)
         assert "not a seat" in str(excinfo.value)
         return
 
     if relationship == "participants_empty":
-        # Captured, not unified: each path is loud in its own currency (see the
+        # Captured, not unified: each path fails in its own way (see the
         # module docstring's residual row). The property pinned here is that
         # NO path silently proceeds with an empty acting set. `ValueError` is
-        # the trick path's WRONG-currency failure, admitted deliberately and
-        # recorded as issue #167 — remove it from this tuple when that lands.
+        # STILL the trick path's wrong-Author failure, admitted deliberately
+        # and recorded as issue #167 — remove it from this tuple when that
+        # lands. Note the guard-role migration did NOT close #167: that one is
+        # `max()` on an empty sequence, an implicit throw with no `raise` to
+        # retype (issue #231's class), so it is untouched by anything here.
         # `NoDecisionReached` is deliberately NOT here: a path that simply
         # stops offering decisions has not failed loudly, and must not pass.
-        with pytest.raises((RuntimeError, ValueError)):
+        with pytest.raises((OwnerGuardError, ValueError)):
             _first_actor(src)
         return
 

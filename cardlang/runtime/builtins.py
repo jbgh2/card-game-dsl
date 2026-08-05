@@ -31,6 +31,7 @@ from __future__ import annotations
 from typing import Any
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.boards import BoardEntry
@@ -97,17 +98,16 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
         # (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it in the
         # runtime's own currency, should the call ever reach here without a
         # board.
-        raise RuntimeError(
-            "lines() reads the board's lines, but the game declares no `board:`"
+        raise ShadowGuardError(
+            "resolve._check_board_call",
+            "lines() reads the board's lines, but the game declares no `board:`",
         )
-    try:
-        return board.lines(k)
-    except ValueError as exc:
-        # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds
-        # check at the call site); a non-literal `k` (no rung-1 witness) is
-        # only knowable at runtime, so its out-of-range value surfaces here as
-        # a typed runtime error, never a bare ValueError escaping the boundary.
-        raise RuntimeError(str(exc)) from exc
+    # A LITERAL out-of-range `k` is a resolve diagnostic (static bounds check
+    # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
+    # at runtime. `lines` raises `OwnerGuardError` for both, so there is
+    # nothing to convert here — the bound's Owner Guard already speaks the
+    # runtime's typed currency and names the game author.
+    return board.lines(k)
 
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
@@ -118,22 +118,24 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     call ever reach here without a board."""
     board = ctx.rs.board
     if board is None:
-        raise RuntimeError(
-            f"{fn}() reads the `board:`, but the game declares no `board:`"
+        raise ShadowGuardError(
+            "resolve._check_board_call",
+            f"{fn}() reads the `board:`, but the game declares no `board:`",
         )
     return board
 
 
 def _seat(ctx: Ctx, fn: str, player: int) -> int:
-    """A frame verb's player argument must be a seat of this game. The resolve
-    Owner Guard (typecheck `_check_role_literal`) rejects a LITERAL out-of-range
-    seat statically, and the frame verbs are two-player-only (resolve), so a bad
-    seat is unreachable from a well-formed game -- this Shadow Guard covers the
-    COMPUTED case in the runtime's currency (a typed, game-facing rejection) in
-    place of the frame's internal `_player_sign` `ValueError`, which reads as a
-    registry bug rather than a game one."""
+    """A frame verb's player argument must be a seat of this game. A LITERAL
+    out-of-range seat is refused statically (typecheck `_check_role_literal`),
+    but that check returns early on anything that is not an integer literal, so
+    a COMPUTED seat -- `home(1 + 1)` -- reaches here unchallenged. Nothing
+    upstream owns the computed case, so this is its Owner Guard, and it stands
+    in place of the frame's internal `_player_sign` `ValueError`, which reads as
+    a registry bug rather than a game one. Game-facing by design: the author who
+    wrote the expression is who must change it."""
     if player not in ctx.rs.seating.players:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"`{fn}` reads seat {player!r}, not a seat of this "
             f"{len(ctx.rs.seating.players)}-player game"
         )
@@ -142,15 +144,17 @@ def _seat(ctx: Ctx, fn: str, player: int) -> int:
 
 def _neighbor(ctx: Ctx, cell: str, direction: str, player: int) -> str:
     """The cell one step along `direction` in `player`'s frame -- the geometry
-    the `step` move reads (cardlang/stdlib/boards.py). Total by contract: every
-    call site is `has_step`-gated (the guard short-circuits before any off-board
-    `neighbor` runs; the effect runs only after that guard passed), so an
-    off-board result is unreachable from a game. The None-return raise is a
-    Shadow Guard behind that `has_step` guard, in the runtime's currency -- not
-    a game-reachable error."""
+    the `step` move reads (cardlang/stdlib/boards.py). Total by AUTHORING
+    CONVENTION, not by construction: the corpus writes every call site
+    `has_step`-guarded (the predicate short-circuits before any off-board
+    `neighbor` runs; the effect runs only after it passed), but no pass enforces
+    that -- the convention lives in prose and in a comment in
+    docs/games/breakthrough.cardlang. So an ungated call is reachable from a
+    game, and the None-return raise is this class's Owner Guard, addressed to
+    the author who wrote it."""
     dest = _board_of(ctx, "neighbor").neighbor(cell, direction, _seat(ctx, "neighbor", player))
     if dest is None:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"neighbor({cell!r}, {direction!r}, {player}) stepped off the board "
             "-- a total neighbor must be has_step-gated at its call site"
         )
@@ -197,10 +201,10 @@ def _suit_of(value: Any) -> str:
 
     if isinstance(value, Zone):
         if not value.cards:
-            raise RuntimeError("suit_of: the zone is empty — no card to read a suit from")
+            raise OwnerGuardError("suit_of: the zone is empty — no card to read a suit from")
         return value.cards[0].suit
     if not isinstance(value, Card):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"suit_of expects a card or a zone, got {type(value).__name__}"
         )
     return value.suit
@@ -217,13 +221,13 @@ def _end_card(cards: Any, fn: str, end: int) -> Card:
     can reach here) and gets a typed error, not a bare attribute crash."""
     seq = list(cards)
     if not seq:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"{fn}: the collection is empty — no card to read; guard the "
             f"read (`… is not empty`) so it only runs when a card is there"
         )
     card = seq[end]
     if not isinstance(card, Card):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"{fn} expects a collection of cards, got an element of type "
             f"{type(card).__name__}"
         )
@@ -239,4 +243,4 @@ def _player_holding(card: Card, ctx: Ctx) -> Player:
     for player, zone in reads.magic_hand(ctx.rs).items():
         if card in zone.cards:
             return player
-    raise RuntimeError(f"player_holding: no hand contains {card}")
+    raise OwnerGuardError(f"player_holding: no hand contains {card}")

@@ -83,7 +83,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         slug="klondike_flip_from_empty_stack",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
-        exception_type_name="ValueError",
+        exception_type_name="OwnerGuardError",
         message_substring="cannot deal 1 cards from a source holding 0",
         note=(
             "docs/games/klondike.cardlang, `delete_line` seed 0, deleting "
@@ -102,7 +102,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         slug="cribbage_repeat_until_nonterminate",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
-        exception_type_name="RuntimeError",
+        exception_type_name="OwnerGuardError",
         message_substring="exceeded the game's declared max_length",
         note=(
             "docs/games/cribbage.cardlang, `delete_line` seed 2, deleting "
@@ -119,7 +119,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         slug="getaway_missing_deal_no_hand_holder",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
-        exception_type_name="RuntimeError",
+        exception_type_name="OwnerGuardError",
         message_substring="player_holding: no hand contains",
         note=(
             "docs/games/getaway.cardlang, `delete_line` seed 0, deleting "
@@ -134,7 +134,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         slug="getaway_no_legal_play_no_if_impossible",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
-        exception_type_name="RuntimeError",
+        exception_type_name="OwnerGuardError",
         message_substring="has no legal play in the trick",
         note=(
             "docs/games/getaway.cardlang, `delete_line` seed 4, deleting "
@@ -168,7 +168,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         slug="skat_trick_winner_wrong_count",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
-        exception_type_name="RuntimeError",
+        exception_type_name="OwnerGuardError",
         message_substring="expected a completed 3-card trick",
         note=(
             "docs/games/skat.cardlang, `delete_line` seed 2, deleting the "

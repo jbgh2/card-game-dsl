@@ -29,6 +29,7 @@ BELOW it; the ordinal and the value never share a scale.
 from __future__ import annotations
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
@@ -76,13 +77,13 @@ def five_hundred_bid_value(rank: int) -> int:
     """The score value of a contract ordinal: the Pagat table (6♠=40, +20 per
     strain, +100 per level, 10NT=520), misère 250, open misère 500. Any other
     integer is no contract — the ladder above is the whole domain, so a stray
-    value is the description's error, in the runtime's currency."""
+    value is the description's error, so this raise is its Owner Guard."""
     if rank == _MISERE_ORD:
         return 250
     if rank == _OPEN_MISERE_ORD:
         return 500
     if not _is_suit_bid_ord(rank):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"five_hundred_bid_value: {rank} is not a contract ordinal "
             f"(suit bids 10..250 by tens, misère 105, open misère 235)"
         )
@@ -97,7 +98,7 @@ def five_hundred_bid_level(rank: int) -> int:
     `declarer_tricks is 0`, never through this) and anything off the ladder
     is no contract — both are the description's error, loud."""
     if not _is_suit_bid_ord(rank):
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"five_hundred_bid_level: {rank} is not a suit/no-trump contract "
             f"ordinal (misère contracts have no trick target)"
         )
@@ -254,8 +255,8 @@ def five_hundred_trick_winner(
         order = [q for q in order if q != dead]
     if len(cards) != len(order):
         # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, in the runtime's currency.
-        raise RuntimeError(
+        # call site is the description's error, so this raise is its Owner Guard.
+        raise OwnerGuardError(
             f"five_hundred_trick_winner: trick pile holds {len(cards)} cards, "
             f"expected a completed {len(order)}-card trick"
         )

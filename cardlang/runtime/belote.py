@@ -59,6 +59,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
@@ -90,7 +91,7 @@ def belote_trump_height(c: Card) -> int:
     a bare KeyError mid-playout."""
     height = _TRUMP_HEIGHT.get(c.rank)
     if height is None:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"belote_trump_height: rank {c.rank!r} is not a skat32 rank — "
             f"the Belote primitives serve the 32-card A..7 pack only"
         )
@@ -117,10 +118,12 @@ def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
     """The live round accumulator, or the just-completed round's terminal
     state — exactly the `state` pronoun's view (`mech_state[-1]` while a round
     runs, else `last_round_state`). Whether a round is live is game flow, so a
-    premature call is the description's error, in the runtime's currency."""
+    premature call is the description's error, so this raise is its Owner Guard."""
     state = facts.round_state
     if state is None:
-        raise RuntimeError(f"{caller}() called with no active or just-completed round")
+        raise OwnerGuardError(
+            f"{caller}() called with no active or just-completed round"
+        )
     return state
 
 
@@ -135,7 +138,11 @@ def belote_opp_winning(facts: EngineFacts, gr: reads.GameReads) -> bool:
         return False
     actor = facts.actor
     if actor is None:
-        raise RuntimeError(
+        # A missing Owner Guard: the class "a primitive needing a live actor"
+        # belongs upstream in resolve, and no such guard exists yet — so the
+        # runtime carries the fix instead (tests/test_fail_loud.py records the
+        # same gap one layer up, for a bare family read).
+        raise OwnerGuardError(
             "belote_opp_winning() evaluated with no acting player — it belongs "
             "in a rule's applies_when, where legal_cards binds the actor"
         )
@@ -243,7 +250,7 @@ def belote_best_is(facts: EngineFacts, gr: reads.GameReads, p: Player, cls: int,
     never the best combination — the guard masks it false."""
     heights = _HEIGHT_OF_CLASS.get(cls)
     if heights is None:
-        raise RuntimeError(
+        raise OwnerGuardError(
             f"belote_best_is: class {cls!r} is not a declaration class "
             f"(1 tierce, 2 quarte, 3 quinte, 4 carré)"
         )
