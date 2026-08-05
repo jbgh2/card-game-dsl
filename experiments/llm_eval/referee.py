@@ -19,15 +19,11 @@ Illegal after: passing a `pyspiel.State` into anything in `agents.py`.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .agents import Agent, DecisionView
-
-# One game's per-decision facts function, supplied by its pack (`packs.py`).
-# Taken as a parameter rather than imported, so the referee holds no game.
-FactsFn = Callable[[DecisionView, str], dict[str, Any]]
+from .metrics import decision_facts, game_key
 
 # The adapter samples the deal space at the root chance node; see
 # `cardlang/openspiel/game.py`. Seeds outside the range are not addressable, so
@@ -68,10 +64,9 @@ class GameRecord:
     game_index: int
     seed: int
     # The registered OpenSpiel short name. Recorded per RECORD, not only in the
-    # run summary and the treatment sidecar, because those sit beside the
-    # transcript and a transcript that travels alone loses its identity — which
-    # is what let `verify.py` fold a poker archive with Cheat's rate table and
-    # exit 0. An auditor that can read the game cannot make that mistake.
+    # run summary and the treatment sidecar beside it, because a transcript that
+    # travels alone otherwise loses its identity — which is what let `verify.py`
+    # fold a poker archive with Cheat's rate table and exit 0.
     game: str
     seats: dict[int, str]
     history: list[int]
@@ -98,7 +93,6 @@ def play_game(
     seed: int,
     matchup: str,
     game_index: int,
-    facts: FactsFn,
     max_decisions: int = 0,
     store_prompts: bool = False,
     store_infostates: bool = False,
@@ -108,14 +102,12 @@ def play_game(
     A truncated game has `terminal=False` and is excluded from win rates, which
     are reported alongside the truncation count — a game silently scored as a
     loss for whoever happened to be behind would be a fabricated result.
-
-    `facts` is the playing game's own per-decision facts function, from its
-    pack. The referee stays game-generic: it reads `information_state_string`,
-    `legal_actions` and `action_to_string` off the state and knows nothing else
-    about the game.
     """
     started = time.monotonic()
-    short_name = game.get_type().short_name
+    # Which game's facts to record, DERIVED from the loaded game rather than
+    # passed beside it. A mismatch between the two would compute one game's
+    # metrics over another's transcript and report them without complaint.
+    key = game_key(game.get_type().short_name)
     state = game.new_initial_state()
     state.apply_action(seed % NUM_SEEDS)  # the root chance node: the deal
 
@@ -165,7 +157,7 @@ def play_game(
                 action_id=action,
                 action=chosen,
                 legal=strings,
-                facts=facts(view, chosen),
+                facts=decision_facts(view, chosen, key),
                 llm=trace,
                 infostate=info if store_infostates else "",
             )
@@ -182,7 +174,7 @@ def play_game(
         matchup=matchup,
         game_index=game_index,
         seed=seed,
-        game=short_name,
+        game=game.get_type().short_name,
         seats={p: a.name for p, a in agents.items()},
         history=history,
         decisions=decisions,

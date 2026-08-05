@@ -17,7 +17,7 @@ import statistics
 import pytest
 
 from ..agents import DecisionView, RandomAgent
-from ..holdem_pack import (
+from ..holdem import (
     FLUSH,
     FULL_HOUSE,
     HIGH_CARD,

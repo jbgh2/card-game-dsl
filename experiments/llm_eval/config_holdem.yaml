@@ -18,6 +18,23 @@ results_dir: experiments/llm_eval/results_holdem
 seeds:
   start: 0            # game i uses seed start+i; the adapter addresses 4096 deals
 
+# ON, and this game is the reason the option exists. `_build_seats` otherwise
+# ties the seat to the seed, so where the DEAL dominates the outcome one roster
+# position gets systematically better cards (issue #233, measured on Kuhn). A
+# single Hold'em hand is deal-dominated, which is the at-risk shape rather than
+# the safe one — Cheat is safe because its deal is 13 cards and its episode is
+# hundreds of decisions.
+#
+# The committed archive PREDATES this: it was produced under the unbalanced
+# scheme, before #234 merged. Three probes (README, "What it found") measured no
+# bias at those sample sizes, and re-running the free baseline balanced gives
+# +1.14 +/- 0.54 against the published +1.35 +/- 0.80 — same conclusion, tighter
+# interval. So the archive stands and future runs are unbiased by construction
+# rather than by measurement.
+#
+# `n` is GAMES, not deals: a matchup of n games covers n // num_players deals.
+balanced_seating: true
+
 # One HAND is the whole game here (the Leduc model, not three-handed Hold'em's
 # play-until-one-player-holds-every-chip), so an episode is bounded by the rules
 # rather than by this cap: four streets, at most four aggressive actions each,

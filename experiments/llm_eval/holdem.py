@@ -35,10 +35,12 @@ from __future__ import annotations
 import random
 import re
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING, Any
 
-from .agents import Agent, DecisionView
+if TYPE_CHECKING:  # below the agent layer, as `kuhn` is: agents.py imports US
+    from .agents import Agent, DecisionView
 
 # --- static rules text ----------------------------------------------------
 #
@@ -319,7 +321,7 @@ class HoldemRuleAgent:
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
 
-    def choose(self, view: DecisionView) -> int:
+    def choose(self, view: "DecisionView") -> int:
         info = parse(view.infostate)
         strength = self._strength(info)
         offered = view.legal_strings
@@ -392,7 +394,7 @@ class HoldemRuleAgent:
         return {}
 
 
-def build_rule_agent(spec: dict[str, Any], seed: int) -> Agent:
+def build_rule_agent(spec: dict[str, Any], seed: int) -> "Agent":
     return HoldemRuleAgent(
         seed=seed,
         aggression=float(spec.get("aggression", 0.25)),
@@ -403,7 +405,7 @@ def build_rule_agent(spec: dict[str, Any], seed: int) -> Agent:
 # --- metric facts ---------------------------------------------------------
 
 
-def decision_facts(view: DecisionView, action: str) -> dict[str, Any]:
+def decision_facts(view: "DecisionView", action: str) -> dict[str, Any]:
     """The metric-relevant facts of one decision: the verb chosen and the verbs
     that were on offer.
 
@@ -420,4 +422,127 @@ def decision_facts(view: DecisionView, action: str) -> dict[str, Any]:
         "street": info.street,
         "owed": info.owed,
         "pot": info.pot,
+    }
+
+
+# --- aggregation ----------------------------------------------------------
+#
+# One `aggregate` per game is this harness's shape (`metrics.aggregate`
+# dispatches on the game key), because the statistics that mean something differ by
+# game: Cheat reports lie and challenge rates, Kuhn exploitability, and this
+# game chips and offer-conditioned action rates.
+
+ACTION_VERBS: tuple[str, ...] = ("check", "bet", "call", "raise", "fold")
+
+
+@dataclass
+class HoldemStats:
+    """Everything measured for one agent at heads-up Hold'em, counts first."""
+
+    agent: str = ""
+    games: int = 0
+    games_scored: int = 0
+    wins: int = 0
+    splits: int = 0
+    net_total: int = 0
+    decisions: int = 0
+    fallbacks: int = 0
+    llm_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    verb_chosen: dict[str, int] = field(default_factory=dict)
+    verb_offered: dict[str, int] = field(default_factory=dict)
+
+    def rates(self) -> dict[str, float | None]:
+        return {
+            # Chips first: it is the metric the blinds do not swamp. A player
+            # can win a minority of hands and still finish ahead — this game's
+            # first baseline did exactly that — so a win rate alone is not a
+            # reading of who played better.
+            "mean_net_chips": _rate(self.net_total, self.games_scored),
+            "win_rate": _rate(self.wins, self.games_scored),
+            "fallback_rate": _rate(self.fallbacks, self.decisions),
+            "input_tokens_per_game": _rate(self.input_tokens, self.games),
+            "output_tokens_per_game": _rate(self.output_tokens, self.games),
+            "llm_calls_per_game": _rate(self.llm_calls, self.games),
+            # OFFER-CONDITIONED: a verb's denominator is the decisions where it
+            # was LEGAL. Over all decisions instead, `fold_rate` would mix
+            # "declined to fold" with "could not fold" — checking is free and
+            # folding is not on the table then — and every rate would drift with
+            # how often the game happens to offer a free check.
+            **{
+                f"{verb}_rate": _rate(
+                    self.verb_chosen.get(verb, 0), self.verb_offered.get(verb, 0)
+                )
+                for verb in ACTION_VERBS
+            },
+        }
+
+    def as_dict(self) -> dict[str, Any]:
+        return {**asdict(self), **self.rates()}
+
+
+def _rate(numerator: float, denominator: int) -> float | None:
+    """A rate, or `None` when there were no opportunities — never 0.0, which
+    reads as "never did it" when the truth is "was never asked"."""
+    return numerator / denominator if denominator else None
+
+
+def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Fold a run's transcripts into per-agent statistics."""
+    stats: dict[str, HoldemStats] = {}
+    games = 0
+    truncated = 0
+    total_decisions = 0
+
+    def stat(name: str) -> HoldemStats:
+        if name not in stats:
+            stats[name] = HoldemStats(agent=name)
+        return stats[name]
+
+    for record in records:
+        games += 1
+        seats = {int(k): v for k, v in record["seats"].items()}
+        scored = bool(record["terminal"])
+        if not scored:
+            truncated += 1
+        for seat, name in seats.items():
+            s = stat(name)
+            s.games += 1
+            if scored:
+                s.games_scored += 1
+                net = int(record["returns"][seat])
+                s.net_total += net
+                if net > 0:
+                    s.wins += 1
+                elif net == 0:
+                    s.splits += 1
+
+        for name, tally in record.get("usage", {}).items():
+            s = stat(name)
+            s.llm_calls += int(tally.get("llm_calls", 0))
+            s.input_tokens += int(tally.get("input_tokens", 0))
+            s.output_tokens += int(tally.get("output_tokens", 0))
+
+        for d in record["decisions"]:
+            s = stat(seats[d["player"]])
+            s.decisions += 1
+            total_decisions += 1
+            if d.get("llm", {}).get("fallback"):
+                s.fallbacks += 1
+            # The referee's OWN record of the decision, not the pack's facts.
+            # `verify.py` reads the same two fields, so the two folds share an
+            # input here — which is why the agreement test compares the
+            # ARITHMETIC and `verify.py` keeps its own copy of it.
+            for verb in ACTION_VERBS:
+                if verb in d["legal"]:
+                    s.verb_offered[verb] = s.verb_offered.get(verb, 0) + 1
+                    if d["action"] == verb:
+                        s.verb_chosen[verb] = s.verb_chosen.get(verb, 0) + 1
+
+    return {
+        "games": games,
+        "games_truncated": truncated,
+        "decisions": total_decisions,
+        "agents": {name: s.as_dict() for name, s in sorted(stats.items())},
     }

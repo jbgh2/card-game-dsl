@@ -1,15 +1,27 @@
-# LLM evaluation harness — corpus games through the derived-information-set interface
+# LLM evaluation harness — playing through the derived-information-set interface
 
-An LLM plays a **corpus game** against non-LLM baselines, through the engine's
-*derived* information sets. Two games are wired up today: **Cheat** (four
-players, one standard deck), which carries the published deception result, and
-**heads-up fixed-limit Hold'em**, which exists to measure what a second game
-costs. Everything game-specific is a `packs.py` entry; see "A second game"
-below.
+An LLM plays a corpus game against non-LLM baselines, through the engine's
+*derived* information sets. Three games, chosen because each can be measured in
+a way the others cannot:
 
-On Cheat the model is measured on deception-relevant behaviour: how often it lies when it could have told the
-truth, how well it tells a provable lie from a merely improbable one, and how
-often it accuses wrongly.
+- **Cheat** (four players, one standard deck) — measured on deception-relevant
+  behaviour: how often it lies when it could have told the truth, how well it
+  tells a provable lie from a merely improbable one, and how often it accuses
+  wrongly. Cheat has no solution, so its baseline is a hand-written heuristic
+  and every metric is a behavioural proxy.
+- **Kuhn poker** (two players, three-card deck) — *solved*, so the baseline is
+  the exact equilibrium and the headline metric is **exploitability**: how many
+  chips per hand a best-responding opponent extracts, against a floor of zero.
+  Its A/B is pre-registered in [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md).
+- **Heads-up fixed-limit Hold'em** (two players, one hand) — neither solved nor
+  deception-shaped, and there on purpose: it exists to measure what a *third*
+  game costs once the seam exists. Chips per hand and offer-conditioned action
+  rates; see "A second game" below.
+
+The three share everything except the game-specific half: the referee, the
+providers, the budget, the run layout, the response arms, and the leak-freeness
+pins are one implementation. `DecisionView` is game-neutral, which is what lets
+the leak-freeness guarantee cover a new game without being restated.
 
 The model sees only what the rules entitle its seat to see. That is enforced by
 signature rather than convention: `build_prompt` takes strings, and every agent
@@ -273,11 +285,21 @@ pure check/call posture. Sonnet's is much more balanced (56% check, 53% bet).
 failed to parse twice, at either model, on the first version of the rules text —
 so nothing here is a comprehension artifact, and the prompt needed no iteration.
 
-**The seating confound (issue #233) was measured here, not assumed away.**
+**The seating confound (issue #233) is structurally present in this game, and
+its magnitude was below detection at these sample sizes.** Two separate facts,
+and the archive above rests on the second.
+
 `_build_seats` ties seat parity to seed parity, so where the deal dominates the
-outcome one roster position can be dealt systematically better cards — which is
-what it did on Kuhn. A single Hold'em hand *is* deal-dominated, so this game is
-the at-risk shape, not the safe one. Three probes, all null:
+outcome one roster position can be dealt systematically better cards. A single
+Hold'em hand *is* deal-dominated, so this is the at-risk shape, not the safe one
+— and `tests/test_seating.py::test_the_unbalanced_scheme_really_does_favour_a_
+position[cardlang_holdem_heads_up]` passes, which says exactly that: under the
+unbalanced scheme the two roster positions see *different multisets of dealt
+cards*. That check is exact and needs no sample size, which is why it settles a
+question three statistical probes could only bound.
+
+What the probes bound is the SIZE, and the archive was produced under the
+unbalanced scheme, so this is the number that matters for reading it:
 
 | probe | result |
 |---|---|
@@ -285,16 +307,15 @@ the at-risk shape, not the safe one. Three probes, all null:
 | identically-policied random vs random, rotation on (N=800) | −0.415 ± 0.470 |
 | identically-policied rule vs rule, rotation on (N=800) | +0.276 ± 0.654 |
 
-The two agent probes point in **opposite** directions and neither reaches 2 SE
-— noise, not bias. And with even N and rotation each roster position takes each
-seat exactly N/2 times, so the button/small-blind asymmetry cancels by
-construction; only the card imbalance could survive, and it does not measurably.
-Re-running the free baseline under **balanced seating** (every deal played in
-both seatings) gives **+1.14 ± 0.54, t = 4.12** against the published
-**+1.35 ± 0.80, t = 3.31** — same conclusion, tighter interval, point estimate
-inside both. So the residual is bounded by these probes' power rather than shown
-to be zero; balanced seating would sharpen these numbers, not overturn them, and
-this config should adopt it when #233's fix lands.
+The two agent probes point in **opposite** directions and neither reaches 2 SE.
+Re-running the free baseline under balanced seating gives **+1.14 ± 0.54,
+t = 4.12** against the published **+1.35 ± 0.80, t = 3.31** — same conclusion,
+tighter interval, point estimate inside both. So the imbalance is real but too
+small to move these numbers at N = 200–800; the published result stands and its
+residual is bounded by those probes rather than shown to be zero.
+
+`config_holdem.yaml` now sets `balanced_seating: true`, so every future run is
+unbiased by construction instead of by measurement.
 
 ### What the second game cost
 
@@ -342,24 +363,72 @@ registered endpoint carries `*`.
 
 ## Layout
 
+Shared — nothing here knows which game is being played:
+
 ```
-agents.py      Agent protocol + DecisionView; Random, Rule and LLM agents
-packs.py       The per-game seam: rules text, decision facts, baseline, registry
-cheat_pack.py  Cheat's pack (names the existing modules; moves no code)
-holdem_pack.py Heads-up Hold'em's pack: rules text, infostate parser, baseline
-prompts.py     Rules text, build_prompt (pure), response arms, parsing
+agents.py      Agent protocol + DecisionView; Random, Rule, Nash and LLM agents
+prompts.py     build_prompt (pure), response arms, response parsing
 providers.py   Model-API abstraction (Anthropic, Fake), usage and pricing
-infostate.py   Pure parser over the engine's information-state string
-render.py      Information state as English, plus its inverse for round-tripping
 referee.py     Game loop, transcript, replay reconstruction
-metrics.py     Per-decision facts + aggregate deception metrics
 layout.py      Per-run output directories vs the curated archive
 run_eval.py    CLI, config, budget, cost estimation
+metrics.py     Per-decision facts + aggregates, dispatched by game
+```
+
+Cheat's half:
+
+```
+infostate.py   Pure parser over the engine's information-state string
+render.py      Information state as English, plus its inverse for round-tripping
 verify.py      Independent recomputation; --deep replays, --order audits an arm
 compare.py     Two matchups side by side, with the pre-registered endpoint
 study.py       Rebuild the study summary + figure from the archive
 figure.py      The one matplotlib figure
-config.yaml    Matchups, N, seeds, models, token caps (Cheat)
-config_holdem.yaml  The same, for heads-up Hold'em
-tests/         Offline tests (fake provider only, no network)
+config.yaml    Matchups, N, seeds, models, token caps
+```
+
+Kuhn's half:
+
+```
+kuhn.py        Parser, rules text, renderer, the EXACT solver (best response,
+               exploitability, the equilibrium family, the noise floor) and metrics
+verify_kuhn.py Independent policy extraction + the pre-registered sign test;
+               cross-checks the solver against the engine's own returns
+config_kuhn.yaml     Matchups, N, seeds, models, token caps
+PREREGISTRATION_KUHN.md   Endpoint and prediction, dated before any model ran
+```
+
+Hold'em's half:
+
+```
+holdem.py      Rules text, information-state parser, a coarse hand read, the
+               tight-aggressive baseline, per-decision facts and aggregation
+config_holdem.yaml   Matchups, N, seeds, models, token caps
+```
+
+**`verify.py` is the single audit entry point for all three games.** It reads the
+game off the transcript — the per-record `game` field, the `treatment.json`
+sidecar, or the archive's `summary.json` — so the command is the same whichever
+archive it is pointed at, and `--game` is only needed for the pre-field Cheat
+archive:
+
+```bash
+python -m experiments.llm_eval.verify --dir experiments/llm_eval/results_kuhn/transcripts
+```
+
+Each game keeps its own output shape rather than being flattened into a shared
+one: Cheat and Hold'em report counts then ratios, Kuhn reports exploitability
+against the exact equilibrium (delegated to `verify_kuhn`, which also
+cross-checks the engine's returns against the solver). `verify_kuhn.py` keeps
+its own CLI for the pre-registered A/B, whose Cheat analogue is `compare.py`.
+
+```
+tests/         Offline tests (fake provider only, no network), all three games
+```
+
+To run Kuhn, point `--config` at its file. The offline acceptance test is
+
+```bash
+python -m experiments.llm_eval.run_eval \
+  --config experiments/llm_eval/config_kuhn.yaml --matchup nash_vs_random
 ```

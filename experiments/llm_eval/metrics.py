@@ -21,21 +21,50 @@ Illegal after: reporting a rate without its denominator.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from . import infostate as istate
+from . import holdem
+from . import kuhn
 from .agents import DecisionView
 
 _ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
 
+#: The OpenSpiel short name each supported game registers under, mapped to the
+#: harness's own key. Derived from the loaded game rather than passed alongside
+#: it, so a run cannot compute one game's metrics over another game's
+#: transcript — the failure that produces a complete, plausible, wrong result.
+GAME_KEYS: dict[str, str] = {
+    "cardlang_cheat": "cheat",
+    "cardlang_kuhn_poker": "kuhn",
+    "cardlang_holdem_heads_up": "holdem_hu",
+}
 
-def decision_facts(view: DecisionView, action: str) -> dict[str, Any]:
+
+def game_key(short_name: str) -> str:
+    try:
+        return GAME_KEYS[short_name]
+    except KeyError:
+        raise ValueError(
+            f"no metrics are defined for {short_name!r} (known: "
+            f"{sorted(GAME_KEYS)}). A game with no metrics would run to "
+            f"completion and report nothing measurable."
+        ) from None
+
+
+def decision_facts(
+    view: DecisionView, action: str, game: str = "cheat"
+) -> dict[str, Any]:
     """The metric-relevant facts of one decision, from the acting player's own
     information state plus the action they chose."""
+    if game == "kuhn":
+        return kuhn.decision_facts(view.player, view.infostate, action)
+    if game == "holdem_hu":
+        return holdem.decision_facts(view, action)
     info = istate.parse(view.infostate)
-    kind = view.kind()
+    kind = istate.decision_kind(view.legal_strings)
     if kind == "announce":
         return {
             "kind": "announce",
@@ -188,38 +217,8 @@ class AgentStats:
     provable_hand_only_opportunities: int = 0
     provable_hand_only_caught: int = 0
 
-    # OFFER-CONDITIONED action counts, for games whose pack declares
-    # `action_verbs`. Two tallies per verb because only their ratio is
-    # meaningful: a fold count over all decisions conflates "declined to fold"
-    # with "was never offered the choice" — checking is free and folding is not
-    # on the table then — so the denominator is the decisions where the verb
-    # was actually legal.
-    verb_chosen: dict[str, int] = field(default_factory=dict)
-    verb_offered: dict[str, int] = field(default_factory=dict)
-
-    # Terminal score summed over this agent's scored seat-games, for a game
-    # whose pack declares `reports_chip_delta`. Its mean is the outcome metric
-    # win rate cannot replace: heads-up with forced blinds, a player can win a
-    # minority of hands and still finish ahead, so a win rate and a chip figure
-    # can point in OPPOSITE directions. Off by default because a game whose
-    # returns are +/-1 gains nothing — there the mean return is just
-    # `2 * win_rate - 1`.
-    net_total: int = 0
-    net_games: int = 0
-
     def rates(self) -> dict[str, float | None]:
         return {
-            **{
-                f"{verb}_rate": _rate(
-                    self.verb_chosen.get(verb, 0), self.verb_offered.get(verb, 0)
-                )
-                for verb in sorted(self.verb_offered)
-            },
-            **(
-                {"mean_net_chips": _rate(self.net_total, self.net_games)}
-                if self.net_games
-                else {}
-            ),
             # Per-game token spend (spec §5). Denominated in games this agent
             # actually played, so a matchup where it sat out does not dilute it.
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
@@ -247,35 +246,17 @@ class AgentStats:
         }
 
     def as_dict(self) -> dict[str, Any]:
-        out = {**asdict(self), **self.rates()}
-        if not self.net_games:
-            out.pop("net_total", None)
-            out.pop("net_games", None)
-        if not self.verb_offered:
-            # A game whose pack declares no `action_verbs` emits neither tally.
-            # Two empty dicts in a Cheat summary would read as "measured zero"
-            # rather than "not applicable" — and would rewrite every committed
-            # summary in the archive for a field that says nothing.
-            out.pop("verb_chosen", None)
-            out.pop("verb_offered", None)
-        return out
+        return {**asdict(self), **self.rates()}
 
 
 def aggregate(
-    records: Iterable[dict[str, Any]],
-    action_verbs: Sequence[str] = (),
-    chip_delta: bool = False,
+    records: Iterable[dict[str, Any]], game: str = "cheat"
 ) -> dict[str, Any]:
-    """Fold a run's transcripts into per-agent statistics.
-
-    The win-rate, fallback and token statistics are game-generic. The lie and
-    challenge statistics are Cheat's: they are driven off `facts["kind"]`, and a
-    game whose decisions carry another kind simply contributes nothing to them,
-    so every one of those rates comes out `None` — "was never asked" — rather
-    than a fabricated 0.0. `action_verbs` and `chip_delta` come from the playing
-    game's pack and turn on the offer-conditioned verb rates and the mean chip
-    delta respectively.
-    """
+    """Fold a run's transcripts into per-agent statistics."""
+    if game == "kuhn":
+        return kuhn.aggregate(records)
+    if game == "holdem_hu":
+        return holdem.aggregate(records)
     stats: dict[str, AgentStats] = {}
     games = 0
     truncated = 0
@@ -299,9 +280,6 @@ def aggregate(
                 s.games_scored += 1
                 if record["returns"][seat] > 0:
                     s.wins += 1
-                if chip_delta:
-                    s.net_games += 1
-                    s.net_total += int(record["returns"][seat])
 
         for name, tally in record.get("usage", {}).items():
             s = stat(name)
@@ -315,13 +293,6 @@ def aggregate(
             total_decisions += 1
             if d.get("llm", {}).get("fallback"):
                 s.fallbacks += 1
-            if action_verbs:
-                offered = d["facts"].get("offered", d.get("legal", []))
-                for verb in action_verbs:
-                    if verb in offered:
-                        s.verb_offered[verb] = s.verb_offered.get(verb, 0) + 1
-                        if d["facts"].get("verb", d["action"]) == verb:
-                            s.verb_chosen[verb] = s.verb_chosen.get(verb, 0) + 1
 
         for play in reconstruct_plays(record["decisions"]):
             s = stat(seats[play.actor])

@@ -20,7 +20,6 @@ from typing import Any
 import pytest
 
 from .. import infostate as istate
-from ..packs import CHEAT
 from ..agents import RandomAgent, RuleAgent
 from ..metrics import reconstruct_plays
 from ..referee import load_game, play_game
@@ -40,7 +39,7 @@ def _games() -> list[Any]:
         seats: dict[int, Any] = {p: RandomAgent(seed=seed * 10 + p) for p in range(4)}
         seats[0] = RuleAgent(seed=seed, challenge_prob=0.25)
         out.append(
-            play_game(game, seats, seed=seed, matchup="w", game_index=0, facts=CHEAT.facts, max_decisions=500)
+            play_game(game, seats, seed=seed, matchup="w", game_index=0, max_decisions=500)
         )
     return out
 
