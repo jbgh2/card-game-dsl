@@ -1910,6 +1910,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_position_family_refs(game, bag, position_names)
     _check_declared_type_names(game, bag)
     _check_state_default_scope(game, bag)
+    _check_state_scope(game, bag)
     _check_functions(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
@@ -2486,6 +2487,108 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
     top = declared(game.state, frozenset())
     for phase in game.phases:
         descend(phase, top)
+
+
+def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
+    """A state reference names a variable live at its lexical position.
+
+    decisions.md "State scoping (lexical)": a variable is scoped to the phase
+    that lexically encloses its declaration, reads from enclosing scopes are
+    free, and writes follow the same rule — a phase may not touch a variable
+    declared in a SIBLING or DESCENDANT scope, because that variable's owning
+    phase may not be active. That section ends "This is statically checkable",
+    and until this guard existed it was not checked: every out-of-scope
+    reference passed the whole front end and died at playout on a bare
+    `KeyError` out of `runtime/state.py`, with no span and no mention of the
+    rule.
+
+    `_check_state_default_scope` is the same traversal over the narrower
+    declare-time question (what a `= <default>` may read, which is bounded by
+    what exists *yet*). This one owns references in phase BODIES, where the
+    whole block exists and only the frame stack bounds them. Their domains are
+    disjoint by construction: `n.StateBlock` items are skipped here, so a bad
+    default is reported once, by the guard whose rule actually decides it.
+
+    Out of domain, deliberately: callable bodies — move types, rules,
+    functions, procedures, defines. They have no enclosing phase; a move type
+    is declared once and offered from wherever a game offers it, so its
+    legality is a reachability question, not a lexical one, and 112 callable
+    bodies across the corpus legitimately read phase-scoped state (issue #242).
+    `Turns.again` and `RequireDecl.name` are bare `str`s that never become a
+    `NameRef` (issue #243); `winner:` is the third of that shape and is checked
+    here directly, because its name is right there to read.
+    """
+    declared_at: dict[str, list[str]] = {}
+
+    def phase_names(phase: n.Phase) -> frozenset[str]:
+        """The state names this phase declares. Pure: the declaration record is
+        `collect`'s job, because this runs once per phase per traversal and
+        would otherwise record every name as many times as it is called."""
+        block = next((i for i in phase.items if isinstance(i, n.StateBlock)), None)
+        return frozenset(d.name for d in block.decls) if block else frozenset()
+
+    def report(node: n.NameRef, in_scope: frozenset[str]) -> None:
+        if node.ref_kind != "state_var" or node.name in in_scope:
+            return
+        where = declared_at.get(node.name, [])
+        # Name the declaring phase: "not in scope" alone sends the author
+        # looking in the wrong place for a variable they can see on the page.
+        home = " or ".join(f"phase '{w}'" for w in where) or "another scope"
+        bag.error(
+            f"state variable '{node.name}' is not in scope here: it is "
+            f"declared in {home}, which does not enclose this reference, so "
+            f"it does not exist while this runs. State is scoped to the phase "
+            f"that declares it — move the declaration to a phase that encloses "
+            f"both, or move this reference into {home}",
+            node.span,
+        )
+
+    def descend(phase: n.Phase, enclosing: frozenset[str]) -> None:
+        inner = enclosing | phase_names(phase)
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                descend(item, inner)
+            elif isinstance(item, n.StateBlock):
+                continue  # `_check_state_default_scope` owns defaults
+            else:
+                for node in _walk(item):
+                    if isinstance(node, n.NameRef):
+                        report(node, inner)
+        # The qualifier and the outcome cases are part of THIS phase, so its
+        # own state is live in them (measured: `repeat until <own state>` runs).
+        for owned in (phase.qualifier, *phase.outcome_cases):
+            for node in _walk(owned):
+                if isinstance(node, n.NameRef):
+                    report(node, inner)
+
+    top = frozenset(d.name for d in game.state.decls) if game.state else frozenset()
+
+    # Collect every declaration first, so a diagnostic can name a declaring
+    # phase that appears LATER in the file than the reference it explains.
+    def collect(phase: n.Phase) -> None:
+        for name in sorted(phase_names(phase)):
+            declared_at.setdefault(name, []).append(phase.name)
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                collect(item)
+
+    for phase in game.phases:
+        collect(phase)
+    for phase in game.phases:
+        descend(phase, top)
+
+    # `winner: <dir> NAME` is evaluated at game end, in no phase at all, so it
+    # sees game-level state only. `Winner.target` is a bare `str` (issue #243),
+    # invisible to the walk above, so it is named directly.
+    if game.winner is not None and game.winner.target not in top:
+        where = declared_at.get(game.winner.target, [])
+        home = " or ".join(f"phase '{w}'" for w in where) or "a phase"
+        bag.error(
+            f"`winner:` ranks on state variable '{game.winner.target}', which "
+            f"is declared in {home} and so does not exist when the winner is "
+            f"decided — the phase has exited by then. Declare it at game level",
+            game.winner.span,
+        )
 
 
 def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:

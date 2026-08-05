@@ -904,7 +904,17 @@ declared in its enclosing scope (Bridge's `scoring` writes
 `games_won += 1` and `below_line_current_game := 0`, both of which
 live in `rubber`). A phase may *not* write to a variable declared in
 a sibling or descendant scope, because that variable's owning phase
-may not be active. This is statically checkable.
+may not be active.
+
+Reads and writes are both refused at resolve
+(`resolve._check_state_scope`), which also owns the game-level
+`winner:` clause: it is evaluated after every phase has exited, so it
+ranks on game-level state only. One reference position is outside that
+guard's reach — a move type, rule, function, procedure or define body
+has no enclosing phase, so whether its state reads are live depends on
+which phase invokes it rather than on where it is written. That is a
+reachability question, not a lexical one, and it is tracked rather than
+enforced (issue #242).
 
 **A default reads only what is already declared.** The free-reads rule
 above is about a body running inside the phase, when the whole block

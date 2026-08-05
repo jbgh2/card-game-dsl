@@ -1,0 +1,205 @@
+"""State scoping is lexical, and the checker enforces it — completeness ledger.
+
+decisions.md "State scoping (lexical)" settles the rule: a variable is scoped to
+the phase that lexically encloses its declaration, reads from enclosing scopes
+are free, and "**Writes follow the same rule.** A phase may write to a variable
+declared in its enclosing scope… A phase may *not* write to a variable declared
+in a sibling or descendant scope, because that variable's owning phase may not
+be active. **This is statically checkable.**"
+
+It was not statically checked. Every out-of-scope reference — read or write,
+sibling or descendant — passed the whole front end and died at playout on
+`KeyError: variable '…' not in scope` out of `runtime/state.py`: no span, no
+mention of the scope rule, no fix in the text. Only the `state { }` DEFAULT
+subclass was guarded (`resolve._check_state_default_scope`), and this module
+generalises that traversal to every reference position inside a phase, plus the
+game-level `winner:` clause, which has no enclosing phase at all.
+
+Contract
+--------
+Assumes: resolve has classified names (`NameRef.ref_kind == "state_var"`).
+Establishes: a state reference names a variable live at its position.
+Illegal after this: reaching `RuntimeState._frame_of` with an out-of-scope name
+from a lexical position — after this guard that `KeyError` is reachable only
+through the primitive-read path, where `runtime/reads.py` converts it.
+
+Completeness ledger (decisions.md "Closed-domain completeness"):
+
+property:   a state reference resolves against the frames live at its lexical
+            position — the declaring phase must enclose, or be, the phase the
+            reference sits in — and a game-level clause sees game-level state
+            only.
+domain:     declaration site x reference site x reference kind. Declaration and
+            reference sites range over a fixed phase tree (`_TREE`); the
+            ancestry relation between them is COMPUTED from that tree, so the
+            expected column follows from the rule rather than being hand-copied
+            per cell — a cell cannot be quietly authored to match whatever the
+            implementation does.
+registry:   `_TREE` (the phase shapes, and `_ancestors` derived from it) and
+            `_KINDS` (the reference kinds). `_KINDS` is enumerated, not derived:
+            the reference positions come from the grammar productions that hold
+            a state name, and the four here are the distinct AST SHAPES among
+            them — an expression read (`NameRef`), an assignment target
+            (`AssignStmt.target`, a `NameRef`), a `rotate` target
+            (`RotateStmt.target`, a `NameRef`), and `winner:` (`Winner.target`,
+            a bare `str` with no `ref_kind` at all). Every other position in the
+            grammar reaches the checker as one of the first two shapes.
+covered:    `test_scope_grid` — the full cross product of `_TREE` sites x
+            `_KINDS`, expected computed by `_in_scope`.
+sampled:    the many expression positions that all reduce to shape 1 (a
+            `NameRef` read) are covered by one representative each, not one per
+            grammar production: the check walks the resolved AST, so a read
+            inside `if`, inside a comprehension filter and inside a round's
+            `until` are the same node reaching the same code path. A position
+            that did NOT reduce to one of the four shapes would be a residual,
+            and `_KINDS`' derivation note above is what makes that visible.
+residual:   callable bodies — move types, rules, functions, procedures, defines
+            — are OUT of this domain and stay unchecked. Their legality depends
+            on which phase invokes them, not on where they are written, so it is
+            a reachability analysis rather than a traversal; 112 callable bodies
+            across 15 corpus games legitimately reference phase-scoped state, so
+            no conservative rule is available. Guarded by nothing here, recorded
+            as issue #242 (R2). `Turns.again` and `RequireDecl.name` are bare
+            `str` names this check cannot see for the same reason `winner:`
+            needed special handling — issue #243 (R3).
+
+red under: the grid was authored and run RED before the guard existed — 18 of
+its 40 cells failed (the 15 out-of-scope grid cells plus the 3 out-of-scope
+`winner:` cells), and all 21 in-scope cells passed even then, so the red was
+the designed red and not a broken fixture. Re-verify by deleting the
+`_check_state_scope(game, bag)` call in `resolve.resolve`. Verified by doing
+so.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from cardlang.diagnostics import DiagnosticError
+from cardlang.pipeline import check_dsl
+
+# The phase tree every cell is built from: two top-level phases, one with a
+# nested child. That is the smallest shape containing all four relationships a
+# reference can have to a declaration — same, ancestor, descendant, sibling.
+_TREE: dict[str, list[str]] = {"a": ["a_inner"], "b": []}
+
+# `None` is the game level: not a phase, encloses everything.
+_SITES: list[str | None] = [None, "a", "a_inner", "b"]
+
+
+def _ancestors(phase: str) -> list[str]:
+    """The enclosing phases of `phase`, outermost last. Computed from `_TREE`."""
+    for parent, children in _TREE.items():
+        if phase in children:
+            return [parent, *_ancestors(parent)]
+    return []
+
+
+def _in_scope(decl: str | None, ref: str) -> bool:
+    """decisions.md's rule, stated once: a declaration is visible where the
+    declaring scope encloses, or is, the referencing phase."""
+    if decl is None:
+        return True  # game level encloses every phase
+    return decl == ref or decl in _ancestors(ref)
+
+
+# The distinct AST shapes a state name reaches the checker as. See the ledger's
+# `registry` row for why these four and not one per grammar production.
+_KINDS = ["read", "write", "rotate"]
+
+
+def _game(decl: str | None, ref: str | None, kind: str) -> str:
+    """A complete game declaring `v` at `decl` and referencing it at `ref`."""
+    decls = {s: "" for s in _SITES}
+    if kind == "rotate":
+        decl_text = "v : SeatDirection = hold"
+        use = "rotate v through [left, right, across, hold]"
+    else:
+        decl_text = "v : Integer = 0"
+        use = "score[0] := v" if kind == "read" else "v := 1"
+    if decl is not None:
+        decls[decl] = f"state {{ {decl_text} }}"
+
+    bodies = {s: "" for s in _SITES}
+    if ref is not None:
+        bodies[ref] = use
+
+    # A game declares exactly ONE game-level `state { }` block, so the
+    # game-level cell merges `v` into it rather than emitting a second.
+    game_state = "score[player] : Integer = 0"
+    if decl is None:
+        game_state += f"  {decl_text}"
+
+    a_inner = f"phase a_inner {{ {decls['a_inner']} {bodies['a_inner']} }}"
+    return f"""
+game G {{
+  players: 2
+  max_length: 200
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  state {{ {game_state} }}
+  phase a {{ {decls['a']} {bodies['a']} {a_inner} }}
+  phase b {{ {decls['b']} {bodies['b']} }}
+  winner: highest score
+}}
+"""
+
+
+@pytest.mark.parametrize("kind", _KINDS)
+@pytest.mark.parametrize("ref", [s for s in _SITES if s is not None])
+@pytest.mark.parametrize("decl", _SITES)
+def test_scope_grid(decl: str | None, ref: str, kind: str) -> None:
+    """Every (declaration site, reference site, shape) cell.
+
+    The expected value is COMPUTED by `_in_scope` from `_TREE`, so a cell that
+    flips is a change against decisions.md's rule, not against this file.
+    """
+    src = _game(decl, ref, kind)
+    expected_ok = _in_scope(decl, ref)
+    if expected_ok:
+        check_dsl(src, "t.cardlang")  # must not raise
+        return
+    with pytest.raises(DiagnosticError) as caught:
+        check_dsl(src, "t.cardlang")
+    # The diagnostic must name the variable and say where it IS declared —
+    # "not in scope" alone sends the author looking in the wrong place.
+    message = str(caught.value)
+    assert "'v'" in message, message
+    assert str(decl) in message, (
+        f"the diagnostic must name the declaring scope ({decl}) so the author "
+        f"knows where the variable actually lives: {message}"
+    )
+    # The declaring-scope LIST must not repeat one phase. The scope set and
+    # the declaration record are built by separate traversals; when one of them
+    # also did the other's job every name was recorded once per traversal and
+    # the message read "declared in phase 'a' or phase 'a'".
+    assert f"phase '{decl}' or phase '{decl}'" not in message, message
+
+
+@pytest.mark.parametrize("decl", _SITES)
+def test_winner_target_scope(decl: str | None) -> None:
+    """`winner: <dir> NAME` is evaluated at game end, outside every phase.
+
+    Its own cell because `Winner.target` is a bare `str` (issue #243) — it never
+    becomes a `NameRef`, so it is invisible to the walk that covers every other
+    position and needs naming directly.
+    """
+    src = f"""
+game G {{
+  players: 2
+  max_length: 200
+  cards: standard52
+  zones {{ deck : Deck  hand[player] : Hand<player> }}
+  {"state { tally[player] : Integer = 0 }" if decl is None else ""}
+  phase a {{ {"state { tally[player] : Integer = 0 }" if decl == "a" else ""}
+    phase a_inner {{ {"state { tally[player] : Integer = 0 }" if decl == "a_inner" else ""} }}
+  }}
+  phase b {{ {"state { tally[player] : Integer = 0 }" if decl == "b" else ""} }}
+  winner: highest tally
+}}
+"""
+    if decl is None:
+        check_dsl(src, "t.cardlang")
+        return
+    with pytest.raises(DiagnosticError, match="tally"):
+        check_dsl(src, "t.cardlang")
