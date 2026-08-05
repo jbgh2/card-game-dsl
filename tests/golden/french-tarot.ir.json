@@ -393,7 +393,7 @@
               "outcome_fn": "tarot_auction_outcome",
               "trump": null,
               "early_termination": null,
-              "move_types": [
+              "offering": [
                 "pass",
                 "bid_petite",
                 "bid_garde",
@@ -519,7 +519,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "play_to_trick"
               ]
             },
@@ -817,7 +817,7 @@
                   "outcome_fn": "tarot_trick_winner",
                   "trump": null,
                   "early_termination": null,
-                  "move_types": null,
+                  "offering": null,
                   "termination": null,
                   "order_mode": null,
                   "combos_fn": null,

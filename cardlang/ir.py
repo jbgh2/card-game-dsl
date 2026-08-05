@@ -242,7 +242,7 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
                 "refs": [_rule_ref(r) for r in item.refs],
             }
         case n.LegalMoves():
-            return {"kind": "legal_moves", "names": list(item.names)}
+            return {"kind": "legal_moves", "move_types": list(item.move_types)}
         case n.TransitionTo():
             return {
                 "kind": "transition_to",
@@ -368,7 +368,7 @@ def _stmt(s: n.Stmt) -> IRDict:
             return {
                 "kind": "offer",
                 "player": _expr(s.player),
-                "move_types": list(s.move_types),
+                "offering": list(s.offering),
             }
         case n.Round():
             return {
@@ -381,7 +381,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "outcome_fn": s.outcome_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
                 "early_termination": s.early_termination,
-                "move_types": list(s.move_types) if s.move_types is not None else None,
+                "offering": list(s.offering) if s.offering is not None else None,
                 "termination": _expr(s.termination) if s.termination is not None else None,
                 "order_mode": s.order_mode,
                 "combos_fn": s.combos_fn,

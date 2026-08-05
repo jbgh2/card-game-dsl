@@ -43,7 +43,7 @@ def _round(game: n.Game) -> n.Round:
 
 def test_auction_round_parses_vocab_and_termination() -> None:
     rnd = _round(parse_text(SRC, "g.cardlang"))
-    assert rnd.move_types == ("raise", "pass")
+    assert rnd.offering == ("raise", "pass")
     assert rnd.termination is not None
     assert rnd.outcome_fn == "bridge_auction_outcome"
     # The trick-specific fields are absent in the auction form.

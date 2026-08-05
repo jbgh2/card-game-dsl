@@ -584,7 +584,7 @@ class Offer:
     one legal move-type; its effect runs with `actor` bound to that player."""
 
     player: Expr
-    move_types: tuple[str, ...]
+    offering: tuple[str, ...]
     span: Span | None = None
 
 
@@ -631,7 +631,7 @@ class Round:
     outcome_fn: str | None
     trump: Expr | None
     early_termination: str | None = None
-    move_types: tuple[str, ...] | None = None
+    offering: tuple[str, ...] | None = None
     termination: Expr | None = None
     # The order axis for the continuous-ring form: None / "ring" walks the ring
     # (pointer advances each turn); "priority" re-scans from the leader each turn
@@ -823,7 +823,7 @@ class ActiveRules:
 
 @dataclass(frozen=True, slots=True)
 class LegalMoves:
-    names: tuple[str, ...]
+    move_types: tuple[str, ...]
     span: Span | None = None
 
 

@@ -522,7 +522,7 @@
               "outcome_fn": "pinochle_auction_outcome",
               "trump": null,
               "early_termination": null,
-              "move_types": [
+              "offering": [
                 "submit_bid",
                 "pass"
               ],
@@ -652,7 +652,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "declare_trump_suit",
                 "play_to_trick"
               ]
@@ -713,7 +713,7 @@
                   "outcome_fn": null,
                   "trump": null,
                   "early_termination": null,
-                  "move_types": [
+                  "offering": [
                     "declare_trump_suit"
                   ],
                   "termination": {
@@ -818,7 +818,7 @@
                         "ref": "state_var"
                       },
                       "early_termination": null,
-                      "move_types": null,
+                      "offering": null,
                       "termination": null,
                       "order_mode": null,
                       "combos_fn": null,

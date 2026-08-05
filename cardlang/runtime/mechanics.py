@@ -335,13 +335,13 @@ class AuctionForm:
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
         # the grammar's auction production makes the vocabulary and `until` mandatory
-        assert stmt.move_types is not None and stmt.termination is not None
+        assert stmt.offering is not None and stmt.termination is not None
         self.stmt = stmt
         self.termination: n.Expr = stmt.termination
         self.order: list[Player] = ctx.rs.seating.turn_order_from(
             evaluate(stmt.leader, ctx)
         )
-        self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.move_types]
+        self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.offering]
 
     def init(self, state: State, ctx: Ctx) -> State:
         # This form publishes nothing to `state.` — it never pushes onto
@@ -423,7 +423,7 @@ class AuctionForm:
                 f"auction: participant {actor} has no legal move. Give an "
                 f"always-legal move (e.g. an unguarded `pass`) or exclude "
                 f"dropped-out players from the participants clause "
-                f"(vocabulary {list(self.stmt.move_types or ())})"
+                f"(vocabulary {list(self.stmt.offering or ())})"
             )
         return candidates
 
@@ -617,7 +617,7 @@ def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
     (`combos_fn` before `move_types`)."""
     if stmt.combos_fn is not None:
         return ClimbForm(stmt, ctx)
-    if stmt.move_types is not None:
+    if stmt.offering is not None:
         return AuctionForm(stmt, ctx)
     return TrickForm(stmt, ctx)
 

@@ -370,7 +370,7 @@
           "items": [
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "submit_bid"
               ]
             },
@@ -422,7 +422,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "play_to_trick"
               ]
             },
@@ -530,7 +530,7 @@
                   "outcome_fn": "highest_trump_or_led_suit",
                   "trump": null,
                   "early_termination": null,
-                  "move_types": null,
+                  "offering": null,
                   "termination": null,
                   "order_mode": null,
                   "combos_fn": null,

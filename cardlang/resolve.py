@@ -386,10 +386,10 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
     # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
     # the first pair is a channel an importing game can feed.
-    (n.Offer, "move_types"): "move_type",
-    (n.Round, "move_types"): "move_type",
+    (n.Offer, "offering"): "move_type",
+    (n.Round, "offering"): "move_type",
     (n.Round, "move_type"): "stdlib_move_type",
-    (n.LegalMoves, "names"): "stdlib_move_type",
+    (n.LegalMoves, "move_types"): "stdlib_move_type",
     (n.MoveEvent, "move_type"): "stdlib_move_type",
     (n.RuleDef, "constrains"): "stdlib_move_type",
     (n.RuleRef, "name"): "rule",
@@ -3419,7 +3419,7 @@ def _resolve_phase_item(
                     ref.span,
                 )
     elif isinstance(item, n.LegalMoves):
-        for name in item.names:
+        for name in item.move_types:
             if name not in LIBRARY_MOVE_TYPES:
                 bag.error(f"legal_moves names unknown move type '{name}'", item.span)
     elif isinstance(item, n.TransitionTo):
@@ -5257,14 +5257,14 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 )
             case n.Offer():
                 _check_vocabulary_moves(
-                    nd.move_types,
+                    nd.offering,
                     defined_move_types,
                     bag,
                     nd.span,
                     "offer names unknown move type",
                 )
-                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
-            case n.Round() if nd.move_types is not None:
+                _check_card_vocabulary(nd.offering, move_type_defs, game, bag, nd.span)
+            case n.Round() if nd.offering is not None:
                 # Auction form: a vocabulary of game-defined move types, no card
                 # zones. The termination predicate's names are checked by the
                 # generic NameRef pass.
@@ -5278,13 +5278,13 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # over every DECLARED move type (above), which covers these and
                 # the ones no vocabulary names.
                 _check_vocabulary_moves(
-                    nd.move_types,
+                    nd.offering,
                     defined_move_types,
                     bag,
                     nd.span,
                     "round vocabulary names unknown move type",
                 )
-                _check_card_vocabulary(nd.move_types, move_type_defs, game, bag, nd.span)
+                _check_card_vocabulary(nd.offering, move_type_defs, game, bag, nd.span)
                 # The betting form omits `outcome` (it mutates state directly and
                 # produces no outcome); only an auction's outcome fn is validated.
                 if nd.outcome_fn is not None and nd.outcome_fn not in PRIMITIVE_AUCTION_OUTCOMES:

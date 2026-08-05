@@ -18,11 +18,11 @@ move_type take_two { effect { coins[actor] += 2 } }
 """
 
 
-def test_ir_has_move_types_and_offer() -> None:
+def test_ir_has_move_types_and_offering() -> None:
     ir: Any = emit(check_dsl(SRC, "g.cardlang"))
     assert [m["name"] for m in ir["move_types"]] == ["take_one", "take_two"]
     assert ir["move_types"][0]["kind"] == "move_type"
     phase = ir["phases"][0]
     foreach = next(i for i in phase["items"] if i["kind"] == "for_each")
     assert foreach["body"]["kind"] == "offer"
-    assert foreach["body"]["move_types"] == ["take_one", "take_two"]
+    assert foreach["body"]["offering"] == ["take_one", "take_two"]

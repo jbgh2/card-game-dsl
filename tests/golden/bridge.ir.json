@@ -448,7 +448,7 @@
               "outcome_fn": "bridge_auction_outcome",
               "trump": null,
               "early_termination": null,
-              "move_types": [
+              "offering": [
                 "pass",
                 "submit_bid",
                 "double",
@@ -605,7 +605,7 @@
             },
             {
               "kind": "legal_moves",
-              "names": [
+              "move_types": [
                 "play_to_trick"
               ]
             },
@@ -675,7 +675,7 @@
                     "ref": "state_var"
                   },
                   "early_termination": null,
-                  "move_types": null,
+                  "offering": null,
                   "termination": null,
                   "order_mode": null,
                   "combos_fn": null,

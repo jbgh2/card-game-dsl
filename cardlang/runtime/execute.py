@@ -662,7 +662,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     # the binding isn't redundantly recomputed for every move type in the
     # vocabulary.
     candidates: list[tuple[str, Any]] = []
-    for name in stmt.move_types:
+    for name in stmt.offering:
         candidates.extend(mechanics.concrete_moves(ctx.rs.move_type_index[name], player, pctx))
     if not candidates:
         # No implicit skip: a decision point must have a legal move. The explicit
@@ -670,7 +670,7 @@ def _offer(stmt: n.Offer, ctx: Ctx) -> None:
         # unguarded `pass`/`decline`), or guarding the offer (`if <able> { offer …
         # }`) so it is only reached when something is legal.
         raise OwnerGuardError(
-            f"offer to player {player}: none of {list(stmt.move_types)} is legal. "
+            f"offer to player {player}: none of {list(stmt.offering)} is legal. "
             f"Add an always-legal move (an unguarded `pass`/`decline`) or guard the "
             f"offer so it is only made when the player can act."
         )

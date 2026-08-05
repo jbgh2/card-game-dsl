@@ -231,7 +231,7 @@ class ActionSpace:
                 # cross-product to `vocab` instead of a stray, never-used bare
                 # name. Without this routing, a parameterized `offer` move,
                 # like Go Fish's `ask`, would be silently mis-routed.
-                for mt_name in node.move_types:
+                for mt_name in node.offering:
                     mt = mt_index[mt_name]
                     if not mt.params:
                         if mt.name not in names:
@@ -257,8 +257,8 @@ class ActionSpace:
                 fn = root.func if isinstance(root, n.Call) else None
                 if fn not in joint_engines:
                     joint_engines.append(fn)
-            elif isinstance(node, n.Round) and node.move_types is not None:
-                for mt_name in node.move_types:
+            elif isinstance(node, n.Round) and node.offering is not None:
+                for mt_name in node.offering:
                     mt = mt_index[mt_name]
                     if any(p.type_name == "Card" for p in mt.params):
                         # A Card-parameterized move's concrete actions ARE the

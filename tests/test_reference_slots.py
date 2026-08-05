@@ -417,7 +417,7 @@ def test_every_slot_shape_is_one_of_four() -> None:
 def test_slot_strings_reads_every_shape_whole() -> None:
     """One real node per shape, so the reader is exercised rather than reasoned
     about. The `tuple` row is the one that matters: a consumer taking only the
-    first element would see `Offer.move_types`' first move type and miss the
+    first element would see `Offer.offering`' first move type and miss the
     rest, which is coverage that looks total and is not.
 
     red under: make `slot_strings` return `(value,)` for a tuple slot, or drop
@@ -445,8 +445,8 @@ def test_slot_strings_reads_every_shape_whole() -> None:
     )
     assert slot_strings(set_optional, "again") == ("flag",)
 
-    many = n.Offer(player=n.NameRef("p"), move_types=("bid", "pass"))
-    assert slot_strings(many, "move_types") == ("bid", "pass")
+    many = n.Offer(player=n.NameRef("p"), offering=("bid", "pass"))
+    assert slot_strings(many, "offering") == ("bid", "pass")
 
     union = n.Movement(
         verb="deal",
