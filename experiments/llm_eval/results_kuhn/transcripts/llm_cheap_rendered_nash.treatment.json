@@ -1,0 +1,29 @@
+{
+  "game": "cardlang_kuhn_poker",
+  "agents": [
+    {
+      "kind": "llm",
+      "name": "llm_cheap",
+      "model": "cheap",
+      "render": true
+    },
+    {
+      "kind": "nash",
+      "alpha": 0.16666666666666666
+    }
+  ],
+  "rotate": true,
+  "balanced_seating": true,
+  "max_decisions": 8,
+  "seed_start": 0,
+  "models": {
+    "cheap": {
+      "kind": "anthropic",
+      "model": "claude-haiku-4-5",
+      "params": {
+        "max_tokens": 512,
+        "temperature": 0
+      }
+    }
+  }
+}

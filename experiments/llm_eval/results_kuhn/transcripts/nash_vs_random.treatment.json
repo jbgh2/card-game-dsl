@@ -1,0 +1,17 @@
+{
+  "game": "cardlang_kuhn_poker",
+  "agents": [
+    {
+      "kind": "nash",
+      "alpha": 0.16666666666666666
+    },
+    {
+      "kind": "random"
+    }
+  ],
+  "rotate": true,
+  "balanced_seating": true,
+  "max_decisions": 8,
+  "seed_start": 0,
+  "models": {}
+}
