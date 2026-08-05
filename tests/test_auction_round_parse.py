@@ -56,7 +56,7 @@ def test_auction_round_round_trips_to_ir() -> None:
     rnd = next(
         i for i in ir["phases"][0]["items"] if i["kind"] == "round"
     )
-    assert rnd["move_types"] == ["raise", "pass"]
+    assert rnd["offering"] == ["raise", "pass"]
     assert rnd["move_type"] is None
     assert rnd["source_zone"] is None
     assert rnd["termination"] is not None

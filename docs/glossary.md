@@ -59,7 +59,7 @@ called, and what each name may mean.
 | **Move** | One played instance of a Move Type, bound to its Parameters. A Move may perform zero, one, or many Transfers: a pass is a Move with none, a card play one, a capture two. The struct is card-shaped today (`(card, actor)`); the concept already covers `step(from, to)` (→ F-16). | `state.Move` |
 | **Transfer** | The zone-relocation *statement* (spec: issue #209; code still says `Movement` pending migration). Its verbs — `deal`/`draw`/`move`/`burn`/`muck`/`transfer` — are sugar over the one primitive; future families mint their own (`place`, `capture`). Never "a move"; the surface verb `move` is native English (in solitaire the verb and the Move coincide), the engine word is Transfer. Flip/orient are not Transfers — nothing changes zones. | `n.Transfer` |
 | **Candidate** | One concrete legal option at a decision point: a `(move type, bound parameter)` pair or a card/subset. The thing rules filter and the encoding numbers. Prefer over "option"/"legal move"/"concrete move" (→ F-19). | `mechanics.py` |
-| **Offering** | The declared menu of moves a construct presents to a decider: `round offering [ ]`, an `offer` statement's list. Replaces every code use of "vocabulary" — the ActionSpace's vocab block is the **offering block** (spec: issue #206). Distinct from a phase's `legal_moves:`, which is availability, not presentation. | `n.Round`, `n.Offer` |
+| **Offering** | The declared menu of moves a construct presents to a decider: `round offering [ ]`, an `offer` statement's list. Replaces every code use of "vocabulary"; the ActionSpace's flattened move-type x parameter-domain block is the **offering block**. Distinct from a phase's `legal_moves:`, which is availability, not presentation. | `n.Round`, `n.Offer` |
 | **Vocabulary** | The word-stock the DSL gives designers — "the vocabulary IS the syntax" (`principles.md`). One sense, the seniormost claim. The project's term catalog is this **glossary**; the encoding's old sense is an **offering**. | `principles.md` |
 | **Rule** | A named constraint on a move type (`constrains` / `applies_when` / `demands` / `exempts` / `if_impossible`). A **rule template** is a parameterized rule; instantiation substitutes arguments. | `n.RuleDef` |
 | **Outcome** | The tagged result a decision construct yields: a phase's `-> outcome { }`, a `define`'s case set, an auction's result. Declared as an **outcome type** of **outcome cases**; carried as a `(tag, payloads)` value. This is the word's only meaning. The player a trick/climb yields is the **winner**. | `n.Phase`, `n.DefineDef` |
@@ -113,8 +113,7 @@ differ from ours. The translation is part of the vocabulary — keep it explicit
 | the game tree's node kinds | **decision node** / **terminal node** / **chance node**. Replay reifies the first two as `DecisionNode` / `TerminalNode` (spec: issue #212; code still `Pause`/`Terminal` pending migration). Exactly one chance node exists, at the root, implicit in `CardlangState` (`_seed is None`); its outcomes are seeds that drive every rng draw. A future native simultaneous-move export would add `SimultaneousNode`. Not "Terminal" bare — that word is grammar/lexer vocabulary. | `replay.py`, `game.py` |
 
 The encoding's flattened move-type × parameter-domain cross-product is the
-**offering block** (spec: issue #206; retired spellings "vocab block" /
-"auction vocabulary" persist in code pending migration). Inside `cardlang/openspiel/`,
+**offering block**. Inside `cardlang/openspiel/`,
 OpenSpiel's senses of `action`, `player`, `state`, `observation` win; outside it,
 ours do.
 

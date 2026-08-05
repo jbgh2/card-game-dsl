@@ -525,7 +525,7 @@ class TypeEnv:
     directions: Mapping[str, Type] = field(default_factory=dict)
     # `Game.content_flavor` and `Game.deck` — the dispatch key and set name for
     # the flavor-aware Owner Guards (decisions.md, "Component sets: cards and pieces");
-    # `deck` names the kind in a piece game's card-vocabulary diagnostics.
+    # `deck` names the kind in a piece game's card-content diagnostics.
     flavor: Flavor = "card"
     deck: str = ""
     # The content item's field table (`item_field_table`) -- `card.suit` types

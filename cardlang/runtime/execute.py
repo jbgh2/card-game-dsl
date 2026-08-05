@@ -651,22 +651,22 @@ def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Playe
 def _offer(stmt: n.Offer, ctx: Ctx) -> None:
     player = evaluate(stmt.player, ctx)
     pctx = ctx.acting_as(player)
-    # Every named move type's guard-filtered cross product (`concrete_moves`),
-    # concatenated in the vocabulary's declared order — one flat candidate
-    # list, exactly like the auction form. A nullary move contributes at most
-    # one `(name, None)` candidate, so the
-    # index the chooser draws is that move type's position in the
-    # vocabulary; `render()` turns `(name, None)` back into the bare name for
-    # observation, so `observe.announce`/`observe.choice` see identical text.
+    # Presents an offering to one player: every named move type's guard-filtered
+    # cross product (`concrete_moves`), concatenated in the offering's declared
+    # order — one flat candidate list, exactly like the auction form. A nullary
+    # move contributes at most one `(name, None)` candidate, so the index the
+    # chooser draws is that move type's position in the offering; `render()`
+    # turns `(name, None)` back into the bare name for observation, so
+    # `observe.announce`/`observe.choice` see identical text.
     # `pctx` (already bound to `player`) is threaded into `concrete_moves` so
     # the binding isn't redundantly recomputed for every move type in the
-    # vocabulary.
+    # offering.
     candidates: list[tuple[str, Any]] = []
     for name in stmt.offering:
         candidates.extend(mechanics.concrete_moves(ctx.rs.move_type_index[name], player, pctx))
     if not candidates:
         # No implicit skip: a decision point must have a legal move. The explicit
-        # alternatives are the game's — an always-legal move in the vocabulary (an
+        # alternatives are the game's — an always-legal move in the offering (an
         # unguarded `pass`/`decline`), or guarding the offer (`if <able> { offer …
         # }`) so it is only reached when something is legal.
         raise OwnerGuardError(

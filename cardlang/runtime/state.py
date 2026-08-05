@@ -199,7 +199,7 @@ class ZoneStore:
         #
         # Names arriving here are engine-core's: read off the resolved AST,
         # or the language-wide magic `hand` that `mechanics.py`/`rules.py`
-        # spell literally (resolve's Card-vocabulary hand-family rule is the
+        # spell literally (resolve's Card-parameter hand-family rule is the
         # Owner Guard, not an AST provenance). Game-local primitives do not reach
         # here at all — cardlang/runtime/reads.py is their sanctioned path,
         # holding both lookups to this same currency against its

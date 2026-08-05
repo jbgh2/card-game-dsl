@@ -8,15 +8,15 @@ in it, else a per-game block derived from the deck itself; see
 `_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
 the integer block `0..ceiling` (games with `choose`, sized to the game's
 largest declared `choose` ceiling — decisions.md "Declared parameter domains");
-the auction vocabulary (moves
+the offering block (moves
 flattened over their parameter domains, declared order); and the combination
 block — the climb engine's enumerated `universe()` query (canonically ordered
 and golden-pinned; Big Two) or, when the universe is too large to enumerate,
 the engine's arithmetic codec (`climb_codec_function`; Tichu's 211,204,694
 plays), whose ids are pure functions of the card-set.
 
-A Card-parameterized vocabulary move (Schnapsen's `play_card`) contributes NO
-vocab ids: its domain is state-dependent (the actor's live hand), and a card
+A Card-parameterized offering move (Schnapsen's `play_card`) contributes NO
+offering ids: its domain is state-dependent (the actor's live hand), and a card
 play already has an id — the card block's. `encode` folds a `(move, card)`
 candidate into `card_to_action(card)` and `match` accepts either
 representation, so a card's id is identical whether it is a leader's
@@ -119,18 +119,18 @@ def _walk(node: Any) -> Iterator[Any]:
             yield from _walk(item)
 
 
-def _vocab_entries(
+def _offering_entries(
     mt: n.MoveTypeDef,
     sources: DomainSources,
 ) -> list[tuple[str, Any]]:
-    """One move type's vocab entries — nullary is the empty-product
+    """One move type's offering entries — nullary is the empty-product
     `[(mt.name, None)]`; otherwise the full cross-product of its parameters'
     *declared* (static) domains, one entry per combination, packed by the
     SAME `mechanics._pack` the runtime's `concrete_moves` uses: arity 1 stays a
-    bare value (so an existing single-param vocab key like `("submit_bid",
+    bare value (so an existing single-param offering key like `("submit_bid",
     "hearts")` is byte-identical), arity >= 2 packs as a tuple. Callers have
     already excluded the Card-parameterized case — a card play's action id is
-    the card block's, never a vocab id (see the module docstring)."""
+    the card block's, never an offering id (see the module docstring)."""
     if not mt.params:
         return [(mt.name, None)]
     domains = [enumerate_domain(p.type_name, sources) for p in mt.params]
@@ -144,7 +144,7 @@ class ActionSpace:
         self,
         card_block: list[Card] | None,
         names: list[str],
-        vocab: list[tuple[str, Any]],
+        offering: list[tuple[str, Any]],
         int_ceiling: int | None,
         combos: list[Any],
         combo_codec: Any | None = None,
@@ -154,7 +154,7 @@ class ActionSpace:
             None if card_block is None else {c: i for i, c in enumerate(card_block)}
         )
         self._names = names
-        self._vocab = vocab
+        self._offering = offering
         # The game's largest integer-`choose` ceiling, or None if it has no
         # integer decision. The shared integer block reserves `ceiling + 1` ids
         # (values `0 .. ceiling`), sized to the declared per-choose bounds rather
@@ -170,14 +170,14 @@ class ActionSpace:
         assert combo_codec is None or not combos
         self._name_base = NUM_DISTINCT_ACTIONS if card_block is None else len(card_block)
         self._int_base = self._name_base + len(names)
-        self._vocab_base = self._int_base + (
+        self._offering_base = self._int_base + (
             int_ceiling + 1 if int_ceiling is not None else 0
         )
-        self._combo_base = self._vocab_base + len(vocab)
+        self._combo_base = self._offering_base + len(offering)
         combo_count = combo_codec.size if combo_codec is not None else len(combos)
         self.num_distinct_actions = self._combo_base + combo_count
         self._name_ids = {v: i for i, v in enumerate(names)}
-        self._vocab_ids = {v: i for i, v in enumerate(vocab)}
+        self._offering_ids = {v: i for i, v in enumerate(offering)}
         self._combo_ids = {frozenset(p.cards): i for i, p in enumerate(combos)}
         assert len(self._combo_ids) == len(combos), "combo card-sets must be unique"
 
@@ -186,7 +186,7 @@ class ActionSpace:
         from cardlang.runtime import primitives
 
         names: list[str] = []
-        vocab: list[tuple[str, Any]] = []
+        offering: list[tuple[str, Any]] = []
         int_ceiling: int | None = None
         combos: list[Any] = []
         mt_index = {m.name: m for m in game.move_types}
@@ -213,7 +213,7 @@ class ActionSpace:
             # construction.
             positions=dict(position_domains_of(game)),
             # The board-minted `dir` domain, from the same seam the driver reads
-            # (`directions_of`) — so a `dir` move parameter's vocab ids match
+            # (`directions_of`) — so a `dir` move parameter's offering ids match
             # the runtime's live candidates. Empty for a boardless game.
             directions=dict(directions_of(game)),
         )
@@ -225,10 +225,10 @@ class ActionSpace:
                 assert ceiling is not None
                 int_ceiling = ceiling if int_ceiling is None else max(int_ceiling, ceiling)
             elif isinstance(node, n.Offer):
-                # Routed by arity, same rule the round vocabulary below uses:
+                # Routed by arity, same rule the round offering below uses:
                 # a nullary offer keeps the bare-name representation in
                 # `names`; a parameterized, non-Card move type contributes its
-                # cross-product to `vocab` instead of a stray, never-used bare
+                # cross-product to `offering` instead of a stray, never-used bare
                 # name. Without this routing, a parameterized `offer` move,
                 # like Go Fish's `ask`, would be silently mis-routed.
                 for mt_name in node.offering:
@@ -237,10 +237,10 @@ class ActionSpace:
                         if mt.name not in names:
                             names.append(mt.name)
                     elif any(p.type_name == "Card" for p in mt.params):
-                        pass  # the card block's id, not a vocab id — see below
+                        pass  # the card block's id, not an offering id — see below
                     else:
-                        entries = _vocab_entries(mt, sources)
-                        vocab.extend(e for e in entries if e not in vocab)
+                        entries = _offering_entries(mt, sources)
+                        offering.extend(e for e in entries if e not in offering)
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
@@ -263,11 +263,11 @@ class ActionSpace:
                     if any(p.type_name == "Card" for p in mt.params):
                         # A Card-parameterized move's concrete actions ARE the
                         # card block (see the module docstring) — minting
-                        # per-card vocab ids would give a card play two
+                        # per-card offering ids would give a card play two
                         # representations and inflate num_distinct_actions.
                         continue
-                    entries = _vocab_entries(mt, sources)
-                    vocab.extend(e for e in entries if e not in vocab)
+                    entries = _offering_entries(mt, sources)
+                    offering.extend(e for e in entries if e not in offering)
         combo_codec: Any | None = None
         if climb_engines:
             assert len(climb_engines) == 1, "one climb engine per game for now"
@@ -328,7 +328,7 @@ class ActionSpace:
                 )
             combo_codec = next(iter(codecs.values()))
         return ActionSpace(
-            card_block, sorted(names), vocab, int_ceiling, combos, combo_codec
+            card_block, sorted(names), offering, int_ceiling, combos, combo_codec
         )
 
     def encode(self, value: Any) -> int:
@@ -353,12 +353,12 @@ class ActionSpace:
             if param is None and name in self._name_ids:
                 # A nullary `offer` move: the runtime represents it as
                 # `(name, None)` (the same empty-product shape a nullary
-                # round-vocabulary move uses), but this game's action space
-                # names it as a bare string — it was never a round-vocabulary
-                # member, so no `(name, None)` was minted into `vocab`. Same
+                # round-offering move uses), but this game's action space
+                # names it as a bare string — it was never a round-offering
+                # member, so no `(name, None)` was minted into `offering`. Same
                 # action either way.
                 return self._name_base + self._name_ids[name]
-            return self._vocab_base + self._vocab_ids[value]
+            return self._offering_base + self._offering_ids[value]
         cards = getattr(value, "cards", None)
         if cards is not None:
             if self._combo_codec is not None:
@@ -371,10 +371,10 @@ class ActionSpace:
             return action_to_card(aid) if self._card_block is None else self._card_block[aid]
         if self._name_base <= aid < self._int_base:
             return self._names[aid - self._name_base]
-        if self._int_base <= aid < self._vocab_base:
+        if self._int_base <= aid < self._offering_base:
             return aid - self._int_base
-        if self._vocab_base <= aid < self._combo_base:
-            return self._vocab[aid - self._vocab_base]
+        if self._offering_base <= aid < self._combo_base:
+            return self._offering[aid - self._offering_base]
         if self._combo_base <= aid < self.num_distinct_actions:
             if self._combo_codec is not None:
                 return ComboAction(frozenset(self._combo_codec.decode(aid - self._combo_base)))
@@ -398,9 +398,9 @@ class ActionSpace:
             )
         elif isinstance(value, Card):
             # A card id denotes a bare card in a movement/trick pool, or a
-            # Card-parameterized vocabulary move — a `(name, card)` candidate —
+            # Card-parameterized offering move — a `(name, card)` candidate —
             # in an auction pool (never both in one pool; resolve rejects a
-            # second Card-parameterized move per vocabulary).
+            # second Card-parameterized move per offering).
             found = next(
                 (
                     c
@@ -431,7 +431,7 @@ class ActionSpace:
 
     def verb_of(self, aid: int) -> str:
         """The move-type name `aid` denotes, at the granularity the encoding
-        preserves: a bare-name or vocabulary id names its move type; a card,
+        preserves: a bare-name or offering id names its move type; a card,
         integer or combination id names its block (`CARD_VERB` etc.).
         Partitions `0..num_distinct_actions` exactly — same block boundaries as
         `decode`, which raises on an out-of-range id."""
@@ -455,7 +455,7 @@ class ActionSpace:
         out.update(self._names)
         if self._int_ceiling is not None:
             out.add(INT_VERB)
-        out.update(name for name, _ in self._vocab)
+        out.update(name for name, _ in self._offering)
         if self._combos or self._combo_codec is not None:
             out.add(COMBO_VERB)
         return frozenset(out)

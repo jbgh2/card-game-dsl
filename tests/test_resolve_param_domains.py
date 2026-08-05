@@ -168,7 +168,7 @@ def test_rank_param_without_declared_ranking_rejected() -> None:
 
 def test_rank_param_without_declared_ranking_rejected_in_round_offering() -> None:
     # Mirror of the above for the auction `round offering` vocabulary — the
-    # other enumeration site `_check_vocabulary_moves` shares with `offer`.
+    # other enumeration site `_check_offering_moves` shares with `offer`.
     diags = _diags(
         "move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }",
         "round offering [ask] from 0 over all players until done is 1",

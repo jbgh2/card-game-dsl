@@ -126,7 +126,7 @@ _PREFIX = "_mt_"
 
 # The zone `Card`-typed move parameters are structurally required to name
 # (decisions.md "Declared parameter domains"; resolve.py's
-# `_check_card_vocabulary`: `z.name == "hand" and z.index == "player"`;
+# `_check_card_offering`: `z.name == "hand" and z.index == "player"`;
 # `runtime/rules.py::legal_cards`; `runtime/mechanics.py::param_domain`'s
 # Card branch). A language-wide magic name, not a per-game renamable zone —
 # see the module docstring.

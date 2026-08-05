@@ -4,10 +4,10 @@
 kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
 sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
 participant plays a legal card, a winner function picks the winner), `AuctionForm`
-(a continuous ring/priority vocabulary over a threaded bid history, serving *both*
-the auction and betting forms), and `ClimbForm` (one combination-climbing trick over
-game-local engine queries). `build_form` selects the bundle by field-presence and
-`execute.py` dispatches on the returned Outcome union.
+(a continuous ring/priority pass over an offering, threading a bid history, serving
+*both* the auction and betting forms), and `ClimbForm` (one combination-climbing
+trick over game-local engine queries). `build_form` selects the bundle by
+field-presence and `execute.py` dispatches on the returned Outcome union.
 """
 
 from __future__ import annotations
@@ -264,7 +264,7 @@ def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
 
 def _pack(combo: tuple[Any, ...]) -> Any:
     """A candidate's value: None (nullary), the bare value (arity 1), or the
-    tuple (arity >= 2). Arity 1 stays bare so existing vocab keys are unchanged."""
+    tuple (arity >= 2). Arity 1 stays bare so existing offering keys are unchanged."""
     if not combo:
         return None
     return combo[0] if len(combo) == 1 else combo
@@ -294,7 +294,7 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
     `ctx` must already be bound to `actor` (`ctx.acting_as(actor)`) — a decision
     offering several move types (`AuctionForm.candidates`, `execute._offer`)
     hoists that binding once, outside its per-move-type loop, rather than have
-    every move type in the vocabulary redundantly recompute the same rebind."""
+    every move type in the offering redundantly recompute the same rebind."""
     domains = [param_domain(p, actor, ctx) for p in mt.params]
     out: list[tuple[str, Any]] = []
     for combo in itertools.product(*domains):
@@ -306,7 +306,7 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
 
 
 class AuctionForm:
-    """The auction/betting form: a continuous ring over a move vocabulary, looping
+    """The auction/betting form: a continuous ring over an offering, looping
     until the termination predicate holds.
 
     Each turn the acting player chooses one of the legal *concrete* moves — every
@@ -334,7 +334,7 @@ class AuctionForm:
     """
 
     def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
-        # the grammar's auction production makes the vocabulary and `until` mandatory
+        # the grammar's auction production makes the offering and `until` mandatory
         assert stmt.offering is not None and stmt.termination is not None
         self.stmt = stmt
         self.termination: n.Expr = stmt.termination
@@ -398,13 +398,13 @@ class AuctionForm:
 
     def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
         # Every move type's guard-filtered cross product (`concrete_moves`),
-        # concatenated in vocabulary order — one flat candidate list, matching
+        # concatenated in offering order — one flat candidate list, matching
         # OpenSpiel's one-decision-node-per-turn action set. The Card domain
         # (state-dependent: the actor's live hand, in hand order) and the
         # Suit/Suit?/Rank/Player domains (deck/seating-sourced) are both handled
         # inside `concrete_moves`/`param_domain`. `acting_as` is bound once here
         # (not once per move type inside `concrete_moves`) since every move type
-        # in the vocabulary shares the same actor for this decision.
+        # in the offering shares the same actor for this decision.
         pctx = ctx.acting_as(actor)
         candidates: list[tuple[str, Any]] = []
         for mt in self.move_defs:
@@ -423,7 +423,7 @@ class AuctionForm:
                 f"auction: participant {actor} has no legal move. Give an "
                 f"always-legal move (e.g. an unguarded `pass`) or exclude "
                 f"dropped-out players from the participants clause "
-                f"(vocabulary {list(self.stmt.offering or ())})"
+                f"(offering {list(self.stmt.offering or ())})"
             )
         return candidates
 
@@ -610,11 +610,11 @@ class ClimbForm:
 
 def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
     """Select the hook bundle for a `round` by field-presence: the climbing form
-    carries the combination queries (`combos_fn`), the auction/betting form a move
-    vocabulary (`move_types`), and the trick form neither. This is the sole
-    field-presence discrimination among the forms — the interpreter and the Outcome
-    union carry everything else — and it preserves the original cascade order
-    (`combos_fn` before `move_types`)."""
+    carries the combination queries (`combos_fn`), the auction/betting form an
+    `offering`, and the trick form neither. This is the sole field-presence
+    discrimination among the forms — the interpreter and the Outcome union carry
+    everything else — and it preserves the original cascade order (`combos_fn`
+    before `offering`)."""
     if stmt.combos_fn is not None:
         return ClimbForm(stmt, ctx)
     if stmt.offering is not None:

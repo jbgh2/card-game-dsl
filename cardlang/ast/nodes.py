@@ -7,7 +7,7 @@ without handling it everywhere a type error rather than a silent gap
 (docs/building.md, "Typed-AST discipline").
 
 This covers the Hearts construct set: the game header and its blocks, phases,
-the statement vocabulary, rules, and the expression sublanguage. It grows one
+the statement forms, rules, and the expression sublanguage. It grows one
 construct at a time as more of the corpus is formalized.
 """
 
@@ -603,14 +603,14 @@ class Round:
 
     *Auction/betting form* — `round offering [<move_type>, …] from <leader> over
     <participants> until <pred> [outcome <fn>]`: a continuous ring over a
-    heterogeneous move vocabulary (bids/passes/bets), looping until the
+    heterogeneous offering (bids/passes/bets), looping until the
     termination predicate holds. The `outcome_fn` is optional: an auction supplies
     one and the function produces the typed outcome when the ring closes; a betting
     round omits it (`outcome_fn is None`) — each action mutates shared chip/fold
     state directly, so the closed ring returns and play moves to the next street.
     The trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
-    `move_types` and `termination` are present (decisions.md "Interactive
-    decisions": the same kernel round along the move-vocabulary/termination axes).
+    `offering` and `termination` are present (decisions.md "Interactive
+    decisions": the same kernel round along the offering/termination axes).
 
     *Climbing form* — `round climb <move_type> from <leader> over <participants>
     source <zone> into <zone> combinations <fn> follows <fn> until <pred>`: one

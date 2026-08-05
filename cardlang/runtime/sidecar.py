@@ -55,7 +55,7 @@ TraceEvent = tuple[str, Any]
 """One deferred trace emission: `(event name, payload)`.
 
 A few primitives compute a real value AND emit the engine's own
-`play`/`trick`/`trick_end` vocabulary from a game-local site. Emitting needs
+`play`/`trick`/`trick_end` trace events from a game-local site. Emitting needs
 `ctx.trace`, which is exactly the handle this module removes — so a narrowed
 primitive RETURNS its events alongside its value and the dispatch layer
 performs the emission. The events stay data until they cross back into the
