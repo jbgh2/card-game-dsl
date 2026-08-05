@@ -69,7 +69,7 @@ def _seated_store() -> ZoneStore:
     game = check_dsl(
         """game G {
   players: 4
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   max_length: 100
   direction: clockwise
   cards: standard52

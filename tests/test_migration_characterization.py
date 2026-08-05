@@ -351,7 +351,7 @@ from cardlang.runtime.driver import play_game
 from tests.playout_trace import TichuHands
 
 game = check_dsl(Path("docs/games/tichu.cardlang").read_text(), "tichu.cardlang")
-team_of = {p: ti for ti, members in enumerate(game.partnerships) for p in members}
+team_of = {p: ti for ti, members in enumerate(game.teams) for p in members}
 
 def policy(rng):
     from cardlang.runtime.chooser import random_chooser

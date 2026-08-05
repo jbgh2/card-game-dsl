@@ -383,7 +383,7 @@ def test_trump_accepted_in_card_game() -> None:
 # `any suit where`, `for each rank` etc. range over deck axes; the card-axis
 # roles (CARD_AXIS_ROLES = suit, rank) are rejected in a piece game, the seat
 # roles (player, team) stay legal in both. `_ROLE_QUANTIFIER` spells each role's
-# `any <role> where` surface; team needs a partnership to be non-degenerate.
+# `any <role> where` surface; team needs a team to be non-degenerate.
 
 _ROLE_QUANTIFIER: dict[str, str] = {
     "suit": "any suit where true",

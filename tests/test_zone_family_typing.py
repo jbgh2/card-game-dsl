@@ -99,7 +99,7 @@ def _team_game(body: str) -> str:
     return f"""
 game Mini {{
   players: 4
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2

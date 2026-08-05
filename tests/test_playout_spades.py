@@ -1,6 +1,6 @@
 """Random-playout harness for Spades.
 
-Spades is the first partnership trump game on the runtime. Its invariants
+Spades is the first team trump game on the runtime. Its invariants
 exercise the seams Hearts/Getaway never touched: a value (integer-bid) decision,
 a trump-aware trick winner, and team-indexed capture/scoring. The trump check is
 the one that would go red under a wrong outcome function — it recomputes each

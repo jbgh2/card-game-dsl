@@ -18,7 +18,7 @@ fail: it is what caught, when this module was written, four references already
 naming sections that no longer existed
 (``Let-bound local typing across statements``,
 ``Out-of-range player literals in declaration/binding positions``,
-``Out-of-range seats in a `partnerships:` list``, and
+``Out-of-range seats in a `teams:` list``, and
 ``` `each … simultaneously` body shape is unchecked ```).
 
 Completeness ledger (decisions.md "Closed-domain completeness"):

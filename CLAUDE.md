@@ -245,8 +245,8 @@ gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
 
 An issue's title and Summary speak impact currency; its Detail speaks
 mechanism. The title states what a designer or the engine experiences, not
-where the fix goes ("a partnership typo plays to completion", not
-"validate partnerships at resolve time"). The Summary answers, in a few
+where the fix goes ("a team typo plays to completion", not
+"validate teams at resolve time"). The Summary answers, in a few
 sentences: who hits it, what they see, what changes when it's fixed — with
 the reachability why doing double duty ("R2 — a plausible one-character
 typo"). An issue with no designer or info-set consequence says "internal
@@ -340,7 +340,7 @@ already in `docs/games/`, or to size up a candidate game from
 `docs/games/_candidates.md` — **Pagat.com (https://www.pagat.com/) is the
 authoritative source**. Fetch the page live rather than reconstructing
 rules from memory; trick-taking variants drift in small ways that matter
-to the DSL (lead order, exact scoring, partnership choice). Don't mirror
+to the DSL (lead order, exact scoring, team choice). Don't mirror
 or scrape the site — use it on demand, like any other reference.
 
 ## Out of scope (current phase)

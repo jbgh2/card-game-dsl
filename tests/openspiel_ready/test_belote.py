@@ -1,4 +1,4 @@
-"""Belote (4 players, fixed partnerships) — OpenSpiel readiness.
+"""Belote (4 players, fixed teams) — OpenSpiel readiness.
 
 Depth 12 (the default): seed 5's greedy line takes the turn-up at step 0,
 plays out trick 1 (steps 1-4), declines the Belote-Rebelote window (step 5 —

@@ -46,7 +46,7 @@ def _game(body: str, ranking: str = "A K Q J 10 9 8 7 6 5 4") -> str:
     return (
         "game G {\n"
         "  players: 4\n"
-        "  partnerships: [[0, 2], [1, 3]]\n"
+        "  teams: [[0, 2], [1, 3]]\n"
         "  direction: clockwise\n"
         "  max_length: 100\n"
         "  cards: canasta108\n"

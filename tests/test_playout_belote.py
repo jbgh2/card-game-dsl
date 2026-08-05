@@ -4,7 +4,7 @@ Belote's falsifiable surface is broad because a whole hand recomputes from
 the play traces plus the recorded decisions: the deal reconstructs from what
 each player played (conservation over the 32-card pack), follow legality is
 a pure function of the trick prefix, the declared trump, and the acting
-player's partnership (the five-obligation cascade — the corpus's richest),
+player's team (the five-obligation cascade — the corpus's richest),
 the trick winner is a pure function of the plays under the J-9 trump order,
 declarations recompute from the reconstructed hand at the poll, and the
 settlement is a closed formula over card points, the dix de der, capot,

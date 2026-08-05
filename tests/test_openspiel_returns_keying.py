@@ -13,7 +13,7 @@ exactly when a game's team count equals its player count: a 2-player/2-team or
 4-player/4-team game has team keys `{0, 1}` / `{0, 1, 2, 3}` that are
 indistinguishable from player keys, so team scores were read as player scores
 and returns went to the wrong seats. Nothing about such a game is malformed --
-`partnerships: [[1], [0]]` is a perfectly good partition of two seats. The
+`teams: [[1], [0]]` is a perfectly good partition of two seats. The
 keying is now read STRUCTURALLY: the `winner:` target's own state declaration
 says whether it is indexed by `team`.
 
@@ -82,12 +82,12 @@ from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import GameResult
 
 
-def _team_game(*, players: int, partnerships: str, rank_dir: str = "highest") -> str:
+def _team_game(*, players: int, teams: str, rank_dir: str = "highest") -> str:
     """A game whose `winner:` names a TEAM-indexed score variable."""
     return (
         "game T {\n"
         f"  players: {players}\n"
-        f"  partnerships: {partnerships}\n"
+        f"  teams: {teams}\n"
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
@@ -104,12 +104,12 @@ def _team_game(*, players: int, partnerships: str, rank_dir: str = "highest") ->
     )
 
 
-def _player_game(*, players: int, partnerships: str = "", rank_dir: str = "highest") -> str:
+def _player_game(*, players: int, teams: str = "", rank_dir: str = "highest") -> str:
     """A game whose `winner:` names a PLAYER-indexed score variable. The
-    `partnerships` argument is deliberately available: a game may declare teams
+    `teams` argument is deliberately available: a game may declare teams
     and still score by player, which is the mirror of the bug -- the key-set
     guess got this cell right only by coincidence."""
-    p_clause = f"  partnerships: {partnerships}\n" if partnerships else ""
+    p_clause = f"  teams: {teams}\n" if teams else ""
     return (
         "game P {\n"
         f"  players: {players}\n"
@@ -130,7 +130,7 @@ def _player_game(*, players: int, partnerships: str = "", rank_dir: str = "highe
     )
 
 
-# (id, source, players, team_keyed, partnerships-as-tuples, scores)
+# (id, source, players, team_keyed, teams-as-tuples, scores)
 # `team_keyed` is the AUTHORED decision for the cell -- what the language should
 # do, read off the game's `winner:` target declaration by eye, never scraped
 # from the implementation under test.
@@ -143,13 +143,13 @@ _CASES: list[tuple[str, str, int, bool, tuple[tuple[int, ...], ...], dict[int, i
         # The mirror: teams declared, scores still per player, counts coincide.
         # The key-set guess happened to be right here; it must stay right.
         "player_keyed_teams_coincide",
-        _player_game(players=2, partnerships="[[0], [1]]"), 2, False,
+        _player_game(players=2, teams="[[0], [1]]"), 2, False,
         ((0,), (1,)), {0: 10, 1: 20},
     ),
     (
         # The corpus shape (bridge/spades/pinochle/tichu): 4 seats, 2 teams.
         "team_keyed_counts_differ",
-        _team_game(players=4, partnerships="[[0, 2], [1, 3]]"), 4, True,
+        _team_game(players=4, teams="[[0, 2], [1, 3]]"), 4, True,
         ((0, 2), (1, 3)), {0: 120, 1: 90},
     ),
     (
@@ -157,26 +157,26 @@ _CASES: list[tuple[str, str, int, bool, tuple[tuple[int, ...], ...], dict[int, i
         # keys, and the partition is deliberately NOT the identity, so a
         # seat-vs-team mix-up changes the answer.
         "team_keyed_2p_2teams",
-        _team_game(players=2, partnerships="[[1], [0]]"), 2, True,
+        _team_game(players=2, teams="[[1], [0]]"), 2, True,
         ((1,), (0,)), {0: 10, 1: 20},
     ),
     (
         # THE BUG, wider: 4 seats, 4 singleton teams, reversed.
         "team_keyed_4p_4teams",
-        _team_game(players=4, partnerships="[[3], [2], [1], [0]]"), 4, True,
+        _team_game(players=4, teams="[[3], [2], [1], [0]]"), 4, True,
         ((3,), (2,), (1,), (0,)), {0: 10, 1: 20, 2: 30, 3: 40},
     ),
     (
         # The sign axis crossed with the broken cell.
         "team_keyed_2p_2teams_lowest",
-        _team_game(players=2, partnerships="[[1], [0]]", rank_dir="lowest"), 2, True,
+        _team_game(players=2, teams="[[1], [0]]", rank_dir="lowest"), 2, True,
         ((1,), (0,)), {0: 10, 1: 20},
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "cid, source, players, team_keyed, partnerships, scores",
+    "cid, source, players, team_keyed, teams, scores",
     _CASES,
     ids=[c[0] for c in _CASES],
 )
@@ -185,16 +185,16 @@ def test_returns_follow_the_score_variables_key_domain(
     source: str,
     players: int,
     team_keyed: bool,
-    partnerships: tuple[tuple[int, ...], ...],
+    teams: tuple[tuple[int, ...], ...],
     scores: dict[int, int],
 ) -> None:
     game = check_dsl(source, f"{cid}.cardlang")
-    assert game.teams == partnerships, "fixture drift: partnerships mis-parsed"
+    assert game.teams == teams, "fixture drift: teams mis-parsed"
     sign = RANK_DIR_TO_SIGN[game.winner.rank_dir] if game.winner else 1
     # The expected column, computed from the game's structure and the authored
     # `team_keyed` decision -- not from `returns_for`.
     if team_keyed:
-        team_of = {p: ti for ti, members in enumerate(partnerships) for p in members}
+        team_of = {p: ti for ti, members in enumerate(teams) for p in members}
         expected = [float(sign * scores[team_of[p]]) for p in range(players)]
     else:
         expected = [float(sign * scores[p]) for p in range(players)]
@@ -228,7 +228,7 @@ def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:
     keying. Planted by re-indexing the target's declaration to a role this
     mapping has no arm for -- the fault goes in the data the function reads, not
     in the assertion."""
-    game = check_dsl(_team_game(players=2, partnerships="[[1], [0]]"), "x.cardlang")
+    game = check_dsl(_team_game(players=2, teams="[[1], [0]]"), "x.cardlang")
     assert game.state is not None and game.winner is not None
     decls = tuple(
         dataclasses.replace(d, index="column") if d.name == game.winner.target else d

@@ -256,7 +256,7 @@ Threshold-triggered bonuses (game/rubber bonuses, bag-overflow
 penalties) remain imperative post-component checks. (See
 [library.md](library.md), "Scoring components".)
 
-**Typed object model.** Cards, players, partnerships, zones,
+**Typed object model.** Cards, players, teams, zones,
 contracts, hand results, and other game objects are typed.
 User-defined types support optional `derived` fields. Stdlib types
 (Card, Resource, Player, Partnership, Seating, Zone, ZoneContents)

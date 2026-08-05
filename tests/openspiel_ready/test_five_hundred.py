@@ -1,4 +1,4 @@
-"""500 (4 players, partnerships) — OpenSpiel readiness, plus positive
+"""500 (4 players, teams) — OpenSpiel readiness, plus positive
 confirmations of the two knowledge moments the game was added for: the
 open-misère mid-phase reveal (the declarer's hand becomes public for every
 observer identically, carried entirely by a movement into a PublicHand zone)

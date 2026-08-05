@@ -1,6 +1,6 @@
 """Canasta: random-playout invariants plus a characterization pin.
 
-A partnership melding game with public melds and hidden hands: the strongest
+A team melding game with public melds and hidden hands: the strongest
 falsifiable checks are conservation (all 108 cards somewhere every game),
 the fixed four-deal match shape, and an INDEPENDENT re-derivation of the
 final hand's score delta from the final table (the meld piles, red-three
@@ -78,7 +78,7 @@ RECOMPUTE_ARMS = frozenset(
 WITNESS_SEEDS = 3
 
 # Derived from that, not chosen. Five of the six arms fire on seed 0; the
-# binding one is `team_never_melded` (a partnership that never gets down),
+# binding one is `team_never_melded` (a team that never gets down),
 # which lands on seeds 2, 3 and 4 — so five seeds is the minimum that
 # witnesses every arm three times, and ten leaves headroom for a game change
 # that shifts an arm off the early seeds. Each seed is a full four-deal

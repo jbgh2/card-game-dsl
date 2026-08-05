@@ -51,7 +51,7 @@ sampled:    two shapes, each a single instance standing for a family.
             runs in one game (2 players, `standard52`, a deck and a hand), so
             a kind whose declare-time behaviour depends on the SHAPE of the
             game rather than on the expression — a quantifier over teams in a
-            game with no `partnerships`, a query over a positional zone — is
+            game with no `teams`, a query over a positional zone — is
             sampled by proxy, not swept. The team case was spot-checked and is
             clean (an empty role domain evaluates to `false`, it does not
             crash); the rest are unprobed, and belong to whatever wall owns
