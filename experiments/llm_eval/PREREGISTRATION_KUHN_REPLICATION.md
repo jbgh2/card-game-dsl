@@ -1,9 +1,24 @@
 # Pre-registration — Kuhn replication at N = 1500
 
-**Written 2026-08-05, before any model was called for this run.** The only Kuhn
-model transcripts in existence when this was committed are the N = 300 archive
-from [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md), whose results are
-stated below as the predictions being tested.
+**Committed before any model was called for this run, and that is checkable.**
+This file arrived in its own commit — two files, the pre-registration and the
+config's `n`, and no transcript — authored at **2026-08-05T04:03:59Z**. The A/B
+run directory is stamped `2026-08-05T04-04-15Z`: sixteen seconds later.
+
+```bash
+# the commit that added this file, and what else was in it
+git log --diff-filter=A --format='%h %aI' -1 -- experiments/llm_eval/PREREGISTRATION_KUHN_REPLICATION.md
+git show --stat $(git log --diff-filter=A --format=%h -1 -- experiments/llm_eval/PREREGISTRATION_KUHN_REPLICATION.md)
+```
+
+Use `%aI` — the **author** date. This branch was rebased onto main, which
+rewrites committer dates and makes `git log`'s default view show this commit and
+the one carrying the transcripts at the same instant. Author dates survive a
+rebase; committer dates do not.
+
+The only Kuhn model transcripts in existence at that point are the N = 300
+archive from [`PREREGISTRATION_KUHN.md`](PREREGISTRATION_KUHN.md), whose results
+are stated below as the predictions being tested.
 
 This is a **replication**, not a fresh exploration. The first run's job was to
 find out whether the harness could measure anything; its answers are now

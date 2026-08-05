@@ -133,10 +133,16 @@ It removed a class of blunder outright and did **not** make the model good.
 
 | Haiku 4.5 | control | reason-first |
 |---|---|---|
-| dominated actions | 52 / 200 | **0 / 200** |
+| dominated actions | 52 / 200 | **0 / 74** |
 | exploitability | 0.323 | 0.314 |
 | bluffs a Jack, first to act | 0.000 | **0.996** |
 | chips per hand | −0.157 | −0.049 |
+
+The denominators differ because the arms play differently and so reach different
+situations: a model that bluffs its Jacks almost always is bet into less often,
+and a dominated action is only *offered* facing a bet holding a Jack or a King.
+That is why the registered test is paired on (deal, seat) rather than comparing
+these two rates directly — 74 units offered the choice in both arms.
 
 It stopped calling with Jacks and started bluffing them **almost every time**
 (0.996 where equilibrium says 0.167). A perfectly predictable bluffer is as
