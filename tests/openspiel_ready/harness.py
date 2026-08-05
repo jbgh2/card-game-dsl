@@ -49,8 +49,8 @@ pyspiel = pytest.importorskip("pyspiel")
 import cardlang.openspiel.game as ogame  # registers on import
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import (
-    Pause,
-    Terminal,
+    DecisionNode,
+    TerminalNode,
     load,
     returns_for,
     run,
@@ -201,7 +201,7 @@ class GameSpec:
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
     # Total greedy (legal[0]) steps within which this game's line reaches
-    # Terminal — measured across EVERY seed in `SWAP_SEEDS`, with headroom.
+    # TerminalNode — measured across EVERY seed in `SWAP_SEEDS`, with headroom.
     # Across the whole manifest because line length varies with the deal, and
     # by a lot: Schnapsen's runs 64-188 over the five seeds, so a cap read off
     # one deal under-covers the others.
@@ -342,7 +342,7 @@ def greedy_line(path: str, seed: int, cap: int) -> tuple[tuple[int, ...], list[f
     and the terminal returns if it ends within `cap`.
 
     Identical to the line a caller gets by repeatedly replaying a growing
-    history and taking `Pause.legal[0]` — `legal` is `sorted({encode(c) for c in
+    history and taking `DecisionNode.legal[0]` — `legal` is `sorted({encode(c) for c in
     pool})`, so its head is the lowest-encoded candidate, which is what the
     chooser below picks. `test_adapter_agrees_with_the_dsl_information_state`
     asserts that agreement on the prefix it walks both ways, so the equivalence
@@ -427,14 +427,14 @@ def pin_failures(spec: GameSpec, declared: frozenset[str]) -> list[str]:
     return out
 
 
-def _advance(path: str, seed: int, depth: int) -> tuple[list[int], Pause]:
+def _advance(path: str, seed: int, depth: int) -> tuple[list[int], DecisionNode]:
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     while len(history) < depth:
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        if not isinstance(nxt, Pause):  # short game: back off one step
+        if not isinstance(nxt, DecisionNode):  # short game: back off one step
             history.pop()
             break
         r = nxt
@@ -489,7 +489,7 @@ class ReadinessProofs:
         history, pause_a = _advance(path, seed, spec.depth)
         p = pause_a.player
         first = run(path, seed, ())
-        assert isinstance(first, Pause)
+        assert isinstance(first, DecisionNode)
         d0 = first.player  # the swap must not touch the first decider (stale candidates)
 
         others = [q for q in range(len(pause_a.obs_logs)) if q not in (p, d0)]
@@ -539,7 +539,7 @@ class ReadinessProofs:
                 # try the next pair, but remember why in case none work.
                 last_err = e
                 continue
-            assert isinstance(pause_b, Pause)
+            assert isinstance(pause_b, DecisionNode)
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) "
@@ -605,7 +605,7 @@ class ReadinessProofs:
         path = spec.path
         hz = spec.hidden_zone
         r0 = run(path, seed, ())
-        assert isinstance(r0, Pause)
+        assert isinstance(r0, DecisionNode)
         p = r0.player
         opp = next(q for q in range(len(r0.obs_logs)) if q != p)
         own = r0.rs.zones.instance(hz, p).cards
@@ -622,7 +622,7 @@ class ReadinessProofs:
         x, y = pairs[0]
         info_a = information_state(p, r0.rs, r0.obs_logs[p])
         r1 = run(path, seed, (), on_first_decision=_swap_fn((hz, p), (hz, opp), x, y))
-        assert isinstance(r1, Pause)
+        assert isinstance(r1, DecisionNode)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])
         # The pause player is the same (no actions replayed); their own hand changed.
         assert r1.player == p and info_a != info_b, (
@@ -711,7 +711,7 @@ class ReadinessProofs:
         r = run(path, seed, ())
         prev: dict[int, list[tuple[Any, ...]]] = {}
         steps = 0
-        while isinstance(r, Pause) and steps < 40:
+        while isinstance(r, DecisionNode) and steps < 40:
             for q, log in r.obs_logs.items():
                 if q in prev:
                     assert log[: len(prev[q])] == prev[q], (
@@ -736,7 +736,7 @@ class ReadinessProofs:
         When the spec sets `adapter_terminal_steps` (games whose greedy line
         terminates), the walk then continues cheaply to the
         end of the game and asserts the DSL and pyspiel TERMINAL RETURNS
-        agree; reaching Terminal within the cap is itself asserted, so the
+        agree; reaching TerminalNode within the cap is itself asserted, so the
         returns comparison cannot rot into dead code. The remaining games
         (multi-hand score targets whose greedy line exceeds any affordable
         cap) record `terminal=False` in the coverage record — their returns
@@ -751,7 +751,7 @@ class ReadinessProofs:
         history: list[int] = []
         r = run(spec.path, seed, ())
         steps = 0
-        while isinstance(r, Pause) and steps < spec.depth:
+        while isinstance(r, DecisionNode) and steps < spec.depth:
             assert not state.is_terminal()
             assert state.current_player() == r.player, (
                 f"{spec.short_name}: step {steps}: adapter player "
@@ -786,7 +786,7 @@ class ReadinessProofs:
             r = run(spec.path, seed, tuple(history))
             steps += 1
         cap = spec.adapter_terminal_steps
-        dsl_returns = r.returns if isinstance(r, Terminal) else None
+        dsl_returns = r.returns if isinstance(r, TerminalNode) else None
         if cap is not None:
             # Continue the greedy line to the end of the game. The line comes
             # from ONE linear walk rather than a replay per step (`greedy_line`
@@ -801,7 +801,7 @@ class ReadinessProofs:
                 f"{next(i for i, (a, b) in enumerate(zip(line, history)) if a != b)}"
             )
             assert returns is not None, (
-                f"{spec.short_name}: greedy line no longer reaches Terminal "
+                f"{spec.short_name}: greedy line no longer reaches TerminalNode "
                 f"within adapter_terminal_steps={cap} — re-measure the line "
                 f"and adjust the spec (do not silently drop the returns check)"
             )

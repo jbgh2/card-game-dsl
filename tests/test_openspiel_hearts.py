@@ -9,7 +9,7 @@ there); hearts' own action-space shape — the bare 52-card block — is pinned 
 `tests/test_openspiel_encoding.py`. A hearts-specific full sim re-bought the
 adapter's conformance at the price of two more quadratic 52-trick
 re-simulations. What is unique to this module stays: the rollout below is the
-only test driving hearts to Terminal through the pyspiel `State`, and
+only test driving hearts to TerminalNode through the pyspiel `State`, and
 `test_perfect_recall_no_duplicate_infostates_in_a_game` holds the suite's only
 no-duplicate-information-state assertion."""
 
@@ -24,7 +24,7 @@ pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game  # noqa: F401  (importing it registers every game in `openspiel.registry.GAMES`)
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 HEARTS = str(Path(__file__).resolve().parent.parent / "docs" / "games" / "hearts.cardlang")
 
@@ -50,7 +50,7 @@ def test_full_rollout_returns_negated_scores() -> None:
 
 def test_infostate_does_not_leak_hidden_hands() -> None:
     r = run(HEARTS, 0, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     p = r.player
     info_p = information_state(p, r.rs, r.obs_logs[p])
     for q in range(4):
@@ -64,12 +64,12 @@ def test_infostate_hides_other_players_pass_mid_simultaneous_pass() -> None:
     seed = 0
     history: list[int] = []
     r = run(HEARTS, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     first = r.player
-    while isinstance(r, Pause) and r.player == first:
+    while isinstance(r, DecisionNode) and r.player == first:
         history.append(r.legal[0])
         r = run(HEARTS, seed, tuple(history))
-    assert isinstance(r, Pause) and r.player != first
+    assert isinstance(r, DecisionNode) and r.player != first
     p2 = r.player
     # Step one pick into p2's own selection: the pause under test is mid-pass
     # AND mid-selection, where p2's log holds exactly their own single "chose"
@@ -77,7 +77,7 @@ def test_infostate_hides_other_players_pass_mid_simultaneous_pass() -> None:
     # nothing to distinguish).
     history.append(r.legal[0])
     r = run(HEARTS, seed, tuple(history))
-    assert isinstance(r, Pause) and r.player == p2
+    assert isinstance(r, DecisionNode) and r.player == p2
     info_p2 = information_state(p2, r.rs, r.obs_logs[p2])
     # Mid-pass, transfers have not applied: the first passer's picks are still
     # in their hand, so the hidden-hand check covers the picks themselves.
@@ -94,7 +94,7 @@ def test_perfect_recall_no_duplicate_infostates_in_a_game() -> None:
     seen: dict[int, set[str]] = {p: set() for p in range(4)}
     r = run(HEARTS, seed, ())
     steps = 0
-    while isinstance(r, Pause):
+    while isinstance(r, DecisionNode):
         s = information_state(r.player, r.rs, r.obs_logs[r.player])
         assert s not in seen[r.player], "duplicate info-state (perfect recall violated)"
         seen[r.player].add(s)
@@ -106,11 +106,11 @@ def test_perfect_recall_no_duplicate_infostates_in_a_game() -> None:
 
 def test_perfect_recall_distinguishes_own_actions() -> None:
     r0 = run(HEARTS, 0, ())
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     a, b = r0.legal[0], r0.legal[1]
     ra = run(HEARTS, 0, (a,))
     rb = run(HEARTS, 0, (b,))
-    assert isinstance(ra, Pause) and isinstance(rb, Pause)
+    assert isinstance(ra, DecisionNode) and isinstance(rb, DecisionNode)
     ia = information_state(ra.player, ra.rs, ra.obs_logs[ra.player])
     ib = information_state(rb.player, rb.rs, rb.obs_logs[rb.player])
     assert ia != ib

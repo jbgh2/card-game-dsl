@@ -44,7 +44,7 @@ Completeness (decisions.md, "Closed-domain completeness")
 - **Residual.** The differential walks a bounded prefix, so a renderer that
   couples to the world only in a deep state would pass it — the scrape is what
   covers that case, which is why both are here and neither is sufficient alone.
-  Chance-node rendering (`Deal(seed=...)`) is deliberately world-naming and is
+  Chance-node rendering (`Chance(seed=...)`) is deliberately world-naming and is
   excluded from the differential; it is never shown to an agent, since a chance
   node has no acting player. This ledger owns that record: it is a domain fact
   about the root deal node, not deferred work.

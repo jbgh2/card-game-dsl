@@ -57,7 +57,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -123,7 +123,7 @@ def test_face_down_play_is_uninformative_until_flipped() -> None:
     _, space = load(PATH)
     ra = run(PATH, 5, (play_one, ace))
     rb = run(PATH, 5, (play_one, three))
-    assert isinstance(ra, Pause) and isinstance(rb, Pause)
+    assert isinstance(ra, DecisionNode) and isinstance(rb, DecisionNode)
     assert ra.player == rb.player == 1  # the claimant's left neighbour responds first
     assert ra.legal == rb.legal
     assert action_strings(space, ra.legal) == action_strings(space, rb.legal)
@@ -147,9 +147,9 @@ def test_challenge_verdict_is_a_public_function_of_hidden_content() -> None:
     play_one, call, _, ace, three = _ids()
     ra = run(PATH, 5, (play_one, ace, call))
     rb = run(PATH, 5, (play_one, three, call))
-    assert isinstance(ra, Pause) and isinstance(rb, Pause)
+    assert isinstance(ra, DecisionNode) and isinstance(rb, DecisionNode)
 
-    def flip_and_route(r: Pause, q: int) -> tuple[tuple[object, ...], tuple[object, ...]]:
+    def flip_and_route(r: DecisionNode, q: int) -> tuple[tuple[object, ...], tuple[object, ...]]:
         flip = next(
             e for e in r.obs_logs[q] if e[0] == "move" and e[3] == "flipped"
         )
@@ -182,7 +182,7 @@ def test_unchallenged_play_leaks_nothing() -> None:
     _, space = load(PATH)
     ra = run(PATH, 5, (play_one, ace, allow, allow, allow))
     rb = run(PATH, 5, (play_one, three, allow, allow, allow))
-    assert isinstance(ra, Pause) and isinstance(rb, Pause)
+    assert isinstance(ra, DecisionNode) and isinstance(rb, DecisionNode)
     assert ra.player == rb.player == 1  # the next turn's play offer
     assert ra.legal == rb.legal
     assert action_strings(space, ra.legal) == action_strings(space, rb.legal)
@@ -211,8 +211,8 @@ def _challenge_rich_line(seed: int) -> tuple[int, ...]:
     history: list[int] = []
     r = run(PATH, seed, ())
     step = 0
-    while step < 60 or (isinstance(r, Pause) and call not in r.legal):
-        assert isinstance(r, Pause), "the challenge-rich line ended prematurely"
+    while step < 60 or (isinstance(r, DecisionNode) and call not in r.legal):
+        assert isinstance(r, DecisionNode), "the challenge-rich line ended prematurely"
         a = call if (call in r.legal and r.player == 2) else r.legal[0]
         history.append(a)
         r = run(PATH, seed, tuple(history))
@@ -239,7 +239,7 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
     of them exercise five distinct flip/pickup patterns rather than one."""
     hist = _challenge_rich_line(seed)
     probe = run(PATH, seed, hist)
-    assert isinstance(probe, Pause)
+    assert isinstance(probe, DecisionNode)
     flips = [e for e in probe.obs_logs[0] if e[0] == "move" and e[3] == "flipped"]
     pickups = [
         e
@@ -310,7 +310,7 @@ def _initial_hands(seed: int) -> dict[int, list[Card]]:
             captured[p] = list(rs.zones.instance("hand", p).cards)
 
     r0 = run(PATH, seed, (), on_first_decision=capture)
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     return captured
 
 
@@ -378,7 +378,7 @@ def test_log_pin_violation_replays_legally_but_is_distinguishable() -> None:
         h2.add(own_unplayed)
 
     pause_b = run(PATH, seed, hist, on_first_decision=swap)
-    assert isinstance(pause_b, Pause)
+    assert isinstance(pause_b, DecisionNode)
     assert pause_b.player == pause_a.player
     info_a = information_state(observer, pause_a.rs, pause_a.obs_logs[observer])
     info_b = information_state(observer, pause_b.rs, pause_b.obs_logs[observer])

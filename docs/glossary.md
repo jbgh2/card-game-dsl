@@ -110,7 +110,7 @@ differ from ours. The translation is part of the vocabulary — keep it explicit
 | observation log | **information state** string (perfect recall). "Information state" is the per-player artifact; "information set" is the equivalence class it induces — don't interchange them (→ F-14) | `infostate.py` |
 | winner/loser + scores | **returns** vector | `replay.returns_for` |
 | shuffle seed | the root **chance** node (4096 sampled seeds) | `game.py` |
-| the game tree's node kinds | **decision node** / **terminal node** / **chance node**. Replay reifies the first two as `DecisionNode` / `TerminalNode` (spec: issue #212; code still `Pause`/`Terminal` pending migration). Exactly one chance node exists, at the root, implicit in `CardlangState` (`_seed is None`); its outcomes are seeds that drive every rng draw. A future native simultaneous-move export would add `SimultaneousNode`. Not "Terminal" bare — that word is grammar/lexer vocabulary. | `replay.py`, `game.py` |
+| the game tree's node kinds | **decision node** / **terminal node** / **chance node**. Replay reifies the first two as `DecisionNode` / `TerminalNode`. Exactly one chance node exists, at the root, implicit in `CardlangState` (`_seed is None`); its outcomes are seeds that drive every rng draw. A future native simultaneous-move export would add `SimultaneousNode`. Not "Terminal" bare — that word is grammar/lexer vocabulary. | `replay.py`, `game.py` |
 
 The encoding's flattened move-type × parameter-domain cross-product is the
 **offering block**. Inside `cardlang/openspiel/`,

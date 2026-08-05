@@ -62,7 +62,7 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
     ctx = triage.Ctx()
     while True:
         r = replay.run(triage.GAME_PATH, seed, tuple(history))
-        if isinstance(r, replay.Terminal):
+        if isinstance(r, replay.TerminalNode):
             break
         kind = "offer" if all(aid >= space._name_base for aid in r.legal) else "pick"
         pol = triage.POLICIES[policy]
@@ -75,7 +75,7 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
 
     # Inspect the final world at the last pause (plus the pending pick).
     rp = replay.run(triage.GAME_PATH, seed, tuple(history[:-1]))
-    assert isinstance(rp, replay.Pause)
+    assert isinstance(rp, replay.DecisionNode)
     pend = None
     if history and history[-1] < space._name_base:
         pend = space.decode(history[-1])

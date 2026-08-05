@@ -50,7 +50,7 @@ Inherited unchanged
 -------------------
 pyspiel conformance; the per-visible-fact matrix; seed/rng non-observability
 (``vacuous_stock`` — no all-hidden populated stock exists, itself the
-perfect-information fact); perfect recall; adapter agreement walked to Terminal
+perfect-information fact); perfect recall; adapter agreement walked to TerminalNode
 with the ``[+1, -1]`` / ``[0, 0]`` returns compared (the greedy ``legal[0]``
 line wins in a measured, deterministic seven placements).
 
@@ -81,7 +81,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances
@@ -118,7 +118,7 @@ class TestReadiness(ReadinessProofs):
         observers render the identical board — common knowledge — the hallmark
         of a singleton partition under perfect information."""
         _, pause = _advance(PATH, seed, self.spec.depth)
-        assert isinstance(pause, Pause)
+        assert isinstance(pause, DecisionNode)
         renders: list[str] = []
         for p in range(len(pause.obs_logs)):
             visible = 0
@@ -170,7 +170,7 @@ class TestReadiness(ReadinessProofs):
         renderings, x vs o) at a mid-game pause; BOTH observers' information
         states must move, since every zone is identity-projected to both."""
         _, pause = _advance(PATH, seed, self.spec.depth)
-        assert isinstance(pause, Pause)
+        assert isinstance(pause, DecisionNode)
         square = next(
             (z for name, _, z in zone_instances(pause.rs) if name == "square" and z.cards),
             None,
@@ -217,7 +217,7 @@ def test_placements_are_public_identity_events() -> None:
     the identity claim is not vacuous.
     """
     _, pause = _advance(PATH, 5, 4)
-    assert isinstance(pause, Pause)
+    assert isinstance(pause, DecisionNode)
     boards: dict[int, list[tuple[Any, ...]]] = {}
     for p in range(len(pause.obs_logs)):
         moves = _board_moves(pause.obs_logs[p])
@@ -287,7 +287,7 @@ def test_no_shuffle_means_seed_degeneracy() -> None:
         states: list[tuple[str, ...]] = []
         for i in range(len(history) + 1):
             r = run(PATH, seed, tuple(history[:i]))
-            if not isinstance(r, Pause):
+            if not isinstance(r, DecisionNode):
                 break
             states.append(
                 tuple(

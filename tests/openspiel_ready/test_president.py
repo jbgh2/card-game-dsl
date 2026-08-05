@@ -8,7 +8,7 @@ their recorded plays reveal).
 
 Bounded conformance walk (the Tichu/Doppelkopf shape): a game runs to the
 11-point target over ~10-16 hands, thousands of actions — the same O(n^2)
-full-sim wall; full-game-to-Terminal coverage through the replay engine
+full-sim wall; full-game-to-TerminalNode coverage through the replay engine
 lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
 
 The dedicated derivation test drives the greedy line across the first
@@ -24,7 +24,7 @@ from __future__ import annotations
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -66,13 +66,13 @@ def test_exchange_derives_private_observations() -> None:
     seed = 5
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(400):
         if any(_hand_to_hand(log) for log in r.obs_logs.values()):
             break
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause), "the game ended before any exchange"
+        assert isinstance(nxt, DecisionNode), "the game ended before any exchange"
         r = nxt
     else:
         raise AssertionError("no exchange within 400 greedy steps")
@@ -104,7 +104,7 @@ def test_exchange_derives_private_observations() -> None:
     # way, and the President's own log gains the chooser draw.
     history.append(r.legal[0])
     nxt = run(path, seed, tuple(history))
-    assert isinstance(nxt, Pause)
+    assert isinstance(nxt, DecisionNode)
     r = nxt
     for q in range(5):
         back = [e for e in _hand_to_hand(r.obs_logs[q]) if e[1] == f"hand[{president}]"]
@@ -138,11 +138,11 @@ def test_plays_are_public_and_hands_are_counts_early() -> None:
     path = str(GAMES_DIR / "president.cardlang")
     history: list[int] = []
     r = run(path, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(8):
         history.append(r.legal[0])
         nxt = run(path, 5, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
 
     pile = sorted(str(c) for c in r.rs.zones.single("trick_pile").cards)

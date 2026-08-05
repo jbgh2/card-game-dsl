@@ -60,7 +60,7 @@ Inherited unchanged
 pyspiel conformance (the full ``random_sim_test``); the per-visible-fact
 matrix; seed/rng non-observability (``vacuous_stock`` — no all-hidden populated
 stock exists, itself the perfect-information fact); perfect recall; adapter
-agreement walked to Terminal with the ``[+1, -1]`` returns compared (the greedy
+agreement walked to TerminalNode with the ``[+1, -1]`` returns compared (the greedy
 ``legal[0]`` line wins in a measured, deterministic thirty steps).
 
 Honest caveats
@@ -95,7 +95,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances
@@ -153,7 +153,7 @@ class TestReadiness(ReadinessProofs):
         and the perfect-information assertion fails — the degeneracy is a
         measured fact, not a definition."""
         _, pause = _advance(PATH, seed, self.spec.depth)
-        assert isinstance(pause, Pause)
+        assert isinstance(pause, DecisionNode)
         captured = sum(
             len(z.cards) for name, _, z in zone_instances(pause.rs) if name == "captured"
         )
@@ -220,7 +220,7 @@ class TestReadiness(ReadinessProofs):
         count-preserving, so P0's state stops moving and the square swap
         fails."""
         _, pause = _advance(PATH, seed, self.spec.depth)
-        assert isinstance(pause, Pause)
+        assert isinstance(pause, DecisionNode)
         squares = [z for name, _, z in zone_instances(pause.rs) if name == "square" and z.cards]
         piles = [z for name, _, z in zone_instances(pause.rs) if name == "captured" and z.cards]
         assert len(squares) >= 2 and piles, "the pause offers nothing to perturb"
@@ -271,7 +271,7 @@ def test_moves_and_captures_are_public_identity_events() -> None:
     assertion fails — the identity claim is not vacuous.
     """
     _, pause = _advance(PATH, 5, DEPTH)
-    assert isinstance(pause, Pause)
+    assert isinstance(pause, DecisionNode)
     boards: dict[int, list[tuple[Any, ...]]] = {}
     for p in range(len(pause.obs_logs)):
         moves = _board_moves(pause.obs_logs[p])
@@ -343,7 +343,7 @@ def test_no_shuffle_means_seed_degeneracy() -> None:
         states: list[tuple[str, ...]] = []
         for i in range(len(history) + 1):
             r = run(PATH, seed, tuple(history[:i]))
-            if not isinstance(r, Pause):
+            if not isinstance(r, DecisionNode):
                 break
             states.append(
                 tuple(

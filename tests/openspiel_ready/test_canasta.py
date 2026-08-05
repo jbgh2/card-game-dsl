@@ -51,7 +51,7 @@ in every observer's information state while all four hands stay counts.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -91,7 +91,7 @@ def test_pile_take_and_melds_derive_public_knowledge() -> None:
     r = run(path, seed, ())
     took = closed = False
     for _ in range(40):
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         take = next((a for a in r.legal if space.to_string(a) == "take_pile"), None)
         action = take if take is not None else r.legal[-1]
         name = space.to_string(action)
@@ -102,7 +102,7 @@ def test_pile_take_and_melds_derive_public_knowledge() -> None:
             closed = True
             break
     assert took and closed, "seed 0 no longer reaches a pile take + close within 40 steps"
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
 
     for q, log in r.obs_logs.items():
         # The take: the pile's top card moves to the taker's public stage
@@ -173,11 +173,11 @@ def test_stock_draws_stay_hidden() -> None:
     seed = 5
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(12):
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
 
     draws = [

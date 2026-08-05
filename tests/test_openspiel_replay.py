@@ -1,6 +1,6 @@
 """The generalized re-sim engine: replaying recorded actions reproduces a
 reference game exactly, for every fully-kernel game; an exhausted history
-surfaces the next decision as a Pause with per-player observation logs."""
+surfaces the next decision as a DecisionNode with per-player observation logs."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from cardlang.openspiel.replay import Pause, Terminal, load, returns_for, run
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, returns_for, run
 from cardlang.runtime.driver import play_game
 
 GAMES = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -54,13 +54,13 @@ def test_replay_reproduces_a_reference_game(name: str) -> None:
     path = str(GAMES / name)
     recorded, native = _record(path, seed=1, policy_seed=101)
     result = run(path, 1, tuple(recorded))
-    assert isinstance(result, Terminal)
+    assert isinstance(result, TerminalNode)
     assert result.returns == native
 
 
 def test_empty_history_pauses_with_encoded_legal_and_logs() -> None:
     r = run(HEARTS, 0, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player in range(4)
     assert len(r.legal) == 13 and r.legal == sorted(r.legal)
     assert all(0 <= a < 52 for a in r.legal)
@@ -71,16 +71,16 @@ def test_empty_history_pauses_with_encoded_legal_and_logs() -> None:
 def test_bigtwo_first_decision_offers_combos() -> None:
     _, space = load(BIGTWO)
     r = run(BIGTWO, 0, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert all(a >= space._name_base for a in r.legal)  # every legal action is a name ("pass") or combo — no bare cards
     # stepping one combo action advances
     nxt = run(BIGTWO, 0, (r.legal[0],))
-    assert isinstance(nxt, (Pause, Terminal))
+    assert isinstance(nxt, (DecisionNode, TerminalNode))
 
 
 def test_on_first_decision_mutates_the_replayed_world() -> None:
     r0 = run(HEARTS, 0, ())
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     baseline = len(r0.rs.zones.instance("hand", 0).cards)
 
     def strip_one(rs: Any) -> None:
@@ -88,7 +88,7 @@ def test_on_first_decision_mutates_the_replayed_world() -> None:
         hand.remove(hand.cards[0])
 
     r1 = run(HEARTS, 0, (), on_first_decision=strip_one)
-    assert isinstance(r1, Pause)
+    assert isinstance(r1, DecisionNode)
     assert len(r1.rs.zones.instance("hand", 0).cards) == baseline - 1
 
 

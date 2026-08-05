@@ -4,7 +4,7 @@ Harness configuration rationale:
 
 - `depth=2`: the greedy `legal[0]` line is `check, check` (the first street
   closes), then the board card is dealt and `check, check` again — four
-  actions to Terminal. Depth 2 therefore pauses on P0's SECOND-street
+  actions to TerminalNode. Depth 2 therefore pauses on P0's SECOND-street
   decision, which is both what the 2-player swap branch needs (`p == d0`,
   P0 opening both streets) and the interesting pause: a real street has
   closed, the public card is on the table, and three cards remain undealt to
@@ -17,7 +17,7 @@ Harness configuration rationale:
 - `stock_zone="deck"` (the default): 6 cards, two dealt and one turned, so
   three sit hidden in the deck at the depth-2 pause.
 
-- `adapter_terminal_steps=10`: the greedy line reaches Terminal in 4 steps.
+- `adapter_terminal_steps=10`: the greedy line reaches TerminalNode in 4 steps.
 
 `test_adapter_agrees_over_two_whole_leduc_deals` below extends the harness's
 single greedy line to every node of two complete deals — the check-heavy
@@ -32,7 +32,7 @@ import pytest
 import cardlang.ast.nodes as n
 from cardlang.openspiel.encoding import _walk
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, ReplayChooser, load, run
+from cardlang.openspiel.replay import DecisionNode, ReplayChooser, load, run
 from cardlang.runtime.driver import play_game
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
@@ -60,7 +60,7 @@ def _ids(names: list[str]) -> tuple[int, ...]:
     return tuple(by_name[x] for x in names)
 
 
-def _legal_names(r: Pause) -> list[str]:
+def _legal_names(r: DecisionNode) -> list[str]:
     _, space = load(PATH)
     return [space.to_string(a) for a in r.legal]
 
@@ -69,9 +69,9 @@ def _deal(seed: int) -> tuple[str, str, str]:
     """This seed's (P0 card, P1 card, board card). The board is only turned
     once the first street closes, so it is read from the check-check pause."""
     r0 = run(PATH, seed, ())
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     r2 = run(PATH, seed, _ids(["check", "check"]))
-    assert isinstance(r2, Pause)
+    assert isinstance(r2, DecisionNode)
     return (
         str(r0.rs.zones.instance("hand", 0).cards[0]),
         str(r0.rs.zones.instance("hand", 1).cards[0]),
@@ -121,12 +121,12 @@ def test_the_raise_cap_is_family_varying_required_state() -> None:
 
     seed = 5
     after_bet = run(PATH, seed, _ids(["bet"]))
-    assert isinstance(after_bet, Pause)
+    assert isinstance(after_bet, DecisionNode)
     assert _legal_names(after_bet) == ["call", "fold", "raise"], (
         "the first raise must be available (raises=1 < raise_cap=2)"
     )
     after_raise = run(PATH, seed, _ids(["bet", "raise"]))
-    assert isinstance(after_raise, Pause)
+    assert isinstance(after_raise, DecisionNode)
     assert _legal_names(after_raise) == ["call", "fold"], (
         "raise_cap=2 must close the street to further aggression — the "
         "imported `raise` is offered here and its guard is what filters it out"
@@ -135,7 +135,7 @@ def test_the_raise_cap_is_family_varying_required_state() -> None:
     # The cap is per-street: the second street starts a fresh `raises` count,
     # so the same two aggressive actions are available again after the board.
     second = run(PATH, seed, _ids(["bet", "raise", "call", "bet"]))
-    assert isinstance(second, Pause)
+    assert isinstance(second, DecisionNode)
     assert _legal_names(second) == ["call", "fold", "raise"], (
         "the raise cap must reset per street, not accumulate across the hand"
     )
@@ -153,7 +153,7 @@ def test_showdown_pairs_the_board_beats_high_card_and_equal_ranks_split() -> Non
 
     def returns(seed: int) -> list[float]:
         r = run(PATH, seed, line)
-        assert not isinstance(r, Pause), "the called line must reach a showdown"
+        assert not isinstance(r, DecisionNode), "the called line must reach a showdown"
         return r.returns
 
     # P0 pairs the board with a Jack; P1 holds a King and loses anyway.
@@ -230,7 +230,7 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
         for a in history:
             state.apply_action(a)
         r = run(PATH, seed, tuple(history))
-        if not isinstance(r, Pause):
+        if not isinstance(r, DecisionNode):
             terminals += 1
             assert state.is_terminal(), f"seed={seed} history={history}: DSL terminal, adapter not"
             assert state.returns() == r.returns, (
@@ -269,7 +269,7 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
 
 def _events_for_line(seed: int, names: list[str]) -> dict[int, list[tuple[Any, ...]]]:
     """Every observer's full event log for a COMPLETED hand, the line given by
-    move-type name. `replay.run` discards the logs when it returns Terminal,
+    move-type name. `replay.run` discards the logs when it returns TerminalNode,
     so this drives the game directly with the same `ReplayChooser` the
     adapter uses."""
     game_ast, space = load(PATH)

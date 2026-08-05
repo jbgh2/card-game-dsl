@@ -40,14 +40,14 @@ def random_history(path: str, seed: int, rng: random.Random) -> list[int]:
     history: list[int] = []
     while True:
         r = replay.run(path, seed, tuple(history))
-        if isinstance(r, replay.Terminal):
+        if isinstance(r, replay.TerminalNode):
             return history
         history.append(rng.choice(r.legal))
 
 
 def infostate(path: str, history: tuple[int, ...], player: int) -> str:
     r = replay.run(path, 0, history)
-    assert isinstance(r, replay.Pause)
+    assert isinstance(r, replay.DecisionNode)
     return information_state(player, r.rs, r.obs_logs[player])
 
 
@@ -55,11 +55,11 @@ def labels_of(space: Any, legal: list[int]) -> list[str]:
     return [space.to_string(a) for a in legal]
 
 
-def is_ship_node(space: Any, r: replay.Pause) -> bool:
+def is_ship_node(space: Any, r: replay.DecisionNode) -> bool:
     return not any(lab in RESPONSE_LABELS for lab in labels_of(space, r.legal))
 
 
-def wave_action(space: Any, r: replay.Pause) -> int | None:
+def wave_action(space: Any, r: replay.DecisionNode) -> int | None:
     for a in r.legal:
         if space.to_string(a) == "wave":
             return a
@@ -78,12 +78,12 @@ def check_shipment_indistinguishability(path: str) -> tuple[int, int]:
         for cut in range(len(history)):
             prefix = tuple(history[:cut])
             r = replay.run(path, 0, prefix)
-            if not isinstance(r, replay.Pause) or len(r.legal) < 2:
+            if not isinstance(r, replay.DecisionNode) or len(r.legal) < 2:
                 continue
             if not is_ship_node(space, r):
                 continue
             nxt = replay.run(path, 0, prefix + (r.legal[0],))
-            if not isinstance(nxt, replay.Pause) or nxt.player == r.player:
+            if not isinstance(nxt, replay.DecisionNode) or nxt.player == r.player:
                 continue
             ship_nodes += 1
             merchant, other = r.player, nxt.player
@@ -97,7 +97,7 @@ def check_shipment_indistinguishability(path: str) -> tuple[int, int]:
                 )
                 la = replay.run(path, 0, prefix + (a,))
                 lb = replay.run(path, 0, prefix + (b,))
-                assert isinstance(la, replay.Pause) and isinstance(lb, replay.Pause)
+                assert isinstance(la, replay.DecisionNode) and isinstance(lb, replay.DecisionNode)
                 assert la.legal == lb.legal, "legal-action agreement broken"
                 ma = infostate(path, prefix + (a,), merchant)
                 mb = infostate(path, prefix + (b,), merchant)
@@ -124,7 +124,7 @@ def check_warehouse_opacity(path: str) -> int:
         for cut in range(len(history)):
             prefix = tuple(history[:cut])
             r = replay.run(path, 0, prefix)
-            if not isinstance(r, replay.Pause) or len(r.legal) < 2:
+            if not isinstance(r, replay.DecisionNode) or len(r.legal) < 2:
                 continue
             if not is_ship_node(space, r):
                 continue
@@ -134,7 +134,7 @@ def check_warehouse_opacity(path: str) -> int:
             # If the fork is answered by an inspect/wave decision, wave BOTH
             # branches so the variant shipment stays concealed.
             ra = replay.run(path, 0, branches[0])
-            if isinstance(ra, replay.Pause) and not is_ship_node(space, ra):
+            if isinstance(ra, replay.DecisionNode) and not is_ship_node(space, ra):
                 w = wave_action(space, ra)
                 assert w is not None
                 branches = [h + (w,) for h in branches]
@@ -142,9 +142,9 @@ def check_warehouse_opacity(path: str) -> int:
             while True:
                 pa = replay.run(path, 0, branches[0])
                 pb = replay.run(path, 0, branches[1])
-                if isinstance(pa, replay.Terminal) or isinstance(pb, replay.Terminal):
+                if isinstance(pa, replay.TerminalNode) or isinstance(pb, replay.TerminalNode):
                     break
-                assert isinstance(pa, replay.Pause) and isinstance(pb, replay.Pause)
+                assert isinstance(pa, replay.DecisionNode) and isinstance(pb, replay.DecisionNode)
                 if pa.player != merchant:
                     ia = infostate(path, branches[0], pa.player)
                     ib = infostate(path, branches[1], pb.player)
@@ -178,7 +178,7 @@ def check_perfect_recall(path: str) -> int:
         prev: dict[int, list[tuple[Any, ...]]] = {}
         for cut in range(len(history) + 1):
             r = replay.run(path, 0, tuple(history[:cut]))
-            if not isinstance(r, replay.Pause):
+            if not isinstance(r, replay.DecisionNode):
                 continue
             for p, log in r.obs_logs.items():
                 if p in prev:
@@ -198,9 +198,9 @@ def check_seed_non_observability(path: str) -> int:
         for cut in range(len(history)):
             ra = replay.run(path, 0, tuple(history[:cut]))
             rb = replay.run(path, 99, tuple(history[:cut]))
-            if not isinstance(ra, replay.Pause):
+            if not isinstance(ra, replay.DecisionNode):
                 continue
-            assert isinstance(rb, replay.Pause)
+            assert isinstance(rb, replay.DecisionNode)
             for p in range(2):
                 assert information_state(p, ra.rs, ra.obs_logs[p]) == information_state(
                     p, rb.rs, rb.obs_logs[p]

@@ -4,14 +4,14 @@ the Reizen's, pickup's, and discard's shapes.
 Bounded conformance walk: the full `pyspiel.random_sim_test` measured 54s
 locally (a Skat rubber plays multiple hands to a target score, hundreds of
 actions — the same O(n^2) re-simulation cost as Stud/French Tarot/Tichu).
-Full-game-to-Terminal coverage through the actual pyspiel `State` wrapper
+Full-game-to-TerminalNode coverage through the actual pyspiel `State` wrapper
 (is_terminal/returns, not just this project's own replay engine) moves to
 `test_openspiel_replay.py`'s KERNEL_GAMES list instead, so bounding this
 walk drops no real coverage.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -60,15 +60,15 @@ def test_pickup_and_discard_derive_hidden_observations() -> None:
 
     history: list[int] = [vpass, vpass, aid["play_at_eighteen"], aid["pick_up_skat"]]
     r = run(path, seed, tuple(history))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == declarer and all(a < 52 for a in r.legal), "the discard pause"
     history.append(r.legal[0])  # first discard pick
     r = run(path, seed, tuple(history))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     history.append(r.legal[0])  # second discard pick
     history.append(aid["declare_grand"])
     r = run(path, seed, tuple(history))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == 2, "forehand leads the first trick"
 
     # The auction and declarations are public: every log heard both passes and

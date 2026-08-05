@@ -123,7 +123,7 @@ def collect_logs(game: pyspiel.Game, n: int, rng: random.Random, policies: Any =
     path = str(utcommon.HERE / utcommon.FILENAME)
     for _ in range(n):
         st = playout(game, rng, policies)
-        # A Terminal result carries no logs, so replay to one action before
+        # A TerminalNode result carries no logs, so replay to one action before
         # the end: every trick parses fully except the last, which drops out
         # of the stats (12 of 13 tricks per game is plenty for the probes).
         r = replay.run(path, st._seed, tuple(st._history_ids[:-1]))

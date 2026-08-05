@@ -27,7 +27,7 @@ def export_trace(path: str, seed: int, rng: random.Random) -> dict[str, Any]:
     space = replay.load(path)[1]
     while True:
         r = replay.run(path, seed, tuple(history))
-        if isinstance(r, replay.Terminal):
+        if isinstance(r, replay.TerminalNode):
             returns = r.returns
             break
         # A decision node always names its actor; only a chance node does not,
@@ -42,8 +42,8 @@ def export_trace(path: str, seed: int, rng: random.Random) -> dict[str, Any]:
         history.append(a)
     pause = replay.run(path, seed, tuple(history[:-1]))
     # One action short of the end, so the replay pauses rather than terminating;
-    # a Terminal carries no observation logs to read tricks out of.
-    assert isinstance(pause, replay.Pause), "expected a paused world one ply short"
+    # a TerminalNode carries no observation logs to read tricks out of.
+    assert isinstance(pause, replay.DecisionNode), "expected a paused world one ply short"
     tricks = tricks_from_log(pause.obs_logs[0])
     return {
         "seed": seed,

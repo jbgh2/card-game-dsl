@@ -50,7 +50,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Card, build_deck
 
@@ -102,7 +102,7 @@ def _scan_log_pins(log: list[tuple[Any, ...]], by_render: dict[str, Card]) -> se
 
 def plan_worlds(
     path: str, seed: int, history: tuple[int, ...], observer: int, hidden_zone: str
-) -> tuple[Pause, WorldPlan]:
+) -> tuple[DecisionNode, WorldPlan]:
     """Replay world A and derive the entitlement analysis for `observer`.
 
     `hidden_zone` names the per-player zone family whose deal-time contents
@@ -110,7 +110,7 @@ def plan_worlds(
     declares)."""
     game, space = load(path)
     pause = run(path, seed, history)
-    assert isinstance(pause, Pause), "plan_worlds needs a paused (non-terminal) line"
+    assert isinstance(pause, DecisionNode), "plan_worlds needs a paused (non-terminal) line"
 
     decode_pins = {
         decoded
@@ -144,7 +144,7 @@ def plan_worlds(
                 )
 
     r0 = run(path, seed, (), on_first_decision=capture)
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     free = {
         label: [c for c in cards if c not in pinned]
         for label, cards in initial.items()
@@ -165,7 +165,7 @@ def permuted_replay(
     plan: WorldPlan,
     hidden_zone: str,
     rotation: int = 1,
-) -> Pause:
+) -> DecisionNode:
     """Replay `history` in world B: the plan's free cards rotated across their
     deal-time containers (per-container counts preserved — every projection
     that shows a count is untouched by construction). `rotation` picks the
@@ -201,5 +201,5 @@ def permuted_replay(
                 zone.add(c)
 
     pause_b = run(path, seed, history, on_first_decision=mutate)
-    assert isinstance(pause_b, Pause), "world B ended where world A paused"
+    assert isinstance(pause_b, DecisionNode), "world B ended where world A paused"
     return pause_b

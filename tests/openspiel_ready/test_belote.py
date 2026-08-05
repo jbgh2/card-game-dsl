@@ -18,7 +18,7 @@ demands can still reject a pair, which the harness skips.
 `conformance_steps=150`: a full game to 1000 runs past 400 decisions, the
 O(n^2) re-simulation wall of the score-target class (Bridge, Skat, Tichu).
 
-`adapter_terminal_steps=500`: the seed-5 greedy line reaches Terminal at a
+`adapter_terminal_steps=500`: the seed-5 greedy line reaches TerminalNode at a
 measured 418 steps.
 
 Per-game caveats (recorded, not hidden):
@@ -47,7 +47,7 @@ import random
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -82,7 +82,7 @@ class TestReadiness(ReadinessProofs):
 
 def _drive(
     seed: int, stop: Any, cap: int, rng_seed: int = 1234
-) -> Pause:
+) -> DecisionNode:
     """Drive a deterministic line: prefer `say_belote`, then any
     `declare_*`, else a seeded-random legal action, pausing at the first
     decision where `stop(log0)` holds. Fails loudly if the line never gets
@@ -92,7 +92,7 @@ def _drive(
     hist: list[int] = []
     r = run(PATH, seed, ())
     for _ in range(cap):
-        assert isinstance(r, Pause), "the game ended before the probed event"
+        assert isinstance(r, DecisionNode), "the game ended before the probed event"
         if stop(r.obs_logs[0]):
             return r
         names = {space.to_string(a): a for a in r.legal}
@@ -246,10 +246,10 @@ def test_declined_window_reveals_nothing() -> None:
     hist: list[int] = []
     r = run(PATH, 5, ())
     for _ in range(12):
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         hist.append(r.legal[0])
         r = run(PATH, 5, tuple(hist))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for q, log in r.obs_logs.items():
         assert any(
             e[0] == "announce" and e[2] == "no_belote" for e in log

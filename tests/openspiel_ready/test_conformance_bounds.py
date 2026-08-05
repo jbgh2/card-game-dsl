@@ -47,7 +47,7 @@ sampled:   the claim is made on ONE line — the walk's pinned `Random(7)`. A
            change shifting the line (`last_new_verb` in the coverage record).
 residual:  (a) UNBOUNDED games (`conformance_steps=None`) get no verb claim.
            There is no bound to justify — the full `random_sim_test` plays one
-           random line to Terminal, and pyspiel chooses its actions internally,
+           random line to TerminalNode, and pyspiel chooses its actions internally,
            so the walk is not observable from here. What IS asserted for them
            is that they record no unreached verbs, so the two modes stay
            disjoint and a claim can never sit unchecked.

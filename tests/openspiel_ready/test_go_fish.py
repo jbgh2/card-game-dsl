@@ -49,7 +49,7 @@ it's meant to probe — is documented in
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -74,11 +74,11 @@ def test_public_ask_derives_asker_holds_rank() -> None:
     path = str(GAMES_DIR / "go-fish.cardlang")
     history: list[int] = []
     r = run(path, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(40):
         history.append(r.legal[0])
         nxt = run(path, 5, tuple(history))
-        assert isinstance(nxt, Pause), "greedy line ended before any ask"
+        assert isinstance(nxt, DecisionNode), "greedy line ended before any ask"
         r = nxt
         if any(e[0] == "announce" and str(e[2]).startswith("ask(") for e in r.obs_logs[0]):
             break
@@ -114,11 +114,11 @@ def test_public_ask_hit_transfer_is_a_public_count_not_identity() -> None:
     path = str(GAMES_DIR / "go-fish.cardlang")
     history: list[int] = []
     r = run(path, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(60):
         history.append(r.legal[0])
         nxt = run(path, 5, tuple(history))
-        assert isinstance(nxt, Pause), "greedy line ended before any hit transfer"
+        assert isinstance(nxt, DecisionNode), "greedy line ended before any hit transfer"
         r = nxt
         if any(
             e[0] == "move" and str(e[1]).startswith("hand[") and str(e[3]).startswith("hand[")

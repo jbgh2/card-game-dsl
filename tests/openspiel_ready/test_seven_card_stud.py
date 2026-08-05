@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -36,7 +36,7 @@ class TestReadiness(ReadinessProofs):
                 ("STRUCTURAL, not a depth shortfall: Stud deals cards and bets "
                 "on them — no decision is ever card-valued, so the reserved "
                 "card block is dead (measured unapplied on lines that reach "
-                "Terminal). Issue #157 owns deriving the block away"),
+                "TerminalNode). Issue #157 owns deriving the block away"),
             ),
         ),
     )
@@ -82,7 +82,7 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
 
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     folded_player: int | None = None
     reveal: dict[int, tuple[Any, ...]] = {}  # contender -> a non-owner's view of their reveal
     for _ in range(40):
@@ -94,7 +94,7 @@ def test_showdown_reveals_contenders_holes_to_others() -> None:
             aid = r.legal[0]
         history.append(aid)
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause), "the hand ended before a showdown reveal was observed"
+        assert isinstance(nxt, DecisionNode), "the hand ended before a showdown reveal was observed"
         r = nxt
         for log in r.obs_logs.values():
             for e in log:

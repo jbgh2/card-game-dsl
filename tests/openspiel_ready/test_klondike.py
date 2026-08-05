@@ -42,7 +42,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import (
     SWAP_PAIRS_PER_SEED,
@@ -107,7 +107,7 @@ class TestReadiness(ReadinessProofs):
                 tuple(history),
                 on_first_decision=_swap_fn(("tableau_down", 7), ("deck", None), x, y),
             )
-            assert isinstance(pause_b, Pause)
+            assert isinstance(pause_b, DecisionNode)
             info_b = information_state(p, pause_b.rs, pause_b.obs_logs[p])
             assert info_a == info_b, (
                 f"cardlang_klondike: swapping chance-hidden {x}<->{y} CHANGED the "
@@ -148,7 +148,7 @@ class TestReadiness(ReadinessProofs):
         layout, so swapping a VISIBLE cascade top for a hidden stock card
         must change their information state."""
         r0 = run(PATH, seed, ())
-        assert isinstance(r0, Pause)
+        assert isinstance(r0, DecisionNode)
         p = r0.player
         up = r0.rs.zones.instance("tableau_up", 1).cards
         stock = r0.rs.zones.single("deck").cards
@@ -158,21 +158,21 @@ class TestReadiness(ReadinessProofs):
         r1 = run(
             PATH, seed, (), on_first_decision=_swap_fn(("tableau_up", 1), ("deck", None), x, y)
         )
-        assert isinstance(r1, Pause)
+        assert isinstance(r1, DecisionNode)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])
         assert r1.player == p and info_a != info_b, (
             "cardlang_klondike: the info-state is insensitive to the exposed layout"
         )
 
 
-def _advance_greedy(seed: int, depth: int) -> tuple[list[int], Pause]:
+def _advance_greedy(seed: int, depth: int) -> tuple[list[int], DecisionNode]:
     history: list[int] = []
     r = run(PATH, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     while len(history) < depth:
         history.append(r.legal[0])
         nxt = run(PATH, seed, tuple(history))
-        assert isinstance(nxt, Pause), "greedy Klondike line ended unexpectedly"
+        assert isinstance(nxt, DecisionNode), "greedy Klondike line ended unexpectedly"
         r = nxt
     return history, r
 
@@ -184,7 +184,7 @@ def test_face_down_identities_are_non_observable_until_flipped() -> None:
     present. This is the chance-hidden partition stated directly on the
     rendered state."""
     r = run(PATH, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     info = information_state(0, r.rs, r.obs_logs[0])
 
     hidden = list(r.rs.zones.single("deck").cards)
@@ -206,7 +206,7 @@ def test_the_flip_is_a_derived_observation_event() -> None:
     projection-hidden, the identity side IS the reveal — and the flipped
     card's identity appears in no earlier event of the player's log."""
     r = run(PATH, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     log = r.obs_logs[0]
     flips = [
         (i, e)
@@ -236,11 +236,11 @@ def test_stock_draws_reveal_identity_at_the_waste_only() -> None:
     seed = 5
     history: list[int] = []
     r = run(PATH, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(3):
         history.append(r.legal[0])  # greedy = draw_stock
         nxt = run(PATH, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     draws = [
         e
