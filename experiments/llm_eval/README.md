@@ -16,7 +16,7 @@ a way the others cannot:
 - **Heads-up fixed-limit Hold'em** (two players, one hand) — neither solved nor
   deception-shaped, and there on purpose: it exists to measure what a *third*
   game costs once the seam exists. Chips per hand and offer-conditioned action
-  rates; see "A second game" below.
+  rates; see "The third game" below.
 
 The three share everything except the game-specific half: the referee, the
 providers, the budget, the run layout, the response arms, and the leak-freeness
@@ -227,13 +227,15 @@ missing-at-random: games run long exactly when nobody is shedding.
 
 ---
 
-## A second game — heads-up limit Hold'em
+## The third game — heads-up limit Hold'em
 
-The harness plays more than Cheat. Everything game-specific lives in a **pack**
-(`packs.py`): the rules text, the per-decision facts, and the baseline policy.
-Everything else — the referee, the providers, the transcript format, the budget,
-and the win-rate/fallback/token statistics — is game-generic and was not touched
-to add the second game.
+The harness plays three games. Everything game-specific lives in a per-game
+module (`kuhn.py`, `holdem.py`) reached through two registries: `GAME_TEXT` in
+`agents.py` names the rules text and renderer a decision reads, and `GAME_KEYS`
+in `metrics.py` maps each registered OpenSpiel short name to its metrics. All the
+rest — the referee, the providers, the transcript format, the budget, and the
+win-rate/fallback/token statistics — is game-generic and was not touched to add
+either the second game or the third.
 
 ```bash
 # Baseline separation. No API key. ~10 seconds for 400 hands.
@@ -266,13 +268,16 @@ work and inventing one here would be a number with nothing behind it.
 **Read mean chip delta, not win rate.** Heads-up with two forced blinds, a
 player can win a minority of hands and still finish ahead. The first version of
 this baseline did exactly that — 33.8% of hands won, +43 chips over 400 — which
-is why `tests/test_holdem_pack.py` asserts the baseline's edge over random in
-**chips**, and why win rate alone could not have caught it.
+is why `tests/test_holdem.py::test_the_baseline_beats_random_on_chips` asserts
+the baseline's edge in **chips**, and why win rate alone could not have caught
+it.
 
-To add a third game: write its pack, register it in `PACKS`, drop it from
-`UNPACKED`, and add a config. `tests/test_packs.py` fails if a corpus game is in
-neither collection, and `pack_for` refuses an unpacked game rather than
-defaulting to Cheat's rules text.
+To add a fourth game: write its module, add a row to `GAME_TEXT` and to
+`GAME_KEYS`, and add a config. `game_text` and `game_key` each refuse an
+unregistered game rather than defaulting to Cheat's, and
+`experiments/llm_eval/tests/test_seat_fairness.py::test_every_harness_game_is_covered` fails if the two
+registries name different sets — so a game registered in one and forgotten in the
+other cannot run half-configured.
 
 ### What it found
 
@@ -312,7 +317,7 @@ and the archive above rests on the second.
 `_build_seats` ties seat parity to seed parity, so where the deal dominates the
 outcome one roster position can be dealt systematically better cards. A single
 Hold'em hand *is* deal-dominated, so this is the at-risk shape, not the safe one
-— and `tests/test_seating.py::test_the_unbalanced_scheme_really_does_favour_a_
+— and `experiments/llm_eval/tests/test_seat_fairness.py::test_the_unbalanced_scheme_really_does_favour_a_
 position[cardlang_holdem_heads_up]` passes, which says exactly that: under the
 unbalanced scheme the two roster positions see *different multisets of dealt
 cards*. That check is exact and needs no sample size, which is why it settles a
@@ -337,7 +342,7 @@ residual is bounded by those probes rather than shown to be zero.
 `config_holdem.yaml` now sets `balanced_seating: true`, so every future run is
 unbiased by construction instead of by measurement.
 
-### What the second game cost
+### What a game costs to add
 
 The point of the exercise. Split by what a *third* game would and would not pay
 again:
@@ -345,8 +350,8 @@ again:
 | | files | +lines | −lines | paid again per game? |
 |---|---|---|---|---|
 | corpus game (`.cardlang`, twin, primitive, proof + playout tests, 4 registry rows) | 12 | 932 | 0 | yes |
-| harness **seam** (packs, referee/metrics/agents/verify/study, their tests) | 13 | 633 | 57 | **no — one-time** |
-| harness **pack** (rules text, infostate parser, baseline, config, its tests) | 4 | 785 | 0 | yes |
+| harness **seam** (registries, referee/metrics/agents/verify/study, their tests) | 13 | 633 | 57 | **no — one-time** |
+| harness **game module** (rules text, infostate parser, baseline, config, its tests) | 4 | 785 | 0 | yes |
 | docs | 1 | 61 | 5 | yes |
 
 So a third game costs roughly **1,700 lines** and none of the 633-line seam.
