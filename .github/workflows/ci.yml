@@ -4,23 +4,60 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `ready_for_review` is in the list so a draft marked ready gets a run
+    # even when no new push follows; drafts themselves are skipped by the
+    # `check` job's condition below.
+    types: [opened, synchronize, reopened, ready_for_review]
+  # The weekly hosted-Linux canary (the `canary` job below), plus a manual
+  # trigger for running it on demand.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
-# A fast follow-up push to the same PR (or to main) starts a new run before
-# the previous one finishes; cancel the stale one instead of paying for both.
+# A fast follow-up push to the same PR starts a new run before the previous
+# one finishes; cancel the stale one instead of paying for both. On main,
+# QUEUE instead of cancelling: two merges minutes apart otherwise leave the
+# earlier merge's run cancelled — and that run is the only one that ever
+# tests the combined tree (observed with #260/#261, 2026-08-05).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # The gate. Runs on the self-hosted pool (`cardlang` label) — persistent
+  # hardware, so the per-run costs the hosted runner re-paid every time
+  # (the OpenSpiel wheel install, a cold strict-mypy cache) are one-time.
   check:
-    runs-on: ubuntu-latest
+    # Drafts don't run: agents can push work-in-progress freely without
+    # burning the runner queue. Marking the PR ready (or pushing while
+    # ready) triggers the run.
+    #
+    # The head-repo equality clause is a security wall, not an optimization:
+    # this job runs on a self-hosted machine, and the repo is public, so a
+    # fork PR carries untrusted code. Same-repo branches only — a fork PR
+    # gets no run here under ANY approval flow. Keep the clause ahead of any
+    # future trigger change.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, cardlang]
+    timeout-minutes: 60
+    env:
+      # Outside the workspace: actions/checkout cleans untracked files from
+      # the work tree, which would discard the cache every run.
+      MYPY_CACHE_DIR: ${{ runner.tool_cache }}/cardlang-mypy-cache
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install
-        run: python -m pip install -e ".[dev,openspiel]"
+      - name: Venv (persistent, isolated from any development checkout)
+        # Reused across runs so dependency installs are near-free; the
+        # editable install points at THIS job's workspace clone, never at a
+        # development checkout that may share the machine. Lives under the
+        # runner's tool cache, which is per runner instance, so a second
+        # registered runner on the same box gets its own venv rather than
+        # racing this one.
+        run: |
+          VENV="$RUNNER_TOOL_CACHE/cardlang-venv"
+          [ -x "$VENV/bin/python" ] || python3.11 -m venv "$VENV"
+          "$VENV/bin/pip" install -q -e ".[dev,openspiel]"
+          echo "$VENV/bin" >> "$GITHUB_PATH"
       # The readiness proofs importorskip pyspiel; a broken install would
       # silently skip them all. Fail loudly instead.
       - name: OpenSpiel importable (the readiness proofs must not skip)
@@ -36,5 +73,30 @@ jobs:
       # green. Run them as their own step rather than by widening `testpaths`,
       # which keeps both properties. They are offline (the fake provider is the
       # default) and need no API key.
+      - name: Tests (experiment rigs — the leak-freeness pins)
+        run: pytest experiments/llm_eval/tests -q
+
+  # The weekly hosted-Linux run. Two jobs the gate cannot do for itself:
+  # it keeps the suite honest on a second platform (the gate runs on macOS,
+  # whose default filesystem is case-insensitive, so a filename-case
+  # mismatch would pass the gate and break Linux), and it keeps a known-good
+  # hosted lane warm — if the self-hosted pool is down, flipping `check`'s
+  # `runs-on` back to `ubuntu-latest` is the whole fallback.
+  canary:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install -e ".[dev,openspiel]"
+      - name: OpenSpiel importable (the readiness proofs must not skip)
+        run: python -c "import pyspiel"
+      - name: Type check (mypy --strict)
+        run: mypy
+      - name: Tests (corpus harness + units)
+        run: pytest -q
       - name: Tests (experiment rigs — the leak-freeness pins)
         run: pytest experiments/llm_eval/tests -q
