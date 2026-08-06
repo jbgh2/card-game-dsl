@@ -40,10 +40,6 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, cardlang]
     timeout-minutes: 60
-    env:
-      # Outside the workspace: actions/checkout cleans untracked files from
-      # the work tree, which would discard the cache every run.
-      MYPY_CACHE_DIR: ${{ runner.tool_cache }}/cardlang-mypy-cache
     steps:
       - uses: actions/checkout@v4
       - name: Venv (persistent, isolated from any development checkout)
@@ -52,12 +48,17 @@ jobs:
         # development checkout that may share the machine. Lives under the
         # runner's tool cache, which is per runner instance, so a second
         # registered runner on the same box gets its own venv rather than
-        # racing this one.
+        # racing this one. The mypy cache sits there too, and both via
+        # runtime env rather than `${{ runner.* }}` job env — the `runner`
+        # context does not exist at job level, and the tool cache must be
+        # outside the workspace because actions/checkout cleans untracked
+        # files from the work tree every run.
         run: |
           VENV="$RUNNER_TOOL_CACHE/cardlang-venv"
           [ -x "$VENV/bin/python" ] || python3.11 -m venv "$VENV"
           "$VENV/bin/pip" install -q -e ".[dev,openspiel]"
           echo "$VENV/bin" >> "$GITHUB_PATH"
+          echo "MYPY_CACHE_DIR=$RUNNER_TOOL_CACHE/cardlang-mypy-cache" >> "$GITHUB_ENV"
       # The readiness proofs importorskip pyspiel; a broken install would
       # silently skip them all. Fail loudly instead.
       - name: OpenSpiel importable (the readiness proofs must not skip)
