@@ -457,3 +457,9 @@ To run Kuhn, point `--config` at its file. The offline acceptance test is
 python -m experiments.llm_eval.run_eval \
   --config experiments/llm_eval/config_kuhn.yaml --matchup nash_vs_random
 ```
+
+## License
+
+The pilot evidence (`results/`, `results_kuhn/`, `results_holdem/`) is
+CC BY 4.0; the code here stays under the repository license. Terms and
+attribution: [LICENSE-pilot-evidence.md](LICENSE-pilot-evidence.md).
