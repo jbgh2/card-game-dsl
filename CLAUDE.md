@@ -138,16 +138,16 @@ docs/
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
 
-## Verifying changes — MANDATORY before every `git push`
+## Verifying changes — MANDATORY before every merge
 
-CI (`.github/workflows/ci.yml`) runs three checks. **Before any `git push`, run
-all three locally from the repo root and confirm they pass. Do not push until
-they do.** This is non-negotiable — pushing on a partial check wastes a CI
-round-trip and a PR review cycle.
+CI (`.github/workflows/ci.yml`) runs three checks on the self-hosted pool,
+about 12 minutes end to end. **The merge gate is CI green on all three.
+Push early and freely — a push starts the run and costs nothing — but never
+merge, and never report a change as done, on less than a green gate.**
 
 ```
 mypy                                  # strict; covers cardlang/, tests/ AND experiments/
-pytest -q                             # the language's own gate
+pytest -q -n 8                        # the language's own gate (CI form)
 pytest experiments/llm_eval/tests -q  # the rigs; NOT collected by the above
 ```
 
@@ -157,26 +157,32 @@ the leak-freeness pins the LLM harness advertises could go red while CI stayed
 green. Keep them a separate step rather than widening `testpaths`: both
 properties are wanted.
 
-Run them as written. In particular:
+Locally, run what the change can affect while CI runs concurrently; when
+quoting local evidence, run the checks as written. In particular:
 
 - Run **`mypy`** (bare), **never** `mypy cardlang` — the latter checks only the
   package and silently skips strict-mode errors in `tests/` (missing annotations,
   untyped helpers, bare `dict`), which then fail CI. Test code is held to the same
   `--strict` bar as the front end.
-- Run the **full** `pytest -q`, not a subset — the corpus harness and golden/
-  characterization tests catch regressions a narrow run misses. Some exact-score
-  tests pin `PYTHONHASHSEED=0`; don't assume a passing subset means a green suite.
-- There is a shorter **development** pass, `pytest -q -m "not slow"`, which
-  drops every coverage-manifest seed past the first (`tests/openspiel_ready`,
-  ~140s against ~440s). It is a loop for iterating, **never** the evidence:
-  bare `pytest -q` selects the `slow` cases and is what CI runs and what this
-  section means. Quoting a `-m "not slow"` run as a green suite is the
-  silent-cap defect wearing a command line.
+- A green suite means the **full** selection, not a subset — the corpus harness
+  and golden/characterization tests catch regressions a narrow run misses.
+  `-n` does not change the selection or the evidence: pass/skip/xfail counts
+  are byte-identical to a serial run (measured 2026-08-05, M5 Air: full suite
+  1071.7s serial against 547.6s at `-n 10`), and the partition-coverage
+  record is executor-invariant (pinned by
+  tests/test_partition_record_modes.py). The weekly `canary` job runs the
+  bare serial form on hosted Linux and is the reference.
+- The shorter **development** pass, `pytest -q -m "not slow" -n auto`, drops
+  every coverage-manifest seed past the first (`tests/openspiel_ready`). It is
+  a loop for iterating, **never** the evidence: the evidence is CI's green,
+  or a full local `pytest -q [-n N]` when CI is unavailable. Quoting a
+  `-m "not slow"` run as a green suite is the silent-cap defect wearing a
+  command line.
 - **The evidence must be able to fail.** A piped run (`pytest -q | tail -3`)
   reports the pipe's exit status, not the suite's — a killed run surfaces as a
   clean exit. Run the checks bare or under `set -o pipefail`, and treat the
   suite's own summary line (`N passed`) as the evidence, never a wrapper's
-  exit code. CI runs the commands bare and is the authority.
+  exit code. CI is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker Owner Guard or diagnostic, a stdlib

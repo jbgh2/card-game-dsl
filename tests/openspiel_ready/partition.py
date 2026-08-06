@@ -309,12 +309,29 @@ RECORDS: list[ProofRecord] = []
 
 
 def record(game: str, proof: str, **detail: Any) -> None:
-    RECORDS.append(ProofRecord(game=game, proof=proof, detail=detail))
+    """Add one proof record. `detail` is stored JSON-normalized (tuples become
+    lists, exotic values become their `str`), so a record is the same object
+    whether it stayed in this process or crossed an xdist worker boundary as
+    JSON (conftest.py ships worker records to the controller that way). One
+    choke point: normalizing here is what lets the renderers below promise a
+    byte-identical record in serial and parallel runs."""
+    normalized = json.loads(json.dumps(detail, default=str))
+    RECORDS.append(ProofRecord(game=game, proof=proof, detail=normalized))
+
+
+def _canonical(records: list[ProofRecord]) -> list[ProofRecord]:
+    """Render order for the citable record: sorted, not arrival. Arrival order
+    is scheduling — module order in a serial run, whichever worker finished
+    first under xdist — and a record that changes with the executor reads as a
+    different record. Sorted on the full rendered content, serial and parallel
+    runs of the same selection produce identical output; the pin is
+    tests/test_partition_record_modes.py."""
+    return sorted(records, key=lambda r: (r.game, r.proof, json.dumps(r.detail)))
 
 
 def summary_lines() -> list[str]:
     by_game: dict[str, list[ProofRecord]] = {}
-    for r in RECORDS:
+    for r in _canonical(RECORDS):
         by_game.setdefault(r.game, []).append(r)
     lines: list[str] = []
     for game in sorted(by_game):
@@ -329,8 +346,10 @@ def summary_lines() -> list[str]:
 def dump_json(path: str) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(
-            [{"game": r.game, "proof": r.proof, "detail": r.detail} for r in RECORDS],
+            [
+                {"game": r.game, "proof": r.proof, "detail": r.detail}
+                for r in _canonical(RECORDS)
+            ],
             fh,
             indent=2,
-            default=str,
         )

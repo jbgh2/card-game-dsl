@@ -14,6 +14,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    # The gate runs `pytest -n` (ci.yml) and the development loop is invited
+    # to: declared so the spec-stamped CI venv provides it rather than any
+    # environment happening to. The partition-coverage record's survival of
+    # `-n` is pinned by tests/test_partition_record_modes.py.
+    "pytest-xdist>=3.6",
     "mypy>=1.8",
     # Exact pin, not a floor: with no `[tool.ruff]` config the enabled rule set
     # IS the version's default, so a range would silently change what the lint
