@@ -42,21 +42,30 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Venv (persistent, isolated from any development checkout)
-        # Reused across runs so dependency installs are near-free; the
-        # editable install points at THIS job's workspace clone, never at a
-        # development checkout that may share the machine. Lives under the
-        # runner's tool cache, which is per runner instance, so a second
-        # registered runner on the same box gets its own venv rather than
-        # racing this one. The mypy cache sits there too, and both via
-        # runtime env rather than `${{ runner.* }}` job env — the `runner`
-        # context does not exist at job level, and the tool cache must be
-        # outside the workspace because actions/checkout cleans untracked
-        # files from the work tree every run.
+      - name: Venv (rebuilt whenever the dependency spec changes)
+        # Keyed to pyproject.toml by content stamp: any spec change rebuilds
+        # the venv from empty, so a package installed under an earlier ref's
+        # spec cannot survive into a ref that stopped declaring it — `pip
+        # install` adds but never removes, and the leftover would let an
+        # undeclared import pass this gate while failing any clean install.
+        # On a stamp hit nothing installs at all: the editable install
+        # (PEP 660) keeps its metadata in the venv and points at this job's
+        # constant workspace path, so it needs no refresh while the spec is
+        # unchanged. Lives under the runner's tool cache, which is per
+        # runner instance (a second runner on the same box gets its own
+        # venv) and outside the work tree actions/checkout cleans. Both env
+        # values go via runtime $GITHUB_ENV/$GITHUB_PATH rather than
+        # `${{ runner.* }}` job env — the `runner` context does not exist
+        # at job level.
         run: |
           VENV="$RUNNER_TOOL_CACHE/cardlang-venv"
-          [ -x "$VENV/bin/python" ] || python3.11 -m venv "$VENV"
-          "$VENV/bin/pip" install -q -e ".[dev,openspiel]"
+          SPEC=$(shasum -a 256 pyproject.toml | awk '{print $1}')
+          if [ "$(cat "$VENV/.pyproject-sha256" 2>/dev/null)" != "$SPEC" ]; then
+            rm -rf "$VENV"
+            python3.11 -m venv "$VENV"
+            "$VENV/bin/pip" install -q -e ".[dev,openspiel]"
+            echo "$SPEC" > "$VENV/.pyproject-sha256"
+          fi
           echo "$VENV/bin" >> "$GITHUB_PATH"
           echo "MYPY_CACHE_DIR=$RUNNER_TOOL_CACHE/cardlang-mypy-cache" >> "$GITHUB_ENV"
       # The readiness proofs importorskip pyspiel; a broken install would
