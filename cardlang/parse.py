@@ -667,7 +667,7 @@ class _Builder(Transformer[Token, n.Game]):
         where = next((x for x in c if isinstance(x, _Where)), None)
         return n.Movement(
             verb=str(c[0]),
-            mode=sel.mode,
+            selection_mode=sel.mode,
             amount=sel.amount,  # type: ignore[arg-type]
             item=sel.item,
             source=_as_expr(c[2]),  # zone_expr is the 3rd positional child
@@ -694,7 +694,7 @@ class _Builder(Transformer[Token, n.Game]):
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
         return n.Movement(
             verb=str(c[0]),
-            mode=c[1].mode,
+            selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
             item=c[1].item,
             source=None,
@@ -709,7 +709,7 @@ class _Builder(Transformer[Token, n.Game]):
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
         return n.Movement(
             verb=str(c[0]),
-            mode=c[1].mode,
+            selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
             item=c[1].item,
             source=_as_expr(c[2]),

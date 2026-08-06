@@ -2692,7 +2692,7 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.span,
         )
     if stmt.source is None and stmt.dest is not None:  # a gather
-        if stmt.amount != "all" or stmt.mode is not None:
+        if stmt.amount != "all" or stmt.selection_mode is not None:
             bag.error(
                 "a gather (`move ... to <zone>` with no `from`) collects every "
                 "card: write `move all cards to <zone>`",
@@ -2717,9 +2717,9 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "(or the whole `where` pool): the amount must be `all`",
                 stmt.span,
             )
-        if stmt.mode is not None:
+        if stmt.selection_mode is not None:
             bag.error(
-                f"`as-equally-as-possible` deals round-robin; a `{stmt.mode}` "
+                f"`as-equally-as-possible` deals round-robin; a `{stmt.selection_mode}` "
                 "selection cannot combine with it",
                 stmt.span,
             )

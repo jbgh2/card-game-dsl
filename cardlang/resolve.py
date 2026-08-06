@@ -458,7 +458,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Comprehension, "agg"),
         (n.Choose, "domain"),
         (n.Movement, "verb"),
-        (n.Movement, "mode"),
+        (n.Movement, "selection_mode"),
         (n.Movement, "amount"),
         (n.Movement, "distribution"),
         (n.Round, "order_mode"),
@@ -5129,7 +5129,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # recorded in roadmap.md, "Grammar surface deferred by
                 # the checker"); `some` (any-size) is meaningless
                 # without a joint predicate to own the size.
-                if nd.joint and nd.mode != "chosen":
+                if nd.joint and nd.selection_mode != "chosen":
                     bag.error(
                         "`where jointly` selects one subset as a player "
                         "decision — it requires `chosen` (a dealt or "

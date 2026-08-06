@@ -295,7 +295,7 @@ def simultaneous_body_error(body: Stmt) -> str | None:
     asserts against this, and `resolve` rejects with it."""
     if not isinstance(body, Movement):
         return "it must be a movement"
-    if body.mode != "chosen":
+    if body.selection_mode != "chosen":
         return "the movement must be `chosen` — each player picks their own cards"
     if body.source is None:
         return "the movement needs a source zone to draw from (`from <zone>`)"
@@ -377,7 +377,9 @@ class Movement:
     top-of-source), and `all` takes every matching card, leaving the rest."""
 
     verb: str
-    mode: str | None  # "chosen" | "random" | None
+    # Qualified, like `Round.order_mode`: the bare word names the designer's
+    # `mode { }` construct (`Mode`), and no engine field may shadow it.
+    selection_mode: str | None  # "chosen" | "random" | None
     amount: str | Expr  # "all" | "one" | "some" | count expression
     item: str  # the item noun: "cards", "coins", …
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)

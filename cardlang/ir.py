@@ -272,7 +272,7 @@ def _stmt(s: n.Stmt) -> IRDict:
             movement: IRDict = {
                 "kind": "movement",
                 "verb": s.verb,
-                "mode": s.mode,
+                "selection_mode": s.selection_mode,
                 "amount": _amount(s.amount),
                 "item": s.item,
                 "source": _expr(s.source) if s.source else None,

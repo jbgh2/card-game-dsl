@@ -237,7 +237,7 @@
             {
               "kind": "movement",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": null,
@@ -262,7 +262,7 @@
             {
               "kind": "movement",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 13
@@ -539,7 +539,7 @@
                 {
                   "kind": "movement",
                   "verb": "move",
-                  "mode": null,
+                  "selection_mode": null,
                   "amount": "all",
                   "item": "cards",
                   "source": {
