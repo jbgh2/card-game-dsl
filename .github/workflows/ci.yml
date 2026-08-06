@@ -74,8 +74,15 @@ jobs:
         run: python -c "import pyspiel"
       - name: Type check (mypy --strict)
         run: mypy
+      # `-n 8`, not `auto`: the pool's first runner shares its 10 cores with
+      # its owner's interactive sessions, so the gate leaves two. Selection
+      # and evidence are unchanged by `-n` — counts are byte-identical to a
+      # serial run and the partition-coverage record is executor-invariant
+      # (tests/test_partition_record_modes.py pins it). The canary below
+      # stays serial: it is the bare-reference form, and its 2-core hosted
+      # runner was measured slower under xdist.
       - name: Tests (corpus harness + units)
-        run: pytest -q
+        run: pytest -q -n 8
       # `testpaths = ["tests"]` deliberately keeps the experiment rigs out of the
       # language's own gate, so a bare `pytest -q` does not collect these. That
       # left them run by nobody: the leak-freeness pins REVIEWER.md cites — the
