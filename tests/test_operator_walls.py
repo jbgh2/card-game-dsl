@@ -441,7 +441,7 @@ game G {{
   cards: standard52
   zones {{ deck : Deck  hand[player] : Hand<player> }}
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   state {{
     score[player] : Integer = 0
     flag  : Boolean = true

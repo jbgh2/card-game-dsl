@@ -225,8 +225,8 @@ its bodies match neither: its cascade (`MustHeadTrumpLead` /
 `MustTrumpIfVoidVsOpponents` / `MustOverTrumpVsOpponents` /
 `NoUnderTrumpVsPartner`, [games/belote.cardlang](games/belote.cardlang)) is
 the corpus's richest — the trump and over-trump obligations are GATED
-partnership-relatively (`applies_when` reads `belote_opp_winning()`, the
-live trick's current winner against the actor's partnership), the
+team-relatively (`applies_when` reads `belote_opp_winning()`, the
+live trick's current winner against the actor's team), the
 over-trump target is the trick's best trump from either side, trump leads
 must be beaten regardless of who is winning, and the fourth-player
 exception (partner winning on a trump: discard or over-trump, never
@@ -370,7 +370,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   offer per player at the eight-card deal window, small tichu runs on the
   quiescence-lap poll before the push / after it / before each trick, and a
   Dragon-won trick is given by an announced `dragon_to_left` /
-  `dragon_to_right` choice; the partnership/finishing lookups and card-point
+  `dragon_to_right` choice; the team/finishing lookups and card-point
   table are pure primitives. Scoring writes `score[team]` directly, and the
   playout harness derives its conservation audit from observation events
   (tests/playout_trace.py), not from the rules text.
@@ -451,9 +451,9 @@ visibility, and the projection model".
   header.
 - `Player` — bare identity.
 - `Partnership` (alias: `Team`).
-- `Seating` — derived from `players` + `partnerships`. The surface
+- `Seating` — derived from `players` + `teams`. The surface
   operator is `offset_by` (`dealer offset_by left` — seat arithmetic in
-  the game's declared direction); partnership lookup is the
+  the game's declared direction); team lookup is the
   `team_of(player)` stdlib function. An English replacement for
   `offset_by` — the clunkiest-reading operator in the language — is a
   decided direction whose spelling is still open
@@ -761,7 +761,7 @@ mid-playout.
   absence value here would surface later as an unrelated failure).
   Used by Hearts (`player_holding(2 of clubs)`), Getaway
   (`player_holding(ace of spades)`).
-- `team_of(player) → Team` — derived from the game's `partnerships`
+- `team_of(player) → Team` — derived from the game's `teams`
   declaration; returns the team containing the given player. Used
   in Spades, Pinochle, Bridge, anywhere team-of-trick-winner
   matters.
@@ -897,7 +897,7 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
 - `tichu_double_victory() → Boolean` — the first two finishers are teammates.
 - `tichu_partner(p: Player) → Player`, `tichu_opponent_team(p: Player) →
   Team`, `tichu_first_out() → Player`, `tichu_next_holder(p: Player) →
-  Player` — partnership and finishing lookups (`next_holder` is the
+  Player` — team and finishing lookups (`next_holder` is the
   post-trick leader advance, counterclockwise past empty hands).
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
@@ -950,7 +950,7 @@ primitives, all reading `cardlang/runtime/tarot.py`:
 
 Belote's within-trump rank reorder (J > 9 > A > 10 > K > Q > 8 > 7 —
 suit-contextual, so outside the `ranking:` declaration's scope; the
-plain-suit order is `ranking: ace-ten`), its partnership-gated obligations,
+plain-suit order is `ranking: ace-ten`), its team-gated obligations,
 and its declaration combinations need ten game-local primitives, all reading
 `cardlang/runtime/belote.py`:
 
@@ -962,7 +962,7 @@ and its declaration combinations need ten game-local primitives, all reading
   any was played, else highest of the led suit under the ace-ten
   `rank_index`.
 - `belote_opp_winning() → Boolean` — is the live, partial trick's current
-  winner an opponent of the acting player? The partnership-relative gate on
+  winner an opponent of the acting player? The team-relative gate on
   the trump/over-trump obligations, read in the rules' `applies_when` off
   the live round accumulator plus the actor `legal_cards` bound.
 - `belote_royal_player() → Player?` — who played a trump King or Queen in

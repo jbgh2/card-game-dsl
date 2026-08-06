@@ -82,9 +82,9 @@ def play_game(
     # resolve()'s Owner Guard confines `direction:` to GAME_DIRECTIONS; None
     # means clockwise.
     seating = Seating(game.players.low, clockwise=game.direction != "counterclockwise")
-    teams = tuple(range(len(game.partnerships)))
+    teams = tuple(range(len(game.teams)))
     team_of = {
-        p: ti for ti, members in enumerate(game.partnerships) for p in members
+        p: ti for ti, members in enumerate(game.teams) for p in members
     }
     positions = dict(position_domains_of(game))
     zones = ZoneStore(game.zones, seating.players, teams, positions=positions)

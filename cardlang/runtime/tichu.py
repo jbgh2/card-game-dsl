@@ -9,7 +9,7 @@ state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
 What stays game-local: the combination engine itself (`combinations.py`,
 shared with nothing — Big Two's differs), the two non-chooser RNG sites the
 monolith drew (the call-rate gates and the Dragon's trick going to a random
-opponent — reproduced draw-for-draw at the same sites), partnership lookups,
+opponent — reproduced draw-for-draw at the same sites), team lookups,
 and the card-point table.
 
 The state-reading primitives (`tichu_double_victory`, `tichu_first_out`) read

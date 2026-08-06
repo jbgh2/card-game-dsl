@@ -29,7 +29,7 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   an integer literal in a Player/Team position is accepted iff it names
             a member the game has (`0 <= k < bound`; bound = a range game's `high`
-            for players, `len(partnerships)` for teams); otherwise a check-time
+            for players, `len(teams)` for teams); otherwise a check-time
             diagnostic. Two-sided -- a negative literal is rejected as well as an
             over-high one. Holds at EVERY position an integer coerces to a
             Player/Team, by construction: all route through `_check_operand`.
@@ -39,7 +39,7 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             below): expression/call, declaration/binding, and the
             formerly-untyped clauses. Player positions run on a fixed 2-seat game
             (plus a `players: 2..4` range-count boundary: seat 3 accepted, seat 4
-            rejected); Team positions on a 2-team (`partnerships: [[0,2],[1,3]]`)
+            rejected); Team positions on a 2-team (`teams: [[0,2],[1,3]]`)
             game, plus the empty-team boundary -- a TEAMLESS game (`max_teams ==
             0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
 registry:   the range check is `_check_role_literal`, called from the ONE choke
@@ -48,7 +48,7 @@ registry:   the range check is `_check_role_literal`, called from the ONE choke
             cardlang/typecheck.py (via `ast`, so docstrings do not count) and
             asserts each is inside `_check_operand` or `# choke-point-exempt`.
             Bounds: `TypeEnv.max_players` (from `game.players`) and
-            `TypeEnv.max_teams` (`len(game.partnerships)`), threaded in
+            `TypeEnv.max_teams` (`len(game.teams)`), threaded in
             `env_from_game`.
 covered:    the grid below -- `_PLAYER_BUILDERS` x {over high rejected, in range
             accepted} (`test_choke_point_rejects/accepts_..._player`) and
@@ -70,7 +70,7 @@ sampled:    the Team axis runs two positions (a team-keyed index, a Team call
             `_check_operand`, the Player grid proves each such position reaches
             it, and the two team rows prove `_check_operand`->`_check_role_literal`
             ranges a `Team`. Their product is every team position ranged.
-residual:   `partnerships:` seat/team lists (`partnerships: [[0, 5]]` on a
+residual:   `teams:` seat/team lists (`teams: [[0, 5]]` on a
             two-seat game) are raw parse-time integers OUTSIDE the type system --
             they never become an operand expression, so the choke point cannot
             reach them (issue #155). A COMPUTED
@@ -362,13 +362,13 @@ def _round_game(*, leader: str = "0", participants: str = "all players") -> str:
 
 
 def _team_game(*, body: str = "") -> str:
-    """A 4-seat, 2-team game (`partnerships` makes teams 0 and 1). `Integer`
+    """A 4-seat, 2-team game (`teams` makes teams 0 and 1). `Integer`
     coerces to `Team` exactly as it does to `Player`, so a team literal names a
     team the game must have -- the parallel axis the range gate had ignored."""
     return (
         "game Teams {\n"
         "  players: 4\n"
-        "  partnerships: [[0, 2], [1, 3]]\n"
+        "  teams: [[0, 2], [1, 3]]\n"
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
@@ -469,15 +469,15 @@ def test_choke_point_accepts_in_range_team(pid: str) -> None:
     assert _diagnose(_TEAM_BUILDERS[pid](1)) is None
 
 
-# A game with NO `partnerships:` has ZERO teams -- `max_teams == 0` is a KNOWN
+# A game with NO `teams:` has ZERO teams -- `max_teams == 0` is a KNOWN
 # EMPTY domain, not an unknown bound. A Team-KEYED zone/state requires
-# partnerships (resolve walls it), but a Team-TYPED OPERAND -- a `state` default,
+# teams (resolve walls it), but a Team-TYPED OPERAND -- a `state` default,
 # a Team call argument -- does not, and reaches the range check, where every team
 # literal (even `0`) names a team the game does not have.
 def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
     return (
         "game Teamless {\n"
-        "  players: 4\n"  # players, but NO partnerships => 0 teams
+        "  players: 4\n"  # players, but NO teams => 0 teams
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
@@ -505,7 +505,7 @@ _TEAMLESS_TEAM_LITERAL = {
 def test_team_literal_in_a_teamless_game_is_rejected(pid: str) -> None:
     # 0 teams => the domain is empty => even team 0 is out of range (Codex P2:
     # `max_teams == 0` must read as an empty domain, not an unknown bound). This
-    # position needs NO partnerships to be written, so it is not walled at resolve
+    # position needs NO teams to be written, so it is not walled at resolve
     # like a team-keyed subscript -- the range check is the only wall it hits.
     msg = _diagnose(_TEAMLESS_TEAM_LITERAL[pid]())
     assert msg is not None, f"{pid}: a team literal was accepted in a teamless game"

@@ -1170,7 +1170,7 @@ class Game:
     # source form (for `ir.emit`).
     ranking_convention: str | None = None
     trump: str | None = None
-    partnerships: tuple[tuple[int, ...], ...] = ()
+    teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
     # integer index/parameter domains (decisions.md "Position domains and
     # positional zones"). Empty for every game with no positional layout.

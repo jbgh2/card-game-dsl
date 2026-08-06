@@ -28,7 +28,7 @@ domain:    the registry's derived views (`ITERABLE_ROLES`, `SIMULTANEOUS_ROLES`,
 registry:  `cardlang.domains.DOMAINS`, whose `id` column IS `domains.Role` —
            one definition site, so the enum and the table cannot disagree.
 covered:   all 4 rows at typecheck (`role_type`) and at runtime (`role_members`),
-           on a built game exercising all four (a 4-player partnership game, so
+           on a built game exercising all four (a 4-player team game, so
            `team` is populated too); resolve's two set-views are pinned by
            object identity (a set-level property, not a per-row one).
 sampled:   none — the domain is 4 rows, fully enumerated below.
@@ -61,16 +61,16 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import Ctx
 from cardlang.types import TAny
 
-# A 4-player partnership game with one decision point, so `on_first_decision`
+# A 4-player team game with one decision point, so `on_first_decision`
 # can capture a fully-built `RuntimeState` — `rs.teams` is only populated for
-# partnership games (`driver.play_game`), so this is the minimal shape that
+# team games (`driver.play_game`), so this is the minimal shape that
 # exercises `team` alongside `player`/`suit`/`rank`.
 ROLE_DOMAIN_SRC = """
 game G {
   players: 4
   max_length: 1000
   cards: standard52
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state {
     done : Boolean = false

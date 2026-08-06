@@ -19,7 +19,7 @@ from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
 
 BRIDGE = Path(__file__).parent.parent / "docs" / "games" / "bridge.cardlang"
-TEAM = {0: 0, 2: 0, 1: 1, 3: 1}  # partnerships [[0, 2], [1, 3]]
+TEAM = {0: 0, 2: 0, 1: 1, 3: 1}  # teams [[0, 2], [1, 3]]
 
 
 def _per_trick(strain: str | None) -> int:

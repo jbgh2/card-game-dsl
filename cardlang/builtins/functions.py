@@ -98,7 +98,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "home",  # rung-2 movement: a player's back-two-ranks setup region (Collection<Cell>)
         "far_row",  # rung-2 movement: the opponent's back row, the reach-to-win goal
         "player_holding",
-        "team_of",  # the partnership a player belongs to
+        "team_of",  # the team a player belongs to
         "suit_of",  # the suit of a card, or of a single-card zone (trump indicator)
         "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move

@@ -72,7 +72,7 @@ covered:    duplication — exhaustively, every single-valued clause (all
             omission — `players:`/content clause (parse wall, including the
             both-at-once bag rendering), `max_length:` and joint
             `winner:`/`loser:` (resolve walls, pinned by their own
-            rejection fixtures), `state`/`zones`/`trump`/`partnerships`/
+            rejection fixtures), `state`/`zones`/`trump`/`teams`/
             `direction`/`ranking` omission is legal by design (probed by
             the valid BASE game here, which omits four of them);
             game-count — zero and two, parse wall;
@@ -279,7 +279,7 @@ _CLAUSE_TEXT: dict[str, str] = {
     "board": "board: grid(3, 3)",
     "ranking": "ranking: K Q J",
     "trump": "trump: hearts",
-    "partnerships": "partnerships: [[0, 2], [1, 3]]",
+    "teams": "teams: [[0, 2], [1, 3]]",
     "max_length": "max_length: 10",
     "positions": "positions { column : 1..7 }",
     "zones": "zones { stock : Deck }",
@@ -474,7 +474,7 @@ SINGLE_VALUED: dict[str, str] = {
     "board": "board:",
     "ranking": "ranking:",
     "trump": "trump:",
-    "partnerships": "partnerships:",
+    "teams": "teams:",
     "max_length": "max_length:",
     "positions": "positions { }",
     "zones": "zones { }",
@@ -484,7 +484,7 @@ SINGLE_VALUED: dict[str, str] = {
 }
 
 # A minimal valid game (also the acceptance probe: it omits `direction:`,
-# `ranking:`, `trump:`, and `partnerships:`, pinning that those omissions
+# `ranking:`, `trump:`, and `teams:`, pinning that those omissions
 # are legal). Duplication probes are built by line surgery on it.
 BASE_LINES: tuple[str, ...] = (
     "game Probe {",
@@ -515,7 +515,7 @@ _EXTRA_CLAUSE: dict[str, str] = {
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "trump": "  trump: spades",
-    "partnerships": "  partnerships: [[0, 1]]",
+    "teams": "  teams: [[0, 1]]",
     "loser": "  loser: active",
 }
 

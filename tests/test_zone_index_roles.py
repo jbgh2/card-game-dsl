@@ -70,7 +70,7 @@ from cardlang.pipeline import check_dsl
 def _game(zones: str, state: str) -> str:
     return f"""game G {{
   players: 4
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   max_length: 100
   direction: clockwise
   cards: standard52
@@ -163,23 +163,23 @@ def test_every_indexable_role_is_accepted_at_all_three_sites(role: str) -> None:
     check_dsl(src, "probe.cardlang")  # must not raise
 
 
-def test_team_indexing_needs_partnerships() -> None:
-    # A team-indexed store in a game with no `partnerships:` has an EMPTY key
+def test_team_indexing_needs_teams() -> None:
+    # A team-indexed store in a game with no `teams:` has an EMPTY key
     # set — without these walls it would declare fine, hold nothing, and fail
     # far away on the first write. Both declaration sites are rejected at the
     # cause.
     src_zone = _game("won[team] : TeamPile<team>", "").replace(
-        "  partnerships: [[0, 2], [1, 3]]\n", ""
+        "  teams: [[0, 2], [1, 3]]\n", ""
     )
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(src_zone, "probe.cardlang")
-    assert "no `partnerships:`" in str(exc.value)
+    assert "no `teams:`" in str(exc.value)
     src_state = _game("", "t[team] : Integer = 0").replace(
-        "  partnerships: [[0, 2], [1, 3]]\n", ""
+        "  teams: [[0, 2], [1, 3]]\n", ""
     )
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(src_state, "probe.cardlang")
-    assert "no `partnerships:`" in str(exc.value)
+    assert "no `teams:`" in str(exc.value)
 
 
 _LET_INDEX_NOUNS = sorted(
@@ -214,7 +214,7 @@ def test_team_ownership_follows_the_observers_team() -> None:
     whether they own a team-keyed family instance. Every corpus team zone
     (TeamPile) projects identically for owners and non-owners, so an inverted
     ownership function (reading the key's members instead of the observer's
-    team) would keep the whole suite — including the partnership openspiel
+    team) would keep the whole suite — including the team openspiel
     proofs — green. This test is the one place the bit itself is asserted."""
     import random
 

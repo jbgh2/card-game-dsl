@@ -85,7 +85,7 @@ def card_points(c: Card) -> int:
 
 
 def initial_minimum(cumulative_score: int) -> int:
-    """The initial-meld minimum count by the partnership's cumulative score:
+    """The initial-meld minimum count by the team's cumulative score:
     negative -> 15, 0..1495 -> 50, 1500..2995 -> 90, 3000+ -> 120 (Pagat,
     Classic Canasta)."""
     if cumulative_score < 0:

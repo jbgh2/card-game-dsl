@@ -1,6 +1,6 @@
 // 500 (Five Hundred) — formalized DSL (parser/checker/runtime target).
 //
-// Companion to five-hundred.md. Four-player partnership Australian 500,
+// Companion to five-hundred.md. Four-player team Australian 500,
 // 43-card pack (A..5 black, A..4 red, one joker), play to +500 / out at -500.
 // Each hand: an ascending drop-out auction over the 27-rung contract ladder
 // (six spades up to ten no-trumps, with misère and open misère inserted),
@@ -33,7 +33,7 @@
 game FiveHundred {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: clockwise
   max_length: 20000
 

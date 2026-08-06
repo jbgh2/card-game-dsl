@@ -1,9 +1,9 @@
 # Spades
 
 The companion formal file is [spades.cardlang](spades.cardlang); this is the
-readable twin. Spades is a four-player partnership trick-taking game (partners
+readable twin. Spades is a four-player team trick-taking game (partners
 sit across) with spades always trump. Each player bids the number of tricks
-they expect to take (a bid of zero is *nil*); the partnership's contract is the
+they expect to take (a bid of zero is *nil*); the team's contract is the
 sum of its non-nil bids. After thirteen tricks the hand is scored and the deal
 rotates. The game runs until a team reaches +500 (a win) or −200 (a loss).
 
@@ -26,7 +26,7 @@ forbids leading a spade on the first trick.
 game Spades {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
+  teams: [[0, 2], [1, 3]]   // partners sit across the four-hand ring
   direction: clockwise
   max_length: 2000
 

@@ -136,15 +136,15 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.execute import execute
 from cardlang.runtime.state import Ctx
 
-# A 4-player partnership game with a declared ranking and one decision point:
+# A 4-player team game with a declared ranking and one decision point:
 # the minimal shape in which all four rows are populated and non-empty
-# (`rs.teams` needs `partnerships:`, the `Rank` param domain needs `ranking:`).
+# (`rs.teams` needs `teams:`, the `Rank` param domain needs `ranking:`).
 GAME = """
 game G {{
   players: 4
   max_length: 1000
   cards: standard52
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
 {ranking}  zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
   state {{ done : Boolean = false  marker[player] : Integer = 0 }}
   phase root {{

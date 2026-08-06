@@ -41,7 +41,7 @@ uniform-random playout does not exercise.
 game Bridge {
 
   players: 4
-  partnerships: [[0, 2], [1, 3]]   // partners sit across
+  teams: [[0, 2], [1, 3]]   // partners sit across
   direction: clockwise
   max_length: 20000
 

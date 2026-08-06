@@ -86,7 +86,7 @@ def test_150_random_games_satisfy_invariants() -> None:
         # kernel (docs/kernel-migration.md). A played hand contributes exactly
         # 12 consecutive `trick` events and an abandoned one contributes none,
         # so the flat per-game sequence still divides evenly into hands; `team
-        # = player % 2` follows from `partnerships: [[0, 2], [1, 3]]`, and each
+        # = player % 2` follows from `teams: [[0, 2], [1, 3]]`, and each
         # trick's `winner` is independently pinned against `_expected_winner`
         # above.
         assert len(tricks) % 12 == 0, f"seed {seed}: {len(tricks)} tricks, not hand-aligned"

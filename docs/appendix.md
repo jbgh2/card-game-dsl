@@ -79,11 +79,11 @@ variable resets at, derived from how it is used.
 | `contract` | Bridge | per-hand | set-once | `bidding` phase outcome | Destructured from `contract_made(c, d)`. |
 | `declarer` | Bridge | per-hand | set-once | `bidding` phase outcome | Set with `contract`. |
 | `dummy` | Bridge | per-hand | set-once | `bidding` phase outcome (derived from declarer) | Always `declarer.partner`. Genuinely derivable; stored for read convenience. |
-| `tricks_taken[partnership]` | Bridge | per-hand | accumulating | post-trick | Derivable from `captured[partnership].size / 4`. |
+| `tricks_taken[team]` | Bridge | per-hand | accumulating | post-trick | Derivable from `captured[team].size / 4`. |
 | `dummy_revealed` | Bridge | per-hand | set-once (false → true) | `reveal_dummy` phase | Derivable from `dummy_hand[dummy].non_empty`. Used only by `play_source_for`. |
-| `games_won[partnership]` | Bridge | per-rubber | accumulating | scoring (game-won branch) | Threshold-checked: `>= 2` ends rubber. |
-| `above_line[partnership]` | Bridge | per-rubber | accumulating | scoring (component sum) | Never resets within rubber. |
-| `below_line_current_game[partnership]` | Bridge | per-rubber-with-reset | accumulating then reset | scoring (component sum + game-won reset) | Resets for *both* partnerships when *either* crosses 100. Coupled reset. |
+| `games_won[team]` | Bridge | per-rubber | accumulating | scoring (game-won branch) | Threshold-checked: `>= 2` ends rubber. |
+| `above_line[team]` | Bridge | per-rubber | accumulating | scoring (component sum) | Never resets within rubber. |
+| `below_line_current_game[team]` | Bridge | per-rubber-with-reset | accumulating then reset | scoring (component sum + game-won reset) | Resets for *both* teams when *either* crosses 100. Coupled reset. |
 | `leader` / `current_leader` | All 5 | per-trick-loop (e.g., `play` phase) | replaced | Trick outcome | Lives in the phase that loops over tricks. Not derivable. |
 | `dealer` | Spades, Pinochle, Bridge | per-hand or per-rubber | rotated | setup phase | Referenced as `dealer.left`. Rotates per hand. |
 

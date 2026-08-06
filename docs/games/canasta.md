@@ -1,7 +1,7 @@
 # Canasta
 
 **Variant:** Classic Canasta (Pagat's base rules), with the simplifications
-listed below. **Players:** 4, in fixed partnerships — partners sit across
+listed below. **Players:** 4, in fixed teams — partners sit across
 (seats 0+2 vs 1+3). **Deck:** two standard 52-card packs plus four jokers,
 108 cards (`canasta108`). **Executable spec:**
 [canasta.cardlang](canasta.cardlang). **Rules source:**
@@ -42,7 +42,7 @@ red three, it is placed sideways under the pile and another card turned,
 until a start card appears — a pile begun this way is **frozen** (below).
 
 Any red three dealt to a player is immediately laid face up with their
-partnership's melds-to-be and replaced from the stock.
+team's melds-to-be and replaced from the stock.
 
 ## The turn
 
@@ -64,11 +64,11 @@ out, which may be done with or without a final discard.
 ## Melds
 
 A meld is three or more cards of one natural rank, laid face up in front of
-the partnership. Wild cards substitute for the rank, under the composition
+the team. Wild cards substitute for the rank, under the composition
 rule: **at least two natural cards, and never more than three wild cards**.
 A side keeps **one meld per rank**; either partner may later add natural
 cards of the rank, or wild cards (while the meld holds fewer than three),
-on any of their turns. Melds belong to the partnership and stay on the
+on any of their turns. Melds belong to the team and stay on the
 table to the end of the hand.
 
 A meld of **seven or more cards is a canasta** — worth a 500 bonus if it
@@ -78,7 +78,7 @@ canasta makes it mixed.
 
 **The initial meld.** A side's first meld of a hand must meet a minimum
 count — the sum of the standard values of the cards laid down — read from
-the partnership's cumulative score:
+the team's cumulative score:
 
 | cumulative score | minimum |
 |---|---|
@@ -116,7 +116,7 @@ your side's red-three row), and you may go on melding before you discard.
 
 You go out by shedding every card in your hand — melding all of it, or all
 but one card which becomes your final discard. Going out is legal only if
-your partnership has completed **at least one canasta**, and it ends the
+your team has completed **at least one canasta**, and it ends the
 hand immediately. (The executable spec enforces this continuously: no meld
 may leave you unable to legally end your turn — you always keep either two
 cards, or a canasta on your side's row.)
@@ -132,7 +132,7 @@ neither must nor can (or declines a voluntary take) ends the hand.
 
 ## Scoring the hand
 
-Each partnership scores, onto its cumulative total:
+Each team scores, onto its cumulative total:
 
 - **+** the card values of everything it melded (canastas included),
 - **+ 500** per natural canasta, **+ 300** per mixed canasta,
@@ -145,7 +145,7 @@ After four deals, the side with the higher cumulative score wins.
 
 ## Notes for the executable spec
 
-- **Partnership melds are team-indexed zone families, one per rank**
+- **Team melds are team-indexed zone families, one per rank**
   (`meldA[team] … meld4[team]`, plus the black-three group and the
   red-three row). A meld's typed state — natural vs mixed, canasta or not —
   is derived from its composition by pure primitives at every read; growth

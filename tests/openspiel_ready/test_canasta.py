@@ -1,4 +1,4 @@
-"""Canasta (4 players, partnerships) — OpenSpiel readiness.
+"""Canasta (4 players, teams) — OpenSpiel readiness.
 
 Depth 12 (the default): the seed-5 pause lands on seat 1 with seats 0/2/3
 holding full hands, so the 4-player swap path has two swappable opponents.

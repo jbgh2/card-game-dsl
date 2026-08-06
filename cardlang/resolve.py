@@ -126,7 +126,7 @@ _FRAME_CALL_FUNCS = frozenset(
 _KNOWN_ROLES = ZONE_INDEX_ROLES
 
 # The EMPTY-DOMAIN Owner Guards below (a team-indexed state/zone declaration in a game
-# that declares no `partnerships:`) implement the `team` row only, because
+# that declares no `teams:`) implement the `team` row only, because
 # `team` is the one role domain a game can leave undeclared: seats come from the
 # mandatory `players:` clause, the card axes from the deck. That is a fact about
 # the registry, so it is pinned against the registry rather than assumed — the
@@ -4962,26 +4962,26 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 elif (
                     nd.index is not None
                     and role_of(nd.index) is Role.TEAM
-                    and not game.partnerships
+                    and not game.teams
                 ):
-                    # A team-indexed store in a game with no partnerships has
+                    # A team-indexed store in a game with no teams has
                     # an EMPTY key set: it declares fine, holds nothing, and
                     # every later `x[…] := …` hits the runtime key guard far
-                    # from the real mistake (the missing `partnerships:`).
+                    # from the real mistake (the missing `teams:`).
                     bag.error(
                         f"state variable '{nd.name}' is indexed by 'team' but "
-                        f"the game declares no `partnerships:` — there are no "
+                        f"the game declares no `teams:` — there are no "
                         f"teams to key it by",
                         nd.span,
                     )
             case n.ZoneDecl() if (
                 nd.index is not None
                 and role_of(nd.index) is Role.TEAM
-                and not game.partnerships
+                and not game.teams
             ):
                 bag.error(
                     f"zone '{nd.name}' is indexed by 'team' but the game "
-                    f"declares no `partnerships:` — there are no teams to key "
+                    f"declares no `teams:` — there are no teams to key "
                     f"it by",
                     nd.span,
                 )

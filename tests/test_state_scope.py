@@ -281,9 +281,8 @@ def test_every_game_field_is_decided() -> None:
     walked = sorted(fields - _GAME_LEVEL_SKIP)
     assert walked == [
         "board", "content_flavor", "deck", "direction", "loser", "max_length",
-        "name", "partnerships", "players", "positions", "ranking",
-        "ranking_convention", "span", "trump", "types", "uses", "winner",
-        "zones",
+        "name", "players", "positions", "ranking", "ranking_convention", "span",
+        "teams", "trump", "types", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
         f"reference in it runs inside a phase (skip it, and say which set) or "

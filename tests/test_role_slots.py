@@ -144,7 +144,7 @@ INEXPRESSIBLE = "inexpressible"
 def _card_game(*, zones: str = "", state: str = "", stmt: str = "") -> str:
     return f"""game G {{
   players: 4
-  partnerships: [[0, 2], [1, 3]]
+  teams: [[0, 2], [1, 3]]
   max_length: 100
   direction: clockwise
   cards: standard52
