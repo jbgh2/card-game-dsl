@@ -76,14 +76,12 @@ game Spades {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
-      phase spades_not_broken {
+      mode spades_not_broken {
         active_rules: [+ NoLeadingSuitUntilBroken(spades)]
         transition_to: spades_broken when play_to_trick where action.card.suit is spades
       }
 
-      phase spades_broken {
-        // inherits the parent's MustFollowSuit only
-      }
+      mode spades_broken { }
 
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile

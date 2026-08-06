@@ -35,26 +35,37 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 
 This was the design crux. Resolution:
 
-### Phases vs states
+### Phases, modes, and states
 
-**Phases are not synonyms for state-machine states, but they are state-machine
-states.**
+Two different things want to be called "state", and the language gives each its
+own word.
 
-- A phase is a *named interval of game time during which a particular rule set
-  is active*. Phases are units rulebooks use.
-- A state-machine state is a *discrete configuration the system can be in*.
+- A **phase** is a step in the game's sequential program. Phases run in
+  declaration order and a phase ends when its work completes. `deal`,
+  `first_trick`, `play`, `scoring`.
+- A **mode** is a condition the game is in, existing to change which rules are
+  active. It is not a step: you do not run a mode, you are in one.
+  `hearts_not_broken`, `hearts_broken`.
+- A **state variable** is ordinary data — a counter, a flag nothing gates on.
 
-Every phase corresponds to a state (or equivalence class of states) in the
-underlying state machine, but most states aren't worth naming as phases. The
-criterion for "this discrete configuration deserves to be a phase" is: **does
-the active rule set change?**
-
-If yes → phase (or sub-phase).
-If no → just state (a variable, a counter, ordinary data).
-
-This gives us a clean answer to the earlier "flags as a smell" observation:
-flags that gate rules are sub-phases in disguise; flags that are purely
+The criterion for "this configuration deserves a name" is still **does the
+active rule set change?** If yes, it is a mode. If no, it is a state variable.
+Flags that gate rules are modes in disguise; flags that are purely
 informational are just variables.
+
+Modes are **independent conditions, not an exclusive state machine.** A phase
+may declare several, any number may hold at once, and their rule deltas stack.
+That is what lets two unrelated conditions — "hearts have been broken", "the
+queen has gone" — be written as two mode pairs instead of as the four modes of
+their product.
+
+Each mode is exactly one side of one condition: the **before** side, which
+declares the `transition_to:` that ends it, or the **after** side, which a
+sibling names as a target and whose body is usually empty. A mode that were
+both would be a chain, and a mode that were neither could never be active at
+all; the checker rejects both. A progression through three or more stages is
+not a mode chain — use a state variable and gate the rules with
+`applies_when:`.
 
 ### The relationship between concepts
 
@@ -81,17 +92,35 @@ informational are just variables.
   is legal in a phase if rules constraining it are active there).
 - **Events emit automatically from moves**, with visibility derived from zones.
 
-### Sub-phases
+### Sub-phases and modes
 
-A phase may contain nested sub-phases. Sub-phases inherit the parent's rule
-set and add/modify their own. They have their own entry/exit conditions.
+A phase may contain nested sub-phases — further steps, run in order, inheriting
+the parent's rule set. It may also contain modes, which are not steps.
 
-Example: Hearts' `play` phase contains the sub-phases `hearts_not_broken` and
-`hearts_broken`. The transition between them fires on the first heart played.
-The active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
-only in the first sub-phase).
+Example: Hearts' `play` phase declares the modes `hearts_not_broken` and
+`hearts_broken`. The transition between them fires on the first heart played,
+and the active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
+only in the first). The `play` phase's own body — the trick loop — runs
+throughout, under whichever rules the current modes give it.
 
-This replaces the ad-hoc `hearts_broken` boolean flag with structure.
+```
+phase play {
+  active_rules: [MustFollowSuit]
+  legal_moves:  [play_to_trick]
+
+  mode hearts_not_broken {
+    active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
+    transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
+  }
+  mode hearts_broken { }
+
+  repeat until (all players where hand[player] is empty) { … }
+}
+```
+
+This replaces the ad-hoc `hearts_broken` boolean flag with structure. A mode's
+body is configuration only — `active_rules:` and `transition_to:` — because
+being in a mode *is* its behavior; the grammar admits nothing else there.
 
 ### What rules really are
 

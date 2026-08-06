@@ -193,11 +193,21 @@ phase_qualifier: _REPEAT_KW _UNTIL_KW expr -> phase_repeats
 ?phase_item: state_block
            | active_rules
            | legal_moves
-           | transition_to
+           | mode_def
            | before_each
            | after_each
            | phase
            | statement
+
+// A mode is a condition the game is in, existing to change which rules are
+// active; being in it IS its behavior, so its body is configuration and
+// nothing else. That restriction lives here rather than in a resolve
+// diagnostic because the grammar is the earliest layer that can own it: a
+// statement in a mode body is unreachable code, and `legal_moves:` there is
+// read by no consumer. An empty mode is the terminal side of a condition.
+mode_def: _MODE_KW NAME "{" mode_item* "}"
+?mode_item: active_rules
+          | transition_to
 
 // Loop lifecycle hooks on a `repeat until` phase: before_each runs at the
 // start of every iteration, after_each at the end — guaranteed even when the
@@ -746,6 +756,7 @@ _LET_KW: "let" /(?![A-Za-z0-9_])/
 _LIBRARY_KW: "library" /(?![A-Za-z0-9_])/
 _LOSER_KW: "loser" /(?![A-Za-z0-9_])/
 _MAX_LENGTH_KW: "max_length" /(?![A-Za-z0-9_])/
+_MODE_KW: "mode" /(?![A-Za-z0-9_])/
 _MOVE_TYPE_KW: "move_type" /(?![A-Za-z0-9_])/
 _NEXT_KW: "next" /(?![A-Za-z0-9_])/
 _NOT_KW: "not" /(?![A-Za-z0-9_])/

@@ -111,7 +111,7 @@ participant plus a `winner` function. Everything below composes on a
 Build this, then re-express the existing trick `round` as one configuration of
 it with no behavioural change (the same proof Oh Hell already gives). Then
 migrate the remaining built-in-`Trick` games onto the kernel `round` —
-Hearts/Spades (rule-delta transitions) and Getaway (early termination) — and
+Hearts/Spades (mode transitions) and Getaway (early termination) — and
 delete the built-in `Trick` mechanic. This both retires shared engine code and
 exercises every axis before the harder games arrive.
 

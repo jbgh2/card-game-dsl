@@ -1137,7 +1137,7 @@ def _phase_statements_scoped(
                 yield from _phase_statements_scoped(item, current)
             case n.BeforeEach() | n.AfterEach():
                 yield from _seq_tree_scoped(item.body, binders)
-            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.Mode():
                 pass  # configuration blocks hold no statements
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on
@@ -2813,7 +2813,7 @@ def _continue_targets_in_item(item: n.PhaseItem) -> set[str]:
         # `run_body` and never unwinds to the parent, so it doesn't escape.
         targets -= {it.name for it in item.items if isinstance(it, n.Phase)}
     elif isinstance(
-        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode,
                n.BeforeEach, n.AfterEach)
     ):
         pass
@@ -2833,11 +2833,16 @@ def _item_can_skip(item: n.PhaseItem) -> bool:
             return False
         return any(_item_can_skip(sub) for sub in item.items)
     if isinstance(
-        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode,
                n.BeforeEach, n.AfterEach)
     ):
         return False
     return any(isinstance(node, n.SkipToNextHand) for node in _control_flow_nodes(item))
+
+
+def _mode_names(phase: n.Phase) -> set[str]:
+    """The modes declared directly in one phase body, for kind-aware diagnostics."""
+    return {i.name for i in phase.items if isinstance(i, n.Mode)}
 
 
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
@@ -3049,7 +3054,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                     else earlier
                 )
                 walk(item, child_before, later, here_loop)
-            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode)):
                 pass
             else:
                 in_hook = isinstance(item, (n.BeforeEach, n.AfterEach))
@@ -3088,11 +3093,27 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 node.span,
                             )
                         elif isinstance(node, n.ContinueTo) and node.target not in later:
-                            bag.error(
-                                f"continue to '{node.target}' is not a later sibling "
-                                "phase",
-                                node.span,
-                            )
+                            # A mode name reaching here is the phase/mode
+                            # confusion itself: before modes had their own
+                            # keyword, `continue to <config-only sub-phase>`
+                            # was accepted and jumped to an item the driver
+                            # skips. Say which kind the name is, or the
+                            # designer reads "not a sibling" as "no such name"
+                            # while looking straight at the declaration.
+                            if node.target in _mode_names(phase):
+                                bag.error(
+                                    f"continue to '{node.target}' names a mode, not a "
+                                    f"phase — a mode is entered by a sibling mode's "
+                                    f"`transition_to:` when its event fires, never "
+                                    f"jumped to",
+                                    node.span,
+                                )
+                            else:
+                                bag.error(
+                                    f"continue to '{node.target}' is not a later sibling "
+                                    "phase",
+                                    node.span,
+                                )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
                             bag.error(
                                 "'skip to next hand' must be inside a `repeat until` "
@@ -3156,7 +3177,7 @@ def _check_phase_produces(
     for item in phase.items:
         if isinstance(item, n.Phase):
             _check_phase_produces(item, owner, outcomes, env, bag, current)
-        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode)):
             pass
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
             for s in item.body:
@@ -3297,13 +3318,16 @@ def typecheck(game: Game) -> Game:
                             f"phase '{item.name}' condition",
                         )
                     check_phase_positions(item, current)
-                case n.TransitionTo() if item.event.where is not None:
-                    # NO binders at all: a transition predicate may not read
-                    # any `let` (resolve rejects the reference — it is fired
-                    # by whichever round matches its event, and no lexical
+                case n.Mode():
+                    # Reached via the mode, since a transition is no longer a
+                    # phase item. NO binders at all: a transition predicate may
+                    # not read any `let` (resolve rejects the reference — it is
+                    # fired by whichever round matches its event, and no lexical
                     # position makes a binding reliably live then), so the
                     # bare env is exactly its scope.
-                    _check_expr(item.event.where, env, bag)
+                    for transition in item.transitions:
+                        if transition.event.where is not None:
+                            _check_expr(transition.event.where, env, bag)
                 case n.StateBlock():
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:

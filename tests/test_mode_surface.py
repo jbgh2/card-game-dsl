@@ -51,9 +51,9 @@ sampled:    `?phase_item`'s `statement` alternative is one grid cell, not 20:
 residual:   - a genuine 3+ stage progression has no mode encoding and routes
               to a state variable with `applies_when`. Walled by the role 2x2's
               `both` cell with a diagnostic naming that route. R3 — a designer
-              with three rule sets meets it. Growth slot, issue #262.
+              with three rule sets meets it. Growth slot, issue #266.
             - `mode` nested inside `mode` rejects (grid (b)); the growth slot
-              is deliberate and shares issue #262.
+              is deliberate and shares issue #266.
             - the mode-SET axis (d) is hand-listed, not derived: it is a
               property of a graph the grammar imposes no shape on, so it has
               no defining site to scrape. Recorded here rather than presented
@@ -82,7 +82,9 @@ from tests.mode_axes import (
 _RULE = """
 rule MustFollow {
   constrains: play_to_trick
-  demands: legal_cards(hand[actor], pile)
+  applies_when: state.led_suit is not none
+  demands: cards in hand where card.suit is state.led_suit
+  if_impossible: hand
 }
 """
 
@@ -156,7 +158,14 @@ def _require_construct_exists() -> None:
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("item", sorted({*phase_item_alternatives(), "mode_def"}))
+# The UNION of what either container admits, not `phase_item` alone. Deriving
+# from one container drops exactly the items the other one owns: the moment
+# `transition_to` left `?phase_item` its "rejected in a phase body" cell would
+# have disappeared from the grid — a coverage loss caused by the very change
+# the grid exists to check.
+@pytest.mark.parametrize(
+    "item", sorted({*phase_item_alternatives(), *mode_item_alternatives()})
+)
 @pytest.mark.parametrize("container", ["phase", "mode"])
 def test_item_in_container(item: str, container: str) -> None:
     """Every phase-item alternative, in a phase body and in a mode body.
@@ -199,6 +208,9 @@ _CONTAINER_SOURCE = {
     "library": "library L {\n  mode m { }\n}\n",
     "game": _game("    ldr := 0").replace("  phase root {", "  mode m { }\n  phase root {"),
     "phase": _game("    mode m { transition_to: after when play_to_trick }\n    mode after { }"),
+    # Appeared as a cell nobody wrote the moment `mode_item*` joined the
+    # grammar — which is the whole reason the container axis is scraped.
+    "mode": _game("    mode outer { mode inner { } }"),
 }
 
 
@@ -209,7 +221,7 @@ def test_mode_placement(container: str) -> None:
     The other three are decisions, not omissions: a game-level mode has no
     phase whose rules it could delta, and a library-level one would let a
     family library ship a condition it cannot scope. Both wait for a witness
-    game (issue #262).
+    game (issue #266).
     """
     _require_construct_exists()
     assert _parses(_CONTAINER_SOURCE[container]) is (container == "phase")
@@ -322,3 +334,74 @@ def test_mode_set_shape(shape: str) -> None:
         f"{shape} was rejected by the parser, not by the mode-role wall: {message}"
     )
     assert "mode" in message, message
+
+
+# --------------------------------------------------------------------------
+# Misuse probes (audit Step 2) — the plausible wrong sentences, each proven
+# loud in its owning layer's currency.
+# --------------------------------------------------------------------------
+
+
+def test_retired_spelling_names_the_replacement() -> None:
+    """A mode written as a `phase`, which is how every pre-#208 file spells it.
+
+    This is the highest-traffic wrong sentence in the language after the split,
+    so a bare "no terminal matches ':'" would be the wrong currency in
+    practice: located, but naming neither the mistake nor the fix.
+    """
+    src = _game(
+        "    phase hearts_not_broken {\n"
+        "      transition_to: after when play_to_trick\n"
+        "    }\n"
+        "    mode after { }"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    assert "`transition_to:` belongs to a `mode`" in str(ei.value)
+
+
+def test_legal_moves_in_a_mode_names_the_replacement() -> None:
+    """The mirror direction: a phase clause written in a mode body."""
+    src = _game(
+        "    mode m {\n"
+        "      legal_moves: [play_to_trick]\n"
+        "      transition_to: after when play_to_trick\n"
+        "    }\n"
+        "    mode after { }"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    assert "`legal_moves:` belongs to a `phase`" in str(ei.value)
+
+
+def test_legal_moves_delta_operator_is_a_grammar_error() -> None:
+    """`legal_moves: [+ X]` — the symmetry with `active_rules` that the spec
+    once claimed. The grammar admits only bare names here, so it fails at
+    parse. Carried over from the wall module this grid replaced: the wall's
+    own domain dissolved with `_is_rule_delta`, but this boundary-token
+    probe is about `legal_moves`'s list syntax and outlives it."""
+    assert not _parses(_game("    legal_moves: [+ play_to_trick]"))
+
+
+def test_transition_predicate_is_typechecked_inside_a_mode() -> None:
+    """A wrong-typed transition predicate must still be caught.
+
+    The arm that checks it used to match `n.TransitionTo` as a PHASE item;
+    once transitions moved inside modes, that arm stopped matching anything
+    and the predicate would have gone unchecked — a wall silently emptied by
+    the very change that reorganised the surface.
+    """
+    src = _game(
+        "    mode m { transition_to: after when play_to_trick\n"
+        "             where action.card.nosuch is hearts }\n"
+        "    mode after { }"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    # A TYPE error specifically: an unresolved-name probe would be caught by
+    # resolve and would stay green with this arm deleted, which is the shape
+    # of pin that guards nothing.
+    assert "has no field" in str(ei.value), str(ei.value)
+
+    # red under: delete the `case n.Mode()` arm in `check_phase_positions`
+    # (typecheck.py) and this goes green — the predicate is never typechecked.

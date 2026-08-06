@@ -194,11 +194,10 @@ sets it:
 phase parent { legal_moves: [play_to_trick] }
 ```
 
-A `legal_moves:` is set only by a phase that actually runs. A
-config-only rule-delta sub-phase (one holding nothing but `active_rules:`
-/ `transition_to:`, folded for its rules but never executed) is rejected
-if it carries a `legal_moves:`, since nothing would consult it — the move
-menu never blinks from an invisible sub-phase.
+A `legal_moves:` is set only by a phase that actually runs. A mode holds
+rules, never the move menu, so its body admits no `legal_moves:` at all —
+the grammar rejects one, since nothing would consult it and the move menu
+must never blink from a condition rather than from the step you are in.
 
 A slot may mix operators and plain entries — a sub-phase that lists
 a bare rule is shadowing inheritance with its own complete set:

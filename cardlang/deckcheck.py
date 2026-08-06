@@ -128,7 +128,7 @@ def _window_usage(
                 if _repeats(item):
                     continue  # separate window
                 p, carry = _window_usage(item, carry, players, counts, deck_zones)
-            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.Mode():
                 continue  # configuration blocks move no cards
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on

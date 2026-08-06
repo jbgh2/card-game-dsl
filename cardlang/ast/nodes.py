@@ -846,6 +846,24 @@ class TransitionTo:
 
 
 @dataclass(frozen=True, slots=True)
+class Mode:
+    """`mode NAME { }` — a condition the enclosing phase is in, existing to
+    change which rules are active.
+
+    Modes are INDEPENDENT conditions, not an exclusive state machine: a phase
+    may hold several, all of their deltas stack, and each is the "before" side
+    (it declares transitions) or the "after" side (a sibling names it) of
+    exactly one condition. `active_rules` is the delta a mode contributes while
+    it holds; `transitions` are the events that end it. Both tuples may be
+    empty — an empty mode is the terminal side of some sibling's condition."""
+
+    name: str
+    active_rules: tuple[ActiveRules, ...]
+    transitions: tuple[TransitionTo, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BeforeEach:
     """`before_each { … }` — runs at the start of every loop iteration."""
 
@@ -882,10 +900,10 @@ class Phase:
     span: Span | None = None
 
 
-# A phase body holds blocks, lifecycle hooks, nested phases, and statements.
+# A phase body holds blocks, modes, lifecycle hooks, nested phases, and
+# statements. `TransitionTo` is NOT a phase item: it lives only inside a mode.
 PhaseItem: TypeAlias = (
-    "StateBlock | ActiveRules | LegalMoves | TransitionTo | BeforeEach | AfterEach"
-    " | Phase | Stmt"
+    "StateBlock | ActiveRules | LegalMoves | Mode | BeforeEach | AfterEach | Phase | Stmt"
 )
 
 
@@ -1245,6 +1263,7 @@ Node = (
     | ActiveRules
     | RuleRef
     | LegalMoves
+    | Mode
     | TransitionTo
     | MoveEvent
     | RuleDef

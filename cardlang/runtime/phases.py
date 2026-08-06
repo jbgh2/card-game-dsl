@@ -1,12 +1,25 @@
-"""Active-rule computation for a phase, including conditional rule-delta
-sub-phases.
+"""Active-rule computation for a phase, including its modes.
 
 A phase's active rules are its plain `active_rules` entries plus the deltas
-contributed by any *rule-delta sub-phase* that is currently active. Hearts'
-`hearts_not_broken` / `hearts_broken` are rule-delta sub-phases: the one holding
-the `transition_to` is the "before" state (active until its target has fired);
-its target is the "after" state. A fired transition is recorded in
+contributed by whichever of its modes currently hold. Hearts' `hearts_not_broken`
+/ `hearts_broken` are one condition's two sides: the mode declaring the
+`transition_to` is the "before" side (it holds until a target has fired), its
+target the "after" side. A fired transition is recorded in
 `RuntimeState.fired_transitions`, which resets each loop iteration.
+
+Modes are INDEPENDENT conditions, not an exclusive state machine. A phase may
+hold several and any number may be active at once, their deltas stacking in
+declaration order — which is what lets two unrelated conditions ("hearts have
+been broken", "the queen has gone") be written as two mode pairs instead of as
+the four modes of their product.
+
+Contract
+--------
+Assumes: resolve has walled the mode-role invariant — every mode is exactly one
+of a transition SOURCE or a transition TARGET (`_check_modes`). Both functions
+here rely on it: a mode that were both would be read as a source and its
+target-ness ignored, and a mode that were neither could never be active at all.
+Establishes: the active rule set for one phase at one moment.
 """
 
 from __future__ import annotations
@@ -26,15 +39,10 @@ def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.Rul
                 _apply_ref(names, ref)
 
     for item in phase.items:
-        if isinstance(item, n.Phase) and _is_rule_delta(item):  # noqa: SIM102 -- the inner `if` carries the comment that explains it
-            if _delta_active(item, rs):
-                # Only `active_rules` is folded. A `legal_moves` here would have
-                # no effect, which is exactly why resolve rejects one
-                # (`_check_rule_delta_subphases`); none reaches this loop.
-                for sub in item.items:
-                    if isinstance(sub, n.ActiveRules):
-                        for ref in sub.refs:
-                            _apply_ref(names, ref)
+        if isinstance(item, n.Mode) and _mode_active(item, rs):
+            for block in item.active_rules:
+                for ref in block.refs:
+                    _apply_ref(names, ref)
 
     seen: dict[str, None] = {}
     for name in names:
@@ -49,36 +57,31 @@ def _apply_ref(names: list[str], ref: n.RuleRef) -> None:
         names.remove(ref.name)
 
 
-def _is_rule_delta(phase: n.Phase) -> bool:
-    """A sub-phase that only configures rules (no statements / nested phases).
+def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
+    """Whether one mode currently holds.
 
-    `LegalMoves` is admitted so a config-only sub-phase that carries one still
-    classifies as a rule-delta phase — which lets resolve identify and reject
-    it (`_check_rule_delta_subphases`), since a `legal_moves` here is honored
-    by no consumer. It is never folded; a rule-delta phase reaching runtime has
-    only `active_rules`/`transition_to` in force.
+    A SOURCE mode holds until ANY of its targets has fired — `any`, not the
+    first transition alone, because a condition may have several triggers
+    ("hearts are broken by a heart or by the queen") and ending only on the one
+    that happens to be written first is a silently wrong answer, not a
+    restriction anybody chose.
+
+    A TARGET mode holds once its own name has fired. The two branches are
+    exhaustive because resolve walls the roles: a mode with no transition is one
+    some sibling names.
     """
-    return all(
-        isinstance(item, (n.ActiveRules, n.LegalMoves, n.TransitionTo))
-        for item in phase.items
-    )
-
-
-def _delta_active(phase: n.Phase, rs: RuntimeState) -> bool:
-    transition = next((i for i in phase.items if isinstance(i, n.TransitionTo)), None)
-    if transition is not None:
-        # "before" sub-phase: active until its transition has fired.
-        return transition.target not in rs.fired_transitions
-    # "after" sub-phase: active once it has been transitioned to.
-    return phase.name in rs.fired_transitions
+    if mode.transitions:
+        return not any(t.target in rs.fired_transitions for t in mode.transitions)
+    return mode.name in rs.fired_transitions
 
 
 def phase_transitions(phase: n.Phase | None) -> list[n.TransitionTo]:
-    """The transitions declared by a phase's rule-delta sub-phases."""
+    """Every transition declared by a phase's modes."""
     if phase is None:
         return []
-    out: list[n.TransitionTo] = []
-    for item in phase.items:
-        if isinstance(item, n.Phase) and _is_rule_delta(item):
-            out.extend(i for i in item.items if isinstance(i, n.TransitionTo))
-    return out
+    return [
+        transition
+        for item in phase.items
+        if isinstance(item, n.Mode)
+        for transition in item.transitions
+    ]
