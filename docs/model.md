@@ -103,7 +103,7 @@ and the active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
 only in the first). The `play` phase's own body — the trick loop — runs
 throughout, under whichever rules the current modes give it.
 
-```
+```text
 phase play {
   active_rules: [MustFollowSuit]
   legal_moves:  [play_to_trick]

@@ -208,7 +208,8 @@ def test_is_empty_accepts_gradual_any() -> None:
     _accepts(
         _game(
             "for each player q: score[q] := 1\n"
-            "    transition_to: p when play_to_trick where action.card_count is empty"
+            "    mode m { transition_to: p when play_to_trick where action.card_count is empty }\n"
+            "    mode p { }"
         )
     )
 
@@ -251,7 +252,8 @@ def test_is_none_accepts_gradual_any() -> None:
     _accepts(
         _game(
             "for each player q: score[q] := 1\n"
-            "    transition_to: p when play_to_trick where action.card_count is none"
+            "    mode m { transition_to: p when play_to_trick where action.card_count is none }\n"
+            "    mode p { }"
         )
     )
 

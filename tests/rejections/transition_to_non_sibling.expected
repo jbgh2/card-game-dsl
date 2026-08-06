@@ -1,1 +1,1 @@
-transition_to_non_sibling.cardlang:16:7: error: transition_to target 'nowhere' is not a sibling phase
+transition_to_non_sibling.cardlang:17:7: error: transition_to target 'nowhere' is not a sibling mode of this phase — a transition ends one condition and begins another, so its target is a `mode` declared beside this one

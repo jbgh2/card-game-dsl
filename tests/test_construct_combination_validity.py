@@ -108,11 +108,11 @@ def test_rejects_override_in_active_rules() -> None:
 
 def test_rejects_a_transition_on_a_non_trick_event() -> None:
     body = """
-    phase a {
-      for each player q: score[q] := 1
+    for each player q: score[q] := 1
+    mode a {
       transition_to: b when transfer_between_hands where action.card_count is 3
     }
-    phase b { for each player q: score[q] := 2 }
+    mode b { }
     """
     _rejects(_game(body), "must be `play_to_trick`")
 
@@ -144,11 +144,11 @@ def test_accepts_hooks_on_a_repeats_until_phase() -> None:
 
 def test_accepts_a_play_to_trick_transition_and_plain_rule_refs() -> None:
     body = """
-    phase a {
+    for each player q: score[q] := 1
+    mode a {
       active_rules: [PassRule]
-      for each player q: score[q] := 1
       transition_to: b when play_to_trick where action.card_count is 3
     }
-    phase b { for each player q: score[q] := 2 }
+    mode b { }
     """
     check_dsl(_game(body, rules=_RULE), "mini.cardlang")

@@ -321,6 +321,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.Game, "name"): "game",
     (n.Library, "name"): "library",
     (n.Phase, "name"): "phase",
+    (n.Mode, "name"): "mode",
     (n.ZoneDecl, "name"): "zone",
     (n.PositionDecl, "name"): "position",
     (n.PositionDecl, "members_named"): "position_member",
@@ -372,7 +373,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Round, "play_zone"): "zone",
     # Phases.
     (n.ContinueTo, "target"): "phase",
-    (n.TransitionTo, "target"): "phase",
+    (n.TransitionTo, "target"): "mode",
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
@@ -1087,6 +1088,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # owns that class and says more than a leak message can.
         "zone_type_arg": frozenset(role_names(ZONE_INDEX_ROLES)),
         "phase": frozenset(),
+        "mode": frozenset(),
         "position": frozenset(),
         "deck_rank": frozenset(),
         "deck_suit": frozenset(),
@@ -1333,6 +1335,7 @@ _NAMESPACE_NOUN: dict[str, str] = {
     "state": "state variable",
     "zone": "zone",
     "phase": "phase",
+    "mode": "mode",
     "type": "type",
     "move_type": "move type",
     "define": "define",
@@ -1359,6 +1362,10 @@ _NAMESPACE_ADVICE: dict[str, str] = {
     "phase": (
         "a library holds no phases, and the phase sequence is the including game's — "
         "keep the definition that needs it in the game"
+    ),
+    "mode": (
+        "a library holds no modes: a mode is a condition of one of the including "
+        "game's phases — keep the definition that needs it in the game"
     ),
     "type": (
         "declare the type in the library, or keep this definition in the game "
@@ -4085,12 +4092,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         current = cats
         out_items: list[object] = []
         for item in node.items:
-            if isinstance(item, n.TransitionTo):
-                # A transition predicate reads NO `let` at all — not even an
-                # enclosing one. It is fired by whichever round matches its
-                # event, and rounds both before and after any given `let` can
-                # be in scope, so no lexical position makes a binding reliably
-                # live at evaluation time. Configuration reads state and the
+            if isinstance(item, n.Mode):
+                # A MODE reads no `let` at all — not even an enclosing one —
+                # and that covers its whole body, not just its transitions.
+                # A transition is fired by whichever round matches its event,
+                # and rounds both before and after any given `let` can be in
+                # scope, so no lexical position makes a binding reliably live
+                # at evaluation time; a mode's `active_rules:` are collected
+                # the same way, applying whenever the mode holds rather than
+                # where they are written. Configuration reads state and the
                 # action; body bindings are the body's.
                 no_locals = replace(entry, locals=frozenset())
                 out_items.append(_rewrite_value(item, no_locals, bag))
