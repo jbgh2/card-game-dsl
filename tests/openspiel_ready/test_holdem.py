@@ -29,7 +29,7 @@ complete — the configuration this game was added to exercise.
 Bounded conformance walk: full `pyspiel.random_sim_test` re-simulates the whole
 (seed, history) state after every action — O(n^2) in game length (issue #139) —
 and a Hold'em game runs until one player holds all 300 chips: ~60-110 hands.
-Measured, the greedy line does not reach Terminal inside ten minutes through the
+Measured, the greedy line does not reach TerminalNode inside ten minutes through the
 adapter, which is why `adapter_terminal_steps` stays unset.
 
 `conformance_steps=120` is INHERITED from Stud's number, not derived: on the

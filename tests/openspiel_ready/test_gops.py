@@ -25,7 +25,7 @@ Harness configuration rationale:
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
 
@@ -60,14 +60,14 @@ def test_sealed_bid_derivation_before_and_after_the_reveal() -> None:
     publicly in the discard."""
     _, space = load(PATH)
     r0 = run(PATH, 5, ())
-    assert isinstance(r0, Pause)
+    assert isinstance(r0, DecisionNode)
     assert r0.player == 0 and len(r0.legal) == 13
 
     # (1) Two worlds differing only in P0's sealed commit.
     a, a_alt = r0.legal[0], r0.legal[7]
     r1 = run(PATH, 5, (a,))
     r1_alt = run(PATH, 5, (a_alt,))
-    assert isinstance(r1, Pause) and isinstance(r1_alt, Pause)
+    assert isinstance(r1, DecisionNode) and isinstance(r1_alt, DecisionNode)
     assert r1.player == 1 and r1_alt.player == 1
     assert r1.obs_logs[1] == r1_alt.obs_logs[1], (
         "P0's sealed commit left a trace in P1's observation log"
@@ -100,7 +100,7 @@ def test_sealed_bid_derivation_before_and_after_the_reveal() -> None:
     b = r1.legal[0]
     bid1 = space.decode(b)
     r2 = run(PATH, 5, (a, b))
-    assert isinstance(r2, Pause)
+    assert isinstance(r2, DecisionNode)
     assert r2.player == 0, "round 2 must open on P0's bid"
     for q in (0, 1):
         log = r2.obs_logs[q]

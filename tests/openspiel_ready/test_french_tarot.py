@@ -15,7 +15,7 @@ game length) — far past the ~60s keep-it threshold.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -56,13 +56,13 @@ def test_discard_derives_hidden_observations() -> None:
 
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     taker = r.player  # the opener; the only bidder under this driving policy
     bid_petite_aid = space.encode(("bid_petite", None))
     assert bid_petite_aid in r.legal, "bid_petite must be legal at the first turn"
     history.append(bid_petite_aid)
     r = run(path, seed, tuple(history))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
 
     # Three remaining auction passes, then the six discard picks — nine more
     # `legal[0]` steps (verified by direct probe: `pass` has no guard and
@@ -70,7 +70,7 @@ def test_discard_derives_hidden_observations() -> None:
     for _ in range(9):
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause), "the hand ended before the discard completed"
+        assert isinstance(nxt, DecisionNode), "the hand ended before the discard completed"
         r = nxt
     assert r.player == taker, "the taker leads the first trick next"
 

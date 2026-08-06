@@ -22,7 +22,7 @@ a game that violates either cannot be walked here:
 
 Contract:
 - Assumes: the native game named by `native_game` starts at
-  `expected_first_player` with no chance node, and our adapter's Pause player
+  `expected_first_player` with no chance node, and our adapter's DecisionNode player
   and mapped legal-action set match native's at every node reachable under the
   shared policy. `to_native` maps a decoded cardlang action to the native
   action id denoting the same move.
@@ -47,12 +47,12 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 from cardlang.openspiel.encoding import ActionSpace
-from cardlang.openspiel.replay import Pause, Terminal, load, run
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
 
 
 def assert_node_agrees(
     native: Any,
-    ours: Pause,
+    ours: DecisionNode,
     to_native: Callable[[Any], int],
     space: ActionSpace,
     *,
@@ -60,7 +60,7 @@ def assert_node_agrees(
     step: int,
     history: list[Any] | None = None,
 ) -> list[int]:
-    """Assert our Pause and the native state pose the SAME decision, and return
+    """Assert our DecisionNode and the native state pose the SAME decision, and return
     native's sorted legal-action list. The reusable per-node heart shared by the
     trajectory walker and any exhaustive/scripted paired walk built on it.
 
@@ -112,7 +112,7 @@ def walk_paired_alternating(
     At every one of our Pauses: native is not chance/simultaneous, the current
     players agree, and the mapped legal-action sets agree exactly (so "uniform
     over ours" equals "uniform over native's"). One policy-chosen action is
-    applied to BOTH. At our Terminal, native must be terminal too."""
+    applied to BOTH. At our TerminalNode, native must be terminal too."""
     _, space = load(dsl_path)
     native = pyspiel.load_game(native_game).new_initial_state()
     policy = random.Random(policy_seed)
@@ -122,7 +122,7 @@ def walk_paired_alternating(
     decoded: list[Any] = []
     ours = run(dsl_path, seed, ())
     first = True
-    while isinstance(ours, Pause):
+    while isinstance(ours, DecisionNode):
         if first:
             assert ours.player == expected_first_player, (
                 f"{label}: first mover is P{ours.player}, expected "
@@ -140,7 +140,7 @@ def walk_paired_alternating(
         decoded.append(chosen)
         ours = run(dsl_path, seed, tuple(history))
 
-    assert isinstance(ours, Terminal)
+    assert isinstance(ours, TerminalNode)
     assert native.is_terminal(), (
         f"{label} step {len(history)}: our game is terminal but native is not "
         f"— board={decoded}"

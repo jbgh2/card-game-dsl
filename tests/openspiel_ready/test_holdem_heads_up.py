@@ -23,7 +23,7 @@ ONE hand, so there is no later hand whose re-deal would leave the depth naming
 cards no longer in those zones. That is the whole of what the single-hand shape
 buys the harness here.
 
-`adapter_terminal_steps=12`: the greedy line reaches Terminal in 8 steps on
+`adapter_terminal_steps=12`: the greedy line reaches TerminalNode in 8 steps on
 every seed of the manifest (measured, not estimated — the line is
 seed-independent because a check-heavy line never consults a card), so 12
 carries a 4-step margin.

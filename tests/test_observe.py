@@ -151,7 +151,7 @@ def test_every_emitted_event_type_is_registered() -> None:
     silently mint a new event kind."""
     from pathlib import Path as _Path
 
-    from cardlang.openspiel.replay import Pause, run
+    from cardlang.openspiel.replay import DecisionNode, run
     from cardlang.runtime.observe import EVENT_TYPES
 
     games_dir = _Path(__file__).parent.parent / "docs" / "games"
@@ -161,7 +161,7 @@ def test_every_emitted_event_type_is_registered() -> None:
         history: list[int] = []
         r = run(path, 5, ())
         for _ in range(depth):
-            assert isinstance(r, Pause)
+            assert isinstance(r, DecisionNode)
             for log in r.obs_logs.values():
                 for event in log:
                     assert event[0] in EVENT_TYPES, (

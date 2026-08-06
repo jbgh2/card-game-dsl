@@ -101,7 +101,7 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
 from tests.native_oracle import (
     assert_node_agrees,
     assert_outcomes_agree,
@@ -282,7 +282,7 @@ def paired_walk(
     *,
     label: str,
     mirror: Mirror | None = None,
-) -> tuple[Pause | Terminal, Any, Mirror]:
+) -> tuple[DecisionNode | TerminalNode, Any, Mirror]:
     """Drive our game, a fresh native game and the mirror along a FIXED move
     script, asserting mapped legal-set agreement at every ply. Returns our state
     after the script, the native state, and the mirror. `mirror` is the seam the
@@ -294,7 +294,7 @@ def paired_walk(
     decoded: list[Any] = []
     for i, move in enumerate(script):
         ours = run(PATH, 0, tuple(history))
-        assert isinstance(ours, Pause), (
+        assert isinstance(ours, DecisionNode), (
             f"scripted {label}: our game ended after {i} plies"
         )
         assert mirror.player == ours.player, (
@@ -321,7 +321,7 @@ def paired_walk(
 
 
 def assert_terminus(
-    ours: Pause | Terminal,
+    ours: DecisionNode | TerminalNode,
     native: Any,
     expected: list[float],
     *,
@@ -329,7 +329,7 @@ def assert_terminus(
     mirror: Mirror,
 ) -> None:
     """Both implementations ended, on the same returns."""
-    assert isinstance(ours, Terminal), (
+    assert isinstance(ours, TerminalNode), (
         f"scripted {label}: our game is not terminal — {mirror.fen()}"
     )
     assert native.is_terminal(), (
@@ -354,8 +354,8 @@ def walk_trajectory(policy_seed: int) -> tuple[list[float], list[float]]:
     label = f"policy {policy_seed}"
     history: list[int] = []
     decoded: list[Any] = []
-    ours: Pause | Terminal = run(PATH, 0, ())
-    while isinstance(ours, Pause):
+    ours: DecisionNode | TerminalNode = run(PATH, 0, ())
+    while isinstance(ours, DecisionNode):
         assert mirror.player == ours.player, (
             f"{label} step {len(history)}: mirror expects P{mirror.player}, our "
             f"game offers P{ours.player}"
@@ -371,7 +371,7 @@ def walk_trajectory(policy_seed: int) -> tuple[list[float], list[float]]:
         history.append(action)
         decoded.append(chosen)
         ours = run(PATH, 0, tuple(history))
-    assert isinstance(ours, Terminal)
+    assert isinstance(ours, TerminalNode)
     assert native.is_terminal(), (
         f"{label} step {len(history)}: our game is terminal but native is not — "
         f"board={_witness(mirror, decoded)}"
@@ -390,7 +390,7 @@ def _dfs(
     label: str,
 ) -> int:
     ours = run(PATH, 0, tuple(history))
-    assert isinstance(ours, Pause), f"{label}: unexpected terminal at depth {depth}"
+    assert isinstance(ours, DecisionNode), f"{label}: unexpected terminal at depth {depth}"
     assert mirror.player == ours.player, (
         f"{label} depth {depth}: mirror expects P{mirror.player}, our game offers "
         f"P{ours.player}"
@@ -537,7 +537,7 @@ def test_contact_position_covers_the_legality_grid() -> None:
     unreachable in play — see the module docstring), and the node plus every one
     of its children is then checked against native."""
     ours, native, mirror = paired_walk(CONTACT_OPENING, label="contact")
-    assert isinstance(ours, Pause) and not native.is_terminal()
+    assert isinstance(ours, DecisionNode) and not native.is_terminal()
     assert mirror.player == 0
 
     seen = mirror.census()

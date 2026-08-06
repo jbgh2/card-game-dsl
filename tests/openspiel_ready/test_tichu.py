@@ -9,7 +9,7 @@ re-simulates the whole (seed, history) state after every action).
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -45,7 +45,7 @@ def _decline_ids(space: object) -> set[int]:
     return out
 
 
-def _walk_through_push(path: str, seed: int) -> Pause:
+def _walk_through_push(path: str, seed: int) -> DecisionNode:
     """Advance past the grand-tichu offers and small-tichu polls (declining
     everything) and through the 12 push picks; return the pause after."""
     _, space = load(path)
@@ -53,7 +53,7 @@ def _walk_through_push(path: str, seed: int) -> Pause:
     history: list[int] = []
     picks = 0
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     while picks < 12:
         quiet = [a for a in r.legal if a in declines]
         if quiet:
@@ -62,13 +62,13 @@ def _walk_through_push(path: str, seed: int) -> Pause:
             history.append(r.legal[0])  # a push pick (card action)
             picks += 1
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     # Clear the post-push poll too, so the pause is the first climbing lead.
     while any(a in declines for a in r.legal):
         history.append(next(a for a in r.legal if a in declines))
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     return r
 
@@ -153,7 +153,7 @@ def test_call_windows_are_public_announced_decisions() -> None:
     small = encode("call_tichu")
 
     r = run(path, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     grand_caller = r.player
     assert grand in r.legal, "the game must open on the grand-tichu window"
     history: list[int] = [grand]
@@ -161,7 +161,7 @@ def test_call_windows_are_public_announced_decisions() -> None:
     small_caller: int | None = None
     for _ in range(40):
         nxt = run(path, 5, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
         if small_caller is not None:
             break
@@ -177,7 +177,7 @@ def test_call_windows_are_public_announced_decisions() -> None:
 
     grand_ev = ("announce", grand_caller, "call_grand_tichu")
     small_ev = ("announce", small_caller, "call_tichu")
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for q in range(4):
         assert grand_ev in r.obs_logs[q], f"P{q} missed the grand call"
         assert small_ev in r.obs_logs[q], f"P{q} missed the small call"

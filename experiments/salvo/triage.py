@@ -24,7 +24,7 @@ The design verdicts this script feeds (DESIGN.md, "Evaluation plan"):
                               chosen action?  (decision-divergence rate)
   Q3 location liveness     -> unclaimed-tie rate, margin distributions.
 
-Projection discipline: `Pause.rs` is the TRUE world. Policies here read only
+Projection discipline: `DecisionNode.rs` is the TRUE world. Policies here read only
 what their information set allows — blind: own hand + locations + own
 staged/armies; sighted: additionally opponent armies (public) and opponent
 staged COUNTS (never identities), plus the running scalar state. Nothing
@@ -329,9 +329,9 @@ def playout(
     ctx = Ctx()
     while True:
         r = replay.run(GAME_PATH, seed, tuple(history))
-        if isinstance(r, replay.Terminal):
+        if isinstance(r, replay.TerminalNode):
             break
-        assert isinstance(r, replay.Pause)
+        assert isinstance(r, replay.DecisionNode)
         legal_set = set(r.legal)
         # classify the decision: move-type offer vs card pick
         name_base = space._name_base
@@ -369,7 +369,7 @@ def playout(
     # is not exposed, so derive margins from a full replay via the runtime
     # state at the LAST pause plus the final committed cards. Cheaper and
     # exact: run the replay with the full history and read zones from the
-    # last Pause before terminal — instead we recompute from scratch below.
+    # last DecisionNode before terminal — instead we recompute from scratch below.
     margins, unclaimed, pts = _final_margins(space, seed, tuple(history), lv)
     # Mirror pin: the Python value function must reproduce the DSL's settle
     # math exactly — locations won and grand totals recomputed from the last
@@ -402,7 +402,7 @@ def _final_margins(
     action's effect implicitly by scoring armies + staged (everything staged
     at that point flips before settle; hands score nothing)."""
     r = replay.run(GAME_PATH, seed, history[:-1])
-    assert isinstance(r, replay.Pause)
+    assert isinstance(r, replay.DecisionNode)
     locs = location_cards(r.rs)
     margins: list[int] = []
     unclaimed = 0

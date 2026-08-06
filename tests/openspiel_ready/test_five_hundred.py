@@ -20,7 +20,7 @@ misère before any seven bid, a raise above 10NT, and the deck-derived
 from __future__ import annotations
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.runtime.values import Card
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
@@ -38,7 +38,7 @@ class TestReadiness(ReadinessProofs):
     )
 
 
-def _drive_open_misere(seed: int) -> tuple[list[int], Pause] | None:
+def _drive_open_misere(seed: int) -> tuple[list[int], DecisionNode] | None:
     """Drive: dealer 1, opener P2 bids open misère, the rest pass; P2 takes
     the kitty (three greedy discard picks), declines the nomination, and
     trick 1 is steered to make the DECLARER LOSE it (he leads his lowest;
@@ -54,18 +54,18 @@ def _drive_open_misere(seed: int) -> tuple[list[int], Pause] | None:
 
     hist: list[int] = [om, pa, pa, pa]
     r = run(PATH, seed, tuple(hist))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(3):  # the three kitty discard picks
         hist.append(r.legal[0])
         r = run(PATH, seed, tuple(hist))
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
     hist.append(decline)
     r = run(PATH, seed, tuple(hist))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
 
     led: str | None = None
     for _ in range(3):  # trick 1: three plays (the dead seat 0 is skipped)
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         cards = [(a, space.decode(a)) for a in r.legal]
         cards = [(a, c) for a, c in cards if isinstance(c, Card)]
         if r.player == declarer:
@@ -76,7 +76,7 @@ def _drive_open_misere(seed: int) -> tuple[list[int], Pause] | None:
             aid, _ = max(same or cards, key=lambda ac: _RANK[ac[1].rank])
         hist.append(aid)
         nxt = run(PATH, seed, tuple(hist))
-        if not isinstance(nxt, Pause):
+        if not isinstance(nxt, DecisionNode):
             return None  # declarer won trick 1: game over, steering failed
         r = nxt
     return hist, r
@@ -92,7 +92,7 @@ def test_auction_masks_are_the_ladder_rules() -> None:
     bid_s = space.encode(("submit_bid", "spades"))
 
     r = run(PATH, 3, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
     assert ("bid_misere", None) not in legal, "misère before any seven bid"
     assert ("bid_open_misere", None) in legal
@@ -103,17 +103,17 @@ def test_auction_masks_are_the_ladder_rules() -> None:
     # ♠6 then ♠7 (the cheapest spade raise): the standing bid is a seven
     # bid, so the NEXT seat may bid misère.
     r = run(PATH, 3, (bid_s, bid_s))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
     assert ("bid_misere", None) in legal
 
     # Once the standing bid passes the misère rung it closes again.
     r = run(PATH, 3, (bid_s, bid_s, space.encode(("submit_bid", None))))  # 7NT? no: NT>7♠ -> 7NT
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
     assert ("bid_misere", None) in legal  # 7NT stands: still a seven bid
     r = run(PATH, 3, (bid_s, bid_s, space.encode(("submit_bid", None)), space.encode(("submit_bid", "spades"))))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     legal = {space.decode(a) for a in r.legal}
     assert ("bid_misere", None) not in legal  # 8♠ stands: misère closed
 
@@ -137,7 +137,7 @@ def test_open_misere_reveal_reaches_every_observer_and_only_then() -> None:
     # Pre-reveal: replay to the first-trick pause and check the hand is a
     # count to a defender (10 after the three-card discard).
     pre = run(PATH, seed, tuple(hist[: len(hist) - 3]))
-    assert isinstance(pre, Pause)
+    assert isinstance(pre, DecisionNode)
     for q in (1, 3):
         info = information_state(q, pre.rs, pre.obs_logs[q])
         assert f"hand[{declarer}]=#10" in info, f"P{q} pre-reveal"
@@ -184,21 +184,21 @@ def test_plain_misere_never_exposes_the_declarer() -> None:
 
     hist = [bid_s, bid_s, mis, pa, pa, pa]
     r = run(PATH, seed, tuple(hist))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == declarer, "the misère bidder takes the kitty"
     for _ in range(3):  # kitty discards
         hist.append(r.legal[0])
         r = run(PATH, seed, tuple(hist))
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
     hist.append(space.encode("decline_nomination"))
     r = run(PATH, seed, tuple(hist))
 
     steps = 0
-    while isinstance(r, Pause) and steps < 9:  # three tricks of three plays
+    while isinstance(r, DecisionNode) and steps < 9:  # three tricks of three plays
         hist.append(r.legal[0])
         r = run(PATH, seed, tuple(hist))
         steps += 1
-    if not isinstance(r, Pause):  # the declarer took a trick and play ended
+    if not isinstance(r, DecisionNode):  # the declarer took a trick and play ended
         return
     for q in (1, 3):
         info = information_state(q, r.rs, r.obs_logs[q])
@@ -221,11 +221,11 @@ def test_joker_suit_is_never_nominable() -> None:
     seed = 3
     hist = [om, pa, pa, pa]
     r = run(PATH, seed, tuple(hist))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(3):
         hist.append(r.legal[0])
         r = run(PATH, seed, tuple(hist))
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
     decoded = {space.decode(a) for a in r.legal}
     assert "decline_nomination" in decoded
     assert ("nominate_joker_suit", "joker") not in decoded

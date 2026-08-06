@@ -223,8 +223,8 @@ def scan(n: int) -> None:
     for seed in range(n):
         r = replay.run(path, seed, ())
         # The locations are dealt before any decision, so seeding pauses rather
-        # than terminating; a Terminal carries no runtime state to read them from.
-        assert isinstance(r, replay.Pause), "expected a paused world after the deal"
+        # than terminating; a TerminalNode carries no runtime state to read them from.
+        assert isinstance(r, replay.DecisionNode), "expected a paused world after the deal"
         locs = []
         for l in ("a", "b"):
             zone = r.rs.zones.singles[f"location_{l}"]

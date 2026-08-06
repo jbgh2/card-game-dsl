@@ -24,7 +24,7 @@ The seat-ring skip those three compose with is pinned directly by
 conservation and is pinned by known-value tests in tests/test_holdem_settle.py.
 
 The hook for the state-reading tests is the chooser: phase state is unwound by
-the time a decision surfaces to a caller (`Pause.rs` carries only game-level
+the time a decision surfaces to a caller (`DecisionNode.rs` carries only game-level
 names), but the chooser runs INSIDE the phase body with `in_hand`/`bet_by`/
 `button` still in scope, and `RuntimeState` is one object for the whole game —
 so capturing it at the first decision makes it readable at every later one.
@@ -134,7 +134,7 @@ def test_heads_up_reverses_the_blinds() -> None:
     tell them apart — this reads the posted amounts off Hold'em's own live state.
 
     The hook is the chooser: phase state is unwound by the time a decision
-    surfaces to a caller (`Pause.rs` carries only game-level names), but the
+    surfaces to a caller (`DecisionNode.rs` carries only game-level names), but the
     chooser runs INSIDE the phase body with `in_hand`/`bet_by`/`button` still in
     scope. `RuntimeState` is one object for the whole game, so capturing it at
     the first decision makes it readable at every later one.

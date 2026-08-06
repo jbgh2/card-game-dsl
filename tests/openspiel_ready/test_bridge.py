@@ -16,7 +16,7 @@ seed's greedy policy never reaches trick play for bridge).
 Bounded conformance walk: the full `pyspiel.random_sim_test` measured 14s
 locally (a rubber plays multiple deals to a target score — the same O(n^2)
 re-simulation cost as Stud/French Tarot/Tichu, just a shorter game). This
-game's full-game-to-Terminal coverage through the actual pyspiel `State`
+game's full-game-to-TerminalNode coverage through the actual pyspiel `State`
 wrapper lives in `test_openspiel_replay.py`'s KERNEL_GAMES list, so
 bounding this walk drops no real coverage.
 """

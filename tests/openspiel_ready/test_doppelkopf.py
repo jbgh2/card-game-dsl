@@ -2,7 +2,7 @@
 
 Bounded conformance walk (the Skat/Tichu shape): a four-hand session runs to
 several hundred decisions, the same O(n^2) re-simulation wall; full-game-to-
-Terminal coverage lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
+TerminalNode coverage lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
 
 Known swap caveat (the structural-infoset-proofs class): a ♣Q in the hand of
 a player who has already announced Re is logically pinned — physically
@@ -14,7 +14,7 @@ docs/open-questions/structural-infoset-proofs.md.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -56,18 +56,18 @@ def test_quiet_poll_lap_is_public_and_leaks_nothing() -> None:
     na = _encode(space, "no_announcement")
 
     r = run(path, 7, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     leader = r.player
     assert na in r.legal, "the game must open on the announcement poll"
 
     pollers: list[int] = []
     history: list[int] = []
     for _ in range(4):
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         pollers.append(r.player)
         history.append(na)
         nxt = run(path, 7, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
 
     # The poll ring walked one full lap from the leader; the pause after the
@@ -109,7 +109,7 @@ def test_announcement_is_public_and_narrows_by_event_not_by_zone() -> None:
     announcer: int | None = None
     announced: str | None = None
     for _ in range(60):
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         pick = next((a for a in r.legal if a in ann_ids), None)
         if pick is None:
             pick = na if na in r.legal else r.legal[0]
@@ -117,7 +117,7 @@ def test_announcement_is_public_and_narrows_by_event_not_by_zone() -> None:
             announcer, announced = r.player, ann_ids[pick]
         history.append(pick)
         nxt = run(path, 7, tuple(history))
-        assert isinstance(nxt, Pause), "line ended before any announcement"
+        assert isinstance(nxt, DecisionNode), "line ended before any announcement"
         r = nxt
         if announcer is not None:
             break
@@ -126,7 +126,7 @@ def test_announcement_is_public_and_narrows_by_event_not_by_zone() -> None:
     )
 
     event = ("announce", announcer, announced)
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for q in range(4):
         assert event in r.obs_logs[q], f"P{q} did not observe the announcement"
         info = information_state(q, r.rs, r.obs_logs[q])

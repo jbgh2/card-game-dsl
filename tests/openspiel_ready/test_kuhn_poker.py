@@ -6,7 +6,7 @@ Harness configuration rationale:
   2-player swap branch needs the pause to coincide with the first decider
   (`p == d0`, so the swap never mutates a decider whose candidates were
   already computed). The greedy `legal[0]` line is `check, check` — two
-  actions to Terminal — and P0's *second* decision sits only on the line
+  actions to TerminalNode — and P0's *second* decision sits only on the line
   `check, bet`, which greedy never takes (both players face the identical
   option set `[check, bet]`, so a global action-id order cannot make P0
   check and P1 bet). Every non-zero depth therefore pauses on P1. Depth 0 is
@@ -14,7 +14,7 @@ Harness configuration rationale:
   2-player branch can use.
 
   Depth 0 leaves the harness's `test_adapter_agrees_with_the_dsl_information
-  _state` walk-and-compare loop empty (it still walks to Terminal under
+  _state` walk-and-compare loop empty (it still walks to TerminalNode under
   `adapter_terminal_steps` and compares returns). A depth-0 adapter proof
   that only compared returns would be the vacuously-green pattern, so
   `test_adapter_agrees_over_the_whole_kuhn_tree` below replaces it with
@@ -31,7 +31,7 @@ Harness configuration rationale:
   cards is left in the deck, and that is the hidden pool the 2-player branch
   pairs the opponent's hand against.
 
-- `adapter_terminal_steps=10`: the greedy line reaches Terminal in 2 steps.
+- `adapter_terminal_steps=10`: the greedy line reaches TerminalNode in 2 steps.
 
 Standing note on `test_seed_and_undrawn_randomness_are_not_observable`: Kuhn's
 undealt stock is a single card, so the stock-reversal half of that proof is
@@ -45,7 +45,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, ReplayChooser, load, run
+from cardlang.openspiel.replay import DecisionNode, ReplayChooser, load, run
 from cardlang.runtime.driver import play_game
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, action_strings
@@ -68,7 +68,7 @@ class TestReadiness(ReadinessProofs):
 
 def _deal(seed: int) -> tuple[str, ...]:
     r = run(PATH, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     return tuple(str(c) for q in range(2) for c in r.rs.zones.instance("hand", q).cards)
 
 
@@ -106,7 +106,7 @@ def test_adapter_agrees_over_the_whole_kuhn_tree() -> None:
         for a in history:
             state.apply_action(a)
         r = run(PATH, seed, tuple(history))
-        if not isinstance(r, Pause):
+        if not isinstance(r, DecisionNode):
             terminals += 1
             assert state.is_terminal(), f"seed={seed} history={history}: DSL terminal, adapter not"
             assert state.returns() == r.returns, (
@@ -200,7 +200,7 @@ def test_a_fold_never_reveals_the_folded_card_but_a_showdown_does() -> None:
 
 def _events_for_line(seed: int, names: list[str]) -> dict[int, list[tuple[Any, ...]]]:
     """Every observer's full event log for a COMPLETED hand, the line given by
-    move-type name. `replay.run` discards the logs when it returns Terminal,
+    move-type name. `replay.run` discards the logs when it returns TerminalNode,
     so this drives the game directly with the same `ReplayChooser` the
     adapter uses."""
     game_ast, space = load(PATH)

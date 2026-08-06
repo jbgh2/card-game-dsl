@@ -21,7 +21,7 @@ swap the imminent public starter.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -57,14 +57,14 @@ def test_discard_and_pegging_derive_observations() -> None:
 
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == 0, "player 0 discards first"
 
     # Player 0's two discard picks (k=2 decomposes to 2 sequential actions).
     for _ in range(2):
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     assert r.player == 1, "player 1 discards next"
 
@@ -93,7 +93,7 @@ def test_discard_and_pegging_derive_observations() -> None:
     for _ in range(2):
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     assert r.player == 0, "player 0 (the non-dealer) leads pegging"
 
@@ -107,7 +107,7 @@ def test_discard_and_pegging_derive_observations() -> None:
     # Player 0's first pegging play.
     history.append(r.legal[0])
     r2 = run(path, seed, tuple(history))
-    assert isinstance(r2, Pause)
+    assert isinstance(r2, DecisionNode)
     assert r2.player == 1, "pegging alternates to player 1 next"
 
     # The non-actor (P1) sees the play count-only on the source, identity on

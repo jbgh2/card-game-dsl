@@ -26,7 +26,7 @@ line never reaches a knock. The turn-cycle projections ARE asserted below.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -85,13 +85,13 @@ def test_knock_line_derives_showdown_observations() -> None:
     r = run(path, seed, ())
     combo_pause = None
     for _ in range(120):
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         combo = next((a for a in r.legal if is_combo(a)), None)
         if combo is not None:
             knocker = r.player
             history.append(combo)
             nxt = run(path, seed, tuple(history))
-            assert isinstance(nxt, Pause)
+            assert isinstance(nxt, DecisionNode)
             combo_pause = nxt
             break
         knock = next(
@@ -150,11 +150,11 @@ def test_turn_cycle_derives_observations() -> None:
 
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(12):
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause)
+        assert isinstance(nxt, DecisionNode)
         r = nxt
     assert r.player == 0  # the probed depth-12 pauser
 

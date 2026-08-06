@@ -34,18 +34,28 @@ def load(path_str: str) -> tuple[n.Game, ActionSpace]:
 
 
 @dataclass
-class Pause:
-    """A suspended player decision."""
+class DecisionNode:
+    """A game state where a seat must choose — the literature's decision node.
+
+    The DYNAMIC occurrence. A *decision point* is the static thing: one chooser
+    call site in the interpreter. The two are not the same concept and do not
+    share a word (glossary section 4).
+    """
 
     player: int
     legal: list[int]  # global action ids, sorted ascending
-    rs: RuntimeState  # the live world at the pause
+    rs: RuntimeState  # the live world at the decision
     obs_logs: dict[int, list[tuple[Any, ...]]]  # per-player observation logs
 
 
 @dataclass
-class Terminal:
-    """A completed game."""
+class TerminalNode:
+    """A completed game — the literature's terminal node.
+
+    The suffix is deliberate twice over: the single-word form collides with the
+    grammar's lexer terminology, and the two-word scheme leaves room for the
+    `SimultaneousNode` a native simultaneous-move export would add.
+    """
 
     returns: list[float]
 
@@ -207,7 +217,7 @@ def run(
     seed: int,
     history: tuple[int, ...],
     on_first_decision: Callable[[RuntimeState], None] | None = None,
-) -> Pause | Terminal:
+) -> DecisionNode | TerminalNode:
     """Replay ``history`` under ``seed``; return the next decision or the result."""
     game, space = load(path_str)
     logs: dict[int, list[tuple[Any, ...]]] = {
@@ -228,5 +238,5 @@ def run(
         )
     except ChooserAbort as abort:
         assert abort.rs is not None
-        return Pause(abort.player, list(cast("list[int]", abort.legal)), abort.rs, logs)
-    return Terminal(returns_for(game, result))
+        return DecisionNode(abort.player, list(cast("list[int]", abort.legal)), abort.rs, logs)
+    return TerminalNode(returns_for(game, result))

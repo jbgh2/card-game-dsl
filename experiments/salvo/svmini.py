@@ -4,7 +4,7 @@ SEED LIST, not a count. A single-element list is a fixed public deal
 (Green Lane's exactly solvable shape — the only hidden information is
 staged-but-unflipped cards); a longer list is a deal-sampled game.
 
-Also installs the replay memo (full-Pause lru). Memory note: each cached
+Also installs the replay memo (full-DecisionNode lru). Memory note: each cached
 entry holds a small mini world; the solve script sizes sampled runs so
 the tree stays within the memo bound instead of thrashing it."""
 

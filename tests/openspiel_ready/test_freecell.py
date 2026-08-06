@@ -25,7 +25,7 @@ content perturbation must move the state. The rng proof records
 itself the perfect-information fact) while still pinning generator
 non-observability. The greedy line resigns immediately (``resign`` is the
 game's only bare-name action, so it takes the lowest non-card id), which
-makes the adapter proof walk to Terminal and ASSERT the DSL and pyspiel
+makes the adapter proof walk to TerminalNode and ASSERT the DSL and pyspiel
 returns agree — the 1-player returns surface, proven end to end.
 """
 
@@ -34,7 +34,7 @@ from __future__ import annotations
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, run
+from cardlang.openspiel.replay import DecisionNode, run
 
 from .harness import manifest, SWAP_SEEDS, ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _swap_fn
 from .partition import first_divergence, projection_for, record, zone_instances
@@ -49,7 +49,7 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="cascade",  # unused: both hand-assuming proofs are overridden
         depth=6,  # the greedy line resigns at once; _advance backs off to the deal
         swap_axis="any",
-        adapter_terminal_steps=4,  # greedy = resign: Terminal on the first action
+        adapter_terminal_steps=4,  # greedy = resign: TerminalNode on the first action
     )
 
     @pytest.mark.parametrize("seed", ONE_SEED)
@@ -61,7 +61,7 @@ class TestReadiness(ReadinessProofs):
         one of the 52 card identities appears in the derived information
         state. Legal-action agreement is trivial (a singleton set)."""
         r = run(PATH, seed, ())
-        assert isinstance(r, Pause)
+        assert isinstance(r, DecisionNode)
         p = r.player
         assert p == 0
 
@@ -96,7 +96,7 @@ class TestReadiness(ReadinessProofs):
         """Everything is the sole player's own view: swapping two visible
         cascade cards must change the information state."""
         r0 = run(PATH, seed, ())
-        assert isinstance(r0, Pause)
+        assert isinstance(r0, DecisionNode)
         p = r0.player
         c1 = r0.rs.zones.instance("cascade", 1).cards
         c2 = r0.rs.zones.instance("cascade", 2).cards
@@ -106,7 +106,7 @@ class TestReadiness(ReadinessProofs):
         r1 = run(
             PATH, seed, (), on_first_decision=_swap_fn(("cascade", 1), ("cascade", 2), x, y)
         )
-        assert isinstance(r1, Pause)
+        assert isinstance(r1, DecisionNode)
         info_b = information_state(r1.player, r1.rs, r1.obs_logs[r1.player])
         assert r1.player == p and info_a != info_b, (
             "cardlang_freecell: the info-state is insensitive to the visible "
@@ -120,7 +120,7 @@ def test_deal_events_carry_full_identity() -> None:
     player's knowledge is complete from the first event on — no visibility
     machinery is engaged at any point."""
     r = run(PATH, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     deals = [
         e
         for e in r.obs_logs[0]

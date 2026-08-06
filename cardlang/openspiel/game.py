@@ -45,9 +45,9 @@ class CardlangState(pyspiel.State):
         self._seed: int | None = None
         self._history_ids: list[int] = []
         self._cache_key: Any = object()
-        self._cache: replay.Pause | replay.Terminal | None = None
+        self._cache: replay.DecisionNode | replay.TerminalNode | None = None
 
-    def _run(self) -> replay.Pause | replay.Terminal:
+    def _run(self) -> replay.DecisionNode | replay.TerminalNode:
         assert self._seed is not None
         key = (self._seed, tuple(self._history_ids))
         if self._cache_key != key:
@@ -60,11 +60,11 @@ class CardlangState(pyspiel.State):
         if self._seed is None:
             return pyspiel.PlayerId.CHANCE
         r = self._run()
-        return pyspiel.PlayerId.TERMINAL if isinstance(r, replay.Terminal) else r.player
+        return pyspiel.PlayerId.TERMINAL if isinstance(r, replay.TerminalNode) else r.player
 
     def _legal_actions(self, player: int) -> list[int]:
         r = self._run()
-        assert isinstance(r, replay.Pause)
+        assert isinstance(r, replay.DecisionNode)
         return r.legal
 
     def chance_outcomes(self) -> list[tuple[int, float]]:
@@ -80,18 +80,18 @@ class CardlangState(pyspiel.State):
 
     def _action_to_string(self, player: int, action: int) -> str:
         if player == pyspiel.PlayerId.CHANCE:
-            return f"Deal(seed={action})"
+            return f"Chance(seed={action})"
         _, space = replay.load(self._path)
         return space.to_string(action)
 
     def is_terminal(self) -> bool:
-        return self._seed is not None and isinstance(self._run(), replay.Terminal)
+        return self._seed is not None and isinstance(self._run(), replay.TerminalNode)
 
     def returns(self) -> list[float]:
         if self._seed is None:
             return [0.0] * self._num_players
         r = self._run()
-        return r.returns if isinstance(r, replay.Terminal) else [0.0] * self._num_players
+        return r.returns if isinstance(r, replay.TerminalNode) else [0.0] * self._num_players
 
     def information_state_string(self, player: int | None = None) -> str:
         if self._seed is None:
@@ -99,7 +99,7 @@ class CardlangState(pyspiel.State):
         if player is None:
             player = self.current_player()
         r = self._run()
-        if not isinstance(r, replay.Pause):
+        if not isinstance(r, replay.DecisionNode):
             return ""
         return information_state(player, r.rs, r.obs_logs[player])
 

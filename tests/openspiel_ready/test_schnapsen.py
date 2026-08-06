@@ -12,7 +12,7 @@ the deck itself is empty at every pause.
 """
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 from cardlang.runtime.values import Card
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
@@ -48,7 +48,7 @@ def test_lead_actions_derive_hidden_observations() -> None:
     seed = 10
 
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     leader, opp = r.player, 1 - r.player
     exchange_aid = space.encode(("exchange_trump_jack", None))
     marriage_aid = space.encode(("declare_marriage", "hearts"))
@@ -71,7 +71,7 @@ def test_lead_actions_derive_hidden_observations() -> None:
 
     # Exchange the trump jack — a free action: the round re-offers the leader.
     r = run(path, seed, (exchange_aid,))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == leader, "the exchange must not end the leader's turn"
     assert exchange_aid not in r.legal, "the jack is in the indicator now"
     assert marriage_aid in r.legal, "the marriage is untouched by the exchange"
@@ -93,7 +93,7 @@ def test_lead_actions_derive_hidden_observations() -> None:
     # Declare the hearts marriage: a public announcement; the queen leads at
     # identity; the king is never revealed.
     r = run(path, seed, (exchange_aid, marriage_aid))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     assert r.player == opp, "the marriage leads its queen, ending the leader round"
 
     for p, log in r.obs_logs.items():
@@ -108,7 +108,7 @@ def test_lead_actions_derive_hidden_observations() -> None:
     # the winner and loser each draw from the talon: a count to the other
     # player, identity to the drawer.
     r2 = run(path, seed, (exchange_aid, marriage_aid, r.legal[0]))
-    assert isinstance(r2, Pause)
+    assert isinstance(r2, DecisionNode)
     for drawer in (0, 1):
         other_log = r2.obs_logs[1 - drawer]
         draw_seen = next(

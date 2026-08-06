@@ -24,7 +24,7 @@ uniform policy in the MAPPED action space:
   the exposed prize card maps to the native point-card outcome `value - 1`,
   which must be among native's legal chance outcomes — and the whole native
   outcome set must equal our remaining prize pool, mapped.
-- Terminal: native is loaded with `returns_type=total_points`, so its returns
+- TerminalNode: native is loaded with `returns_type=total_points`, so its returns
   ARE the per-player prize totals — compared exactly against our returns
   (our adapter returns raw `prize_points`, same scale), plus the win/draw
   classification derived from both.
@@ -44,7 +44,7 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
 from cardlang.runtime.values import Card
 
 PATH = str(Path(__file__).parent.parent / "docs" / "games" / "gops.cardlang")
@@ -79,7 +79,7 @@ def walk_paired(seed: int) -> tuple[list[float], list[float]]:
     played: dict[int, set[int]] = {0: set(), 1: set()}  # native bid ids used
     dealt: set[int] = set()  # native point-card ids dealt
 
-    while isinstance(ours, Pause):
+    while isinstance(ours, DecisionNode):
         p = ours.player
         if native.is_terminal():
             # Native auto-played the forced 13th round; our remaining
@@ -136,7 +136,7 @@ def walk_paired(seed: int) -> tuple[list[float], list[float]]:
             pending_bids.clear()
         ours = run(PATH, seed, tuple(history))
 
-    assert isinstance(ours, Terminal)
+    assert isinstance(ours, TerminalNode)
     assert native.is_terminal(), f"seed {seed}: we are terminal, native is not"
     assert len(dealt) == 12, (
         f"seed {seed}: {len(dealt)} native chance nodes driven (12 expected — "

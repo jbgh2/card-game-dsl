@@ -2,7 +2,7 @@
 confirmation of the declaration's and opening lead's observation shapes."""
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -39,7 +39,7 @@ def test_declaration_and_lead_derive_observations() -> None:
 
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     declarer: int | None = None
     declared: str | None = None
     while declared is None:
@@ -53,7 +53,7 @@ def test_declaration_and_lead_derive_observations() -> None:
         history.append(aid)
         assert len(history) < 30, "trump was never declared within 30 steps"
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause), "the hand ended before trump was declared"
+        assert isinstance(nxt, DecisionNode), "the hand ended before trump was declared"
         r = nxt
     assert declarer is not None
 
@@ -68,7 +68,7 @@ def test_declaration_and_lead_derive_observations() -> None:
     assert r.player == declarer, "the declarer leads the first trick"
     history.append(r.legal[0])
     r2 = run(path, seed, tuple(history))
-    assert isinstance(r2, Pause), "the hand ended on the opening lead"
+    assert isinstance(r2, DecisionNode), "the hand ended on the opening lead"
 
     # A non-owner sees the leader's hand shrink count-only (never which card
     # left), while the public `trick_pile` destination is identity to

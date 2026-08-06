@@ -6,7 +6,7 @@ Hidden zone `influence`: Coup hides face-down influence cards, not a hand.
 from typing import Any
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import Pause, load, run
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs
 
@@ -39,11 +39,11 @@ def test_influence_flips_derive_hidden_observations() -> None:
     challenge_id = space.encode(("challenge", None))
     history: list[int] = []
     r = run(path, 5, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(60):
         history.append(challenge_id if challenge_id in r.legal else r.legal[-1])
         nxt = run(path, 5, tuple(history))
-        assert isinstance(nxt, Pause), "line ended before any influence flip"
+        assert isinstance(nxt, DecisionNode), "line ended before any influence flip"
         r = nxt
         if any(
             e[0] == "move" and str(e[3]).startswith("revealed[")
@@ -103,7 +103,7 @@ def test_influence_flips_derive_hidden_observations() -> None:
     assert f"influence[{watcher}]=[" in info  # own hand in the clear
 
 
-def _challenge_seeking_walk(seed: int, steps: int) -> "Pause":
+def _challenge_seeking_walk(seed: int, steps: int) -> "DecisionNode":
     """Drive a line that challenges every window it meets (challenge when
     offered, else the highest legal id — targeted actions over the exchange
     loop) and return the pause after `steps` actions."""
@@ -112,11 +112,11 @@ def _challenge_seeking_walk(seed: int, steps: int) -> "Pause":
     challenge_id = space.encode(("challenge", None))
     history: list[int] = []
     r = run(path, seed, ())
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     for _ in range(steps):
         history.append(challenge_id if challenge_id in r.legal else r.legal[-1])
         nxt = run(path, seed, tuple(history))
-        assert isinstance(nxt, Pause), "line ended early"
+        assert isinstance(nxt, DecisionNode), "line ended early"
         r = nxt
     return r
 
@@ -164,7 +164,7 @@ def test_blocked_foreign_aid_moves_no_coins() -> None:
     block = space.encode(("block_claiming_duke", None))
     allow = space.encode(("allow", None))
     r = run(path, 5, (fa, block, allow, allow, allow))
-    assert isinstance(r, Pause)
+    assert isinstance(r, DecisionNode)
     # (Phase-local window state is unreadable here — the pause's unwind pops
     # phase frames — so the coin economy is the observable proof.)
     assert r.rs.get("coins")[0] == 2, "a blocked foreign aid still paid out"

@@ -63,7 +63,7 @@ import pytest
 
 pyspiel = pytest.importorskip("pyspiel")
 
-from cardlang.openspiel.replay import Pause, Terminal, load, run
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, load, run
 from tests.native_oracle import (
     assert_node_agrees,
     assert_outcomes_agree,
@@ -119,7 +119,7 @@ def walk_cells(
     decoded: list[Any] = []
     for i, cell in enumerate(cells):
         ours = run(PATH, seed, tuple(history))
-        assert isinstance(ours, Pause), (
+        assert isinstance(ours, DecisionNode), (
             f"scripted walk {cells}: our game ended after {i} plies"
         )
         assert_node_agrees(
@@ -138,7 +138,7 @@ def walk_cells(
         history.append(action)
         decoded.append(("place", cell))
     ours = run(PATH, seed, tuple(history))
-    assert isinstance(ours, Terminal), (
+    assert isinstance(ours, TerminalNode), (
         f"scripted walk {cells}: our game is not terminal after {len(cells)} plies"
     )
     assert native.is_terminal(), (
@@ -187,7 +187,7 @@ def _dfs(
     max_depth: int,
 ) -> None:
     ours = run(PATH, 0, tuple(history))
-    assert isinstance(ours, Pause), (
+    assert isinstance(ours, DecisionNode), (
         f"depth {depth}: unexpected terminal within depth {max_depth}"
     )
     assert_node_agrees(
