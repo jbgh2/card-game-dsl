@@ -32,7 +32,8 @@ property:   every combination of item x container is either implemented or
 domain:     (a) `?phase_item` alternatives x {phase body, mode body};
             (b) `mode_def` x every item container in the grammar;
             (c) the per-mode role 2x2, (declares a transition) x (is targeted);
-            (d) the mode-SET shapes of one phase body
+            (d) the mode-SET shapes of one phase body;
+            (e) nesting depth, since `?phase_item` includes `phase`
 registry:   `tests/mode_axes.py` — `phase_item_alternatives()` and
             `item_containers()` scrape the grammar, `mode_roles()` crosses the
             2x2 in code, `statement_alternatives()` bounds the sampled row.
@@ -42,6 +43,9 @@ covered:    - (a) test_item_in_container, 9 x 2 = 18 cells
             - (b) test_mode_placement, 1 x 4 containers
             - (c) test_mode_role, the full 2x2
             - (d) test_mode_set_shape, all 7 shapes
+            - (e) test_the_role_wall_reaches_every_nesting_depth, depths 1-3
+              (the corpus declares its modes at depth 3, this grid's other
+              cells at depth 1)
 sampled:    `?phase_item`'s `statement` alternative is one grid cell, not 20:
             `?mode_item` names no `statement` alternative at all, so every
             statement form is rejected by the same absence of a production.
@@ -405,3 +409,20 @@ def test_transition_predicate_is_typechecked_inside_a_mode() -> None:
 
     # red under: delete the `case n.Mode()` arm in `check_phase_positions`
     # (typecheck.py) and this goes green — the predicate is never typechecked.
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_the_role_wall_reaches_every_nesting_depth(depth: int) -> None:
+    """Modes at depth, since `?phase_item` includes `phase` and the corpus puts
+    them three levels down.
+
+    A wall written against one level is the shape that guards the fixture and
+    not the games: this grid's other cells all sit at depth 1, while hearts and
+    spades declare their modes at depth 3.
+    """
+    body = "    mode orphan { active_rules: [MustFollow] }"
+    for level in range(depth - 1):
+        body = f"    phase nest{level} {{\n  {body}\n    }}"
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(_game(body), "mini.cardlang")
+    assert "never active" in str(ei.value), str(ei.value)
