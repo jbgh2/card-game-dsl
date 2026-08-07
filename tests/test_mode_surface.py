@@ -476,7 +476,20 @@ def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
     return seen
 
 
-def test_a_fan_out_reaches_exactly_one_of_its_targets() -> None:
+# Whether ONE play can satisfy more than one of a mode's exits is its own
+# axis, and the pin was blind to it at first: two mutually exclusive
+# predicates cannot both match a single card, so only the across-plays half
+# of the defect was reachable. Overlapping exits are the other half.
+@pytest.mark.parametrize(
+    ("label", "low_pred", "high_pred"),
+    [
+        ("disjoint", ' where action.card.rank is "2"', ' where action.card.rank is "9"'),
+        ("overlapping", "", ""),
+    ],
+)
+def test_a_fan_out_reaches_exactly_one_of_its_targets(
+    label: str, low_pred: str, high_pred: str
+) -> None:
     """A source mode's remaining exits die with it.
 
     `fan_out` is ACCEPTED by the grid above, and acceptance is all that grid
@@ -486,8 +499,11 @@ def test_a_fan_out_reaches_exactly_one_of_its_targets() -> None:
     fired kept its second exit live: both targets were reached and two
     mutually alternative "after" modes held at once, rule deltas stacked.
 
-    red under: drop the `_mode_active(item, rs)` filter in
-    `runtime/phases.py::active_transitions`.
+    red under (disjoint): drop the `_mode_active` filter in
+    `runtime/phases.py::active_mode_exits`.
+    red under (overlapping): drop the `break` in
+    `runtime/mechanics.py::_fire_transitions` — the filter alone cannot see a
+    mode that goes inactive between two exits of the SAME play.
     """
     src = _game(
         "    deal 4 cards from deck to each hand\n"
@@ -495,8 +511,8 @@ def test_a_fan_out_reaches_exactly_one_of_its_targets() -> None:
         # Ranks, not suits: an undealt deck is not shuffled, so the first
         # eight cards are all clubs and a suit predicate could never match —
         # the probe would run, observe nothing, and pass.
-        "      transition_to: went_low when play_to_trick where action.card.rank is \"2\"\n"
-        "      transition_to: went_high when play_to_trick where action.card.rank is \"9\"\n"
+        f"      transition_to: went_low when play_to_trick{low_pred}\n"
+        f"      transition_to: went_high when play_to_trick{high_pred}\n"
         "    }\n"
         "    mode went_low { }\n"
         "    mode went_high { }\n"

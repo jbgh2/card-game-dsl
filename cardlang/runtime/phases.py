@@ -75,15 +75,20 @@ def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
     return mode.name in rs.fired_transitions
 
 
-def active_transitions(phase: n.Phase | None, rs: RuntimeState) -> list[n.TransitionTo]:
-    """The transitions that can still fire: those of modes that currently hold.
+def active_mode_exits(
+    phase: n.Phase | None, rs: RuntimeState
+) -> list[tuple[n.Mode, tuple[n.TransitionTo, ...]]]:
+    """Each currently-holding mode paired with its own exits.
 
     A transition is an EXIT FROM a condition, so it exists only while that
-    condition does. Returning every mode's transitions unconditionally loses
-    which mode owns each one, and a source mode with two different targets then
-    keeps its second exit live after its first has fired — both targets end up
-    reached, and two mutually alternative "after" modes hold at once with their
-    rule deltas stacked.
+    condition does — and the pairing is what carries that. A flat list of
+    transitions loses which mode owns each one, and then a source mode with two
+    targets reaches BOTH: two mutually alternative "after" modes hold at once
+    with their rule deltas stacked. The caller needs the grouping, not just the
+    filter, because one play can satisfy two of a single mode's exits — mode
+    activity is re-checked here per play, but not between two exits of the same
+    mode inside one play (`_fire_transitions` owns that, by stopping at the
+    first exit that fires).
 
     Evaluated per play rather than cached per pass, because a mode goes
     inactive mid-pass: the transition that deactivates it is fired by a play
@@ -92,8 +97,7 @@ def active_transitions(phase: n.Phase | None, rs: RuntimeState) -> list[n.Transi
     if phase is None:
         return []
     return [
-        transition
+        (item, item.transitions)
         for item in phase.items
         if isinstance(item, n.Mode) and _mode_active(item, rs)
-        for transition in item.transitions
     ]

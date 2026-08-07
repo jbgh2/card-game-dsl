@@ -631,10 +631,19 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
 
     Only the transitions of modes that STILL HOLD are evaluated: an exit
     belongs to its condition, so once that condition has ended its remaining
-    exits are gone with it."""
-    for t in phases.active_transitions(phase, ctx.rs):
-        if t.event.move_type != "play_to_trick":
-            continue
-        pred = t.event.where
-        if pred is None or bool(evaluate(pred, ctx.with_action(move))):
-            ctx.rs.fired_transitions.add(t.target)
+    exits are gone with it. That has to be enforced twice over, because a
+    condition can end on this very play as well as on an earlier one: the
+    grouping filters modes deactivated before now, and the `break` stops a
+    mode's remaining exits the instant one of them fires. Two exits of one
+    mode that a SINGLE play satisfies — two unconditional ones, or any pair of
+    overlapping predicates — would otherwise both reach their targets inside
+    this loop. Independent modes keep being evaluated; only the fired one's
+    siblings stop."""
+    for _mode, exits in phases.active_mode_exits(phase, ctx.rs):
+        for t in exits:
+            if t.event.move_type != "play_to_trick":
+                continue
+            pred = t.event.where
+            if pred is None or bool(evaluate(pred, ctx.with_action(move))):
+                ctx.rs.fired_transitions.add(t.target)
+                break
