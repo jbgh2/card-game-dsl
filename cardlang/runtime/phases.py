@@ -75,13 +75,25 @@ def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
     return mode.name in rs.fired_transitions
 
 
-def phase_transitions(phase: n.Phase | None) -> list[n.TransitionTo]:
-    """Every transition declared by a phase's modes."""
+def active_transitions(phase: n.Phase | None, rs: RuntimeState) -> list[n.TransitionTo]:
+    """The transitions that can still fire: those of modes that currently hold.
+
+    A transition is an EXIT FROM a condition, so it exists only while that
+    condition does. Returning every mode's transitions unconditionally loses
+    which mode owns each one, and a source mode with two different targets then
+    keeps its second exit live after its first has fired — both targets end up
+    reached, and two mutually alternative "after" modes hold at once with their
+    rule deltas stacked.
+
+    Evaluated per play rather than cached per pass, because a mode goes
+    inactive mid-pass: the transition that deactivates it is fired by a play
+    inside the very trick this list is consulted for.
+    """
     if phase is None:
         return []
     return [
         transition
         for item in phase.items
-        if isinstance(item, n.Mode)
+        if isinstance(item, n.Mode) and _mode_active(item, rs)
         for transition in item.transitions
     ]

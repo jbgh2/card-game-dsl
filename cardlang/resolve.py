@@ -3601,14 +3601,26 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     if game.state is not None:
         check("state variable", game.state.decls, reserved=True)
     phases: list[object] = []
+    modes: list[object] = []
     for nd in _walk(game):
         if isinstance(nd, n.Phase):
             phases.append(nd)
+        elif isinstance(nd, n.Mode):
+            modes.append(nd)
         elif isinstance(nd, n.StateBlock) and nd is not game.state:
             check("state variable", nd.decls, reserved=True)
         elif isinstance(nd, n.TypeDef):
             check(f"field in type '{nd.name}'", nd.fields)
     check("phase", phases)
+    # Modes are collected GAME-WIDE, not per phase, for the same reason phases
+    # are: the runtime keys reached transitions by bare mode name in one
+    # `RuntimeState.fired_transitions` set, which is cleared per hand rather
+    # than per phase. Two phases each declaring a `done` would share that key —
+    # one phase's transition would put the other phase straight into its
+    # "after" mode, whose rules then apply from the start and whose "before"
+    # mode never holds at all. Uniqueness here is what lets the runtime keep
+    # using a bare name, so the checker's scope and the runtime's agree.
+    check("mode", modes)
 
 
 # The param-bearing declaration kinds: node type -> (the `Game` collection that

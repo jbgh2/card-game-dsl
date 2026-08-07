@@ -143,12 +143,14 @@ class TrickForm:
         self.trump: str | None = (
             evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
         )
-        # Constant for the pass: the active rules (as a rules-bearing ctx) and the
-        # play-triggered transitions the leader/followers may fire.
+        # Constant for the pass: the active rules, as a rules-bearing ctx. The
+        # phase is kept rather than its transition list — which of its modes
+        # still hold is re-read per play, since a play inside THIS trick is
+        # what deactivates one.
         self.trick_ctx = ctx.with_rules(
             phases.compute_active_rules(ctx.current_phase, ctx.rs)
         )
-        self.transitions = phases.phase_transitions(ctx.current_phase)
+        self.transition_phase = ctx.current_phase
 
     def init(self, state: State, ctx: Ctx) -> State:
         state["led_suit"] = None
@@ -196,7 +198,7 @@ class TrickForm:
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:
             state["led_suit"] = choice.suit
-        _fire_transitions(self.transitions, Move(choice, actor), self.trick_ctx)
+        _fire_transitions(self.transition_phase, Move(choice, actor), self.trick_ctx)
         # An `early` predicate ends the trick mid-pass; the winner function
         # picks from the plays so far (Getaway: a void player's off-led-suit
         # play, with the winner then picking up the pile).
@@ -623,12 +625,14 @@ def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
     return TrickForm(stmt, ctx)
 
 
-def _fire_transitions(
-    transitions: list[n.TransitionTo], move: Move, ctx: Ctx
-) -> None:
+def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
     """Evaluate each play-triggered transition's predicate against the move just
-    played; a satisfied one marks its target as reached for this iteration."""
-    for t in transitions:
+    played; a satisfied one marks its target as reached for this iteration.
+
+    Only the transitions of modes that STILL HOLD are evaluated: an exit
+    belongs to its condition, so once that condition has ended its remaining
+    exits are gone with it."""
+    for t in phases.active_transitions(phase, ctx.rs):
         if t.event.move_type != "play_to_trick":
             continue
         pred = t.event.where

@@ -33,7 +33,10 @@ domain:     (a) `?phase_item` alternatives x {phase body, mode body};
             (b) `mode_def` x every item container in the grammar;
             (c) the per-mode role 2x2, (declares a transition) x (is targeted);
             (d) the mode-SET shapes of one phase body;
-            (e) nesting depth, since `?phase_item` includes `phase`
+            (e) nesting depth, since `?phase_item` includes `phase`;
+            (f) for each ACCEPTED shape, what the runtime then does with it —
+            a mode name is unique game-wide because the runtime keys reached
+            transitions by bare name, and a source's exits die with it
 registry:   `tests/mode_axes.py` — `phase_item_alternatives()` and
             `item_containers()` scrape the grammar, `mode_roles()` crosses the
             2x2 in code, `statement_alternatives()` bounds the sampled row.
@@ -46,6 +49,11 @@ covered:    - (a) test_item_in_container, 9 x 2 = 18 cells
             - (e) test_the_role_wall_reaches_every_nesting_depth, depths 1-3
               (the corpus declares its modes at depth 3, this grid's other
               cells at depth 1)
+            - (f) the RUNTIME behaviour of shapes (a)-(e) merely accept:
+              test_a_fan_out_reaches_exactly_one_of_its_targets, and the two
+              mode-name uniqueness pins. Acceptance is all a check_dsl grid
+              can see; three defects lived in the gap between "parses" and
+              "then does the right thing" (review findings on PR #268).
 sampled:    `?phase_item`'s `statement` alternative is one grid cell, not 20:
             `?mode_item` names no `statement` alternative at all, so every
             statement form is rejected by the same absence of a production.
@@ -426,3 +434,122 @@ def test_the_role_wall_reaches_every_nesting_depth(depth: int) -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(_game(body), "mini.cardlang")
     assert "never active" in str(ei.value), str(ei.value)
+
+
+# --------------------------------------------------------------------------
+# (f) the runtime behaviour of an accepted shape — the cells a grid that only
+# asks "does check_dsl accept?" cannot reach.
+# --------------------------------------------------------------------------
+
+
+def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
+    """Every distinct `fired_transitions` set the `root` phase is observed in."""
+    import random
+
+    from cardlang.runtime import driver, mechanics
+    from cardlang.runtime import phases as ph
+
+    seen: list[tuple[str, ...]] = []
+    real = ph.compute_active_rules
+
+    def spy(phase, rs):  # type: ignore[no-untyped-def]
+        out = real(phase, rs)
+        if phase is not None and phase.name == "root":
+            fired = tuple(sorted(rs.fired_transitions))
+            if fired not in seen:
+                seen.append(fired)
+        return out
+
+    ph.compute_active_rules = spy
+    for module in (driver, mechanics):
+        if hasattr(module, "compute_active_rules"):
+            module.compute_active_rules = spy  # type: ignore[attr-defined]
+    try:
+        game = check_dsl(src, "mini.cardlang")
+        for seed in seeds:
+            driver.play_game(game, random.Random(seed))
+    finally:
+        ph.compute_active_rules = real
+        for module in (driver, mechanics):
+            if hasattr(module, "compute_active_rules"):
+                module.compute_active_rules = real  # type: ignore[attr-defined]
+    return seen
+
+
+def test_a_fan_out_reaches_exactly_one_of_its_targets() -> None:
+    """A source mode's remaining exits die with it.
+
+    `fan_out` is ACCEPTED by the grid above, and acceptance is all that grid
+    can see — it asks whether `check_dsl` takes the sentence, never what the
+    runtime then does with it. Before this pin, the flattened transition list
+    dropped which mode owned each exit, so a source whose first target had
+    fired kept its second exit live: both targets were reached and two
+    mutually alternative "after" modes held at once, rule deltas stacked.
+
+    red under: drop the `_mode_active(item, rs)` filter in
+    `runtime/phases.py::active_transitions`.
+    """
+    src = _game(
+        "    deal 4 cards from deck to each hand\n"
+        "    mode start {\n"
+        # Ranks, not suits: an undealt deck is not shuffled, so the first
+        # eight cards are all clubs and a suit predicate could never match —
+        # the probe would run, observe nothing, and pass.
+        "      transition_to: went_low when play_to_trick where action.card.rank is \"2\"\n"
+        "      transition_to: went_high when play_to_trick where action.card.rank is \"9\"\n"
+        "    }\n"
+        "    mode went_low { }\n"
+        "    mode went_high { }\n"
+        "    repeat until (all players where hand[player] is empty) {\n"
+        "      round play_to_trick from ldr over all players source hand into pile\n"
+        "            winner highest_of_led_suit\n"
+        "      move all cards from pile to deck\n"
+        "      ldr := winner\n"
+        "    }"
+    )
+    reached = _play(src, range(1, 40))
+    # Anti-vacuity: `[()]` is truthy, so "did we observe anything" is not the
+    # question — "did any transition ever fire" is. Without this the probe
+    # passes while proving nothing, which is how it first shipped.
+    assert any(fired for fired in reached), (
+        f"no transition ever fired, so this proves nothing about fan-out: {reached}"
+    )
+    both = [f for f in reached if len(f) > 1]
+    assert not both, f"mutually alternative exits both reached: {both}"
+
+
+def test_a_mode_name_is_unique_game_wide_not_merely_per_phase() -> None:
+    """Two phases may not both declare a `done`.
+
+    The runtime keys reached transitions by BARE mode name in one set that is
+    cleared per hand, not per phase — so a same-named mode in another phase
+    reads the first phase's transition as its own and starts life in its
+    "after" mode. Uniqueness is game-wide precisely because the runtime's key
+    is, which is the same reason `check("phase", …)` walks the whole game.
+
+    red under: scope `check("mode", modes)`'s collection to one phase's items.
+    """
+    src = _game(
+        "    mode fresh { transition_to: done when play_to_trick }\n"
+        "    mode done { }\n"
+        "    phase later {\n"
+        "      mode unseen { transition_to: done when play_to_trick }\n"
+        "      mode done { }\n"
+        "    }"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    assert "mode 'done'" in str(ei.value), str(ei.value)
+
+
+def test_two_sibling_modes_may_not_share_a_name() -> None:
+    """The same wall at its narrowest scope: one reference cannot name two
+    declarations, and activating both stacks deltas nobody asked for."""
+    src = _game(
+        "    mode fresh { transition_to: done when play_to_trick }\n"
+        "    mode done { }\n"
+        "    mode done { active_rules: [MustFollow] }"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    assert "mode 'done'" in str(ei.value), str(ei.value)
