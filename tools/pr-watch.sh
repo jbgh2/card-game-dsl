@@ -40,10 +40,15 @@ while :; do
     exit 0
   fi
   if [ "$MODE" = both ]; then
-    pending=$(gh pr view "$N" --repo "$REPO" --json statusCheckRollup --jq \
-      '[.statusCheckRollup[] | select(.__typename == "CheckRun" and .status != "COMPLETED")] | length')
-    if [ "$pending" -eq 0 ]; then
-      echo "pr-watch: every check completed on PR #$N"
+    counts=$(gh pr view "$N" --repo "$REPO" --json statusCheckRollup --jq \
+      '"\(.statusCheckRollup | length) \([.statusCheckRollup[] | select(.__typename == "CheckRun" and .status != "COMPLETED")] | length)"')
+    total=${counts% *}; pending=${counts#* }
+    # An empty rollup is a freshly-pushed head whose runs have not registered
+    # yet, never a completed gate — the sibling of merge-gate.sh's "no checks
+    # reported" refusal (that Owner Guard's class, applied to the watcher):
+    # zero-total waits, it does not fire.
+    if [ "$total" -ge 1 ] && [ "$pending" -eq 0 ]; then
+      echo "pr-watch: every check completed on PR #$N ($total runs)"
       exit 0
     fi
   fi
