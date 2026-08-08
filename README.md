@@ -1,16 +1,16 @@
 # cardlang
 
-> A language for describing card games, compiled to
-> [OpenSpiel](https://github.com/google-deepmind/open_spiel) so that
-> imperfect-information AI — CFR, IS-MCTS, deep RL — runs on any game you
-> can write down.
+> A compiler that turns declarative card-game rules into hidden-information
+> environments where automated checks confirm each player sees only what the
+> rules allow, with game-theoretic baselines through
+> [OpenSpiel](https://github.com/google-deepmind/open_spiel).
 
-Source-available under a noncommercial license — see [License](#license)
+Source-available under a noncommercial license. See [License](#license)
 before building on it.
 
 ## Usage
 
-A game is a Markdown document with a fenced DSL block. Hearts begins:
+A game is a Markdown document with a fenced rules block. Hearts begins:
 
 ```
 game Hearts {
@@ -50,29 +50,40 @@ state.information_state_string(1)
 # 'P1|deck=#0;trick_pile=[];captured[0]=[];captured[1]=[];captu...'
 ```
 
-That last string is the point. Player 1's information state — what they
-know, with the deck and other players' hands reduced to counts — is
-derived from the zone types above and the observations moves emit. Nobody
-wrote it by hand. That is what lets OpenSpiel's algorithms, which live and
-die on correct information sets, run on a described game without per-game
-adapter code.
+The last string is the point. Player 1's information state is derived from
+the zone declarations above and the observations moves emit. The deck and
+the other hands appear only as counts because that is what the rules let
+player 1 see. Nobody wrote that string by hand, and a battery of tests
+(`tests/openspiel_ready/`, one proof module per game) checks it holds:
 
-## Background
+- swap tests change hidden cards and check that what each player sees does
+  not change,
+- legal-action agreement checks that worlds a player cannot tell apart
+  offer the same moves,
+- a soundness matrix checks the other direction, that every entitled fact
+  arrives,
+- further checks confirm the shuffle leaves no trace and that information
+  states never forget.
 
-Hidden hands, face-down cards, and concealed bids are the hard part of
-compiling card games to OpenSpiel, and the part that goes quietly wrong
-when adapters are written by hand. So it is proved, per game:
-`tests/openspiel_ready/` checks indistinguishability under hidden-card
-swaps, a per-fact soundness matrix, perfect recall, and agreement between
-the DSL and the adapter.
+These are executable checks, exhaustive where domains are closed and
+sampled where they are open. They are not theorem-prover proofs.
 
-The corpus drives the language. `docs/games/` holds one file per game —
+## Why
+
+Environments with hidden information are how multi-agent safety measures
+deception, collusion, and rule-breaking. Hand-built environments cannot
+show they keep secrets from the models they test: a bug in the observation
+code can leak state to an agent that should not see it, and that
+invalidates the result. Here visibility is declared in the rules and
+observations are derived by one engine, so the checks above are possible
+at all, and a new environment is a rules file that inherits them.
+
+The corpus drives the language. `docs/games/` holds one file per game,
 each a complete description a non-player could pick up and play a hand
-from — and constructs exist because a game needed them. The spec lives in
-`docs/`: `principles.md` for the goal, `model.md` for how phases, rules,
-and moves fit together, `decisions.md` for settled design.
-`experiments/llm_eval/` is a pilot evaluation of language models playing
-described games, with its transcripts and reports.
+from, and constructs exist because a game needed them. The spec lives in
+`docs/`; `decisions.md` is the settled design. `experiments/llm_eval/` is
+the pilot evaluation of language models playing these games, with its
+transcripts, audit files, and reports.
 
 ## Installation
 
@@ -86,10 +97,13 @@ the adapter tests skip without it.
 
 ## Status
 
-Working, and narrow on purpose. Open design questions live in
-`docs/open-questions/`; deferred work is in the issue tracker. The
-tracker and pull requests are maintained by the author; external
-contributions are not being taken at present.
+Working, and narrow on purpose. The language does not cover everything
+yet: combination scoring and similar computations run as game-local Python
+that receives values and returns a value, and a test pins that no engine
+state reaches it. Open design questions live in `docs/open-questions/`;
+deferred work is in the issue tracker. The tracker and pull requests are
+maintained by the author; external contributions are not being taken at
+present.
 
 ## License
 
