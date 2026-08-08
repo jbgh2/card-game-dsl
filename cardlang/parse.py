@@ -248,7 +248,11 @@ def _parser() -> Lark:
 # and `test_rank_dir_set_is_pinned` (test_comprehension_aggregators.py)
 # reconciles this set against the grammar terminal so a new RANK_DIR token
 # cannot land uncovered.
-RANK_DIR_TO_AGG: dict[str, str] = {"highest": "max", "lowest": "min"}
+# The order aggregators, spelled exactly as the surface spells them — the
+# grammar's RANK_DIR terminal. `Comprehension.agg` stores the token verbatim,
+# as `Winner.rank_dir` already did; before, one token had two storage
+# conventions depending on which node received it.
+RANK_DIRECTIONS: frozenset[str] = frozenset({"highest", "lowest"})
 
 
 @v_args(meta=True)
@@ -559,7 +563,7 @@ class _Builder(Transformer[Token, n.Game]):
     # --- phases ---
 
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
-        return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
+        return n.PhaseQualifier("repeat_until", _as_expr(c[0]), span=self._span(meta))
 
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
@@ -1060,15 +1064,15 @@ class _Builder(Transformer[Token, n.Game]):
         # c: [RANK_DIR, body, zone_expr, where?, default]
         filt = _as_expr(c[3]) if c[3] is not None else None
         direction = str(c[0])
-        if direction not in RANK_DIR_TO_AGG:
+        if direction not in RANK_DIRECTIONS:
             # Internal invariant, not a user diagnostic: the grammar's
-            # RANK_DIR terminal and this mapping are out of sync.
+            # RANK_DIR terminal and this set are out of sync.
             raise AssertionError(
                 f"agg_order: unhandled RANK_DIR token {direction!r} — add it to "
-                "RANK_DIR_TO_AGG"
+                "RANK_DIRECTIONS"
             )
         return n.Comprehension(
-            agg=RANK_DIR_TO_AGG[direction],
+            agg=direction,
             source=_as_expr(c[2]),
             binder="card",
             body=_as_expr(c[1]),
@@ -1109,14 +1113,14 @@ class _Builder(Transformer[Token, n.Game]):
         if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
             kind = "none" if rhs.name == "none" else "empty"
             return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
-        return n.BinOp("==", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
+        return n.BinOp("is", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def compare_is_not(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
         rhs = c[1]
         if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
             kind = "not_none" if rhs.name == "none" else "not_empty"
             return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
-        return n.BinOp("!=", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
+        return n.BinOp("is_not", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
         return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))

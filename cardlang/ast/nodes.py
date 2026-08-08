@@ -136,8 +136,9 @@ Arg: TypeAlias = "Expr | NamedArg"
 @dataclass(frozen=True, slots=True)
 class BinOp:
     """A binary operator: `or`, `and`, comparisons, membership `in`, `+`,
-    `-`, `*`, `offset_by`. Equality keeps the internal op tokens `==`/`!=`
-    (built by the surface `is` / `is not`)."""
+    `-`, `*`, `offset_by`. Equality stores the surface spelling — `is` /
+    `is_not` — because `==`/`!=` are not operators in this language; the
+    ordering operators stay symbolic, since there the symbol IS the surface."""
 
     op: str
     left: Expr
@@ -193,7 +194,7 @@ class Comprehension:
     `filter` narrows the elements before `body` is aggregated; `default` is
     the order aggregators' empty-set value, mandatory in their grammar."""
 
-    agg: str  # sum | max | min
+    agg: str  # sum | highest | lowest — the surface spellings
     source: Expr
     binder: str
     body: Expr
@@ -915,7 +916,7 @@ class AfterEach:
 class PhaseQualifier:
     """`repeat until <expr>` or `when <expr>` on a phase header."""
 
-    kind: str  # "repeats" | "when"
+    kind: str  # "repeat_until" | "when"
     expr: Expr
     span: Span | None = None
 

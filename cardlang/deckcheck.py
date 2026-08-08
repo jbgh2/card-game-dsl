@@ -154,7 +154,7 @@ def _nested_repeating_phases(phase: n.Phase) -> list[n.Phase]:
 
 
 def _repeats(phase: n.Phase) -> bool:
-    return phase.qualifier is not None and phase.qualifier.kind == "repeats"
+    return phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
 
 
 def _seq_usage(

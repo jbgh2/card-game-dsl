@@ -307,9 +307,9 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left - right
         case "*":
             return left * right
-        case "==":
+        case "is":
             return left == right
-        case "!=":
+        case "is_not":
             return left != right
         case ">=":
             return left >= right
@@ -468,12 +468,12 @@ def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     match e.agg:
         case "sum":
             return sum(values)
-        case "max":
+        case "highest":
             if not values:
                 assert e.default is not None, "grammar makes `or <default>` mandatory"
                 return evaluate(e.default, ctx)
             return max(values)
-        case "min":
+        case "lowest":
             if not values:
                 assert e.default is not None, "grammar makes `or <default>` mandatory"
                 return evaluate(e.default, ctx)

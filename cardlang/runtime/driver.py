@@ -277,7 +277,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         after = next((i for i in phase.items if isinstance(i, n.AfterEach)), None)
 
         q = phase.qualifier
-        if q is not None and q.kind == "repeats":
+        if q is not None and q.kind == "repeat_until":
             # Each new hand discards any outcome produced inside this loop's subtree
             # in the prior iteration (a producer skipped by `continue to`, or
             # guarded off). Scoped to descendants, so a sibling/ancestor outcome

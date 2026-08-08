@@ -297,7 +297,7 @@ def test_runtime_is_empty_over_a_card_query_set_result() -> None:
         kind="set",
         source=n.NameRef("hand", ref_kind="zone"),
         pred=n.BinOp(
-            "==",
+            "is",
             n.Member(n.NameRef("card", ref_kind="local"), "suit"),
             n.NameRef("hearts", ref_kind="enum_value"),
         ),
@@ -309,7 +309,7 @@ def test_runtime_is_empty_over_a_card_query_set_result() -> None:
         kind="set",
         source=n.NameRef("hand", ref_kind="zone"),
         pred=n.BinOp(
-            "==",
+            "is",
             n.Member(n.NameRef("card", ref_kind="local"), "suit"),
             n.NameRef("spades", ref_kind="enum_value"),
         ),

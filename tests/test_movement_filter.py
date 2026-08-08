@@ -54,7 +54,7 @@ def _movement(game: n.Game) -> n.Transfer:
 
 def test_where_filter_parses_as_a_card_predicate() -> None:
     mv = _movement(parse_text(FILTERED_SRC, "mini.cardlang"))
-    assert isinstance(mv.filter, n.BinOp) and mv.filter.op == "=="
+    assert isinstance(mv.filter, n.BinOp) and mv.filter.op == "is"
 
 
 def test_plain_movement_has_no_filter() -> None:
@@ -68,7 +68,7 @@ def test_typecheck_accepts_the_where_predicate() -> None:
     # Resolve classified the implicit `card` binder as a local, and the
     # deck's `hearts` suit as an enum value — both readable off the AST.
     body = mv.filter
-    assert isinstance(body, n.BinOp) and body.op == "=="
+    assert isinstance(body, n.BinOp) and body.op == "is"
 
 
 def test_filter_ir_key_emitted_only_when_present() -> None:
@@ -81,7 +81,7 @@ def test_filter_ir_key_emitted_only_when_present() -> None:
     assert "filter" in filtered_mv
     assert filtered_mv["filter"] == {
         "kind": "binop",
-        "op": "==",
+        "op": "is",
         "left": {"kind": "member", "obj": {"kind": "name", "name": "card", "ref": "local"}, "field": "suit"},
         "right": {"kind": "name", "name": "hearts", "ref": "enum_value"},
     }

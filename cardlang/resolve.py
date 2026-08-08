@@ -2886,7 +2886,7 @@ def _check_alias_operands(
 ) -> None:
     """Refuse `<alias> is <alias>` / `<alias> is not <alias>`: both operands
     name the acting player, so the comparison is a constant."""
-    if node.op not in ("==", "!="):
+    if node.op not in ("is", "is_not"):
         return
     left, right = node.left, node.right
     if not (isinstance(left, n.NameRef) and isinstance(right, n.NameRef)):
@@ -2896,8 +2896,8 @@ def _check_alias_operands(
         for ref in (left, right)
     ):
         return
-    word = "is" if node.op == "==" else "is not"
-    verdict = "always true" if node.op == "==" else "never true"
+    word = "is" if node.op == "is" else "is not"
+    verdict = "always true" if node.op == "is" else "never true"
     where = (
         f"{aliases.origin} binds the acting player, so "
         if aliases.origin is not None
@@ -3369,7 +3369,7 @@ def _resolve_phase_level(
                 f"block — merge the declarations into one",
                 state_blocks[1].span,
             )
-        if phase.qualifier is None or phase.qualifier.kind != "repeats":
+        if phase.qualifier is None or phase.qualifier.kind != "repeat_until":
             for hook in phase.items:
                 if isinstance(hook, (n.BeforeEach, n.AfterEach)):
                     kw = "before_each" if isinstance(hook, n.BeforeEach) else "after_each"

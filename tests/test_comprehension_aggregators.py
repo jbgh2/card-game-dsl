@@ -19,7 +19,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.replay import RANK_DIR_TO_SIGN
-from cardlang.parse import RANK_DIR_TO_AGG
+from cardlang.parse import RANK_DIRECTIONS
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import RANK_DIR_TO_PICK
 from cardlang.runtime.evaluate import evaluate
@@ -66,8 +66,9 @@ def _ctx(game: n.Game, pile_cards: list[Card]) -> Ctx:
 
 def test_rank_dir_set_is_pinned() -> None:
     """The grammar's RANK_DIR terminal has three consumers that each collapse
-    it to an order-fold with an exhaustive mapping: the `agg_order` builder
-    (parse.RANK_DIR_TO_AGG, `highest`/`lowest … over cards in …`), the
+    it to an order-fold over a closed token set: the `agg_order` builder
+    (parse.RANK_DIRECTIONS, `highest`/`lowest … over cards in …`, which now
+    stores the token verbatim rather than translating it), the
     driver's winner determination (runtime.driver.RANK_DIR_TO_PICK, `winner:
     highest/lowest <score>`), and the OpenSpiel adapter's return sign
     (openspiel.replay.RANK_DIR_TO_SIGN). All three key sets must agree with
@@ -87,7 +88,7 @@ def test_rank_dir_set_is_pinned() -> None:
     match = re.match(r"\(\?:([a-z|]+)\)", regexp)
     assert match is not None, f"RANK_DIR is no longer a word alternation: {regexp}"
     in_grammar = set(match.group(1).split("|"))
-    assert in_grammar == set(RANK_DIR_TO_AGG)
+    assert in_grammar == set(RANK_DIRECTIONS)
     assert in_grammar == set(RANK_DIR_TO_PICK)
     assert in_grammar == set(RANK_DIR_TO_SIGN)
 

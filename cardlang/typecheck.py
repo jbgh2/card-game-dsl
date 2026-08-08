@@ -639,7 +639,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 )
             return sig.ret
         case n.BinOp():
-            if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
+            if e.op in ("is", "is_not", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
             if e.op in ("+", "-", "*"):
                 return TInteger()
@@ -1435,8 +1435,8 @@ class OpClass(Enum):
 
 
 OP_CLASSES: dict[str, OpClass] = {
-    "==": OpClass.EQUALITY,
-    "!=": OpClass.EQUALITY,
+    "is": OpClass.EQUALITY,
+    "is_not": OpClass.EQUALITY,
     "<": OpClass.ORDERING,
     ">": OpClass.ORDERING,
     "<=": OpClass.ORDERING,
@@ -2845,7 +2845,7 @@ def _item_can_skip(item: n.PhaseItem) -> bool:
     body's hand loop. A nested `repeat until` catches its own skips, so they don't
     unwind here."""
     if isinstance(item, n.Phase):
-        if item.qualifier is not None and item.qualifier.kind == "repeats":
+        if item.qualifier is not None and item.qualifier.kind == "repeat_until":
             return False
         return any(_item_can_skip(sub) for sub in item.items)
     if isinstance(
@@ -3043,7 +3043,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         in_hand_loop: bool,
     ) -> None:
         here_loop = in_hand_loop or (
-            phase.qualifier is not None and phase.qualifier.kind == "repeats"
+            phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
         )
         items = phase.items
         # All child phases are valid `continue to` targets; only *unqualified*
@@ -3087,7 +3087,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 # so outer producers don't carry in (continue-to targets still do).
                 child_before = (
                     set()
-                    if item.qualifier is not None and item.qualifier.kind == "repeats"
+                    if item.qualifier is not None and item.qualifier.kind == "repeat_until"
                     else earlier
                 )
                 walk(item, child_before, later, here_loop)
@@ -3173,7 +3173,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     for idx, phase in enumerate(game.phases):
         # Same rule as the recursion: a top-level `repeat until` body can't rely
         # on an earlier top-level producer (it ran once, the loop reruns).
-        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
         before = (
             set()
             if is_repeat
