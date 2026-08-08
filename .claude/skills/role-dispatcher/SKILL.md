@@ -54,10 +54,15 @@ single CI runner; raising it is a charter edit.
      listed in issue #143, the PR body's "For the reviewer" bullets name
      the trim per #143's own maintenance contract — the Dispatcher never
      edits #143 itself.
-6. **Review rounds** per the thread rule (docs/harness.md, "Review
-   threads"): every thread gets a disposition reply with evidence, the
-   responder resolves, and a finding on the fix for a previous finding
-   escalates the PR to the operator — say so in the PR and stand down.
+6. **Arm, then answer.** After opening the PR, arm `tools/pr-watch.sh`
+   in the background (review activity and the gate are independent
+   signals, watched concurrently — never sequence "wait for CI, then
+   look") and continue the round; when woken, handle the review rounds
+   per the thread rule (docs/harness.md, "Review threads"): every thread
+   gets a disposition reply with evidence, the responder resolves, and a
+   finding on the fix for a previous finding escalates the PR to the
+   operator — say so in the PR and stand down. On a wake where the gate
+   completed but no review has landed, re-arm in `reviews` mode.
 7. **Merge path.** Run `tools/merge-gate.sh <PR>`. Exit 0: merge with a
    merge commit and delete the branch (releasing the Lease). Anything
    else: post the gate's evidence block as a PR comment so the operator

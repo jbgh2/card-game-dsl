@@ -138,7 +138,16 @@ The merge precondition, any lane: **zero unresolved threads**. Top-level
 review bodies and standalone PR comments have no resolved state; their
 reply is their record. Reviewer-specific protocols (Codex's thumbs
 reactions) ride on top as courtesy; the thread reply-and-resolve is this
-repo's own record. The check is derived, like everything else:
+repo's own record.
+
+**Rounds are the author's, and waiting is armed, not remembered.** The
+session that opens a PR arms `tools/pr-watch.sh` in the background before
+moving on — it watches review activity and the gate as independent,
+concurrent signals — and handles its own review rounds in-context when
+woken: the author holds the diff's reasoning and is the best respondent.
+A PR whose author is gone falls to the Warden's thread sweep as the
+backstop, and the event-driven trigger for authorless rounds is tracker
+work on the epic. The check is derived, like everything else:
 
 ```bash
 gh api graphql -f query='{ repository(owner: "jbgh2", name: "card-game-dsl") {
