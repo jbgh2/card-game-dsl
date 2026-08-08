@@ -364,15 +364,19 @@ tests minimize unrelated noise so snapshots stay reviewable.
   vocabulary — game author, library author, engine maintainer); Elm gestures
   at it, the glossary states it as a rule. Worth keeping as a contribution,
   not an import.
-- **The gap the literature exposes: message-content testing.** The misuse
-  probes required by "Surface totality" pin that a diagnostic *fires*; issue
-  #133 records explicitly that "the grid asserts admit-vs-reject only, not
-  the message text", and its own message currently reads `unknown type
-  '<name>'` where the sharper truth is "a position domain is not a declared
-  type in this slot". That is exactly the decay mode UI-snapshot testing
-  exists for. A blessed-snapshot harness for diagnostics (goldens already
-  exist for traces, so the mechanism is in-house) is the literature's
-  concrete suggestion.
+- **Message-content testing: the mechanism exists in-house; the pressure is
+  coverage.** The repo independently built the rustc-UI-test shape:
+  `tests/test_rejections.py` holds `.cardlang`/`.expected` pairs, compares
+  rendered diagnostics byte-for-byte, and regenerates deliberately under
+  `REJECTIONS_BLESS=1` — that IS blessed-snapshot diagnostics testing, and
+  any distillation that proposes building it would be duplicating a live
+  mechanism. What the literature actually presses on is the corpus's
+  *reach*: a diagnostic outside the rejection corpus has no message pin at
+  all, and issue #133 records the resulting decay ("the grid asserts
+  admit-vs-reject only, not the message text"; its message reads `unknown
+  type '<name>'` where the sharper truth is "a position domain is not a
+  declared type in this slot"). The concrete suggestion is a residual case
+  in the existing corpus, not a new harness.
 - The typecheck pass's continuation behavior after a reported error — what
   stands in for the error type so one bad expression does not cascade — is
   where the rustc suppression design bears directly; today `TAny`-as-
@@ -839,8 +843,12 @@ area(s) whose evidence carries it. Proposals, not spec.
    (Area 3; extends existing doctrine with the applicability flag.)
 8. **Decide the evolution contract before the first external document
    exists.** Lockstep corpus editing is correct until a `.cardlang` file
-   lives outside the repo; the cheap reservation (a version header ignored
-   today) costs nothing now and cannot be added compatibly later. (Area 4)
+   lives outside the repo. Any reservation is by REJECTION, never by
+   ignoring: a version header, if reserved, parses and statically rejects
+   every value but the current version — an accepted-but-ignored header is
+   exactly the silent trap "Surface totality" names, and this book may not
+   recommend one. (Area 4; the reservation-by-wall pattern is already house
+   practice.)
 9. **The grammar is the single source; every scrape of it is derived and
    pinned.** Keyword-identifier collision is permanently the grammar
    author's problem under a dynamic lexer; the fusion sweep is shipping
