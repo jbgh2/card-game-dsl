@@ -1,0 +1,1 @@
+loser_selection_not_a_player.cardlang:25:3: error: `loser:` names the losing player — expected a Player, got Boolean
