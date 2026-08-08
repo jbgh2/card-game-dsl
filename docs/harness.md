@@ -156,12 +156,19 @@ the front through its labels, not through anyone's memory.
 
 ## Leases
 
-A **Lease** is how an agent takes an issue: create the canonical branch
+A **Lease** is how an agent takes an issue: create the canonical ref
 
     claude/issue-<N>
 
-Git ref creation is atomic — the second taker fails at the push, and that
-is the entire concurrency story at this scale. The Lease is public,
+with a create-only operation — the ref-creation API (`gh api -X POST
+repos/<owner>/<repo>/git/refs`), whose failure is the mutex: 201 takes
+the Lease, 422 "Reference already exists" loses it, at any commit. A
+plain `git push` cannot take a Lease, and neither can
+`--force-with-lease=<ref>:` — when the ref already exists at the pushed
+commit (the dispatch-time norm: every taker starts at main's tip), both
+report "Everything up-to-date" and exit 0, so both takers would believe
+they won. Server-side creation is the entire concurrency story at this
+scale. The Lease is public,
 visible in the branch list, and self-releasing: merging or deleting the
 branch releases it. The issue's assignee may mirror the Lease for
 glanceability; the ref is the authority. Operator branches (`ben/...`)

@@ -38,10 +38,12 @@ issues_json=$(gh api graphql --paginate \
     }')
 
 # A Lease is exactly refs/heads/claude/issue-<N> (docs/harness.md, "Leases");
-# the prefix query over-fetches and the exact-match filter narrows.
-leased_json=$(gh api "repos/$OWNER/$NAME/git/matching-refs/heads/claude/issue-" \
-  --jq '[.[].ref | select(test("^refs/heads/claude/issue-[0-9]+$"))
-         | sub("^refs/heads/claude/issue-"; "") | tonumber]')
+# the prefix query over-fetches, pages are aggregated before the exact-match
+# filter narrows — the no-truncation property covers Leases too.
+leased_json=$(gh api --paginate "repos/$OWNER/$NAME/git/matching-refs/heads/claude/issue-" \
+  | jq -s 'add // []
+           | [.[].ref | select(test("^refs/heads/claude/issue-[0-9]+$"))
+              | sub("^refs/heads/claude/issue-"; "") | tonumber]')
 
 # First-appearance rank of every #N the ordering issue's body references.
 # Advisory annotation only — ordering authority stays with #143 itself.
