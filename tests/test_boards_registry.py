@@ -413,7 +413,7 @@ def test_board_entry_rejects_over_256_cells() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Movement: directions, is_diagonal, neighbor / has_step (explicit tables)
+# Transfer: directions, is_diagonal, neighbor / has_step (explicit tables)
 # ---------------------------------------------------------------------------
 
 
@@ -506,7 +506,7 @@ def test_neighbor_table_grid_3x3(
 
 
 # ---------------------------------------------------------------------------
-# Movement: home / far_row regions (explicit)
+# Transfer: home / far_row regions (explicit)
 # ---------------------------------------------------------------------------
 
 
@@ -535,7 +535,7 @@ def test_far_row_is_the_opponents_back_rank() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Movement integrity sweep (universal pins over every grid; adequacy pins over
+# Transfer integrity sweep (universal pins over every grid; adequacy pins over
 # adequate grids) -- the runtime __post_init__ pins, re-asserted statically.
 # ---------------------------------------------------------------------------
 
@@ -651,7 +651,7 @@ def test_home_disjoint_pin_reddens(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Movement: method input walls (registry-internal refusals -- the stdlib verbs
+# Transfer: method input walls (registry-internal refusals -- the stdlib verbs
 # that wrap these only ever pass a valid cell / direction / seat)
 # ---------------------------------------------------------------------------
 

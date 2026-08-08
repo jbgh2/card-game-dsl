@@ -42,7 +42,7 @@ def test_round_robin_spreads_the_remainder() -> None:
 
     ctx = Ctx(rs=rs, chooser=random_chooser(random.Random(0)))
     rs.push_frame()
-    deal = next(it for it in game.phases[0].items if isinstance(it, n.Movement))
+    deal = next(it for it in game.phases[0].items if isinstance(it, n.Transfer))
     execute(deal, ctx)
 
     sizes = sorted(len(rs.zones.instance("hand", p).cards) for p in seating.players)

@@ -197,7 +197,7 @@ _NO_ALIAS_KINDS: frozenset[str] = frozenset(
         # for a move type's effect, which is a separate declaration root.
         "Offer",
         "Round",
-        "Movement",
+        "Transfer",
         "EpistemicOp",
         "RotateStmt",
         "AssignStmt",

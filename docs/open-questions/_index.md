@@ -134,7 +134,5 @@ or when a game forces the issue.
 
 Naming and aesthetic choices. Pick when convenient.
 
-- [move-type-naming](move-type-naming.md) — `move_type` vs `action_type`
-  vs `operation` vs `move`.
 - [hearts-sub-phase-shape](hearts-sub-phase-shape.md) — `first_trick` as
   sibling vs nested sub-phase of `play`.

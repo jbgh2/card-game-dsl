@@ -21,8 +21,9 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **TurnOrder** | A cyclic ordering of players with a current pointer and optionally a direction. Operations: advance, reverse, set. |
 | **State variable** | A typed, named, scoped piece of game state. Scope is lexical: a variable lives as long as the phase instance that lexically encloses its declaration. See [decisions.md](decisions.md) "State scoping" and "Mutation semantics"; [appendix.md](appendix.md) catalogues every state variable across the five-game corpus as a reference for both. |
 | **User-defined type** | A struct-like declaration with named, typed fields and optional `derived` fields. May be parameterized (see [library.md](library.md), "Types"). See [decisions.md](decisions.md) "Typed object model". |
-| **Move type** | A named pattern of movement between zones, with declared source/destination/participating zones and associated events. Moves can carry cards (`play_to_trick`) or resources (`transfer`). Reusable across games. |
-| **Move** | A specific instance of a move type with bound participants and content. |
+| **Move type** | A named, parameterized player action: declared source/destination/participating zones and associated events. Reusable across games. A move type's effect is written as **Transfers** (below). |
+| **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
+| **Transfer** | The zone-relocation statement. Its verbs (`deal`/`draw`/`move`/`burn`/`muck`/`transfer`) are sugar over one primitive. Independent of Move: setup is Transfers with no Move. |
 | **Phase** | A bounded interval of game time during which a specific set of rules is active. May be nested (sub-phases) and sequenced. Has entry condition, exit condition, active rule set, and legal move types. May resolve to a typed outcome (see [decisions.md](decisions.md) "Typed phase outcomes"). |
 | **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
@@ -67,6 +68,25 @@ all; the checker rejects both. A progression through three or more stages is
 not a mode chain — use a state variable and gate the rules with
 `applies_when:`.
 
+### Moves and Transfers
+
+Two independent things, and the corpus hid that for a long time because in a
+trick game they coincide: one card play is one Move and one Transfer. They come
+apart as soon as a board game arrives.
+
+| what happens | Moves | Transfers |
+|---|---|---|
+| a card played to the trick | 1 | 1 |
+| a pass | 1 | 0 |
+| placing a mark on an empty cell | 1 | 1 |
+| a capture (mover advances, captured piece leaves) | 1 | **2** |
+| dealing at setup | 0 | many |
+
+A **Move** is what a player chose; a **Transfer** is a relocation between zones.
+Fusing them into one word makes a capture indescribable — which is the test the
+naming had to pass. A future Pose domain (flip, orient) is neither: nothing
+changes zones.
+
 ### The relationship between concepts
 
 ```text
@@ -87,7 +107,7 @@ not a mode chain — use a state variable and gate the rules with
 
 - **Phases** are primary structural units. A game is a sequence/tree of phases.
 - **Rules** are reusable named constraints attached to phases.
-- **Move types** are named card-movement patterns. Rules constrain move types.
+- **Move types** are named card-transfer patterns. Rules constrain move types.
 - **Move types are scoped to phases via the phase's active rules** (a move type
   is legal in a phase if rules constraining it are active there).
 - **Events emit automatically from moves**, with visibility derived from zones.

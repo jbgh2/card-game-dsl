@@ -134,14 +134,14 @@ def _prog(*, extra: str = "", extra_state: str = "", outcome: str = "",
 POSITIONS: dict[str, tuple[str, object]] = {
     "P1 state_decl": ("state_decl", lambda d: _prog(extra_state=f"  s : {d} = 1")),
     "P2 struct_field": ("struct_field", lambda d: _prog(extra=f"type S2 = {{ x : {d} }}")),
-    "P3 move_param": ("move_param", lambda d: _prog(
+    "P3 move_param": ("move_type_def", lambda d: _prog(
         extra=f"move_type mv(x : {d}) {{ effect {{ score[actor] := 1 }} }}")),
     "P4 proc_param": ("procedure_def", lambda d: _prog(
         extra=f"procedure pr(x : {d}) {{ tick := 1 }}")),
     "P5 rule_param": ("rule_params", lambda d: _prog(
         rules=" active_rules: [Rl(hearts)]",
         extra=f"rule Rl(x : {d}) {{ demands: true }}")),
-    "P6 func_param": ("func_param", lambda d: _prog(extra=f"function f(x : {d}) = 1")),
+    "P6 func_param": ("function_def", lambda d: _prog(extra=f"function f(x : {d}) = 1")),
     "P7 define_payload": ("outcome_case", lambda d: _prog(
         extra=f"define dd -> {{ won({d}) | lost }} {{ produce lost }}")),
     "P8 outcome_payload": ("phase_outcome", lambda d: _prog(
@@ -304,7 +304,7 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
             POSITION_DOMAIN, structs, positions
         ),
         "_param_type": lambda: typecheck._param_type(
-            n.MoveParam(name="x", type_name=POSITION_DOMAIN, span=None), env
+            n.Parameter(name="x", type_name=POSITION_DOMAIN, span=None), env
         ),
     }
     for label, resolve_it in resolvers.items():
@@ -315,7 +315,7 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
         )
     # ...and the optional spelling keeps its optionality rather than flattening.
     optional = typecheck._param_type(
-        n.MoveParam(name="x", type_name=f"{POSITION_DOMAIN}?", span=None), env
+        n.Parameter(name="x", type_name=f"{POSITION_DOMAIN}?", span=None), env
     )
     assert optional == TOptional(TInteger()), (
         f"an optional position domain flattened to {optional!r}, so a body "
@@ -346,11 +346,14 @@ def test_the_position_axis_is_the_grammar_s() -> None:
             and m.group(1) not in ("type_name", "payload_type")
         ):
             carriers.add(m.group(1))
-    # `move_param` is one production reached from three hosts (move type,
-    # procedure, rule), and each host gates it differently — so the axis counts
-    # HOSTS, not productions, and the scrape's `move_param` expands to three.
+    # `parameter` is ONE production reached from four hosts (move type,
+    # procedure, rule, function), and each host gates it differently — so the
+    # axis counts HOSTS, not productions, and the scrape's single `parameter`
+    # carrier expands to the four grid rows that name those hosts.
     gridded = {production for production, _ in POSITIONS.values()}
-    expanded = (gridded - {"move_type_def", "procedure_def", "rule_params"}) | {"move_param"}
+    expanded = (
+        gridded - {"move_type_def", "procedure_def", "rule_params", "function_def"}
+    ) | {"parameter"}
     # `require_decl` (a library's `requires { x : type_name }`) is the one
     # type-name carrier outside this grid's domain, and structurally so: every
     # POSITIONS cell emits a STANDALONE game string, but a `require_decl` can

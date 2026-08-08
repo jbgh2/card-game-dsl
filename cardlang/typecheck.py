@@ -1093,7 +1093,7 @@ def _stmt_tree_scoped(
             # themselves.
             pass
         case (
-            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
             | n.AssignStmt() | n.Offer() | n.Round() | n.Produce()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
         ):
@@ -1157,7 +1157,7 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
-def _move_param_binders(
+def _parameter_binders(
     move_type: n.MoveTypeDef,
     positions: Mapping[str, Type],
     directions: Mapping[str, Type],
@@ -1187,7 +1187,7 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     directions = _direction_types(game)
     for move_type in game.move_types:
         yield from _seq_tree_scoped(
-            move_type.effect, _move_param_binders(move_type, positions, directions)
+            move_type.effect, _parameter_binders(move_type, positions, directions)
         )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
@@ -1282,7 +1282,7 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     fn_names = set(func_defs)
     sigs: dict[str, Sig] = {}
 
-    def param_type(p: n.MoveParam) -> Type:
+    def param_type(p: n.Parameter) -> Type:
         # The one parameter-typing rule, shared with every other parameter
         # position. Kept as a call rather than a second copy: a local copy
         # that missed `env.positions` would type a position-domain parameter
@@ -1309,7 +1309,7 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     return sigs
 
 
-def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
+def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
     # Position domains resolve inside `type_from_name`, which maps `column` to
@@ -2287,7 +2287,7 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             return [s.value] + ([s.index] if s.index is not None else [])
         case n.LetStmt():
             return [s.value]
-        case n.Movement():
+        case n.Transfer():
             out: list[n.Expr] = []
             if not isinstance(s.amount, str):
                 out.append(s.amount)
@@ -2336,7 +2336,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Check every expression `_stmt_exprs` holds directly, binding an
     implicit name where the construct's own runtime semantics require one.
 
-    `Movement.filter` and `EpistemicOp.filter` are evaluated with `card`
+    `Transfer.filter` and `EpistemicOp.filter` are evaluated with `card`
     bound per candidate (runtime/execute.py's shared `_card_pred`:
     `ctx.with_local("card", c)`, used by both the movement selection and
     `reveal`) — the *only* two `_stmt_exprs` members whose
@@ -2349,17 +2349,17 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     them — would be dark there. The filter must also itself be Boolean; the
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
-    if isinstance(s, (n.Movement, n.EpistemicOp)) and s.filter is not None:
+    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.filter is not None:
         # A joint filter (`where jointly`) binds `cards` — the candidate SET,
         # a card collection — where a per-card filter binds each `card`
         # (runtime `_select_joint` vs `_card_pred`; decisions.md
         # "Joint-predicate selection").
-        if isinstance(s, n.Movement) and s.joint:
+        if isinstance(s, n.Transfer) and s.joint:
             scoped = env.with_local(content_noun(env.flavor, plural=True), TCollection(TCard()))
         else:
             scoped = env.with_local(content_noun(env.flavor, plural=False), TCard())
         _check_expr(s.filter, scoped, bag)
-        verb = s.verb if isinstance(s, n.Movement) else s.op
+        verb = s.verb if isinstance(s, n.Transfer) else s.op
         _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
         for expr in _stmt_exprs(s):
             if expr is not s.filter:
@@ -2524,10 +2524,10 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             )
             if stmt.termination is not None:
                 _check_bool(stmt.termination, env, bag, "round `until` condition")
-        case n.Movement():
-            _check_movement(stmt, env, bag)
+        case n.Transfer():
+            _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
-            # The type half of the zone-target rule, like `_check_movement`'s
+            # The type half of the zone-target rule, like `_check_transfer`'s
             # endpoints: a `local` root passes resolve's classification, and
             # the binder's inferred type decides here.
             t = infer(stmt.target, env)
@@ -2631,7 +2631,7 @@ def _zone_hint(t: Type, filterable: bool) -> str:
     return ""
 
 
-def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
+def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Combination validity for the movement production (decisions.md, "Surface
     totality"): every combination the grammar accepts is either implemented by
     the executor or rejected here with a clear message — a clause the runtime
@@ -2907,7 +2907,7 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             for s in stmt.body:
                 yield from _control_flow_nodes(s)
         case (
-            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
             | n.AssignStmt() | n.Offer() | n.Round() | n.Produce() | n.RunStmt()
         ):
             pass  # no jumps, no child statements to hold any
@@ -3391,7 +3391,7 @@ def typecheck(game: Game) -> Game:
             _check_expr(
                 move_type.when,
                 _scoped_env(
-                    env, _move_param_binders(move_type, env.positions, env.directions)
+                    env, _parameter_binders(move_type, env.positions, env.directions)
                 ),
                 bag,
             )

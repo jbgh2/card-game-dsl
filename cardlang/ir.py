@@ -280,9 +280,9 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
 
 def _stmt(s: n.Stmt) -> IRDict:
     match s:
-        case n.Movement():
+        case n.Transfer():
             movement: IRDict = {
-                "kind": "movement",
+                "kind": "transfer",
                 "verb": s.verb,
                 "selection_mode": s.selection_mode,
                 "amount": _amount(s.amount),
@@ -308,7 +308,7 @@ def _stmt(s: n.Stmt) -> IRDict:
             op: IRDict = {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
             # Emitted ONLY when present, so `shuffle` (which never sets it)
             # stays byte-identical in its golden — same convention as
-            # Movement.filter above.
+            # Transfer.filter above.
             if s.filter is not None:
                 op["filter"] = _expr(s.filter)
             return op
@@ -445,7 +445,7 @@ def _amount(a: str | n.Expr) -> IRValue:
 
 def _named_arg(a: n.NamedArg) -> IRDict:
     value = a.value
-    inner = _stmt(value) if isinstance(value, n.Movement) else _expr(value)
+    inner = _stmt(value) if isinstance(value, n.Transfer) else _expr(value)
     return {"kind": "named_arg", "name": a.name, "value": inner}
 
 

@@ -2,7 +2,7 @@
 kinds bind names, and which names" — the fix for a confirmed drift class: were
 this match hand-written in three copies (`_categories`, `_template_binders`,
 `_check_functions`), those copies would drift — as they did, two of them
-missing the `Movement`/`EpistemicOp`-with-filter arm the third had. This table
+missing the `Transfer`/`EpistemicOp`-with-filter arm the third had. This table
 is the pin
 that stops that class of drift: one row per binder-introducing node kind
 (constructed directly, not parsed — a table test on the registry itself, not
@@ -28,7 +28,7 @@ domain:     every AST node kind that binds a name — which is NOT the same as
 registry:   `cardlang.ast.nodes.Node` — the closed union of ALL node kinds (it
             holds `ProduceArm`, which `Expr`/`Stmt` do not)
 covered:    every binder-kind row below (Quantifier, Comprehension, CardQuery,
-            PlayerQuery, ForEach, EachSimultaneous, Movement [with/without
+            PlayerQuery, ForEach, EachSimultaneous, Transfer [with/without
             filter], EpistemicOp [with/without filter], LetStmt [with/without
             index], ProduceArm [with/without payload binders]) plus a sample of
             non-binder kinds (NameRef, IfStmt, RepeatUntil, RotateStmt,
@@ -94,7 +94,7 @@ def test_card_query_binds_card_even_with_no_pred() -> None:
 
 
 def test_movement_with_filter_binds_card() -> None:
-    node = n.Movement(
+    node = n.Transfer(
         verb="deal",
         selection_mode=None,
         amount="all",
@@ -112,7 +112,7 @@ def test_movement_without_filter_binds_nothing() -> None:
     # introduces no binder — this is the exact drift hand-written copies
     # (`_categories`, `_template_binders`/`_check_functions`) would disagree
     # about.
-    node = n.Movement(
+    node = n.Transfer(
         verb="deal",
         selection_mode=None,
         amount="all",

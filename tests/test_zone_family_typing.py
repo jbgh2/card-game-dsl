@@ -202,7 +202,7 @@ def test_zone_family_index_wall_fires_in_a_movement_source() -> None:
     # A different predicate/expression context than the `let` probes above —
     # movements carry their own zone-family subscripts (gops.md's own
     # `move ... from hand[player] to bid[player]`), and `_check_expr` walks
-    # `Movement.source`/`.dest` too.
+    # `Transfer.source`/`.dest` too.
     _rejects(
         _game("move all cards from hand[hearts] to pile"),
         "`hand` is keyed by Player — got Suit",

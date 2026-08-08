@@ -28,7 +28,7 @@ covered:    - Quantifier: binder in `body` only (out-of-scope-after test)
             - CardQuery: `card` in `pred` only, NOT `source` (reject test);
               nested queries shadow legally (accept test)
             - PlayerQuery: `player` in `pred` only (stray-`player` reject)
-            - Movement / EpistemicOp: `card` in `filter` only (accept tests)
+            - Transfer / EpistemicOp: `card` in `filter` only (accept tests)
             - ForEach / EachSimultaneous: binder/role in `body` (accept)
             - LetStmt name: visible to LATER statements of the same tuple
               and to later nested sub-phases (accept), NOT before its let,

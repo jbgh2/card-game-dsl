@@ -212,7 +212,7 @@ a demand. Multiple active rules compose by intersection over the
 candidate moves. (See [model.md](model.md), "What rules really are".)
 
 **Move types are first-class.** A move type names a pattern of
-movement between zones; the same move type (e.g., `play_to_trick`)
+transfer between zones; the same move type (e.g., `play_to_trick`)
 is reused across games. Moves carry cards or resources. (See
 [library.md](library.md), "Move types".)
 

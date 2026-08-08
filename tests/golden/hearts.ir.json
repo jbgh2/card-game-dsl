@@ -161,7 +161,7 @@
           "kind": "before_each",
           "body": [
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
               "selection_mode": null,
               "amount": "all",
@@ -186,7 +186,7 @@
               }
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "deal",
               "selection_mode": null,
               "amount": {
@@ -253,7 +253,7 @@
               "kind": "each_simultaneous",
               "role": "player",
               "body": {
-                "kind": "movement",
+                "kind": "transfer",
                 "verb": "transfer",
                 "selection_mode": "chosen",
                 "amount": {
@@ -375,7 +375,7 @@
               "follows_fn": null
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
               "selection_mode": null,
               "amount": "all",
@@ -547,7 +547,7 @@
                   "follows_fn": null
                 },
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
                   "selection_mode": null,
                   "amount": "all",

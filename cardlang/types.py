@@ -142,7 +142,7 @@ class TCollection:
     # True for a value that IS a zone at runtime (`ZONE_CONTENT`'s types, a
     # zone-family subscript) — as opposed to a COMPUTED card collection (a
     # query result, a list literal), which types identically by element but
-    # evaluates to a plain list. Movement/epistemic zone positions require it;
+    # evaluates to a plain list. Transfer/epistemic zone positions require it;
     # like `key`, it never participates in assignability or unification.
     zone: bool = False
 

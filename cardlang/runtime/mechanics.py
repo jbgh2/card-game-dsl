@@ -226,7 +226,7 @@ class TrickForm:
         return winner
 
 
-def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
+def param_domain(p: n.Parameter, actor: Player, ctx: Ctx) -> list[Any]:
     """One parameter's value-domain for the acting player. `Card` is the actor's
     live hand, in hand order — the state-dependent outlier, handled here ahead of
     the domain table (cardlang/domains.py) rather than as a row in it. Every
@@ -273,7 +273,7 @@ def _pack(combo: tuple[Any, ...]) -> Any:
     return combo[0] if len(combo) == 1 else combo
 
 
-def bind_params(ctx: Ctx, params: tuple[n.MoveParam, ...], value: Any) -> Ctx:
+def bind_params(ctx: Ctx, params: tuple[n.Parameter, ...], value: Any) -> Ctx:
     """Bind a candidate's value(s) as locals for the guard/effect that reads
     them. Arity comes from `params`, never guessed from `value`: a `Suit?`
     domain's `None` (no-trump) is a legitimate arity-1 VALUE, distinct from a

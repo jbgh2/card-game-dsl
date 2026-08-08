@@ -17,7 +17,7 @@ property: every `str`-typed field of every AST node carries exactly one
           does not exist.
 domain:   every (dataclass, field) pair in `cardlang.ast.nodes` that can HOLD a
           string — bare `str`, `str | None`, `tuple[str, ...]`, a union with
-          `str` among its members (`Movement.amount`), and a `Literal` of
+          `str` among its members (`Transfer.amount`), and a `Literal` of
           strings (`Game.content_flavor`, annotated `Flavor`). The predicate is
           "can hold", not "mentions `str`": the second spelling shipped first
           and silently excluded the `Literal` member while this ledger claimed
@@ -94,7 +94,7 @@ check's job is to catch a NARROWED domain, and this domain is derived, so what
 it could still have narrowed is which bucket a slot went into. Same exposure,
 same closer — do not read the two as separate debts. Its
 diff is what moved `NameRef.name`/`ref_kind` out of `reference` into kinds of
-their own and what added `Movement.item` as a game-fed slot. A later plant
+their own and what added `Transfer.item` as a game-fed slot. A later plant
 against this module's OWN totality claim — the adversarial form, negating the
 claim rather than re-reading the table — is what found the `Literal` member;
 that is evidence for the plant, not for the framing check, which had passed
@@ -448,7 +448,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
     many = n.Offer(player=n.NameRef("p"), offering=("bid", "pass"))
     assert slot_strings(many, "offering") == ("bid", "pass")
 
-    union = n.Movement(
+    union = n.Transfer(
         verb="deal",
         selection_mode=None,
         amount="all",

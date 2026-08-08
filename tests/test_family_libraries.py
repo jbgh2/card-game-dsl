@@ -244,7 +244,7 @@ residual: one on provided state, deliberate and named here so its absence from
              claim this cell — `_check_requires`'s docstring says what is
              checked and what is not, so the claim and the check agree.
 
-          And ONE inside the slot grid, recorded in issue #170: `Movement.item`
+          And ONE inside the slot grid, recorded in issue #170: `Transfer.item`
           is a game-fed slot (the item noun comes from the content flavor, which
           the component set fixes) and is NOT swept. The residual stands; its
           REASON has been replaced, because zone contracts falsified the old one.
@@ -1840,7 +1840,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "column",
         "player",
     ),
-    "MoveParam.type_name": ("function f(x : {read}) = 1", "GameType", "Integer"),
+    "Parameter.type_name": ("function f(x : {read}) = 1", "GameType", "Integer"),
     "StructField.type_name": ("type T = {{ x : {read} }}", "GameType", "Integer"),
     "StructLit.type_name": (
         "type LibType = {{ x : Integer }} function f() = {read} {{ x: 1 }}",
