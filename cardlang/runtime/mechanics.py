@@ -641,6 +641,11 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
     siblings stop."""
     for _mode, exits in phases.active_mode_exits(phase, ctx.rs):
         for t in exits:
+            # Shadow Guard. The Owner Guard is `resolve._resolve_transition`,
+            # which rejects any event move type but `play_to_trick`, so no
+            # other kind reaches here. Kept because this loop fires effects:
+            # were the wall ever relaxed, silently treating an unknown event
+            # as a trick play is the worse failure.
             if t.event.move_type != "play_to_trick":
                 continue
             pred = t.event.where

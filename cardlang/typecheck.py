@@ -2840,9 +2840,28 @@ def _item_can_skip(item: n.PhaseItem) -> bool:
     return any(isinstance(node, n.SkipToNextHand) for node in _control_flow_nodes(item))
 
 
-def _mode_names(phase: n.Phase) -> set[str]:
-    """The modes declared directly in one phase body, for kind-aware diagnostics."""
-    return {i.name for i in phase.items if isinstance(i, n.Mode)}
+def _mode_names(game: Game) -> set[str]:
+    """Every mode declared anywhere in the game, for kind-aware diagnostics.
+
+    Game-wide, not per phase, because that is the scope mode names are unique
+    over (`resolve._check_duplicate_names`). Scoping the lookup to the phase
+    holding the jump answered only when the mode happened to live there, and
+    the two cases it missed — a mode of a different phase, and one of a nested
+    phase — are exactly the confusion the diagnostic exists to clear up: a
+    designer told the name is "not a sibling phase" while looking straight at
+    its declaration."""
+    out: set[str] = set()
+
+    def walk(items: tuple[n.PhaseItem, ...]) -> None:
+        for item in items:
+            if isinstance(item, n.Mode):
+                out.add(item.name)
+            elif isinstance(item, n.Phase):
+                walk(item.items)
+
+    for phase in game.phases:
+        walk(phase.items)
+    return out
 
 
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
@@ -2957,6 +2976,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
 
     `before`/`after` carry the sibling phase names that execute before/after the
     current point, accumulated down the ancestor chain."""
+    mode_names = _mode_names(game)
     define_names = {d.name for d in game.defines}
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
 
@@ -3100,7 +3120,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                             # skips. Say which kind the name is, or the
                             # designer reads "not a sibling" as "no such name"
                             # while looking straight at the declaration.
-                            if node.target in _mode_names(phase):
+                            if node.target in mode_names:
                                 bag.error(
                                     f"continue to '{node.target}' names a mode, not a "
                                     f"phase — a mode is entered by a sibling mode's "

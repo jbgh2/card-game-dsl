@@ -3421,6 +3421,28 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     """
     modes = [i for i in phase.items if isinstance(i, n.Mode)]
     targeted = {t.target for m in modes for t in m.transitions}
+
+    # A target belongs to ONE condition. Two sources naming the same target
+    # read as "two conditions that happen to end together", but the runtime
+    # keys a source's activity on its TARGET having fired, not on the source's
+    # own identity — so either trigger ends both, and a condition can end
+    # without its own event ever occurring. Rejected rather than given that
+    # meaning: nobody writing two separate conditions wants one to cancel the
+    # other. Lifting this means keying activity on the mode rather than the
+    # target name (issue #283).
+    claimed_by: dict[str, str] = {}
+    for mode in modes:
+        for transition in mode.transitions:
+            owner = claimed_by.setdefault(transition.target, mode.name)
+            if owner != mode.name:
+                bag.error(
+                    f"modes '{owner}' and '{mode.name}' both transition to "
+                    f"'{transition.target}' — a target is the far side of one "
+                    f"condition, and sharing it makes either trigger end both. "
+                    f"Give each condition its own target mode",
+                    transition.span,
+                )
+
     for mode in modes:
         is_source = bool(mode.transitions)
         is_target = mode.name in targeted
@@ -3614,8 +3636,10 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("phase", phases)
     # Modes are collected GAME-WIDE, not per phase, for the same reason phases
     # are: the runtime keys reached transitions by bare mode name in one
-    # `RuntimeState.fired_transitions` set, which is cleared per hand rather
-    # than per phase. Two phases each declaring a `done` would share that key —
+    # `RuntimeState.fired_transitions` set, and that set is cleared per
+    # ITERATION of a `repeat until`-qualified phase — never on entering a
+    # phase. A name reached under one phase is therefore still present when a
+    # later one runs. Two phases each declaring a `done` would share that key —
     # one phase's transition would put the other phase straight into its
     # "after" mode, whose rules then apply from the start and whose "before"
     # mode never holds at all. Uniqueness here is what lets the runtime keep

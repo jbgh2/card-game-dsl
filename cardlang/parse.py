@@ -1591,19 +1591,24 @@ def _as_stmt(value: object) -> n.Stmt:
 # A clause that is legal SOMEWHERE but not where it was written can only be
 # reported by the parser as "no terminal matches", which names neither the
 # mistake nor the fix. Keyed by the first word of the offending line, since
-# that is what the designer has their cursor on. A hint never changes whether
-# the parse failed; it only says what to write instead. Every entry must be a
-# clause whose ONLY illegal position is the one the hint describes — otherwise
-# the hint would confidently misdiagnose a different mistake on the same word.
+# that is what the designer has their cursor on.
+#
+# The hint states WHERE THE CLAUSE BELONGS. It deliberately does not say where
+# the author currently is, because it cannot know: the parser reports a line,
+# not an enclosing construct, so the same entry fires for a misplaced clause
+# and for a clause in the right place with a bad argument list. An earlier
+# wording asserted the container ("belongs to a `mode`, not a `phase`") and so
+# told a designer already inside a phase to move the clause into a phase. Every
+# entry must therefore read as true wherever it fires — a reminder of the
+# clause's home, never a diagnosis of the author's position.
 _PARSE_HINTS = {
     "transition_to": (
-        " — `transition_to:` belongs to a `mode`, not a `phase`. A condition "
-        "that swaps rules is `mode NAME { }`, and a sibling mode is what it "
-        "names as its target"
+        " — `transition_to:` is a mode clause: it declares an exit from a "
+        "`mode NAME { }`, and its target is a sibling mode"
     ),
     "legal_moves": (
-        " — `legal_moves:` belongs to a `phase`, not a `mode`. A mode toggles "
-        "rules, never the move menu; set `legal_moves:` on the enclosing phase"
+        " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
+        "move menu, so a mode body takes `active_rules:`/`transition_to:` only"
     ),
 }
 

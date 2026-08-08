@@ -49,18 +49,36 @@ covered:    - (a) test_item_in_container, 9 x 2 = 18 cells
             - (e) test_the_role_wall_reaches_every_nesting_depth, depths 1-3
               (the corpus declares its modes at depth 3, this grid's other
               cells at depth 1)
-            - (f) the RUNTIME behaviour of shapes (a)-(e) merely accept:
-              test_a_fan_out_reaches_exactly_one_of_its_targets, and the two
-              mode-name uniqueness pins. Acceptance is all a check_dsl grid
-              can see; three defects lived in the gap between "parses" and
-              "then does the right thing" (review findings on PR #268).
-sampled:    `?phase_item`'s `statement` alternative is one grid cell, not 20:
+            (f) is NOT covered — see `sampled` and `residual`.
+sampled:    (f), the RUNTIME behaviour of the shapes (a)-(e) accept, is
+            covered by EXAMPLE only, and the examples were retrofitted: each
+            was written after a review round pointed at it, so the set is a
+            record of what reviewers happened to find, not a derivation. Only
+            `fan_out` has a runtime test at all; `single_pair` and
+            `independent_pairs` have none, (e)x(f) is uncrossed, and the two
+            mode-name pins are `check_dsl` rejections rather than runtime.
+            Derived coverage of this axis is issue #271 — enumerate the mode
+            graphs the grammar admits and assert the invariant, rather than
+            choosing shapes by hand.
+
+            `?phase_item`'s `statement` alternative is one grid cell, not 20:
             `?mode_item` names no `statement` alternative at all, so every
             statement form is rejected by the same absence of a production.
             Three representatives (assignment, movement, control flow) stand
             for the 20 that `statement_alternatives()` enumerates; a per-form
             crossing would test Lark's alternation, not this surface.
-residual:   - a genuine 3+ stage progression has no mode encoding and routes
+residual:   - three RUNTIME behaviours reachable through this surface are
+              pre-existing engine semantics this change neither introduced nor
+              worsened, each verified identical on the merge base: a mode is
+              inert when the phase's decision site sits in a nested phase
+              (`compute_active_rules` reads `ctx.current_phase` with no
+              ancestor walk); `fired_transitions` clears per ITERATION of a
+              `repeat until`-qualified phase, so an unrelated nested loop
+              phase wipes a live ancestor's mode state; and a mode's delta
+              applies for the remainder of the trick in which its condition
+              ends (`trick_ctx` is computed once per trick). R2/R2/R3,
+              issue #282 — walled by nothing, which is why they are here.
+            - a genuine 3+ stage progression has no mode encoding and routes
               to a state variable with `applies_when`. Walled by the role 2x2's
               `both` cell with a diagnostic naming that route. R3 — a designer
               with three rule sets meets it. Growth slot, issue #266.
@@ -298,7 +316,9 @@ _SET_SOURCE = {
         "mode c { transition_to: d when play_to_trick }",
         "mode d { }",
     ],
-    # Two conditions ending together.
+    # Two sources naming one target. Reads as "two conditions ending
+    # together"; the runtime makes it one condition with two triggers and two
+    # different deltas, so it is walled.
     "shared_terminal": [
         "mode a { transition_to: z when play_to_trick }",
         "mode c { transition_to: z when play_to_trick }",
@@ -319,7 +339,7 @@ _SET_SOURCE = {
     "orphan": ["mode a { active_rules: [MustFollow] }"],
 }
 
-_SET_ACCEPTS = frozenset({"single_pair", "independent_pairs", "shared_terminal", "fan_out"})
+_SET_ACCEPTS = frozenset({"single_pair", "independent_pairs", "fan_out"})
 
 
 @pytest.mark.parametrize("shape", sorted(mode_set_shapes()))
@@ -369,7 +389,7 @@ def test_retired_spelling_names_the_replacement() -> None:
     )
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
-    assert "`transition_to:` belongs to a `mode`" in str(ei.value)
+    assert "`transition_to:` is a mode clause" in str(ei.value)
 
 
 def test_legal_moves_in_a_mode_names_the_replacement() -> None:
@@ -383,7 +403,7 @@ def test_legal_moves_in_a_mode_names_the_replacement() -> None:
     )
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
-    assert "`legal_moves:` belongs to a `phase`" in str(ei.value)
+    assert "`legal_moves:` is a phase clause" in str(ei.value)
 
 
 def test_legal_moves_delta_operator_is_a_grammar_error() -> None:
@@ -460,19 +480,17 @@ def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
                 seen.append(fired)
         return out
 
+    # Patching the `phases` module attribute is the whole patch: both callers
+    # reach it as `phases.compute_active_rules`, neither holds its own
+    # reference. (An earlier version also looped over `driver`/`mechanics`
+    # guarded by `hasattr` — dead code that read as defensive breadth.)
     ph.compute_active_rules = spy
-    for module in (driver, mechanics):
-        if hasattr(module, "compute_active_rules"):
-            module.compute_active_rules = spy  # type: ignore[attr-defined]
     try:
         game = check_dsl(src, "mini.cardlang")
         for seed in seeds:
             driver.play_game(game, random.Random(seed))
     finally:
         ph.compute_active_rules = real
-        for module in (driver, mechanics):
-            if hasattr(module, "compute_active_rules"):
-                module.compute_active_rules = real  # type: ignore[attr-defined]
     return seen
 
 
@@ -569,3 +587,25 @@ def test_two_sibling_modes_may_not_share_a_name() -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     assert "mode 'done'" in str(ei.value), str(ei.value)
+
+
+def test_a_parse_hint_never_diagnoses_the_author_s_position() -> None:
+    """A hint says where the clause BELONGS, never where the author is.
+
+    The parser reports a line, not an enclosing construct, so one entry fires
+    both for a misplaced clause and for a correctly placed one with a bad
+    argument list. An earlier wording asserted the container — and told a
+    designer whose only mistake was a trailing comma, inside a perfectly good
+    phase, to move `legal_moves:` into a phase.
+
+    red under: reword either `_PARSE_HINTS` entry to name a container
+    ("belongs to a `phase`, not a `mode`").
+    """
+    with pytest.raises(DiagnosticError) as ei:
+        # A trailing comma. The clause is exactly where it belongs.
+        check_dsl(_game("    legal_moves: [play_to_trick,]"), "mini.cardlang")
+    message = str(ei.value)
+    assert "`legal_moves:` is a phase clause" in message, message
+    assert "not a `mode`" not in message, (
+        f"the hint diagnosed a container it cannot observe: {message}"
+    )
