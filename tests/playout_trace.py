@@ -29,7 +29,7 @@ from cardlang.runtime.values import Player
 _SUIT_SYMBOLS = frozenset("♣♦♥♠★☆")
 
 # Tichu's card-point table, kept literal rather than imported from
-# cardlang.runtime.combinations so the harness recomputation stays an
+# cardlang.runtime.tichu_combinations so the harness recomputation stays an
 # independent oracle for the routing it audits.
 _TICHU_POINTS = {"K": 10, "10": 10, "5": 5, "Dragon": 25, "Phoenix": -25}
 

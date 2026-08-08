@@ -1,7 +1,7 @@
 """A Player or Team literal must name a seat/team the game has.
 
-An integer literal coerces to `Player` AND to `Team` (`assignable(Integer,
-Player)`, `assignable(Integer, Team)` -- both are 0-based int identities), so at
+An integer literal coerces to `Player` AND to `Team` (`coercible(Integer,
+Player)`, `coercible(Integer, Team)` -- both are 0-based int identities), so at
 every position that expects one, an out-of-range literal names a member that does
 not exist and the reader (a zone family with no such instance, a board frame's
 per-seat sign, a per-team score) crashes at runtime on a typechecked game. The
@@ -11,7 +11,7 @@ function, `typecheck._check_operand`, which runs the two-sided range check
 `Team`->`max_teams`). No position is walled by being individually enumerated --
 the per-site pattern that shipped on PR #92 rotted the day a new position was
 added. `tests/test_operand_choke_point.py` is the pin: it fails the day a new
-coercion site calls `assignable(...)` directly instead of routing through
+coercion site calls `coercible(...)` directly instead of routing through
 `_check_operand`.
 
 The position axis is the framing-check reconciliation -- a fresh reading of the
@@ -44,7 +44,7 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
 registry:   the range check is `_check_role_literal`, called from the ONE choke
             point `_check_operand`. The pin `tests/test_operand_choke_point.py`
-            derives the coercion set from the `assignable(...)` CALL nodes in
+            derives the coercion set from the `coercible(...)` CALL nodes in
             cardlang/typecheck.py (via `ast`, so docstrings do not count) and
             asserts each is inside `_check_operand` or `# choke-point-exempt`.
             Bounds: `TypeEnv.max_players` (from `game.players`) and

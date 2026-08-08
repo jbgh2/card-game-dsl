@@ -63,7 +63,7 @@ registry:   cardlang/board_domains.py (`directions_of`, `DIRECTION_DOMAIN`);
 covered:    GRID 1 -- each cell a run probe below --
               move parameter `pick(along : dir)`     -> accept (TDir, 3 vocab)
               let binder `let d = along`             -> accept (TDir)
-              equality dir-vs-dir `along is along2`  -> accept (unify)
+              equality dir-vs-dir `along is along2`  -> accept (join)
               equality dir-vs-cell `at is along`     -> reject (typecheck)
               equality dir-vs-int  `along is 3`      -> reject (typecheck)
               ordering `along < along2`              -> reject (typecheck)
@@ -391,7 +391,7 @@ def test_subscripting_a_dir_is_rejected() -> None:
 
 def test_dir_as_a_zone_index_is_rejected() -> None:
     # `square[along]` -- the cell-keyed family rejects a direction key (the
-    # subscript-key check: `assignable(TDir, TCell)` is False), so `dir` cannot
+    # subscript-key check: `coercible(TDir, TCell)` is False), so `dir` cannot
     # index a zone even though nothing declares that exclusion for `dir`.
     assert "keyed by Cell" in _reject(_pick_guard("square[along] is empty"))
 
@@ -405,7 +405,7 @@ def test_dir_as_an_assign_store_key_is_rejected() -> None:
 
 
 def test_dir_membership_is_rejected() -> None:
-    # `along in reserve[actor]` -- the collection holds cards, and `unify(TDir,
+    # `along in reserve[actor]` -- the collection holds cards, and `join(TDir,
     # TCard)` is None, so the membership can never be true.
     assert "never true" in _reject(_pick_guard("along in reserve[actor]"))
 

@@ -26,7 +26,7 @@ registry:   the Expr and Stmt unions (cardlang/ast/nodes.py). The statement
             knowing `AsBlock` exists.
 covered:    - omitted player-expr / malformed → parse error [grammar]
             - unresolved name in player position → resolve reject
-            - non-Player player-expr → typecheck reject (assignable(_, Player),
+            - non-Player player-expr → typecheck reject (coercible(_, Player),
               keeping the Integer-stands-for-player leniency of
               `dealer : Player = 0`) [typecheck]
             - a player-expr that is a valid TYPE but binds a non-seat VALUE at

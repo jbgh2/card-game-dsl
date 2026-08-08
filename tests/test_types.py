@@ -13,22 +13,22 @@ from cardlang.types import (
     TOptional,
     TPlayer,
     Type,
-    assignable,
+    coercible,
     subscriptable,
-    unify,
+    join,
 )
 
 
 def test_assignable() -> None:
-    assert assignable(TInteger(), TInteger())
-    assert assignable(TInteger(), TPlayer())  # players are 0-based int identities
-    assert assignable(TInteger(), TOptional(TPlayer()))  # bare fits its optional
-    assert assignable(TOptional(TPlayer()), TPlayer())  # optional reads as its base
-    assert assignable(TAny(), TEnum("Suit"))  # Any is compatible either way
-    assert not assignable(TEnum("Suit"), TInteger())
-    assert not assignable(TBoolean(), TInteger())
-    assert assignable(TNull(), TOptional(TPlayer()))  # `none` fits an optional
-    assert not assignable(TNull(), TPlayer())  # …but not a plain Player
+    assert coercible(TInteger(), TInteger())
+    assert coercible(TInteger(), TPlayer())  # players are 0-based int identities
+    assert coercible(TInteger(), TOptional(TPlayer()))  # bare fits its optional
+    assert coercible(TOptional(TPlayer()), TPlayer())  # optional reads as its base
+    assert coercible(TAny(), TEnum("Suit"))  # Any is compatible either way
+    assert not coercible(TEnum("Suit"), TInteger())
+    assert not coercible(TBoolean(), TInteger())
+    assert coercible(TNull(), TOptional(TPlayer()))  # `none` fits an optional
+    assert not coercible(TNull(), TPlayer())  # …but not a plain Player
 
 
 def test_type_equality_is_structural() -> None:
@@ -42,23 +42,23 @@ def test_type_equality_is_structural() -> None:
 
 
 def test_unify_equal_returns_that_type() -> None:
-    assert unify(TInteger(), TInteger()) == TInteger()
-    assert unify(TEnum("Suit"), TEnum("Suit")) == TEnum("Suit")
+    assert join(TInteger(), TInteger()) == TInteger()
+    assert join(TEnum("Suit"), TEnum("Suit")) == TEnum("Suit")
 
 
 def test_unify_any_propagates() -> None:
-    assert unify(TAny(), TInteger()) == TAny()
-    assert unify(TInteger(), TAny()) == TAny()
+    assert join(TAny(), TInteger()) == TAny()
+    assert join(TInteger(), TAny()) == TAny()
 
 
 def test_unify_optional_absorbs_bare() -> None:
-    assert unify(TInteger(), TOptional(TInteger())) == TOptional(TInteger())
-    assert unify(TOptional(TInteger()), TInteger()) == TOptional(TInteger())
+    assert join(TInteger(), TOptional(TInteger())) == TOptional(TInteger())
+    assert join(TOptional(TInteger()), TInteger()) == TOptional(TInteger())
 
 
 def test_unify_mismatch_is_none() -> None:
-    assert unify(TInteger(), TBoolean()) is None
-    assert unify(TEnum("Suit"), TEnum("Rank")) is None
+    assert join(TInteger(), TBoolean()) is None
+    assert join(TEnum("Suit"), TEnum("Rank")) is None
 
 
 def test_subscriptable() -> None:

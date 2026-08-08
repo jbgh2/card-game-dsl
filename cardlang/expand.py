@@ -78,7 +78,7 @@ enumerated rather than trusted:
   arm at all makes the gate blind to every deal inside a body (undercount), and the
   old `if true { … }` encoding made it treat the body as skippable (overcount, and a
   program accepted inline but rejected as a `run`).
-- `runtime/phases.py`, `runtime/driver.py` — dispatch on PHASE ITEMS (`ActiveRules`,
+- `runtime/active_rules.py`, `runtime/driver.py` — dispatch on PHASE ITEMS (`ActiveRules`,
   `Phase`), never on statement kinds. A `Block` is a `Stmt` and cannot appear there.
 - `runtime/execute.py::_pass_selection` — asserts its body is a chosen movement. A
   `Block` cannot reach it: resolve now rejects any other body for `each <role>

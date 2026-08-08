@@ -146,8 +146,8 @@ from cardlang.types import (
     TInteger,
     TOptional,
     TStruct,
-    assignable,
-    unify,
+    coercible,
+    join,
 )
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
@@ -281,17 +281,17 @@ def test_the_nominal_struct_rule_reaches_through_every_wrapper(
     unrelated = TStruct(name="S", fields={"a": TInteger()}, derived=frozenset())
 
     if relation == "unify":
-        assert unify(wrap(stale), wrap(settled)) is not None, (
+        assert join(wrap(stale), wrap(settled)) is not None, (
             "two snapshots of one nominal type must unify; None sends an "
             "IfExpr over them to the permissive top"
         )
-        assert unify(wrap(stale), wrap(unrelated)) is None, (
+        assert join(wrap(stale), wrap(unrelated)) is None, (
             "different names are different types — the rule must not buy "
             "compatibility with permissiveness"
         )
     else:
-        assert assignable(wrap(stale), wrap(settled))
-        assert not assignable(wrap(stale), wrap(unrelated))
+        assert coercible(wrap(stale), wrap(settled))
+        assert not coercible(wrap(stale), wrap(unrelated))
 
 
 def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
@@ -1010,9 +1010,9 @@ def test_the_audited_top_still_flows_where_it_is_legitimate() -> None:
     )
     assert infer(n.NameRef("loose", ref_kind="local"), env) == TAny()
     # and a chip-stack-shaped collection still unifies with a card collection
-    from cardlang.types import unify
+    from cardlang.types import join
 
-    assert unify(TCollection(TAny()), TCollection(TCard())) is not None
+    assert join(TCollection(TAny()), TCollection(TCard())) is not None
 
 
 def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
@@ -1061,15 +1061,15 @@ def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
 
     # Refused by construction, with no arm naming it.
     assert subscriptable(unknown) is False
-    assert assignable(unknown, TInteger()) is False
-    assert assignable(TInteger(), unknown) is False
-    assert unify(unknown, TInteger()) is None
-    assert unify(TInteger(), unknown) is None
+    assert coercible(unknown, TInteger()) is False
+    assert coercible(TInteger(), unknown) is False
+    assert join(unknown, TInteger()) is None
+    assert join(TInteger(), unknown) is None
 
     # ...while the same-type cases equality already covers still answer, so
     # failing closed is conservative rather than wrong.
-    assert assignable(unknown, unknown) is True
-    assert unify(unknown, unknown) == unknown
+    assert coercible(unknown, unknown) is True
+    assert join(unknown, unknown) == unknown
 
     # And rendering degrades gracefully: a diagnostic naming an unfamiliar type
     # still reads, rather than crashing the checker mid-report.

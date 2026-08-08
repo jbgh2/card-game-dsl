@@ -212,7 +212,7 @@ the authored inventory of the name-keyed half only; the
 engine-structural half (the seating ring, `team_of`/`teams`,
 `rank_index`, the two round-state views, the acting player) had no
 declaration anywhere and is now the closed `EngineFacts` field set in
-`cardlang/runtime/sidecar.py`. Both bundles are MODULE-granular this
+`cardlang/runtime/narrowing.py`. Both bundles are MODULE-granular this
 stage; the design note's §2 end state is per-primitive, which is what
 stage 3's `reads` clause buys — and it buys two concrete things
 beyond precision: a primitive stops paying to materialize rows it

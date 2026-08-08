@@ -165,7 +165,7 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - **[verified]** `Ctx.active_rules` reads as context-wide; it is populated only by
   the trick form (`compute_active_rules`'s sole call site is mechanics.py:131) —
   everywhere else the pronoun sees the default `()`.
-- **[verified]** `runtime/combinations.py` is the *Tichu* combination engine
+- **[verified]** `runtime/tichu_combinations.py` is the *Tichu* combination engine
   (its only importer is tichu.py); Big Two and President carry duplicate private
   copies (bigtwo.py:68, president.py:61). Three structural `Play` classes satisfy an
   unwritten protocol consumed via `getattr(play, "ends_trick", False)`
@@ -173,8 +173,8 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - **[verified]** resolve's `_KNOWN_ROLES = ZONE_INDEX_ROLES` (resolve.py:120) makes
   the diagnostic at :2994 report `unknown index role 'suit'` for a role the system
   knows perfectly well — it is known but not zone-indexable.
-- `runtime/phases.py` runs no phases (active-rule computation only; the phase runner
-  is in driver.py). `runtime/sidecar.py` is the interim narrowing, not the sidecar
+- `runtime/active_rules.py` runs no phases (active-rule computation only; the phase runner
+  is in driver.py). `runtime/narrowing.py` is the interim narrowing, not the sidecar
   design it is named for (reads.py:22). `chooser.py` holds one function; the chooser
   machinery lives in driver.py:128-166.
 - `types.unify` is a join/LUB, not unification; `assignable` is a coercion check

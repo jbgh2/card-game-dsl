@@ -467,7 +467,7 @@ def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
     import random
 
     from cardlang.runtime import driver, mechanics
-    from cardlang.runtime import phases as ph
+    from cardlang.runtime import active_rules as ph
 
     seen: list[tuple[str, ...]] = []
     real = ph.compute_active_rules
@@ -518,7 +518,7 @@ def test_a_fan_out_reaches_exactly_one_of_its_targets(
     mutually alternative "after" modes held at once, rule deltas stacked.
 
     red under (disjoint): drop the `_mode_active` filter in
-    `runtime/phases.py::active_mode_exits`.
+    `runtime/active_rules.py::active_mode_exits`.
     red under (overlapping): drop the `break` in
     `runtime/mechanics.py::_fire_transitions` — the filter alone cannot see a
     mode that goes inactive between two exits of the SAME play.

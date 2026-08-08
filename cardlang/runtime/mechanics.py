@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, phases, reads, rules, sidecar
+from cardlang.runtime import observe, active_rules, reads, rules, narrowing
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
@@ -141,7 +141,7 @@ class TrickForm:
         # still hold is re-read per play, since a play inside THIS trick is
         # what deactivates one.
         self.trick_ctx = ctx.with_rules(
-            phases.compute_active_rules(ctx.current_phase, ctx.rs)
+            active_rules.compute_active_rules(ctx.current_phase, ctx.rs)
         )
         self.transition_phase = ctx.current_phase
 
@@ -558,7 +558,7 @@ class ClimbForm:
         # their hand argument is deep_frozen for the same reason `call()`
         # freezes collection args: it is `self.hands[actor].cards`, a live
         # zone list a query could otherwise mutate.
-        facts, gr = sidecar.bind(ctx.rs, ctx.current_player, self.climb_row)
+        facts, gr = narrowing.bind(ctx.rs, ctx.current_player, self.climb_row)
         hand = reads.deep_freeze(self.hands[actor].cards)
         if state["current"] is None:  # the leader must lead
             return self.lead_query(facts, gr, hand)
@@ -625,7 +625,7 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
     overlapping predicates — would otherwise both reach their targets inside
     this loop. Independent modes keep being evaluated; only the fired one's
     siblings stop."""
-    for _mode, exits in phases.active_mode_exits(phase, ctx.rs):
+    for _mode, exits in active_rules.active_mode_exits(phase, ctx.rs):
         for t in exits:
             # Shadow Guard. The Owner Guard is `resolve._resolve_transition`,
             # which rejects any event move type but `play_to_trick`, so no

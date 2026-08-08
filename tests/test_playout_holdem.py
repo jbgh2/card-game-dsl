@@ -41,7 +41,7 @@ from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.holdem import holdem_next_entrant
 from cardlang.runtime.reads import GameReads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Seating
 
 HOLDEM = Path(__file__).parent.parent / "docs" / "games" / "holdem.cardlang"

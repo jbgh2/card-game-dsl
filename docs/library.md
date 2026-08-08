@@ -885,7 +885,7 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
 
 Tichu's hand needs twelve game-local primitives plus the two climb queries,
 all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
-`cardlang/runtime/combinations.py`); the finishing-order readers consume the
+`cardlang/runtime/tichu_combinations.py`); the finishing-order readers consume the
 `out_first` / `out_second` phase state:
 
 - `tichu_lead_options` / `tichu_follows` — the climb `round`'s queries: every

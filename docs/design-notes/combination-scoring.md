@@ -26,7 +26,7 @@ registered Python primitive.
 |---|---|---|
 | Cribbage's show | fifteens (subset sums), all pairs, runs with multiplicity, flushes, his nobs | `cribbage_show_value`, `cribbage_crib_value` |
 | Seven-Card Stud's showdown | full poker ranking, best five of seven | `pot_share` |
-| Climbing vocabularies (Big Two, Tichu) | singles, pairs, triples, full houses, straights, pair sequences, bombs — enumerated AND compared | `runtime/combinations.py` |
+| Climbing vocabularies (Big Two, Tichu) | singles, pairs, triples, full houses, straights, pair sequences, bombs — enumerated AND compared | `runtime/tichu_combinations.py` |
 | Gin's melds | sets and suited runs; arrangement validity; deadwood | `gin_valid_meld` and kin |
 | Canasta's melds | rank groups with wild participation, naturalness, canasta size | seven `canasta_*` signatures |
 | Pinochle's melds | trump-parameterized marriages, the exact-card pinochle, aces around, double melds | `pinochle_meld_value` ("a hand's meld under trump") |

@@ -183,7 +183,7 @@ def test_for_each_cell_membership_selects_the_region() -> None:
 
 def test_for_each_cell_binder_is_a_cell() -> None:
     # Proven by consumption: `square[c]` is a cell-indexed family, so the
-    # subscript-key wall (assignable(idx, Cell)) accepts only a Cell-typed
+    # subscript-key wall (coercible(idx, Cell)) accepts only a Cell-typed
     # binder. A `c.foo` on it is rejected by the Member arm's fieldless-type
     # class (tests/test_typecheck_errors.py) -- cross-referenced, not re-walled.
     check_dsl(

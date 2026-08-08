@@ -491,7 +491,7 @@ _OPERANDS = _OPERAND_FOR
 _COMPARABLE = {frozenset({t}) for t in _OPERAND_FOR}  # every type equals itself
 _COMPARABLE |= {
     # A player IS an integer seat in this language, and a team IS an integer index:
-    # `assignable(TInteger, TPlayer)` and `assignable(TInteger, TTeam)` both hold, so
+    # `coercible(TInteger, TPlayer)` and `coercible(TInteger, TTeam)` both hold, so
     # `turn is 0` and `responder is actor` must keep working.
     frozenset({"Integer", "Player"}),
     frozenset({"Integer", "Team"}),

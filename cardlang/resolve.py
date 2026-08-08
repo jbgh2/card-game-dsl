@@ -2331,7 +2331,7 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
     (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
     rule a `plain`/`add` reference already activated. A reference to a name no
     `plain`/`add` ever activates in the scope the runtime actually consults is
-    a structural no-op forever: `runtime/phases.py`'s `compute_active_rules`
+    a structural no-op forever: `runtime/active_rules.py`'s `compute_active_rules`
     computes one phase's active set from exactly two sources — that phase's
     OWN `active_rules:` entries (applied unconditionally, in the list's own
     order), and, layered on top, each of its currently-active MODES. This check
@@ -4353,7 +4353,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 # `Rank?` because "no block" is a real state. The call sites all sit inside `if
 # block_claim is not none`, but the language has no flow narrowing, so a bare
 # `Rank` parameter would reject the very argument the block sites must pass. A
-# `Rank?` parameter accepts both (`assignable(Rank, Rank?)`), which is why the
+# `Rank?` parameter accepts both (`coercible(Rank, Rank?)`), which is why the
 # optional form is the one the corpus forces. Bare `Rank` rides along: it is the
 # same domain minus the null, meaningful on its own, and free to support.
 #
@@ -4416,7 +4416,7 @@ _WINNER_BINDING_STMTS = (n.TrickRound, n.AuctionRound, n.ClimbRound)
 # `turn := 1` would write the state variable while every `turn` around it meant the
 # binder — one name, two things, silently. Classifying the target makes that impossible
 # rather than merely detected: the target resolves to the binder, and a binder is not
-# assignable.
+# a write target.
 _WRITE_TARGET_KINDS: dict[str, str] = {
     "local": "a binder (a `let`, a loop binder, or a parameter)",
     "zone": "a zone",

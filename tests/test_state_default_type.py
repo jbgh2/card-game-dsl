@@ -18,7 +18,7 @@ property:   a `state { }` default that `check_dsl` accepts has a type
 domain:     declared value type x inferred default type. The declared axis is
             `KNOWN_TYPE_NAMES` (scalars + enums) crossed with {plain, optional,
             indexed} plus struct types; the default axis is the `n.Expr` union's
-            inferred types. The verdict for a cell is `assignable(default,
+            inferred types. The verdict for a cell is `coercible(default,
             declared)` — the same relation the wall uses, computed
             independently in the breadth sweep so the test drives the real
             pipeline against an expected column it did not scrape from the wall.
@@ -47,7 +47,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.typecheck import env_from_game, infer, type_from_name
-from cardlang.types import assignable
+from cardlang.types import coercible
 
 
 def _game(state_decls: str, tail: str = "", *, deck: str = "standard52") -> str:
@@ -138,7 +138,7 @@ _DEFAULTS: list[str] = ["7", '"s"', "false", "none", "hearts", "all players"]
 def test_breadth_sweep_matches_assignable(
     decl_prefix: str, type_name: str, optional: bool, default: str
 ) -> None:
-    """The added-breadth cross. The expected column is `assignable(infer(default),
+    """The added-breadth cross. The expected column is `coercible(infer(default),
     type_from_name(...))` computed here against the real type machinery — NOT
     scraped from `check_dsl` or the new helper — so the test proves the default
     is actually routed through `assignable`, and a wiring bug (checking the
@@ -151,7 +151,7 @@ def test_breadth_sweep_matches_assignable(
     probe_env = env_from_game(check_bare(source))
     declared = type_from_name(type_name, optional, probe_env.structs)
     got = infer(_default_expr(source), probe_env)
-    expected_accept = assignable(got, declared)
+    expected_accept = coercible(got, declared)
 
     accepted = True
     try:
@@ -161,7 +161,7 @@ def test_breadth_sweep_matches_assignable(
     verb = "accepted" if accepted else "rejected"
     assert accepted == expected_accept, (
         f"{decl_prefix} = {default}: pipeline {verb}, "
-        f"assignable({got}, {declared}) = {expected_accept}"
+        f"coercible({got}, {declared}) = {expected_accept}"
     )
 
 

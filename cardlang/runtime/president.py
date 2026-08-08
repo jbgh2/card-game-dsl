@@ -39,7 +39,7 @@ import itertools
 from dataclasses import dataclass
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
 ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")

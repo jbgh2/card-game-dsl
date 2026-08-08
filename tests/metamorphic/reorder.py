@@ -22,7 +22,7 @@ hoping:
 - **move types / rules.** `runtime/driver.py` builds `rs.move_type_index` /
   `rs.rule_index` dicts keyed by `.name`. The one place PHASE-level rule
   ORDER is observable — `ctx.active_rules`, `runtime/rules.py`'s demand
-  cascade — is built by `runtime/phases.py::compute_active_rules` from the
+  cascade — is built by `runtime/active_rules.py::compute_active_rules` from the
   PHASE's own `active_rules:` list (`ActiveRules.refs`, phase-body content
   this transform never touches), via `rs.rule_index[name]` lookups: `game.rules`'
   OWN declaration order never reaches it. `typecheck.py`'s move-type/rule

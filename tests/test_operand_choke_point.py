@@ -6,19 +6,19 @@ the day a new position is added -- exactly how PR #92's per-site wall failed
 three review rounds) but by routing EVERY operand coercion through one function,
 `typecheck._check_operand`, which runs the seat/team range check. This module is
 the pin that keeps it closed: it fails the day a new coercion site calls
-`assignable(...)` directly instead of routing through the choke point.
+`coercible(...)` directly instead of routing through the choke point.
 
 Domain: the operand-coercion checks in `cardlang/typecheck.py`. Registry: the
-set of `assignable(...)` CALL sites (found via `ast`, so docstring/comment
+set of `coercible(...)` CALL sites (found via `ast`, so docstring/comment
 mentions do not count). Property: every such call is inside `_check_operand`, OR
 carries a `# choke-point-exempt` marker at its site naming why it is not an
 operand coercion (there are exactly two such reasons, three calls).
 
 Born green (all routing is already in place). red under: at any residual site,
 restore the bare form the choke point replaced -- e.g. in
-`_check_state_default_type`, put back `if not assignable(got, declared):
+`_check_state_default_type`, put back `if not coercible(got, declared):
 bag.error(...)` in place of the `_check_operand(...)` call. An unmarked
-`assignable(` call then appears outside `_check_operand`, and
+`coercible(` call then appears outside `_check_operand`, and
 `test_no_assignable_escapes_the_choke_point` reddens (naming that line). The
 edit plants the fault in the production code under guard, not in this test.
 """
@@ -65,7 +65,7 @@ def _marked(call: ast.Call) -> bool:
 
 
 def test_no_assignable_escapes_the_choke_point() -> None:
-    """Every `assignable(...)` call routes through `_check_operand` (so the
+    """Every `coercible(...)` call routes through `_check_operand` (so the
     seat/team range check applies) or is marked exempt with a reason. A new
     coercion site that calls `assignable` directly reddens this until it routes
     through the choke point or is marked."""
@@ -74,7 +74,7 @@ def test_no_assignable_escapes_the_choke_point() -> None:
         if not _in_choke_point(c) and not _marked(c)
     ]
     assert not escapes, (
-        f"assignable() is called outside _check_operand, unmarked, at line(s) "
+        f"coercible() is called outside _check_operand, unmarked, at line(s) "
         f"{[c.lineno for c in escapes]}: route the operand through _check_operand "
         f"so the seat/team range check applies, or mark the line "
         f"'# {_MARKER}: <reason it is not an operand coercion>'."
@@ -97,6 +97,6 @@ def test_exemptions_are_only_the_documented_ones() -> None:
     noticing and a reviewer having to bless it."""
     marked = [c for c in _assignable_calls() if _marked(c)]
     assert len(marked) == 3, (
-        f"expected 3 marked-exempt assignable() calls (equality x2, again x1), "
+        f"expected 3 marked-exempt coercible() calls (equality x2, again x1), "
         f"found {len(marked)} at line(s) {sorted(c.lineno for c in marked)}"
     )

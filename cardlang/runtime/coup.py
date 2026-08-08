@@ -14,7 +14,7 @@ harness layer from observation events (tests/playout_trace.py).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts, TraceEvent
+from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Player
 
 ROW = reads.row("cardlang/runtime/coup.py", "coup.cardlang")

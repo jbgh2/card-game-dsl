@@ -236,7 +236,7 @@ def test_remove_of_a_rule_added_in_the_same_list_is_valid() -> None:
 def test_remove_of_a_rule_added_by_the_parents_own_unconditional_list_is_valid() -> None:
     # The realistic idiom: a phase activates a rule unconditionally; one of
     # its modes conditionally removes it once a transition fires
-    # (runtime/phases.py `compute_active_rules`: an active mode's own list is
+    # (runtime/active_rules.py `compute_active_rules`: an active mode's own list is
     # layered ON TOP of its phase's).
     _accepts(
         _game(
@@ -255,7 +255,7 @@ def test_remove_of_a_rule_added_by_the_parents_own_unconditional_list_is_valid()
 def test_remove_referencing_only_a_sibling_modes_add_is_rejected() -> None:
     # NOT valid, even though it looks parallel to the case above: modes are
     # independent conditions with no declared order between them
-    # (runtime/phases.py `_mode_active`), so whether a name the OTHER mode
+    # (runtime/active_rules.py `_mode_active`), so whether a name the OTHER mode
     # added is in `names` when this remove runs is not something the page
     # says — a race this check correctly declines to call "reachable".
     report = _rejects(

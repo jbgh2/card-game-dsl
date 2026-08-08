@@ -2,7 +2,7 @@
 
 A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
-are the **facts** (`sidecar.EngineFacts`) and its declared **reads**
+are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
 (`reads.GameReads`); the pair is the Primitive's bundle. The arms below are the
 dispatch seam, and their count is the elimination metric: it trends to zero as
 `design-notes/primitive-inventory.md`'s constructs land in the language.
@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
@@ -46,15 +46,15 @@ _TAROT_R = reads.row("cardlang/runtime/primitives.py", "french-tarot.cardlang")
 
 def _bind(
     ctx: Ctx, row: reads.PrimitiveReads
-) -> tuple[sidecar.EngineFacts, reads.GameReads]:
+) -> tuple[narrowing.EngineFacts, reads.GameReads]:
     """The two value bundles for one narrowed primitive call."""
-    return sidecar.bind(ctx.rs, ctx.current_player, row)
+    return narrowing.bind(ctx.rs, ctx.current_player, row)
 
 
-def _emit(ctx: Ctx, events: tuple[sidecar.TraceEvent, ...]) -> None:
+def _emit(ctx: Ctx, events: tuple[narrowing.TraceEvent, ...]) -> None:
     """Perform a narrowed primitive's deferred trace emissions. A game module
     holds no tracer, so the events travel back as data and are emitted here,
-    in the order the primitive returned them (cardlang/runtime/sidecar.py)."""
+    in the order the primitive returned them (cardlang/runtime/narrowing.py)."""
     for event, payload in events:
         ctx.trace(event, payload)
 
@@ -121,7 +121,7 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
 
             winner, events = schnapsen_trick_winner(
-                *sidecar.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
+                *narrowing.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
             )
             _emit(ctx, events)
             return winner
@@ -475,9 +475,9 @@ def value_function(name: str) -> Callable[..., Any]:
 # game-local, so these dispatch to per-game modules.
 
 
-ClimbLeadFn = Callable[[sidecar.EngineFacts, reads.GameReads, list[Card]], list[Any]]
+ClimbLeadFn = Callable[[narrowing.EngineFacts, reads.GameReads, list[Card]], list[Any]]
 ClimbFollowFn = Callable[
-    [sidecar.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
+    [narrowing.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
 ]
 
 

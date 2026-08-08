@@ -17,7 +17,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import require_role, role_members
-from cardlang.runtime import phases
+from cardlang.runtime import active_rules
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate

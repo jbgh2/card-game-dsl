@@ -68,9 +68,9 @@ from cardlang.types import (
     TTeam,
     TOutcome,
     Type,
-    assignable,
+    coercible,
     subscriptable,
-    unify,
+    join,
 )
 
 
@@ -118,7 +118,7 @@ def _axis_enum_names(game: Game) -> tuple[str, str]:
     the rank slot). A card game keeps the fixed `Suit`/`Rank` so its
     diagnostics and IR stay byte-stable; a piece set names its enums after its
     own axes (`side`/`kind`), which is also how its axis VALUES type in
-    `value_enum_map` -- so a same-axis compare unifies and a cross-axis one
+    `value_enum_map` -- so a same-axis compare joins and a cross-axis one
     (`piece.side is mark`) hits the existing cross-enum Owner Guard."""
     cs = component_set(game.deck)
     if game.content_flavor == "card" or cs is None:
@@ -261,7 +261,7 @@ def struct_registry(
     # the body environment with every declared type and let the ones already
     # completed win — a self- or forward-reference then types as the seed
     # entry, whose derived fields are still the top. That imprecision is
-    # harmless: struct types compare NOMINALLY (`types.assignable`/`unify`), so
+    # harmless: struct types compare NOMINALLY (`types.coercible`/`join`), so
     # the seed `R` and the final `R` are the same type to every consumer.
     #
     ambient = base if base is not None else TypeEnv()
@@ -486,7 +486,7 @@ class TypeEnv:
     state_vars: Mapping[str, Type] = field(default_factory=dict)
     zones: Mapping[str, Type] = field(default_factory=dict)
     # Zone FAMILIES (`hand[player]`, `captured[team]`) only, name -> the type
-    # a subscript's index expression must be `assignable` to. A family zone's
+    # a subscript's index expression must be `coercible` to. A family zone's
     # bare name (no subscript) still resolves through `zones` above to its
     # content type — unaffected; this map exists so `Subscript` can tell a
     # family instance (`hand[p]`, itself a collection) apart from the generic
@@ -545,7 +545,7 @@ def _canonical(t: Type, env: TypeEnv) -> Type:
     A struct's field map holds a SNAPSHOT of each struct-typed field, taken
     while the registry was still being built, so a snapshot can be staler than
     the registry — unavoidably so for a recursive type, whose unrolled value
-    has no finite form. Struct types are nominal (`types.assignable`/`unify`
+    has no finite form. Struct types are nominal (`types.coercible`/`join`
     compare by name), so the registry entry is the same type and strictly more
     refined: resolving by name at each read keeps a traversal exact at any
     depth, and keeps the registry's own representation finite.
@@ -746,7 +746,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
             for item in e.elements[1:]:
-                elem = unify(elem, infer(item, env)) if elem is not None else None
+                elem = join(elem, infer(item, env)) if elem is not None else None
             return TCollection(elem if elem is not None else TAny())
         case _ as unreachable:
             assert_never(unreachable)
@@ -755,9 +755,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
 def _ifexpr_type(e: n.IfExpr, env: TypeEnv) -> Type:
     result = infer(e.then, env)
     for _cond, branch in e.elifs:
-        merged = unify(result, infer(branch, env))
+        merged = join(result, infer(branch, env))
         result = merged if merged is not None else TAny()
-    merged = unify(result, infer(e.otherwise, env))
+    merged = join(result, infer(e.otherwise, env))
     return merged if merged is not None else TAny()
 
 
@@ -825,7 +825,7 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
         case "bool":
             return TBoolean()
         case "null":
-            return TNull()  # the `none` literal — assignable only to optionals
+            return TNull()  # the `none` literal — fits only optionals
         case "pronoun":
             # `actor` is universally the acting player at runtime
             # (evaluate._pronoun -> ctx.current_player, and the `Move`
@@ -1493,7 +1493,7 @@ def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`==`/`!=` (surface `is`/`is not`): two operands can only be equal if one's
-    type is assignable to the other's. Anything else is a comparison that is
+    type is coercible to the other's. Anything else is a comparison that is
     *always false* — the silently-wrong shape this Owner Guard exists to catch.
 
     The enum rows come first and keep their own nuanced diagnostics
@@ -1515,7 +1515,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
 
     `TAny` passes on either side (gradual typing — an unrefined `infer` arm must
     not manufacture errors). `Player`/`Integer` stay comparable in BOTH directions
-    because a player IS an integer seat here (`assignable(TInteger, TPlayer)`), so
+    because a player IS an integer seat here (`coercible(TInteger, TPlayer)`), so
     `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
     if isinstance(lbare, TEnum):
@@ -1527,17 +1527,17 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     if isinstance(lbare, TAny) or isinstance(rbare, TAny):
         return
     compatible = (
-        assignable(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
-        or assignable(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
-        # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
+        coercible(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
+        or coercible(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
+        # `join` as well as `coercible`, because `coercible` honours `TAny` only at
         # the TOP level: a deliberately-unrefined element type (a chip stack is
         # `Collection<Any>` precisely because that part of the object model is
         # unrefined) would be judged disjoint from `Collection<Card>`, and this
         # Owner Guard would MANUFACTURE an error — the exact thing its own
-        # gradual-typing promise forbids. `assignable` alone is also not enough in
+        # gradual-typing promise forbids. `coercible` alone is also not enough in
         # the other direction, so both are consulted: `Player`/`Integer` must stay
-        # comparable (a player IS an integer seat), and only `assignable` says so.
-        or unify(lbare, rbare) is not None
+        # comparable (a player IS an integer seat), and only `coercible` says so.
+        or join(lbare, rbare) is not None
     )
     if not compatible:
         bag.error(
@@ -1628,10 +1628,10 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
     left operand must be a plausible element of it. A `[...]` literal against
     a known enum-typed left operand keeps the existing per-element literal
     validation (`card.rank in [A, "10"]` — doppelkopf), since that catches
-    misspelled/mistyped *literals* `unify` cannot see (a bad numeral, a
+    misspelled/mistyped *literals* `join` cannot see (a bad numeral, a
     cross-enum literal). Every other combination is checked generally: when
     both the left type and the collection's element type are concrete and
-    `unify` finds them incompatible, the membership can never be true."""
+    `join` finds them incompatible, the membership can never be true."""
     right_t = infer(e.right, env)
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(
@@ -1646,7 +1646,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         # `2 in m` with every value 99 answered True because seat 2 exists.
         # Reject rather than pick a side silently; both meanings have direct
         # spellings. A TAny key means SOME branch of a merge is a map (the
-        # sticky rule in `types.unify`), which is exactly as ambiguous.
+        # sticky rule in `types.join`), which is exactly as ambiguous.
         what_map = (
             f"a map keyed by {_type_name(right_t.key)}"
             if not isinstance(right_t.key, TAny)
@@ -1667,11 +1667,11 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             _check_enum_operand(lbare, item, ibare, env, bag)
         return
     if not isinstance(right_t, TCollection):
-        return  # a TAny collection: nothing more `unify` can say
+        return  # a TAny collection: nothing more `join` can say
     ebare = _bare(right_t.element)
     if isinstance(lbare, TAny) or isinstance(ebare, TAny):
         return
-    if unify(lbare, ebare) is None:
+    if join(lbare, ebare) is None:
         bag.error(
             f"membership compares {_type_name(lbare)} with a collection of "
             f"{_type_name(ebare)} — never true",
@@ -1712,7 +1712,7 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     to `TAny` (the `card` binder types off this same inference — the zone-family
     subscript-typing case in tests/test_zone_family_typing.py covers exactly
     this failure mode). A non-collection source and a collection of the wrong
-    element type both fail the same way: `unify` against `TCard` finds nothing
+    element type both fail the same way: `join` against `TCard` finds nothing
     in common."""
     src_t = infer(source, env)
     bare_src = _bare(src_t)
@@ -1736,7 +1736,7 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     ebare = _bare(bare_src.element)
     if isinstance(ebare, TAny):
         return
-    if unify(ebare, TCard()) is None:
+    if join(ebare, TCard()) is None:
         bag.error(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}",
@@ -1790,7 +1790,7 @@ def _check_agg_default(
     flagged whenever there IS a `where` clause for the `or` to have been
     split from (no `where`, no ambiguity: a Boolean default there is an
     ordinary type mismatch, handled by the generic check below). Otherwise, a
-    concrete body/default type mismatch `unify` can't reconcile is rejected
+    concrete body/default type mismatch `join` can't reconcile is rejected
     generically."""
     assert e.default is not None
     dbare = _bare(infer(e.default, env))
@@ -1806,7 +1806,7 @@ def _check_agg_default(
     bbare = _bare(infer(e.body, scoped))
     if isinstance(bbare, TAny) or isinstance(dbare, TAny):
         return
-    if unify(bbare, dbare) is None:
+    if join(bbare, dbare) is None:
         bag.error(
             f"'{e.agg}' aggregation default type mismatch: the body is "
             f"{_type_name(bbare)}, the default is {_type_name(dbare)}",
@@ -1889,8 +1889,8 @@ def _domain_query_binder_type(
 
 def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
     """A `Player`/`Team` literal names a 0-based identity, so it must be one the
-    game has. An integer literal coerces to both (`assignable(Integer, Player)`,
-    `assignable(Integer, Team)` -- both are int identities), and an unchecked
+    game has. An integer literal coerces to both (`coercible(Integer, Player)`,
+    `coercible(Integer, Team)` -- both are int identities), and an unchecked
     out-of-range literal -- `reserve[2]`/`home(2)` on a two-seat game, `melds[2]`
     on a two-team game -- names a seat or team with no member; the reader (a zone
     family with no such instance, a board frame's per-seat sign, a per-team score)
@@ -1907,7 +1907,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     no-op, and a count of 0 (a game with no teams has `max_teams == 0`)
     disables the team bound, mirroring `max_players <= 0`.
 
-    An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `assignable`
+    An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `coercible`
     coerces an Integer into the optional by reaching its payload, so a literal in
     a `Player?` position is the same seat a bare `Player` position is."""
     bare = expected.inner if isinstance(expected, TOptional) else expected
@@ -1949,12 +1949,12 @@ def _check_operand(
     msg: str,
     span: Span | None,
 ) -> None:
-    """The ONE operand-coercion check every `assignable(_, expected)` site routes
+    """The ONE operand-coercion check every `coercible(_, expected)` site routes
     through, so the seat-range check is applied at EVERY position an integer
     literal reaches a Player (or Team), not at a hand-picked subset. Two things
     happen here and nowhere else:
 
-      1. the assignability Owner Guard -- if `got` cannot stand where `expected` is
+      1. the coercion Owner Guard -- if `got` cannot stand where `expected` is
          wanted, the site's own `msg` is reported at `span`; and
       2. the role-literal range check -- an out-of-range integer literal
          (`hand[5]` on a two-seat game) is rejected, a non-role `expected` making
@@ -1962,19 +1962,19 @@ def _check_operand(
 
     `node` (the operand, for the literal check) and `span` (the error location)
     are separate arguments BECAUSE they differ at nearly every site: an operand's
-    assignability error belongs to its ENCLOSING construct -- the call, the
+    coercion error belongs to its ENCLOSING construct -- the call, the
     assignment, the struct literal -- whose span the caller passes, while the
     range error fires at the literal WITHIN it (`node.span`, inside the helper).
-    Passing `node.span` as the error span would move ~every assignability
+    Passing `node.span` as the error span would move ~every coercion
     diagnostic; keeping them separate means routing a site through here moves no
     diagnostic.
 
     Keeping the two checks together at one call is what lets the completeness pin
     (tests/test_operand_choke_point.py) enforce by construction that no
-    `assignable(_, Player)` coercion escapes the range check: the pin reddens the
-    day a new operand position calls `assignable` directly instead of routing
+    `coercible(_, Player)` coercion escapes the range check: the pin reddens the
+    day a new operand position calls `coercible` directly instead of routing
     here."""
-    if not assignable(got, expected):
+    if not coercible(got, expected):
         bag.error(msg, span)
     _check_role_literal(node, expected, env, bag)
 
@@ -2555,7 +2555,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 )
         case n.AsBlock():
             # The block binds the acting player to one player, so its expression
-            # must BE a player. Integer stands for player (`assignable`), like
+            # must BE a player. Integer stands for player (`coercible`), like
             # `dealer : Player = 0` and a zone-family index.
             t = infer(stmt.player, env)
             _check_operand(
@@ -2588,7 +2588,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 # choke-point-exempt: `again` is a state-var NAME resolved to a
                 # type, not an operand expression — a name->declared-type check,
                 # Boolean-expected, with no literal to range.
-                if at is not None and not assignable(at, TBoolean()):  # choke-point-exempt
+                if at is not None and not coercible(at, TBoolean()):  # choke-point-exempt
                     bag.error(
                         f"`again {stmt.again}`: the go-again flag must be "
                         f"Boolean, got {_type_name(at)}",
