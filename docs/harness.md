@@ -54,30 +54,44 @@ per-PR by preference. Two rules compose the table:
   uncertainty: its membership is exact (a diff touches `.lark` or it does
   not). Unsure is a legal state; a silent guess is not.
 
-| Change class | Merge Lane |
-|---|---|
-| Grammar (`.lark`) | A |
-| Parse builders | B |
-| AST nodes | B |
-| Resolve | B |
-| Typecheck | B |
-| IR | B |
-| Runtime (`evaluate` / `execute` / `driver` / `state`) | B |
-| Stdlib (`rules.cardlang`, registries) | B |
-| `docs/games/` corpus — DSL-only edits, zero engine diff | C |
-| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | B |
-| Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `games/_candidates.md`) | C |
-| Tests / goldens — coverage-only additions, no behavior change claimed | C |
-| Tests / goldens — anything else (golden regeneration, proof-harness changes) | B |
-| `.claude/skills/` | B |
-| `experiments/` rigs | C |
-| `tools/` harness scripts — mechanical fixes | C |
-| `tools/` harness scripts — semantics (a change to what Ready means is a change to this file) | B |
-| CI and infra (`.github/`, `pyproject.toml`, the runner) | B |
-| Public-facing (README, LICENSE, licensing and grant artifacts) | B |
-| Tracker structure (label vocabulary, edge conventions, issue #143) | B |
-| Revert of a red Merge Lane C/D merge | D |
-| Docs hygiene — typos, cross-references, register fixes with no semantic delta; `glossary-findings.md` rows; ledger citation fixes | D |
+| Change class | Paths | Merge Lane |
+|---|---|---|
+| Grammar (`.lark`) | `cardlang/grammar/**` | A |
+| Parse builders | `cardlang/parse.py` | B |
+| AST nodes | `cardlang/ast/**` | B |
+| Resolve | `cardlang/resolve.py` | B |
+| Typecheck | `cardlang/typecheck.py`, `cardlang/types.py` | B |
+| IR | `cardlang/ir.py` | B |
+| Runtime (`evaluate` / `execute` / `driver` / `state`, the OpenSpiel adapter) | `cardlang/runtime/**`, `cardlang/openspiel/**` | B |
+| Stdlib (`rules.cardlang`, registries, builtins) | `cardlang/stdlib/**`, `cardlang/builtins/**` | B |
+| `docs/games/` corpus and family libraries — DSL-only edits, zero engine diff | `docs/games/**`, `docs/libraries/**` | C |
+| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | `docs/*.md`, `CLAUDE.md` | B |
+| Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `superpowers/`) | `docs/design-notes/**`, `docs/open-questions/**`, `docs/research/**`, `docs/plans/**`, `docs/superpowers/**` | C |
+| Tests / goldens — coverage-only additions, no behavior change claimed | `tests/**` | C |
+| Tests / goldens — anything else (golden regeneration, proof-harness changes) | `tests/**` | B |
+| `.claude/skills/` | `.claude/**` | B |
+| `experiments/` rigs | `experiments/**` | C |
+| `tools/` harness scripts — mechanical fixes | `tools/**` | C |
+| `tools/` harness scripts — semantics (a change to what Ready means is a change to this file) | `tools/**` | B |
+| CI and infra (`.github/`, `pyproject.toml`, the runner) | `.github/**`, `pyproject.toml` | B |
+| Public-facing (README, LICENSE, licensing and grant artifacts) | `README*`, `LICENSE*` | B |
+| Tracker structure (label vocabulary, edge conventions, issue #143) | — | B |
+| Revert of a red Merge Lane C/D merge | — | D |
+| Docs hygiene — typos, cross-references, register fixes with no semantic delta; `glossary-findings.md` rows; ledger citation fixes | — | D |
+
+The Paths column is machine-read: `tools/lane-of.sh` classifies a diff by
+matching every changed file against every row and taking the supremum
+lane across all matches — so twin rows sharing a path resolve to their
+stricter twin mechanically, and relaxing to the softer twin (a
+coverage-only test change, a mechanical tools fix, a hygiene edit) is
+judgment the tool never performs and an agent never performs on its own
+behalf. A file matching no row is reported unmapped and defaults to
+Merge Lane B (the missing-class rule above); rows whose class is
+semantic, not path-shaped, carry `—` and bind through judgment alone. An
+**agent merge** additionally passes `tools/merge-gate.sh` — base is
+main, every check green, zero unresolved threads, mechanical lane C or
+D, evidence printed — and hand-classifying around the tools is not a
+lane verdict.
 
 The rows through "Tests / goldens" derive from the `cardlang-code-review`
 skill's Phase 0 classification, with its "docs prose" and "tests/goldens"
