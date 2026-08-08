@@ -194,6 +194,9 @@ The disqualifiers, in the order the sweep counts them:
 - it lacks a `reachability:` label — unordered;
 - it carries any `blocked:` label — witness-gated;
 - it has an open blocked-by dependency;
+- it is assigned — a human hand (or a Lease's assignee mirror) is on it,
+  and assignment is the one-click shield that keeps the fleet off work
+  the operator holds privately on a `ben/...` branch;
 - it is Leased.
 
 `tools/ready-front.sh` computes the front — the third sibling of the two
