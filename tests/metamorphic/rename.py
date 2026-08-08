@@ -298,14 +298,14 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
             new = name_map.get(node.again)
             if new is not None:
                 node = replace(node, again=new)
-    elif isinstance(node, n.Round):
+    elif isinstance(node, (n.TrickRound, n.ClimbRound)):
         # The climbing/trick forms name their source/play zones as bare
         # strings (`source_zone`/`play_zone`), not a `NameRef` — the one
         # place a zone reference bypasses the expression sublanguage (every
         # other zone reference — `Transfer.source/dest`, `CardQuery.source`,
         # `EpistemicOp`'s target — is an `Expr`, so a `NameRef` occurrence).
-        sz = None if node.source_zone is None else name_map.get(node.source_zone, node.source_zone)
-        pz = None if node.play_zone is None else name_map.get(node.play_zone, node.play_zone)
+        sz = name_map.get(node.source_zone, node.source_zone)
+        pz = name_map.get(node.play_zone, node.play_zone)
         if sz != node.source_zone or pz != node.play_zone:
             node = replace(node, source_zone=sz, play_zone=pz)
     if not is_dataclass(node) or isinstance(node, Span):

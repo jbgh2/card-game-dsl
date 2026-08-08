@@ -1094,7 +1094,8 @@ def _stmt_tree_scoped(
             pass
         case (
             n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
-            | n.AssignStmt() | n.Offer() | n.Round() | n.Produce()
+            | n.AssignStmt() | n.Offer() | n.TrickRound() | n.AuctionRound()
+            | n.ClimbRound() | n.Produce()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
         ):
             pass  # no child statements
@@ -1978,6 +1979,32 @@ def _check_operand(
     _check_role_literal(node, expected, env, bag)
 
 
+def _check_round_actors(
+    stmt: n.TrickRound | n.AuctionRound | n.ClimbRound,
+    env: TypeEnv,
+    bag: DiagnosticBag,
+) -> None:
+    """The `from <leader> over <participants>` pair every round form carries.
+
+    Shared across the three forms because it is the same contract in each, the
+    one `turns` carries too: before the operand choke point neither half was
+    type- or range-checked (only `until` was), so `round … from 5` on a
+    two-seat game passed.
+    """
+    lt = infer(stmt.leader, env)
+    _check_operand(
+        stmt.leader, lt, TPlayer(), env, bag,
+        f"`round … from` names the first player — expected a Player, "
+        f"got {_type_name(lt)}",
+        stmt.span,
+    )
+    _check_participants(
+        stmt.participants, env, bag,
+        "`round … over` names the participants",
+        stmt.span,
+    )
+
+
 def _check_participants(
     node: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str, span: Span | None
 ) -> None:
@@ -2299,13 +2326,13 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             return [s.target] if s.filter is None else [s.target, s.filter]
         case n.Offer():
             return [s.player]
-        case n.Round():
+        case n.TrickRound():
             exprs = [s.leader, s.participants]
-            if s.trump is not None:
+            if s.trump is not None:  # the form's one optional expression clause
                 exprs.append(s.trump)
-            if s.termination is not None:
-                exprs.append(s.termination)
             return exprs
+        case n.AuctionRound() | n.ClimbRound():
+            return [s.leader, s.participants, s.termination]
         case n.IfStmt() | n.RepeatUntil():
             return [s.cond]
         case n.AsBlock():
@@ -2505,25 +2532,14 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_bool(stmt.cond, env, bag, "if condition")
         case n.RepeatUntil():
             _check_bool(stmt.cond, env, bag, "repeat-until condition")
-        case n.Round():
-            # `round … from <leader> over <participants>` carries the same
-            # first-player / participant-collection contract as `turns`, but
-            # before the operand choke point neither was type- or range-checked
-            # (only `until` was): `round … from 5` on a two-seat game passed.
-            lt = infer(stmt.leader, env)
-            _check_operand(
-                stmt.leader, lt, TPlayer(), env, bag,
-                f"`round … from` names the first player — expected a Player, "
-                f"got {_type_name(lt)}",
-                stmt.span,
-            )
-            _check_participants(
-                stmt.participants, env, bag,
-                "`round … over` names the participants",
-                stmt.span,
-            )
-            if stmt.termination is not None:
-                _check_bool(stmt.termination, env, bag, "round `until` condition")
+        case n.TrickRound():
+            _check_round_actors(stmt, env, bag)
+        case n.AuctionRound() | n.ClimbRound():
+            # `until` is mandatory on exactly the two forms that loop, so it is
+            # checked without asking whether it is there — which is the split's
+            # point: the form that has no termination predicate cannot reach here.
+            _check_round_actors(stmt, env, bag)
+            _check_bool(stmt.termination, env, bag, "round `until` condition")
         case n.Transfer():
             _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
@@ -2908,7 +2924,8 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
                 yield from _control_flow_nodes(s)
         case (
             n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
-            | n.AssignStmt() | n.Offer() | n.Round() | n.Produce() | n.RunStmt()
+            | n.AssignStmt() | n.Offer() | n.TrickRound() | n.AuctionRound()
+            | n.ClimbRound() | n.Produce() | n.RunStmt()
         ):
             pass  # no jumps, no child statements to hold any
         case _:

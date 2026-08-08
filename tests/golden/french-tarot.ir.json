@@ -361,8 +361,14 @@
               }
             },
             {
-              "kind": "round",
-              "move_type": null,
+              "kind": "auction_round",
+              "offering": [
+                "pass",
+                "bid_petite",
+                "bid_garde",
+                "bid_garde_sans",
+                "bid_garde_contre"
+              ],
               "leader": {
                 "kind": "name",
                 "name": "opener",
@@ -388,18 +394,6 @@
                   }
                 }
               },
-              "source_zone": null,
-              "play_zone": null,
-              "outcome_fn": "tarot_auction_outcome",
-              "trump": null,
-              "early_termination": null,
-              "offering": [
-                "pass",
-                "bid_petite",
-                "bid_garde",
-                "bid_garde_sans",
-                "bid_garde_contre"
-              ],
               "termination": {
                 "kind": "binop",
                 "op": "==",
@@ -429,8 +423,7 @@
                 }
               },
               "order_mode": null,
-              "combos_fn": null,
-              "follows_fn": null
+              "outcome_fn": "tarot_auction_outcome"
             }
           ]
         },
@@ -802,7 +795,7 @@
               },
               "body": [
                 {
-                  "kind": "round",
+                  "kind": "trick_round",
                   "move_type": "play_to_trick",
                   "leader": {
                     "kind": "name",
@@ -814,14 +807,9 @@
                   },
                   "source_zone": "hand",
                   "play_zone": "trick_pile",
-                  "outcome_fn": "tarot_trick_winner",
+                  "winner_fn": "tarot_trick_winner",
                   "trump": null,
-                  "early_termination": null,
-                  "offering": null,
-                  "termination": null,
-                  "order_mode": null,
-                  "combos_fn": null,
-                  "follows_fn": null
+                  "early_termination": null
                 },
                 {
                   "kind": "assign",

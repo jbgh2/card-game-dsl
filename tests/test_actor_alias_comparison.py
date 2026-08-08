@@ -193,10 +193,13 @@ _ALIAS_SOURCE_KINDS: frozenset[str] = frozenset(
 _NO_ALIAS_KINDS: frozenset[str] = frozenset(
     {
         # No lexical statement body at all: nothing of theirs can sit "inside"
-        # a rebind. `Offer`/`Round` DO rebind the acting player, but they do it
-        # for a move type's effect, which is a separate declaration root.
+        # a rebind. `Offer` and the round forms DO rebind the acting player, but
+        # they do it for a move type's effect, which is a separate declaration
+        # root.
         "Offer",
-        "Round",
+        "TrickRound",
+        "AuctionRound",
+        "ClimbRound",
         "Transfer",
         "EpistemicOp",
         "RotateStmt",

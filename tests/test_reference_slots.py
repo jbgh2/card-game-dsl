@@ -425,16 +425,15 @@ def test_slot_strings_reads_every_shape_whole() -> None:
     bare = n.Call("helper", ())
     assert slot_strings(bare, "func") == ("helper",)
 
-    unset = n.Round(
-        move_type=None,
+    unset = n.TrickRound(
+        move_type="play_to_trick",
         leader=n.NameRef("p"),
         participants=n.AllPlayers(),
-        source_zone=None,
-        play_zone=None,
-        outcome_fn=None,
-        trump=None,
+        source_zone="hand",
+        play_zone="trick_pile",
+        winner_fn="highest_of_led_suit",
     )
-    assert slot_strings(unset, "source_zone") == ()
+    assert slot_strings(unset, "early_termination") == ()
     set_optional = n.Turns(
         binder="p",
         leader=n.NameRef("l"),

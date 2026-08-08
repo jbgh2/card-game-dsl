@@ -241,7 +241,7 @@ class ActionSpace:
                     else:
                         entries = _offering_entries(mt, sources)
                         offering.extend(e for e in entries if e not in offering)
-            elif isinstance(node, n.Round) and node.combos_fn is not None:
+            elif isinstance(node, n.ClimbRound):
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
             elif isinstance(node, n.Transfer) and node.joint:
@@ -257,7 +257,7 @@ class ActionSpace:
                 fn = root.func if isinstance(root, n.Call) else None
                 if fn not in joint_engines:
                     joint_engines.append(fn)
-            elif isinstance(node, n.Round) and node.offering is not None:
+            elif isinstance(node, n.AuctionRound):
                 for mt_name in node.offering:
                     mt = mt_index[mt_name]
                     if any(p.type_name == "Card" for p in mt.params):

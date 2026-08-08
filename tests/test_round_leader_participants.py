@@ -180,13 +180,13 @@ FIRST_PARTICIPANT_AFTER_LEADER = {"clockwise": 2, "counterclockwise": 0}
 
 def test_acting_path_axis_is_derived_from_the_registries() -> None:
     """The path axis is the AST constructs carrying BOTH `leader` and
-    `participants` — the shape that defines the class — with `Round` split by
-    `build_form`'s cascade and the auction form split by the order modes. A
-    sixth path (a new construct with a `from`/`over` pair, a fourth form
-    class, a third order mode) must fail here rather than go unnoticed."""
+    `participants` — the shape that defines the class — with the auction form
+    split again by the order modes. A sixth path (a new construct with a
+    `from`/`over` pair, a fourth round form, a third order mode) must fail here
+    rather than go unnoticed."""
     fields_of = {
         node.__name__: {f.name for f in dataclasses.fields(node)}
-        for node in (n.Round, n.Turns)
+        for node in (n.TrickRound, n.AuctionRound, n.ClimbRound, n.Turns)
     }
     for name, names in fields_of.items():
         assert {"leader", "participants"} <= names, (
@@ -201,7 +201,7 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
         and {"leader", "participants"}
         <= {f.name for f in dataclasses.fields(obj)}
     }
-    assert carriers == {"Round", "Turns"}, (
+    assert carriers == {"TrickRound", "AuctionRound", "ClimbRound", "Turns"}, (
         f"a new leader/participants construct appeared: {carriers}"
     )
 
@@ -212,7 +212,7 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
             f"{form.__name__} is not accounted for in build_form's cascade"
         )
     assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING, n.ROUND_ORDER_PRIORITY}
-    # Round's 3 forms, the auction one split by its 2 order modes, plus Turns.
+    # The 3 round forms, the auction one split by its 2 order modes, plus Turns.
     assert len(ACTING_PATHS) == (len(forms) - 1) + len(n.ROUND_ORDER_MODES) + 1
 
 

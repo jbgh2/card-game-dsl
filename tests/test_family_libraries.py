@@ -1793,15 +1793,32 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "undeclared_thing",
         "declared_flag",
     ),
-    "Round.source_zone": (
+    "TrickRound.source_zone": (
         "move_type m {{ effect {{ round play_to_trick from actor over all players "
         "source {read} into pile winner highest_of_led_suit }} }}",
         "hand",
         None,
     ),
-    "Round.play_zone": (
+    "TrickRound.play_zone": (
         "move_type m {{ effect {{ round play_to_trick from actor over all players "
         "source pile into {read} winner highest_of_led_suit }} }}",
+        "hand",
+        None,
+    ),
+    # The climbing form's zone slots are separate registry rows from the trick
+    # form's, so they are separate cells. One node's cells said nothing about
+    # the other's the moment the node split.
+    "ClimbRound.source_zone": (
+        "move_type m {{ effect {{ round climb play_combination from actor "
+        "over all players source {read} into pile "
+        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
+        "hand",
+        None,
+    ),
+    "ClimbRound.play_zone": (
+        "move_type m {{ effect {{ round climb play_combination from actor "
+        "over all players source pile into {read} "
+        "combinations bigtwo_lead_options follows bigtwo_follows until true }} }}",
         "hand",
         None,
     ),
@@ -1858,7 +1875,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "game_move",
         "lib_move",
     ),
-    "Round.offering": (
+    "AuctionRound.offering": (
         "move_type lib_move {{ effect {{ declared_thing := 1 }} }} "
         "move_type m {{ effect {{ round offering [{read}] from actor "
         "over all players until true }} }}",
@@ -2107,10 +2124,10 @@ def test_the_same_slot_naming_what_the_library_has_is_accepted(
     """The control row: each cell is its leaking twin with one name swapped, so a
     rejecting cell can only be rejecting the leak and not the construct.
 
-    Five slots have no twin, and their absence is the design rather than a gap: a
-    library declares no zones, no phases and no position domains, so there is no
-    legal spelling for `Round.source_zone`, `Round.play_zone`,
-    `ContinueTo.target` or `DomainQuery.binder` to take. The controls beside them
+    Several slots have no twin, and their absence is the design rather than a
+    gap: a library declares no zones, no phases and no position domains, so
+    there is no legal spelling for either round form's `source_zone` or
+    `play_zone`, `ContinueTo.target` or `DomainQuery.binder` to take. The controls beside them
     establish that the enclosing statements parse and resolve.
 
     red under: make the sweep reject any name it inspects rather than only the

@@ -812,22 +812,19 @@ class _Builder(Transformer[Token, n.Game]):
         names = tuple(str(x) for x in c[1:])
         return n.Offer(player=player, offering=names, span=self._span(meta))
 
-    def round_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+    def round_stmt(self, meta: Meta, c: list[object]) -> n.TrickRound:
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
         #     NAME(into), NAME(winner), expr(trump)?, NAME(early)?]
         # With maybe_placeholders=True, len(c)==8 always; c[6]/c[7] are None when absent.
-        # `outcome_fn` carries the trick form's WINNER function: the field is shared
-        # with the auction form, where the name is correct, and splits with the node
-        # (issue #210 — AuctionRound keeps `outcome_fn`).
         trump = _as_expr(c[6]) if c[6] is not None else None
         early = str(c[7]) if c[7] is not None else None
-        return n.Round(
+        return n.TrickRound(
             move_type=str(c[0]),
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
             source_zone=str(c[3]),
             play_zone=str(c[4]),
-            outcome_fn=str(c[5]),
+            winner_fn=str(c[5]),
             trump=trump,
             early_termination=early,
             span=self._span(meta),
@@ -836,41 +833,35 @@ class _Builder(Transformer[Token, n.Game]):
     def auction_moves(self, meta: Meta, c: list[object]) -> tuple[str, ...]:
         return tuple(str(x) for x in c)
 
-    def auction_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+    def auction_stmt(self, meta: Meta, c: list[object]) -> n.AuctionRound:
         # c: [tuple(move_types), expr(leader), expr(participants), NAME(order)?,
-        #     expr(termination), NAME(outcome)?]. The auction/betting form leaves the
-        #     trick-specific fields None; both the `order` clause (c[3], default ring)
-        #     and `outcome` (c[5], betting omits it) are None placeholders when absent.
+        #     expr(termination), NAME(outcome)?]. Both the `order` clause (c[3],
+        #     default ring) and `outcome` (c[5], betting omits it) are None
+        #     placeholders when absent.
         offering = c[0]
         assert isinstance(offering, tuple)
-        return n.Round(
-            move_type=None,
+        return n.AuctionRound(
+            offering=offering,
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            source_zone=None,
-            play_zone=None,
-            outcome_fn=str(c[5]) if c[5] is not None else None,
-            trump=None,
-            offering=offering,
             termination=_as_expr(c[4]),
             order_mode=str(c[3]) if c[3] is not None else None,
+            outcome_fn=str(c[5]) if c[5] is not None else None,
             span=self._span(meta),
         )
 
-    def climb_stmt(self, meta: Meta, c: list[object]) -> n.Round:
+    def climb_stmt(self, meta: Meta, c: list[object]) -> n.ClimbRound:
         # c: [NAME(move_type), expr(leader), expr(participants), NAME(source),
         #     NAME(into), NAME(combinations), NAME(follows), expr(termination)].
         # The climbing form keeps the trick zones (source/into) but names the
         # combination-engine queries instead of a winner function; the winner is
-        # the loop's last player. `combos_fn is not None` marks the form.
-        return n.Round(
+        # the loop's last player.
+        return n.ClimbRound(
             move_type=str(c[0]),
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
             source_zone=str(c[3]),
             play_zone=str(c[4]),
-            outcome_fn=None,
-            trump=None,
             combos_fn=str(c[5]),
             follows_fn=str(c[6]),
             termination=_as_expr(c[7]),

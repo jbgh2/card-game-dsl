@@ -103,7 +103,11 @@ from cardlang.stdlib.enums import (
     rank_names,
     suit_names,
 )
-from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
+from cardlang.stdlib.moves import (
+    CLIMB_DECISION_MOVE_TYPE,
+    LIBRARY_MOVE_TYPES,
+    RULE_ENFORCED_MOVE_TYPE,
+)
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
@@ -368,9 +372,12 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
     (n.Winner, "target"): "state",
-    # Zones. The `round` form names both of its zones as bare strings.
-    (n.Round, "source_zone"): "zone",
-    (n.Round, "play_zone"): "zone",
+    # Zones. The two card-moving round forms name both of their zones as bare
+    # strings; the auction form moves no cards and so has neither.
+    (n.TrickRound, "source_zone"): "zone",
+    (n.TrickRound, "play_zone"): "zone",
+    (n.ClimbRound, "source_zone"): "zone",
+    (n.ClimbRound, "play_zone"): "zone",
     # Phases.
     (n.ContinueTo, "target"): "phase",
     (n.TransitionTo, "target"): "mode",
@@ -388,8 +395,9 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
     # the first pair is a channel an importing game can feed.
     (n.Offer, "offering"): "move_type",
-    (n.Round, "offering"): "move_type",
-    (n.Round, "move_type"): "stdlib_move_type",
+    (n.AuctionRound, "offering"): "move_type",
+    (n.TrickRound, "move_type"): "stdlib_move_type",
+    (n.ClimbRound, "move_type"): "stdlib_move_type",
     (n.LegalMoves, "move_types"): "stdlib_move_type",
     (n.MoveEvent, "move_type"): "stdlib_move_type",
     (n.RuleDef, "constrains"): "stdlib_move_type",
@@ -400,10 +408,11 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # The stdlib query registries a `round` selects from. A closed stdlib table
     # in every direction — the same names for a library as for a game — which is
     # why they are references and yet not a channel a game can feed.
-    (n.Round, "outcome_fn"): "stdlib_query",
-    (n.Round, "early_termination"): "stdlib_query",
-    (n.Round, "combos_fn"): "stdlib_query",
-    (n.Round, "follows_fn"): "stdlib_query",
+    (n.TrickRound, "winner_fn"): "stdlib_query",
+    (n.TrickRound, "early_termination"): "stdlib_query",
+    (n.AuctionRound, "outcome_fn"): "stdlib_query",
+    (n.ClimbRound, "combos_fn"): "stdlib_query",
+    (n.ClimbRound, "follows_fn"): "stdlib_query",
     # Deck-derived values, held as strings rather than classified names.
     (n.CardLiteral, "rank"): "deck_rank",
     (n.CardLiteral, "suit"): "deck_suit",
@@ -462,7 +471,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Transfer, "selection_mode"),
         (n.Transfer, "amount"),
         (n.Transfer, "distribution"),
-        (n.Round, "order_mode"),
+        (n.AuctionRound, "order_mode"),
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
         # Annotated `Flavor` (a `Literal`), not `str` — which is exactly why it
@@ -2054,7 +2063,8 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
         # no name into scope; its body is an ordinary block (see `_BINDER_SCOPE_FIELDS`).
         case (
             n.RotateStmt() | n.RepeatUntil() | n.IfStmt() | n.AsBlock() | n.AssignStmt()
-            | n.Offer() | n.Round() | n.Produce() | n.Produces()
+            | n.Offer() | n.TrickRound() | n.AuctionRound() | n.ClimbRound()
+            | n.Produce() | n.Produces()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt() | n.Block()
         ):
             return ()
@@ -4383,7 +4393,10 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 # A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
 # site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
-_WINNER_BINDING_STMTS = (n.Round,)
+# All three forms, not only the two that bind a winner: the wall enforces
+# more than its name and message say (issue #290), and narrowing it here
+# would relax it as a side effect of a refactor.
+_WINNER_BINDING_STMTS = (n.TrickRound, n.AuctionRound, n.ClimbRound)
 
 
 # What a write target may be. `:=`, `+=`, `-=` and `rotate` all write persistent
@@ -5332,10 +5345,10 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     "offer names unknown move type",
                 )
                 _check_card_offering(nd.offering, move_type_defs, game, bag, nd.span)
-            case n.Round() if nd.offering is not None:
-                # Auction form: an offering of game-defined move types, no card
-                # zones. The termination predicate's names are checked by the
-                # generic NameRef pass.
+            case n.AuctionRound():
+                # An offering of game-defined move types, no card zones. The
+                # termination predicate's names are checked by the generic
+                # NameRef pass.
                 #
                 # Parameter domains are a closed set (decisions.md "Surface
                 # totality"): the runtime enumerates `Suit`/`Suit?`/`Rank`/
@@ -5367,8 +5380,8 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"{sorted(n.ROUND_ORDER_MODES)})",
                         nd.span,
                     )
-            case n.Round() if nd.combos_fn is not None:
-                # Climbing form: trick zones plus the two combination-engine queries
+            case n.ClimbRound():
+                # Trick zones plus the two combination-engine queries
                 # (`combinations` lead, `follows` legal-follows). The termination
                 # predicate's names are checked by the generic NameRef pass; its
                 # Boolean type by the type checker.
@@ -5379,6 +5392,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
+                elif nd.move_type != CLIMB_DECISION_MOVE_TYPE:
+                    # The climbing form's decision site is hardwired to
+                    # `play_combination` — nothing in `ClimbForm` reads this
+                    # field at all — so any other name ran as a climb regardless
+                    # and meant nothing (decisions.md "Surface totality"). The
+                    # trick form has carried the same wall since its surface was
+                    # written; this form went without one.
+                    bag.error(
+                        f"the climb round form runs `{CLIMB_DECISION_MOVE_TYPE}`; "
+                        f"'{nd.move_type}' is not runnable on it (roadmap.md)",
+                        nd.span,
+                    )
                 if nd.combos_fn not in PRIMITIVE_CLIMB_LEADS:
                     bag.error(
                         f"climb round `combinations` query '{nd.combos_fn}' is not a "
@@ -5391,19 +5416,15 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                         f"combination follows query",
                         nd.span,
                     )
-            case n.Round():
+            case n.TrickRound():
                 zone_names = {z.name for z in game.zones}
                 if nd.source_zone not in zone_names:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                # The diagnostic speaks the surface's currency — `winner` — while the
-                # field stays `outcome_fn`: `n.Round` is shared with the auction form,
-                # where that name is correct, and splits with the node (issue #210).
-                # Do not "correct" this message back to match the field.
-                if nd.outcome_fn not in PRIMITIVE_TRICK_WINNERS:
+                if nd.winner_fn not in PRIMITIVE_TRICK_WINNERS:
                     bag.error(
-                        f"trick round winner '{nd.outcome_fn}' is not a trick "
+                        f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
                         nd.span,
                     )

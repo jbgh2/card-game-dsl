@@ -353,7 +353,7 @@
               }
             },
             {
-              "kind": "round",
+              "kind": "trick_round",
               "move_type": "play_to_trick",
               "leader": {
                 "kind": "name",
@@ -365,14 +365,9 @@
               },
               "source_zone": "hand",
               "play_zone": "trick_pile",
-              "outcome_fn": "highest_of_led_suit",
+              "winner_fn": "highest_of_led_suit",
               "trump": null,
-              "early_termination": null,
-              "offering": null,
-              "termination": null,
-              "order_mode": null,
-              "combos_fn": null,
-              "follows_fn": null
+              "early_termination": null
             },
             {
               "kind": "transfer",
@@ -525,7 +520,7 @@
               },
               "body": [
                 {
-                  "kind": "round",
+                  "kind": "trick_round",
                   "move_type": "play_to_trick",
                   "leader": {
                     "kind": "name",
@@ -537,14 +532,9 @@
                   },
                   "source_zone": "hand",
                   "play_zone": "trick_pile",
-                  "outcome_fn": "highest_of_led_suit",
+                  "winner_fn": "highest_of_led_suit",
                   "trump": null,
-                  "early_termination": null,
-                  "offering": null,
-                  "termination": null,
-                  "order_mode": null,
-                  "combos_fn": null,
-                  "follows_fn": null
+                  "early_termination": null
                 },
                 {
                   "kind": "transfer",

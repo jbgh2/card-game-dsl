@@ -116,25 +116,18 @@ class TrickForm:
     which `run_decision_round` pops into `last_round_state` once the round closes,
     so the body can still read `state.trick_terminated_early` afterward."""
 
-    def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
+    def __init__(self, stmt: n.TrickRound, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
 
-        # `outcome_fn` / `early_termination` are bare stdlib value-function names on
-        # the Round node (validated at resolve time). Only the betting form omits
-        # `outcome_fn`, and it never selects this bundle. On this form the field
-        # carries the WINNER function — the name is the shared node's, and splits
-        # with it (issue #210).
-        assert stmt.outcome_fn is not None, "the trick form requires a winner function"
-        # The grammar's trick production makes the card zones mandatory; the
-        # auction form has none.
-        assert (
-            stmt.source_zone is not None and stmt.play_zone is not None
-        ), "the trick form of `round` carries source/into card zones"
+        # `winner_fn` / `early_termination` are bare stdlib value-function names
+        # on the node, validated at resolve time. Nothing is asserted about them
+        # or about the card zones: the node's own field types say they are
+        # present, which is what the split bought.
         self.participants: list[Player] = list(evaluate(stmt.participants, ctx))
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.source_family = stmt.source_zone
         self.play_zone = stmt.play_zone
-        self.winner_fn = primitives.value_function(stmt.outcome_fn)
+        self.winner_fn = primitives.value_function(stmt.winner_fn)
         self.early_term = (
             primitives.value_function(stmt.early_termination)
             if stmt.early_termination is not None
@@ -336,9 +329,7 @@ class AuctionForm:
       raised rather than silently ended.
     """
 
-    def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
-        # the grammar's auction production makes the offering and `until` mandatory
-        assert stmt.offering is not None and stmt.termination is not None
+    def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
         self.stmt = stmt
         self.termination: n.Expr = stmt.termination
         self.order: list[Player] = ctx.rs.seating.turn_order_from(
@@ -480,17 +471,9 @@ class ClimbForm:
     these; its goldens gate the no-change.
     """
 
-    def __init__(self, stmt: n.Round, ctx: Ctx) -> None:
+    def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
 
-        # the grammar's climb production makes every one of these clauses mandatory
-        assert (
-            stmt.combos_fn is not None
-            and stmt.follows_fn is not None
-            and stmt.source_zone is not None
-            and stmt.play_zone is not None
-            and stmt.termination is not None
-        ), "the climbing form of `round` carries combination queries and card zones"
         self.termination: n.Expr = stmt.termination
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
@@ -611,18 +594,21 @@ class ClimbForm:
         return last
 
 
-def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
-    """Select the hook bundle for a `round` by field-presence: the climbing form
-    carries the combination queries (`combos_fn`), the auction/betting form an
-    `offering`, and the trick form neither. This is the sole field-presence
-    discrimination among the forms — the interpreter and the Outcome union carry
-    everything else — and it preserves the original cascade order (`combos_fn`
-    before `offering`)."""
-    if stmt.combos_fn is not None:
-        return ClimbForm(stmt, ctx)
-    if stmt.offering is not None:
-        return AuctionForm(stmt, ctx)
-    return TrickForm(stmt, ctx)
+def build_form(stmt: n.TrickRound | n.AuctionRound | n.ClimbRound, ctx: Ctx) -> DecisionForm:
+    """Select the hook bundle for a `round` by which form it is.
+
+    Dispatch on type, so the arms are disjoint and their ORDER carries no
+    meaning. It used to: this cascade tested `combos_fn` before `offering`
+    while resolve's tested `offering` before `combos_fn`, and the two agreed
+    only because the parser never set both. A node that had would have
+    validated as an auction and run as a climb."""
+    match stmt:
+        case n.ClimbRound():
+            return ClimbForm(stmt, ctx)
+        case n.AuctionRound():
+            return AuctionForm(stmt, ctx)
+        case n.TrickRound():
+            return TrickForm(stmt, ctx)
 
 
 def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
