@@ -27,6 +27,10 @@ locate it:
 - sequenced -> the GitHub tracker; issue #143 orders the cross-cutting work
 - sketched -> docs/design-notes/ (proposals, not settled spec)
 - witnessed -> docs/games/ (which corpus games exercise the area today)
+- surface -> Hoyle, the Language Owner (`.claude/skills/hoyle`): any
+  Merge Lane A change, or a design that would create one, consults at
+  planning time and attaches the counsel block to the change before the
+  operator rules (docs/harness.md, "The Language Owner")
 
 A plan that contradicts an owner is wrong before it starts; a plan that
 re-derives one is losing information — the planning-stage form of
