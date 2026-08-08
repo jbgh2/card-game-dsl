@@ -178,7 +178,7 @@
             {
               "kind": "movement",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": null,
@@ -203,7 +203,7 @@
             {
               "kind": "movement",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 18
@@ -226,7 +226,7 @@
             {
               "kind": "movement",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 6
@@ -579,7 +579,7 @@
                     {
                       "kind": "movement",
                       "verb": "move",
-                      "mode": null,
+                      "selection_mode": null,
                       "amount": "all",
                       "item": "cards",
                       "source": {
@@ -646,7 +646,7 @@
                         {
                           "kind": "movement",
                           "verb": "move",
-                          "mode": "chosen",
+                          "selection_mode": "chosen",
                           "amount": {
                             "kind": "int",
                             "value": 6
@@ -698,7 +698,7 @@
                         {
                           "kind": "movement",
                           "verb": "move",
-                          "mode": "chosen",
+                          "selection_mode": "chosen",
                           "amount": {
                             "kind": "int",
                             "value": 6
@@ -938,7 +938,7 @@
                     {
                       "kind": "movement",
                       "verb": "move",
-                      "mode": null,
+                      "selection_mode": null,
                       "amount": "all",
                       "item": "cards",
                       "source": {
@@ -984,7 +984,7 @@
                     {
                       "kind": "movement",
                       "verb": "move",
-                      "mode": null,
+                      "selection_mode": null,
                       "amount": "all",
                       "item": "cards",
                       "source": {
@@ -1051,7 +1051,7 @@
                         {
                           "kind": "movement",
                           "verb": "move",
-                          "mode": null,
+                          "selection_mode": null,
                           "amount": "one",
                           "item": "card",
                           "source": {
@@ -1111,7 +1111,7 @@
                     {
                       "kind": "movement",
                       "verb": "move",
-                      "mode": null,
+                      "selection_mode": null,
                       "amount": "all",
                       "item": "cards",
                       "source": {

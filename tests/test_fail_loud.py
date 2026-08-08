@@ -463,7 +463,7 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).with_local("h", 5)
     stmt = n.Movement(
         verb="move",
-        mode=None,
+        selection_mode=None,
         amount="all",
         item="cards",
         source=n.NameRef(name="h", ref_kind="local"),

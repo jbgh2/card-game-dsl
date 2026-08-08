@@ -79,14 +79,12 @@ game Hearts {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
-      phase hearts_not_broken {
+      mode hearts_not_broken {
         active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
         transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
       }
 
-      phase hearts_broken {
-        // inherits parent's MustFollowSuit only
-      }
+      mode hearts_broken { }
 
       // Body: loop tricks until hands empty.
       repeat until (all players where hand[player] is empty) {

@@ -321,6 +321,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.Game, "name"): "game",
     (n.Library, "name"): "library",
     (n.Phase, "name"): "phase",
+    (n.Mode, "name"): "mode",
     (n.ZoneDecl, "name"): "zone",
     (n.PositionDecl, "name"): "position",
     (n.PositionDecl, "members_named"): "position_member",
@@ -372,7 +373,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.Round, "play_zone"): "zone",
     # Phases.
     (n.ContinueTo, "target"): "phase",
-    (n.TransitionTo, "target"): "phase",
+    (n.TransitionTo, "target"): "mode",
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
@@ -458,7 +459,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Comprehension, "agg"),
         (n.Choose, "domain"),
         (n.Movement, "verb"),
-        (n.Movement, "mode"),
+        (n.Movement, "selection_mode"),
         (n.Movement, "amount"),
         (n.Movement, "distribution"),
         (n.Round, "order_mode"),
@@ -1087,6 +1088,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         # owns that class and says more than a leak message can.
         "zone_type_arg": frozenset(role_names(ZONE_INDEX_ROLES)),
         "phase": frozenset(),
+        "mode": frozenset(),
         "position": frozenset(),
         "deck_rank": frozenset(),
         "deck_suit": frozenset(),
@@ -1333,6 +1335,7 @@ _NAMESPACE_NOUN: dict[str, str] = {
     "state": "state variable",
     "zone": "zone",
     "phase": "phase",
+    "mode": "mode",
     "type": "type",
     "move_type": "move type",
     "define": "define",
@@ -1359,6 +1362,10 @@ _NAMESPACE_ADVICE: dict[str, str] = {
     "phase": (
         "a library holds no phases, and the phase sequence is the including game's — "
         "keep the definition that needs it in the game"
+    ),
+    "mode": (
+        "a library holds no modes: a mode is a condition of one of the including "
+        "game's phases — keep the definition that needs it in the game"
     ),
     "type": (
         "declare the type in the library, or keep this definition in the game "
@@ -1891,7 +1898,7 @@ def resolve(game: n.Game) -> n.Game:
     for rule in game.rules:
         _resolve_rule(rule, bag)
     _resolve_phase_level(game.phases, known_rule_names, bag)
-    _check_rule_delta_subphases(game.phases, bag)
+    _check_rule_removes(game.phases, bag)
 
     # DomainQuery nouns validate BEFORE deep name resolution: a typo'd noun
     # (`any cel where square[cell] …`) changes the binder name, so the body's
@@ -2036,7 +2043,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
-            | n.ActiveRules() | n.LegalMoves() | n.TransitionTo() | n.MoveEvent()
+            | n.ActiveRules() | n.LegalMoves() | n.Mode() | n.TransitionTo() | n.MoveEvent()
         ):
             # `StateDecl` in particular: state variables are a flat, game-wide
             # declaration namespace (`_categories`'s `state_vars`), not a binder
@@ -2190,7 +2197,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     unsatisfiable diagnostic (no source text repairs it). Both resolve by
     NAME alone: `remove` targets a rule a `plain`/`add` reference already
     activated in the same runtime-consulted scope (validated structurally by
-    `_check_rule_delta_subphases`, since `compute_active_rules` only ever
+    `_check_rule_removes`, since `compute_active_rules` only ever
     removes a name it finds already present); `override` has no runtime
     support yet at all and is rejected unconditionally, once, by
     `_resolve_phase_item` — this loop skips it so that is the only diagnostic
@@ -2307,40 +2314,30 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
     return replace(game, rules=tuple(rules)) if tuple(rules) != game.rules else game
 
 
-def _check_rule_delta_subphases(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
-    """Validate every rule-delta sub-phase — two Owner Guards over the config-only
-    `_is_rule_delta` children the runtime folds conditionally.
+def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None:
+    """`-X` remove reachability, over a phase and its modes.
 
-    **A rule-delta sub-phase may not carry `legal_moves:`.** It is never
-    executed (`driver.py` skips it) and `compute_active_rules` folds only its
-    `active_rules:`; a `legal_moves:` inside one is read by no consumer, so it
-    would be silently ignored — the accepted-but-ignored class. The move menu
-    is set by the phase you are in, never toggled by an invisible config
-    sub-phase, so this is rejected here rather than dropped.
-
-    **`-X` remove reachability.** `-X` and (unsupported today) `override X` can never instantiate a rule
+    `-X` and (unsupported today) `override X` can never instantiate a rule
     (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
     rule a `plain`/`add` reference already activated. A reference to a name no
     `plain`/`add` ever activates in the scope the runtime actually consults is
     a structural no-op forever: `runtime/phases.py`'s `compute_active_rules`
     computes one phase's active set from exactly two sources — that phase's
     OWN `active_rules:` entries (applied unconditionally, in the list's own
-    order), and, layered on top, each of its DIRECT rule-delta sub-phases
-    (`_is_rule_delta` — a child phase with nothing but `active_rules:` /
-    `legal_moves:` / `transition_to:` items, imported from there so the two
-    can never drift) that is currently active — never a grandparent, and never
-    a SIBLING delta sub-phase's own list alone (only one of a "before"/"after"
-    pair is ever active at a time, so a name that pair's other branch alone
-    added was never in `names` on this call either). This check mirrors that
-    exact two-source shape: a `remove` inside a phase's own list validates
-    against that same list; a `remove` inside a rule-delta sub-phase validates
-    against its parent's list UNION its own. It does not model order WITHIN
-    one list (an add-then-remove of the same name earlier in a parent's own
-    list still counts as "added" for a child's cluster check below) — an
-    accepted imprecision for a construct the corpus does not use at all
-    (issue #103 records the residual)."""
-    from cardlang.runtime.phases import _is_rule_delta
+    order), and, layered on top, each of its currently-active MODES. This check
+    mirrors that exact two-source shape: a `remove` inside a phase's own list
+    validates against that same list; a `remove` inside a mode validates
+    against its phase's list UNION its own.
 
+    It deliberately does NOT widen the scope to sibling modes. Modes are
+    independent conditions, so two of them may hold at once and one's `+X`
+    genuinely can be live while another's `-X` runs — but only in orders no
+    declaration site fixes, so a `-X` that depends on a sibling is a race the
+    designer cannot read off the page. It also does not model order WITHIN one
+    list (an add-then-remove of the same name earlier in a phase's own list
+    still counts as "added" for a mode's cluster check) — an accepted
+    imprecision for a construct the corpus does not use at all (issue #103
+    records the residual)."""
     for phase in phases:
         own_refs = [
             ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
@@ -2348,39 +2345,13 @@ def _check_rule_delta_subphases(phases: tuple[n.Phase, ...], bag: DiagnosticBag)
         own_added = {r.name for r in own_refs if r.op in ("plain", "add")}
         _validate_removes(own_refs, own_added, bag)
 
-        delta_children = [
-            item for item in phase.items if isinstance(item, n.Phase) and _is_rule_delta(item)
-        ]
-        for child in delta_children:
-            for item in child.items:
-                if isinstance(item, n.LegalMoves):
-                    bag.error(
-                        "`legal_moves:` in a rule-delta sub-phase has no effect "
-                        "— a config-only sub-phase (active_rules/transition_to) "
-                        "toggles rules, not the move menu, and nothing consults "
-                        "it. Set `legal_moves:` on the phase itself, or restrict "
-                        "the move with a rule.",
-                        item.span,
-                    )
-            child_refs = [
-                ref
-                for item in child.items
-                if isinstance(item, n.ActiveRules)
-                for ref in item.refs
-            ]
-            cluster_added = own_added | {r.name for r in child_refs if r.op in ("plain", "add")}
-            _validate_removes(child_refs, cluster_added, bag)
+        for mode in (i for i in phase.items if isinstance(i, n.Mode)):
+            mode_refs = [ref for block in mode.active_rules for ref in block.refs]
+            cluster_added = own_added | {r.name for r in mode_refs if r.op in ("plain", "add")}
+            _validate_removes(mode_refs, cluster_added, bag)
 
-        # Recurse into every child phase EXCEPT the rule-delta ones just
-        # handled above (against their parent's cluster) — revisiting them
-        # generically here would re-check them against only their own narrow
-        # list, which is not the scope the runtime actually consults for them.
-        non_delta_children = tuple(
-            item
-            for item in phase.items
-            if isinstance(item, n.Phase) and not any(item is d for d in delta_children)
-        )
-        _check_rule_delta_subphases(non_delta_children, bag)
+        children = tuple(i for i in phase.items if isinstance(i, n.Phase))
+        _check_rule_removes(children, bag)
 
 
 def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
@@ -2388,8 +2359,8 @@ def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag
         if ref.op == "remove" and ref.name not in added:
             bag.error(
                 f"`-{ref.name}` removes a rule that is never added in scope "
-                f"here (this phase's own `active_rules:`, or a sibling "
-                f"rule-delta phase's) — add `{ref.name}` or `+{ref.name}` "
+                f"here (this phase's own `active_rules:`, or one of its "
+                f"mode's) — add `{ref.name}` or `+{ref.name}` "
                 f"there, or delete this removal",
                 ref.span,
             )
@@ -3370,11 +3341,13 @@ def _resolve_phase_level(
 ) -> None:
     """Resolve a set of sibling phases, then recurse into each one's children.
 
-    Transition targets resolve against the *sibling* set, since
-    `transition_to: Y` inside phase X names a sibling of X.
+    A `transition_to: Y` inside a mode names a sibling MODE of that mode — the
+    modes of one phase body are one condition's sides, so the namespace a
+    target resolves against is the enclosing phase's own modes.
     """
     sibling_names = {p.name for p in phases}
     for phase in phases:
+        _check_modes(phase, bag)
         # Combination validity (decisions.md "Surface totality"): the runtime
         # declares only a phase's FIRST state block and runs the lifecycle
         # hooks only on a `repeat until` phase — reject what it would
@@ -3396,10 +3369,101 @@ def _resolve_phase_level(
                         f"statements in the phase body",
                         hook.span,
                     )
+        modes = tuple(i for i in phase.items if isinstance(i, n.Mode))
+        mode_names = {m.name for m in modes}
         for item in phase.items:
-            _resolve_phase_item(item, sibling_names, known_rule_names, bag)
+            scope = mode_names if isinstance(item, n.Mode) else sibling_names
+            _resolve_phase_item(item, scope, known_rule_names, bag)
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
         _resolve_phase_level(children, known_rule_names, bag)
+
+
+def _resolve_transition(
+    transition: n.TransitionTo, mode_names: set[str], bag: DiagnosticBag
+) -> None:
+    if transition.target not in mode_names:
+        bag.error(
+            f"transition_to target '{transition.target}' is not a sibling mode "
+            f"of this phase — a transition ends one condition and begins "
+            f"another, so its target is a `mode` declared beside this one",
+            transition.span,
+        )
+    if transition.event.move_type not in LIBRARY_MOVE_TYPES:
+        bag.error(
+            f"transition event names unknown move type '{transition.event.move_type}'",
+            transition.event.span,
+        )
+    elif transition.event.move_type != "play_to_trick":
+        bag.error(
+            f"transitions fire from trick plays only today: the event move "
+            f"type must be `play_to_trick`, not "
+            f"'{transition.event.move_type}' (roadmap.md)",
+            transition.event.span,
+        )
+
+
+def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
+    """The mode-role invariant: every mode is exactly one of a transition
+    SOURCE or a transition TARGET.
+
+    A mode is one side of one condition — the "before", which declares the
+    transitions that end it, or the "after", which a sibling names. The two
+    rejected shapes are not hypothetical; both ran silently wrong before this
+    wall existed, and `check_dsl` accepted both:
+
+    - BOTH (a chain, or a self-loop): the runtime keys a mode's activity on ITS
+      target having fired, not on its having been entered, so the middle mode
+      of a three-mode chain is active from the very start and its transition is
+      live before anything reaches it.
+    - NEITHER (an orphan): a transition-less mode holds only once its own name
+      has fired, which for a mode nobody targets never happens — so its
+      `active_rules:` silently never apply.
+    """
+    modes = [i for i in phase.items if isinstance(i, n.Mode)]
+    targeted = {t.target for m in modes for t in m.transitions}
+
+    # A target belongs to ONE condition. Two sources naming the same target
+    # read as "two conditions that happen to end together", but the runtime
+    # keys a source's activity on its TARGET having fired, not on the source's
+    # own identity — so either trigger ends both, and a condition can end
+    # without its own event ever occurring. Rejected rather than given that
+    # meaning: nobody writing two separate conditions wants one to cancel the
+    # other. Lifting this means keying activity on the mode rather than the
+    # target name (issue #283).
+    claimed_by: dict[str, str] = {}
+    for mode in modes:
+        for transition in mode.transitions:
+            owner = claimed_by.setdefault(transition.target, mode.name)
+            if owner != mode.name:
+                bag.error(
+                    f"modes '{owner}' and '{mode.name}' both transition to "
+                    f"'{transition.target}' — a target is the far side of one "
+                    f"condition, and sharing it makes either trigger end both. "
+                    f"Give each condition its own target mode",
+                    transition.span,
+                )
+
+    for mode in modes:
+        is_source = bool(mode.transitions)
+        is_target = mode.name in targeted
+        if is_source and is_target:
+            bag.error(
+                f"mode '{mode.name}' is both entered by a transition and "
+                f"declares one — modes are independent two-sided conditions, "
+                f"not a chain. Give each condition its own pair of modes, or "
+                f"use a state variable with `applies_when` for a progression "
+                f"through three or more stages",
+                mode.span,
+            )
+        elif not is_source and not is_target:
+            bag.error(
+                f"mode '{mode.name}' is never active: nothing transitions to "
+                f"it and it declares no transition of its own, so its "
+                f"`active_rules:` would never apply. Have a sibling mode "
+                f"`transition_to: {mode.name}`, or put these rules on the "
+                f"phase itself",
+                mode.span,
+            )
 
 
 def _resolve_phase_item(
@@ -3422,24 +3486,11 @@ def _resolve_phase_item(
         for name in item.move_types:
             if name not in LIBRARY_MOVE_TYPES:
                 bag.error(f"legal_moves names unknown move type '{name}'", item.span)
-    elif isinstance(item, n.TransitionTo):
-        if item.target not in sibling_names:
-            bag.error(
-                f"transition_to target '{item.target}' is not a sibling phase",
-                item.span,
-            )
-        if item.event.move_type not in LIBRARY_MOVE_TYPES:
-            bag.error(
-                f"transition event names unknown move type '{item.event.move_type}'",
-                item.event.span,
-            )
-        elif item.event.move_type != "play_to_trick":
-            bag.error(
-                f"transitions fire from trick plays only today: the event move "
-                f"type must be `play_to_trick`, not "
-                f"'{item.event.move_type}' (roadmap.md)",
-                item.event.span,
-            )
+    elif isinstance(item, n.Mode):
+        for block in item.active_rules:
+            _resolve_phase_item(block, sibling_names, known_rule_names, bag)
+        for transition in item.transitions:
+            _resolve_transition(transition, sibling_names, bag)
     elif isinstance(item, (n.Phase, n.StateBlock, n.BeforeEach, n.AfterEach)):
         # Phases recurse via the level walk; state blocks resolve later; hook
         # bodies are plain statement sequences with nothing item-level to check.
@@ -3572,14 +3623,28 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     if game.state is not None:
         check("state variable", game.state.decls, reserved=True)
     phases: list[object] = []
+    modes: list[object] = []
     for nd in _walk(game):
         if isinstance(nd, n.Phase):
             phases.append(nd)
+        elif isinstance(nd, n.Mode):
+            modes.append(nd)
         elif isinstance(nd, n.StateBlock) and nd is not game.state:
             check("state variable", nd.decls, reserved=True)
         elif isinstance(nd, n.TypeDef):
             check(f"field in type '{nd.name}'", nd.fields)
     check("phase", phases)
+    # Modes are collected GAME-WIDE, not per phase, for the same reason phases
+    # are: the runtime keys reached transitions by bare mode name in one
+    # `RuntimeState.fired_transitions` set, and that set is cleared per
+    # ITERATION of a `repeat until`-qualified phase — never on entering a
+    # phase. A name reached under one phase is therefore still present when a
+    # later one runs. Two phases each declaring a `done` would share that key —
+    # one phase's transition would put the other phase straight into its
+    # "after" mode, whose rules then apply from the start and whose "before"
+    # mode never holds at all. Uniqueness here is what lets the runtime keep
+    # using a bare name, so the checker's scope and the runtime's agree.
+    check("mode", modes)
 
 
 # The param-bearing declaration kinds: node type -> (the `Game` collection that
@@ -4063,12 +4128,15 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
         current = cats
         out_items: list[object] = []
         for item in node.items:
-            if isinstance(item, n.TransitionTo):
-                # A transition predicate reads NO `let` at all — not even an
-                # enclosing one. It is fired by whichever round matches its
-                # event, and rounds both before and after any given `let` can
-                # be in scope, so no lexical position makes a binding reliably
-                # live at evaluation time. Configuration reads state and the
+            if isinstance(item, n.Mode):
+                # A MODE reads no `let` at all — not even an enclosing one —
+                # and that covers its whole body, not just its transitions.
+                # A transition is fired by whichever round matches its event,
+                # and rounds both before and after any given `let` can be in
+                # scope, so no lexical position makes a binding reliably live
+                # at evaluation time; a mode's `active_rules:` are collected
+                # the same way, applying whenever the mode holds rather than
+                # where they are written. Configuration reads state and the
                 # action; body bindings are the body's.
                 no_locals = replace(entry, locals=frozenset())
                 out_items.append(_rewrite_value(item, no_locals, bag))
@@ -5129,7 +5197,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # recorded in roadmap.md, "Grammar surface deferred by
                 # the checker"); `some` (any-size) is meaningless
                 # without a joint predicate to own the size.
-                if nd.joint and nd.mode != "chosen":
+                if nd.joint and nd.selection_mode != "chosen":
                     bag.error(
                         "`where jointly` selects one subset as a player "
                         "decision — it requires `chosen` (a dealt or "

@@ -232,6 +232,18 @@ def _qualifier(q: n.PhaseQualifier) -> IRDict:
     return {"kind": "phase_qualifier", "qualifier": q.kind, "expr": _expr(q.expr)}
 
 
+def _transition_to(t: n.TransitionTo) -> IRDict:
+    return {
+        "kind": "transition_to",
+        "target": t.target,
+        "event": {
+            "kind": "move_event",
+            "move_type": t.event.move_type,
+            "where": _expr(t.event.where) if t.event.where else None,
+        },
+    }
+
+
 def _phase_item(item: n.PhaseItem) -> IRDict:
     match item:
         case n.StateBlock():
@@ -243,15 +255,15 @@ def _phase_item(item: n.PhaseItem) -> IRDict:
             }
         case n.LegalMoves():
             return {"kind": "legal_moves", "move_types": list(item.move_types)}
-        case n.TransitionTo():
+        case n.Mode():
             return {
-                "kind": "transition_to",
-                "target": item.target,
-                "event": {
-                    "kind": "move_event",
-                    "move_type": item.event.move_type,
-                    "where": _expr(item.event.where) if item.event.where else None,
-                },
+                "kind": "mode",
+                "name": item.name,
+                "active_rules": [
+                    {"kind": "active_rules", "refs": [_rule_ref(r) for r in block.refs]}
+                    for block in item.active_rules
+                ],
+                "transitions": [_transition_to(t) for t in item.transitions],
             }
         case n.BeforeEach():
             return {"kind": "before_each", "body": [_stmt(s) for s in item.body]}
@@ -272,7 +284,7 @@ def _stmt(s: n.Stmt) -> IRDict:
             movement: IRDict = {
                 "kind": "movement",
                 "verb": s.verb,
-                "mode": s.mode,
+                "selection_mode": s.selection_mode,
                 "amount": _amount(s.amount),
                 "item": s.item,
                 "source": _expr(s.source) if s.source else None,

@@ -2,8 +2,9 @@
 
 `play_game` sets up the world, runs the top-level phases, and reads the winner.
 `run_phase` handles a phase's state block and its qualifier (`when` guard /
-`repeat until` loop); `run_body` runs the items, skipping rule-delta sub-phases
-(handled by phases.compute_active_rules) and threading `let` bindings.
+`repeat until` loop); `run_body` runs the items — modes are configuration, read
+by `phases.compute_active_rules` rather than executed — and threads `let`
+bindings.
 """
 
 from __future__ import annotations
@@ -348,14 +349,13 @@ def run_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                     n.StateBlock()
                     | n.ActiveRules()
                     | n.LegalMoves()
-                    | n.TransitionTo()
+                    | n.Mode()
                     | n.BeforeEach()
                     | n.AfterEach()
                 ):
                     pass  # config / lifecycle hooks, handled by run_phase
                 case n.Phase():
-                    if not phases._is_rule_delta(item):
-                        run_phase(item, ctx, hands)
+                    run_phase(item, ctx, hands)
                 case _:
                     ctx = execute(item, ctx)
         except _ContinueTo as jump:

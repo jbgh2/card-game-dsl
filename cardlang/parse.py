@@ -49,6 +49,7 @@ Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
@@ -587,6 +588,17 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
+    def mode_def(self, meta: Meta, c: list[object]) -> n.Mode:
+        # `?mode_item` admits exactly two alternatives, so the body splits by
+        # type with no residue — the grammar, not this builder, is what makes
+        # anything else impossible here.
+        return n.Mode(
+            name=str(c[0]),
+            active_rules=tuple(x for x in c[1:] if isinstance(x, n.ActiveRules)),
+            transitions=tuple(x for x in c[1:] if isinstance(x, n.TransitionTo)),
+            span=self._span(meta),
+        )
+
     def active_rules(self, meta: Meta, c: list[object]) -> n.ActiveRules:
         refs = tuple(r for r in c if isinstance(r, n.RuleRef))
         return n.ActiveRules(refs=refs, span=self._span(meta))
@@ -667,7 +679,7 @@ class _Builder(Transformer[Token, n.Game]):
         where = next((x for x in c if isinstance(x, _Where)), None)
         return n.Movement(
             verb=str(c[0]),
-            mode=sel.mode,
+            selection_mode=sel.mode,
             amount=sel.amount,  # type: ignore[arg-type]
             item=sel.item,
             source=_as_expr(c[2]),  # zone_expr is the 3rd positional child
@@ -694,7 +706,7 @@ class _Builder(Transformer[Token, n.Game]):
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
         return n.Movement(
             verb=str(c[0]),
-            mode=c[1].mode,
+            selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
             item=c[1].item,
             source=None,
@@ -709,7 +721,7 @@ class _Builder(Transformer[Token, n.Game]):
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
         return n.Movement(
             verb=str(c[0]),
-            mode=c[1].mode,
+            selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
             item=c[1].item,
             source=_as_expr(c[2]),
@@ -1576,6 +1588,49 @@ def _as_stmt(value: object) -> n.Stmt:
     return value  # type: ignore[return-value]
 
 
+# A clause that is legal SOMEWHERE but not where it was written can only be
+# reported by the parser as "no terminal matches", which names neither the
+# mistake nor the fix. Keyed by the first word of the offending line, since
+# that is what the designer has their cursor on.
+#
+# The hint states WHERE THE CLAUSE BELONGS. It deliberately does not say where
+# the author currently is, because it cannot know: the parser reports a line,
+# not an enclosing construct, so the same entry fires for a misplaced clause
+# and for a clause in the right place with a bad argument list. An earlier
+# wording asserted the container ("belongs to a `mode`, not a `phase`") and so
+# told a designer already inside a phase to move the clause into a phase. Every
+# entry must therefore read as true wherever it fires — a reminder of the
+# clause's home, never a diagnosis of the author's position.
+_PARSE_HINTS = {
+    "transition_to": (
+        " — `transition_to:` is a mode clause: it declares an exit from a "
+        "`mode NAME { }`, and its target is a sibling mode"
+    ),
+    "legal_moves": (
+        " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
+        "move menu, so a mode body takes `active_rules:`/`transition_to:` only"
+    ),
+}
+
+
+def _parse_hint(text: str, line: int, column: int) -> str:
+    """Two probes, because Lark points at either end of the offending clause.
+
+    A clause on its own line fails at the clause keyword itself; one written
+    inline after `{` fails a few characters in. So try the identifier AT the
+    reported column first, then fall back to the line's leading word.
+    """
+    lines = text.splitlines()
+    if not 1 <= line <= len(lines):
+        return ""
+    source = lines[line - 1]
+    at_column = re.match(r"[A-Za-z_][A-Za-z0-9_]*", source[max(0, column - 1) :])
+    if at_column and at_column.group() in _PARSE_HINTS:
+        return _PARSE_HINTS[at_column.group()]
+    head = source.strip().split(":")[0].split()
+    return _PARSE_HINTS.get(head[0], "") if head else ""
+
+
 def parse_to_tree(
     text: str, source_name: str, line_offset: int = 0, start: str = "start"
 ) -> Tree[Token]:
@@ -1587,8 +1642,10 @@ def parse_to_tree(
         line = getattr(exc, "line", 1) + line_offset
         column = getattr(exc, "column", 1)
         span = Span(source_name, 0, 0, line, column)
+        message = f"syntax error: {exc!s}".splitlines()[0]
+        hint = _parse_hint(text, getattr(exc, "line", 1), column)
         raise DiagnosticError(
-            Diagnostic(Severity.ERROR, f"syntax error: {exc!s}".splitlines()[0], span)
+            Diagnostic(Severity.ERROR, f"{message}{hint}", span)
         ) from exc
     assert isinstance(tree, Tree)
     return tree

@@ -272,11 +272,11 @@ def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
         _game(
             "legal_moves: [play_to_trick]\n"
             "    let z = hearts\n"
-            "    phase gate {\n"
+            "    mode gate {\n"
             "      transition_to: opened when play_to_trick where "
             "action.card.suit is z\n"
             "    }\n"
-            "    phase opened { }"
+            "    mode opened { }"
         ),
         "unresolved name 'z'",
     )
@@ -292,11 +292,11 @@ def test_a_transition_predicate_reads_no_let_even_an_enclosing_one() -> None:
         "let z = hearts\n"
         "    phase inner {\n"
         "      legal_moves: [play_to_trick]\n"
-        "      phase gate {\n"
+        "      mode gate {\n"
         "        transition_to: opened when play_to_trick where "
         "action.card.suit is z\n"
         "      }\n"
-        "      phase opened { }\n"
+        "      mode opened { }\n"
         "    }"
     )
     _rejects(src, "unresolved name 'z'")

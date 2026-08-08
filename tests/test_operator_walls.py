@@ -220,7 +220,8 @@ def test_ordering_accepts_gradual_any() -> None:
     _accepts(
         _game(
             "for each player q: score[q] := 1\n"
-            "    transition_to: p when play_to_trick where action.card_count > 3"
+            "    mode m { transition_to: p when play_to_trick where action.card_count > 3 }\n"
+            "    mode p { }"
         )
     )
 
@@ -309,7 +310,8 @@ def test_logical_accepts_gradual_any() -> None:
     _accepts(
         _game(
             "for each player q: score[q] := 1\n"
-            "    transition_to: p when play_to_trick where action.card_count and true"
+            "    mode m { transition_to: p when play_to_trick where action.card_count and true }\n"
+            "    mode p { }"
         )
     )
 
@@ -373,7 +375,8 @@ def test_membership_accepts_gradual_any_collection() -> None:
     _accepts(
         _game(
             "for each player q: score[q] := 1\n"
-            "    transition_to: p when play_to_trick where action.card in [action.card]"
+            "    mode m { transition_to: p when play_to_trick where action.card in [action.card] }\n"
+            "    mode p { }"
         )
     )
 

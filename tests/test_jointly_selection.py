@@ -101,7 +101,7 @@ def test_jointly_parses_with_joint_flag_and_some_amount() -> None:
     mv = next(nd for nd in _walk(game) if isinstance(nd, n.Movement))
     assert mv.joint is True
     assert mv.amount == "some"
-    assert mv.mode == "chosen"
+    assert mv.selection_mode == "chosen"
 
 
 def test_plain_where_stays_per_card() -> None:

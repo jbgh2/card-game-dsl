@@ -189,7 +189,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
         player = (
             ctx.require_actor("a chosen movement")
-            if stmt.mode == "chosen"
+            if stmt.selection_mode == "chosen"
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
@@ -313,13 +313,13 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         # reach here — resolve rejects `some` without `jointly`, and every
         # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
-    if stmt.mode == "chosen":
+        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+    if stmt.selection_mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
         for card in chosen:
             source.remove(card)
         return chosen
-    if stmt.mode == "random":
+    if stmt.selection_mode == "random":
         chosen = ctx.rs.rng.sample(list(source.cards), count)
         for card in chosen:
             source.remove(card)
@@ -371,7 +371,7 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         # Shadow Guard: parse admits "all" | "one" | "some" | Expr, and the
         # three string literals are handled above.
         assert not isinstance(amount, str)
-        k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
+        k = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
     noun = content_noun(ctx.rs.content_flavor, plural=True)
@@ -421,13 +421,13 @@ def _select_filtered(
         # path — resolve's Owner Guard confines `some` to `jointly`, which
         # routes to `_select_joint`.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
-    if stmt.mode == "chosen":
+        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+    if stmt.selection_mode == "chosen":
         chosen = ctx.chooser(player, pool, count)
         for card in chosen:
             source.remove(card)
         return chosen
-    if stmt.mode == "random":
+    if stmt.selection_mode == "random":
         chosen = ctx.rs.rng.sample(pool, count)
         for card in chosen:
             source.remove(card)

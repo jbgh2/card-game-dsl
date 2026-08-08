@@ -450,7 +450,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
 
     union = n.Movement(
         verb="deal",
-        mode=None,
+        selection_mode=None,
         amount="all",
         item="cards",
         source=None,

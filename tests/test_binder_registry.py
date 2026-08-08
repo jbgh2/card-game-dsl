@@ -96,7 +96,7 @@ def test_card_query_binds_card_even_with_no_pred() -> None:
 def test_movement_with_filter_binds_card() -> None:
     node = n.Movement(
         verb="deal",
-        mode=None,
+        selection_mode=None,
         amount="all",
         item="cards",
         source=_ZONE,
@@ -114,7 +114,7 @@ def test_movement_without_filter_binds_nothing() -> None:
     # about.
     node = n.Movement(
         verb="deal",
-        mode=None,
+        selection_mode=None,
         amount="all",
         item="cards",
         source=_ZONE,
