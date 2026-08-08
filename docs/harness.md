@@ -104,6 +104,39 @@ agent without asking, and the revert itself is Merge Lane D. What was
 learned goes to the tracker before the re-attempt, not into a bigger
 second try.
 
+## Review threads
+
+A review thread is feedback in flight, and its resolved state is the only
+ledger of what has been handled. Two obligations, lane-invariant:
+
+- **Every thread gets a reply before merge**, and the reply states the
+  finding's disposition with its evidence: **fixed** (the commit),
+  **filed** (the issue, with its reachability), **refuted** (the executed
+  evidence — refutation is constructive, exactly as in the review skill),
+  or **escalated** (named to the operator).
+- **The responder resolves the thread after replying** — except an
+  escalated thread, which stays open until the operator rules. An
+  unresolved thread IS the visible flag that feedback still awaits
+  someone; resolving without a disposition reply is silencing, not
+  handling.
+
+The merge precondition, any lane: **zero unresolved threads**. Top-level
+review bodies and standalone PR comments have no resolved state; their
+reply is their record. Reviewer-specific protocols (Codex's thumbs
+reactions) ride on top as courtesy; the thread reply-and-resolve is this
+repo's own record. The check is derived, like everything else:
+
+```bash
+gh api graphql -f query='{ repository(owner: "jbgh2", name: "card-game-dsl") {
+  pullRequest(number: N) { reviewThreads(first: 100) {
+    totalCount nodes { isResolved } } } } }' --jq '
+  .data.repository.pullRequest.reviewThreads
+  | if .totalCount > 100 then error("capped: \(.totalCount) threads") else . end
+  | [.nodes[] | select(.isResolved | not)] | length'
+```
+
+Zero is the clean state.
+
 ## The work graph
 
 The tracker is the work graph. Three edge kinds, all native, all visible
