@@ -85,13 +85,13 @@ def _reveal_stmt(game: n.Game) -> n.EpistemicOp:
 def test_reveal_parses_to_an_epistemic_op_with_a_filter() -> None:
     stmt = _reveal_stmt(check_dsl(SRC, "mini.cardlang"))
     assert stmt.op == "reveal"
-    assert isinstance(stmt.filter, n.BinOp) and stmt.filter.op == "is"
+    assert isinstance(stmt.where, n.BinOp) and stmt.where.op == "is"
 
 
 def test_reveal_without_a_where_clause_parses_with_no_filter() -> None:
     stmt = _reveal_stmt(check_dsl(SRC_NO_FILTER, "mini.cardlang"))
     assert stmt.op == "reveal"
-    assert stmt.filter is None
+    assert stmt.where is None
 
 
 def _setup(

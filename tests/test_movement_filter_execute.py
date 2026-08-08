@@ -119,7 +119,7 @@ def test_fail_loud_when_the_filtered_pool_is_too_small() -> None:
 
 def test_unfiltered_movement_is_unaffected() -> None:
     game, stmt = _parse("move chosen 1 cards from hand[0] to pile")
-    assert stmt.filter is None
+    assert stmt.where is None
 
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
         return list(candidates[:k])
@@ -213,7 +213,7 @@ def test_unfiltered_round_robin_still_deals_the_whole_source() -> None:
     game, stmt = _parse_deal(
         2, "deal all cards from deck as-equally-as-possible to each hand"
     )
-    assert stmt.filter is None
+    assert stmt.where is None
     ctx = _deal_ctx(game, 2, [HEARTS_A, CLUBS_K, HEARTS_2, SPADES_3])
     execute(stmt, ctx)
 

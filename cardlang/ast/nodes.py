@@ -198,7 +198,7 @@ class Comprehension:
     source: Expr
     binder: str
     body: Expr
-    filter: Expr | None = None
+    where: Expr | None = None
     default: Expr | None = None
     span: Span | None = None
 
@@ -216,7 +216,7 @@ class CardQuery:
 
     kind: str  # "set" | "count" | "any" | "all"
     source: Expr
-    pred: Expr | None  # None only for the bare `count` (zone size)
+    where: Expr | None  # None only for the bare `count` (zone size)
     span: Span | None = None
 
 
@@ -248,7 +248,7 @@ class DomainQuery:
     binder: str  # the singular noun: binder name + (bare) domain to enumerate
     spelled: str  # the noun as written (for the plural diagnostic)
     source: Expr | None  # None for bare forms; the iterated collection for `in`
-    pred: Expr
+    where: Expr
     span: Span | None = None
 
 
@@ -333,7 +333,7 @@ class PlayerQuery:
     """
 
     kind: str  # "set" | "pick" | "count"
-    pred: Expr
+    where: Expr
     span: Span | None = None
 
 
@@ -387,7 +387,7 @@ class Transfer:
     dest: Expr | None
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
-    filter: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
+    where: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
     # `where jointly <pred>`: the filter binds `cards` (the candidate SET) and
     # the selection is over the source's satisfying subsets — one decision,
     # not per-card filtering (decisions.md "Joint-predicate selection").
@@ -404,8 +404,8 @@ class EpistemicOp:
     candidate); `shuffle` never sets it."""
 
     op: str
-    target: Expr
-    filter: Expr | None = None
+    zone: Expr
+    where: Expr | None = None
     span: Span | None = None
 
 
@@ -447,7 +447,7 @@ class ForEach:
 class RepeatUntil:
     """`repeat until <cond> { <stmt>* }`."""
 
-    cond: Expr
+    until: Expr
     body: tuple[Stmt, ...]
     span: Span | None = None
 
@@ -489,7 +489,7 @@ class Turns:
     binder: str
     leader: Expr
     participants: Expr
-    termination: Expr
+    until: Expr
     again: str | None
     body: tuple[Stmt, ...]
     span: Span | None = None
@@ -569,7 +569,7 @@ class ContinueTo:
     """`continue to <phase>` — in a `produces:` arm, resume the phase sequence at
     a named later sibling phase, skipping any phases between."""
 
-    target: str
+    phase: str
     span: Span | None = None
 
 
@@ -643,7 +643,7 @@ class AuctionRound:
     offering: tuple[str, ...]
     leader: Expr
     participants: Expr
-    termination: Expr
+    until: Expr
     # The order axis: None / "ring" walks the ring (the pointer advances each
     # turn); "priority" re-scans from the leader each turn and offers the first
     # still-pending participant (betting, response windows).
@@ -673,7 +673,7 @@ class ClimbRound:
     play_zone: str
     combos_fn: str
     follows_fn: str
-    termination: Expr
+    until: Expr
     span: Span | None = None
 
 
@@ -844,7 +844,7 @@ class RuleRef:
     ``game.rules`` under this reference's name."""
 
     name: str
-    op: str  # "plain" | "add" | "remove" | "override"
+    delta: str  # "plain" | "add" | "remove" | "override"
     args: tuple[Expr, ...] = ()
     span: Span | None = None
 
@@ -872,7 +872,7 @@ class MoveEvent:
 
 @dataclass(frozen=True, slots=True)
 class TransitionTo:
-    target: str
+    mode: str
     event: MoveEvent
     span: Span | None = None
 
@@ -1127,7 +1127,7 @@ class Winner:
     """`winner: lowest/highest <target>`."""
 
     rank_dir: str
-    target: str
+    state_var: str
     span: Span | None = None
 
 

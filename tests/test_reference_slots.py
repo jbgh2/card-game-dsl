@@ -269,13 +269,13 @@ _CONTEXTUAL_WITNESSES: dict[Slot, tuple[object, ...]] = {
     (n.DomainQuery, "binder"): (
         # bare (`source is None`) names the domain; the collection form binds a
         # fixed noun and names nothing.
-        n.DomainQuery(kind="any", binder="cell", spelled="cell", source=None, pred=n.NameRef("t")),
+        n.DomainQuery(kind="any", binder="cell", spelled="cell", source=None, where=n.NameRef("t")),
         n.DomainQuery(
             kind="all",
             binder="cell",
             spelled="cells",
             source=n.NameRef("lines"),
-            pred=n.NameRef("t"),
+            where=n.NameRef("t"),
         ),
     ),
 }
@@ -438,7 +438,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
         binder="p",
         leader=n.NameRef("l"),
         participants=n.AllPlayers(),
-        termination=n.NameRef("t"),
+        until=n.NameRef("t"),
         again="flag",
         body=(),
     )

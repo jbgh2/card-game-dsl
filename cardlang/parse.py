@@ -331,7 +331,7 @@ class _Builder(Transformer[Token, n.Game]):
         return _MaxLength(int(c[0]), span=self._span(meta))
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
-        return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
+        return n.Winner(rank_dir=str(c[0]), state_var=str(c[1]), span=self._span(meta))
 
     def loser(self, meta: Meta, c: list[object]) -> n.Loser:
         return n.Loser(selection=_as_expr(c[0]), span=self._span(meta))
@@ -636,7 +636,7 @@ class _Builder(Transformer[Token, n.Game]):
 
     def transition_to(self, meta: Meta, c: list[object]) -> n.TransitionTo:
         assert isinstance(c[1], n.MoveEvent)
-        return n.TransitionTo(target=str(c[0]), event=c[1], span=self._span(meta))
+        return n.TransitionTo(mode=str(c[0]), event=c[1], span=self._span(meta))
 
     def move_event(self, meta: Meta, c: list[object]) -> n.MoveEvent:
         where = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
@@ -690,7 +690,7 @@ class _Builder(Transformer[Token, n.Game]):
             dest=dest.zone,  # type: ignore[arg-type]
             dest_each=dest.each,
             distribution=dist,
-            filter=where.expr if where is not None else None,  # type: ignore[arg-type]
+            where=where.expr if where is not None else None,  # type: ignore[arg-type]
             joint=where.joint if where is not None else False,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
@@ -736,14 +736,14 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def shuffle_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
-        return n.EpistemicOp(op="shuffle", target=_as_expr(c[0]), span=self._span(meta))
+        return n.EpistemicOp(op="shuffle", zone=_as_expr(c[0]), span=self._span(meta))
 
     def reveal_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
         # The filter is an ordinary predicate with `card` bound per candidate
         # (a lambda during the register transition).
         filt = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.EpistemicOp(
-            op="reveal", target=_as_expr(c[0]), filter=filt, span=self._span(meta)
+            op="reveal", zone=_as_expr(c[0]), where=filt, span=self._span(meta)
         )
 
     def name_list(self, meta: Meta, c: list[Token]) -> tuple[str, ...]:
@@ -770,7 +770,7 @@ class _Builder(Transformer[Token, n.Game]):
     def repeat_until(self, meta: Meta, c: list[object]) -> n.RepeatUntil:
         cond = _as_expr(c[0])
         body = tuple(_as_stmt(s) for s in c[1:])
-        return n.RepeatUntil(cond=cond, body=body, span=self._span(meta))
+        return n.RepeatUntil(until=cond, body=body, span=self._span(meta))
 
     def else_block(self, meta: Meta, c: list[object]) -> _ElseBlock:
         return _ElseBlock(body=tuple(_as_stmt(s) for s in c))
@@ -802,7 +802,7 @@ class _Builder(Transformer[Token, n.Game]):
             binder=str(c[0]),
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            termination=_as_expr(c[3]),
+            until=_as_expr(c[3]),
             again=str(c[4]) if c[4] is not None else None,
             body=tuple(_as_stmt(s) for s in c[5:]),
             span=self._span(meta),
@@ -848,7 +848,7 @@ class _Builder(Transformer[Token, n.Game]):
             offering=offering,
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            termination=_as_expr(c[4]),
+            until=_as_expr(c[4]),
             order_mode=str(c[3]) if c[3] is not None else None,
             outcome_fn=str(c[5]) if c[5] is not None else None,
             span=self._span(meta),
@@ -868,7 +868,7 @@ class _Builder(Transformer[Token, n.Game]):
             play_zone=str(c[4]),
             combos_fn=str(c[5]),
             follows_fn=str(c[6]),
-            termination=_as_expr(c[7]),
+            until=_as_expr(c[7]),
             span=self._span(meta),
         )
 
@@ -1008,7 +1008,7 @@ class _Builder(Transformer[Token, n.Game]):
             binder=binder,
             spelled=spelled,
             source=_as_expr(source) if source is not None else None,
-            pred=_as_expr(pred),
+            where=_as_expr(pred),
             span=self._span(meta),
         )
 
@@ -1029,23 +1029,23 @@ class _Builder(Transformer[Token, n.Game]):
 
     def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="set", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def cq_count(self, meta: Meta, c: list[object]) -> n.CardQuery:
-        pred = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
+        where = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.CardQuery(
-            kind="count", source=_as_expr(c[0]), pred=pred, span=self._span(meta)
+            kind="count", source=_as_expr(c[0]), where=where, span=self._span(meta)
         )
 
     def cq_any(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="any", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="any", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def cq_all(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="all", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="all", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def agg_sum(self, meta: Meta, c: list[object]) -> n.Comprehension:
@@ -1056,7 +1056,7 @@ class _Builder(Transformer[Token, n.Game]):
             source=_as_expr(c[1]),
             binder="card",
             body=_as_expr(c[0]),
-            filter=filt,
+            where=filt,
             span=self._span(meta),
         )
 
@@ -1076,7 +1076,7 @@ class _Builder(Transformer[Token, n.Game]):
             source=_as_expr(c[2]),
             binder="card",
             body=_as_expr(c[1]),
-            filter=filt,
+            where=filt,
             default=_as_expr(c[4]),
             span=self._span(meta),
         )
@@ -1123,13 +1123,13 @@ class _Builder(Transformer[Token, n.Game]):
         return n.BinOp("is_not", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="set", where=_as_expr(c[0]), span=self._span(meta))
 
     def the_player_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="pick", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="pick", where=_as_expr(c[0]), span=self._span(meta))
 
     def number_players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="count", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="count", where=_as_expr(c[0]), span=self._span(meta))
 
     def comp_op(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
@@ -1477,7 +1477,7 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def continue_to(self, meta: Meta, c: list[object]) -> n.ContinueTo:
-        return n.ContinueTo(target=str(c[0]), span=self._span(meta))
+        return n.ContinueTo(phase=str(c[0]), span=self._span(meta))
 
     def skip_stmt(self, meta: Meta, c: list[object]) -> n.SkipToNextHand:
         return n.SkipToNextHand(span=self._span(meta))

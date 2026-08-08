@@ -45,7 +45,7 @@ def _round(game: n.Game) -> n.AuctionRound:
 def test_auction_round_parses_vocab_and_termination() -> None:
     rnd = _round(parse_text(SRC, "g.cardlang"))
     assert rnd.offering == ("raise", "pass")
-    assert rnd.termination is not None
+    assert rnd.until is not None
     assert rnd.outcome_fn == "bridge_auction_outcome"
     # The trick-specific fields are not absent-but-null on this form: they do
     # not exist on it. `is None` was the strongest available statement while one

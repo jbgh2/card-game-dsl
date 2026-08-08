@@ -123,7 +123,7 @@ def play_game(
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
-        rs.score_var = game.winner.target  # loser games have no score var
+        rs.score_var = game.winner.state_var  # loser games have no score var
     base_chooser = chooser or random_chooser(rng)
 
     uncounted = base_chooser
@@ -190,7 +190,7 @@ def play_game(
     winner: Player | None = None
     loser: Player | None = None
     if game.winner is not None:
-        scores = dict(rs.get(game.winner.target))
+        scores = dict(rs.get(game.winner.state_var))
         if game.winner.rank_dir not in RANK_DIR_TO_PICK:
             # Internal invariant, not a user diagnostic: the grammar's
             # RANK_DIR terminal and this mapping are out of sync.

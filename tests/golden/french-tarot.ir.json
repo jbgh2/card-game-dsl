@@ -20,7 +20,7 @@
       "kind": "zone",
       "name": "deck",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Deck",
         "args": []
@@ -30,7 +30,7 @@
       "kind": "zone",
       "name": "hand",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Hand",
         "args": [
@@ -42,7 +42,7 @@
       "kind": "zone",
       "name": "chien",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "FaceDownPile",
         "args": []
@@ -52,7 +52,7 @@
       "kind": "zone",
       "name": "trick_pile",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "TrickPile",
         "args": []
@@ -62,7 +62,7 @@
       "kind": "zone",
       "name": "captured",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "PlayerPile",
         "args": [
@@ -74,7 +74,7 @@
       "kind": "zone",
       "name": "discard",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "HiddenPile",
         "args": [
@@ -116,7 +116,7 @@
       "name": "hand_sequence",
       "qualifier": {
         "kind": "phase_qualifier",
-        "qualifier": "repeats",
+        "qualifier": "repeat_until",
         "expr": {
           "kind": "binop",
           "op": ">=",
@@ -194,7 +194,7 @@
             {
               "kind": "epistemic_op",
               "op": "shuffle",
-              "target": {
+              "zone": {
                 "kind": "name",
                 "name": "deck",
                 "ref": "zone"
@@ -248,8 +248,8 @@
             },
             {
               "kind": "assign",
-              "name": "dealer",
-              "index": null,
+              "target": "dealer",
+              "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "binop",
@@ -342,8 +342,8 @@
             },
             {
               "kind": "assign",
-              "name": "opener",
-              "index": null,
+              "target": "opener",
+              "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "binop",
@@ -377,7 +377,7 @@
               "participants": {
                 "kind": "player_query",
                 "query": "set",
-                "pred": {
+                "where": {
                   "kind": "not",
                   "operand": {
                     "kind": "subscript",
@@ -386,7 +386,7 @@
                       "name": "acted",
                       "ref": "state_var"
                     },
-                    "index": {
+                    "index_expr": {
                       "kind": "name",
                       "name": "player",
                       "ref": "local"
@@ -394,13 +394,13 @@
                   }
                 }
               },
-              "termination": {
+              "until": {
                 "kind": "binop",
-                "op": "==",
+                "op": "is",
                 "left": {
                   "kind": "player_query",
                   "query": "count",
-                  "pred": {
+                  "where": {
                     "kind": "not",
                     "operand": {
                       "kind": "subscript",
@@ -409,7 +409,7 @@
                         "name": "acted",
                         "ref": "state_var"
                       },
-                      "index": {
+                      "index_expr": {
                         "kind": "name",
                         "name": "player",
                         "ref": "local"
@@ -441,8 +441,8 @@
               "body": [
                 {
                   "kind": "assign",
-                  "name": "taker",
-                  "index": null,
+                  "target": "taker",
+                  "index_expr": null,
                   "op": ":=",
                   "value": {
                     "kind": "name",
@@ -452,8 +452,8 @@
                 },
                 {
                   "kind": "assign",
-                  "name": "bid_level",
-                  "index": null,
+                  "target": "bid_level",
+                  "index_expr": null,
                   "op": ":=",
                   "value": {
                     "kind": "name",
@@ -463,7 +463,7 @@
                 },
                 {
                   "kind": "continue_to",
-                  "target": "play"
+                  "phase": "play"
                 }
               ]
             },
@@ -491,22 +491,22 @@
                 {
                   "kind": "rule_ref",
                   "name": "ExcuseIsExempt",
-                  "op": "plain"
+                  "delta": "plain"
                 },
                 {
                   "kind": "rule_ref",
                   "name": "MustFollowEffectiveSuit",
-                  "op": "plain"
+                  "delta": "plain"
                 },
                 {
                   "kind": "rule_ref",
                   "name": "MustTrumpIfVoid",
-                  "op": "plain"
+                  "delta": "plain"
                 },
                 {
                   "kind": "rule_ref",
                   "name": "MustOverTrump",
-                  "op": "plain"
+                  "delta": "plain"
                 }
               ]
             },
@@ -587,7 +587,7 @@
                           "name": "hand",
                           "ref": "zone"
                         },
-                        "index": {
+                        "index_expr": {
                           "kind": "name",
                           "name": "taker",
                           "ref": "state_var"
@@ -612,13 +612,13 @@
                               "name": "hand",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "taker",
                               "ref": "state_var"
                             }
                           },
-                          "pred": {
+                          "where": {
                             "kind": "call",
                             "func": "is_pref_discard",
                             "args": [
@@ -652,7 +652,7 @@
                               "name": "hand",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "taker",
                               "ref": "state_var"
@@ -665,7 +665,7 @@
                               "name": "discard",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "taker",
                               "ref": "state_var"
@@ -674,7 +674,7 @@
                           "dest_each": false,
                           "distribution": null,
                           "visibility": null,
-                          "filter": {
+                          "where": {
                             "kind": "call",
                             "func": "is_pref_discard",
                             "args": [
@@ -704,7 +704,7 @@
                               "name": "hand",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "taker",
                               "ref": "state_var"
@@ -717,7 +717,7 @@
                               "name": "discard",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "taker",
                               "ref": "state_var"
@@ -726,7 +726,7 @@
                           "dest_each": false,
                           "distribution": null,
                           "visibility": null,
-                          "filter": {
+                          "where": {
                             "kind": "not",
                             "operand": {
                               "kind": "call",
@@ -750,8 +750,8 @@
             },
             {
               "kind": "assign",
-              "name": "leader",
-              "index": null,
+              "target": "leader",
+              "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "binop",
@@ -770,7 +770,7 @@
             },
             {
               "kind": "repeat_until",
-              "cond": {
+              "until": {
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "player",
@@ -785,7 +785,7 @@
                       "name": "hand",
                       "ref": "zone"
                     },
-                    "index": {
+                    "index_expr": {
                       "kind": "name",
                       "name": "player",
                       "ref": "local"
@@ -813,8 +813,8 @@
                 },
                 {
                   "kind": "assign",
-                  "name": "petit_in_last",
-                  "index": null,
+                  "target": "petit_in_last",
+                  "index_expr": null,
                   "op": ":=",
                   "value": {
                     "kind": "card_query",
@@ -824,12 +824,12 @@
                       "name": "trick_pile",
                       "ref": "zone"
                     },
-                    "pred": {
+                    "where": {
                       "kind": "binop",
                       "op": "and",
                       "left": {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "member",
                           "obj": {
@@ -847,7 +847,7 @@
                       },
                       "right": {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "member",
                           "obj": {
@@ -891,10 +891,10 @@
                     },
                     "right": {
                       "kind": "binop",
-                      "op": "!=",
+                      "op": "is_not",
                       "left": {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "name",
                           "name": "xp",
@@ -908,7 +908,7 @@
                       },
                       "right": {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "name",
                           "name": "winner",
@@ -941,7 +941,7 @@
                           "name": "captured",
                           "ref": "zone"
                         },
-                        "index": {
+                        "index_expr": {
                           "kind": "name",
                           "name": "xp",
                           "ref": "local"
@@ -950,9 +950,9 @@
                       "dest_each": false,
                       "distribution": null,
                       "visibility": null,
-                      "filter": {
+                      "where": {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "member",
                           "obj": {
@@ -987,7 +987,7 @@
                           "name": "captured",
                           "ref": "zone"
                         },
-                        "index": {
+                        "index_expr": {
                           "kind": "name",
                           "name": "winner",
                           "ref": "pronoun"
@@ -1009,15 +1009,15 @@
                             "name": "captured",
                             "ref": "zone"
                           },
-                          "index": {
+                          "index_expr": {
                             "kind": "name",
                             "name": "xp",
                             "ref": "local"
                           }
                         },
-                        "pred": {
+                        "where": {
                           "kind": "binop",
-                          "op": "==",
+                          "op": "is",
                           "left": {
                             "kind": "call",
                             "func": "tarot_card_points",
@@ -1049,7 +1049,7 @@
                               "name": "captured",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "xp",
                               "ref": "local"
@@ -1062,7 +1062,7 @@
                               "name": "captured",
                               "ref": "zone"
                             },
-                            "index": {
+                            "index_expr": {
                               "kind": "name",
                               "name": "winner",
                               "ref": "pronoun"
@@ -1071,9 +1071,9 @@
                           "dest_each": false,
                           "distribution": null,
                           "visibility": null,
-                          "filter": {
+                          "where": {
                             "kind": "binop",
-                            "op": "==",
+                            "op": "is",
                             "left": {
                               "kind": "call",
                               "func": "tarot_card_points",
@@ -1114,7 +1114,7 @@
                           "name": "captured",
                           "ref": "zone"
                         },
-                        "index": {
+                        "index_expr": {
                           "kind": "name",
                           "name": "winner",
                           "ref": "pronoun"
@@ -1128,8 +1128,8 @@
                 },
                 {
                   "kind": "assign",
-                  "name": "leader",
-                  "index": null,
+                  "target": "leader",
+                  "index_expr": null,
                   "op": ":=",
                   "value": {
                     "kind": "name",
@@ -1144,17 +1144,17 @@
               "name": "pb",
               "index": null,
               "value": {
-                "kind": "if",
+                "kind": "if_expr",
                 "cond": {
                   "kind": "name",
                   "name": "petit_in_last",
                   "ref": "state_var"
                 },
                 "then": {
-                  "kind": "if",
+                  "kind": "if_expr",
                   "cond": {
                     "kind": "binop",
-                    "op": "==",
+                    "op": "is",
                     "left": {
                       "kind": "name",
                       "name": "leader",
@@ -1207,7 +1207,7 @@
                 "kind": "if",
                 "cond": {
                   "kind": "binop",
-                  "op": "==",
+                  "op": "is",
                   "left": {
                     "kind": "name",
                     "name": "p",
@@ -1222,8 +1222,8 @@
                 "then": [
                   {
                     "kind": "assign",
-                    "name": "score",
-                    "index": {
+                    "target": "score",
+                    "index_expr": {
                       "kind": "name",
                       "name": "p",
                       "ref": "local"
@@ -1247,8 +1247,8 @@
                 "else": [
                   {
                     "kind": "assign",
-                    "name": "score",
-                    "index": {
+                    "target": "score",
+                    "index_expr": {
                       "kind": "name",
                       "name": "p",
                       "ref": "local"
@@ -1270,8 +1270,8 @@
           "body": [
             {
               "kind": "assign",
-              "name": "hands_played",
-              "index": null,
+              "target": "hands_played",
+              "index_expr": null,
               "op": "+=",
               "value": {
                 "kind": "int",
@@ -1286,7 +1286,7 @@
   "winner": {
     "kind": "winner",
     "rank_dir": "highest",
-    "target": "score"
+    "state_var": "score"
   },
   "loser": null,
   "rules": [
@@ -1321,9 +1321,9 @@
           "name": "hand",
           "ref": "zone"
         },
-        "pred": {
+        "where": {
           "kind": "binop",
-          "op": "==",
+          "op": "is",
           "left": {
             "kind": "member",
             "obj": {
@@ -1373,9 +1373,9 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
-            "op": "==",
+            "op": "is",
             "left": {
               "kind": "member",
               "obj": {
@@ -1431,9 +1431,9 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
-            "op": "==",
+            "op": "is",
             "left": {
               "kind": "member",
               "obj": {
@@ -1488,9 +1488,9 @@
               "name": "trick_pile",
               "ref": "zone"
             },
-            "pred": {
+            "where": {
               "kind": "binop",
-              "op": "==",
+              "op": "is",
               "left": {
                 "kind": "member",
                 "obj": {
@@ -1520,7 +1520,7 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
             "op": ">",
             "left": {
@@ -1536,7 +1536,7 @@
             },
             "right": {
               "kind": "comprehension",
-              "agg": "max",
+              "agg": "highest",
               "source": {
                 "kind": "name",
                 "name": "trick_pile",
@@ -1578,8 +1578,8 @@
       "effect": [
         {
           "kind": "assign",
-          "name": "acted",
-          "index": {
+          "target": "acted",
+          "index_expr": {
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
@@ -1613,8 +1613,8 @@
       "effect": [
         {
           "kind": "assign",
-          "name": "current_level",
-          "index": null,
+          "target": "current_level",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "int",
@@ -1623,8 +1623,8 @@
         },
         {
           "kind": "assign",
-          "name": "lead_taker",
-          "index": null,
+          "target": "lead_taker",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "name",
@@ -1634,8 +1634,8 @@
         },
         {
           "kind": "assign",
-          "name": "acted",
-          "index": {
+          "target": "acted",
+          "index_expr": {
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
@@ -1669,8 +1669,8 @@
       "effect": [
         {
           "kind": "assign",
-          "name": "current_level",
-          "index": null,
+          "target": "current_level",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "int",
@@ -1679,8 +1679,8 @@
         },
         {
           "kind": "assign",
-          "name": "lead_taker",
-          "index": null,
+          "target": "lead_taker",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "name",
@@ -1690,8 +1690,8 @@
         },
         {
           "kind": "assign",
-          "name": "acted",
-          "index": {
+          "target": "acted",
+          "index_expr": {
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
@@ -1725,8 +1725,8 @@
       "effect": [
         {
           "kind": "assign",
-          "name": "current_level",
-          "index": null,
+          "target": "current_level",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "int",
@@ -1735,8 +1735,8 @@
         },
         {
           "kind": "assign",
-          "name": "lead_taker",
-          "index": null,
+          "target": "lead_taker",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "name",
@@ -1746,8 +1746,8 @@
         },
         {
           "kind": "assign",
-          "name": "acted",
-          "index": {
+          "target": "acted",
+          "index_expr": {
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
@@ -1781,8 +1781,8 @@
       "effect": [
         {
           "kind": "assign",
-          "name": "current_level",
-          "index": null,
+          "target": "current_level",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "int",
@@ -1791,8 +1791,8 @@
         },
         {
           "kind": "assign",
-          "name": "lead_taker",
-          "index": null,
+          "target": "lead_taker",
+          "index_expr": null,
           "op": ":=",
           "value": {
             "kind": "name",
@@ -1802,8 +1802,8 @@
         },
         {
           "kind": "assign",
-          "name": "acted",
-          "index": {
+          "target": "acted",
+          "index_expr": {
             "kind": "name",
             "name": "actor",
             "ref": "pronoun"
@@ -1835,7 +1835,7 @@
         "op": "or",
         "left": {
           "kind": "binop",
-          "op": "==",
+          "op": "is",
           "left": {
             "kind": "member",
             "obj": {
@@ -1856,7 +1856,7 @@
           "op": "and",
           "left": {
             "kind": "binop",
-            "op": "==",
+            "op": "is",
             "left": {
               "kind": "member",
               "obj": {
@@ -1877,7 +1877,7 @@
             "op": "or",
             "left": {
               "kind": "binop",
-              "op": "==",
+              "op": "is",
               "left": {
                 "kind": "member",
                 "obj": {
@@ -1894,7 +1894,7 @@
             },
             "right": {
               "kind": "binop",
-              "op": "==",
+              "op": "is",
               "left": {
                 "kind": "member",
                 "obj": {
@@ -1930,7 +1930,7 @@
           "op": "and",
           "left": {
             "kind": "binop",
-            "op": "!=",
+            "op": "is_not",
             "left": {
               "kind": "member",
               "obj": {
@@ -1948,7 +1948,7 @@
           },
           "right": {
             "kind": "binop",
-            "op": "!=",
+            "op": "is_not",
             "left": {
               "kind": "member",
               "obj": {
@@ -1967,7 +1967,7 @@
         },
         "right": {
           "kind": "binop",
-          "op": "!=",
+          "op": "is_not",
           "left": {
             "kind": "member",
             "obj": {

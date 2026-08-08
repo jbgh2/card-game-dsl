@@ -253,7 +253,7 @@ class ActionSpace:
                 # construct over): `gin_arrange_ok(...)` → the gin meld
                 # codec. A predicate whose root is not a registered call is
                 # refused below — loudly, not silently absent from the space.
-                root = node.filter
+                root = node.where
                 fn = root.func if isinstance(root, n.Call) else None
                 if fn not in joint_engines:
                     joint_engines.append(fn)

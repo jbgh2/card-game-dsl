@@ -99,7 +99,7 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             _produces(stmt, ctx)
             return ctx
         case n.ContinueTo():
-            raise _ContinueTo(stmt.target)
+            raise _ContinueTo(stmt.phase)
         case n.SkipToNextHand():
             raise _SkipHand()
         case n.Block():
@@ -217,7 +217,7 @@ def _deal_round_robin(
     gives the single-destination and non-round-robin `to each` forms."""
     players = list(ctx.rs.seating.players)
     dealt: dict[Player, list[Card]] = {p: [] for p in players}
-    if stmt.filter is None:
+    if stmt.where is None:
         i = 0
         while source.cards:
             card = source.cards.pop(0)
@@ -225,7 +225,7 @@ def _deal_round_robin(
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
-        pred = _card_pred(stmt.filter, ctx)
+        pred = _card_pred(stmt.where, ctx)
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
@@ -300,7 +300,7 @@ def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Ca
     # refactor that could shift an RNG draw and move an unrelated score golden.
     if stmt.joint:
         return _select_joint(source, stmt, ctx, player)
-    if stmt.filter is not None:
+    if stmt.where is not None:
         return _select_filtered(source, stmt, ctx, player)
     amount = stmt.amount
     if amount == "all":
@@ -373,13 +373,13 @@ def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> l
         assert not isinstance(amount, str)
         k = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
         sizes = range(k, k + 1)
-    assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    assert stmt.where is not None  # grammar: `jointly` IS a where-clause form
     noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
         for size in sizes
         for subset in itertools.combinations(pool, size)
-        if bool(evaluate(stmt.filter, ctx.with_local(noun, list(subset))))
+        if bool(evaluate(stmt.where, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:
         # No implicit skip (decisions.md "No implicit actions"): a decision
@@ -405,8 +405,8 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.filter is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
-    pred = _card_pred(stmt.filter, ctx)
+    assert stmt.where is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
+    pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
     if amount == "all":
@@ -443,7 +443,7 @@ def _select_filtered(
 
 
 def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
-    zone = evaluate(stmt.target, ctx)
+    zone = evaluate(stmt.zone, ctx)
     if not isinstance(zone, Zone):
         raise OwnerGuardError(
             f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — "
@@ -461,8 +461,8 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     # movement. It is public: every player's log gets it, regardless of the
     # zone's declared visibility (unlike `observe.movement`, which projects
     # per observer through the zone type).
-    if stmt.filter is not None:
-        pred = _card_pred(stmt.filter, ctx)
+    if stmt.where is not None:
+        pred = _card_pred(stmt.where, ctx)
         matches = [c for c in zone.cards if pred(c)]
     else:
         matches = list(zone.cards)
@@ -601,7 +601,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     step = 1 if ctx.rs.seating.clockwise else -1
     current: Player | None = None
     guard = 0
-    while not bool(evaluate(stmt.termination, ctx)):
+    while not bool(evaluate(stmt.until, ctx)):
         # The same non-termination Owner Guard as `_repeat_until` (one loop
         # class, one guard): a body that makes no decisions is invisible to
         # the max_length DECISION counter, so the turn count itself is
@@ -826,7 +826,7 @@ def _apply_pass(
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
     guard = 0
-    while not evaluate(stmt.cond, ctx):
+    while not evaluate(stmt.until, ctx):
         run_body(stmt.body, ctx)
         guard += 1
         if guard > ctx.rs.max_length:

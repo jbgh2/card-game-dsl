@@ -118,7 +118,7 @@ def _direction(name: str, members: tuple[str, ...]) -> IRDict:
 
 
 def _winner(w: n.Winner) -> IRDict:
-    return {"kind": "winner", "rank_dir": w.rank_dir, "target": w.target}
+    return {"kind": "winner", "rank_dir": w.rank_dir, "state_var": w.state_var}
 
 
 def _loser(lo: n.Loser) -> IRDict:
@@ -185,7 +185,7 @@ def _zone(z: n.ZoneDecl) -> IRDict:
         "kind": "zone",
         "name": z.name,
         "index": z.index,
-        "type": _type_ref(z.type_ref),
+        "type_ref": _type_ref(z.type_ref),
     }
 
 
@@ -235,7 +235,7 @@ def _qualifier(q: n.PhaseQualifier) -> IRDict:
 def _transition_to(t: n.TransitionTo) -> IRDict:
     return {
         "kind": "transition_to",
-        "target": t.target,
+        "mode": t.mode,
         "event": {
             "kind": "move_event",
             "move_type": t.event.move_type,
@@ -299,18 +299,18 @@ def _stmt(s: n.Stmt) -> IRDict:
             # rides the same convention: without it, a subset decision binding
             # `cards` would be IR-indistinguishable from a per-card filter
             # binding `card` — wrong semantics for any IR consumer.
-            if s.filter is not None:
-                movement["filter"] = _expr(s.filter)
+            if s.where is not None:
+                movement["where"] = _expr(s.where)
                 if s.joint:
                     movement["joint"] = True
             return movement
         case n.EpistemicOp():
-            op: IRDict = {"kind": "epistemic_op", "op": s.op, "target": _expr(s.target)}
+            op: IRDict = {"kind": "epistemic_op", "op": s.op, "zone": _expr(s.zone)}
             # Emitted ONLY when present, so `shuffle` (which never sets it)
             # stays byte-identical in its golden — same convention as
-            # Transfer.filter above.
-            if s.filter is not None:
-                op["filter"] = _expr(s.filter)
+            # Transfer.where above.
+            if s.where is not None:
+                op["where"] = _expr(s.where)
             return op
         case n.RotateStmt():
             # The target is a `NameRef` in the AST (it is a write target and must be
@@ -318,7 +318,7 @@ def _stmt(s: n.Stmt) -> IRDict:
             # resolve a write target is ALWAYS a state variable — every other
             # classification is rejected — so the `ref_kind` carries no information,
             # and flattening keeps the IR (and its goldens) exactly as it was.
-            return {"kind": "rotate", "var": s.target.name, "values": list(s.values)}
+            return {"kind": "rotate", "target": s.target.name, "values": list(s.values)}
         case n.EachSimultaneous():
             return {"kind": "each_simultaneous", "role": s.role, "body": _stmt(s.body)}
         case n.ForEach():
@@ -331,7 +331,7 @@ def _stmt(s: n.Stmt) -> IRDict:
         case n.RepeatUntil():
             return {
                 "kind": "repeat_until",
-                "cond": _expr(s.cond),
+                "until": _expr(s.until),
                 "body": [_stmt(x) for x in s.body],
             }
         case n.IfStmt():
@@ -357,7 +357,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "binder": s.binder,
                 "leader": _expr(s.leader),
                 "participants": _expr(s.participants),
-                "termination": _expr(s.termination),
+                "until": _expr(s.until),
                 "again": s.again,
                 "body": [_stmt(x) for x in s.body],
             }
@@ -371,8 +371,8 @@ def _stmt(s: n.Stmt) -> IRDict:
         case n.AssignStmt():
             return {
                 "kind": "assign",
-                "name": s.target.name,  # always a state variable post-resolve; see above
-                "index": _expr(s.index) if s.index else None,
+                "target": s.target.name,  # always a state variable post-resolve; see above
+                "index_expr": _expr(s.index) if s.index else None,
                 "op": s.op,
                 "value": _expr(s.value),
             }
@@ -400,7 +400,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "offering": list(s.offering),
                 "leader": _expr(s.leader),
                 "participants": _expr(s.participants),
-                "termination": _expr(s.termination),
+                "until": _expr(s.until),
                 "order_mode": s.order_mode,
                 "outcome_fn": s.outcome_fn,
             }
@@ -414,7 +414,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "play_zone": s.play_zone,
                 "combos_fn": s.combos_fn,
                 "follows_fn": s.follows_fn,
-                "termination": _expr(s.termination),
+                "until": _expr(s.until),
             }
         case n.Produce():
             return {
@@ -437,7 +437,7 @@ def _stmt(s: n.Stmt) -> IRDict:
                 ],
             }
         case n.ContinueTo():
-            return {"kind": "continue_to", "target": s.target}
+            return {"kind": "continue_to", "phase": s.phase}
         case n.SkipToNextHand():
             return {"kind": "skip_to_next_hand"}
         case n.Block():
@@ -470,7 +470,7 @@ def _named_arg(a: n.NamedArg) -> IRDict:
 
 
 def _rule_ref(r: n.RuleRef) -> IRDict:
-    ref: IRDict = {"kind": "rule_ref", "name": r.name, "op": r.op}
+    ref: IRDict = {"kind": "rule_ref", "name": r.name, "delta": r.delta}
     # Emitted ONLY when present (like the rule `exempts` key), so every
     # argument-free reference's golden stays byte-identical.
     if r.args:
@@ -532,7 +532,7 @@ def _expr(e: n.Expr) -> IRDict:
         case n.Member():
             return {"kind": "member", "obj": _expr(e.obj), "field": e.field}
         case n.Subscript():
-            return {"kind": "subscript", "obj": _expr(e.obj), "index": _expr(e.index)}
+            return {"kind": "subscript", "obj": _expr(e.obj), "index_expr": _expr(e.index)}
         case n.StructLit():
             return {
                 "kind": "struct_lit",
@@ -565,7 +565,7 @@ def _expr(e: n.Expr) -> IRDict:
             }
         case n.IfExpr():
             return {
-                "kind": "if",
+                "kind": "if_expr",
                 "cond": _expr(e.cond),
                 "then": _expr(e.then),
                 "elifs": [[_expr(c), _expr(t)] for c, t in e.elifs],
@@ -581,8 +581,8 @@ def _expr(e: n.Expr) -> IRDict:
             }
             # Emitted ONLY when present (like the rule `exempts` key), so
             # every unfiltered comprehension's golden stays byte-identical.
-            if e.filter is not None:
-                comp["filter"] = _expr(e.filter)
+            if e.where is not None:
+                comp["where"] = _expr(e.where)
             if e.default is not None:
                 comp["default"] = _expr(e.default)
             return comp
@@ -591,7 +591,7 @@ def _expr(e: n.Expr) -> IRDict:
                 "kind": "domain_query",
                 "query": e.kind,
                 "binder": e.binder,
-                "pred": _expr(e.pred),
+                "where": _expr(e.where),
             }
             # Emitted only for the collection forms (the bare forms enumerate a
             # declared domain and have no source), keeping the key set minimal.
@@ -599,15 +599,15 @@ def _expr(e: n.Expr) -> IRDict:
                 dq["source"] = _expr(e.source)
             return dq
         case n.PlayerQuery():
-            return {"kind": "player_query", "query": e.kind, "pred": _expr(e.pred)}
+            return {"kind": "player_query", "query": e.kind, "where": _expr(e.where)}
         case n.CardQuery():
             cq: IRDict = {
                 "kind": "card_query",
                 "query": e.kind,
                 "source": _expr(e.source),
             }
-            if e.pred is not None:
-                cq["pred"] = _expr(e.pred)
+            if e.where is not None:
+                cq["where"] = _expr(e.where)
             return cq
         case n.Choose():
             # `ceiling` is the resolved static upper bound (decisions.md "The

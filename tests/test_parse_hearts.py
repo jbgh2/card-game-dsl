@@ -39,7 +39,7 @@ def test_header_blocks() -> None:
     assert [z.name for z in g.zones] == ["deck", "hand", "trick_pile", "captured"]
     assert g.state is not None and g.state.decls[0].name == "cumulative_score"
     assert g.winner is not None
-    assert (g.winner.rank_dir, g.winner.target) == ("lowest", "cumulative_score")
+    assert (g.winner.rank_dir, g.winner.state_var) == ("lowest", "cumulative_score")
     # The file defines only the Hearts-specific rules; MustFollowSuit and
     # NoLeadingSuitUntilBroken(hearts) splice in from the standard library at
     # resolve time (see test_demands_two_forms).
@@ -66,7 +66,7 @@ def test_transition_predicate_binds_action() -> None:
         i for i in play.items if isinstance(i, n.Mode) and i.name == "hearts_not_broken"
     )
     trans = next(iter(not_broken.transitions))
-    assert trans.target == "hearts_broken"
+    assert trans.mode == "hearts_broken"
     assert trans.event.move_type == "play_to_trick"
     # where action.card.suit == hearts  ->  BinOp(==, Member(Member(action,card),suit), hearts)
     pred = trans.event.where

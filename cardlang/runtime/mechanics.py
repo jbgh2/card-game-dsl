@@ -335,7 +335,7 @@ class AuctionForm:
 
     def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
         self.stmt = stmt
-        self.termination: n.Expr = stmt.termination
+        self.until: n.Expr = stmt.until
         self.order: list[Player] = ctx.rs.seating.turn_order_from(
             evaluate(stmt.leader, ctx)
         )
@@ -356,7 +356,7 @@ class AuctionForm:
         return state
 
     def terminated(self, state: RoundState, ctx: Ctx) -> bool:
-        return bool(evaluate(self.termination, ctx))
+        return bool(evaluate(self.until, ctx))
 
     def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         order = self.order
@@ -478,7 +478,7 @@ class ClimbForm:
     def __init__(self, stmt: n.ClimbRound, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
 
-        self.termination: n.Expr = stmt.termination
+        self.until: n.Expr = stmt.until
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.lead_query = primitives.climb_lead_function(stmt.combos_fn)
         self.follow_query = primitives.climb_follow_function(stmt.follows_fn)
@@ -533,7 +533,7 @@ class ClimbForm:
         # predicate cannot flip, and it draws no card.
         if state["current"] is not None and state["lead_ended_trick"]:
             return True  # a trick-ending lead: the followers draw nothing
-        return state["current"] is not None and bool(evaluate(self.termination, ctx))
+        return state["current"] is not None and bool(evaluate(self.until, ctx))
 
     def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         ring = self.ring
@@ -640,5 +640,5 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
                 continue
             pred = t.event.where
             if pred is None or bool(evaluate(pred, ctx.with_action(move))):
-                ctx.rs.fired_transitions.add(t.target)
+                ctx.rs.fired_transitions.add(t.mode)
                 break

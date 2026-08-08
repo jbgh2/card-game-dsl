@@ -372,7 +372,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
     matches = [
         p
         for p in ctx.rs.seating.players
-        if evaluate(e.pred, ctx.with_local("player", p))
+        if evaluate(e.where, ctx.with_local("player", p))
     ]
     match e.kind:
         case "set":
@@ -399,7 +399,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
 def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     cards = list(elements(source))
-    if e.pred is None:  # the bare `number of cards in <zone>` size idiom
+    if e.where is None:  # the bare `number of cards in <zone>` size idiom
         assert e.kind == "count"  # parse builds a pred-less query only for that idiom
         return len(cards)
     # `any`/`all` short-circuit over the same card order the eager `set`/
@@ -408,10 +408,10 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     # MustFollowSuit route `any card in hand[p] where …` through this on
     # every `legal_cards` call.
     if e.kind == "any":
-        return any(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
+        return any(evaluate(e.where, ctx.with_local("card", c)) for c in cards)
     if e.kind == "all":
-        return all(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
-    results = [bool(evaluate(e.pred, ctx.with_local("card", c))) for c in cards]
+        return all(evaluate(e.where, ctx.with_local("card", c)) for c in cards)
+    results = [bool(evaluate(e.where, ctx.with_local("card", c))) for c in cards]
     match e.kind:
         case "set":
             return [c for c, ok in zip(cards, results) if ok]
@@ -434,7 +434,7 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
         members: Any = ctx.rs.position_domains[e.binder]
     else:
         members = elements(evaluate(e.source, ctx))
-    results = (evaluate(e.pred, ctx.with_local(e.binder, m)) for m in members)
+    results = (evaluate(e.where, ctx.with_local(e.binder, m)) for m in members)
     match e.kind:
         case "any":
             return any(results)
@@ -458,11 +458,11 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     items = list(elements(source))
-    if e.filter is not None:
+    if e.where is not None:
         items = [
             x
             for x in items
-            if evaluate(e.filter, ctx.with_local(e.binder, x))
+            if evaluate(e.where, ctx.with_local(e.binder, x))
         ]
     values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in items]
     match e.agg:

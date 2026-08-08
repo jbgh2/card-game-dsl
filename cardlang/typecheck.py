@@ -1239,19 +1239,19 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.body]
         case n.Comprehension():
             out = [e.source, e.body]
-            if e.filter is not None:
-                out.append(e.filter)
+            if e.where is not None:
+                out.append(e.where)
             if e.default is not None:
                 out.append(e.default)
             return out
         case n.Choose():
             return [e.lo, e.hi]
         case n.PlayerQuery():
-            return [e.pred]
+            return [e.where]
         case n.CardQuery():
-            return [e.source, e.pred] if e.pred is not None else [e.source]
+            return [e.source, e.where] if e.where is not None else [e.source]
         case n.DomainQuery():
-            return [e.source, e.pred] if e.source is not None else [e.pred]
+            return [e.source, e.where] if e.source is not None else [e.where]
         case n.IfExpr():
             out = [e.cond, e.then]
             for cond, branch in e.elifs:
@@ -1784,7 +1784,7 @@ def _check_agg_default(
 ) -> None:
     """The order aggregators' mandatory `or <default>` clause shares its
     leading `or` with a compound `where` predicate — `where A or B` reads as
-    filter=A, default=B, the headline misparse this Owner Guard exists to catch. A
+    where=A, default=B, the headline misparse this Owner Guard exists to catch. A
     Boolean default is the tell (a real default is body-shaped, e.g. an
     Integer for a `rank_value(card)` body; a leftover predicate is not) —
     flagged whenever there IS a `where` clause for the `or` to have been
@@ -1794,7 +1794,7 @@ def _check_agg_default(
     generically."""
     assert e.default is not None
     dbare = _bare(infer(e.default, env))
-    if isinstance(dbare, TBoolean) and e.filter is not None:
+    if isinstance(dbare, TBoolean) and e.where is not None:
         bag.error(
             "the aggregation default is Boolean — this is almost always the "
             "last disjunct of the `where` predicate, absorbed by the "
@@ -2048,8 +2048,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         return
     if isinstance(e, n.PlayerQuery):
         scoped = env.with_local("player", TPlayer())
-        _check_expr(e.pred, scoped, bag)
-        _check_bool(e.pred, scoped, bag, "player-query predicate")
+        _check_expr(e.where, scoped, bag)
+        _check_bool(e.where, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
         if env.flavor == "piece":
@@ -2065,19 +2065,19 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             return
         _check_expr(e.source, env, bag)
         _check_card_source(e.source, env, bag)
-        if e.pred is not None:
+        if e.where is not None:
             scoped = env.with_local("card", TCard())
-            _check_expr(e.pred, scoped, bag)
-            _check_bool(e.pred, scoped, bag, "card-query predicate")
+            _check_expr(e.where, scoped, bag)
+            _check_bool(e.where, scoped, bag, "card-query predicate")
         return
     if isinstance(e, n.DomainQuery):
         binder_t = _domain_query_binder_type(e, env, bag)
         if e.source is not None:
             _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
         scoped = env.with_local(e.binder, binder_t)
-        _check_expr(e.pred, scoped, bag)
+        _check_expr(e.where, scoped, bag)
         phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
-        _check_bool(e.pred, scoped, bag, f"`{phrase} {e.spelled}` predicate")
+        _check_bool(e.where, scoped, bag, f"`{phrase} {e.spelled}` predicate")
         return
     if isinstance(e, n.Comprehension):
         if env.flavor == "piece":
@@ -2095,9 +2095,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         src = infer(e.source, env)
         elem: Type = src.element if isinstance(src, TCollection) else TAny()
         scoped = env.with_local(e.binder, elem)
-        if e.filter is not None:
-            _check_expr(e.filter, scoped, bag)
-            _check_bool(e.filter, scoped, bag, "aggregation `where` filter")
+        if e.where is not None:
+            _check_expr(e.where, scoped, bag)
+            _check_bool(e.where, scoped, bag, "aggregation `where` filter")
         _check_expr(e.body, scoped, bag)
         _check_agg_body(e, scoped, bag)
         if e.default is not None:
@@ -2318,12 +2318,12 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             out: list[n.Expr] = []
             if not isinstance(s.amount, str):
                 out.append(s.amount)
-            for opt in (s.source, s.dest, s.visibility, s.filter):
+            for opt in (s.source, s.dest, s.visibility, s.where):
                 if opt is not None:
                     out.append(opt)
             return out
         case n.EpistemicOp():
-            return [s.target] if s.filter is None else [s.target, s.filter]
+            return [s.zone] if s.where is None else [s.zone, s.where]
         case n.Offer():
             return [s.player]
         case n.TrickRound():
@@ -2332,15 +2332,17 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
                 exprs.append(s.trump)
             return exprs
         case n.AuctionRound() | n.ClimbRound():
-            return [s.leader, s.participants, s.termination]
-        case n.IfStmt() | n.RepeatUntil():
+            return [s.leader, s.participants, s.until]
+        case n.IfStmt():
             return [s.cond]
+        case n.RepeatUntil():
+            return [s.until]
         case n.AsBlock():
             return [s.player]
         case n.Turns():
             # `again` is a state-var NAME (a string, validated by resolve),
             # not an expression — only the three expr positions walk here.
-            return [s.leader, s.participants, s.termination]
+            return [s.leader, s.participants, s.until]
         case n.Produce():
             return list(s.payloads)
         case n.RunStmt():
@@ -2363,7 +2365,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Check every expression `_stmt_exprs` holds directly, binding an
     implicit name where the construct's own runtime semantics require one.
 
-    `Transfer.filter` and `EpistemicOp.filter` are evaluated with `card`
+    `Transfer.where` and `EpistemicOp.where` are evaluated with `card`
     bound per candidate (runtime/execute.py's shared `_card_pred`:
     `ctx.with_local("card", c)`, used by both the movement selection and
     `reveal`) — the *only* two `_stmt_exprs` members whose
@@ -2376,7 +2378,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     them — would be dark there. The filter must also itself be Boolean; the
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
-    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.filter is not None:
+    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.where is not None:
         # A joint filter (`where jointly`) binds `cards` — the candidate SET,
         # a card collection — where a per-card filter binds each `card`
         # (runtime `_select_joint` vs `_card_pred`; decisions.md
@@ -2385,11 +2387,11 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             scoped = env.with_local(content_noun(env.flavor, plural=True), TCollection(TCard()))
         else:
             scoped = env.with_local(content_noun(env.flavor, plural=False), TCard())
-        _check_expr(s.filter, scoped, bag)
+        _check_expr(s.where, scoped, bag)
         verb = s.verb if isinstance(s, n.Transfer) else s.op
-        _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
+        _check_bool(s.where, scoped, bag, f"'{verb}' filter")
         for expr in _stmt_exprs(s):
-            if expr is not s.filter:
+            if expr is not s.where:
                 _check_expr(expr, env, bag)
         return
     if isinstance(s, n.LetStmt) and s.index is not None:
@@ -2531,7 +2533,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         case n.IfStmt():
             _check_bool(stmt.cond, env, bag, "if condition")
         case n.RepeatUntil():
-            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+            _check_bool(stmt.until, env, bag, "repeat-until condition")
         case n.TrickRound():
             _check_round_actors(stmt, env, bag)
         case n.AuctionRound() | n.ClimbRound():
@@ -2539,14 +2541,14 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             # checked without asking whether it is there — which is the split's
             # point: the form that has no termination predicate cannot reach here.
             _check_round_actors(stmt, env, bag)
-            _check_bool(stmt.termination, env, bag, "round `until` condition")
+            _check_bool(stmt.until, env, bag, "round `until` condition")
         case n.Transfer():
             _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
             # The type half of the zone-target rule, like `_check_transfer`'s
             # endpoints: a `local` root passes resolve's classification, and
             # the binder's inferred type decides here.
-            t = infer(stmt.target, env)
+            t = infer(stmt.zone, env)
             if not _is_zone_type(t):
                 bag.error(
                     f"'{stmt.op}' target must be a zone, got "
@@ -2582,7 +2584,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 "`turns … over` names the participants",
                 stmt.span,
             )
-            _check_bool(stmt.termination, env, bag, "turns `until` condition")
+            _check_bool(stmt.until, env, bag, "turns `until` condition")
             if stmt.again is not None:
                 at = env.state_vars.get(stmt.again)
                 # choke-point-exempt: `again` is a state-var NAME resolved to a
@@ -2836,7 +2838,7 @@ def _continue_targets_in_item(item: n.PhaseItem) -> set[str]:
     else:
         for node in _control_flow_nodes(item):
             if isinstance(node, n.ContinueTo):
-                targets.add(node.target)
+                targets.add(node.phase)
     return targets
 
 
@@ -3129,7 +3131,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "in a before_each/after_each hook",
                                 node.span,
                             )
-                        elif isinstance(node, n.ContinueTo) and node.target not in later:
+                        elif isinstance(node, n.ContinueTo) and node.phase not in later:
                             # A mode name reaching here is the phase/mode
                             # confusion itself: before modes had their own
                             # keyword, `continue to <config-only sub-phase>`
@@ -3137,9 +3139,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                             # skips. Say which kind the name is, or the
                             # designer reads "not a sibling" as "no such name"
                             # while looking straight at the declaration.
-                            if node.target in mode_names:
+                            if node.phase in mode_names:
                                 bag.error(
-                                    f"continue to '{node.target}' names a mode, not a "
+                                    f"continue to '{node.phase}' names a mode, not a "
                                     f"phase — a mode is entered by a sibling mode's "
                                     f"`transition_to:` when its event fires, never "
                                     f"jumped to",
@@ -3147,7 +3149,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 )
                             else:
                                 bag.error(
-                                    f"continue to '{node.target}' is not a later sibling "
+                                    f"continue to '{node.phase}' is not a later sibling "
                                     "phase",
                                     node.span,
                                 )

@@ -177,7 +177,7 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
   is in driver.py). `runtime/narrowing.py` is the interim narrowing, not the sidecar
   design it is named for (reads.py:22). `chooser.py` holds one function; the chooser
   machinery lives in driver.py:128-166.
-- `types.unify` is a join/LUB, not unification; `assignable` is a coercion check
+- `types.join` was `unify`, which named a mechanism (type variables, substitution) it never had; `coercible` was `assignable`, which promised a directed subtype relation its callers use symmetrically
   used symmetrically by its own callers (typecheck.py:1524), not a subtype relation.
 - `DecisionForm.next_actor` reads as a query but mutates the cursor — calling it
   twice skips a player (mechanics.py:154, 372, 539). `AuctionForm.init` clears

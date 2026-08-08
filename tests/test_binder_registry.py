@@ -74,12 +74,12 @@ def test_each_simultaneous_binds_its_role_name() -> None:
 
 
 def test_player_query_binds_player() -> None:
-    node = n.PlayerQuery(kind="set", pred=n.NameRef(name="player"))
+    node = n.PlayerQuery(kind="set", where=n.NameRef(name="player"))
     assert _introduced_binders(node) == ("player",)
 
 
 def test_card_query_binds_card() -> None:
-    node = n.CardQuery(kind="set", source=_ZONE, pred=_CARD)
+    node = n.CardQuery(kind="set", source=_ZONE, where=_CARD)
     assert _introduced_binders(node) == ("card",)
 
 
@@ -89,7 +89,7 @@ def test_card_query_binds_card_even_with_no_pred() -> None:
     # binder — matches the original flat classifier's unconditional add, and
     # is harmless (an unused binder scopes over nothing, since there is no
     # `pred` field for `_rewrite`'s scoping to widen).
-    node = n.CardQuery(kind="count", source=_ZONE, pred=None)
+    node = n.CardQuery(kind="count", source=_ZONE, where=None)
     assert _introduced_binders(node) == ("card",)
 
 
@@ -102,7 +102,7 @@ def test_movement_with_filter_binds_card() -> None:
         source=_ZONE,
         dest=n.NameRef(name="pile"),
         dest_each=False,
-        filter=_CARD,
+        where=_CARD,
     )
     assert _introduced_binders(node) == ("card",)
 
@@ -120,18 +120,18 @@ def test_movement_without_filter_binds_nothing() -> None:
         source=_ZONE,
         dest=n.NameRef(name="pile"),
         dest_each=False,
-        filter=None,
+        where=None,
     )
     assert _introduced_binders(node) == ()
 
 
 def test_epistemic_op_with_filter_binds_card() -> None:
-    node = n.EpistemicOp(op="reveal", target=_ZONE, filter=_CARD)
+    node = n.EpistemicOp(op="reveal", zone=_ZONE, where=_CARD)
     assert _introduced_binders(node) == ("card",)
 
 
 def test_epistemic_op_without_filter_binds_nothing() -> None:
-    node = n.EpistemicOp(op="shuffle", target=_ZONE, filter=None)
+    node = n.EpistemicOp(op="shuffle", zone=_ZONE, where=None)
     assert _introduced_binders(node) == ()
 
 
@@ -158,7 +158,7 @@ def test_if_stmt_introduces_nothing() -> None:
 
 
 def test_repeat_until_introduces_nothing() -> None:
-    node = n.RepeatUntil(cond=n.NameRef(name="c"), body=())
+    node = n.RepeatUntil(until=n.NameRef(name="c"), body=())
     assert _introduced_binders(node) == ()
 
 
