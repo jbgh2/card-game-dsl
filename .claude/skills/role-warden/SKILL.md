@@ -24,9 +24,20 @@ Every comment the Warden leaves carries a machine marker naming the gap:
     <!-- warden:lease -->  <!-- warden:threads -->
 
 Before commenting, the Warden checks the issue or PR for the same marker;
-present means already flagged — skip. A repeated nag is noise that
+a live one means already flagged — skip. A repeated nag is noise that
 teaches everyone to ignore the Warden. The marker doubles as the reap
-clock (below).
+clock (below), so markers carry an instance, not just a gap:
+
+- The Lease marker embeds the ref's tip SHA —
+  `<!-- warden:lease sha=<tip> -->` — because the gap it flags is one
+  Lease *instance*, and issues outlive Leases.
+- A marker is **live** only while unannotated and instance-matched. Each
+  round opens with reconciliation: the Warden edits its own moot markers
+  — the gap closed, the Lease released, reaped, or re-taken from a
+  different tip — appending `(cleared <date>)`. A cleared marker never
+  counts as a sighting, so a re-taken Lease can never inherit a dead
+  Lease's clock, and a gap that closes and later reopens gets flagged
+  again rather than silently suppressed.
 
 ## The round, in order
 
@@ -43,13 +54,17 @@ clock (below).
 2. **Stale Leases** — `tools/stale-leases.sh`
    (`docs/harness.md`, "Leases", owns the definition).
    - First sighting of a stale Lease: comment on the issue
-     (`warden:lease`) — the comment IS the clock starting.
-   - Second sighting, still stale: reap-eligible refs (no commits absent
-     from main, no open PR) are deleted, with a closing comment; a stale
-     ref WITH unique commits is flagged to the operator and never
-     deleted. The two-sighting clock exists because an untouched Lease
-     sits at main's tip, whose commit date says nothing about the Lease's
-     own age.
+     (`warden:lease` with the ref's tip SHA embedded) — the comment IS
+     the clock starting, for that instance alone.
+   - Second sighting, still stale: counts only against a **live** marker
+     whose embedded SHA equals the ref's current tip — a mismatch is a
+     different Lease instance or new work, and starts a fresh clock.
+     Then reap-eligible refs (no commits absent from main, no open PR)
+     are deleted, with a closing comment, and the Warden edits its own
+     clock marker to `(reaped <date>)`; a stale ref WITH unique commits
+     is flagged to the operator and never deleted. The two-sighting
+     clock exists because an untouched Lease sits at main's tip, whose
+     commit date says nothing about the Lease's own age.
 3. **Unresolved threads** — `tools/unresolved-threads.sh`
    (`docs/harness.md`, "Review threads", owns the rule).
    The platform already blocks merge; the Warden surfaces the forgotten:
