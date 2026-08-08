@@ -18,14 +18,44 @@ from dataclasses import dataclass
 from cardlang.ast import nodes as n
 
 # --- axis: the shape of the `players:` declaration --------------------------
-# DERIVED from the AST node, not listed: `PlayersSpec.is_range` is the whole
-# discriminator (`high is None` means a fixed count), so the axis is exactly
-# the property's two values and gains a member the day the node does.
-PLAYERS_SHAPES: tuple[str, ...] = ("fixed", "range")
+# DERIVED by CROSSING the node's own predicates rather than by listing the two
+# spellings. `PlayersSpec` answers three independent questions — is it written
+# as a range, does the seat count actually vary, are the bounds well formed —
+# and the cells below are the reachable combinations of those answers. Reading
+# the axis off the spelling instead is what left a degenerate `players: 4..4`
+# out of the domain: it is written as a range, denotes a fixed four seats, and
+# so belongs to a cell that "fixed vs range" cannot express.
+#
+# The axis is a list of CLAUSES, and `shape_of` recomputes each one's identity
+# from the parsed node, so a clause whose classification changes reddens the
+# grid rather than silently moving cells.
+PLAYERS_CLAUSES: dict[str, str] = {
+    "fixed": "players: 4",
+    "degenerate_range": "players: 4..4",
+    "varying_range": "players: 4..6",
+    "malformed_zero": "players: 0",
+    "malformed_descending": "players: 4..3",
+}
+
+
+def shape_of(spec: n.PlayersSpec) -> str:
+    """Classify a parsed `players:` spec by the node's own predicates."""
+    if not spec.is_well_formed:
+        return "malformed"
+    if spec.varies:
+        return "varying"
+    return "fixed"  # a degenerate range lands here, which is the point
+
+
+PLAYERS_SHAPES: tuple[str, ...] = tuple(PLAYERS_CLAUSES)
+
 assert {f.name for f in n.PlayersSpec.__dataclass_fields__.values()} >= {
     "low",
     "high",
-}, "PlayersSpec changed shape — re-derive PLAYERS_SHAPES from it"
+}, "PlayersSpec changed shape — re-derive the players axis from it"
+assert all(
+    hasattr(n.PlayersSpec, p) for p in ("is_range", "varies", "is_well_formed")
+), "PlayersSpec lost a predicate the players axis is crossed from"
 
 
 # --- axis: how a candidate `teams:` value relates to the seat set -----------

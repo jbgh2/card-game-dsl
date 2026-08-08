@@ -30,8 +30,11 @@ property:   a `teams:` declaration is accepted iff it partitions the game's
             unaffected.
 domain:     {candidate `teams:` value} x {`players:` shape}. The candidate
             axis is every way the partition property can be satisfied or
-            broken; the shape axis is the two forms of a `players:`
-            declaration.
+            broken; the shape axis is the reachable combinations of the
+            three questions `PlayersSpec` answers about itself — written as
+            a range, count actually varies, bounds well formed — NOT the two
+            surface spellings, which cannot express a degenerate
+            `players: 4..4` (written as a range, denotes four fixed seats).
 registry:   `tests/teams_axes.py` derives both axes in code. The candidate
             axis is CLASSIFIED by `teams_axes.classify`, the one place the
             partition property is spelled out, which computes each cell's
@@ -88,10 +91,9 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from tests.teams_axes import PLAYERS_SHAPES, cells
+from tests.teams_axes import PLAYERS_CLAUSES, PLAYERS_SHAPES, cells
 
 SEAT_COUNT = 4
-PLAYERS_CLAUSE = {"fixed": f"players: {SEAT_COUNT}", "range": "players: 4..6"}
 
 
 def game_source(players: str, teams: tuple[tuple[int, ...], ...]) -> str:
@@ -132,17 +134,25 @@ GRID = [
 def test_teams_cell(
     shape: str, name: str, teams: tuple[tuple[int, ...], ...], label: str
 ) -> None:
-    source = game_source(PLAYERS_CLAUSE[shape], teams)
+    source = game_source(PLAYERS_CLAUSES[shape], teams)
+    # A MALFORMED `players:` is typecheck's diagnostic to give, and this
+    # guard must stay silent so the author is sent to the clause that is
+    # actually wrong rather than to a partition complaint derived from it.
+    if shape.startswith("malformed"):
+        message = _reject(source)
+        assert "player" in message and "teams" not in message, message
+        return
     # A game declaring no `teams:` has nothing to partition, whatever its
     # player count: the guard must not fire on the 25 corpus games that
     # declare none.
     if label == "absent":
         check_dsl(source, "teams.cardlang")
         return
-    # A variable player count has no fixed seat set for a fixed team list to
+    # A count that VARIES has no fixed seat set for a fixed team list to
     # cover, and which count it WOULD have to cover is undecided (issue
-    # #296). Refused rather than given a meaning.
-    if shape == "range":
+    # #296). Refused rather than given a meaning. A degenerate range
+    # (`players: 4..4`) does NOT vary and is an ordinary fixed game.
+    if shape == "varying_range":
         message = _reject(source)
         assert "variable player count" in message, message
         return

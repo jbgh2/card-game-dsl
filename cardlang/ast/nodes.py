@@ -1118,7 +1118,34 @@ class PlayersSpec:
 
     @property
     def is_range(self) -> bool:
+        """Whether the count was WRITTEN as a range — a syntactic fact.
+
+        Not the question most callers want: `players: 4..4` is written as a
+        range and denotes exactly four seats. Ask `varies` for the semantic
+        question, or this one only when the surface spelling is the subject.
+        """
         return self.high is not None
+
+    @property
+    def varies(self) -> bool:
+        """Whether the seat COUNT actually varies between instantiations.
+
+        The property every consumer that reasons about seats wants: a
+        degenerate range (`players: 4..4`) is a fixed four-seat game, and
+        refusing it as variable states something false about the source.
+        """
+        return self.high is not None and self.high != self.low
+
+    @property
+    def is_well_formed(self) -> bool:
+        """Whether the bounds make sense at all (at least one seat, and an
+        upper bound that does not precede the lower).
+
+        The condition `typecheck` reports on. Read it — never re-derive it —
+        wherever an earlier pass must not build a second, worse diagnostic on
+        top of a malformed declaration.
+        """
+        return self.low >= 1 and (self.high is None or self.high >= self.low)
 
 
 @dataclass(frozen=True, slots=True)

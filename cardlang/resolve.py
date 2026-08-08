@@ -2956,7 +2956,15 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
     """
     if not game.teams:
         return
-    if game.players.is_range:
+    if not game.players.is_well_formed:
+        # Shadow Guard. `typecheck` owns the players-count diagnostic ("a game
+        # needs at least one player", "upper bound precedes lower bound") and
+        # is the only place it should be reported. Resolve raises before
+        # typecheck ever runs, so building a partition complaint on top of a
+        # malformed `players:` would REPLACE the real diagnostic with a
+        # derivative one and send the author to fix the wrong clause.
+        return
+    if game.players.varies:
         # A fixed team list cannot partition a seat set that varies, and
         # WHICH count it would have to cover is genuinely undecided: the
         # engine plays a range game at `players.low` while the seat-literal
@@ -4981,8 +4989,8 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     # RANGE is refused even where it includes two, since the game may be
     # instantiated with more).
     players = game.players
-    if nd.func in _FRAME_CALL_FUNCS and (players.is_range or players.low != 2):
-        count = f"{players.low}-{players.high}" if players.is_range else str(players.low)
+    if nd.func in _FRAME_CALL_FUNCS and (players.varies or players.low != 2):
+        count = f"{players.low}-{players.high}" if players.varies else str(players.low)
         bag.error(
             f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
             f"forward is the other's, the 180-degree opposite), but the game "
