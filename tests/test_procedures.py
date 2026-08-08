@@ -182,7 +182,7 @@ def test_expansion_splices_the_body_and_consumes_the_procedure() -> None:
     # One `run` becomes exactly one statement: a block holding the argument
     # bindings and then the body. One shape serves every statement position.
     stmts = [type(s).__name__ for s in game.phases[0].items]
-    assert stmts == ["Movement", "Block"]
+    assert stmts == ["Transfer", "Block"]
     block = game.phases[0].items[1]
     assert isinstance(block, n.Block)
     assert [type(s).__name__ for s in block.body] == [
@@ -209,7 +209,7 @@ def test_a_procedure_run_twice_expands_twice_and_neither_leaks() -> None:
         procs="procedure bump(who : Player) { let step = 1  score[who] += step }",
     )
     assert [type(s).__name__ for s in game.phases[0].items] == [
-        "Movement", "Block", "Block",
+        "Transfer", "Block", "Block",
     ]
 
 
@@ -326,7 +326,7 @@ def test_zone_parameters_are_the_recorded_deferral() -> None:
 
 # Every member of the Stmt union, classified. The two sets must partition it.
 _BODY_ACCEPTED = {
-    "Movement", "EpistemicOp", "RotateStmt", "EachSimultaneous", "ForEach",
+    "Transfer", "EpistemicOp", "RotateStmt", "EachSimultaneous", "ForEach",
     "RepeatUntil", "IfStmt", "AsBlock", "Turns", "LetStmt", "AssignStmt",
     "Offer", "Produces",
 }
@@ -609,7 +609,7 @@ def test_each_simultaneously_body_shapes(body: str, why: str | None) -> None:
 
     The keyword-amount rows are why this table exists. The first version of this wall
     was hand-written against the FIRST of the executor's five requirements
-    (`isinstance(Movement) and mode == "chosen"`), so `move chosen one card …` sailed
+    (`isinstance(Transfer) and mode == "chosen"`), so `move chosen one card …` sailed
     through the checker and hit the assert anyway. The requirement now lives in ONE
     place — `nodes.simultaneous_body_error` — which resolve rejects with and the
     executor asserts against, so the two cannot drift. A checker that mirrors an

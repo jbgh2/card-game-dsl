@@ -60,7 +60,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'tag:field_init', 'tag:for_each', 'tag:function', 'tag:game',
         'tag:if', 'tag:int', 'tag:is_check', 'tag:legal_moves', 'tag:let',
         'tag:list', 'tag:loser', 'tag:member', 'tag:move_event',
-        'tag:move_type', 'tag:movement', 'tag:name', 'tag:named_arg',
+        'tag:move_type', 'tag:transfer', 'tag:name', 'tag:named_arg',
         'tag:not', 'tag:offer', 'tag:outcome_case', 'tag:phase',
         'tag:phase_qualifier', 'tag:player_query', 'tag:players',
         'tag:position', 'tag:produce', 'tag:produce_arm', 'tag:produces',

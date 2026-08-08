@@ -119,7 +119,7 @@
           }
         },
         {
-          "kind": "movement",
+          "kind": "transfer",
           "verb": "deal",
           "selection_mode": null,
           "amount": "all",
@@ -207,7 +207,7 @@
           "follows_fn": null
         },
         {
-          "kind": "movement",
+          "kind": "transfer",
           "verb": "move",
           "selection_mode": null,
           "amount": "all",
@@ -339,7 +339,7 @@
               },
               "then": [
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
                   "selection_mode": null,
                   "amount": "all",
@@ -369,7 +369,7 @@
               ],
               "else": [
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
                   "selection_mode": null,
                   "amount": "all",

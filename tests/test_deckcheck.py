@@ -15,7 +15,7 @@ registry:   `cardlang.ast.nodes.Stmt` — the walk is an exhaustive match
             (mypy-enforced), so a new statement kind cannot fall to a silent
             "draws nothing" default (that default is how deals inside a
             `Block`, and then inside a `produces:` arm, were invisible)
-covered:    Movement (count / full refill / literal partial return — all
+covered:    Transfer (count / full refill / literal partial return — all
             pinned; a partial return SUBTRACTS rather than resetting,
             since modeling one returned card as a full refill accepted a
             genuinely overflowing game), IfStmt (taken-branch
@@ -28,7 +28,7 @@ covered:    Movement (count / full refill / literal partial return — all
             condition first, so the zero-iteration path is always possible)
 sampled:    the inert group (let/assign/rotate/offer/round/produce/jumps) is
             asserted inert by the match arms' own comments; no per-kind probe,
-            since inertness is "no Movement reachable", a structural fact
+            since inertness is "no Transfer reachable", a structural fact
 residual:   draws inside MOVE effects (via `offer`/rounds) are outside the
             gate's domain — not statically boundable; recorded in issue #135
 """

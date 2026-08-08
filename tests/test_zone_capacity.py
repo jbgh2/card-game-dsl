@@ -112,7 +112,7 @@ def _dealt_chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
     return list(candidates[:k])
 
 
-def _parse(stmt_src: str) -> tuple[n.Game, n.Movement]:
+def _parse(stmt_src: str) -> tuple[n.Game, n.Transfer]:
     src = f"""
 game Mini {{
   players: 1
@@ -128,7 +128,7 @@ game Mini {{
 """
     game = check_dsl(src, "mini.cardlang")
     stmt = game.phases[0].items[-1]
-    assert isinstance(stmt, n.Movement)
+    assert isinstance(stmt, n.Transfer)
     return game, stmt
 
 

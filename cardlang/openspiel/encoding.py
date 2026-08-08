@@ -244,7 +244,7 @@ class ActionSpace:
             elif isinstance(node, n.Round) and node.combos_fn is not None:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
-            elif isinstance(node, n.Movement) and node.joint:
+            elif isinstance(node, n.Transfer) and node.joint:
                 # A joint selection's candidates are card SUBSETS — the combo
                 # block's currency, exactly like climb plays. The subset
                 # universe is not statically derivable from the inline

@@ -335,7 +335,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.TypeDef, "name"): "type",
     (n.StructField, "name"): "field",
     (n.DerivedField, "name"): "field",
-    (n.MoveParam, "name"): "param",
+    (n.Parameter, "name"): "param",
     (n.OutcomeCase, "tag"): "outcome_tag",
     # `let` declares a name and scopes it to the statements after it, so it is
     # both — filed as the declaration, since that is the half a name registry
@@ -377,7 +377,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
-    (n.MoveParam, "type_name"): "type",
+    (n.Parameter, "type_name"): "type",
     (n.StructField, "type_name"): "type",
     (n.StructLit, "type_name"): "type",
     (n.OutcomeCase, "payload_types"): "type",
@@ -438,7 +438,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # The item noun a movement moves (`cards`, `coins`): drawn from the game's
     # CONTENT FLAVOR, which is the component set's, so it is a game-fed slot the
     # way a suit is. Not swept for a library — see `_LIBRARY_UNSWEPT`.
-    (n.Movement, "item"): "content_kind",
+    (n.Transfer, "item"): "content_kind",
 }
 
 # Closed grammar keyword: a word the parser puts there from a fixed set of
@@ -458,10 +458,10 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Demands, "kind"),
         (n.Comprehension, "agg"),
         (n.Choose, "domain"),
-        (n.Movement, "verb"),
-        (n.Movement, "selection_mode"),
-        (n.Movement, "amount"),
-        (n.Movement, "distribution"),
+        (n.Transfer, "verb"),
+        (n.Transfer, "selection_mode"),
+        (n.Transfer, "amount"),
+        (n.Transfer, "distribution"),
         (n.Round, "order_mode"),
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
@@ -579,7 +579,7 @@ def slot_strings(node: object, field_name: str) -> tuple[str, ...]:
     optional, and the whole tuple for a `tuple[str, ...]` field.
 
     Uniform over the three shapes the annotations take, so a consumer never has
-    to know which shape a slot is. `Movement.amount` is the one slot whose
+    to know which shape a slot is. `Transfer.amount` is the one slot whose
     string is optional in a different way (it is `str | Expr`), and it is a
     keyword, so no reference consumer reaches it."""
     value = getattr(node, field_name)
@@ -1078,7 +1078,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
-        # against — `Movement.source`/`dest` as ordinary expressions, and
+        # against — `Transfer.source`/`dest` as ordinary expressions, and
         # `Round.source_zone`/`play_zone` as bare strings.
         "zone": frozenset(r.name for r in library.requires if is_zone_contract(r)),
         # A zone type's `<owner>` argument. A library has no `positions { }` and
@@ -1942,7 +1942,7 @@ def _introduced_binders(node: object, flavor: Flavor = "card") -> tuple[str, ...
     check, `_check_functions`'s allowed-reference set, `_rewrite`'s lexical
     scoping via `_BINDER_SCOPE_FIELDS`) reads this instead of re-enumerating
     the node-kind match itself — separate copies of that match would drift out
-    of sync, the `Movement`/`EpistemicOp` filter arm being especially easy to
+    of sync, the `Transfer`/`EpistemicOp` filter arm being especially easy to
     miss.
 
     `flavor` sets the ONE binder that varies with content kind — the
@@ -1995,7 +1995,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
-        case n.Movement() if node.filter is not None:
+        case n.Transfer() if node.filter is not None:
             # `where jointly` binds the candidate SET; a per-card `where`
             # binds each candidate (decisions.md "Joint-predicate selection").
             return (content_noun(flavor, plural=node.joint),)
@@ -2023,9 +2023,9 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # fields itself, so listing them here changes no scoping — it only makes
             # them visible to the sweeps that read this registry, which is the point.
             return tuple(f.name for f in node.fields)
-        # A filter-less Movement/EpistemicOp falls through its guarded arm above:
+        # A filter-less Transfer/EpistemicOp falls through its guarded arm above:
         # no candidate set, so no `card` binder.
-        case n.Movement() | n.EpistemicOp():
+        case n.Transfer() | n.EpistemicOp():
             return ()
         # Declarations and game/phase structure. (The parameter-bearing ones are
         # covered by `_rewrite` + `_check_reserved_params` — see the docstring.)
@@ -2036,7 +2036,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # `Library` is gone by the end of `_apply_uses` — its definitions are
             # spliced into the Game and reached through the arms below.
             | n.Library() | n.UsesDecl() | n.RequireDecl()
-            | n.MoveTypeDef() | n.MoveParam() | n.RuleDef() | n.RuleRef()
+            | n.MoveTypeDef() | n.Parameter() | n.RuleDef() | n.RuleRef()
             | n.AppliesWhen() | n.Demands()
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
             | n.OutcomeCase() | n.StructField() | n.DerivedField()
@@ -4017,7 +4017,7 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose
     # source field is likewise absent here).
     n.DomainQuery: ("pred",),
-    n.Movement: ("filter",),
+    n.Transfer: ("filter",),
     n.EpistemicOp: ("filter",),
     n.ForEach: ("body",),
     n.EachSimultaneous: ("body",),
@@ -4162,7 +4162,7 @@ def _rewrite(node: object, cats: _Categories, bag: DiagnosticBag) -> object:
     scope_fields = _BINDER_SCOPE_FIELDS.get(type(node))
     if scope_fields is not None:
         binders = _introduced_binders(node, cats.flavor)
-        if binders:  # a filter-less Movement/EpistemicOp introduces nothing
+        if binders:  # a filter-less Transfer/EpistemicOp introduces nothing
             scoped = replace(cats, locals=cats.locals | frozenset(binders))
             return _traverse(
                 node,
@@ -4445,7 +4445,7 @@ def _bad_zone_endpoint(expr: n.Expr | None, what: str) -> str | None:
 
     A `local` root stays accepted HERE: a binder may legitimately hold a zone
     value (`let h = hand[0]`), and which one it holds is a TYPE question —
-    typecheck's `_check_movement`/EpistemicOp arms decide it from the binder's
+    typecheck's `_check_transfer`/EpistemicOp arms decide it from the binder's
     inferred type (decisions.md, "`let` bindings scope forward and carry
     their type"). The executor's typed error remains the Owner Guard for the
     deliberately-loose initializers (`outcome`, unregistered action fields)."""
@@ -5175,7 +5175,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 bad = _bad_write_target(nd)
                 if bad is not None:
                     bag.error(bad, nd.span)
-            case n.Movement():
+            case n.Transfer():
                 # The `in <zone>` form has no `from` clause (its zone parses
                 # into `source`) — say `in`, not `from`, when rejecting it.
                 source_phrase = (

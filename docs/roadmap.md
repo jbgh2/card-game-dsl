@@ -44,10 +44,10 @@ Grammatically valid forms are statically rejected until a game needs them
 (decisions.md "Surface totality": rejected loudly rather than silently
 ignored). Movements: the
 `in <zone>` form (the verb implying its destination — `muck one cards in
-discard`), the per-movement `visibility =` override (visibility derives from
+discard`), the per-transfer `visibility =` override (visibility derives from
 the declared zone types; the override's semantics is
 [open-questions/move-level-visibility.md](open-questions/move-level-visibility.md)),
-and resource movements (`move 2 chips …` — the corpus keeps chips/coins as
+and resource transfers (`move 2 chips …` — the corpus keeps chips/coins as
 Integer state; moving resources through zones is undesigned). Elsewhere:
 `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
 phase with no iteration, transition events other than `play_to_trick`, a
@@ -59,7 +59,7 @@ rule surface that cannot fire there is rejected with it: a `constrains:`
 naming another move type or omitted entirely, the `demands: actions where
 <pred>` move-shape predicate, and a rule carrying neither `demands:` nor
 `exempts:` (it cannot change what is legal). Counts and move shapes are
-stated where the move is made instead — a movement's `chosen N`, a move
+stated where the move is made instead — a transfer's `chosen N`, a move
 type's `when:` guard. These lift together when rule application widens
 beyond trick play, which is
 [open-questions/rule-scope-beyond-trick-play.md](open-questions/rule-scope-beyond-trick-play.md)
@@ -102,7 +102,7 @@ a real semantic no game has asked for; note the pre-existing non-joint
 unexercised by the corpus and undocumented — the same decision awaits
 whichever game first wants either shape), and the subset enumeration
 refuses source pools past 16 cards at runtime rather than hanging
-(`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). Movement
+(`cardlang/runtime/execute.py`, `_JOINT_ENUMERATION_BOUND`). Transfer
 amounts: negative is a typed runtime error everywhere and a zero `chosen`
 amount is refused as a vacuous decision (`_check_count`), while a zero
 dealt/`random` amount stays an accepted no-op (a computed "deal what

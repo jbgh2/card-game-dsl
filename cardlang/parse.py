@@ -671,13 +671,13 @@ class _Builder(Transformer[Token, n.Game]):
     def vis_clause(self, meta: Meta, c: list[object]) -> _Vis:
         return _Vis(_as_expr(c[0]))
 
-    def move_from(self, meta: Meta, c: list[object]) -> n.Movement:
+    def move_from(self, meta: Meta, c: list[object]) -> n.Transfer:
         sel = next(x for x in c if isinstance(x, _Selection))
         dest = next(x for x in c if isinstance(x, _Dest))
         vis = next((x.expr for x in c if isinstance(x, _Vis)), None)
         dist = next((x.mode for x in c if isinstance(x, _Dist)), None)
         where = next((x for x in c if isinstance(x, _Where)), None)
-        return n.Movement(
+        return n.Transfer(
             verb=str(c[0]),
             selection_mode=sel.mode,
             amount=sel.amount,  # type: ignore[arg-type]
@@ -701,10 +701,10 @@ class _Builder(Transformer[Token, n.Game]):
     def where_jointly(self, meta: Meta, c: list[object]) -> _Where:
         return _Where(_as_expr(c[0]), joint=True)
 
-    def move_gather(self, meta: Meta, c: list[object]) -> n.Movement:
+    def move_gather(self, meta: Meta, c: list[object]) -> n.Transfer:
         assert isinstance(c[1], _Selection) and isinstance(c[2], _Dest)
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
-        return n.Movement(
+        return n.Transfer(
             verb=str(c[0]),
             selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
@@ -716,10 +716,10 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def move_in(self, meta: Meta, c: list[object]) -> n.Movement:
+    def move_in(self, meta: Meta, c: list[object]) -> n.Transfer:
         assert isinstance(c[1], _Selection)
         vis = c[3].expr if len(c) > 3 and isinstance(c[3], _Vis) else None
-        return n.Movement(
+        return n.Transfer(
             verb=str(c[0]),
             selection_mode=c[1].mode,
             amount=c[1].amount,  # type: ignore[arg-type]
@@ -927,7 +927,7 @@ class _Builder(Transformer[Token, n.Game]):
     def exempts(self, meta: Meta, c: list[object]) -> _Exempts:
         return _Exempts(_as_expr(c[0]))
 
-    def rule_params(self, meta: Meta, c: list[n.MoveParam]) -> tuple[n.MoveParam, ...]:
+    def rule_params(self, meta: Meta, c: list[n.Parameter]) -> tuple[n.Parameter, ...]:
         return tuple(c)
 
     def rule_def(self, meta: Meta, c: list[object]) -> n.RuleDef:
@@ -1414,9 +1414,13 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def move_param(self, meta: Meta, c: list[object]) -> n.MoveParam:
+    def parameter(self, meta: Meta, c: list[object]) -> n.Parameter:
         # c: NAME(param), payload_type string (carries a trailing `?` if nullable).
-        return n.MoveParam(
+        # One builder for all four parameter-bearing constructs — move types,
+        # functions, procedures, rules — because the grammar now has one
+        # production for them. Per-construct type constraints stay in each
+        # construct's own Owner Guard, not here.
+        return n.Parameter(
             name=str(c[0]), type_name=str(c[1]), span=self._span(meta)
         )
 
@@ -1492,7 +1496,7 @@ class _Builder(Transformer[Token, n.Game]):
                 when_pred = None if isinstance(item.pred, _Always) else _as_expr(item.pred)
             elif isinstance(item, _MoveEffect):
                 effect = item.body
-        params = tuple(x for x in c if isinstance(x, n.MoveParam))
+        params = tuple(x for x in c if isinstance(x, n.Parameter))
         return n.MoveTypeDef(
             name=name,
             when=when_pred,  # type: ignore[arg-type]
@@ -1501,27 +1505,24 @@ class _Builder(Transformer[Token, n.Game]):
             span=self._span(meta),
         )
 
-    def func_param(self, meta: Meta, c: list[object]) -> n.MoveParam:
-        return n.MoveParam(name=str(c[0]), type_name=str(c[1]), span=self._span(meta))
-
     def function_def(self, meta: Meta, c: list[object]) -> n.FunctionDef:
-        # c: NAME, func_param* (n.MoveParam), expr(body). The body is the last child.
+        # c: NAME, parameter* (n.Parameter), expr(body). The body is the last child.
         name = str(c[0])
-        params = tuple(x for x in c if isinstance(x, n.MoveParam))
+        params = tuple(x for x in c if isinstance(x, n.Parameter))
         return n.FunctionDef(
             name=name, params=params, body=_as_expr(c[-1]), span=self._span(meta)
         )
 
     def procedure_def(self, meta: Meta, c: list[object]) -> n.ProcedureDef:
-        # c: NAME, move_param* (n.MoveParam), statement*. `maybe_placeholders`
+        # c: NAME, move_param* (n.Parameter), statement*. `maybe_placeholders`
         # leaves a None for an absent optional group; `_as_stmt` never sees it
         # because the params filter is by type and the body filter drops it.
         name = str(c[0])
-        params = tuple(x for x in c if isinstance(x, n.MoveParam))
+        params = tuple(x for x in c if isinstance(x, n.Parameter))
         body = tuple(
             _as_stmt(s)
             for s in c[1:]
-            if s is not None and not isinstance(s, n.MoveParam)
+            if s is not None and not isinstance(s, n.Parameter)
         )
         return n.ProcedureDef(
             name=name, params=params, body=body, span=self._span(meta)

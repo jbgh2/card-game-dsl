@@ -35,7 +35,7 @@ residual:   a `local` root whose initializer types `TAny` (an `outcome`
             pronoun, an unregistered action field) is accepted — gradual
             typing's ordinary rule, not a blind spot: lets are TYPED now, so
             `let h = 3` is rejected at check time (the type half of the rule,
-            `_check_movement`) while `let h = hand[0]` still passes on its
+            `_check_transfer`) while `let h = hand[0]` still passes on its
             merits. The executor's typed RuntimeError remains the backstop
             for the TAny path (tests/test_fail_loud.py pins it directly).
 """
@@ -167,7 +167,7 @@ def test_zone_shaped_endpoints_still_check() -> None:
 def test_a_zone_valued_local_is_accepted_and_a_non_zone_one_is_not() -> None:
     # Both halves of the rule at the `local` root. Resolve's classification
     # wall lets any binder through (a binder MAY hold a zone); the type half
-    # (`_check_movement`, now that lets are typed) decides by what the binder
+    # (`_check_transfer`, now that lets are typed) decides by what the binder
     # actually holds.
     check_dsl(
         _game("let h = hand[0]\n    move all cards from h to deck"),

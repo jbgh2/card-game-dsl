@@ -231,7 +231,7 @@
           "kind": "before_each",
           "body": [
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
               "selection_mode": null,
               "amount": "all",
@@ -256,7 +256,7 @@
               }
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "deal",
               "selection_mode": null,
               "amount": {
@@ -862,7 +862,7 @@
                       }
                     },
                     {
-                      "kind": "movement",
+                      "kind": "transfer",
                       "verb": "move",
                       "selection_mode": null,
                       "amount": "all",

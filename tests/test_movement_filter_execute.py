@@ -25,7 +25,7 @@ HEARTS_2 = Card("2", "hearts")
 CLUBS_K = Card("K", "clubs")
 
 
-def _parse(stmt_src: str) -> tuple[n.Game, n.Movement]:
+def _parse(stmt_src: str) -> tuple[n.Game, n.Transfer]:
     src = f"""
 game Mini {{
   players: 1
@@ -41,7 +41,7 @@ game Mini {{
 """
     game = check_dsl(src, "mini.cardlang")
     stmt = game.phases[0].items[-1]
-    assert isinstance(stmt, n.Movement)
+    assert isinstance(stmt, n.Transfer)
     return game, stmt
 
 
@@ -138,7 +138,7 @@ def test_unfiltered_movement_is_unaffected() -> None:
 SPADES_3 = Card("3", "spades")
 
 
-def _parse_deal(n_players: int, stmt_src: str) -> tuple[n.Game, n.Movement]:
+def _parse_deal(n_players: int, stmt_src: str) -> tuple[n.Game, n.Transfer]:
     src = f"""
 game Mini {{
   players: {n_players}
@@ -154,7 +154,7 @@ game Mini {{
 """
     game = check_dsl(src, "mini.cardlang")
     stmt = game.phases[0].items[-1]
-    assert isinstance(stmt, n.Movement)
+    assert isinstance(stmt, n.Transfer)
     return game, stmt
 
 

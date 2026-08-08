@@ -46,9 +46,9 @@ game Mini {
 """
 
 
-def _movement(game: n.Game) -> n.Movement:
+def _movement(game: n.Game) -> n.Transfer:
     stmt = game.phases[0].items[-1]
-    assert isinstance(stmt, n.Movement)
+    assert isinstance(stmt, n.Transfer)
     return stmt
 
 
@@ -76,7 +76,7 @@ def test_filter_ir_key_emitted_only_when_present() -> None:
     plain_ir: Any = emit(check_dsl(PLAIN_SRC, "mini.cardlang"))
     filtered_mv = filtered_ir["phases"][0]["items"][0]
     plain_mv = plain_ir["phases"][0]["items"][0]
-    assert filtered_mv["kind"] == "movement" and plain_mv["kind"] == "movement"
+    assert filtered_mv["kind"] == "transfer" and plain_mv["kind"] == "transfer"
 
     assert "filter" in filtered_mv
     assert filtered_mv["filter"] == {

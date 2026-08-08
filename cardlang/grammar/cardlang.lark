@@ -238,7 +238,7 @@ move_event: NAME [_WHERE_KW expr]
 // Statements (phase / mechanic bodies)
 // ----------------------------------------------------------------------------
 
-?statement: movement
+?statement: transfer
           | rotate_stmt
           | epistemic_op
           | each_simultaneous
@@ -285,17 +285,17 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // value-returning functions and named user operations, which appear in
 // expression position.
 
-// One movement primitive, used as a statement or (in some arg positions) a value.
+// One transfer primitive, used as a statement or (in some arg positions) a value.
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
-movement: MOVE_VERB selection _FROM_KW zone_expr [where_clause] [dist_clause] move_dest [vis_clause] -> move_from
-        | MOVE_VERB selection _IN_KW zone_expr [vis_clause]                                          -> move_in
-        | MOVE_VERB selection move_dest [vis_clause]                                                 -> move_gather
+transfer: TRANSFER_VERB selection _FROM_KW zone_expr [where_clause] [dist_clause] move_dest [vis_clause] -> move_from
+        | TRANSFER_VERB selection _IN_KW zone_expr [vis_clause]                                          -> move_in
+        | TRANSFER_VERB selection move_dest [vis_clause]                                                 -> move_gather
 // A word set spelled as a named terminal rather than as inline literals, so it
 // carries its whole-word anchoring itself (`moveall …` must not read as `move
 // all …`); same for RANK_DIR above.
-MOVE_VERB: /(?:deal|transfer|move|burn|muck|draw)(?![A-Za-z0-9_])/
+TRANSFER_VERB: /(?:deal|transfer|move|burn|muck|draw)(?![A-Za-z0-9_])/
 // How a `to each` deal distributes: by default each destination takes the
 // stated amount; `as-equally-as-possible` deals the source round-robin so the
 // remainder is spread (Getaway deals the whole deck across 3–8 hands).
@@ -404,7 +404,7 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // kernel along the offering / order / termination axes.)
 climb_stmt: _ROUND_KW _CLIMB_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _COMBINATIONS_KW NAME _FOLLOWS_KW NAME _UNTIL_KW expr   -> climb_stmt
 named_arg: NAME "=" arg_value
-?arg_value: movement
+?arg_value: transfer
           | expr
 
 let_stmt: _LET_KW NAME [index] "=" expr
@@ -417,18 +417,17 @@ lvalue: NAME [index_expr]
 // Rules (top-level)
 // ----------------------------------------------------------------------------
 
-move_type_def: _MOVE_TYPE_KW NAME ["(" move_param ("," move_param)* ")"] "{" [move_when] move_effect "}"
+move_type_def: _MOVE_TYPE_KW NAME ["(" parameter ("," parameter)* ")"] "{" [move_when] move_effect "}"
 // An optional, comma-separated parameter list; each parameter is drawn from an
 // enumerable domain (Suit/Suit?, Rank, Player) or the state-dependent Card
 // domain. Their value-domains flatten into one per-turn candidate list.
-move_param: NAME ":" payload_type
+parameter: NAME ":" payload_type
 
 // A named function: a parameterized expression callable anywhere an expression
 // appears, so a game can factor a predicate it would otherwise repeat. The body
 // is hermetic — it reads only its parameters and game/phase state, never the
 // caller's binders — and non-recursive.
-function_def: _FUNCTION_KW NAME "(" [func_param ("," func_param)*] ")" "=" expr
-func_param: NAME ":" payload_type
+function_def: _FUNCTION_KW NAME "(" [parameter ("," parameter)*] ")" "=" expr
 
 // A named procedure: a parameterized *statement* block, the definition form the
 // expression layer has had all along. Calling one behaves exactly as if the body
@@ -436,7 +435,7 @@ func_param: NAME ":" payload_type
 // parameters — the expander splices it away before the runtime ever sees it, so
 // a procedure can never create an information-set gap. Parameter domains are the
 // enumerable payload types; the resolver gates which are supported.
-procedure_def: _PROCEDURE_KW NAME "(" [move_param ("," move_param)*] ")" "{" statement* "}"
+procedure_def: _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" "{" statement* "}"
 move_when: _WHEN_KW ":" applies_pred
 move_effect: _EFFECT_KW "{" statement* "}"
 
@@ -455,7 +454,7 @@ payload_type: NAME      -> payload_plain
 // substituting the arguments into the body at resolve time. Parameter domains
 // are the enumerable payload types; the resolver gates which are supported.
 rule_def: _RULE_KW NAME [rule_params] "{" rule_clause* "}"
-rule_params: "(" move_param ("," move_param)* ")"
+rule_params: "(" parameter ("," parameter)* ")"
 ?rule_clause: constrains
             | applies_when
             | demands
@@ -476,7 +475,7 @@ demands: _DEMANDS_KW ":" demand_value
 exempts: _EXEMPTS_KW ":" expr
 // A predicate over the candidate player move, whose subject is `action`
 // (see decisions.md "Rule demand forms"). `action` is the move instance —
-// `action.card`, `action.card_count`, `action.amount` — never the zone-movement
+// `action.card`, `action.card_count`, `action.amount` — never the zone-transfer
 // verb `move`.
 actions_where: _ACTIONS_KW _WHERE_KW expr
 if_impossible: _IF_IMPOSSIBLE_KW ":" expr

@@ -1,4 +1,4 @@
-"""Statement-context totality (Task 3: `Movement`/`EpistemicOp` filters bind
+"""Statement-context totality (Task 3: `Transfer`/`EpistemicOp` filters bind
 `card`) and IsCheck totality (Task 4: `is empty`/`is not empty`/`is none`/
 `is not none`), typecheck + runtime.
 
@@ -11,14 +11,14 @@ property:  every `_stmt_exprs` position that the runtime evaluates with an
            statement walk left it unbound.
 domain:    every branch of `_stmt_exprs` (`cardlang/typecheck.py`) — the
            registry of "which expressions does a statement hold directly":
-           AssignStmt, LetStmt, Movement, EpistemicOp, Offer, Round,
+           AssignStmt, LetStmt, Transfer, EpistemicOp, Offer, Round,
            IfStmt/RepeatUntil, Produce (ForEach/EachSimultaneous/RotateStmt
            hold none).
 registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            named in `_check_stmt_exprs`'s docstring) cross-checked against
            resolve.py's independent registry of the same fact,
            `_BINDER_SCOPE_FIELDS` (`cardlang/resolve.py`), which lists which
-           *fields* of a binder-introducing node see the binder: `Movement:
+           *fields* of a binder-introducing node see the binder: `Transfer:
            ("filter",)`, `EpistemicOp: ("filter",)` — confirming `filter` is
            the only `_stmt_exprs`-held field either registry scopes to an
            implicit binder. The two registries are independent (typecheck's
@@ -26,15 +26,15 @@ registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            bare name at all) and agree by construction on which field is
            special, which is what makes "the whole class is exactly these
            two members" a checked claim, not an assumption.
-covered:   Movement.filter and EpistemicOp.filter, each: rejects an unknown
+covered:   Transfer.filter and EpistemicOp.filter, each: rejects an unknown
            Card field inside the filter (the closed CARD_FIELDS wall, now
            reachable — THE PROBE); rejects a non-Boolean filter; accepts the
            real corpus shape (`card.suit is hearts`/`card.rank is Q`).
-           Movement.source is confirmed to still run its own (unrelated,
+           Transfer.source is confirmed to still run its own (unrelated,
            pre-existing) zone-family-index wall in the SAME statement a
            filter is present on — proof the two checks don't interfere.
 sampled:   none — the domain is small (8 `_stmt_exprs` branches) and every
-           branch is either exhaustively argued (the 6 non-Movement/
+           branch is either exhaustively argued (the 6 non-Transfer/
            EpistemicOp branches hold no predicate, confirmed by reading
            `_stmt_exprs`'s source directly, restated in
            `_check_stmt_exprs`'s docstring) or probed above.
@@ -127,7 +127,7 @@ def _rejects(src: str, needle: str) -> None:
 
 
 # =============================================================================
-# Task 3 — Movement/EpistemicOp filter binds `card`
+# Task 3 — Transfer/EpistemicOp filter binds `card`
 # =============================================================================
 
 
@@ -171,7 +171,7 @@ def test_reveal_filter_real_corpus_shape_is_accepted() -> None:
 
 
 def test_movement_source_is_still_checked_unbound_alongside_a_filter() -> None:
-    # The OTHER Movement expressions (source/dest/amount/visibility) carry no
+    # The OTHER Transfer expressions (source/dest/amount/visibility) carry no
     # `card` binder and are checked in the ambient environment — proven by a
     # statement that has BOTH a real filter AND a source-side error, so the
     # source's own (unrelated) zone-family-index wall must still fire.
