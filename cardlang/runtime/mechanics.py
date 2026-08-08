@@ -38,37 +38,41 @@ from cardlang.stdlib.moves import RULE_ENFORCED_MOVE_TYPE
 # trick's turn-order position and `led_suit`) live in `state`, so every hook is a
 # pure function of `(…, state, ctx)`.
 
-State = dict[str, Any]
+# The Round State (docs/glossary.md): the accumulator a running round threads
+# through its hooks, and — for the forms that publish one — what the `state.`
+# pronoun reads. `stdlib/round_state.py` names the same concept from the other
+# side, declaring which of its keys each form publishes.
+RoundState = dict[str, Any]
 Outcome = Player | tuple[str, list[Any]] | None
 
 
 class DecisionForm(Protocol):
     """The six pluggable slots of one kernel `round` form."""
 
-    def init(self, state: State, ctx: Ctx) -> State:
+    def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         """Seed the accumulator and cursor into `state`, returning it."""
 
-    def next_actor(self, state: State, ctx: Ctx) -> Player | None:
+    def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         """Who acts next, or `None` when the actor sequence is structurally spent."""
 
-    def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+    def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
         """The finite, canonically-ordered action set for `actor`. Non-emptiness is
         the form's own contract — it raises its own malformed-game error, so the
         messages stay form-specific (see the draw site in `run_decision_round`)."""
 
-    def terminated(self, state: State, ctx: Ctx) -> bool:
+    def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         """The predicate end, checked at the top of the loop."""
 
-    def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
+    def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         """Enact the chosen action — thread the accumulator, emit any domain trace
         events — and return `state`."""
 
-    def outcome(self, state: State, ctx: Ctx) -> Outcome:
+    def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         """The round's result: a winning `Player`, a typed `(tag, payloads)`
         outcome, or `None` (a betting round mutated shared state and just closes)."""
 
 
-def run_decision_round(form: DecisionForm, state: State, ctx: Ctx) -> Outcome:
+def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outcome:
     """The one per-step decision loop behind every kernel `round` form (§4 of
     docs/design-notes/kernel-extensibility.md). `form` supplies the six slots; this
     skeleton is fixed. Exactly one `ctx.chooser` draw happens per step — the sole
@@ -145,7 +149,7 @@ class TrickForm:
         )
         self.transition_phase = ctx.current_phase
 
-    def init(self, state: State, ctx: Ctx) -> State:
+    def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         state["led_suit"] = None
         state["trick_terminated_early"] = False
         state["trump"] = self.trump
@@ -157,10 +161,10 @@ class TrickForm:
         ctx.rs.mech_state.append(state)
         return state
 
-    def terminated(self, state: State, ctx: Ctx) -> bool:
+    def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         return bool(state["trick_terminated_early"])
 
-    def next_actor(self, state: State, ctx: Ctx) -> Player | None:
+    def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         order: list[Player] = state["order"]
         while state["idx"] < len(order):
             player = order[state["idx"]]
@@ -169,7 +173,7 @@ class TrickForm:
                 return player
         return None  # turn order ran out: every participant has played
 
-    def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+    def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
         candidates = rules.legal_cards(
             actor, RULE_ENFORCED_MOVE_TYPE, self.trick_ctx
         )
@@ -183,7 +187,7 @@ class TrickForm:
             )
         return candidates
 
-    def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
+    def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         ctx.rs.zones.instance(self.source_family, actor).remove(choice)
         ctx.rs.zones.single(self.play_zone).add(choice)
         observe.movement(ctx, (self.source_family, actor), (self.play_zone, None), [choice])
@@ -199,7 +203,7 @@ class TrickForm:
             state["trick_terminated_early"] = True
         return state
 
-    def outcome(self, state: State, ctx: Ctx) -> Outcome:
+    def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
@@ -337,7 +341,7 @@ class AuctionForm:
         )
         self.move_defs = [ctx.rs.move_type_index[name] for name in stmt.offering]
 
-    def init(self, state: State, ctx: Ctx) -> State:
+    def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         # This form publishes nothing to `state.` — it never pushes onto
         # `mech_state` (AUCTION_PUBLISHED is empty, and deliberately so). Clearing
         # `last_round_state` is what makes that honest: without it, `state.led_suit`
@@ -351,10 +355,10 @@ class AuctionForm:
         state["history"] = []
         return state
 
-    def terminated(self, state: State, ctx: Ctx) -> bool:
+    def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         return bool(evaluate(self.termination, ctx))
 
-    def next_actor(self, state: State, ctx: Ctx) -> Player | None:
+    def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         order = self.order
         # The participants ring is re-evaluated each step (the participant-filter
         # axis): a player the predicate drops mid-ring — a standing high bidder, a
@@ -390,7 +394,7 @@ class AuctionForm:
             # A non-participant in ring mode is skipped with no draw; loop on (the
             # skip mutates nothing, so the top-of-loop `terminated` cannot flip).
 
-    def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+    def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
         # Every move type's guard-filtered cross product (`concrete_moves`),
         # concatenated in offering order — one flat candidate list, matching
         # OpenSpiel's one-decision-node-per-turn action set. The Card domain
@@ -421,7 +425,7 @@ class AuctionForm:
             )
         return candidates
 
-    def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
+    def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         from cardlang.runtime.execute import run_body
 
         observe.announce(ctx, actor, choice)
@@ -433,7 +437,7 @@ class AuctionForm:
         state["history"].append((actor, name, value))
         return state
 
-    def outcome(self, state: State, ctx: Ctx) -> Outcome:
+    def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         if self.stmt.outcome_fn is None:
             return None  # betting: the shared chip/fold state is already settled
         from cardlang.runtime import primitives
@@ -510,7 +514,7 @@ class ClimbForm:
         # actually in the ring.
         self.leader = self.ring[0]
 
-    def init(self, state: State, ctx: Ctx) -> State:
+    def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         state["current"] = None  # the standing play; None until the leader leads
         state["last"] = self.leader  # the last player to play
         state["idx"] = 0  # the ring cursor
@@ -521,7 +525,7 @@ class ClimbForm:
         ctx.rs.mech_state.append(state)
         return state
 
-    def terminated(self, state: State, ctx: Ctx) -> bool:
+    def terminated(self, state: RoundState, ctx: Ctx) -> bool:
         # Gated on `current is not None`: the shed-out predicate is checked only
         # *after* a play (never before the leader leads), so the leader always gets
         # to lead even if a player is already shed out. Evaluating it at the top of
@@ -531,7 +535,7 @@ class ClimbForm:
             return True  # a trick-ending lead: the followers draw nothing
         return state["current"] is not None and bool(evaluate(self.termination, ctx))
 
-    def next_actor(self, state: State, ctx: Ctx) -> Player | None:
+    def next_actor(self, state: RoundState, ctx: Ctx) -> Player | None:
         ring = self.ring
         while True:
             state["guard"] += 1
@@ -552,7 +556,7 @@ class ClimbForm:
                 continue
             return turn
 
-    def candidates(self, actor: Player, state: State, ctx: Ctx) -> list[Any]:
+    def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
         # The climb engines are game-local, so they get the same value
         # bundles every other primitive does rather than the live ctx — and
         # their hand argument is deep_frozen for the same reason `call()`
@@ -568,7 +572,7 @@ class ClimbForm:
         standing = reads.deep_freeze(state["current"])
         return [*self.follow_query(facts, gr, hand, standing), "pass"]
 
-    def apply(self, actor: Player, choice: Any, state: State, ctx: Ctx) -> State:
+    def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         if choice == "pass":
             observe.announce(ctx, actor, "pass")
             state["idx"] += 1
@@ -589,7 +593,7 @@ class ClimbForm:
             state["lead_ended_trick"] = True
         return state
 
-    def outcome(self, state: State, ctx: Ctx) -> Outcome:
+    def outcome(self, state: RoundState, ctx: Ctx) -> Outcome:
         last: Player = state["last"]
         return last
 
