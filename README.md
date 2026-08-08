@@ -10,7 +10,7 @@ before building on it.
 
 ## Usage
 
-A game is a Markdown document with a fenced rules block. Hearts begins:
+A game is a rules file. Hearts begins:
 
 ```
 game Hearts {
@@ -30,7 +30,7 @@ game Hearts {
 Check a description:
 
 ```
-cardlang docs/games/hearts.md        # parse + static checks; silent on success
+cardlang docs/games/hearts.cardlang  # parse + static checks; silent on success
 ```
 
 Play it through OpenSpiel:
@@ -78,9 +78,11 @@ invalidates the result. Here visibility is declared in the rules and
 observations are derived by one engine, so the checks above are possible
 at all, and a new environment is a rules file that inherits them.
 
-The corpus drives the language. `docs/games/` holds one file per game,
-each a complete description a non-player could pick up and play a hand
-from, and constructs exist because a game needed them. The spec lives in
+The corpus drives the language. `docs/games/` holds each game twice: the
+executable rules (`.cardlang`) and a Markdown rulebook embedding the same
+rules in prose, complete enough that a non-player could pick it up and
+play a hand. The checker reads both forms. Constructs exist because a
+game needed them. The spec lives in
 `docs/`; `decisions.md` is the settled design. `experiments/llm_eval/` is
 the pilot evaluation of language models playing these games, with its
 transcripts, audit files, and reports.
