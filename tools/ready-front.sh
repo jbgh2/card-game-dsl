@@ -32,6 +32,7 @@ issues_json=$(gh api graphql --paginate \
             title
             labels(first: 50) { totalCount nodes { name } }
             blockedBy(first: 50) { totalCount nodes { number state } }
+            assignees(first: 10) { totalCount }
           }
         }
       }
@@ -71,6 +72,7 @@ result=$(jq -s \
       then "witness-gated (blocked: label)"
     elif ([.blockedBy.nodes[] | select(.state == "OPEN")] | length) > 0
       then "blocked (open dependency)"
+    elif .assignees.totalCount > 0 then "claimed (assigned)"
     elif $leased | index($n) then "leased"
     else "READY" end;
   [.[].data.repository.issues.nodes[]]
