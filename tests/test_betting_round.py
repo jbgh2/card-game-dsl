@@ -38,12 +38,12 @@ move_type stop { effect { acted[actor] := true } }
 """
 
 
-def _round_node(game: a.nodes.Game) -> a.nodes.Round:
+def _round_node(game: a.nodes.Game) -> a.nodes.AuctionRound:
     for phase in game.phases:
         for item in phase.items:
-            if isinstance(item, a.nodes.Round):
+            if isinstance(item, a.nodes.AuctionRound):
                 return item
-    raise AssertionError("no Round node found")
+    raise AssertionError("no AuctionRound node found")
 
 
 def test_betting_round_parses_without_an_outcome_clause() -> None:

@@ -250,9 +250,12 @@ def _stmt_usage(
             # `until` is checked before the first turn (runtime `_turns`),
             # so the zero-iteration execution always exists.
             return carry, carry
-        case n.Round():
+        case n.TrickRound() | n.AuctionRound() | n.ClimbRound():
             # A round moves cards between hands and the play zone — never a
-            # draw from the deck — so it is inert to deck usage.
+            # draw from the deck — so it is inert to deck usage. True of all
+            # three forms for two different reasons: the trick and climb forms
+            # name their source and play zones and neither may be the deck, and
+            # the auction form moves no cards at all.
             return carry, carry
         case n.Offer():
             # An offered move's EFFECT can draw from the deck, but move effects

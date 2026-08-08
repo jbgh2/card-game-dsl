@@ -231,11 +231,6 @@ def _statements(items: Any) -> list[Any]:
 # --- axis-derivation pins -----------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="the three round productions still share one n.Round node (issue #210)",
-)
 def test_every_round_production_builds_its_own_node() -> None:
     """The form axis reconciles two sources, and they must agree in count.
 
@@ -308,11 +303,6 @@ def test_round_cell_builds_its_own_node(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="one node serves three forms, so each carries the others' fields (issue #210)",
-)
 @pytest.mark.parametrize("production", list(_TEMPLATES))
 def test_no_field_is_null_across_a_whole_form(production: str) -> None:
     """No field of a form's node is `None` in every one of that form's cells.
@@ -336,11 +326,6 @@ def test_no_field_is_null_across_a_whole_form(production: str) -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="the emitter writes one shared key list for all three forms (issue #210)",
-)
 @pytest.mark.parametrize("production", list(_TEMPLATES))
 def test_no_ir_key_is_null_across_a_whole_form(production: str) -> None:
     """The same property one layer down: a form's IR carries no always-null key.

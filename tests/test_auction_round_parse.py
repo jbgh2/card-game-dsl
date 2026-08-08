@@ -11,6 +11,8 @@ with the trick-specific fields left absent. The runtime lands in a later commit.
 
 from __future__ import annotations
 
+import dataclasses
+
 from typing import Any
 
 from cardlang.ast import nodes as n
@@ -36,9 +38,9 @@ move_type pass { effect { passes += 1 } }
 """
 
 
-def _round(game: n.Game) -> n.Round:
+def _round(game: n.Game) -> n.AuctionRound:
     phase = game.phases[0]
-    return next(i for i in phase.items if isinstance(i, n.Round))
+    return next(i for i in phase.items if isinstance(i, n.AuctionRound))
 
 
 def test_auction_round_parses_vocab_and_termination() -> None:
@@ -46,17 +48,19 @@ def test_auction_round_parses_vocab_and_termination() -> None:
     assert rnd.offering == ("raise", "pass")
     assert rnd.termination is not None
     assert rnd.outcome_fn == "bridge_auction_outcome"
-    # The trick-specific fields are absent in the auction form.
-    assert rnd.move_type is None
-    assert rnd.source_zone is None and rnd.play_zone is None
+    # The trick-specific fields are not absent-but-null on this form: they do
+    # not exist on it. `is None` was the strongest available statement while one
+    # node served all three forms, and it is the weaker claim -- a null field is
+    # still a field some pass can read and some parser can fill.
+    absent = {"move_type", "source_zone", "play_zone", "winner_fn"}
+    assert not {f.name for f in dataclasses.fields(rnd)} & absent
 
 
 def test_auction_round_round_trips_to_ir() -> None:
     ir: Any = emit(check_dsl(SRC, "g.cardlang"))
     rnd = next(
-        i for i in ir["phases"][0]["items"] if i["kind"] == "round"
+        i for i in ir["phases"][0]["items"] if i["kind"] == "auction_round"
     )
     assert rnd["offering"] == ["raise", "pass"]
-    assert rnd["move_type"] is None
-    assert rnd["source_zone"] is None
+    assert not {"move_type", "source_zone", "play_zone"} & rnd.keys()
     assert rnd["termination"] is not None

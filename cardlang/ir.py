@@ -382,22 +382,39 @@ def _stmt(s: n.Stmt) -> IRDict:
                 "player": _expr(s.player),
                 "offering": list(s.offering),
             }
-        case n.Round():
+        case n.TrickRound():
             return {
-                "kind": "round",
+                "kind": "trick_round",
                 "move_type": s.move_type,
                 "leader": _expr(s.leader),
                 "participants": _expr(s.participants),
                 "source_zone": s.source_zone,
                 "play_zone": s.play_zone,
-                "outcome_fn": s.outcome_fn,
+                "winner_fn": s.winner_fn,
                 "trump": _expr(s.trump) if s.trump is not None else None,
                 "early_termination": s.early_termination,
-                "offering": list(s.offering) if s.offering is not None else None,
-                "termination": _expr(s.termination) if s.termination is not None else None,
+            }
+        case n.AuctionRound():
+            return {
+                "kind": "auction_round",
+                "offering": list(s.offering),
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "termination": _expr(s.termination),
                 "order_mode": s.order_mode,
+                "outcome_fn": s.outcome_fn,
+            }
+        case n.ClimbRound():
+            return {
+                "kind": "climb_round",
+                "move_type": s.move_type,
+                "leader": _expr(s.leader),
+                "participants": _expr(s.participants),
+                "source_zone": s.source_zone,
+                "play_zone": s.play_zone,
                 "combos_fn": s.combos_fn,
                 "follows_fn": s.follows_fn,
+                "termination": _expr(s.termination),
             }
         case n.Produce():
             return {

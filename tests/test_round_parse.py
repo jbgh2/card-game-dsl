@@ -28,10 +28,10 @@ EARLY_SRC = SRC.replace(
 
 def test_round_parses() -> None:
     game = parse_text(SRC, "g.cardlang")
-    rnd = next(i for i in game.phases[0].items if isinstance(i, n.Round))
+    rnd = next(i for i in game.phases[0].items if isinstance(i, n.TrickRound))
     assert rnd.move_type == "play_to_trick"
     assert rnd.source_zone == "hand" and rnd.play_zone == "trick_pile"
-    assert rnd.outcome_fn == "highest_trump_or_led_suit"
+    assert rnd.winner_fn == "highest_trump_or_led_suit"
     assert isinstance(rnd.leader, n.NameRef) and rnd.leader.name == "leader"
     assert isinstance(rnd.participants, n.AllPlayers)
     assert rnd.trump is not None and isinstance(rnd.trump, n.NameRef)
@@ -40,6 +40,6 @@ def test_round_parses() -> None:
 
 def test_round_early_termination_parses() -> None:
     game = parse_text(EARLY_SRC, "g.cardlang")
-    rnd = next(i for i in game.phases[0].items if isinstance(i, n.Round))
+    rnd = next(i for i in game.phases[0].items if isinstance(i, n.TrickRound))
     assert rnd.early_termination == "on_play_off_led_suit"
     assert rnd.trump is None

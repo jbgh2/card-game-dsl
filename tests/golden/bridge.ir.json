@@ -433,8 +433,13 @@
               ]
             },
             {
-              "kind": "round",
-              "move_type": null,
+              "kind": "auction_round",
+              "offering": [
+                "pass",
+                "submit_bid",
+                "double",
+                "redouble"
+              ],
               "leader": {
                 "kind": "name",
                 "name": "dealer",
@@ -443,17 +448,6 @@
               "participants": {
                 "kind": "all_players"
               },
-              "source_zone": null,
-              "play_zone": null,
-              "outcome_fn": "bridge_auction_outcome",
-              "trump": null,
-              "early_termination": null,
-              "offering": [
-                "pass",
-                "submit_bid",
-                "double",
-                "redouble"
-              ],
               "termination": {
                 "kind": "binop",
                 "op": "or",
@@ -506,8 +500,7 @@
                 }
               },
               "order_mode": null,
-              "combos_fn": null,
-              "follows_fn": null
+              "outcome_fn": "bridge_auction_outcome"
             }
           ]
         },
@@ -656,7 +649,7 @@
               },
               "body": [
                 {
-                  "kind": "round",
+                  "kind": "trick_round",
                   "move_type": "play_to_trick",
                   "leader": {
                     "kind": "name",
@@ -668,18 +661,13 @@
                   },
                   "source_zone": "hand",
                   "play_zone": "trick_pile",
-                  "outcome_fn": "highest_trump_or_led_suit",
+                  "winner_fn": "highest_trump_or_led_suit",
                   "trump": {
                     "kind": "name",
                     "name": "trump_suit",
                     "ref": "state_var"
                   },
-                  "early_termination": null,
-                  "offering": null,
-                  "termination": null,
-                  "order_mode": null,
-                  "combos_fn": null,
-                  "follows_fn": null
+                  "early_termination": null
                 },
                 {
                   "kind": "transfer",

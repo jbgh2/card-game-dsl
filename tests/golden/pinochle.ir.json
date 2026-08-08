@@ -459,8 +459,11 @@
               }
             },
             {
-              "kind": "round",
-              "move_type": null,
+              "kind": "auction_round",
+              "offering": [
+                "submit_bid",
+                "pass"
+              ],
               "leader": {
                 "kind": "name",
                 "name": "opener",
@@ -517,15 +520,6 @@
                   }
                 }
               },
-              "source_zone": null,
-              "play_zone": null,
-              "outcome_fn": "pinochle_auction_outcome",
-              "trump": null,
-              "early_termination": null,
-              "offering": [
-                "submit_bid",
-                "pass"
-              ],
               "termination": {
                 "kind": "binop",
                 "op": "or",
@@ -572,8 +566,7 @@
                 }
               },
               "order_mode": null,
-              "combos_fn": null,
-              "follows_fn": null
+              "outcome_fn": "pinochle_auction_outcome"
             }
           ]
         },
@@ -683,8 +676,10 @@
               },
               "then": [
                 {
-                  "kind": "round",
-                  "move_type": null,
+                  "kind": "auction_round",
+                  "offering": [
+                    "declare_trump_suit"
+                  ],
                   "leader": {
                     "kind": "name",
                     "name": "high_bidder",
@@ -708,14 +703,6 @@
                       }
                     }
                   },
-                  "source_zone": null,
-                  "play_zone": null,
-                  "outcome_fn": null,
-                  "trump": null,
-                  "early_termination": null,
-                  "offering": [
-                    "declare_trump_suit"
-                  ],
                   "termination": {
                     "kind": "is_check",
                     "check": "not_none",
@@ -726,8 +713,7 @@
                     }
                   },
                   "order_mode": null,
-                  "combos_fn": null,
-                  "follows_fn": null
+                  "outcome_fn": null
                 },
                 {
                   "kind": "for_each",
@@ -799,7 +785,7 @@
                   },
                   "body": [
                     {
-                      "kind": "round",
+                      "kind": "trick_round",
                       "move_type": "play_to_trick",
                       "leader": {
                         "kind": "name",
@@ -811,18 +797,13 @@
                       },
                       "source_zone": "hand",
                       "play_zone": "trick_pile",
-                      "outcome_fn": "highest_trump_or_led_suit",
+                      "winner_fn": "highest_trump_or_led_suit",
                       "trump": {
                         "kind": "name",
                         "name": "trump_suit",
                         "ref": "state_var"
                       },
-                      "early_termination": null,
-                      "offering": null,
-                      "termination": null,
-                      "order_mode": null,
-                      "combos_fn": null,
-                      "follows_fn": null
+                      "early_termination": null
                     },
                     {
                       "kind": "assign",

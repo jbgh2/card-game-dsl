@@ -814,8 +814,14 @@
                   }
                 },
                 {
-                  "kind": "round",
-                  "move_type": null,
+                  "kind": "auction_round",
+                  "offering": [
+                    "check",
+                    "bet",
+                    "call",
+                    "fold",
+                    "raise"
+                  ],
                   "leader": {
                     "kind": "binop",
                     "op": "offset_by",
@@ -845,18 +851,6 @@
                       ]
                     }
                   },
-                  "source_zone": null,
-                  "play_zone": null,
-                  "outcome_fn": null,
-                  "trump": null,
-                  "early_termination": null,
-                  "offering": [
-                    "check",
-                    "bet",
-                    "call",
-                    "fold",
-                    "raise"
-                  ],
                   "termination": {
                     "kind": "binop",
                     "op": "or",
@@ -950,8 +944,7 @@
                     }
                   },
                   "order_mode": "priority",
-                  "combos_fn": null,
-                  "follows_fn": null
+                  "outcome_fn": null
                 }
               ],
               "else": null
@@ -1213,8 +1206,14 @@
                       ]
                     },
                     {
-                      "kind": "round",
-                      "move_type": null,
+                      "kind": "auction_round",
+                      "offering": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
                       "leader": {
                         "kind": "call",
                         "func": "first_to_act_seat",
@@ -1235,18 +1234,6 @@
                           ]
                         }
                       },
-                      "source_zone": null,
-                      "play_zone": null,
-                      "outcome_fn": null,
-                      "trump": null,
-                      "early_termination": null,
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
                       "termination": {
                         "kind": "binop",
                         "op": "or",
@@ -1340,8 +1327,7 @@
                         }
                       },
                       "order_mode": "priority",
-                      "combos_fn": null,
-                      "follows_fn": null
+                      "outcome_fn": null
                     }
                   ],
                   "else": null
@@ -1606,8 +1592,14 @@
                       ]
                     },
                     {
-                      "kind": "round",
-                      "move_type": null,
+                      "kind": "auction_round",
+                      "offering": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
                       "leader": {
                         "kind": "call",
                         "func": "first_to_act_seat",
@@ -1628,18 +1620,6 @@
                           ]
                         }
                       },
-                      "source_zone": null,
-                      "play_zone": null,
-                      "outcome_fn": null,
-                      "trump": null,
-                      "early_termination": null,
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
                       "termination": {
                         "kind": "binop",
                         "op": "or",
@@ -1733,8 +1713,7 @@
                         }
                       },
                       "order_mode": "priority",
-                      "combos_fn": null,
-                      "follows_fn": null
+                      "outcome_fn": null
                     }
                   ],
                   "else": null
@@ -1999,8 +1978,14 @@
                       ]
                     },
                     {
-                      "kind": "round",
-                      "move_type": null,
+                      "kind": "auction_round",
+                      "offering": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
                       "leader": {
                         "kind": "call",
                         "func": "first_to_act_seat",
@@ -2021,18 +2006,6 @@
                           ]
                         }
                       },
-                      "source_zone": null,
-                      "play_zone": null,
-                      "outcome_fn": null,
-                      "trump": null,
-                      "early_termination": null,
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
                       "termination": {
                         "kind": "binop",
                         "op": "or",
@@ -2126,8 +2099,7 @@
                         }
                       },
                       "order_mode": "priority",
-                      "combos_fn": null,
-                      "follows_fn": null
+                      "outcome_fn": null
                     }
                   ],
                   "else": null
@@ -2392,8 +2364,14 @@
                       ]
                     },
                     {
-                      "kind": "round",
-                      "move_type": null,
+                      "kind": "auction_round",
+                      "offering": [
+                        "check",
+                        "bet",
+                        "call",
+                        "fold",
+                        "raise"
+                      ],
                       "leader": {
                         "kind": "call",
                         "func": "first_to_act_seat",
@@ -2414,18 +2392,6 @@
                           ]
                         }
                       },
-                      "source_zone": null,
-                      "play_zone": null,
-                      "outcome_fn": null,
-                      "trump": null,
-                      "early_termination": null,
-                      "offering": [
-                        "check",
-                        "bet",
-                        "call",
-                        "fold",
-                        "raise"
-                      ],
                       "termination": {
                         "kind": "binop",
                         "op": "or",
@@ -2519,8 +2485,7 @@
                         }
                       },
                       "order_mode": "priority",
-                      "combos_fn": null,
-                      "follows_fn": null
+                      "outcome_fn": null
                     }
                   ],
                   "else": null

@@ -76,8 +76,8 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
         case n.Offer():
             _offer(stmt, ctx)
             return ctx
-        case n.Round():
-            # One interpreter over the form selected by field-presence, dispatched
+        case n.TrickRound() | n.AuctionRound() | n.ClimbRound():
+            # One interpreter over all three forms, dispatched
             # on the returned Outcome union: a winning Player (trick/climb) binds
             # `winner`; a typed `(tag, payloads)` outcome (auction) raises a
             # produce signal, caught by the enclosing outcome-declaring phase;

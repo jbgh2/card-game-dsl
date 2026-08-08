@@ -22,24 +22,23 @@ Section D lists what is already known or deliberate; nothing there is re-litigat
 
 **F-1 · `outcome` means five things.** The designer-facing senses are split: the
 trick-winner function slot is `winner <fn>`, and the pronoun bound to the trick or
-climb winner is `winner`. What remains is internal — (a) `Round.outcome_fn`, which
-carries the trick form's WINNER function because the node is shared with the auction
-form, and (b) the `DecisionForm.outcome` hook (mechanics.py), which additionally pops
-the mechanic stack as a side effect. Both wait on the Round node split (issue #210);
-the side effect is issue #205's slice 3. The surviving legitimate senses are a phase's
-outcome type (`-> outcome {A|B}`), the auction result function, and
-`rs.phase_outcomes` — all the tagged `(tag, payloads)` reading.
+climb winner is `winner`. One internal use remains: the `DecisionForm.outcome` hook
+(mechanics.py), which additionally pops the mechanic stack as a side effect — issue
+#205's slice 3. The surviving legitimate senses are a phase's outcome type
+(`-> outcome {A|B}`), the auction result function, and `rs.phase_outcomes` — all the
+tagged `(tag, payloads)` reading.
 
-**F-2 · `round` is three constructs and "trick" has no name.** One keyword, three
-grammar rules (`round_stmt`:354, `auction_stmt`:368, `climb_stmt`:381), one AST node
-(`n.Round`) whose mutually exclusive fields coexist untyped — form discrimination is
-`combos_fn is not None` (nodes.py:621). Meanwhile the central concept of the corpus,
-the trick, has no surface or code noun: it is spelled `round … source … into …` and
-carried only by `TrickPile` and user names. And `round` never means a round of the
-game — that concept is a hand (F-6). The internal names leak nowhere ("auction",
-"climb" appear in no surface keyword), so grammar-rule names and keywords have drifted
-apart across the whole statement layer (also `epistemic_op` for `shuffle`/`reveal`,
-`agg_order` for `highest`/`lowest`, `phase_repeats` for `repeat until`).
+**F-2 · "trick" has no name.** The central concept of the corpus has no surface or
+code noun: it is spelled `round … source … into …` and carried only by `TrickPile`
+and user names. And `round` never means a round of the game — that concept is a hand
+(F-6). The internal names leak nowhere ("auction", "climb" appear in no surface
+keyword), so grammar-rule names and keywords have drifted apart across the whole
+statement layer (also `epistemic_op` for `shuffle`/`reveal`, `agg_order` for
+`highest`/`lowest`, `phase_repeats` for `repeat until`).
+
+The AST half of this finding is closed: the three grammar rules build three nodes
+(`TrickRound` / `AuctionRound` / `ClimbRound`), each carrying only its own clauses.
+What is left is the naming, which waits on the second family.
 
 **F-3 · `state` carries at least seven referents.** The module `runtime/state.py`; the
 live world `RuntimeState`; the round accumulator `mechanics.State = dict[str, Any]`;

@@ -591,63 +591,92 @@ class Offer:
 
 
 @dataclass(frozen=True, slots=True)
-class Round:
-    """The kernel decision round, in one of two forms.
+class TrickRound:
+    """`round <move_type> from <leader> over <participants> source <zone> into
+    <zone> winner <fn> [trump <expr>] [early <predicate>]`.
 
-    *Trick form* — `round <move_type> from <leader> over <participants> source
-    <zone> into <zone> winner <fn> [trump <expr>] [early <predicate>]`: a single
-    turn-order pass where each participant makes one card play (filtered by the
-    active rules), then the winner function picks the winner, bound as `winner`.
-    Routing is left to the surrounding body; an optional `early` predicate ends
-    the pass before every participant has played (Getaway's tochoo). The winner
-    function is carried in `outcome_fn`, the field shared with the auction form
-    below — where the name is correct; the field splits with the node (issue #210).
+    A single turn-order pass where each participant makes one card play (filtered
+    by the active rules), then the winner function picks the winner, bound as
+    `winner`. Routing is left to the surrounding body; an optional `early`
+    predicate ends the pass before every participant has played (Getaway's
+    tochoo).
 
-    *Auction/betting form* — `round offering [<move_type>, …] from <leader> over
-    <participants> until <pred> [outcome <fn>]`: a continuous ring over a
-    heterogeneous offering (bids/passes/bets), looping until the
-    termination predicate holds. The `outcome_fn` is optional: an auction supplies
-    one and the function produces the typed outcome when the ring closes; a betting
-    round omits it (`outcome_fn is None`) — each action mutates shared chip/fold
-    state directly, so the closed ring returns and play moves to the next street.
-    The trick-specific fields (`move_type`, `source_zone`, `play_zone`) are absent;
-    `offering` and `termination` are present (decisions.md "Interactive
-    decisions": the same kernel round along the offering/termination axes).
-
-    *Climbing form* — `round climb <move_type> from <leader> over <participants>
-    source <zone> into <zone> combinations <fn> follows <fn> until <pred>`: one
-    combination-climbing trick (Big Two, Tichu). The leader leads a combination
-    from the engine, then each participant beats the standing play or passes; the
-    trick ends when action returns to the last player who played, or `termination`
-    holds (a player has shed out). `combos_fn` / `follows_fn` name the game-local
-    combination-engine queries (the engines differ across games, so the construct
-    depends only on their interface). The last player to play is bound as `winner`;
-    there is no winner *function*. Distinguished by `combos_fn is not None`.
+    One of the three forms of the kernel decision round — see `AuctionRound` and
+    `ClimbRound`. They are separate nodes rather than one node with nullable
+    fields so that a form's own clauses are the only ones it can carry: an
+    auction's `offering` beside this form's `play_zone` is unrepresentable, not
+    merely unchecked, and no pass can select a form by sniffing a field.
     """
 
-    move_type: str | None
+    move_type: str
     leader: Expr
     participants: Expr
-    source_zone: str | None
-    play_zone: str | None
-    outcome_fn: str | None
-    trump: Expr | None
+    source_zone: str
+    play_zone: str
+    winner_fn: str
+    trump: Expr | None = None
     early_termination: str | None = None
-    offering: tuple[str, ...] | None = None
-    termination: Expr | None = None
-    # The order axis for the continuous-ring form: None / "ring" walks the ring
-    # (pointer advances each turn); "priority" re-scans from the leader each turn
-    # and offers the first still-pending participant (betting, response windows).
-    order_mode: str | None = None
-    # The climbing form's combination-engine queries: the lead-options query and
-    # the legal-follows query. Both present (and `combos_fn is not None`) marks the
-    # climb form; absent in the trick and auction forms.
-    combos_fn: str | None = None
-    follows_fn: str | None = None
     span: Span | None = None
 
 
-# The values `Round.order_mode` may take (None is treated as the default, ring).
+@dataclass(frozen=True, slots=True)
+class AuctionRound:
+    """`round offering [<move_type>, …] from <leader> over <participants>
+    [order <mode>] until <pred> [outcome <fn>]`.
+
+    A continuous ring over a heterogeneous offering (bids/passes/bets), looping
+    until the termination predicate holds. No card source/into zones — these
+    moves do not move cards (decisions.md "Interactive decisions": the same
+    kernel round along the offering/termination axes).
+
+    `outcome_fn` is the one genuinely optional clause here, and it is what makes
+    this form serve betting as well as auction: an auction supplies a function
+    and it produces the typed outcome when the ring closes; a betting round omits
+    it, each action having mutated shared chip/fold state directly, so the closed
+    ring simply returns and play moves to the next street. Betting is a variant
+    of this form, not a fourth one (docs/glossary.md, Round) — the grammar has a
+    single auction production, and this clause is optional within it exactly as
+    `TrickRound.trump` is optional within the trick.
+    """
+
+    offering: tuple[str, ...]
+    leader: Expr
+    participants: Expr
+    termination: Expr
+    # The order axis: None / "ring" walks the ring (the pointer advances each
+    # turn); "priority" re-scans from the leader each turn and offers the first
+    # still-pending participant (betting, response windows).
+    order_mode: str | None = None
+    outcome_fn: str | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ClimbRound:
+    """`round climb <move_type> from <leader> over <participants> source <zone>
+    into <zone> combinations <fn> follows <fn> until <pred>`.
+
+    One combination-climbing trick (Big Two, Tichu). The leader leads a
+    combination from the engine, then each participant beats the standing play or
+    passes; the trick ends when action returns to the last player who played, or
+    `termination` holds (a player has shed out). `combos_fn` / `follows_fn` name
+    the game-local combination-engine queries (the engines differ across games,
+    so the construct depends only on their interface). The last player to play is
+    bound as `winner`; there is no winner *function*.
+    """
+
+    move_type: str
+    leader: Expr
+    participants: Expr
+    source_zone: str
+    play_zone: str
+    combos_fn: str
+    follows_fn: str
+    termination: Expr
+    span: Span | None = None
+
+
+# The values `AuctionRound.order_mode` may take (None is treated as the default, ring).
 ROUND_ORDER_RING = "ring"
 ROUND_ORDER_PRIORITY = "priority"
 ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
@@ -701,7 +730,9 @@ Stmt = (
     | LetStmt
     | AssignStmt
     | Offer
-    | Round
+    | TrickRound
+    | AuctionRound
+    | ClimbRound
     | Produce
     | Produces
     | ContinueTo
@@ -1281,7 +1312,9 @@ Node = (
     | LetStmt
     | AssignStmt
     | Offer
-    | Round
+    | TrickRound
+    | AuctionRound
+    | ClimbRound
     | Produce
     | ProduceArm
     | Produces
