@@ -562,7 +562,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
-    "parse.py": ["direction not in RANK_DIR_TO_AGG"],
+    "parse.py": ["direction not in RANK_DIRECTIONS"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     # The one latent deny-list the census surfaced: the dispatch implements

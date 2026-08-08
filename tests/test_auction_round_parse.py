@@ -62,4 +62,4 @@ def test_auction_round_round_trips_to_ir() -> None:
     )
     assert rnd["offering"] == ["raise", "pass"]
     assert not {"move_type", "source_zone", "play_zone"} & rnd.keys()
-    assert rnd["termination"] is not None
+    assert rnd["until"] is not None

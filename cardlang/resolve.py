@@ -371,7 +371,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # one — a library body may write it — and `Winner.target` is the game-level
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
-    (n.Winner, "target"): "state",
+    (n.Winner, "state_var"): "state",
     # Zones. The two card-moving round forms name both of their zones as bare
     # strings; the auction form moves no cards and so has neither.
     (n.TrickRound, "source_zone"): "zone",
@@ -379,8 +379,8 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.ClimbRound, "source_zone"): "zone",
     (n.ClimbRound, "play_zone"): "zone",
     # Phases.
-    (n.ContinueTo, "target"): "phase",
-    (n.TransitionTo, "target"): "mode",
+    (n.ContinueTo, "phase"): "phase",
+    (n.TransitionTo, "mode"): "mode",
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
@@ -456,7 +456,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.AssignStmt, "op"),
         (n.BinOp, "op"),
-        (n.RuleRef, "op"),
+        (n.RuleRef, "delta"),
         (n.EpistemicOp, "op"),
         (n.IsCheck, "kind"),
         (n.CardQuery, "kind"),

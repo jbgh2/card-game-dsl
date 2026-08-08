@@ -426,7 +426,7 @@ def test_joint_flag_survives_into_the_ir() -> None:
                 found.extend(movements(v))
         return found
 
-    filtered = [m for m in movements(ir) if "filter" in m]
+    filtered = [m for m in movements(ir) if "where" in m]
     assert len(filtered) == 2
     joint_flags = sorted(m.get("joint", False) for m in filtered)
     assert joint_flags == [False, True]  # the per-card one carries no flag

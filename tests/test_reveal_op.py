@@ -184,8 +184,8 @@ def test_reveal_ir_emits_filter_key_only_when_present() -> None:
     assert filtered_op["kind"] == "epistemic_op" and filtered_op["op"] == "reveal"
     assert plain_op["kind"] == "epistemic_op" and plain_op["op"] == "reveal"
 
-    assert "filter" in filtered_op
-    assert filtered_op["filter"]["kind"] == "binop"
+    assert "where" in filtered_op
+    assert filtered_op["where"]["kind"] == "binop"
     # The whole point (mirrors the movement `where` filter's IR convention):
-    # an unfiltered reveal carries NO "filter" key at all.
-    assert "filter" not in plain_op
+    # an unfiltered reveal carries NO "where" key at all.
+    assert "where" not in plain_op

@@ -47,7 +47,7 @@ called, and what each name may mean.
 | **Hand** (the iteration) | One deal-to-scoring cycle of a game (`skip to next hand`, `hands_played`). Distinct from the *hand zone*; qualify as "hand loop" / "hand zone" when ambiguity is possible. The hand loop currently has no structural marker in the language (→ F-6). | `driver.py` |
 | **Seat** | A player *position*: an index `0..players-1` into the turn ring. What zones are keyed by, what OpenSpiel calls a player. | `domains.Role.PLAYER` |
 | **Player** | The participant occupying a seat. In today's engine seat and player coincide (`Player = int`); keep the two words distinct anyway — `domain-map.md` lists "seat vs agent identity" as a future forcing point. | `values.Player` |
-| **Actor** | The seat currently acting: the `actor` pronoun, `Ctx.current_player`, `as` rebinding. Prefer "actor" over "current player" / "decider" / "acting seat" in new code. | `state.Ctx` |
+| **Actor** | The seat currently acting: the `actor` pronoun, `as` rebinding. Prefer "actor" over "current player" / "decider" / "acting seat"; `Ctx.current_player` is the surviving old spelling and converges when-touched. | `state.Ctx` |
 | **Team** | A named grouping of seats — the word everywhere, surface included: the game clause is `teams:`, the same noun the quantifiers range over (`all teams where …`), exactly as `players:` is for seats. Retired: `partnership`, `partnerships:`. | `Role.TEAM` |
 | **Component Set** | The pack a game selects with `cards:`/`pieces:` — either flavor. A **deck** is specifically the card-flavored component set. `Game.deck` currently holds either (→ F-16). | `values.ComponentSet` |
 | **Card / Piece** | The individuated content of zones; a card is the deck specialization of a piece (`model.md`). Runtime represents both as `Card` (→ F-16). | `values.Card` |
@@ -73,7 +73,7 @@ called, and what each name may mean.
 | Term | Meaning | Home |
 |---|---|---|
 | **Pipeline** | extract → parse → resolve → expand → typecheck → check_capacity → emit. Use these seven stage names, nothing else. | `pipeline.py` |
-| **Resolve** | Name resolution: classifying every name and checking structural references. `_resolve_*` functions that only validate are misnamed (→ F-22). | `resolve.py` |
+| **Resolve** | Name resolution: classifying every name and checking structural references. A `_resolve_*` name is legal only for a function that classifies names or resolves them; a validator is `_check_*`, and a function that mints a domain says `_mint_*`. Applied when-touched — the surviving `_resolve_*` validators in `resolve.py` rename as their sites are next edited. | `resolve.py` |
 | **Namespace** | One of the closed set of name pools a bare name resolves against (state, zone, phase, function, …). Prefer over "category" / "bucket". | `resolve.py` |
 | **ref_kind** | The classification resolve stamps on a `NameRef` (`local`, `state_var`, `zone`, `enum_value`, `pronoun`, `function`, `null`, `bool`). | `n.NameRef` |
 | **Binder** | A name introduced by a construct (`let`, loop variables, parameters, quantifier nouns). Resolve's `ref_kind` for one is `local`; prefer "binder" in prose. | `resolve.py` |
@@ -87,7 +87,7 @@ called, and what each name may mean.
 
 | Term | Meaning | Home |
 |---|---|---|
-| **World** | The live mutable game: `RuntimeState` (`rs`). Zones + frame stack + indexes. | `state.py` |
+| **World** | The live mutable game: zones + frame stack + indexes. The class is still spelled `RuntimeState` and its module `state.py`; both converge on this name when-touched. `rs` stays as the conventional variable — variables are not glossary surface. | `state.py` |
 | **Context** | `Ctx`: the immutable evaluation context threaded through the interpreter (actor, locals, pronoun bindings, chooser, tracer). | `state.py` |
 | **Chooser** | The decision seam: the callable that resolves a player choice. A **decision point** is one call site of it in the interpreter (currently 7, unnamed — → F-20) — the *static* concept; the *dynamic* occurrence (a game state where a seat must choose) is a **decision node** (§4). | `state.Chooser` |
 | **Form** | A round form's hook bundle (`TrickForm` / `AuctionForm` / `ClimbForm`) behind the `DecisionForm` protocol. Prefer "form" over "mechanic"; the accumulator dict is the **round state** (§1). | `mechanics.py` |

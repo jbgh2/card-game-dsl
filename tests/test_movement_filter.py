@@ -78,14 +78,14 @@ def test_filter_ir_key_emitted_only_when_present() -> None:
     plain_mv = plain_ir["phases"][0]["items"][0]
     assert filtered_mv["kind"] == "transfer" and plain_mv["kind"] == "transfer"
 
-    assert "filter" in filtered_mv
-    assert filtered_mv["filter"] == {
+    assert "where" in filtered_mv
+    assert filtered_mv["where"] == {
         "kind": "binop",
         "op": "is",
         "left": {"kind": "member", "obj": {"kind": "name", "name": "card", "ref": "local"}, "field": "suit"},
         "right": {"kind": "name", "name": "hearts", "ref": "enum_value"},
     }
-    # The whole point: an unfiltered movement carries NO "filter" key at all
-    # (not `"filter": null`) — this is what keeps every pre-existing IR golden
+    # The whole point: an unfiltered movement carries NO "where" key at all
+    # (not `"where": null`) — this is what keeps every pre-existing IR golden
     # byte-identical after this change.
-    assert "filter" not in plain_mv
+    assert "where" not in plain_mv
