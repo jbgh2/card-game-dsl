@@ -1931,6 +1931,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_procedures(game, bag)
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
+    _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
     _resolve_winner_loser(game, bag)
@@ -2924,6 +2925,73 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
             f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
             "`loser: <player-expr>` — without one the playout has no result",
             game.span,
+        )
+
+
+# The declared types a game may be RANKED by: totally ordered, and their
+# values are what `openspiel/replay.returns_for` hands OpenSpiel as utilities.
+# `Boolean` is here on the corpus's authority, not as a lenience -- `cheat`
+# ranks on `won[player]` and `coup` on `alive[player]`, so an Integer-only
+# rule would refuse two corpus games. Every other member of
+# `typecheck.KNOWN_TYPE_NAMES` either cannot be compared at all (`Card` and a
+# struct are unorderable) or -- worse -- compares fine and means nothing: a
+# `Player`-typed target ranks without complaint and delivers SEAT IDS as
+# utilities, silently, at every layer.
+_RANKABLE_TYPES: frozenset[str] = frozenset({"Integer", "Boolean"})
+
+
+def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
+    """A `winner:` target must be a state variable a game can be ranked by.
+
+    Resolve already walls the NAME -- undeclared, or declared inside a phase
+    -- and says nothing about the DECLARATION it lands on. Two of that
+    declaration's properties decide whether the result path works at all, and
+    neither was checked:
+
+    * UNINDEXED. `driver` builds the result with `dict(rs.get(target))`, so a
+      scalar target dies with a bare `TypeError: 'int' object is not
+      iterable` (issue #153) -- and in a game with a `repeat until` phase it
+      dies earlier still, at the per-hand trace, so which Python error the
+      author meets depends on whether their game loops.
+    * UNRANKABLE TYPE. Nothing anywhere read it. The crashing cells are the
+      mild ones; the dangerous cells are the silent ones (`_RANKABLE_TYPES`).
+
+    Reported only when the target IS a game-level declaration: the two
+    existing name Owner Guards have already spoken otherwise, and a second
+    diagnostic about a name the author has just been told does not exist
+    would bury the one that matters.
+    """
+    if game.winner is None or game.state is None:
+        return
+    decl = next(
+        (d for d in game.state.decls if d.name == game.winner.target), None
+    )
+    if decl is None:
+        return
+    what = f"`winner:` ranks the game on state variable '{decl.name}', "
+    if decl.index is None:
+        bag.error(
+            f"{what}which is not indexed — a game is ranked by a score each "
+            f"player or team holds, so the target is declared "
+            f"`{decl.name}[player]` or `{decl.name}[team]`. A scalar has no "
+            f"per-member value to rank",
+            game.winner.span,
+        )
+        return
+    if decl.optional:
+        bag.error(
+            f"{what}declared `{decl.type_name}?` — an optional score may be "
+            f"`none`, which cannot be ranked against a number",
+            game.winner.span,
+        )
+        return
+    if decl.type_name not in _RANKABLE_TYPES:
+        rankable = ", ".join(sorted(_RANKABLE_TYPES))
+        bag.error(
+            f"{what}declared `{decl.type_name}` — a game is ranked by a "
+            f"score, so the target must be {rankable}. Its values become "
+            f"the game's OpenSpiel returns",
+            game.winner.span,
         )
 
 
