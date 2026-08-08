@@ -14,8 +14,13 @@ A game is a rules file. Hearts begins:
 
 ```
 game Hearts {
+
   players: 4
+  direction: clockwise
+  max_length: 5000
+
   cards: standard52
+  ranking: aces high
 
   zones {
     deck             : Deck
