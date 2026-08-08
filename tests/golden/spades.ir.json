@@ -235,9 +235,9 @@
           "kind": "before_each",
           "body": [
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": null,
@@ -260,9 +260,9 @@
               }
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 13
@@ -427,11 +427,9 @@
               ]
             },
             {
-              "kind": "phase",
+              "kind": "mode",
               "name": "spades_not_broken",
-              "qualifier": null,
-              "outcome_cases": [],
-              "items": [
+              "active_rules": [
                 {
                   "kind": "active_rules",
                   "refs": [
@@ -448,7 +446,9 @@
                       ]
                     }
                   ]
-                },
+                }
+              ],
+              "transitions": [
                 {
                   "kind": "transition_to",
                   "target": "spades_broken",
@@ -482,11 +482,10 @@
               ]
             },
             {
-              "kind": "phase",
+              "kind": "mode",
               "name": "spades_broken",
-              "qualifier": null,
-              "outcome_cases": [],
-              "items": []
+              "active_rules": [],
+              "transitions": []
             },
             {
               "kind": "repeat_until",
@@ -537,9 +536,9 @@
                   "follows_fn": null
                 },
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
-                  "mode": null,
+                  "selection_mode": null,
                   "amount": "all",
                   "item": "cards",
                   "source": {

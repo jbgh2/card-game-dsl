@@ -119,9 +119,9 @@
           }
         },
         {
-          "kind": "movement",
+          "kind": "transfer",
           "verb": "deal",
-          "mode": null,
+          "selection_mode": null,
           "amount": "all",
           "item": "cards",
           "source": {
@@ -207,9 +207,9 @@
           "follows_fn": null
         },
         {
-          "kind": "movement",
+          "kind": "transfer",
           "verb": "move",
-          "mode": null,
+          "selection_mode": null,
           "amount": "all",
           "item": "cards",
           "source": {
@@ -339,9 +339,9 @@
               },
               "then": [
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
-                  "mode": null,
+                  "selection_mode": null,
                   "amount": "all",
                   "item": "cards",
                   "source": {
@@ -369,9 +369,9 @@
               ],
               "else": [
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
-                  "mode": null,
+                  "selection_mode": null,
                   "amount": "all",
                   "item": "cards",
                   "source": {

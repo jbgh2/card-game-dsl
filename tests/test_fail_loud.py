@@ -461,9 +461,9 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
     decls = (n.ZoneDecl(name="deck", index=None, type_ref=n.TypeRef(name="Deck")),)
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k])).with_local("h", 5)
-    stmt = n.Movement(
+    stmt = n.Transfer(
         verb="move",
-        mode=None,
+        selection_mode=None,
         amount="all",
         item="cards",
         source=n.NameRef(name="h", ref_kind="local"),

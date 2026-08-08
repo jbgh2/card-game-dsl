@@ -21,8 +21,9 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **TurnOrder** | A cyclic ordering of players with a current pointer and optionally a direction. Operations: advance, reverse, set. |
 | **State variable** | A typed, named, scoped piece of game state. Scope is lexical: a variable lives as long as the phase instance that lexically encloses its declaration. See [decisions.md](decisions.md) "State scoping" and "Mutation semantics"; [appendix.md](appendix.md) catalogues every state variable across the five-game corpus as a reference for both. |
 | **User-defined type** | A struct-like declaration with named, typed fields and optional `derived` fields. May be parameterized (see [library.md](library.md), "Types"). See [decisions.md](decisions.md) "Typed object model". |
-| **Move type** | A named pattern of movement between zones, with declared source/destination/participating zones and associated events. Moves can carry cards (`play_to_trick`) or resources (`transfer`). Reusable across games. |
-| **Move** | A specific instance of a move type with bound participants and content. |
+| **Move type** | A named, parameterized player action: declared source/destination/participating zones and associated events. Reusable across games. A move type's effect is written as **Transfers** (below). |
+| **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
+| **Transfer** | The zone-relocation statement. Its verbs (`deal`/`draw`/`move`/`burn`/`muck`/`transfer`) are sugar over one primitive. Independent of Move: setup is Transfers with no Move. |
 | **Phase** | A bounded interval of game time during which a specific set of rules is active. May be nested (sub-phases) and sequenced. Has entry condition, exit condition, active rule set, and legal move types. May resolve to a typed outcome (see [decisions.md](decisions.md) "Typed phase outcomes"). |
 | **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
@@ -35,26 +36,56 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 
 This was the design crux. Resolution:
 
-### Phases vs states
+### Phases, modes, and states
 
-**Phases are not synonyms for state-machine states, but they are state-machine
-states.**
+Two different things want to be called "state", and the language gives each its
+own word.
 
-- A phase is a *named interval of game time during which a particular rule set
-  is active*. Phases are units rulebooks use.
-- A state-machine state is a *discrete configuration the system can be in*.
+- A **phase** is a step in the game's sequential program. Phases run in
+  declaration order and a phase ends when its work completes. `deal`,
+  `first_trick`, `play`, `scoring`.
+- A **mode** is a condition the game is in, existing to change which rules are
+  active. It is not a step: you do not run a mode, you are in one.
+  `hearts_not_broken`, `hearts_broken`.
+- A **state variable** is ordinary data — a counter, a flag nothing gates on.
 
-Every phase corresponds to a state (or equivalence class of states) in the
-underlying state machine, but most states aren't worth naming as phases. The
-criterion for "this discrete configuration deserves to be a phase" is: **does
-the active rule set change?**
-
-If yes → phase (or sub-phase).
-If no → just state (a variable, a counter, ordinary data).
-
-This gives us a clean answer to the earlier "flags as a smell" observation:
-flags that gate rules are sub-phases in disguise; flags that are purely
+The criterion for "this configuration deserves a name" is still **does the
+active rule set change?** If yes, it is a mode. If no, it is a state variable.
+Flags that gate rules are modes in disguise; flags that are purely
 informational are just variables.
+
+Modes are **independent conditions, not an exclusive state machine.** A phase
+may declare several, any number may hold at once, and their rule deltas stack.
+That is what lets two unrelated conditions — "hearts have been broken", "the
+queen has gone" — be written as two mode pairs instead of as the four modes of
+their product.
+
+Each mode is exactly one side of one condition: the **before** side, which
+declares the `transition_to:` that ends it, or the **after** side, which a
+sibling names as a target and whose body is usually empty. A mode that were
+both would be a chain, and a mode that were neither could never be active at
+all; the checker rejects both. A progression through three or more stages is
+not a mode chain — use a state variable and gate the rules with
+`applies_when:`.
+
+### Moves and Transfers
+
+Two independent things, and the corpus hid that for a long time because in a
+trick game they coincide: one card play is one Move and one Transfer. They come
+apart as soon as a board game arrives.
+
+| what happens | Moves | Transfers |
+|---|---|---|
+| a card played to the trick | 1 | 1 |
+| a pass | 1 | 0 |
+| placing a mark on an empty cell | 1 | 1 |
+| a capture (mover advances, captured piece leaves) | 1 | **2** |
+| dealing at setup | 0 | many |
+
+A **Move** is what a player chose; a **Transfer** is a relocation between zones.
+Fusing them into one word makes a capture indescribable — which is the test the
+naming had to pass. A future Pose domain (flip, orient) is neither: nothing
+changes zones.
 
 ### The relationship between concepts
 
@@ -76,22 +107,40 @@ informational are just variables.
 
 - **Phases** are primary structural units. A game is a sequence/tree of phases.
 - **Rules** are reusable named constraints attached to phases.
-- **Move types** are named card-movement patterns. Rules constrain move types.
+- **Move types** are named card-transfer patterns. Rules constrain move types.
 - **Move types are scoped to phases via the phase's active rules** (a move type
   is legal in a phase if rules constraining it are active there).
 - **Events emit automatically from moves**, with visibility derived from zones.
 
-### Sub-phases
+### Sub-phases and modes
 
-A phase may contain nested sub-phases. Sub-phases inherit the parent's rule
-set and add/modify their own. They have their own entry/exit conditions.
+A phase may contain nested sub-phases — further steps, run in order, inheriting
+the parent's rule set. It may also contain modes, which are not steps.
 
-Example: Hearts' `play` phase contains the sub-phases `hearts_not_broken` and
-`hearts_broken`. The transition between them fires on the first heart played.
-The active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
-only in the first sub-phase).
+Example: Hearts' `play` phase declares the modes `hearts_not_broken` and
+`hearts_broken`. The transition between them fires on the first heart played,
+and the active rule set differs (`NoLeadingSuitUntilBroken(hearts)` is active
+only in the first). The `play` phase's own body — the trick loop — runs
+throughout, under whichever rules the current modes give it.
 
-This replaces the ad-hoc `hearts_broken` boolean flag with structure.
+```text
+phase play {
+  active_rules: [MustFollowSuit]
+  legal_moves:  [play_to_trick]
+
+  mode hearts_not_broken {
+    active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
+    transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
+  }
+  mode hearts_broken { }
+
+  repeat until (all players where hand[player] is empty) { … }
+}
+```
+
+This replaces the ad-hoc `hearts_broken` boolean flag with structure. A mode's
+body is configuration only — `active_rules:` and `transition_to:` — because
+being in a mode *is* its behavior; the grammar admits nothing else there.
 
 ### What rules really are
 

@@ -194,11 +194,10 @@ sets it:
 phase parent { legal_moves: [play_to_trick] }
 ```
 
-A `legal_moves:` is set only by a phase that actually runs. A
-config-only rule-delta sub-phase (one holding nothing but `active_rules:`
-/ `transition_to:`, folded for its rules but never executed) is rejected
-if it carries a `legal_moves:`, since nothing would consult it — the move
-menu never blinks from an invisible sub-phase.
+A `legal_moves:` is set only by a phase that actually runs. A mode holds
+rules, never the move menu, so its body admits no `legal_moves:` at all —
+the grammar rejects one, since nothing would consult it and the move menu
+must never blink from a condition rather than from the step you are in.
 
 A slot may mix operators and plain entries — a sub-phase that lists
 a bare rule is shadowing inheritance with its own complete set:
@@ -249,7 +248,7 @@ than accepting surface it would silently drop ("Surface totality"):
 - a rule with neither `demands:` nor `exempts:`, which cannot change what is
   legal however its `applies_when:` reads.
 
-**State the constraint where the move is made instead.** A movement's
+**State the constraint where the move is made instead.** A transfer's
 `chosen N` binds a count (Hearts' pass is `transfer chosen 3 cards` — the
 `3` *is* the "pass exactly three" law); a move type's `when:` guard binds
 its parameters (Stud's bring-in amount). These are the enforcing forms
@@ -270,7 +269,7 @@ components — binds that move as `action`, and its
 fields expose the move's data: `action.card` (the card played),
 `action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
 subject is always reached through `action`; there are no bare field names,
-and it is never spelled `move` — `move` is the zone-movement verb (see "The
+and it is never spelled `move` — `move` is the zone-transfer verb (see "The
 operation vocabulary"). `action` is the same player-move object the `offer
 action` syntax names. (The *concept* is still a move type; `action` is an
 instance of one, as taken.)
@@ -328,7 +327,7 @@ The categories don't unify:
 
 Getaway's first-trick-to-waste behaviour is the canonical mistake: written as a
 rule (`rule FirstTrickAlwaysGoesToWaste`) it has nothing to constrain — its
-effect is *where the cards go*, an ordinary body movement after the round:
+effect is *where the cards go*, an ordinary body transfer after the round:
 
 ```cardlang-fragment first_trick_phase
 phase first_trick {
@@ -345,7 +344,7 @@ it is a rule; if its effect is "shape the trick's resolution after play," it is
 round configuration or body routing.
 
 **Routing has two surface forms, both ordinary body statements.** When the
-routing is a single unconditional movement, it is one statement after the round
+routing is a single unconditional transfer, it is one statement after the round
 (Hearts; Getaway's first trick: `move all cards from trick_pile to waste`). When
 it branches — Getaway routes the pile to the trick winner on a tochoo (pickup)
 but to the waste otherwise — it is an `if` over the round's terminal state:
@@ -552,7 +551,7 @@ integer `choose` domain," below.
   mixed vocabulary). `Card` enumerates the **acting player's live hand, in
   hand order**, then guard-filters like any other parameterized move. Hand
   order is load-bearing: card plays are offered in hand order everywhere
-  else in the runtime (the trick form, filtered movements), so a deck-order
+  else in the runtime (the trick form, filtered transfers), so a deck-order
   enumeration filtered to the hand would put the same decision under a
   different chooser-draw contract. `Card` may appear only as a move's
   **sole** parameter: a second Card-parameterized move in one vocabulary, a
@@ -578,7 +577,7 @@ game regardless of how many combinations are ever legal in any one state.
 vocabulary action ids**. A card play already has an id — the card block's —
 so the adapter folds a `(play_card, c)` candidate into `card_to_action(c)`,
 and a card's action id is identical whether it is the leader's `play_card` or
-the follower's plain movement pick; `num_distinct_actions` does not grow with
+the follower's plain transfer pick; `num_distinct_actions` does not grow with
 the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
@@ -668,11 +667,11 @@ Two decisions distinguish it from the trick and auction forms:
 
 - **The combination engine is a named query, not a DSL value.** A combination play
   moves a *specific computed card-set* — the cards of the chosen combination — and
-  the movement vocabulary moves cards *by count* (`all` / `one` / `N cards`), never
+  the transfer vocabulary moves cards *by count* (`all` / `one` / `N cards`), never
   a named set. So a combination play cannot be a DSL `move_type` effect the way a
   bet is, and there is no DSL-visible `Combination` value. Instead the engine is two
   **game-local stdlib queries** named on the round — `combinations` (lead options)
-  and `follows` (legal follows) — and the climb form performs the card movement itself.
+  and `follows` (legal follows) — and the climb form performs the card transfer itself.
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
   the five-card group; Tichu: rank-only keys, bombs, the four special cards); they
@@ -721,7 +720,7 @@ turns <binder> from <leader> over <participants>
 
 The binder names the current player, who is also the acting player — exactly
 `for each`'s per-iteration binding, one player at a time — so a `chosen`
-movement or `offer` in the body is attributed to the turn-holder without a
+transfer or `offer` in the body is attributed to the turn-holder without a
 cursor variable. The form owns what every hand-rolled turn loop re-implements
 (and where the stress-sweep's runtime failures clustered): **rotation**
 (advance in game direction to the next seat satisfying the participants
@@ -778,7 +777,7 @@ live in the standard library so a game opts into a behaviour by name:
   exhausted) is an error, not an implicit pass.
 - **A `choose` over an empty domain** (e.g. an inverted range) → an error; a choice
   must offer at least one candidate.
-- **The acting player is never defaulted.** A choice or chosen movement made with
+- **The acting player is never defaulted.** A choice or chosen transfer made with
   no acting player is an error ("who is choosing?"), not a silent attribution to
   player 0 — wrap it in a per-player context (`as <player>` for one named decider,
   `for each player p` or the simultaneous pass for everyone) so the chooser knows
@@ -802,7 +801,7 @@ statement-level companion to `for each player` (everyone decides) and the
 simultaneous pass — the form for exactly one decider. The player expression must be
 a `Player`; anything else is a type error.
 
-It exists because a `chosen` movement needs an acting player, and binding one
+It exists because a `chosen` transfer needs an acting player, and binding one
 belongs in the construct that says *who decides*, not in a loop that iterates
 everyone. Pressed into service for a single decider, `for each player p: if p
 is <who> { … }` carries two latent failures `as` forecloses (the same `for
@@ -1095,8 +1094,8 @@ indexed writes are checked against it (`n[hearts]` on a player-keyed
 store is a compile error). A zone VALUE is likewise distinguished from
 a computed card collection: a query result or list literal types
 `Collection<Card>` too, but only a zone (or a binder holding one) may
-stand in a movement endpoint or an epistemic target — narrowing a
-movement is the `where` filter's job, not a laundered query's. An initializer the checker deliberately
+stand in a transfer endpoint or an epistemic target — narrowing a
+transfer is the `where` filter's job, not a laundered query's. An initializer the checker deliberately
 leaves loose (`outcome`, an unregistered `action` field) carries that
 looseness forward — ordinary gradual typing, with the runtime's typed
 errors behind it. A `let` is a bound value, not a variable: it is not
@@ -1233,7 +1232,7 @@ before_each {
 }
 ```
 
-`move all cards to deck` is a destination-only **gather** movement (no `from`):
+`move all cards to deck` is a destination-only **gather** transfer (no `from`):
 it collects every card from all other zones into the named zone. A `Deck`-typed
 zone is initialized at game start holding the deck's cards, so the first
 `before_each` gather is a no-op and the deal is well-defined.
@@ -1241,7 +1240,7 @@ zone is initialized at game start holding the deck's cards, so the first
 A gather collects zones in **lexicographic zone-name order** — singleton zones
 and indexed families in one sorted namespace, a family's instances in its index
 domain's order (players in seating order, teams in team order). The collection
-order is observable twice over: each non-empty zone emits its own movement
+order is observable twice over: each non-empty zone emits its own transfer
 event (shaping every player's observation log, hence information sets), and the
 collected cards stack into the destination in collection order (feeding the
 next same-seed shuffle). Making the order canonical is what keeps the `zones { }`
@@ -1623,6 +1622,29 @@ transfer is always satisfiable when it runs. Neither case needs a
 primitive; the explicit form reads correctly and keeps the failure
 policy visible in the game file.
 
+## Move, Transfer, and what `move_type` is called
+
+A **Move** is one played instance of a Move Type bound to its Parameters; a
+**Transfer** is one relocation between zones. They are independent, and the
+trick game hid that by making them coincide: a card play is one of each. A
+capture is one Move and two Transfers, a pass is one Move and none, and setup
+is Transfers with no Move at all — so a single fused word cannot describe a
+board game. The cardinality table is in [model.md](model.md), "Moves and
+Transfers".
+
+The keyword stays **`move_type`**. With "move" owning the player-action family
+it reads as compositional English, and `action_type` would manufacture a false
+friend against the Interop sense of "action" — the translation to OpenSpiel
+stays one-directional, which is what keeps `action` usable as the scoped
+pronoun for the candidate Move under consideration.
+
+The surface verb `move` also stays, and is deliberately not the engine word for
+a Transfer: in solitaire the verb and the Move genuinely coincide, and the
+surface reads like the rulebook. The engine word is Transfer; its verbs
+(`deal`/`draw`/`move`/`burn`/`muck`/`transfer`) are sugar over the one
+primitive, and a future board family mints its own (`place`, `capture`) as
+registry rows rather than as new syntax.
+
 ## The operation vocabulary
 
 Games relocate cards and resources, reveal and hide them, shuffle and
@@ -1632,15 +1654,15 @@ verb lowers to one of a few semantic primitives — the same
 small-core/rich-library split that makes the trick a `round` configuration
 rather than syntax ([principles.md](principles.md)).
 
-**Movement** — relocating items between two places. One primitive underlies
-every movement verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
-are sugar that differ only in defaults, not in kind. A movement carries a
+**Transfer** — relocating items between two places. One primitive underlies
+every transfer verb: `deal`, `transfer`, `move`, `burn`, `muck`, and `draw`
+are sugar that differ only in defaults, not in kind. A transfer carries a
 selection (`all`, a count, or a `chosen`/`random` amount), an item noun, a
 source place, and a destination (a single zone or `to each` recipient). The
 item noun is `cards`/`card` today; the noun stays open in the grammar so a
 resource transfer (coins, chips) can one day be the *same* construct as a
-card deal rather than separate syntax — but resource movements and the
-grammar's per-movement `visibility =` override are deferred surface, rejected
+card deal rather than separate syntax — but resource transfers and the
+grammar's per-transfer `visibility =` override are deferred surface, rejected
 by the checker ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker")
 rather than left for the runtime to silently ignore.
 
@@ -1659,7 +1681,7 @@ first recipient would drain the source); a gather (`move all cards to
 selected, or `to each` gathers are rejected; and the `in <zone>` form is
 deferred ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker").
 
-**Movement `where` filter.** The `from` form of a movement (any destination
+**Transfer `where` filter.** The `from` form of a transfer (any destination
 shape) takes an optional `where <lambda>` clause, narrowing the *source pool*
 to the cards matching the predicate — in source order — before the selection
 draws from it: `move chosen 6 cards from hand[p] where is_pref_discard(card)
@@ -1672,7 +1694,7 @@ untouched in the source. Requesting more than the pool holds fails loudly,
 identically to the unfiltered form. The destination forms compose: a filtered
 `to each` deal narrows each recipient's pool in turn, and a filtered
 `as-equally-as-possible` deal distributes the whole matching pool round-robin,
-leaving non-matching cards in the source. An unfiltered movement is
+leaving non-matching cards in the source. An unfiltered transfer is
 unaffected — the filter is a genuinely separate code path
 (`execute.py::_select_filtered`), not a generalization of the unfiltered one,
 so no existing game's card-selection behaviour changed when this clause was
@@ -1683,7 +1705,7 @@ chien cards must exclude every bout while preferring plain non-King cards
 when six exist (`cards in hand where is_pref_discard(card)`, falling back to
 `cards in hand where not is_bout(card)` when fewer than six such cards remain) — a
 per-card predicate over which cards a decision may even draw from, distinct
-from the *count* a plain `chosen N cards` movement already expressed.
+from the *count* a plain `chosen N cards` transfer already expressed.
 
 **Epistemic** — changing knowledge or order without relocating anything:
 `reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A
@@ -1708,14 +1730,14 @@ function answers (a value in an expression). The families above are a
 independent of this surface choice; the bounded cost of the prose surface is
 one production per operation, added as the corpus needs it.
 
-A new rulebook verb is presumed an instance of an existing family — movement
+A new rulebook verb is presumed an instance of an existing family — transfer
 sugar or an epistemic op — until a game proves it is genuinely none of them.
 Adding a fourth family is a deliberate act, not the default response to a new
 word.
 
 ## Joint-predicate selection
 
-A movement's per-card `where` filter tests each candidate alone —
+A transfer's per-card `where` filter tests each candidate alone —
 `chosen K cards where <pred>` can never say "these K cards *together* form a
 valid group," which is the load-bearing test of every meld-family game. The
 joint form binds **`cards`** — the candidate *set*, a card collection — and
@@ -1733,7 +1755,7 @@ predicate owns the size constraint), an expression (exactly that size), or
 the degenerate `one`/`all` (size 1 / the whole source). Subset sizes are
 always at least one — a zero-card "choice" is not a decision — so a
 non-positive count, and `all` over an empty source, fall to the same loud
-no-satisfying-subset error `some` gives. (Movement amounts generally are
+no-satisfying-subset error `some` gives. (Transfer amounts generally are
 guarded at evaluation: a negative amount is a typed runtime error everywhere
 — a Python slice would otherwise silently move the rest — and a zero
 `chosen` amount is a vacuous decision node, also refused.) `jointly`
@@ -1746,7 +1768,7 @@ silently make every destination seat its own subset decider; recorded).
 Enumeration is deterministic (sizes ascending, combinations in source
 order) and bounded: a source pool past 16 cards is a loud runtime refusal,
 not a hang. No satisfying subset is the no-implicit-actions error: guard
-the movement so it is only reached when one exists.
+the transfer so it is only reached when one exists.
 
 For the OpenSpiel target, joint candidates are card subsets — the combo
 block's currency, exactly like climb combination plays — and the subset
@@ -1782,8 +1804,8 @@ machinery, and two rummy-family games prove the two halves:
   ([games/canasta.cardlang](games/canasta.cardlang), `close_meld`), closed
   by construction because the key domain is the declared (possibly
   partial) `ranking:`.
-- **Growth is ordinary movement.** Either partner extends a standing meld
-  with a plain guarded movement on any of their turns; nothing about the
+- **Growth is ordinary transfer.** Either partner extends a standing meld
+  with a plain guarded transfer on any of their turns; nothing about the
   group persists outside its zone.
 - **Typed state is derived from composition, never stored.** Natural vs
   mixed, canasta-completion, wild-count legality are pure functions of the
@@ -1888,7 +1910,7 @@ silently-false comparison shape: Rank vs Integer, a name-form rank written
 as a string, a string outside the deck's rank set, and cross-enum
 comparisons.
 
-**Movement and reveal filters** are ordinary predicates with `card` bound
+**Transfer and reveal filters** are ordinary predicates with `card` bound
 per candidate (`move chosen 6 cards from hand[p] where is_pref_discard(card)
 to …`), the same `where` the card queries use.
 
@@ -1995,7 +2017,7 @@ wrote, which is exactly the thing the OpenSpiel target cannot tolerate. Binding
 each argument up front makes a call read the way it looks.
 
 **The body's bindings scope to the body.** That is what the block is for. State
-assignments and card movements persist, of course — a procedure acts on the game.
+assignments and card transfers persist, of course — a procedure acts on the game.
 Only its `let`s are local, which is the whole difference between a procedure and a
 paste: without it, a body that binds `target` would silently capture a caller's own
 `target`, read *after* the `run` site.
@@ -2143,7 +2165,7 @@ stdlib registry addition, not a surface a game reaches.
 Visibility derives from the declared zone types: a move is observed
 through each endpoint's projection (below), and the current language
 has no per-move override. The grammar admits a `visibility:` clause on
-a movement, but the type checker rejects it — "visibility derives from
+a transfer, but the type checker rejects it — "visibility derives from
 the declared zone types" — reserving the design for
 [open-questions/move-level-visibility.md](open-questions/move-level-visibility.md),
 which asks when a move's epistemic effect must differ from what its
@@ -2344,9 +2366,9 @@ unowned family and is rejected.
 physical pile (Klondike's columns: face-down below, face-up above) is
 represented by *zone decomposition*, never by per-card facing state: a
 `HiddenStack<column>` family under a `Cascade<column>` family, with the
-flip written as an ordinary movement between them. The flip's observation
+flip written as an ordinary transfer between them. The flip's observation
 event derives from the two declared projections (count from the hidden
-side, identity from the open side) exactly like every other movement —
+side, identity from the open side) exactly like every other transfer —
 per-position visibility adds **nothing** to the projection model. The
 analysis and the rejected alternatives are in
 [design-notes/positional-zones.md](design-notes/positional-zones.md).
@@ -2358,9 +2380,9 @@ end, `bottom_of` the front), and the dealt take (`draw`/`deal` with no
 indistinguishable; where order is observable the FIFO contract is the
 physical one — Klondike's unshuffled redeal (`move all cards from waste
 to deck`) cycles the stock in exactly the order the last pass drew.
-Filtered movement selects in source order and appends in source order,
+Filtered transfer selects in source order and appends in source order,
 which is what moves a cascade's run as an intact unit ("stack movement"
-is a usage pattern of the existing movement verb — a rank filter denotes
+is a usage pattern of the existing transfer verb — a rank filter denotes
 the suffix — not new surface). Sequence *knowledge* is derived, not
 declared: an identity-entitled observer saw every arrival event, so order
 falls out of the observation log under perfect recall.
@@ -2406,7 +2428,7 @@ spells card-content vocabulary demands the deck flavor and, in a piece
 game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
 `piece`/`pieces` noun is rejected in a card game. The guarded surfaces
-are the movement/reveal item noun, the filter binder, `.suit`/`.rank`
+are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
 field access, the card-query and aggregation forms, the `ranking:` and
 `trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
 `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
@@ -2441,7 +2463,7 @@ zone-type registry ([library.md](library.md), "Library zone types"),
 total over every row. `Cell` (the one-card holding space) has capacity
 1; every other library zone type is unbounded.
 
-A movement whose destination would exceed its type's finite capacity
+A transfer whose destination would exceed its type's finite capacity
 fails loudly at runtime with a typed error naming the zone, its type,
 the capacity, and the guard to write:
 
@@ -2451,7 +2473,7 @@ would overfill it; guard the move (`slot[0] is empty`)
 ```
 
 The Owner Guard **stands behind** the game's own guards; the registry owns the
-capacity class, so the check lives at the single movement-executor
+capacity class, so the check lives at the single transfer-executor
 append rather than being re-derived per move type. An honest game guards
 its placements (FreeCell's `cells[slot] is empty`, tic-tac-toe's
 `square[at] is empty`), so the Owner Guard never fires on a correct game — it
@@ -2551,7 +2573,7 @@ Tic-tac-toe is the corpus witness
 `pieces: xo_marks`, the nine `square[cell]` cells, `place(at : cell)`,
 and the win test `any line in lines(3) where all cells in line where …`.
 
-### Movement: directions, frames, and the class-1 verbs
+### Transfer: directions, frames, and the class-1 verbs
 
 Where tic-tac-toe only *places* pieces, a game whose pieces *move*
 declares a move parameterized by a **movement direction** as well as a
@@ -2607,7 +2629,7 @@ for each cell c: if c in home(0) { move one piece from reserve[0] to square[c] }
 ```
 
 **Displacement capture and reach.** Capture is two ordinary kernel
-movements — the captured piece to a `captured[player]` pile, then the
+transfers — the captured piece to a `captured[player]` pile, then the
 mover — so it emits through the existing observation sites with no new
 machinery. A reach-to-win test reads the just-moved piece's destination
 against `far_row(actor)`; a wipe-out win reads the opponent's piece
@@ -3019,13 +3041,13 @@ Hearts case, and the iteration sugar matches that reading.
 starting from dealer.left:`; the language has a parallel pair
 of constructs for the two timing modes.)
 
-**The iteration form's body is one chosen movement.** That is not an
+**The iteration form's body is one chosen transfer.** That is not an
 implementation limit dressed up as a rule — it falls out of the pre-block read
 semantics below. The form must snapshot *every* player's selection against the
 state as it was at block entry, and only then apply them all; that is what makes
 the pass atomic, and it is why nobody sees a passed card before choosing their
-own. A snapshot is only defined for a chosen movement out of a zone, so anything
-else in that slot — an assignment, a plain (unchosen) movement, a block — is
+own. A snapshot is only defined for a chosen transfer out of a zone, so anything
+else in that slot — an assignment, a plain (unchosen) transfer, a block — is
 rejected. The runtime has always required this; the checker now says so, instead
 of letting it through to a crash.
 
@@ -3170,9 +3192,9 @@ itself the offered decision.)
   push in fact needs no `simultaneously:` block at all: each
   player's three picks land in a per-player `gift` pile and are
   distributed only after every pick, so plain sequential chosen
-  movements are simultaneous by construction —
+  transfers are simultaneous by construction —
   [games/tichu.cardlang](games/tichu.cardlang).)
-- **`transfer` effects** — card and resource movement.
+- **`transfer` effects** — relocation of cards and resources.
 
 The body does *not* admit:
 
@@ -3397,7 +3419,7 @@ the products of constructs. The mechanized recipe for all of the above is the
 `surface-totality-audit` skill (`.claude/skills/`), a mandatory gate beside
 the regression checks (CLAUDE.md, "Verifying changes").
 
-The movement production is the worked example of the matrix: the selection
+The transfer production is the worked example of the matrix: the selection
 modes (dealt / `chosen` / `random` / `all`), the destination forms (`to
 <zone>`, `to each`, the round-robin `as-equally-as-possible to each` deal, the
 gather), the `where` filter, the item noun, and the deferred clauses (the `in

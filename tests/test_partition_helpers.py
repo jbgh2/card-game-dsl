@@ -244,8 +244,13 @@ def test_coverage_registry_records_and_dumps(tmp_path: Any) -> None:
         out = tmp_path / "report.json"
         dump_json(str(out))
         data = json.loads(out.read_text())
-        assert data[0]["game"] == "cardlang_demo" and data[0]["proof"] == "swap"
-        assert data[0]["detail"]["seed"] == 5
+        # Canonical order, not arrival: the dump sorts within a game by
+        # (proof, detail) so the record is executor-invariant
+        # (tests/test_partition_record_modes.py pins serial == xdist), which
+        # is why `facts` precedes the first-recorded `swap` here.
+        assert [d["proof"] for d in data] == ["facts", "swap"]
+        assert data[1]["game"] == "cardlang_demo"
+        assert data[1]["detail"]["seed"] == 5
     finally:
         RECORDS[:] = saved
 

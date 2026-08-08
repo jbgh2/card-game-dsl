@@ -1,0 +1,1 @@
+legal_moves_in_mode_body.cardlang:22:7: error: syntax error: No terminal matches 'l' in the current parser context, at line 22 col 7 — `legal_moves:` is a phase clause: a mode toggles rules, never the move menu, so a mode body takes `active_rules:`/`transition_to:` only

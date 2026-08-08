@@ -200,7 +200,7 @@ def _accept(source: str) -> None:
 
 
 # --- item noun (movement) --------------------------------------------------
-# `Movement.item` is a free NAME (grammar `selection: [select_mode] amount
+# `Transfer.item` is a free NAME (grammar `selection: [select_mode] amount
 # NAME`), conventionally the content noun; the wall makes it agree with flavor.
 
 

@@ -231,9 +231,9 @@
           "kind": "before_each",
           "body": [
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": null,
@@ -256,9 +256,9 @@
               }
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 12
@@ -862,9 +862,9 @@
                       }
                     },
                     {
-                      "kind": "movement",
+                      "kind": "transfer",
                       "verb": "move",
-                      "mode": null,
+                      "selection_mode": null,
                       "amount": "all",
                       "item": "cards",
                       "source": {

@@ -62,8 +62,10 @@ def test_phase_tree_and_qualifier() -> None:
 def test_transition_predicate_binds_action() -> None:
     g = _game()
     play = _phase(_phase(g, "hand_sequence"), "play")
-    not_broken = _phase(play, "hearts_not_broken")
-    trans = next(i for i in not_broken.items if isinstance(i, n.TransitionTo))
+    not_broken = next(
+        i for i in play.items if isinstance(i, n.Mode) and i.name == "hearts_not_broken"
+    )
+    trans = next(iter(not_broken.transitions))
     assert trans.target == "hearts_broken"
     assert trans.event.move_type == "play_to_trick"
     # where action.card.suit == hearts  ->  BinOp(==, Member(Member(action,card),suit), hearts)
@@ -110,7 +112,7 @@ def test_scoring_comprehension_and_movement() -> None:
     # setup statements now live in the before_each lifecycle hook.
     hand_seq = _phase(g, "hand_sequence")
     before = next(i for i in hand_seq.items if isinstance(i, n.BeforeEach))
-    movements = [s for s in before.body if isinstance(s, n.Movement)]
+    movements = [s for s in before.body if isinstance(s, n.Transfer)]
     gather = next(m for m in movements if m.source is None)
     assert gather.verb == "move" and gather.amount == "all"  # `move all cards to deck`
     deal = next(m for m in movements if m.verb == "deal")

@@ -1093,7 +1093,7 @@ def _stmt_tree_scoped(
             # themselves.
             pass
         case (
-            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
             | n.AssignStmt() | n.Offer() | n.Round() | n.Produce()
             | n.ContinueTo() | n.SkipToNextHand() | n.RunStmt()
         ):
@@ -1137,7 +1137,7 @@ def _phase_statements_scoped(
                 yield from _phase_statements_scoped(item, current)
             case n.BeforeEach() | n.AfterEach():
                 yield from _seq_tree_scoped(item.body, binders)
-            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.Mode():
                 pass  # configuration blocks hold no statements
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on
@@ -1157,7 +1157,7 @@ def _non_define_statements(game: Game) -> Iterator[n.Stmt]:
         yield from (st for st, _ in _phase_statements_scoped(phase))
 
 
-def _move_param_binders(
+def _parameter_binders(
     move_type: n.MoveTypeDef,
     positions: Mapping[str, Type],
     directions: Mapping[str, Type],
@@ -1187,7 +1187,7 @@ def _all_statements_scoped(game: Game) -> Iterator[tuple[n.Stmt, _Binders]]:
     directions = _direction_types(game)
     for move_type in game.move_types:
         yield from _seq_tree_scoped(
-            move_type.effect, _move_param_binders(move_type, positions, directions)
+            move_type.effect, _parameter_binders(move_type, positions, directions)
         )
     for phase in game.phases:
         yield from _phase_statements_scoped(phase)
@@ -1282,7 +1282,7 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     fn_names = set(func_defs)
     sigs: dict[str, Sig] = {}
 
-    def param_type(p: n.MoveParam) -> Type:
+    def param_type(p: n.Parameter) -> Type:
         # The one parameter-typing rule, shared with every other parameter
         # position. Kept as a call rather than a second copy: a local copy
         # that missed `env.positions` would type a position-domain parameter
@@ -1309,7 +1309,7 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
     return sigs
 
 
-def _param_type(p: n.MoveParam, env: TypeEnv) -> Type:
+def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
     optional = p.type_name.endswith("?")
     base = p.type_name[:-1] if optional else p.type_name
     # Position domains resolve inside `type_from_name`, which maps `column` to
@@ -2287,7 +2287,7 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             return [s.value] + ([s.index] if s.index is not None else [])
         case n.LetStmt():
             return [s.value]
-        case n.Movement():
+        case n.Transfer():
             out: list[n.Expr] = []
             if not isinstance(s.amount, str):
                 out.append(s.amount)
@@ -2336,7 +2336,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Check every expression `_stmt_exprs` holds directly, binding an
     implicit name where the construct's own runtime semantics require one.
 
-    `Movement.filter` and `EpistemicOp.filter` are evaluated with `card`
+    `Transfer.filter` and `EpistemicOp.filter` are evaluated with `card`
     bound per candidate (runtime/execute.py's shared `_card_pred`:
     `ctx.with_local("card", c)`, used by both the movement selection and
     `reveal`) — the *only* two `_stmt_exprs` members whose
@@ -2349,17 +2349,17 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     them — would be dark there. The filter must also itself be Boolean; the
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
-    if isinstance(s, (n.Movement, n.EpistemicOp)) and s.filter is not None:
+    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.filter is not None:
         # A joint filter (`where jointly`) binds `cards` — the candidate SET,
         # a card collection — where a per-card filter binds each `card`
         # (runtime `_select_joint` vs `_card_pred`; decisions.md
         # "Joint-predicate selection").
-        if isinstance(s, n.Movement) and s.joint:
+        if isinstance(s, n.Transfer) and s.joint:
             scoped = env.with_local(content_noun(env.flavor, plural=True), TCollection(TCard()))
         else:
             scoped = env.with_local(content_noun(env.flavor, plural=False), TCard())
         _check_expr(s.filter, scoped, bag)
-        verb = s.verb if isinstance(s, n.Movement) else s.op
+        verb = s.verb if isinstance(s, n.Transfer) else s.op
         _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
         for expr in _stmt_exprs(s):
             if expr is not s.filter:
@@ -2524,10 +2524,10 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             )
             if stmt.termination is not None:
                 _check_bool(stmt.termination, env, bag, "round `until` condition")
-        case n.Movement():
-            _check_movement(stmt, env, bag)
+        case n.Transfer():
+            _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
-            # The type half of the zone-target rule, like `_check_movement`'s
+            # The type half of the zone-target rule, like `_check_transfer`'s
             # endpoints: a `local` root passes resolve's classification, and
             # the binder's inferred type decides here.
             t = infer(stmt.target, env)
@@ -2631,7 +2631,7 @@ def _zone_hint(t: Type, filterable: bool) -> str:
     return ""
 
 
-def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
+def _check_transfer(stmt: n.Transfer, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Combination validity for the movement production (decisions.md, "Surface
     totality"): every combination the grammar accepts is either implemented by
     the executor or rejected here with a clear message — a clause the runtime
@@ -2692,7 +2692,7 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
             stmt.span,
         )
     if stmt.source is None and stmt.dest is not None:  # a gather
-        if stmt.amount != "all" or stmt.mode is not None:
+        if stmt.amount != "all" or stmt.selection_mode is not None:
             bag.error(
                 "a gather (`move ... to <zone>` with no `from`) collects every "
                 "card: write `move all cards to <zone>`",
@@ -2717,9 +2717,9 @@ def _check_movement(stmt: n.Movement, env: TypeEnv, bag: DiagnosticBag) -> None:
                 "(or the whole `where` pool): the amount must be `all`",
                 stmt.span,
             )
-        if stmt.mode is not None:
+        if stmt.selection_mode is not None:
             bag.error(
-                f"`as-equally-as-possible` deals round-robin; a `{stmt.mode}` "
+                f"`as-equally-as-possible` deals round-robin; a `{stmt.selection_mode}` "
                 "selection cannot combine with it",
                 stmt.span,
             )
@@ -2813,7 +2813,7 @@ def _continue_targets_in_item(item: n.PhaseItem) -> set[str]:
         # `run_body` and never unwinds to the parent, so it doesn't escape.
         targets -= {it.name for it in item.items if isinstance(it, n.Phase)}
     elif isinstance(
-        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode,
                n.BeforeEach, n.AfterEach)
     ):
         pass
@@ -2833,11 +2833,35 @@ def _item_can_skip(item: n.PhaseItem) -> bool:
             return False
         return any(_item_can_skip(sub) for sub in item.items)
     if isinstance(
-        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo,
+        item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode,
                n.BeforeEach, n.AfterEach)
     ):
         return False
     return any(isinstance(node, n.SkipToNextHand) for node in _control_flow_nodes(item))
+
+
+def _mode_names(game: Game) -> set[str]:
+    """Every mode declared anywhere in the game, for kind-aware diagnostics.
+
+    Game-wide, not per phase, because that is the scope mode names are unique
+    over (`resolve._check_duplicate_names`). Scoping the lookup to the phase
+    holding the jump answered only when the mode happened to live there, and
+    the two cases it missed — a mode of a different phase, and one of a nested
+    phase — are exactly the confusion the diagnostic exists to clear up: a
+    designer told the name is "not a sibling phase" while looking straight at
+    its declaration."""
+    out: set[str] = set()
+
+    def walk(items: tuple[n.PhaseItem, ...]) -> None:
+        for item in items:
+            if isinstance(item, n.Mode):
+                out.add(item.name)
+            elif isinstance(item, n.Phase):
+                walk(item.items)
+
+    for phase in game.phases:
+        walk(phase.items)
+    return out
 
 
 def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
@@ -2883,7 +2907,7 @@ def _control_flow_nodes(stmt: n.Stmt) -> Iterator[n.Stmt]:
             for s in stmt.body:
                 yield from _control_flow_nodes(s)
         case (
-            n.Movement() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
+            n.Transfer() | n.EpistemicOp() | n.RotateStmt() | n.LetStmt()
             | n.AssignStmt() | n.Offer() | n.Round() | n.Produce() | n.RunStmt()
         ):
             pass  # no jumps, no child statements to hold any
@@ -2952,6 +2976,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
 
     `before`/`after` carry the sibling phase names that execute before/after the
     current point, accumulated down the ancestor chain."""
+    mode_names = _mode_names(game)
     define_names = {d.name for d in game.defines}
     outcome_phases = {p.name for p in _all_phases(game) if p.outcome_cases}
 
@@ -3049,7 +3074,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                     else earlier
                 )
                 walk(item, child_before, later, here_loop)
-            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+            elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode)):
                 pass
             else:
                 in_hook = isinstance(item, (n.BeforeEach, n.AfterEach))
@@ -3088,11 +3113,27 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 node.span,
                             )
                         elif isinstance(node, n.ContinueTo) and node.target not in later:
-                            bag.error(
-                                f"continue to '{node.target}' is not a later sibling "
-                                "phase",
-                                node.span,
-                            )
+                            # A mode name reaching here is the phase/mode
+                            # confusion itself: before modes had their own
+                            # keyword, `continue to <config-only sub-phase>`
+                            # was accepted and jumped to an item the driver
+                            # skips. Say which kind the name is, or the
+                            # designer reads "not a sibling" as "no such name"
+                            # while looking straight at the declaration.
+                            if node.target in mode_names:
+                                bag.error(
+                                    f"continue to '{node.target}' names a mode, not a "
+                                    f"phase — a mode is entered by a sibling mode's "
+                                    f"`transition_to:` when its event fires, never "
+                                    f"jumped to",
+                                    node.span,
+                                )
+                            else:
+                                bag.error(
+                                    f"continue to '{node.target}' is not a later sibling "
+                                    "phase",
+                                    node.span,
+                                )
                         elif isinstance(node, n.SkipToNextHand) and not here_loop:
                             bag.error(
                                 "'skip to next hand' must be inside a `repeat until` "
@@ -3156,7 +3197,7 @@ def _check_phase_produces(
     for item in phase.items:
         if isinstance(item, n.Phase):
             _check_phase_produces(item, owner, outcomes, env, bag, current)
-        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.TransitionTo)):
+        elif isinstance(item, (n.StateBlock, n.ActiveRules, n.LegalMoves, n.Mode)):
             pass
         elif isinstance(item, (n.BeforeEach, n.AfterEach)):
             for s in item.body:
@@ -3297,13 +3338,16 @@ def typecheck(game: Game) -> Game:
                             f"phase '{item.name}' condition",
                         )
                     check_phase_positions(item, current)
-                case n.TransitionTo() if item.event.where is not None:
-                    # NO binders at all: a transition predicate may not read
-                    # any `let` (resolve rejects the reference — it is fired
-                    # by whichever round matches its event, and no lexical
+                case n.Mode():
+                    # Reached via the mode, since a transition is no longer a
+                    # phase item. NO binders at all: a transition predicate may
+                    # not read any `let` (resolve rejects the reference — it is
+                    # fired by whichever round matches its event, and no lexical
                     # position makes a binding reliably live then), so the
                     # bare env is exactly its scope.
-                    _check_expr(item.event.where, env, bag)
+                    for transition in item.transitions:
+                        if transition.event.where is not None:
+                            _check_expr(transition.event.where, env, bag)
                 case n.StateBlock():
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:
@@ -3347,7 +3391,7 @@ def typecheck(game: Game) -> Game:
             _check_expr(
                 move_type.when,
                 _scoped_env(
-                    env, _move_param_binders(move_type, env.positions, env.directions)
+                    env, _parameter_binders(move_type, env.positions, env.directions)
                 ),
                 bag,
             )

@@ -12,7 +12,7 @@ domain:     selection-mode (dealt/chosen/random) × amount (one/expr/all/
             plus the runtime states (no satisfying subset; oversized
             enumeration pool).
 registry:   the movement grammar matrix (cardlang.lark `movement`,
-            `selection`, `amount`, `where_clause`); the `Movement` node's
+            `selection`, `amount`, `where_clause`); the `Transfer` node's
             (mode, amount, filter, joint) fields.
 covered:    - `where jointly` parses with `joint=True`; plain `where` stays
               per-card [grammar/parse]
@@ -98,10 +98,10 @@ def test_jointly_parses_with_joint_flag_and_some_amount() -> None:
         ),
         "t.cardlang",
     )
-    mv = next(nd for nd in _walk(game) if isinstance(nd, n.Movement))
+    mv = next(nd for nd in _walk(game) if isinstance(nd, n.Transfer))
     assert mv.joint is True
     assert mv.amount == "some"
-    assert mv.mode == "chosen"
+    assert mv.selection_mode == "chosen"
 
 
 def test_plain_where_stays_per_card() -> None:
@@ -112,7 +112,7 @@ def test_plain_where_stays_per_card() -> None:
         ),
         "t.cardlang",
     )
-    mv = next(nd for nd in _walk(game) if isinstance(nd, n.Movement))
+    mv = next(nd for nd in _walk(game) if isinstance(nd, n.Transfer))
     assert mv.joint is False
 
 
@@ -417,7 +417,7 @@ def test_joint_flag_survives_into_the_ir() -> None:
     def movements(node: Any) -> list[dict[str, Any]]:
         found: list[dict[str, Any]] = []
         if isinstance(node, dict):
-            if node.get("kind") == "movement":
+            if node.get("kind") == "transfer":
                 found.append(node)
             for v in node.values():
                 found.extend(movements(v))

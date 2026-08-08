@@ -194,7 +194,7 @@ def test_grid_is_not_empty() -> None:
     assert len(GRID) > 100, f"grid collapsed to {len(GRID)} cells"
     # Both halves of the domain are present: a keyword terminal, and the
     # word-shaped terminals that spell a word SET rather than one literal.
-    assert {"_WHERE_KW", "MOVE_VERB", "RANK_DIR", "INT"} <= names, sorted(names)[:20]
+    assert {"_WHERE_KW", "TRANSFER_VERB", "RANK_DIR", "INT"} <= names, sorted(names)[:20]
     # Every sample a keyword contributes is the keyword itself, so a derivation
     # that started sampling only lookahead fragments would show up here.
     assert ("_WHERE_KW", "where") in {(name, word) for name, _, word in GRID}

@@ -161,9 +161,9 @@
           "kind": "before_each",
           "body": [
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": null,
@@ -186,9 +186,9 @@
               }
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "deal",
-              "mode": null,
+              "selection_mode": null,
               "amount": {
                 "kind": "int",
                 "value": 13
@@ -253,9 +253,9 @@
               "kind": "each_simultaneous",
               "role": "player",
               "body": {
-                "kind": "movement",
+                "kind": "transfer",
                 "verb": "transfer",
-                "mode": "chosen",
+                "selection_mode": "chosen",
                 "amount": {
                   "kind": "int",
                   "value": 3
@@ -375,9 +375,9 @@
               "follows_fn": null
             },
             {
-              "kind": "movement",
+              "kind": "transfer",
               "verb": "move",
-              "mode": null,
+              "selection_mode": null,
               "amount": "all",
               "item": "cards",
               "source": {
@@ -438,11 +438,9 @@
               ]
             },
             {
-              "kind": "phase",
+              "kind": "mode",
               "name": "hearts_not_broken",
-              "qualifier": null,
-              "outcome_cases": [],
-              "items": [
+              "active_rules": [
                 {
                   "kind": "active_rules",
                   "refs": [
@@ -459,7 +457,9 @@
                       ]
                     }
                   ]
-                },
+                }
+              ],
+              "transitions": [
                 {
                   "kind": "transition_to",
                   "target": "hearts_broken",
@@ -493,11 +493,10 @@
               ]
             },
             {
-              "kind": "phase",
+              "kind": "mode",
               "name": "hearts_broken",
-              "qualifier": null,
-              "outcome_cases": [],
-              "items": []
+              "active_rules": [],
+              "transitions": []
             },
             {
               "kind": "repeat_until",
@@ -548,9 +547,9 @@
                   "follows_fn": null
                 },
                 {
-                  "kind": "movement",
+                  "kind": "transfer",
                   "verb": "move",
-                  "mode": null,
+                  "selection_mode": null,
                   "amount": "all",
                   "item": "cards",
                   "source": {

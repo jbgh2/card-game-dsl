@@ -27,7 +27,7 @@ from cardlang.runtime.values import Card, Seating
 Event = tuple[Any, ...]
 
 
-def _mini(zones: str) -> tuple[n.Game, n.Movement]:
+def _mini(zones: str) -> tuple[n.Game, n.Transfer]:
     src = f"""
 game Mini {{
   players: 1
@@ -43,7 +43,7 @@ game Mini {{
 """
     game = check_dsl(src, "mini.cardlang")
     stmt = game.phases[0].items[-1]
-    assert isinstance(stmt, n.Movement)
+    assert isinstance(stmt, n.Transfer)
     return game, stmt
 
 

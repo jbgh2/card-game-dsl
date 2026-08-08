@@ -87,6 +87,11 @@ _PARSE_LEVEL_CASES = frozenset(
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve wall (issue #111).
         "cell_count_in_collection_not_admitted",
+        # `?mode_item` admits `active_rules` and `transition_to` only, so a
+        # `legal_moves:` in a mode body never reaches a tree. This case moved
+        # here from the resolve level when #208 gave the config-only class to
+        # the grammar — the earliest layer that can own it.
+        "legal_moves_in_mode_body",
     }
 )
 

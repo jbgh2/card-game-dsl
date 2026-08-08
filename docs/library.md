@@ -81,8 +81,8 @@ Key design notes:
 
 - **No winner function.** Unlike the trick form, the winner is not a function of
   the cards — it is the loop's last player to play, returned directly and bound as
-  `winner`. A combination play moves a *computed card-set*, which the movement
-  grammar (cards by count) cannot name, so the construct performs the movement
+  `winner`. A combination play moves a *computed card-set*, which the transfer
+  grammar (cards by count) cannot name, so the construct performs the transfer
   itself ([decisions.md](decisions.md) "The climbing form of `round`").
 
 - **`until <predicate>` ends the trick — and, when the game wants it, the
@@ -121,7 +121,7 @@ turns <binder> from <leader> over <participants>
 Key design notes:
 
 - **The binder is the turn-holder**, bound like a `for each player` binder
-  (name + acting player), so the body's `offer`s and chosen movements are
+  (name + acting player), so the body's `offer`s and chosen transfers are
   attributed without a cursor state variable.
 - **The form owns rotation and termination** — advance in game direction
   through the participants predicate (re-evaluated per advance, so
@@ -215,7 +215,7 @@ narrowing" — so an inapplicable obligation falls through (`rules.legal_cards`'
 per-rule intersection, [decisions.md](decisions.md) "Rule demand forms").
 Strict-trick legality recurs across the corpus, but not always as rules:
 Schnapsen's endgame is the same follow-and-head shape expressed as an in-file
-predicate (`follow_ok`) filtering a chosen movement, because its follower
+predicate (`follow_ok`) filtering a chosen transfer, because its follower
 answers outside any trick `round` (see "Mechanics" below). The cascade rules
 above stay game-local because their bodies genuinely diverge between Pinochle
 and Tarot (trump vocabulary and height helper); a shared parameterized
@@ -320,7 +320,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 - **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
   form fits pegging's per-play scoring plus forced-play flow (see
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'
-  discards and every pegging play are filtered card movements (`move chosen …
+  discards and every pegging play are filtered card transfers (`move chosen …
   where …`); `repeat until` / `if`/`else` / `skip to next hand` reproduce the
   121-point cutoff one scoring component at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
@@ -340,7 +340,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   so the ring re-offers the leader; a lead (play or the marriage's queen) flips
   it. `play_card(c : Card)` enumerates the live hand in hand order
   ([decisions.md](decisions.md) "Declared parameter domains"). The
-  follower's answer is a filtered chosen movement over the in-file `follow_ok`
+  follower's answer is a filtered chosen transfer over the in-file `follow_ok`
   cascade (strict follow-and-head once the talon is closed or exhausted,
   anything while open), and the trick, claim-at-66, and paired talon draws are
   plain statements around the game-local `schnapsen_trick_winner` primitive
@@ -352,7 +352,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
   contract declaration a pair of `offer`s plus a one-draw
   `declare_suit(s : Suit)` round, and the ten tricks three single-actor
-  filtered movements per trick over `skat_follow_ok` — like Schnapsen's
+  filtered transfers per trick over `skat_follow_ok` — like Schnapsen's
   follower, the strict-follow legality is a filter predicate, not an
   `active_rules` cascade, because the reference draws from hand-ordered
   legality where the trick form's rules-driven candidate set is unordered.
@@ -363,7 +363,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   the climb `round` (above) over the `tichu_lead_options` / `tichu_follows`
   queries, with the Dog as the engine-marked `ends_trick` lead and the
   finishing order folded from the round's terminal `state.shed_first` /
-  `state.shed_second`. The push is one chosen 3-card movement per player into
+  `state.shed_second`. The push is one chosen 3-card transfer per player into
   a per-player `gift` pile (simultaneous by construction — gifts land only
   after every pick), distributed giver-major by draw-free `deal` statements.
   The calls and the Dragon are real decisions: grand tichu is an
@@ -381,7 +381,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   every response window is a poll of real decisions (`offer to <responder>
   one of [challenge, allow]` clockwise from the claimant, first challenge
   closing the window; blocks fold the claimed character into the vocabulary
-  — `block_claiming_*`), every influence loss is a chosen movement by the
+  — `block_claiming_*`), every influence loss is a chosen transfer by the
   loser (the single-actor `as victim` block) flipped
   publicly into `revealed`, and the exchange is a deal-n + chosen-n +
   shuffle. A proven challenge `reveal`s the shown card publicly before
@@ -474,7 +474,7 @@ visibility, and the projection model".
   - emptiness is `<zone> is empty` / `is not empty`.
   Resource queries (`amount_of(type)`, `total_amount`, `types_present`)
   are unbuilt — the corpus keeps chips as Integer state
-  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker" — resource movements).
+  ([roadmap.md](roadmap.md), "Grammar surface deferred by the checker" — resource transfers).
 
 ### Library zone types
 
@@ -521,7 +521,7 @@ type Cell<At: position>              = Zone<Card>             { composition: ide
 
 Each type also carries a **capacity** (see [decisions.md](decisions.md),
 "Zone capacity"): `Cell` holds one card, shown above; every other row is
-unbounded and omits it. A movement that would overfill a bounded
+unbounded and omits it. A transfer that would overfill a bounded
 destination is a loud runtime error.
 
 These get the corpus's zone declarations down to one line each, with
@@ -554,8 +554,8 @@ The closed operation vocabulary, in the three families set out in
 [decisions.md](decisions.md) "The operation vocabulary". Surface verbs are
 sugar over a small set of primitives; this is the catalogue.
 
-**Movement** — one primitive; the verb supplies defaults. A movement is a
-statement; trick routing is ordinary body movements after a `round` returns.
+**Transfer** — one primitive; the verb supplies defaults. A transfer is a
+statement; trick routing is ordinary body transfers after a `round` returns.
 
 - `deal` — cards from a source (usually a deck) to recipients, per-recipient visibility; emits a semi-private observation to non-recipients (they see something moved)
 - `transfer` — cards or resource units between zones; the amount is an expression and the item names the unit (`transfer 5 chips from stack[A] to pot`, `transfer chosen 3 cards from hand[p] to ...`). See [decisions.md](decisions.md) "Resource amount syntax".
@@ -569,7 +569,7 @@ statement; trick routing is ordinary body movements after a `round` returns.
 The `from <zone> … to <zone>` form additionally takes an optional `where
 <lambda>` clause, narrowing the source pool to matching cards (in source
 order) before the selection draws from it — see [decisions.md](decisions.md)
-"The operation vocabulary" ("Movement `where` filter"). French Tarot's chien
+"The operation vocabulary" ("Transfer `where` filter"). French Tarot's chien
 discard is the corpus's first use (`move chosen 6 cards from hand[p] where
 is_pref_discard(card) to discard[p]`).
 
@@ -603,7 +603,7 @@ Card games use `peek` / `reveal` / `shuffle` / `deal` predominantly.
 Stud Poker (see [games/seven-card-stud.md](games/seven-card-stud.md))
 is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
-`transfer` as the primary movement op.
+the `transfer` verb as their primary one.
 
 ## Stdlib component sets
 
@@ -692,16 +692,16 @@ rejected at resolve.
   from `a1` (`a1 b1 c1 a2 …`); `lines(k)` returns every straight run of
   `k` consecutive cells along a row, a column, or either diagonal.
   `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A grid also
-  carries the movement data the class-1 verbs read: the three
+  carries the transfer data the class-1 verbs read: the three
   seat-relative forward **directions** `ahead`, `ahead_left`,
   `ahead_right` (its `dir` domain); the per-player **frame** (the second
   seat's is the first's 180-degree rotation); and the **regions**
   `home(player)` (the back two ranks) and `far_row(player)` (the opposite
   edge). Used by tic-tac-toe (placement only) and breakthrough (the full
-  movement set).
+  transfer set).
 
 A board mints two named-member domains: the position domain `cell`
-(its cells, on the declared-position substrate) and, for movement, the
+(its cells, on the declared-position substrate) and, for transfer, the
 move-parameter domain `dir` (its directions). See
 [decisions.md](decisions.md), "Boards and cells".
 
@@ -789,7 +789,7 @@ mid-playout.
   eight winning lines).
 - `neighbor(from, along, player) → Cell` — the cell one step along direction
   `along` in `player`'s frame. Total by contract: an off-board step is guarded
-  by `has_step`, not returned (decisions.md "Boards and cells", movement).
+  by `has_step`, not returned (decisions.md "Boards and cells", transfer).
 - `has_step(from, along, player) → Boolean` — whether that step stays on the
   board (the guard that gates `neighbor`).
 - `is_diagonal(along) → Boolean` — whether a step along `along` changes file

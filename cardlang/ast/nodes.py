@@ -125,7 +125,7 @@ class NamedArg:
     """A `name = value` argument (named call args)."""
 
     name: str
-    value: Expr | Movement
+    value: Expr | Transfer
     span: Span | None = None
 
 
@@ -293,9 +293,9 @@ def simultaneous_body_error(body: Stmt) -> str | None:
     expression) passed the checker and then hit a bare assert at play time. One
     predicate cannot drift from itself — `runtime/execute.py`'s `_pass_selection`
     asserts against this, and `resolve` rejects with it."""
-    if not isinstance(body, Movement):
+    if not isinstance(body, Transfer):
         return "it must be a movement"
-    if body.mode != "chosen":
+    if body.selection_mode != "chosen":
         return "the movement must be `chosen` — each player picks their own cards"
     if body.source is None:
         return "the movement needs a source zone to draw from (`from <zone>`)"
@@ -366,7 +366,7 @@ Expr = (
 
 
 @dataclass(frozen=True, slots=True)
-class Movement:
+class Transfer:
     """A movement operation (`deal`/`transfer`/`move`/`burn`/`muck`/`draw`).
     ``amount`` is ``"all"``, ``"one"``, or an :data:`Expr` count. ``dest`` is
     ``None`` for the `in <zone>` form where the verb implies the destination.
@@ -377,7 +377,9 @@ class Movement:
     top-of-source), and `all` takes every matching card, leaving the rest."""
 
     verb: str
-    mode: str | None  # "chosen" | "random" | None
+    # Qualified, like `Round.order_mode`: the bare word names the designer's
+    # `mode { }` construct (`Mode`), and no engine field may shadow it.
+    selection_mode: str | None  # "chosen" | "random" | None
     amount: str | Expr  # "all" | "one" | "some" | count expression
     item: str  # the item noun: "cards", "coins", …
     source: Expr | None  # a zone reference; None for a gather (collect-from-all)
@@ -687,7 +689,7 @@ class RunStmt:
 
 
 Stmt = (
-    Movement
+    Transfer
     | EpistemicOp
     | RotateStmt
     | EachSimultaneous
@@ -844,6 +846,24 @@ class TransitionTo:
 
 
 @dataclass(frozen=True, slots=True)
+class Mode:
+    """`mode NAME { }` — a condition the enclosing phase is in, existing to
+    change which rules are active.
+
+    Modes are INDEPENDENT conditions, not an exclusive state machine: a phase
+    may hold several, all of their deltas stack, and each is the "before" side
+    (it declares transitions) or the "after" side (a sibling names it) of
+    exactly one condition. `active_rules` is the delta a mode contributes while
+    it holds; `transitions` are the events that end it. Both tuples may be
+    empty — an empty mode is the terminal side of some sibling's condition."""
+
+    name: str
+    active_rules: tuple[ActiveRules, ...]
+    transitions: tuple[TransitionTo, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BeforeEach:
     """`before_each { … }` — runs at the start of every loop iteration."""
 
@@ -880,10 +900,10 @@ class Phase:
     span: Span | None = None
 
 
-# A phase body holds blocks, lifecycle hooks, nested phases, and statements.
+# A phase body holds blocks, modes, lifecycle hooks, nested phases, and
+# statements. `TransitionTo` is NOT a phase item: it lives only inside a mode.
 PhaseItem: TypeAlias = (
-    "StateBlock | ActiveRules | LegalMoves | TransitionTo | BeforeEach | AfterEach"
-    " | Phase | Stmt"
+    "StateBlock | ActiveRules | LegalMoves | Mode | BeforeEach | AfterEach | Phase | Stmt"
 )
 
 
@@ -941,12 +961,12 @@ class RuleDef:
     # instantiated by an `active_rules` reference with arguments. The resolver
     # consumes templates — post-resolve, every rule in `game.rules` has
     # `params == ()`.
-    params: tuple[MoveParam, ...] = ()
+    params: tuple[Parameter, ...] = ()
     span: Span | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class MoveParam:
+class Parameter:
     """A `move_type`'s optional parameter: a name bound in the guard/effect and a
     type whose value-domain is enumerated (`submit_bid(strain : Suit?)`). The
     ``type_name`` keeps a trailing `?` for a nullable domain, like a payload type."""
@@ -968,7 +988,7 @@ class MoveTypeDef:
     name: str
     when: Expr | None
     effect: tuple[Stmt, ...]
-    params: tuple[MoveParam, ...] = ()
+    params: tuple[Parameter, ...] = ()
     span: Span | None = None
 
 
@@ -980,7 +1000,7 @@ class FunctionDef:
     (read at call time), never the caller's binders. Non-recursive."""
 
     name: str
-    params: tuple[MoveParam, ...]
+    params: tuple[Parameter, ...]
     body: Expr
     span: Span | None = None
 
@@ -999,7 +1019,7 @@ class ProcedureDef:
     `Game.procedures` is empty."""
 
     name: str
-    params: tuple[MoveParam, ...]
+    params: tuple[Parameter, ...]
     body: tuple[Stmt, ...]
     span: Span | None = None
 
@@ -1222,7 +1242,7 @@ Node = (
     | Winner
     | Loser
     | MoveTypeDef
-    | MoveParam
+    | Parameter
     | OutcomeCase
     | DefineDef
     | FunctionDef
@@ -1243,12 +1263,13 @@ Node = (
     | ActiveRules
     | RuleRef
     | LegalMoves
+    | Mode
     | TransitionTo
     | MoveEvent
     | RuleDef
     | AppliesWhen
     | Demands
-    | Movement
+    | Transfer
     | EpistemicOp
     | RotateStmt
     | EachSimultaneous

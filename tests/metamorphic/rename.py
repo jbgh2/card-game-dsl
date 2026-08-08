@@ -302,7 +302,7 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         # The climbing/trick forms name their source/play zones as bare
         # strings (`source_zone`/`play_zone`), not a `NameRef` — the one
         # place a zone reference bypasses the expression sublanguage (every
-        # other zone reference — `Movement.source/dest`, `CardQuery.source`,
+        # other zone reference — `Transfer.source/dest`, `CardQuery.source`,
         # `EpistemicOp`'s target — is an `Expr`, so a `NameRef` occurrence).
         sz = None if node.source_zone is None else name_map.get(node.source_zone, node.source_zone)
         pz = None if node.play_zone is None else name_map.get(node.play_zone, node.play_zone)

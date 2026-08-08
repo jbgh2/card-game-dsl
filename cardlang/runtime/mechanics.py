@@ -143,12 +143,14 @@ class TrickForm:
         self.trump: str | None = (
             evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
         )
-        # Constant for the pass: the active rules (as a rules-bearing ctx) and the
-        # play-triggered transitions the leader/followers may fire.
+        # Constant for the pass: the active rules, as a rules-bearing ctx. The
+        # phase is kept rather than its transition list — which of its modes
+        # still hold is re-read per play, since a play inside THIS trick is
+        # what deactivates one.
         self.trick_ctx = ctx.with_rules(
             phases.compute_active_rules(ctx.current_phase, ctx.rs)
         )
-        self.transitions = phases.phase_transitions(ctx.current_phase)
+        self.transition_phase = ctx.current_phase
 
     def init(self, state: State, ctx: Ctx) -> State:
         state["led_suit"] = None
@@ -196,7 +198,7 @@ class TrickForm:
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:
             state["led_suit"] = choice.suit
-        _fire_transitions(self.transitions, Move(choice, actor), self.trick_ctx)
+        _fire_transitions(self.transition_phase, Move(choice, actor), self.trick_ctx)
         # An `early` predicate ends the trick mid-pass; the winner function
         # picks from the plays so far (Getaway: a void player's off-led-suit
         # play, with the winner then picking up the pile).
@@ -224,7 +226,7 @@ class TrickForm:
         return winner
 
 
-def param_domain(p: n.MoveParam, actor: Player, ctx: Ctx) -> list[Any]:
+def param_domain(p: n.Parameter, actor: Player, ctx: Ctx) -> list[Any]:
     """One parameter's value-domain for the acting player. `Card` is the actor's
     live hand, in hand order — the state-dependent outlier, handled here ahead of
     the domain table (cardlang/domains.py) rather than as a row in it. Every
@@ -271,7 +273,7 @@ def _pack(combo: tuple[Any, ...]) -> Any:
     return combo[0] if len(combo) == 1 else combo
 
 
-def bind_params(ctx: Ctx, params: tuple[n.MoveParam, ...], value: Any) -> Ctx:
+def bind_params(ctx: Ctx, params: tuple[n.Parameter, ...], value: Any) -> Ctx:
     """Bind a candidate's value(s) as locals for the guard/effect that reads
     them. Arity comes from `params`, never guessed from `value`: a `Suit?`
     domain's `None` (no-trump) is a legitimate arity-1 VALUE, distinct from a
@@ -623,14 +625,30 @@ def build_form(stmt: n.Round, ctx: Ctx) -> DecisionForm:
     return TrickForm(stmt, ctx)
 
 
-def _fire_transitions(
-    transitions: list[n.TransitionTo], move: Move, ctx: Ctx
-) -> None:
+def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
     """Evaluate each play-triggered transition's predicate against the move just
-    played; a satisfied one marks its target as reached for this iteration."""
-    for t in transitions:
-        if t.event.move_type != "play_to_trick":
-            continue
-        pred = t.event.where
-        if pred is None or bool(evaluate(pred, ctx.with_action(move))):
-            ctx.rs.fired_transitions.add(t.target)
+    played; a satisfied one marks its target as reached for this iteration.
+
+    Only the transitions of modes that STILL HOLD are evaluated: an exit
+    belongs to its condition, so once that condition has ended its remaining
+    exits are gone with it. That has to be enforced twice over, because a
+    condition can end on this very play as well as on an earlier one: the
+    grouping filters modes deactivated before now, and the `break` stops a
+    mode's remaining exits the instant one of them fires. Two exits of one
+    mode that a SINGLE play satisfies — two unconditional ones, or any pair of
+    overlapping predicates — would otherwise both reach their targets inside
+    this loop. Independent modes keep being evaluated; only the fired one's
+    siblings stop."""
+    for _mode, exits in phases.active_mode_exits(phase, ctx.rs):
+        for t in exits:
+            # Shadow Guard. The Owner Guard is `resolve._resolve_transition`,
+            # which rejects any event move type but `play_to_trick`, so no
+            # other kind reaches here. Kept because this loop fires effects:
+            # were the wall ever relaxed, silently treating an unknown event
+            # as a trick play is the worse failure.
+            if t.event.move_type != "play_to_trick":
+                continue
+            pred = t.event.where
+            if pred is None or bool(evaluate(pred, ctx.with_action(move))):
+                ctx.rs.fired_transitions.add(t.target)
+                break

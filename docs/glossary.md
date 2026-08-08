@@ -6,7 +6,7 @@ people can actually remember — "vocabulary" belongs to the DSL itself; see its
 `principles.md` already holds this rule for the DSL surface ("A second spelling is a
 defect"); this file extends it to the implementation. When code, docs, or diagnostics
 need a word for one of these concepts, use the term in the left column. When a word
-appears in the "reserved words" table at the end, do not use it unqualified.
+appears in the "reserved words" table (§6), do not use it unqualified.
 
 Three usage rules bind every term in this file:
 
@@ -39,9 +39,9 @@ called, and what each name may mean.
 | **Game** | The root unit: one `game { }` plus its supporting definitions. Not "program", "spec", or "source" except when meaning the file/text itself. | `n.Game` |
 | **Library** | A family library: a `library { }` file a game `uses`. The stdlib rules fragment is *not* a library. | `n.Library` |
 | **Stdlib** | The standard library: the layer **written in the language itself** — `stdlib/rules.cardlang` and what grows beside it. This is the word's only meaning; endpoint is `cardlang/stdlib/` holding only `.cardlang` files + loader, pinnable. Native functions are **builtins**; game-local native code is a **Primitive**; registry data are **kernel tables**. Spec: issue #203. | `cardlang/stdlib/` |
-| **Phase** | A step in the game's sequential program: phases run in declaration order, and a phase ends when its work completes (the sense MTG taught every designer). This is the keyword's sole meaning — the rule-swapping flavor is a **mode** (→ F-8; spec: issue #208). | `n.Phase` |
-| **Mode** | A condition the game is in, existing to change which rules are active: entered by `transition_to`, body is configuration only (`active_rules:`, `transition_to:` — being in it *is* its behavior), and an empty mode is the terminal default: no delta, no exits. New keyword; the config-only class is grammar-owned. | `n.Mode` (planned) |
-| **Sub-phase** | A nested phase inheriting the parent's rules. A **rule-delta sub-phase** is the config-only child that just edits `active_rules:`. | `phases.py` |
+| **Phase** | A step in the game's sequential program: phases run in declaration order, and a phase ends when its work completes (the sense MTG taught every designer). This is the keyword's sole meaning — the rule-swapping flavor is a **mode** (→ F-8). | `n.Phase` |
+| **Mode** | A condition the game is in, existing to change which rules are active: entered by `transition_to`, body is configuration only (`active_rules:`, `transition_to:` — being in it *is* its behavior), and an empty mode is the terminal default: no delta, no exits. Modes are INDEPENDENT conditions, not an exclusive state machine: several may hold at once and their deltas stack. Each is exactly one side of one condition — the **before** side, which declares the transition, or the **after** side, which a sibling names; both-or-neither is rejected. The config-only class is grammar-owned. | `n.Mode` |
+| **Sub-phase** | A nested phase inheriting the parent's rules — a step, not a condition. Retired: **rule-delta sub-phase**, the config-only child that just edited `active_rules:`; that is a **Mode**. | `phases.py` |
 | **Round** | The kernel decision loop: the `round` keyword and its three **forms** — **trick form**, **auction form** (which also serves betting), **climb form**. "Round" never means "a round of the game"; that concept is a *hand* (below). The forms are distinct AST nodes — `TrickRound` / `AuctionRound` / `ClimbRound` (spec: issue #210; code still has a single field-sniffed `n.Round` pending migration). Surface keyword unchanged; a surface word for trick stays parked on the second family. | `mechanics.py` |
 | **Trick** | One trick: the thing the trick form plays out. Canonical concept name even though the surface keyword is `round` (→ F-2). | `TrickForm` |
 | **Hand** (the iteration) | One deal-to-scoring cycle of a game (`skip to next hand`, `hands_played`). Distinct from the *hand zone*; qualify as "hand loop" / "hand zone" when ambiguity is possible. The hand loop currently has no structural marker in the language (→ F-6). | `driver.py` |
@@ -57,7 +57,7 @@ called, and what each name may mean.
 | **Position Domain** | An integer or named-member index domain from `positions { }` or minted by `board:` (`cell`, plus the direction domain `dir`). | `board_domains.py` |
 | **Move Type** | A named, parameterized player action with a `when:` guard and an effect. Keyword and term settled: with "move" owning the player-action family, `move_type` reads as compositional English; `action_type` would manufacture an Interop false friend. | `n.MoveTypeDef` |
 | **Move** | One played instance of a Move Type, bound to its Parameters. A Move may perform zero, one, or many Transfers: a pass is a Move with none, a card play one, a capture two. The struct is card-shaped today (`(card, actor)`); the concept already covers `step(from, to)` (→ F-16). | `state.Move` |
-| **Transfer** | The zone-relocation *statement* (spec: issue #209; code still says `Movement` pending migration). Its verbs — `deal`/`draw`/`move`/`burn`/`muck`/`transfer` — are sugar over the one primitive; future families mint their own (`place`, `capture`). Never "a move"; the surface verb `move` is native English (in solitaire the verb and the Move coincide), the engine word is Transfer. Flip/orient are not Transfers — nothing changes zones. | `n.Transfer` |
+| **Transfer** | The zone-relocation *statement*. Its verbs — `deal`/`draw`/`move`/`burn`/`muck`/`transfer` — are sugar over the one primitive; future families mint their own (`place`, `capture`). Never "a move"; the surface verb `move` is native English (in solitaire the verb and the Move coincide), the engine word is Transfer. Flip/orient are not Transfers — nothing changes zones. | `n.Transfer` |
 | **Candidate** | One concrete legal option at a decision point: a `(move type, bound parameter)` pair or a card/subset. The thing rules filter and the encoding numbers. Prefer over "option"/"legal move"/"concrete move" (→ F-19). | `mechanics.py` |
 | **Offering** | The declared menu of moves a construct presents to a decider: `round offering [ ]`, an `offer` statement's list. Replaces every code use of "vocabulary"; the ActionSpace's flattened move-type x parameter-domain block is the **offering block**. Distinct from a phase's `legal_moves:`, which is availability, not presentation. | `n.Round`, `n.Offer` |
 | **Vocabulary** | The word-stock the DSL gives designers — "the vocabulary IS the syntax" (`principles.md`). One sense, the seniormost claim. The project's term catalog is this **glossary**; the encoding's old sense is an **offering**. | `principles.md` |
@@ -79,7 +79,7 @@ called, and what each name may mean.
 | **Pronoun** | A magic contextual name: `actor`, `action`, `winner`, `state`, `active_rules`. | `resolve.py` |
 | **Domain** (registry sense) | A quantifiable domain: a row of `domains.DOMAINS` (player/team/suit/rank), plus position domains. Every other use of "domain" must be qualified: *parameter domain*, *position domain*, *choose range* (reserved word, §6; → F-4). | `domains.py` |
 | **Splice** | Bringing a library's or template's definitions into a game. Prefer over "inject"/"provide"; **mint** stays for `board:` creating a domain no one declared. | `resolve.py` |
-| **Parameter** | The named, typed slot of a declaration — one shared node across move types, functions, procedures, and rules (spec: issue #209; code still `MoveParam` pending migration). Per-construct admissible-type constraints live in each construct's Owner Guard, not the node. Tripwire: splits only if the four uses ever need different fields. Full word, not "Param" — new names follow the full-word pattern; the abbreviation keeps (`Ctx`, `Expr`, `Stmt`) are grandfathered, not precedent. | `n.Parameter` |
+| **Parameter** | The named, typed slot of a declaration — one shared node across move types, functions, procedures, and rules. Per-construct admissible-type constraints live in each construct's Owner Guard, not the node. Tripwire: splits only if the four uses ever need different fields. Full word, not "Param" — new names follow the full-word pattern; the abbreviation keeps (`Ctx`, `Expr`, `Stmt`) are grandfathered, not precedent. | `n.Parameter` |
 | **IR** | The resolved AST rendered as JSON-able dicts; the `kind` key is the node tag and is reserved for that (→ F-9). | `ir.py` |
 
 ## 3. The runtime
@@ -160,3 +160,18 @@ docs, and diagnostics, always qualify them:
 | **direction** | turn direction (the `direction:` clause, `clockwise`) · **seat direction** (the `SeatDirection` enum, `left/right/across/hold`: a relative direction around the seating ring, fed to `offset_by`; `hold` is the identity offset — Hearts table-talk; "pass direction" is ordinary prose for Hearts' variable, not a term) · board direction (`dir`/`TDir`) (→ F-15) |
 | **block** | fenced block (markdown) · `Block` node (synthetic) · braced body — say which |
 | **library** | family library · the stdlib is not a library |
+| **harness** | the shared proof harness (`tests/openspiel_ready/`) · the LLM harness (`experiments/llm_eval/`) · the Operating Harness (process; §7, `harness.md`) |
+
+## 7. The Operating Harness (process)
+
+How work flows through agents and the operator. Mechanics live in `harness.md`;
+these entries own the names.
+
+| Term | Meaning | Home |
+|---|---|---|
+| **Operating Harness** | The process layer that moves work: Merge Lanes, the work graph and Ready Front, Leases, Standing Roles. The compound that qualifies "harness" (§6) for the process sense. | `harness.md` |
+| **Merge Lane** | Who may perform a merge, decided by change class. Earlier letter = more authority: Merge Lane A (deity merge — the grammar alone, the operator ruling with Language Owner counsel), Merge Lane B (operator merge), Merge Lane C (reviewed agent merge), Merge Lane D (clean-pass agent merge); later letters append as delegation earns granularity. The merge gate itself is lane-invariant. Never bare "lane". | `harness.md` |
+| **Ready Front** | The derived set of issues an agent may take without asking — open issues surviving the disqualifier list, computed by `tools/ready-front.sh`. An issue on it "is Ready". | `harness.md` |
+| **Lease** | The atomic public take of an issue: the branch `claude/issue-<N>`. Creating it takes the issue; merge or deletion releases it; staleness is derived and reaped conservatively. Distinct from the Claims line of a PR description (`cardlang-pr-description`). | `harness.md` |
+| **Standing Role** | A named, recurring, unattended agent charter, versioned as a skill (`role-<name>`) and invoked on a schedule. Always the full phrase — bare "Role" is the seat/team enum (`domains.Role`). | `harness.md` |
+| **Language Owner** | The persona that owns the language's taste, named **Hoyle** ("according to Hoyle"): consulted on every Merge Lane A change and any design that would create one, supplying details — worked alternatives, precedent, corpus impact — to the operator's decision. Advises, never merges; not a Standing Role (consulted, not scheduled). Charter lives in its skill. | `harness.md` |

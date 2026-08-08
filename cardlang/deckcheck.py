@@ -128,7 +128,7 @@ def _window_usage(
                 if _repeats(item):
                     continue  # separate window
                 p, carry = _window_usage(item, carry, players, counts, deck_zones)
-            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.TransitionTo():
+            case n.StateBlock() | n.ActiveRules() | n.LegalMoves() | n.Mode():
                 continue  # configuration blocks move no cards
             case _:
                 # The residue of PhaseItem is exactly Stmt — mypy checks that on
@@ -179,7 +179,7 @@ def _stmt_usage(
     procedure body. Now each statement kind states its deck behaviour by name,
     and a new kind is a mypy error here until it does."""
     match stmt:
-        case n.Movement():
+        case n.Transfer():
             return _movement_usage(stmt, carry, players, deck_zones)
         case n.ForEach() | n.EachSimultaneous():
             # The body runs once per member of the role's domain, read from the
@@ -270,7 +270,7 @@ def _stmt_usage(
             assert_never(stmt)
 
 
-def _movement_usage(m: n.Movement, carry: int, players: int, deck_zones: set[str]) -> _Usage:
+def _movement_usage(m: n.Transfer, carry: int, players: int, deck_zones: set[str]) -> _Usage:
     """Deck usage after a single movement. A move *into* the deck refills it (usage
     resets to 0); a deal *from* the deck adds to usage; anything else is inert."""
     if m.dest is not None and _base_name(m.dest) in deck_zones:

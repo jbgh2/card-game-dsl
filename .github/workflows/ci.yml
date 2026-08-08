@@ -4,15 +4,103 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `ready_for_review` is in the list so a draft marked ready gets a run
+    # even when no new push follows; drafts themselves are skipped by the
+    # `check` job's condition below.
+    types: [opened, synchronize, reopened, ready_for_review]
+  # The weekly hosted-Linux canary (the `canary` job below), plus a manual
+  # trigger for running it on demand.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
-# A fast follow-up push to the same PR (or to main) starts a new run before
-# the previous one finishes; cancel the stale one instead of paying for both.
+# A fast follow-up push to the same PR starts a new run before the previous
+# one finishes; cancel the stale one instead of paying for both. On main,
+# QUEUE instead of cancelling: two merges minutes apart otherwise leave the
+# earlier merge's run cancelled — and that run is the only one that ever
+# tests the combined tree (observed with #260/#261, 2026-08-05).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # The gate. Runs on the self-hosted pool (`cardlang` label) — persistent
+  # hardware, so the per-run costs the hosted runner re-paid every time
+  # (the OpenSpiel wheel install, a cold strict-mypy cache) are one-time.
   check:
+    # Drafts don't run: agents can push work-in-progress freely without
+    # burning the runner queue. Marking the PR ready (or pushing while
+    # ready) triggers the run.
+    #
+    # The head-repo equality clause is a security wall, not an optimization:
+    # this job runs on a self-hosted machine, and the repo is public, so a
+    # fork PR carries untrusted code. Same-repo branches only — a fork PR
+    # gets no run here under ANY approval flow. Keep the clause ahead of any
+    # future trigger change.
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, cardlang]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Venv (rebuilt whenever the dependency spec changes)
+        # Keyed to pyproject.toml by content stamp: any spec change rebuilds
+        # the venv from empty, so a package installed under an earlier ref's
+        # spec cannot survive into a ref that stopped declaring it — `pip
+        # install` adds but never removes, and the leftover would let an
+        # undeclared import pass this gate while failing any clean install.
+        # On a stamp hit nothing installs at all: the editable install
+        # (PEP 660) keeps its metadata in the venv and points at this job's
+        # constant workspace path, so it needs no refresh while the spec is
+        # unchanged. Lives under the runner's tool cache, which is per
+        # runner instance (a second runner on the same box gets its own
+        # venv) and outside the work tree actions/checkout cleans. Both env
+        # values go via runtime $GITHUB_ENV/$GITHUB_PATH rather than
+        # `${{ runner.* }}` job env — the `runner` context does not exist
+        # at job level.
+        run: |
+          VENV="$RUNNER_TOOL_CACHE/cardlang-venv"
+          SPEC=$(shasum -a 256 pyproject.toml | awk '{print $1}')
+          if [ "$(cat "$VENV/.pyproject-sha256" 2>/dev/null)" != "$SPEC" ]; then
+            rm -rf "$VENV"
+            python3.11 -m venv "$VENV"
+            "$VENV/bin/pip" install -q -e ".[dev,openspiel]"
+            echo "$SPEC" > "$VENV/.pyproject-sha256"
+          fi
+          echo "$VENV/bin" >> "$GITHUB_PATH"
+          echo "MYPY_CACHE_DIR=$RUNNER_TOOL_CACHE/cardlang-mypy-cache" >> "$GITHUB_ENV"
+      # The readiness proofs importorskip pyspiel; a broken install would
+      # silently skip them all. Fail loudly instead.
+      - name: OpenSpiel importable (the readiness proofs must not skip)
+        run: python -c "import pyspiel"
+      - name: Type check (mypy --strict)
+        run: mypy
+      # `-n 8`, not `auto`: the pool's first runner shares its 10 cores with
+      # its owner's interactive sessions, so the gate leaves two. Selection
+      # and evidence are unchanged by `-n` — counts are byte-identical to a
+      # serial run and the partition-coverage record is executor-invariant
+      # (tests/test_partition_record_modes.py pins it). The canary below
+      # stays serial: it is the bare-reference form, and its 2-core hosted
+      # runner was measured slower under xdist.
+      - name: Tests (corpus harness + units)
+        run: pytest -q -n 8
+      # `testpaths = ["tests"]` deliberately keeps the experiment rigs out of the
+      # language's own gate, so a bare `pytest -q` does not collect these. That
+      # left them run by nobody: the leak-freeness pins REVIEWER.md cites — the
+      # transitive engine-import scrape above all — could go red while CI stayed
+      # green. Run them as their own step rather than by widening `testpaths`,
+      # which keeps both properties. They are offline (the fake provider is the
+      # default) and need no API key.
+      - name: Tests (experiment rigs — the leak-freeness pins)
+        run: pytest experiments/llm_eval/tests -q
+
+  # The weekly hosted-Linux run. Two jobs the gate cannot do for itself:
+  # it keeps the suite honest on a second platform (the gate runs on macOS,
+  # whose default filesystem is case-insensitive, so a filename-case
+  # mismatch would pass the gate and break Linux), and it keeps a known-good
+  # hosted lane warm — if the self-hosted pool is down, flipping `check`'s
+  # `runs-on` back to `ubuntu-latest` is the whole fallback.
+  canary:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,20 +109,11 @@ jobs:
           python-version: "3.11"
       - name: Install
         run: python -m pip install -e ".[dev,openspiel]"
-      # The readiness proofs importorskip pyspiel; a broken install would
-      # silently skip them all. Fail loudly instead.
       - name: OpenSpiel importable (the readiness proofs must not skip)
         run: python -c "import pyspiel"
       - name: Type check (mypy --strict)
         run: mypy
       - name: Tests (corpus harness + units)
         run: pytest -q
-      # `testpaths = ["tests"]` deliberately keeps the experiment rigs out of the
-      # language's own gate, so a bare `pytest -q` does not collect these. That
-      # left them run by nobody: the leak-freeness pins REVIEWER.md cites — the
-      # transitive engine-import scrape above all — could go red while CI stayed
-      # green. Run them as their own step rather than by widening `testpaths`,
-      # which keeps both properties. They are offline (the fake provider is the
-      # default) and need no API key.
       - name: Tests (experiment rigs — the leak-freeness pins)
         run: pytest experiments/llm_eval/tests -q

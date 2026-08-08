@@ -166,7 +166,7 @@ game needs it. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get
 spellings fixed by the grammar, and the game files are updated to match.
 
 **Grammar-growth guard.** Before adding a production for a new surface verb,
-classify it into an existing operation family (movement sugar, an epistemic
+classify it into an existing operation family (transfer sugar, an epistemic
 op; see [decisions.md](decisions.md) "The operation vocabulary") or an
 existing primitive; add a new family or core production only if it genuinely
 fits none. A rulebook verb is presumed sugar over an existing primitive until

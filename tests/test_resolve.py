@@ -98,8 +98,7 @@ def test_unknown_move_type_in_legal_moves() -> None:
 def test_transition_target_must_be_sibling() -> None:
     dsl = _game(
         "  phase play {\n"
-        "    phase a { transition_to: nowhere when play_to_trick }\n"
-        "    phase b { }\n"
+        "    mode a { transition_to: nowhere when play_to_trick }\n"
         "  }"
     )
     with pytest.raises(DiagnosticError) as e:
@@ -110,8 +109,8 @@ def test_transition_target_must_be_sibling() -> None:
 def test_transition_to_real_sibling_resolves() -> None:
     dsl = _game(
         "  phase play {\n"
-        "    phase a { transition_to: b when play_to_trick }\n"
-        "    phase b { }\n"
+        "    mode a { transition_to: b when play_to_trick }\n"
+        "    mode b { }\n"
         "  }"
     )
     _resolve(dsl)  # no error

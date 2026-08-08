@@ -38,7 +38,7 @@ from cardlang.stdlib.zones import zone_capacity
 
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
     match stmt:
-        case n.Movement():
+        case n.Transfer():
             _movement(stmt, ctx)
             return ctx
         case n.EpistemicOp():
@@ -152,7 +152,7 @@ def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
     dest.add_all(cards)
 
 
-def _movement(stmt: n.Movement, ctx: Ctx) -> None:
+def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
     if stmt.source is None:
         _gather(stmt, ctx)  # `move all cards to <zone>` — collect from everywhere
         return
@@ -189,7 +189,7 @@ def _movement(stmt: n.Movement, ctx: Ctx) -> None:
             )
         player = (
             ctx.require_actor("a chosen movement")
-            if stmt.mode == "chosen"
+            if stmt.selection_mode == "chosen"
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
@@ -208,7 +208,7 @@ def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
 
 
 def _deal_round_robin(
-    source: Zone, dest_family: str, ctx: Ctx, stmt: n.Movement
+    source: Zone, dest_family: str, ctx: Ctx, stmt: n.Transfer
 ) -> None:
     """Deal the source one card at a time around the players, so an indivisible
     deck is spread as equally as possible (the first players get the remainder).
@@ -237,7 +237,7 @@ def _deal_round_robin(
             observe.movement(ctx, src, (dest_family, p), dealt[p])
 
 
-def _gather(stmt: n.Movement, ctx: Ctx) -> None:
+def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
     """`move all cards to <zone>`: collect every card from all other zones."""
     # typecheck admits no other source-less movement combination, and
     # resolve's `to each` Owner Guard keeps a gather destination a bare name.
@@ -291,7 +291,7 @@ def _check_count(count: int, mode: str | None) -> int:
     return count
 
 
-def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
+def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
     # selection"). The `where` filter is a fully separate branch (not folded
@@ -313,13 +313,13 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
         # reach here — resolve rejects `some` without `jointly`, and every
         # joint movement took the joint branch before this.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
-    if stmt.mode == "chosen":
+        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+    if stmt.selection_mode == "chosen":
         chosen = ctx.chooser(player, list(source.cards), count)
         for card in chosen:
             source.remove(card)
         return chosen
-    if stmt.mode == "random":
+    if stmt.selection_mode == "random":
         chosen = ctx.rs.rng.sample(list(source.cards), count)
         for card in chosen:
             source.remove(card)
@@ -339,7 +339,7 @@ def _select(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Ca
 _JOINT_ENUMERATION_BOUND = 16
 
 
-def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> list[Card]:
+def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
     """The `where jointly <pred>` form: ONE decision whose candidates are the
     source's subsets satisfying the joint predicate (`cards` bound to each
     candidate set), sized per the amount — `some` is any non-empty size, an
@@ -371,7 +371,7 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
         # Shadow Guard: parse admits "all" | "one" | "some" | Expr, and the
         # three string literals are handled above.
         assert not isinstance(amount, str)
-        k = _check_count(int(evaluate(amount, ctx)), stmt.mode)
+        k = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
         sizes = range(k, k + 1)
     assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
     noun = content_noun(ctx.rs.content_flavor, plural=True)
@@ -397,7 +397,7 @@ def _select_joint(source: Zone, stmt: n.Movement, ctx: Ctx, player: Player) -> l
 
 
 def _select_filtered(
-    source: Zone, stmt: n.Movement, ctx: Ctx, player: Player
+    source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player
 ) -> list[Card]:
     """The `where <lambda>` form: the pool is the source's matching cards, in
     source order (non-matching cards are left untouched in the source). `all`
@@ -421,13 +421,13 @@ def _select_filtered(
         # path — resolve's Owner Guard confines `some` to `jointly`, which
         # routes to `_select_joint`.
         assert not isinstance(amount, str)
-        count = _check_count(int(evaluate(amount, ctx)), stmt.mode)
-    if stmt.mode == "chosen":
+        count = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
+    if stmt.selection_mode == "chosen":
         chosen = ctx.chooser(player, pool, count)
         for card in chosen:
             source.remove(card)
         return chosen
-    if stmt.mode == "random":
+    if stmt.selection_mode == "random":
         chosen = ctx.rs.rng.sample(pool, count)
         for card in chosen:
             source.remove(card)
@@ -774,7 +774,7 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
         f"{n.simultaneous_body_error(body)} (resolve should have rejected this)"
     )
     # These three narrowings restate what that resolve predicate guarantees.
-    assert isinstance(body, n.Movement) and body.source is not None
+    assert isinstance(body, n.Transfer) and body.source is not None
     source = evaluate(body.source, ctx)
     assert not isinstance(body.amount, str)  # per the same resolve predicate
     if not isinstance(source, Zone):
@@ -797,7 +797,7 @@ def _apply_pass(
 ) -> None:
     # Narrowings only: _pass_selection already ran resolve's simultaneous-body
     # predicate over this same body, and the caller bound the actor.
-    assert isinstance(body, n.Movement)
+    assert isinstance(body, n.Transfer)
     player = ctx.current_player
     # actor bound by the caller; endpoints per resolve's simultaneous-body predicate
     assert player is not None and body.source is not None and body.dest is not None

@@ -47,7 +47,7 @@ Covered (20 cells — full cross product):
 
   `remove`/`override` additionally split on WHERE the reference sits
   relative to a `plain`/`add` that could satisfy it (own list / parent's
-  list / a sibling rule-delta phase's list / added-then-removed in one
+  list / a sibling mode's list / added-then-removed in one
   list) — covered by the "remove reachability" tests below, independent of
   referent kind (the reachability check runs before referent-kind
   dispatch).
@@ -234,40 +234,39 @@ def test_remove_of_a_rule_added_in_the_same_list_is_valid() -> None:
 
 
 def test_remove_of_a_rule_added_by_the_parents_own_unconditional_list_is_valid() -> None:
-    # The realistic idiom: a base phase activates a rule unconditionally; a
-    # nested rule-delta sub-phase conditionally removes it once a transition
-    # fires (runtime/phases.py `compute_active_rules`: a rule-delta child's
-    # own list is layered ON TOP of its parent's).
+    # The realistic idiom: a phase activates a rule unconditionally; one of
+    # its modes conditionally removes it once a transition fires
+    # (runtime/phases.py `compute_active_rules`: an active mode's own list is
+    # layered ON TOP of its phase's).
     _accepts(
         _game(
             "MustFollowSuit",
             nested="""
-    phase shed {
+    mode shed {
       active_rules: [- MustFollowSuit]
       transition_to: done_shedding when play_to_trick where action.card.suit is hearts
     }
-    phase done_shedding {
-    }
+    mode done_shedding { }
 """,
         )
     )
 
 
-def test_remove_referencing_only_a_sibling_delta_phases_add_is_rejected() -> None:
-    # NOT valid, even though it looks parallel to the case above: only one of
-    # a "before"/"after" rule-delta sibling pair is ever active at a time
-    # (runtime/phases.py `_delta_active`), so a name the OTHER sibling added
-    # was never in `names` on the call where this remove runs either — a
-    # runtime no-op this check correctly declines to call "reachable".
+def test_remove_referencing_only_a_sibling_modes_add_is_rejected() -> None:
+    # NOT valid, even though it looks parallel to the case above: modes are
+    # independent conditions with no declared order between them
+    # (runtime/phases.py `_mode_active`), so whether a name the OTHER mode
+    # added is in `names` when this remove runs is not something the page
+    # says — a race this check correctly declines to call "reachable".
     report = _rejects(
         _game(
             "MustFollowSuit",
             nested="""
-    phase hearts_not_broken {
+    mode hearts_not_broken {
       active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
       transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
     }
-    phase hearts_broken {
+    mode hearts_broken {
       active_rules: [- NoLeadingSuitUntilBroken]
     }
 """,
