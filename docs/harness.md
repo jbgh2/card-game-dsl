@@ -9,82 +9,98 @@ lives in the tracker like all work (epic
 here is public by design — the graph, the doctrine, the roles, and their
 history live in the open repo and tracker, never in a sidecar database.
 
-Changes to this file are Merge Lane C by its own table.
+Changes to this file are Merge Lane B by its own table.
 
 ## The Merge Lanes
 
 The merge gate — CI green on all three checks (CLAUDE.md, "Verifying
 changes") — is lane-invariant. A Merge Lane answers the question the gate
-does not: **who may perform the merge**. Three lanes:
+does not: **who may perform the merge**. The earlier the letter, the more
+authority it demands; later letters append as delegation earns
+granularity, so the alphabet grows at the delegated end and the apex
+never renumbers. Four lanes:
 
-- **Merge Lane A — clean-pass agent merge.** Any agent merges once CI is
-  green and one `cardlang-code-review` pass at Quick tier reports no
-  CONFIRMED finding. Other findings are filed with their reachability,
-  not driven to fix-now.
-- **Merge Lane B — reviewed agent merge.** Any agent merges once CI is
+- **Merge Lane A — deity merge.** The operator merges, and the decision
+  carries the **Language Owner**'s counsel (below), attached to the
+  change before the operator rules. Merge Lane A holds exactly the
+  grammar and its membership is closed in both directions: no evidence
+  promotes the grammar out of it, and no class ever promotes into it —
+  the widening and tightening protocols operate strictly below it. The
+  language's surface is not an autonomy candidate at any evidence level.
+- **Merge Lane B — operator merge.** The operator merges. Agents do
+  everything else — implement, review, respond, push — and stop at the
+  merge button.
+- **Merge Lane C — reviewed agent merge.** Any agent merges once CI is
   green, the full `cardlang-code-review` at the tier its classification
   selects is clean or its findings are filed, and — where the change
   trips the `surface-totality-audit` trigger — that skill's artifacts are
   in the change. One escalation is built in: a review round that finds a
   defect in the fix for a previous finding escalates the PR to Merge
-  Lane C. Nth-order findings on an agent's own fix are the operator's to
+  Lane B. Nth-order findings on an agent's own fix are the operator's to
   adjudicate, never the fixing agent's.
-- **Merge Lane C — operator merge.** The operator merges. Agents do
-  everything else — implement, review, respond, push — and stop at the
-  merge button.
+- **Merge Lane D — clean-pass agent merge.** Any agent merges once CI is
+  green and one `cardlang-code-review` pass at Quick tier reports no
+  CONFIRMED finding. Other findings are filed with their reachability,
+  not driven to fix-now.
 
 The lane is decided by the change's **class** from the table below, never
 per-PR by preference. Two rules compose the table:
 
 - **Supremum.** A change touching classes in different lanes takes the
-  highest lane touched (C over B over A).
+  earliest lane letter touched (A over B over C over D).
 - **Unsure resolves upward.** The planning-gate tie-breaker, applied to
-  merging: when the classification is uncertain, the higher lane applies.
-  Unsure is a legal state; a silent guess is not.
+  merging: when the classification is uncertain, the earlier lane
+  applies — stopping at Merge Lane B, because Merge Lane A absorbs no
+  uncertainty: its membership is exact (a diff touches `.lark` or it does
+  not). Unsure is a legal state; a silent guess is not.
 
 | Change class | Merge Lane |
 |---|---|
-| Grammar (`.lark`) | C |
-| Parse builders | C |
-| AST nodes | C |
-| Resolve | C |
-| Typecheck | C |
-| IR | C |
-| Runtime (`evaluate` / `execute` / `driver` / `state`) | C |
-| Stdlib (`rules.cardlang`, registries) | C |
-| `docs/games/` corpus — DSL-only edits, zero engine diff | B |
-| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | C |
-| Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `games/_candidates.md`) | B |
-| Tests / goldens — coverage-only additions, no behavior change claimed | B |
-| Tests / goldens — anything else (golden regeneration, proof-harness changes) | C |
-| `.claude/skills/` | C |
-| `experiments/` rigs | B |
-| `tools/` harness scripts — mechanical fixes | B |
-| `tools/` harness scripts — semantics (a change to what Ready means is a change to this file) | C |
-| CI and infra (`.github/`, `pyproject.toml`, the runner) | C |
-| Public-facing (README, LICENSE, licensing and grant artifacts) | C |
-| Tracker structure (label vocabulary, edge conventions, issue #143) | C |
-| Revert of a red Merge Lane A/B merge | A |
-| Docs hygiene — typos, cross-references, register fixes with no semantic delta; `glossary-findings.md` rows; ledger citation fixes | A |
+| Grammar (`.lark`) | A |
+| Parse builders | B |
+| AST nodes | B |
+| Resolve | B |
+| Typecheck | B |
+| IR | B |
+| Runtime (`evaluate` / `execute` / `driver` / `state`) | B |
+| Stdlib (`rules.cardlang`, registries) | B |
+| `docs/games/` corpus — DSL-only edits, zero engine diff | C |
+| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | B |
+| Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `games/_candidates.md`) | C |
+| Tests / goldens — coverage-only additions, no behavior change claimed | C |
+| Tests / goldens — anything else (golden regeneration, proof-harness changes) | B |
+| `.claude/skills/` | B |
+| `experiments/` rigs | C |
+| `tools/` harness scripts — mechanical fixes | C |
+| `tools/` harness scripts — semantics (a change to what Ready means is a change to this file) | B |
+| CI and infra (`.github/`, `pyproject.toml`, the runner) | B |
+| Public-facing (README, LICENSE, licensing and grant artifacts) | B |
+| Tracker structure (label vocabulary, edge conventions, issue #143) | B |
+| Revert of a red Merge Lane C/D merge | D |
+| Docs hygiene — typos, cross-references, register fixes with no semantic delta; `glossary-findings.md` rows; ledger citation fixes | D |
 
 The rows through "Tests / goldens" derive from the `cardlang-code-review`
 skill's Phase 0 classification, with its "docs prose" and "tests/goldens"
 classes each split in two; the remaining rows are the classes that
 classification does not carry. A change class missing from this table is
-a defect in this table: the change merges at Lane C by unsure-resolves-
-upward, and the same change fixes the table.
+a defect in this table: the change merges at Merge Lane B — unsure
+resolution stops there — and the same change fixes the table.
 
 **The pilot posture.** Every language-pipeline class starts at Merge
-Lane C deliberately: lanes widen by evidence, never by argument. A class
-moves down (C to B, B to A) only by editing this table in an
-operator-merged change whose body cites the evidence — the merges of that
-class since the last assignment and their post-merge defect count. A
-class moves **up** the moment anyone doubts it: tightening needs no
-ceremony, and any agent may do it in the same change as a revert or fix.
+Lane B — and the grammar lives at Merge Lane A — deliberately: lanes
+widen by evidence, never by argument, and Merge Lane A does not widen at
+all. A class is delegated one letter at a time (B to C, C to D, and past
+D as letters are added) only by editing this table in an operator-merged
+change whose body cites the evidence — the merges of that class since the
+last assignment and their post-merge defect count. A class moves **up**
+the alphabet the moment anyone doubts it: tightening needs no ceremony,
+and any agent may do it in the same change as a revert or fix. Tightening
+stops at Merge Lane B — Merge Lane A is not a destination, it is the
+grammar's birthright and nothing else's.
 
-**The revert rule.** A Merge Lane A or B merge that goes red after merge
+**The revert rule.** A Merge Lane C or D merge that goes red after merge
 — CI, the canary, or a defect witnessed downstream — is revertable by any
-agent without asking, and the revert itself is Merge Lane A. What was
+agent without asking, and the revert itself is Merge Lane D. What was
 learned goes to the tracker before the re-attempt, not into a bigger
 second try.
 
@@ -164,7 +180,7 @@ Standing Role exists it is anyone's, manually.
 A **Standing Role** is a named, recurring, unattended agent charter — a
 skill under `.claude/skills/` (`role-<name>`), invoked on a schedule
 rather than by a human. Role charters are versioned in the repo and
-reviewed like code (their lane: `.claude/skills/`, Merge Lane C).
+reviewed like code (their lane: `.claude/skills/`, Merge Lane B).
 
 Standing Roles are minted through the tracker. Epic
 [#274](https://github.com/jbgh2/card-game-dsl/issues/274) names the first
@@ -173,6 +189,24 @@ two: a Dispatcher that works the Ready Front
 that runs the sweeps and reaps stale Leases
 ([#277](https://github.com/jbgh2/card-game-dsl/issues/277)). A role's
 charter lives in its skill file; this file stays the map.
+
+## The Language Owner
+
+The **Language Owner** is a persona, not a person and not a Standing
+Role: a named character whose charter is the language itself, consulted
+at planning time on every Merge Lane A change and on any design that
+would create one. The division of labor is fixed. The Language Owner
+supplies the details — worked alternative sentences, corpus impact,
+precedent from `decisions.md` and the games, the edge a new production
+cuts against surface totality — and the operator supplies the decision:
+counsel informs intuition and never substitutes for it. The persona
+advises; the operator rules. Counsel attaches to the change (PR body or
+design note) before the operator merges.
+
+The persona is minted through the tracker
+([#284](https://github.com/jbgh2/card-game-dsl/issues/284)): its proper
+name is the operator's choice, and its charter lives in its skill file,
+reviewed like code.
 
 ## The physical layer
 
