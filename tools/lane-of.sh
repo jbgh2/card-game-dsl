@@ -19,7 +19,12 @@ HARNESS="$(cd "$(dirname "$0")/.." && pwd)/docs/harness.md"
 files=()
 if [ "${1:-}" = "--range" ]; then
   [ $# -eq 2 ] || { echo "usage: lane-of.sh --range BASE..HEAD | lane-of.sh FILE..." >&2; exit 2; }
-  while IFS= read -r f; do files+=("$f"); done < <(git diff --name-only "$2")
+  # --no-renames: a rename must contribute BOTH paths (rename detection
+  # collapses to the destination and would launder a stricter lane).
+  # Capture before iterating: a failed diff must kill the run, not
+  # classify a prefix.
+  diff_raw=$(git diff --name-only --no-renames "$2")
+  while IFS= read -r f; do [ -n "$f" ] && files+=("$f"); done <<<"$diff_raw"
 else
   [ $# -ge 1 ] || { echo "usage: lane-of.sh --range BASE..HEAD | lane-of.sh FILE..." >&2; exit 2; }
   files=("$@")
