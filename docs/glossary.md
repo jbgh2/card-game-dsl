@@ -6,7 +6,7 @@ people can actually remember — "vocabulary" belongs to the DSL itself; see its
 `principles.md` already holds this rule for the DSL surface ("A second spelling is a
 defect"); this file extends it to the implementation. When code, docs, or diagnostics
 need a word for one of these concepts, use the term in the left column. When a word
-appears in the "reserved words" table at the end, do not use it unqualified.
+appears in the "reserved words" table (§6), do not use it unqualified.
 
 Three usage rules bind every term in this file:
 
@@ -160,3 +160,18 @@ docs, and diagnostics, always qualify them:
 | **direction** | turn direction (the `direction:` clause, `clockwise`) · **seat direction** (the `SeatDirection` enum, `left/right/across/hold`: a relative direction around the seating ring, fed to `offset_by`; `hold` is the identity offset — Hearts table-talk; "pass direction" is ordinary prose for Hearts' variable, not a term) · board direction (`dir`/`TDir`) (→ F-15) |
 | **block** | fenced block (markdown) · `Block` node (synthetic) · braced body — say which |
 | **library** | family library · the stdlib is not a library |
+| **harness** | the shared proof harness (`tests/openspiel_ready/`) · the LLM harness (`experiments/llm_eval/`) · the Operating Harness (process; §7, `harness.md`) |
+
+## 7. The Operating Harness (process)
+
+How work flows through agents and the operator. Mechanics live in `harness.md`;
+these entries own the names.
+
+| Term | Meaning | Home |
+|---|---|---|
+| **Operating Harness** | The process layer that moves work: Merge Lanes, the work graph and Ready Front, Leases, Standing Roles. The compound that qualifies "harness" (§6) for the process sense. | `harness.md` |
+| **Merge Lane** | Who may perform a merge, decided by change class. Earlier letter = more authority: Merge Lane A (deity merge — the grammar alone, the operator ruling with Language Owner counsel), Merge Lane B (operator merge), Merge Lane C (reviewed agent merge), Merge Lane D (clean-pass agent merge); later letters append as delegation earns granularity. The merge gate itself is lane-invariant. Never bare "lane". | `harness.md` |
+| **Ready Front** | The derived set of issues an agent may take without asking — open issues surviving the disqualifier list, computed by `tools/ready-front.sh`. An issue on it "is Ready". | `harness.md` |
+| **Lease** | The atomic public take of an issue: the branch `claude/issue-<N>`. Creating it takes the issue; merge or deletion releases it; staleness is derived and reaped conservatively. Distinct from the Claims line of a PR description (`cardlang-pr-description`). | `harness.md` |
+| **Standing Role** | A named, recurring, unattended agent charter, versioned as a skill (`role-<name>`) and invoked on a schedule. Always the full phrase — bare "Role" is the seat/team enum (`domains.Role`). | `harness.md` |
+| **Language Owner** | The persona that owns the language's taste, named **Hoyle** ("according to Hoyle"): consulted on every Merge Lane A change and any design that would create one, supplying details — worked alternatives, precedent, corpus impact — to the operator's decision. Advises, never merges; not a Standing Role (consulted, not scheduled). Charter lives in its skill. | `harness.md` |

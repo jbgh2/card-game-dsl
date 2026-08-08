@@ -111,6 +111,7 @@ docs/
   implementation.md      Plan for building the parser + static checker (tooling)
   building.md            Front-end execution blueprint (pipeline, triage, gates)
   kernel-migration.md    Stage plan: remove per-game Python mechanics → DSL kernel
+  harness.md             The Operating Harness: Merge Lanes, the work graph, Leases, Standing Roles
   maintaining.md         Doc hygiene rules — read before editing docs
   appendix.md            Background research synthesis + corpus state catalogue
   games/                 One file per game in the corpus. Living spec examples.
@@ -134,6 +135,7 @@ docs/
 - **"How complete must a new construct be?"** → `docs/decisions.md`, "Surface totality" (grammar surface) and "Closed-domain completeness" (the machinery beneath it); the mechanized gate is the `surface-totality-audit` skill (`.claude/skills/`)
 - **"What's still being decided?"** → `docs/open-questions/_index.md` then the named file
 - **"What should we build next?" / "In what order?"** → the GitHub tracker: [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), the pinned ordering issue, is the authority on cross-cutting task sequence. `docs/open-questions/_index.md` owns question *priority*; `docs/games/_candidates.md` holds the full game pipeline.
+- **"Who merges what?" / "What work may an agent take?"** → `docs/harness.md` — the Operating Harness: Merge Lanes, the work graph and Ready Front, Leases, Standing Roles
 - **"How do we build the tooling (parser/checker)?"** → `docs/implementation.md`, `docs/building.md`
 - **"How do we remove the per-game Python mechanics?"** → `docs/kernel-migration.md`
 - **"Which game uses which state variable?"** → `docs/appendix.md` (corpus catalogue)
@@ -144,6 +146,8 @@ CI (`.github/workflows/ci.yml`) runs three checks on the self-hosted pool,
 about 12 minutes end to end. **The merge gate is CI green on all three.
 Push early and freely — a push starts the run and costs nothing — but never
 merge, and never report a change as done, on less than a green gate.**
+The gate is lane-invariant; *who* performs a merge is the Merge Lane's
+call (`docs/harness.md`, "The Merge Lanes").
 
 ```
 mypy                                  # strict; covers cardlang/, tests/ AND experiments/
@@ -282,6 +286,13 @@ discipline upstream to be correct, which is the point.
   they hold sub-items, not work of their own.
 - Every migrated issue carries a `## Provenance` line naming its source.
   Keep that habit for new issues that split off an existing one.
+
+Issues relate through the work graph, all of it native and public:
+sub-issues for containment, blocked-by dependencies between issues,
+`blocked:needs-witness` for the one blocker that is not an issue. The
+Ready Front — the derived set of issues an agent may take — and the
+Lease protocol live in `docs/harness.md`; its sweep,
+`tools/ready-front.sh`, is the third sibling of the two above.
 
 [Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
 ordering issue and the authority on cross-cutting task sequence.
