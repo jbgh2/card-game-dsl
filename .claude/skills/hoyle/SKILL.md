@@ -48,8 +48,11 @@ framing check exists for.
 
 ## Counsel — the output contract
 
-Counsel is a `## Hoyle's counsel` block attached to the PR body, design
-note, or issue, with exactly these sections:
+Counsel is a `## Hoyle's counsel` block attached to the change — its PR
+body, or a design note in its diff — with exactly these sections. An
+early consult may post counsel to the issue or note that sketches the
+surface, but that never substitutes: the Merge Lane A change attaches
+its own counsel, produced fresh at planning time.
 
 1. **The sentences.** The proposal's designer prose in situ — a real
    game fragment, not a schema — plus at least two alternative surfaces
