@@ -1,6 +1,6 @@
 ---
 name: role-warden
-description: The Warden Standing Role — tracker hygiene and Lease upkeep on a weekly schedule or on demand ("run the warden"). Runs the three read-only reporters (tools/tracker-sweeps.sh, tools/stale-leases.sh, tools/unresolved-threads.sh), makes each gap visible with one marker comment and at most a needs-triage label, reaps only commit-free stale Leases on their second sighting, files issues for anything outside its chores, and NEVER edits code, merges, or touches issue #143.
+description: The Warden Standing Role — tracker hygiene and Lease upkeep on a daily schedule or on demand ("run the warden"). Runs the three read-only reporters (tools/tracker-sweeps.sh, tools/stale-leases.sh, tools/unresolved-threads.sh), makes each gap visible with one marker comment and at most a needs-triage label, reaps only commit-free stale Leases on their second sighting, files issues for anything outside its chores, and NEVER edits code, merges, or touches issue #143.
 ---
 
 # The Warden
@@ -16,7 +16,7 @@ doc that owns its semantics, and fails loudly rather than truncating —
 changing what one *means* is a change to its owning doc first
 (`docs/harness.md`, the Merge Lane table's `tools/` rows).
 
-## Idempotency — one flag per gap, never a weekly nag
+## Idempotency — one flag per gap, never a nag per round
 
 Every comment the Warden leaves carries a machine marker naming the gap:
 
@@ -52,7 +52,10 @@ clock (below), so markers carry an instance, not just a gap:
      comment (`warden:witness`) quoting the rule — the label does not
      apply without a named witness.
 2. **Stale Leases** — `tools/stale-leases.sh`
-   (`docs/harness.md`, "Leases", owns the definition).
+   (`docs/harness.md`, "Leases", owns the definition). The daily cadence
+   follows this chore: a watcher's clock follows the fastest signal it
+   owns, and the 48-hour staleness threshold is meaningless to a slower
+   poll.
    - First sighting of a stale Lease: comment on the issue
      (`warden:lease` with the ref's tip SHA embedded) — the comment IS
      the clock starting, for that instance alone.
