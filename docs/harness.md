@@ -203,10 +203,11 @@ counsel informs intuition and never substitutes for it. The persona
 advises; the operator rules. Counsel attaches to the change (PR body or
 design note) before the operator merges.
 
-The persona is minted through the tracker
-([#284](https://github.com/jbgh2/card-game-dsl/issues/284)): its proper
-name is the operator's choice, and its charter lives in its skill file,
-reviewed like code.
+The Language Owner is named **Hoyle** — after Edmond Hoyle, whose name is
+the English proverb for rules authority ("according to Hoyle"). The
+charter is minted through the tracker
+([#284](https://github.com/jbgh2/card-game-dsl/issues/284)) and lives in
+its skill file, reviewed like code.
 
 ## The physical layer
 
