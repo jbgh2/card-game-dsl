@@ -116,6 +116,4 @@ present.
 
 [PolyForm Noncommercial 1.0.0](LICENSE.md). The pilot evidence in
 `experiments/llm_eval/results*/` is
-[CC BY 4.0](experiments/llm_eval/LICENSE-pilot-evidence.md). There is a
-standing commitment to relicense the repository under Apache 2.0 if the
-associated grant is awarded.
+[CC BY 4.0](experiments/llm_eval/LICENSE-pilot-evidence.md).
