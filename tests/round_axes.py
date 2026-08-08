@@ -28,12 +28,17 @@ consumer.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import typing
 from pathlib import Path
 
 from cardlang import parse as parse_mod
 from cardlang.ast import nodes as n
+from cardlang.stdlib.moves import (
+    CLIMB_DECISION_MOVE_TYPE,
+    RULE_ENFORCED_MOVE_TYPE,
+)
 
 GRAMMAR = Path(__file__).resolve().parent.parent / "cardlang" / "grammar" / "cardlang.lark"
 
@@ -175,12 +180,48 @@ def order_modes() -> tuple[str, ...]:
 
 
 # Which optional clauses carry a closed value registry, and where that
-# registry lives. AUTHORED, not derived, and the only authored mapping in
+# registry lives. AUTHORED, not derived, and one of two authored mappings in
 # this module: the link from a grammar keyword to the AST field it fills is a
 # naming correspondence, and no artifact states it. Recorded as a residual in
 # the grid's ledger rather than passed off as derived. A clause absent from
 # this mapping is treated as binary (absent/present).
 _CLAUSE_VALUE_REGISTRIES = {"order": order_modes}
+
+
+# The one move type each form's decision site actually runs. AUTHORED for the
+# same reason — the runtime hardwires it, and nothing states the pairing — but
+# note what IS derived: which forms need an entry. A form carrying a
+# `move_type` field and missing from this table raises rather than dropping
+# out of the axis, which is what makes the gap loud instead of invisible.
+_RUNNABLE_MOVE_TYPE = {
+    "TrickRound": RULE_ENFORCED_MOVE_TYPE,
+    "ClimbRound": CLIMB_DECISION_MOVE_TYPE,
+}
+
+
+def move_type_forms() -> tuple[tuple[type, str], ...]:
+    """Each round node carrying a `move_type`, with the name its site runs.
+
+    The auction form is absent because it has no `move_type` at all — its
+    moves come from the `offering` — and that absence is derived from the
+    node's fields, not decided here.
+    """
+    out = []
+    for node in round_nodes():
+        if "move_type" not in {f.name for f in dataclasses.fields(node)}:
+            continue
+        runnable = _RUNNABLE_MOVE_TYPE.get(node.__name__)
+        if runnable is None:
+            raise AxisDerivationError(
+                f"`{node.__name__}` carries a `move_type` but no entry says which "
+                f"name its decision site runs — the axis cannot say what to accept, "
+                f"and a form silently dropped here is a form whose move type "
+                f"nothing checks"
+            )
+        out.append((node, runnable))
+    if not out:
+        raise AxisDerivationError("no round form carries a `move_type`")
+    return tuple(out)
 
 
 def clause_settings(production: str) -> tuple[tuple[tuple[str, str], ...], ...]:

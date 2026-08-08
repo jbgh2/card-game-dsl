@@ -23,6 +23,15 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
                        production's `[...]` groups, with `order`'s values from
                        `n.ROUND_ORDER_MODES` rather than binary. Pinned by
                        `test_clause_axis_is_the_grammar_and_the_order_registry`.
+            movetype -- `round_axes.move_type_forms`, the round nodes carrying
+                       a `move_type` field, crossed against
+                       `stdlib.moves.LIBRARY_MOVE_TYPES`. Which forms are in
+                       the axis is derived from their fields, and the name each
+                       one runs is read from the constant the resolver's guard
+                       reads (`RULE_ENFORCED_MOVE_TYPE`,
+                       `CLIMB_DECISION_MOVE_TYPE`) -- so only the pairing of
+                       node to constant is authored, and a form with the field
+                       and no pairing raises rather than dropping out.
 covered:    `test_round_cell_builds_its_own_node`,
             `test_no_field_is_null_across_a_whole_form`, and
             `test_no_ir_key_is_null_across_a_whole_form` -- each the full
@@ -31,6 +40,12 @@ covered:    `test_round_cell_builds_its_own_node`,
             form as a GROUP, which is what lets it distinguish a field that is
             optional within a form (`trump`) from one the form can never use
             (`combos_fn` on a trick) without either being hand-listed.
+            `test_only_the_runnable_move_type_is_accepted` crosses the move-type
+            axis whole, both directions -- and it is the row that earned its
+            keep: the climbing form had no such wall, so `round climb
+            submit_bid` was accepted and played out identically to
+            `play_combination` (big-two, same seed, same scores). The trick
+            form's wall, which does fire, is that cell's control.
 sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
             setting an `outcome` clause: an auction with one raises its tagged
             result for an enclosing `produces:` arm to catch, so a minimal game
@@ -40,17 +55,28 @@ sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
             by the corpus (bridge, french-tarot, pinochle). Written as the
             excluded setting, not the included list, so the exclusion cannot
             quietly widen -- see `_RAISES_TAGGED_OUTCOME`.
-residual:   ONE, and it is a naming correspondence rather than a gap in reach.
-            `round_axes._CLAUSE_VALUE_REGISTRIES` -- which optional clauses
-            carry a closed value registry -- is authored, because the link from
-            a grammar keyword (`order`) to the AST field it fills (`order_mode`)
-            to the registry that bounds it (`ROUND_ORDER_MODES`) is stated by no
-            artifact. A clause missing from that mapping is treated as binary,
-            so a NEW clause with a closed value set would be covered
-            absent/present and its values left uncrossed. R4 -- reachable only
-            by an engine maintainer adding a clause, and loud the moment they
-            look, since the mapping sits beside the axis it feeds. Ledger owns
-            the record; no issue.
+residual:   TWO, both R4, both ledger-owned.
+
+            (1) The two AUTHORED mappings in `round_axes`
+            (`_CLAUSE_VALUE_REGISTRIES`, `_RUNNABLE_MOVE_TYPE`) are naming
+            correspondences no artifact states: which registry bounds a
+            clause's values, and which node pairs with which move-type
+            constant. Their DOMAINS are derived, so a new member cannot
+            silently vanish -- a form missing from the second RAISES, but a
+            clause missing from the first is merely treated as binary and its
+            values go uncrossed. That asymmetry is the whole residual: the
+            first mapping is the softer, and the one to widen if a clause with
+            a closed value set is ever added. Reachable only by an engine
+            maintainer, and loud where they are already looking.
+
+            (2) `stdlib/round_state.py` enumerates the three forms as data --
+            which `state.` fields each publishes -- and its own pin is
+            asymmetric: the surface-rejection half covers all three, but
+            nothing observes what `AuctionForm` writes, because it deliberately
+            publishes nothing. Noted here rather than filed: the gap is a check
+            over an empty set, and this is where a reader of the round domain
+            will look for it. It becomes real work only if the auction form
+            ever starts publishing.
 
             Not residual, deliberately: the four cells no corpus game writes
             (`trump`+`early` together, and every explicit `order ring`). They
@@ -69,9 +95,11 @@ from typing import Any
 import pytest
 
 from cardlang.ast import nodes as n
+from cardlang.diagnostics import DiagnosticError
 from cardlang.ir import emit
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from tests import round_axes as axes
 
 # --- fixtures -----------------------------------------------------------------
@@ -351,13 +379,23 @@ def test_no_ir_key_is_null_across_a_whole_form(production: str) -> None:
 
 
 def _ir_round(ir: Any) -> dict[str, Any]:
-    """The one round entry of a cell's emitted IR, found by its leader/participants
-    pair -- by shape, not by `kind`, since the kind string is under test."""
+    """The one round entry of a cell's emitted IR.
+
+    Found by the leader/participants shape AND a `kind` ending in `_round`.
+    Which of the three kinds it is remains under test; that it is a round at
+    all is the stable half, and it is what keeps this finder honest. Matching
+    on shape alone would need a hand-listed exclusion for every other
+    construct carrying the same pair (`turns` today), and the day a fourth
+    appeared this finder would silently return the wrong entry while the AST
+    finder next door failed loud.
+    """
     found: list[dict[str, Any]] = []
 
     def walk(node: Any) -> None:
         if isinstance(node, dict):
-            if {"leader", "participants"} <= node.keys() and "binder" not in node:
+            if {"leader", "participants"} <= node.keys() and str(
+                node.get("kind", "")
+            ).endswith("_round"):
                 found.append(node)
             for value in node.values():
                 walk(value)
@@ -370,11 +408,66 @@ def _ir_round(ir: Any) -> dict[str, Any]:
     return found[0]
 
 
+def test_the_three_forms_emit_three_distinct_ir_kinds() -> None:
+    """One kind per form, and no two forms sharing one.
+
+    `test_no_ir_key_is_null_across_a_whole_form` pins one kind per form; that
+    alone would be satisfied by all three emitting `"round"`, which is exactly
+    the state this change left.
+
+    red under: give `ir._stmt`'s climb arm the auction arm's kind string.
+    """
+    kinds = set()
+    for production in _TEMPLATES:
+        setting = axes.clause_settings(production)[0]
+        ir: Any = emit(check_dsl(_source(production, setting), "cell.cardlang"))
+        kinds.add(_ir_round(ir)["kind"])
+    assert len(kinds) == len(_TEMPLATES), f"forms share an IR kind: {sorted(kinds)}"
+
+
 EXECUTABLE_CELLS = [
     pytest.param(p, s, id=_label(p, s))
     for p, s in _cells()
     if _RAISES_TAGGED_OUTCOME not in s
 ]
+
+
+@pytest.mark.parametrize(("node", "runnable"), axes.move_type_forms())
+def test_only_the_runnable_move_type_is_accepted(node: type, runnable: str) -> None:
+    """A form naming a move type its decision site cannot run is rejected.
+
+    The misuse probe, and it found a real hole: the trick form has carried this
+    wall since the surface was written, and the climbing form never had one.
+    `round climb submit_bid` was accepted and then played out as an ordinary
+    climb -- big-two scored identically with the move type replaced. Seven of
+    the eight `LIBRARY_MOVE_TYPES` spellings meant nothing there.
+
+    The rejection must NAME the form: the two messages are otherwise a
+    copy-paste apart, and one saying "trick" on a climb round would send the
+    author to the wrong clause while still passing a bare `raises` check.
+    """
+    production = next(
+        p for p, cls in axes.round_node_by_production().items() if cls is node
+    )
+    setting = axes.clause_settings(production)[0]
+    form_word = node.__name__.removesuffix("Round").lower()
+    source = _source(production, setting)
+    assert f" {runnable}" in source, "the template does not name the runnable move type"
+
+    check_dsl(source, "cell.cardlang")  # the runnable name is accepted
+
+    wrong = sorted(LIBRARY_MOVE_TYPES - {runnable})
+    assert wrong, "no other move type exists to probe with"
+    for name in wrong:
+        probe = source.replace(f" {runnable}", f" {name}")
+        with pytest.raises(DiagnosticError) as excinfo:
+            check_dsl(probe, "cell.cardlang")
+        message = str(excinfo.value)
+        assert name in message, f"{form_word}: the diagnostic does not quote {name!r}"
+        assert form_word in message, (
+            f"a {form_word} round naming '{name}' was rejected, but the message "
+            f"does not say which form: {message.splitlines()[0]}"
+        )
 
 
 @pytest.mark.parametrize(("production", "setting"), EXECUTABLE_CELLS)

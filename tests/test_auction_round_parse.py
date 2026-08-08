@@ -12,7 +12,6 @@ with the trick-specific fields left absent. The runtime lands in a later commit.
 from __future__ import annotations
 
 import dataclasses
-
 from typing import Any
 
 from cardlang.ast import nodes as n

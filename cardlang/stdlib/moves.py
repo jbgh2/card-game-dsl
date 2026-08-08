@@ -48,3 +48,13 @@ LIBRARY_MOVE_TYPES: frozenset[str] = frozenset(
 # Which sites should eventually enforce rules is
 # docs/open-questions/rule-scope-beyond-trick-play.md.
 RULE_ENFORCED_MOVE_TYPE: str = "play_to_trick"
+
+# The ONE move type the climbing form's decision site runs. Named here for the
+# same reason as its neighbour above, but note the difference in strength: that
+# one has two readers and so cannot drift from its consumer, while NOTHING in
+# `ClimbForm` reads a climb round's `move_type` at all. The form runs the
+# combination engine named by its `combinations`/`follows` queries regardless.
+# So this constant has one reader — the resolver's Owner Guard — and its job is
+# to keep the two forms' facts in one place rather than to track a consumer.
+# Until that wall landed, every other spelling was accepted and meant nothing.
+CLIMB_DECISION_MOVE_TYPE: str = "play_combination"

@@ -103,7 +103,11 @@ from cardlang.stdlib.enums import (
     rank_names,
     suit_names,
 )
-from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES, RULE_ENFORCED_MOVE_TYPE
+from cardlang.stdlib.moves import (
+    CLIMB_DECISION_MOVE_TYPE,
+    LIBRARY_MOVE_TYPES,
+    RULE_ENFORCED_MOVE_TYPE,
+)
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
 from cardlang.typecheck import KNOWN_TYPE_NAMES
@@ -5388,6 +5392,18 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"climb round play zone '{nd.play_zone}' is unknown", nd.span)
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
                     bag.error(f"climb round move type '{nd.move_type}' is unknown", nd.span)
+                elif nd.move_type != CLIMB_DECISION_MOVE_TYPE:
+                    # The climbing form's decision site is hardwired to
+                    # `play_combination` — nothing in `ClimbForm` reads this
+                    # field at all — so any other name ran as a climb regardless
+                    # and meant nothing (decisions.md "Surface totality"). The
+                    # trick form has carried the same wall since its surface was
+                    # written; this form went without one.
+                    bag.error(
+                        f"the climb round form runs `{CLIMB_DECISION_MOVE_TYPE}`; "
+                        f"'{nd.move_type}' is not runnable on it (roadmap.md)",
+                        nd.span,
+                    )
                 if nd.combos_fn not in PRIMITIVE_CLIMB_LEADS:
                     bag.error(
                         f"climb round `combinations` query '{nd.combos_fn}' is not a "

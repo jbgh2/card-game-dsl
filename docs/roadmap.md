@@ -51,7 +51,7 @@ and resource transfers (`move 2 chips …` — the corpus keeps chips/coins as
 Integer state; moving resources through zones is undesigned). Elsewhere:
 `override` rule deltas in `active_rules:`, `before_each`/`after_each` on a
 phase with no iteration, transition events other than `play_to_trick`, a
-trick round naming a move type its form cannot run, duplicate
+trick or climb round naming a move type its form cannot run, duplicate
 `state { }` blocks, and named call arguments (`f(x = 1)` — rejected until
 a game needs the surface; positional arguments are the implemented form).
 Rules bind at one decision site — the trick round's card decision — so the

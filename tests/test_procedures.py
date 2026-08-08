@@ -330,7 +330,18 @@ _BODY_ACCEPTED = {
     "RepeatUntil", "IfStmt", "AsBlock", "Turns", "LetStmt", "AssignStmt",
     "Offer", "Produces",
 }
-_BODY_REJECTED = {"Produce", "ContinueTo", "SkipToNextHand", "RunStmt", "Round"}
+_BODY_REJECTED = {
+    "Produce",
+    "ContinueTo",
+    "SkipToNextHand",
+    "RunStmt",
+    # All three round forms, matching `resolve._WINNER_BINDING_STMTS`. Only
+    # the trick and climb forms bind a `winner`, which is the reason the
+    # wall gives — see issue #290; the wall itself rejects all three.
+    "TrickRound",
+    "AuctionRound",
+    "ClimbRound",
+}
 
 # Synthetic: no grammar production builds these, so no source program — and no
 # procedure body — can contain one. `Block` is what `expand` turns a `run` INTO.
