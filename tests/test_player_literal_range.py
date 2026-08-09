@@ -14,6 +14,12 @@ added. `tests/test_operand_choke_point.py` is the pin: it fails the day a new
 coercion site calls `coercible(...)` directly instead of routing through
 `_check_operand`.
 
+The one seat-valued position OUTSIDE this class is the `teams:` declaration's
+own integer lists, which are parsed straight onto the `Game` node and never
+become an operand expression at all -- so the choke point cannot reach them
+by construction, and they are walled at their declaration instead (ledger
+tests/test_teams_partition.py).
+
 The position axis is the framing-check reconciliation -- a fresh reading of the
 grammar and AST for every place an integer reaches a Player/Team, NOT the set of
 sites the wall happens to touch. It is: the EXPRESSION and CALL positions
@@ -70,10 +76,11 @@ sampled:    the Team axis runs two positions (a team-keyed index, a Team call
             `_check_operand`, the Player grid proves each such position reaches
             it, and the two team rows prove `_check_operand`->`_check_role_literal`
             ranges a `Team`. Their product is every team position ranged.
-residual:   `teams:` seat/team lists (`teams: [[0, 5]]` on a
-            two-seat game) are raw parse-time integers OUTSIDE the type system --
-            they never become an operand expression, so the choke point cannot
-            reach them (issue #155). A COMPUTED
+residual:   a range game's seat literals are bounded by `high` while the game is
+            PLAYED at `low` (`players: 2..5` accepts `hand[3]`, then the runtime
+            has two seats), so this ledger's own bound is the one nothing
+            executes at (issue #296); guard: the runtime's typed
+            `OwnerGuardError` on the phantom key. A COMPUTED
             out-of-range index (`hand[0 + 9]`) is the separate zone-family
             index-strictness residual (ledger tests/test_zone_family_typing.py),
             backstopped at runtime by the typed `ZoneStore` miss.

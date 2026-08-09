@@ -1877,6 +1877,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
+    _check_teams(game, bag)
     position_names = _resolve_positions(game, bag)
     # The board mints its `cell` domain into `game.positions` (after the
     # declared positions are validated, so the collision Owner Guard reads the
@@ -2923,6 +2924,92 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
         bag.error(
             f"game '{game.name}' must declare `winner: <rank-dir> <var>` or "
             "`loser: <player-expr>` — without one the playout has no result",
+            game.span,
+        )
+
+
+def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
+    """`teams:` must PARTITION the seats — every seat in exactly one team.
+
+    Every consumer already reads it as one: the driver and the OpenSpiel
+    returns path both build `{p: ti for ti, members in enumerate(game.teams)
+    for p in members}`, which is a partition or it is a lie. The three ways
+    to break it were all accepted silently (issue #155), and the dict
+    comprehension makes the worst one quiet rather than loud — a seat listed
+    in two teams is assigned the LATER one, because a later key overwrites an
+    earlier one, so the game plays on with that seat scoring for a team its
+    author did not put it on.
+
+    The wall belongs HERE, at the declaration, and not at any of the readers,
+    because one of the readers is the information sets. A team zone family
+    asks `domains.zone_observer_key` who owns an instance, which for a team
+    is `rs.team_of.get(observer)` -- so a seat in no team is silently a
+    non-owner of every team family, and a zone type whose owner projection
+    differs from its others projection shows that seat the count-only view of
+    its own team's zone. `tests/openspiel_ready/partition.py` asks the SAME
+    function, so the readiness proofs and the runtime agree on the same wrong
+    owner and the soundness matrix stays green: no downstream oracle can see
+    this, which is what makes the declaration the only place it can be
+    caught.
+
+    The grid is tests/test_teams_partition.py.
+    """
+    if not game.teams:
+        return
+    if not game.players.is_well_formed:
+        # Shadow Guard. `typecheck` owns the players-count diagnostic ("a game
+        # needs at least one player", "upper bound precedes lower bound") and
+        # is the only place it should be reported. Resolve raises before
+        # typecheck ever runs, so building a partition complaint on top of a
+        # malformed `players:` would REPLACE the real diagnostic with a
+        # derivative one and send the author to fix the wrong clause.
+        return
+    if game.players.varies:
+        # A fixed team list cannot partition a seat set that varies, and
+        # WHICH count it would have to cover is genuinely undecided: the
+        # engine plays a range game at `players.low` while the seat-literal
+        # bound uses `high` (issue #296). Refused rather than given a
+        # meaning here -- guessing one would pin a decision nobody made, and
+        # the next author would read its correction as a regression.
+        bag.error(
+            f"game '{game.name}' declares `teams:` beside a variable player "
+            f"count ({game.players.low}..{game.players.high}) — a fixed team "
+            f"list names fixed seats, so it cannot cover a seat set that "
+            f"changes with the count. Declare a single `players:` count",
+            game.span,
+        )
+        return
+    count = game.players.low
+    holding: dict[int, list[int]] = {}
+    for team_index, members in enumerate(game.teams):
+        for seat in members:
+            holding.setdefault(seat, []).append(team_index)
+
+    for seat in sorted(s for s in holding if not 0 <= s < count):
+        bag.error(
+            f"`teams:` names seat {seat}, which the game does not have: it "
+            f"declares {count} player(s) (0..{count - 1}). The seat never "
+            f"matches, so its team silently plays a member short",
+            game.span,
+        )
+    for seat in sorted(s for s, ts in holding.items() if len(ts) > len(set(ts))):
+        bag.error(
+            f"`teams:` lists seat {seat} twice in the same team — a seat "
+            f"belongs to its team once",
+            game.span,
+        )
+    for seat in sorted(s for s, ts in holding.items() if len(set(ts)) > 1):
+        named = ", ".join(str(t) for t in sorted(set(holding[seat])))
+        bag.error(
+            f"`teams:` puts seat {seat} on more than one team (teams "
+            f"{named}) — the engine keeps only the last, so this seat would "
+            f"score for a team you did not put it on",
+            game.span,
+        )
+    for seat in (s for s in range(count) if s not in holding):
+        bag.error(
+            f"`teams:` leaves seat {seat} on no team, but the game declares "
+            f"{count} player(s) — every seat must belong to exactly one team",
             game.span,
         )
 
@@ -4902,8 +4989,8 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     # RANGE is refused even where it includes two, since the game may be
     # instantiated with more).
     players = game.players
-    if nd.func in _FRAME_CALL_FUNCS and (players.is_range or players.low != 2):
-        count = f"{players.low}-{players.high}" if players.is_range else str(players.low)
+    if nd.func in _FRAME_CALL_FUNCS and (players.varies or players.low != 2):
+        count = f"{players.low}-{players.high}" if players.varies else str(players.low)
         bag.error(
             f"`{nd.func}` reads a grid's two-player movement frame (one seat's "
             f"forward is the other's, the 180-degree opposite), but the game "

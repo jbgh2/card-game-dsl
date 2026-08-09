@@ -1,0 +1,27 @@
+// Wall: typecheck's `loser:` arm, which routes the selection through the
+// operand choke point against `Player`. `loser:` names the losing player
+// directly, so a selection whose type is concretely something else can never
+// denote one. Before the choke point this clause carried no player check at
+// all and the mistake surfaced only as a typed RuntimeError once a playout
+// reached the outcome (issue #107); the driver's raise stays as the backstop
+// for a gradually-typed (`TAny`) selection, which the checker cannot judge.
+game LoserSelectionNotAPlayer {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+  state { done : Boolean = false }
+  phase setup { deal 5 cards from deck to each hand }
+  phase play {
+    turns t from 0 over all players until done {
+      offer to t one of [stop]
+    }
+  }
+  loser: done
+}
+move_type stop { effect { done := true } }
