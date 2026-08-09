@@ -38,12 +38,18 @@ clock (below), so markers carry an instance, not just a gap:
   counts as a sighting, so a re-taken Lease can never inherit a dead
   Lease's clock, and a gap that closes and later reopens gets flagged
   again rather than silently suppressed.
-- The reconciliation domain is derived, never sampled: the issues
-  carrying any `warden:` marker, found by comment search
-  (`gh search issues --repo <repo> "warden:" ` with `in:comments` — the
-  markers themselves are the registry of flags). A recency window is a
-  silent cap wearing a scan; if the search cannot run, say so in the
-  report rather than substituting a sample.
+- The reconciliation domain is derived, never sampled: every issue AND
+  pull request carrying any `warden:` marker, found by comment search —
+  `gh search issues --repo <repo> --include-prs --limit 200 "warden:"`
+  with `in:comments`. The markers are the registry of flags, and the
+  search must cover them completely: `--include-prs` because thread
+  markers live on pull requests and the default search excludes them
+  (an unreconcilable marker suppresses every later warning on that PR);
+  an explicit `--limit` with a full-page refusal — a result count that
+  fills the limit is a capped read, not a domain — because the command's
+  default caps at thirty silently. A recency window is a silent cap
+  wearing a scan; if the search cannot run or fills its limit, say so in
+  the report rather than substituting a sample.
 
 ## The round, in order
 
