@@ -3,7 +3,7 @@
 How work flows through this repo: who may take what, who merges which
 change, and how the tracker carries the work graph. This file is process
 doctrine. The merge *gate* stays in CLAUDE.md ("Verifying changes"); the
-vocabulary lives in `docs/glossary.md` (§7); deferred harness *work*
+vocabulary lives in `docs/glossary.md`; deferred harness *work*
 lives in the tracker like all work (epic
 [#274](https://github.com/jbgh2/card-game-dsl/issues/274)). Everything
 here is public by design — the graph, the doctrine, the roles, and their

@@ -22,7 +22,7 @@ language's value-position surface, never from a wall's own coverage:
     NO `assert_never` (it is handled by permissive isinstance-chains: `unify`,
     `assignable`, `subscriptable`, `_type_name`, the operand walls), so a
     brand-new value type risks falling through EVERY type wall SILENTLY (the
-    permissive-top defect class, [[permissive-top-split]]). The axis is the
+    permissive-top defect class, [[permissive-top]]). The axis is the
     grep-confirmed set of every function that consumes a `Type` -- the SAME
     surface `tests/test_board_clause.py` sweeps for `TCell` -- re-proven for a
     `dir` value. `TDir` is structurally identical to `TCell` (there is no
