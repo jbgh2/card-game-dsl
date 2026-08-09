@@ -39,7 +39,7 @@ registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             tests/test_boards_registry.py); the resolve wall -- cardlang.
             resolve._check_board_call; the typecheck call walls -- cardlang.
             typecheck (infer's Call arm -> sig.ret; _check_expr's Call arm ->
-            arity + per-arg assignable); the pairwise consumers -- cardlang.
+            arity + per-arg coercible); the pairwise consumers -- cardlang.
             typecheck (_domain_query_binder_type, _check_transfer/_is_zone_type,
             _check_card_source, _check_is_check, _check_membership_operands) and
             the movement-source grammar.

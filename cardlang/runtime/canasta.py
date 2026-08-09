@@ -43,7 +43,7 @@ from dataclasses import dataclass
 
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 # Every zone/state var this module reads by name is declared in

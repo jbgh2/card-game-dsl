@@ -186,10 +186,10 @@ _ENGINE_CORE: dict[str, str] = {
     "execute.py": "engine core — the statement interpreter",
     "mechanics.py": "engine core — the round machinery",
     "observe.py": "engine core — the projection substrate",
-    "phases.py": "engine core — phase sequencing",
+    "active_rules.py": "engine core — active-rule computation for a phase",
     "reads.py": "the declared-reads accessors (the sanctioned raw-access site)",
     "rules.py": "engine core — rule application",
-    "sidecar.py": "the binder — it BUILDS the bundles, so it holds the handle",
+    "narrowing.py": "the binder — it BUILDS the bundles, so it holds the handle",
     "state.py": "engine core — defines RuntimeState and Ctx",
     "builtins.py": "engine core — the generic native functions",
     "primitives.py": "engine core — the dispatch layer that BUILDS the bundles",
@@ -779,18 +779,18 @@ def test_game_module_is_free_of_engine_handle(module: str, handle: str) -> None:
 # --- grid (c): EngineFacts ---------------------------------------------------
 
 
-def _sidecar() -> Any:
+def _narrowing() -> Any:
     """The mechanism under test. Imported lazily so that, before it exists,
     the cells below fail with this message rather than collapsing the whole
     module into a collection error."""
     try:
-        from cardlang.runtime import sidecar
+        from cardlang.runtime import narrowing
     except ImportError as exc:  # pragma: no cover - the red state
         pytest.fail(
-            f"cardlang/runtime/sidecar.py does not exist yet: {exc}. It owns "
+            f"cardlang/runtime/narrowing.py does not exist yet: {exc}. It owns "
             f"EngineFacts, GameReads and the binder."
         )
-    return sidecar
+    return narrowing
 
 
 # The engine expression each field mirrors. This IS the field axis: a field
@@ -837,7 +837,7 @@ def test_every_engine_fact_has_a_consumer() -> None:
     ledger's "every field is consumed" would be prose, not a guarantee:
     adding a field to the dataclass, `_FACT_SOURCES` and the value matrix
     would leave the suite entirely green."""
-    facts_cls = _sidecar().EngineFacts
+    facts_cls = _narrowing().EngineFacts
     fields = frozenset(facts_cls.__dataclass_fields__)
     assert fields == frozenset(_FACT_CONSUMERS), (
         f"EngineFacts fields {sorted(fields)} disagree with the consumer map "
@@ -875,7 +875,7 @@ def test_every_engine_fact_is_pinned() -> None:
     """The field axis, both ways: EngineFacts' fields and `_FACT_SOURCES`'
     keys are the same set. A field with no named engine source cannot be
     reviewed for whether it is the RIGHT value."""
-    facts_cls = _sidecar().EngineFacts
+    facts_cls = _narrowing().EngineFacts
     fields = frozenset(facts_cls.__dataclass_fields__)
     assert fields == frozenset(_FACT_SOURCES), (
         f"EngineFacts fields {sorted(fields)} disagree with the pinned "
@@ -890,9 +890,9 @@ def test_engine_fact_carries_the_engine_value(field: str) -> None:
     is, so a round-state frame's `played: []` reads as the `played: ()` the
     freeze produces (same value, immutable shape) rather than failing on the
     list-vs-tuple the purity guarantee deliberately introduces."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
-    facts = sidecar.engine_facts(rs, actor=1)
+    facts = narrowing.engine_facts(rs, actor=1)
     expected: dict[str, Any] = {
         "seating": rs.seating,
         "teams": reads_mod.deep_freeze(rs.teams),
@@ -913,9 +913,9 @@ def test_engine_facts_holds_no_live_engine_object_by_identity() -> None:
     dataclass/mapping fact is the engine's live object. This is the guard that
     would have caught `seating` being passed by identity. (An immutable tuple
     of scalars like `teams` may keep identity — safe, nothing to setattr.)"""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
-    facts = sidecar.engine_facts(rs, actor=0)
+    facts = narrowing.engine_facts(rs, actor=0)
     sources = {
         "seating": rs.seating,  # a frozen+slots dataclass -> must be a copy
         "team_of": rs.team_of,
@@ -936,10 +936,10 @@ def test_the_two_round_state_views_are_distinct() -> None:
     read the first, Tichu's `tichu_dragon_won` the second — collapsing them
     changes behavior while a round is active, which is exactly what this
     stage must not do."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"marker": "live"})
-    facts = sidecar.engine_facts(rs, actor=None)
+    facts = narrowing.engine_facts(rs, actor=None)
     assert facts.round_state == {"marker": "live"}
     assert facts.last_round_state is not None
     assert facts.last_round_state["marker"] == "terminal"
@@ -948,8 +948,8 @@ def test_the_two_round_state_views_are_distinct() -> None:
 
 def test_engine_facts_is_frozen() -> None:
     """Structural, not conventional: a primitive cannot write back."""
-    sidecar = _sidecar()
-    facts = sidecar.engine_facts(_live_state(), actor=None)
+    narrowing = _narrowing()
+    facts = narrowing.engine_facts(_live_state(), actor=None)
     with pytest.raises((AttributeError, TypeError)):
         # `facts` is typed Any here (the module is imported lazily), so this
         # is a RUNTIME check that frozen+slots really refuses the write —
@@ -1130,11 +1130,11 @@ def test_engine_facts_round_state_is_deeply_immutable_at_any_depth() -> None:
     `rs.mech_state` / `rs.last_round_state` through them at any depth."""
     from copy import deepcopy
 
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"played": [(0, "a"), (1, "b")], "nest": deepcopy(_NESTED)})
     rs.last_round_state = {"played": [], "nest": deepcopy(_NESTED)}
-    facts = sidecar.engine_facts(rs, actor=0)
+    facts = narrowing.engine_facts(rs, actor=0)
 
     for name in ("round_state", "last_round_state"):
         bad = _reachable_mutable(getattr(facts, name), f"facts.{name}")
@@ -1192,7 +1192,7 @@ def test_corpus_play_types_are_slotted() -> None:
     they must be truly immutable (frozen AND slotted), not just frozen —
     otherwise deep_freeze would refuse them mid-playout."""
     from cardlang.runtime.bigtwo import Play as BigTwoPlay
-    from cardlang.runtime.combinations import Play as CombinationsPlay
+    from cardlang.runtime.tichu_combinations import Play as CombinationsPlay
     from cardlang.runtime.president import Play as PresidentPlay
 
     for cls in (BigTwoPlay, CombinationsPlay, PresidentPlay):
@@ -1391,10 +1391,10 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
     """The whole bundle, not two chosen fields: EVERY EngineFacts field is
     immutable at every depth. Nested data is injected into the round-state
     frames; the scalar/tuple/frozen-dataclass fields pass by construction."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"played": [(0, "a")], "nest": _NESTED})
-    facts = sidecar.engine_facts(rs, actor=1)
+    facts = narrowing.engine_facts(rs, actor=1)
     offenders: list[str] = []
     for name in facts.__dataclass_fields__:
         offenders += _reachable_mutable(getattr(facts, name), f"facts.{name}")

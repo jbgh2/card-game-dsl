@@ -22,12 +22,12 @@ registry:   `resolve._introduced_binders` (which kinds bind which names) and
             (Phase.items, IfStmt.then/else, RepeatUntil.body,
             BeforeEach/AfterEach.body, MoveTypeDef.effect, ProduceArm.body)
 covered:    - Quantifier: binder in `body` only (out-of-scope-after test)
-            - Comprehension: binder in `filter`+`body`, NOT `default`,
+            - Comprehension: binder in `where`+`body`, NOT `default`,
               NOT `source` (accept + reject tests; mirrors typecheck.py
               `_check_expr`'s scoping of the same node)
-            - CardQuery: `card` in `pred` only, NOT `source` (reject test);
+            - CardQuery: `card` in `where` only, NOT `source` (reject test);
               nested queries shadow legally (accept test)
-            - PlayerQuery: `player` in `pred` only (stray-`player` reject)
+            - PlayerQuery: `player` in `where` only (stray-`player` reject)
             - Transfer / EpistemicOp: `card` in `filter` only (accept tests)
             - ForEach / EachSimultaneous: binder/role in `body` (accept)
             - LetStmt name: visible to LATER statements of the same tuple
@@ -68,11 +68,13 @@ residual:   none
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_text
-from cardlang.resolve import resolve
+from cardlang.resolve import _BINDER_SCOPE_FIELDS, resolve
 
 
 def _game(body: str) -> str:
@@ -430,3 +432,28 @@ def test_rotate_of_a_let_bound_local_is_rejected() -> None:
 """,
         "cannot rotate 'x': it is a binder",
     )
+
+
+def test_every_binder_scope_field_is_a_real_field_of_its_node() -> None:
+    """`_BINDER_SCOPE_FIELDS` names its scope fields as STRINGS, so `mypy` sees
+    nothing when one is renamed — the row goes on pointing at a field that no
+    longer exists and the binder silently stops being scoped anywhere.
+
+    That is not hypothetical: renaming `CardQuery.pred` to `.where` left this
+    registry behind, and the first thing to notice was a corpus game failing to
+    resolve `player` inside a query. It was caught only because a game happened
+    to exercise it.
+
+    What this pin does NOT cover, deliberately: a field that SHOULD be scoped
+    and has no row. Whether a new field sees the binder is a judgment about the
+    construct, not something derivable from the dataclass.
+
+    red under: change any row's field name, e.g. `n.CardQuery: ("pred",)`.
+    """
+    for node, fields in _BINDER_SCOPE_FIELDS.items():
+        actual = {f.name for f in dataclasses.fields(node)}
+        missing = sorted(set(fields) - actual)
+        assert not missing, (
+            f"_BINDER_SCOPE_FIELDS[{node.__name__}] names {missing}, which "
+            f"{node.__name__} does not have — the binder is scoped to nothing there"
+        )

@@ -125,7 +125,7 @@ def _winner_target_index(game: n.Game) -> str | None:
     winner target may be declared in a nested phase block, not only at game
     level."""
     assert game.winner is not None  # callers check; keeps mypy and intent aligned
-    target = game.winner.target
+    target = game.winner.state_var
     for block in n.state_blocks(game):
         for decl in block.decls:
             if decl.name == target:

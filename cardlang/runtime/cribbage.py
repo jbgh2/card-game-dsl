@@ -35,7 +35,7 @@ from collections.abc import Mapping
 from itertools import combinations
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")

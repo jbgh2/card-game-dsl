@@ -35,7 +35,7 @@ from __future__ import annotations
 from itertools import combinations
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 # Every zone this module reads by name is declared in PRIMITIVE_READS

@@ -17,7 +17,7 @@ domain:    the four binder-introducing expression forms `_check_expr`
            special-cases (`n.Quantifier`, `n.PlayerQuery`, `n.CardQuery`,
            `n.Comprehension`) crossed with every position each carries:
            Quantifier.body; PlayerQuery.pred; CardQuery.source, CardQuery.
-           pred; Comprehension.source, Comprehension.filter, Comprehension.
+           pred; Comprehension.source, Comprehension.where, Comprehension.
            body, Comprehension.default (default only exists for `agg in
            {"max","min"}` — the grammar's `agg_order` production makes it
            mandatory there and absent for `agg_sum`).
@@ -35,7 +35,7 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            card-typed non-collection would unify with TCard and pass, then
            crash at runtime iteration; reused by Comprehension);
            CardQuery.pred (Boolean-checked); Comprehension.source (shared
-           wall, reused); Comprehension.filter (Boolean-checked);
+           wall, reused); Comprehension.where (Boolean-checked);
            Comprehension.body (Integer-checked for all three `agg` values;
            the TEnum sub-case is checked separately for `sum` — a
            TypeError-at-runtime message — and `max`/`min` — a silent-
@@ -260,7 +260,7 @@ def test_card_query_source_accepts_a_real_zone() -> None:
 
 
 # =============================================================================
-# Comprehension.filter — must be Boolean
+# Comprehension.where — must be Boolean
 # =============================================================================
 
 

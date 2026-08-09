@@ -235,7 +235,7 @@ def test_team_family_subscript_by_an_integer_literal() -> None:
 
 def test_rejects_a_player_index_on_a_team_family() -> None:
     # The wrong-role cross-check: a Player-typed value doesn't stand for a
-    # Team identity (`assignable(TPlayer, TTeam)` is False — only Integer
+    # Team identity (`coercible(TPlayer, TTeam)` is False — only Integer
     # coerces to either), so this is a genuinely wrong sentence, not a
     # narrower case of the accepted Integer-literal shape above.
     _rejects(

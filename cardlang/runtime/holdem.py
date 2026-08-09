@@ -30,7 +30,7 @@ from collections.abc import Mapping, Sequence
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.poker import side_pot_payouts
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/holdem.py", "holdem.cardlang")

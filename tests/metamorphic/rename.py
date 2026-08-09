@@ -287,9 +287,9 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         # `winner: lowest/highest <target>` names its score state variable as
         # a bare string too (the grammar production has no room for a general
         # expression here), not a `NameRef`.
-        new = name_map.get(node.target)
+        new = name_map.get(node.state_var)
         if new is not None:
-            node = replace(node, target=new)
+            node = replace(node, state_var=new)
     elif isinstance(node, n.Turns):
         # `turns … again <var>` names its go-again state variable as a bare
         # string (the grammar takes a NAME there) — the `Winner.target`

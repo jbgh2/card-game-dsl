@@ -63,7 +63,7 @@ from cardlang.builtins.signatures import (
     ZONE_CONTENT,
     Sig,
 )
-from cardlang.runtime import sidecar
+from cardlang.runtime import narrowing
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, TTeam
 
@@ -431,7 +431,7 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
                 # DECLARED type is the first element, and the second must be
                 # the trace-event tuple — checked, not waved through.
                 targs = typing.get_args(actual_ret)
-                if len(targs) != 2 or targs[1] != tuple[sidecar.TraceEvent, ...]:
+                if len(targs) != 2 or targs[1] != tuple[narrowing.TraceEvent, ...]:
                     problems.append(
                         f"{name}: EMITS_TRACE helper must return "
                         f"(value, tuple[TraceEvent, ...]); got {actual_ret}"

@@ -26,7 +26,7 @@ registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            bare name at all) and agree by construction on which field is
            special, which is what makes "the whole class is exactly these
            two members" a checked claim, not an assumption.
-covered:   Transfer.filter and EpistemicOp.filter, each: rejects an unknown
+covered:   Transfer.where and EpistemicOp.where, each: rejects an unknown
            Card field inside the filter (the closed CARD_FIELDS wall, now
            reachable — THE PROBE); rejects a non-Boolean filter; accepts the
            real corpus shape (`card.suit is hearts`/`card.rank is Q`).
@@ -296,8 +296,8 @@ def test_runtime_is_empty_over_a_card_query_set_result() -> None:
     query = n.CardQuery(
         kind="set",
         source=n.NameRef("hand", ref_kind="zone"),
-        pred=n.BinOp(
-            "==",
+        where=n.BinOp(
+            "is",
             n.Member(n.NameRef("card", ref_kind="local"), "suit"),
             n.NameRef("hearts", ref_kind="enum_value"),
         ),
@@ -308,8 +308,8 @@ def test_runtime_is_empty_over_a_card_query_set_result() -> None:
     query_no_match = n.CardQuery(
         kind="set",
         source=n.NameRef("hand", ref_kind="zone"),
-        pred=n.BinOp(
-            "==",
+        where=n.BinOp(
+            "is",
             n.Member(n.NameRef("card", ref_kind="local"), "suit"),
             n.NameRef("spades", ref_kind="enum_value"),
         ),

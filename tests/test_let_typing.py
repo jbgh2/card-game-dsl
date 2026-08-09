@@ -413,12 +413,12 @@ def test_a_zone_valued_let_map_still_works() -> None:
     )
 
 
-# --- facets through unify, and the walls that guard them -----------------------
+# --- facets through join, and the walls that guard them -----------------------
 
 
 def test_a_conditional_choice_of_zones_is_still_a_zone() -> None:
-    # Were unify() to rebuild TCollection(element) BARE, it would strip
-    # zone=True even from unify(zone, zone) — falsely rejecting this legal
+    # Were join() to rebuild TCollection(element) BARE, it would strip
+    # zone=True even from join(zone, zone) — falsely rejecting this legal
     # program with a hint calling two named zones 'a query result or list'.
     # Facets the branches agree on survive.
     check_dsl(
@@ -444,7 +444,7 @@ def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
 
 
 def test_a_map_merged_with_a_non_map_stays_keyed() -> None:
-    # The key facet is STICKY through unify: `if c then n else [99]` may be a
+    # The key facet is STICKY through join: `if c then n else [99]` may be a
     # dict at runtime, so `2 in m` is exactly as ambiguous as on the map
     # itself — without stickiness it would run the keys-vs-values misread on
     # the map branch while typing as a plain list. The domain becomes

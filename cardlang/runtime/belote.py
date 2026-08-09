@@ -61,7 +61,7 @@ from collections.abc import Mapping
 
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
 ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")

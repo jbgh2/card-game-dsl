@@ -231,7 +231,7 @@ def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:
     game = check_dsl(_team_game(players=2, teams="[[1], [0]]"), "x.cardlang")
     assert game.state is not None and game.winner is not None
     decls = tuple(
-        dataclasses.replace(d, index="column") if d.name == game.winner.target else d
+        dataclasses.replace(d, index="column") if d.name == game.winner.state_var else d
         for d in game.state.decls
     )
     planted = dataclasses.replace(

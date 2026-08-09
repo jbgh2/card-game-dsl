@@ -1822,7 +1822,7 @@ _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
         "hand",
         None,
     ),
-    "ContinueTo.target": (
+    "ContinueTo.phase": (
         "define d -> {{ a | b }} {{ produce a }} "
         "move_type m {{ effect {{ d produces: a {{ continue to {read} }} b {{ }} }} }}",
         "play",
@@ -2127,7 +2127,7 @@ def test_the_same_slot_naming_what_the_library_has_is_accepted(
     Several slots have no twin, and their absence is the design rather than a
     gap: a library declares no zones, no phases and no position domains, so
     there is no legal spelling for either round form's `source_zone` or
-    `play_zone`, `ContinueTo.target` or `DomainQuery.binder` to take. The controls beside them
+    `play_zone`, `ContinueTo.phase` or `DomainQuery.binder` to take. The controls beside them
     establish that the enclosing statements parse and resolve.
 
     red under: make the sweep reject any name it inspects rather than only the

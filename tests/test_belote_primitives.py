@@ -50,7 +50,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.belote import (
     belote_best_is,
     belote_trick_winner,
@@ -170,7 +170,7 @@ def test_best_is_rejects_a_non_class_argument() -> None:
     # needed to probe it (the argument is a literal in the game file).
     with pytest.raises(OwnerGuardError, match="not a declaration class"):
         belote_best_is(
-            cast(sidecar.EngineFacts, None), cast(reads.GameReads, None), 0, 7, "A", False
+            cast(narrowing.EngineFacts, None), cast(reads.GameReads, None), 0, 7, "A", False
         )
 
 

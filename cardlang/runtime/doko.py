@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts, TraceEvent
+from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/doko.py", "doppelkopf.cardlang")

@@ -371,7 +371,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # one — a library body may write it — and `Winner.target` is the game-level
     # twin `resolve`'s own comment has documented since before this table.
     (n.Turns, "again"): "state",
-    (n.Winner, "target"): "state",
+    (n.Winner, "state_var"): "state",
     # Zones. The two card-moving round forms name both of their zones as bare
     # strings; the auction form moves no cards and so has neither.
     (n.TrickRound, "source_zone"): "zone",
@@ -379,8 +379,8 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.ClimbRound, "source_zone"): "zone",
     (n.ClimbRound, "play_zone"): "zone",
     # Phases.
-    (n.ContinueTo, "target"): "phase",
-    (n.TransitionTo, "target"): "mode",
+    (n.ContinueTo, "phase"): "phase",
+    (n.TransitionTo, "mode"): "mode",
     # Types, in every position a type name can be written.
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
@@ -456,7 +456,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
     {
         (n.AssignStmt, "op"),
         (n.BinOp, "op"),
-        (n.RuleRef, "op"),
+        (n.RuleRef, "delta"),
         (n.EpistemicOp, "op"),
         (n.IsCheck, "kind"),
         (n.CardQuery, "kind"),
@@ -2004,11 +2004,11 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
-        case n.Transfer() if node.filter is not None:
+        case n.Transfer() if node.where is not None:
             # `where jointly` binds the candidate SET; a per-card `where`
             # binds each candidate (decisions.md "Joint-predicate selection").
             return (content_noun(flavor, plural=node.joint),)
-        case n.EpistemicOp() if node.filter is not None:
+        case n.EpistemicOp() if node.where is not None:
             return (content_noun(flavor, plural=False),)
         case n.LetStmt():
             return (node.name, node.index) if node.index is not None else (node.name,)
@@ -2243,7 +2243,7 @@ def _instantiate_rules(game: n.Game, bag: DiagnosticBag) -> n.Game:
         if not isinstance(nd, n.ActiveRules):
             continue
         for ref in nd.refs:
-            if ref.op in ("remove", "override"):
+            if ref.delta in ("remove", "override"):
                 continue
             template = local.get(ref.name, lib.get(ref.name))
             if template is None:
@@ -2331,7 +2331,7 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
     (`_instantiate_rules`'s docstring) — they only resolve X by NAME against a
     rule a `plain`/`add` reference already activated. A reference to a name no
     `plain`/`add` ever activates in the scope the runtime actually consults is
-    a structural no-op forever: `runtime/phases.py`'s `compute_active_rules`
+    a structural no-op forever: `runtime/active_rules.py`'s `compute_active_rules`
     computes one phase's active set from exactly two sources — that phase's
     OWN `active_rules:` entries (applied unconditionally, in the list's own
     order), and, layered on top, each of its currently-active MODES. This check
@@ -2352,12 +2352,12 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
         own_refs = [
             ref for item in phase.items if isinstance(item, n.ActiveRules) for ref in item.refs
         ]
-        own_added = {r.name for r in own_refs if r.op in ("plain", "add")}
+        own_added = {r.name for r in own_refs if r.delta in ("plain", "add")}
         _validate_removes(own_refs, own_added, bag)
 
         for mode in (i for i in phase.items if isinstance(i, n.Mode)):
             mode_refs = [ref for block in mode.active_rules for ref in block.refs]
-            cluster_added = own_added | {r.name for r in mode_refs if r.op in ("plain", "add")}
+            cluster_added = own_added | {r.name for r in mode_refs if r.delta in ("plain", "add")}
             _validate_removes(mode_refs, cluster_added, bag)
 
         children = tuple(i for i in phase.items if isinstance(i, n.Phase))
@@ -2366,7 +2366,7 @@ def _check_rule_removes(phases: tuple[n.Phase, ...], bag: DiagnosticBag) -> None
 
 def _validate_removes(refs: list[n.RuleRef], added: set[str], bag: DiagnosticBag) -> None:
     for ref in refs:
-        if ref.op == "remove" and ref.name not in added:
+        if ref.delta == "remove" and ref.name not in added:
             bag.error(
                 f"`-{ref.name}` removes a rule that is never added in scope "
                 f"here (this phase's own `active_rules:`, or one of its "
@@ -2617,11 +2617,11 @@ def _check_state_scope(game: n.Game, bag: DiagnosticBag) -> None:
     # `winner: <dir> NAME` needs naming separately: `Winner.target` is a bare
     # `str` and never becomes a `NameRef` (issue #243), so the walk above cannot
     # see it.
-    if game.winner is not None and game.winner.target not in top:
-        where = declared_at.get(game.winner.target, [])
+    if game.winner is not None and game.winner.state_var not in top:
+        where = declared_at.get(game.winner.state_var, [])
         home = " or ".join(f"phase '{w}'" for w in where) or "a phase"
         bag.error(
-            f"`winner:` ranks on state variable '{game.winner.target}', which "
+            f"`winner:` ranks on state variable '{game.winner.state_var}', which "
             f"is declared in {home} and so does not exist when the winner is "
             f"decided — the phase has exited by then. Declare it at game level",
             game.winner.span,
@@ -2788,7 +2788,7 @@ def _sweep_aliases(
         case n.Turns():
             # leader/participants/termination evaluate OUTSIDE the turn, in the
             # enclosing scope — the binder does not exist there yet.
-            for outer in (node.leader, node.participants, node.termination):
+            for outer in (node.leader, node.participants, node.until):
                 _sweep_aliases(outer, aliases, flavor, bag)
             turn = _rebound(node.binder, f"`turns {node.binder}`")
             _sweep_stmt_seq(node.body, turn, flavor, bag)
@@ -2886,7 +2886,7 @@ def _check_alias_operands(
 ) -> None:
     """Refuse `<alias> is <alias>` / `<alias> is not <alias>`: both operands
     name the acting player, so the comparison is a constant."""
-    if node.op not in ("==", "!="):
+    if node.op not in ("is", "is_not"):
         return
     left, right = node.left, node.right
     if not (isinstance(left, n.NameRef) and isinstance(right, n.NameRef)):
@@ -2896,8 +2896,8 @@ def _check_alias_operands(
         for ref in (left, right)
     ):
         return
-    word = "is" if node.op == "==" else "is not"
-    verdict = "always true" if node.op == "==" else "never true"
+    word = "is" if node.op == "is" else "is not"
+    verdict = "always true" if node.op == "is" else "never true"
     where = (
         f"{aliases.origin} binds the acting player, so "
         if aliases.origin is not None
@@ -3369,7 +3369,7 @@ def _resolve_phase_level(
                 f"block — merge the declarations into one",
                 state_blocks[1].span,
             )
-        if phase.qualifier is None or phase.qualifier.kind != "repeats":
+        if phase.qualifier is None or phase.qualifier.kind != "repeat_until":
             for hook in phase.items:
                 if isinstance(hook, (n.BeforeEach, n.AfterEach)):
                     kw = "before_each" if isinstance(hook, n.BeforeEach) else "after_each"
@@ -3391,9 +3391,9 @@ def _resolve_phase_level(
 def _resolve_transition(
     transition: n.TransitionTo, mode_names: set[str], bag: DiagnosticBag
 ) -> None:
-    if transition.target not in mode_names:
+    if transition.mode not in mode_names:
         bag.error(
-            f"transition_to target '{transition.target}' is not a sibling mode "
+            f"transition_to target '{transition.mode}' is not a sibling mode "
             f"of this phase — a transition ends one condition and begins "
             f"another, so its target is a `mode` declared beside this one",
             transition.span,
@@ -3430,7 +3430,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
       `active_rules:` silently never apply.
     """
     modes = [i for i in phase.items if isinstance(i, n.Mode)]
-    targeted = {t.target for m in modes for t in m.transitions}
+    targeted = {t.mode for m in modes for t in m.transitions}
 
     # A target belongs to ONE condition. Two sources naming the same target
     # read as "two conditions that happen to end together", but the runtime
@@ -3443,11 +3443,11 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     claimed_by: dict[str, str] = {}
     for mode in modes:
         for transition in mode.transitions:
-            owner = claimed_by.setdefault(transition.target, mode.name)
+            owner = claimed_by.setdefault(transition.mode, mode.name)
             if owner != mode.name:
                 bag.error(
                     f"modes '{owner}' and '{mode.name}' both transition to "
-                    f"'{transition.target}' — a target is the far side of one "
+                    f"'{transition.mode}' — a target is the far side of one "
                     f"condition, and sharing it makes either trigger end both. "
                     f"Give each condition its own target mode",
                     transition.span,
@@ -3486,7 +3486,7 @@ def _resolve_phase_item(
         for ref in item.refs:
             if ref.name not in known_rule_names:
                 bag.error(f"active_rules names undefined rule '{ref.name}'", ref.span)
-            if ref.op == "override":
+            if ref.delta == "override":
                 bag.error(
                     f"`override {ref.name}` is not yet supported by the runtime "
                     f"(roadmap.md) — use `add`/`remove` deltas",
@@ -4020,15 +4020,15 @@ def _rewrite_produce_arm(
 # no entry here.
 _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.Quantifier: ("body",),
-    n.Comprehension: ("filter", "body"),
-    n.CardQuery: ("pred",),
-    n.PlayerQuery: ("pred",),
-    # A DomainQuery's binder scopes to its `pred` only; the `in` source is
+    n.Comprehension: ("where", "body"),
+    n.CardQuery: ("where",),
+    n.PlayerQuery: ("where",),
+    # A DomainQuery's binder scopes to its `where` only; the `in` source is
     # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose
     # source field is likewise absent here).
-    n.DomainQuery: ("pred",),
-    n.Transfer: ("filter",),
-    n.EpistemicOp: ("filter",),
+    n.DomainQuery: ("where",),
+    n.Transfer: ("where",),
+    n.EpistemicOp: ("where",),
     n.ForEach: ("body",),
     n.EachSimultaneous: ("body",),
     # `turns`' binder scopes to the body only: leader/participants/termination
@@ -4353,7 +4353,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
 # `Rank?` because "no block" is a real state. The call sites all sit inside `if
 # block_claim is not none`, but the language has no flow narrowing, so a bare
 # `Rank` parameter would reject the very argument the block sites must pass. A
-# `Rank?` parameter accepts both (`assignable(Rank, Rank?)`), which is why the
+# `Rank?` parameter accepts both (`coercible(Rank, Rank?)`), which is why the
 # optional form is the one the corpus forces. Bare `Rank` rides along: it is the
 # same domain minus the null, meaningful on its own, and free to support.
 #
@@ -4416,7 +4416,7 @@ _WINNER_BINDING_STMTS = (n.TrickRound, n.AuctionRound, n.ClimbRound)
 # `turn := 1` would write the state variable while every `turn` around it meant the
 # binder — one name, two things, silently. Classifying the target makes that impossible
 # rather than merely detected: the target resolves to the binder, and a binder is not
-# assignable.
+# a write target.
 _WRITE_TARGET_KINDS: dict[str, str] = {
     "local": "a binder (a `let`, a loop binder, or a parameter)",
     "zone": "a zone",
@@ -5318,11 +5318,11 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # `reveal one card from turn` checked clean and then reached an
                 # executor that requires an actual Zone as the op's target and
                 # refuses anything else, exactly like the movement endpoints.
-                bad = _bad_zone_endpoint(nd.target, nd.op)
+                bad = _bad_zone_endpoint(nd.zone, nd.op)
                 if bad is not None:
                     bag.error(bad, nd.span)
-            case n.Winner() if nd.target not in cats.state_vars:
-                bag.error(f"winner references unknown variable '{nd.target}'", nd.span)
+            case n.Winner() if nd.state_var not in cats.state_vars:
+                bag.error(f"winner references unknown variable '{nd.state_var}'", nd.span)
             case n.Turns() if nd.again is not None and nd.again not in cats.state_vars:
                 # The go-again flag is ordinary game state the body's effects
                 # write (decisions.md "The `turns` form") — a plain string

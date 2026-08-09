@@ -22,7 +22,7 @@ import math
 
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts, TraceEvent
+from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/skat.py", "skat.cardlang")

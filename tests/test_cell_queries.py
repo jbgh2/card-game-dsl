@@ -680,7 +680,7 @@ def test_bare_domain_query_emits_ir() -> None:
     assert dq["query"] == "all"
     assert dq["binder"] == "cell"
     assert "source" not in dq
-    assert dq["pred"]["kind"] == "is_check"
+    assert dq["where"]["kind"] == "is_check"
 
 
 def test_collection_domain_query_emits_ir_with_source() -> None:

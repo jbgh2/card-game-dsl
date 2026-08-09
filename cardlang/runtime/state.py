@@ -206,7 +206,7 @@ class ZoneStore:
         # declared-reads registry.
         #
         # KEYS, by contrast, are author-reachable: a zone-family subscript's
-        # index is checked with `types.assignable`, which admits a bare
+        # index is checked with `types.coercible`, which admits a bare
         # Integer literal, so `hand[9]` in a 4-player game type-checks and
         # arrives here (the ledger in tests/test_zone_family_typing.py
         # records the deferred re-audit). That deferral is what makes this an

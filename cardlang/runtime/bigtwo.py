@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")

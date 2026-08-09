@@ -23,9 +23,9 @@ frame the body reads as `state.x`).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.combinations import Play, _combos, _legal_follows, _points
+from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows, _points
 from cardlang.runtime.errors import ShadowGuardError
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")

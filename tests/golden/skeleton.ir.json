@@ -20,7 +20,7 @@
       "kind": "zone",
       "name": "deck",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Deck",
         "args": []
@@ -30,7 +30,7 @@
       "kind": "zone",
       "name": "hand",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Hand",
         "args": [
@@ -59,7 +59,7 @@
   "winner": {
     "kind": "winner",
     "rank_dir": "highest",
-    "target": "score"
+    "state_var": "score"
   },
   "loser": null,
   "rules": [],

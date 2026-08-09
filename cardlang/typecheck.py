@@ -68,9 +68,9 @@ from cardlang.types import (
     TTeam,
     TOutcome,
     Type,
-    assignable,
+    coercible,
     subscriptable,
-    unify,
+    join,
 )
 
 
@@ -118,7 +118,7 @@ def _axis_enum_names(game: Game) -> tuple[str, str]:
     the rank slot). A card game keeps the fixed `Suit`/`Rank` so its
     diagnostics and IR stay byte-stable; a piece set names its enums after its
     own axes (`side`/`kind`), which is also how its axis VALUES type in
-    `value_enum_map` -- so a same-axis compare unifies and a cross-axis one
+    `value_enum_map` -- so a same-axis compare joins and a cross-axis one
     (`piece.side is mark`) hits the existing cross-enum Owner Guard."""
     cs = component_set(game.deck)
     if game.content_flavor == "card" or cs is None:
@@ -261,7 +261,7 @@ def struct_registry(
     # the body environment with every declared type and let the ones already
     # completed win — a self- or forward-reference then types as the seed
     # entry, whose derived fields are still the top. That imprecision is
-    # harmless: struct types compare NOMINALLY (`types.assignable`/`unify`), so
+    # harmless: struct types compare NOMINALLY (`types.coercible`/`join`), so
     # the seed `R` and the final `R` are the same type to every consumer.
     #
     ambient = base if base is not None else TypeEnv()
@@ -486,7 +486,7 @@ class TypeEnv:
     state_vars: Mapping[str, Type] = field(default_factory=dict)
     zones: Mapping[str, Type] = field(default_factory=dict)
     # Zone FAMILIES (`hand[player]`, `captured[team]`) only, name -> the type
-    # a subscript's index expression must be `assignable` to. A family zone's
+    # a subscript's index expression must be `coercible` to. A family zone's
     # bare name (no subscript) still resolves through `zones` above to its
     # content type — unaffected; this map exists so `Subscript` can tell a
     # family instance (`hand[p]`, itself a collection) apart from the generic
@@ -545,7 +545,7 @@ def _canonical(t: Type, env: TypeEnv) -> Type:
     A struct's field map holds a SNAPSHOT of each struct-typed field, taken
     while the registry was still being built, so a snapshot can be staler than
     the registry — unavoidably so for a recursive type, whose unrolled value
-    has no finite form. Struct types are nominal (`types.assignable`/`unify`
+    has no finite form. Struct types are nominal (`types.coercible`/`join`
     compare by name), so the registry entry is the same type and strictly more
     refined: resolving by name at each read keeps a traversal exact at any
     depth, and keeps the registry's own representation finite.
@@ -639,7 +639,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 )
             return sig.ret
         case n.BinOp():
-            if e.op in ("==", "!=", "<", ">", "<=", ">=", "and", "or", "in"):
+            if e.op in ("is", "is_not", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
             if e.op in ("+", "-", "*"):
                 return TInteger()
@@ -746,7 +746,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.ListLit():
             elem: Type | None = infer(e.elements[0], env)
             for item in e.elements[1:]:
-                elem = unify(elem, infer(item, env)) if elem is not None else None
+                elem = join(elem, infer(item, env)) if elem is not None else None
             return TCollection(elem if elem is not None else TAny())
         case _ as unreachable:
             assert_never(unreachable)
@@ -755,9 +755,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
 def _ifexpr_type(e: n.IfExpr, env: TypeEnv) -> Type:
     result = infer(e.then, env)
     for _cond, branch in e.elifs:
-        merged = unify(result, infer(branch, env))
+        merged = join(result, infer(branch, env))
         result = merged if merged is not None else TAny()
-    merged = unify(result, infer(e.otherwise, env))
+    merged = join(result, infer(e.otherwise, env))
     return merged if merged is not None else TAny()
 
 
@@ -825,7 +825,7 @@ def _name_type(e: n.NameRef, env: TypeEnv) -> Type:
         case "bool":
             return TBoolean()
         case "null":
-            return TNull()  # the `none` literal — assignable only to optionals
+            return TNull()  # the `none` literal — fits only optionals
         case "pronoun":
             # `actor` is universally the acting player at runtime
             # (evaluate._pronoun -> ctx.current_player, and the `Move`
@@ -1239,19 +1239,19 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.body]
         case n.Comprehension():
             out = [e.source, e.body]
-            if e.filter is not None:
-                out.append(e.filter)
+            if e.where is not None:
+                out.append(e.where)
             if e.default is not None:
                 out.append(e.default)
             return out
         case n.Choose():
             return [e.lo, e.hi]
         case n.PlayerQuery():
-            return [e.pred]
+            return [e.where]
         case n.CardQuery():
-            return [e.source, e.pred] if e.pred is not None else [e.source]
+            return [e.source, e.where] if e.where is not None else [e.source]
         case n.DomainQuery():
-            return [e.source, e.pred] if e.source is not None else [e.pred]
+            return [e.source, e.where] if e.source is not None else [e.where]
         case n.IfExpr():
             out = [e.cond, e.then]
             for cond, branch in e.elifs:
@@ -1435,8 +1435,8 @@ class OpClass(Enum):
 
 
 OP_CLASSES: dict[str, OpClass] = {
-    "==": OpClass.EQUALITY,
-    "!=": OpClass.EQUALITY,
+    "is": OpClass.EQUALITY,
+    "is_not": OpClass.EQUALITY,
     "<": OpClass.ORDERING,
     ">": OpClass.ORDERING,
     "<=": OpClass.ORDERING,
@@ -1493,7 +1493,7 @@ def _check_binop(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
     """`==`/`!=` (surface `is`/`is not`): two operands can only be equal if one's
-    type is assignable to the other's. Anything else is a comparison that is
+    type is coercible to the other's. Anything else is a comparison that is
     *always false* — the silently-wrong shape this Owner Guard exists to catch.
 
     The enum rows come first and keep their own nuanced diagnostics
@@ -1515,7 +1515,7 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
 
     `TAny` passes on either side (gradual typing — an unrefined `infer` arm must
     not manufacture errors). `Player`/`Integer` stay comparable in BOTH directions
-    because a player IS an integer seat here (`assignable(TInteger, TPlayer)`), so
+    because a player IS an integer seat here (`coercible(TInteger, TPlayer)`), so
     `turn is 0` and `responder is actor` keep working."""
     lbare, rbare = _bare(infer(e.left, env)), _bare(infer(e.right, env))
     if isinstance(lbare, TEnum):
@@ -1527,17 +1527,17 @@ def _check_equality_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
     if isinstance(lbare, TAny) or isinstance(rbare, TAny):
         return
     compatible = (
-        assignable(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
-        or assignable(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
-        # `unify` as well as `assignable`, because `assignable` honours `TAny` only at
+        coercible(lbare, rbare)  # choke-point-exempt: symmetric equality, two operands and no single `expected` — not an operand coercion
+        or coercible(rbare, lbare)  # choke-point-exempt: the reverse direction of the same symmetric check
+        # `join` as well as `coercible`, because `coercible` honours `TAny` only at
         # the TOP level: a deliberately-unrefined element type (a chip stack is
         # `Collection<Any>` precisely because that part of the object model is
         # unrefined) would be judged disjoint from `Collection<Card>`, and this
         # Owner Guard would MANUFACTURE an error — the exact thing its own
-        # gradual-typing promise forbids. `assignable` alone is also not enough in
+        # gradual-typing promise forbids. `coercible` alone is also not enough in
         # the other direction, so both are consulted: `Player`/`Integer` must stay
-        # comparable (a player IS an integer seat), and only `assignable` says so.
-        or unify(lbare, rbare) is not None
+        # comparable (a player IS an integer seat), and only `coercible` says so.
+        or join(lbare, rbare) is not None
     )
     if not compatible:
         bag.error(
@@ -1628,10 +1628,10 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
     left operand must be a plausible element of it. A `[...]` literal against
     a known enum-typed left operand keeps the existing per-element literal
     validation (`card.rank in [A, "10"]` — doppelkopf), since that catches
-    misspelled/mistyped *literals* `unify` cannot see (a bad numeral, a
+    misspelled/mistyped *literals* `join` cannot see (a bad numeral, a
     cross-enum literal). Every other combination is checked generally: when
     both the left type and the collection's element type are concrete and
-    `unify` finds them incompatible, the membership can never be true."""
+    `join` finds them incompatible, the membership can never be true."""
     right_t = infer(e.right, env)
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(
@@ -1646,7 +1646,7 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
         # `2 in m` with every value 99 answered True because seat 2 exists.
         # Reject rather than pick a side silently; both meanings have direct
         # spellings. A TAny key means SOME branch of a merge is a map (the
-        # sticky rule in `types.unify`), which is exactly as ambiguous.
+        # sticky rule in `types.join`), which is exactly as ambiguous.
         what_map = (
             f"a map keyed by {_type_name(right_t.key)}"
             if not isinstance(right_t.key, TAny)
@@ -1667,11 +1667,11 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
             _check_enum_operand(lbare, item, ibare, env, bag)
         return
     if not isinstance(right_t, TCollection):
-        return  # a TAny collection: nothing more `unify` can say
+        return  # a TAny collection: nothing more `join` can say
     ebare = _bare(right_t.element)
     if isinstance(lbare, TAny) or isinstance(ebare, TAny):
         return
-    if unify(lbare, ebare) is None:
+    if join(lbare, ebare) is None:
         bag.error(
             f"membership compares {_type_name(lbare)} with a collection of "
             f"{_type_name(ebare)} — never true",
@@ -1712,7 +1712,7 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     to `TAny` (the `card` binder types off this same inference — the zone-family
     subscript-typing case in tests/test_zone_family_typing.py covers exactly
     this failure mode). A non-collection source and a collection of the wrong
-    element type both fail the same way: `unify` against `TCard` finds nothing
+    element type both fail the same way: `join` against `TCard` finds nothing
     in common."""
     src_t = infer(source, env)
     bare_src = _bare(src_t)
@@ -1736,7 +1736,7 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     ebare = _bare(bare_src.element)
     if isinstance(ebare, TAny):
         return
-    if unify(ebare, TCard()) is None:
+    if join(ebare, TCard()) is None:
         bag.error(
             f"'cards in ...' expects a zone or collection of cards, got "
             f"{_type_name(src_t)}",
@@ -1784,17 +1784,17 @@ def _check_agg_default(
 ) -> None:
     """The order aggregators' mandatory `or <default>` clause shares its
     leading `or` with a compound `where` predicate — `where A or B` reads as
-    filter=A, default=B, the headline misparse this Owner Guard exists to catch. A
+    where=A, default=B, the headline misparse this Owner Guard exists to catch. A
     Boolean default is the tell (a real default is body-shaped, e.g. an
     Integer for a `rank_value(card)` body; a leftover predicate is not) —
     flagged whenever there IS a `where` clause for the `or` to have been
     split from (no `where`, no ambiguity: a Boolean default there is an
     ordinary type mismatch, handled by the generic check below). Otherwise, a
-    concrete body/default type mismatch `unify` can't reconcile is rejected
+    concrete body/default type mismatch `join` can't reconcile is rejected
     generically."""
     assert e.default is not None
     dbare = _bare(infer(e.default, env))
-    if isinstance(dbare, TBoolean) and e.filter is not None:
+    if isinstance(dbare, TBoolean) and e.where is not None:
         bag.error(
             "the aggregation default is Boolean — this is almost always the "
             "last disjunct of the `where` predicate, absorbed by the "
@@ -1806,7 +1806,7 @@ def _check_agg_default(
     bbare = _bare(infer(e.body, scoped))
     if isinstance(bbare, TAny) or isinstance(dbare, TAny):
         return
-    if unify(bbare, dbare) is None:
+    if join(bbare, dbare) is None:
         bag.error(
             f"'{e.agg}' aggregation default type mismatch: the body is "
             f"{_type_name(bbare)}, the default is {_type_name(dbare)}",
@@ -1889,8 +1889,8 @@ def _domain_query_binder_type(
 
 def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: DiagnosticBag) -> None:
     """A `Player`/`Team` literal names a 0-based identity, so it must be one the
-    game has. An integer literal coerces to both (`assignable(Integer, Player)`,
-    `assignable(Integer, Team)` -- both are int identities), and an unchecked
+    game has. An integer literal coerces to both (`coercible(Integer, Player)`,
+    `coercible(Integer, Team)` -- both are int identities), and an unchecked
     out-of-range literal -- `reserve[2]`/`home(2)` on a two-seat game, `melds[2]`
     on a two-team game -- names a seat or team with no member; the reader (a zone
     family with no such instance, a board frame's per-seat sign, a per-team score)
@@ -1907,7 +1907,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     no-op, and a count of 0 (a game with no teams has `max_teams == 0`)
     disables the team bound, mirroring `max_players <= 0`.
 
-    An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `assignable`
+    An OPTIONAL expectation (`Player?`/`Team?`) is unwrapped first: `coercible`
     coerces an Integer into the optional by reaching its payload, so a literal in
     a `Player?` position is the same seat a bare `Player` position is."""
     bare = expected.inner if isinstance(expected, TOptional) else expected
@@ -1949,12 +1949,12 @@ def _check_operand(
     msg: str,
     span: Span | None,
 ) -> None:
-    """The ONE operand-coercion check every `assignable(_, expected)` site routes
+    """The ONE operand-coercion check every `coercible(_, expected)` site routes
     through, so the seat-range check is applied at EVERY position an integer
     literal reaches a Player (or Team), not at a hand-picked subset. Two things
     happen here and nowhere else:
 
-      1. the assignability Owner Guard -- if `got` cannot stand where `expected` is
+      1. the coercion Owner Guard -- if `got` cannot stand where `expected` is
          wanted, the site's own `msg` is reported at `span`; and
       2. the role-literal range check -- an out-of-range integer literal
          (`hand[5]` on a two-seat game) is rejected, a non-role `expected` making
@@ -1962,19 +1962,19 @@ def _check_operand(
 
     `node` (the operand, for the literal check) and `span` (the error location)
     are separate arguments BECAUSE they differ at nearly every site: an operand's
-    assignability error belongs to its ENCLOSING construct -- the call, the
+    coercion error belongs to its ENCLOSING construct -- the call, the
     assignment, the struct literal -- whose span the caller passes, while the
     range error fires at the literal WITHIN it (`node.span`, inside the helper).
-    Passing `node.span` as the error span would move ~every assignability
+    Passing `node.span` as the error span would move ~every coercion
     diagnostic; keeping them separate means routing a site through here moves no
     diagnostic.
 
     Keeping the two checks together at one call is what lets the completeness pin
     (tests/test_operand_choke_point.py) enforce by construction that no
-    `assignable(_, Player)` coercion escapes the range check: the pin reddens the
-    day a new operand position calls `assignable` directly instead of routing
+    `coercible(_, Player)` coercion escapes the range check: the pin reddens the
+    day a new operand position calls `coercible` directly instead of routing
     here."""
-    if not assignable(got, expected):
+    if not coercible(got, expected):
         bag.error(msg, span)
     _check_role_literal(node, expected, env, bag)
 
@@ -2048,8 +2048,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         return
     if isinstance(e, n.PlayerQuery):
         scoped = env.with_local("player", TPlayer())
-        _check_expr(e.pred, scoped, bag)
-        _check_bool(e.pred, scoped, bag, "player-query predicate")
+        _check_expr(e.where, scoped, bag)
+        _check_bool(e.where, scoped, bag, "player-query predicate")
         return
     if isinstance(e, n.CardQuery):
         if env.flavor == "piece":
@@ -2065,19 +2065,19 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             return
         _check_expr(e.source, env, bag)
         _check_card_source(e.source, env, bag)
-        if e.pred is not None:
+        if e.where is not None:
             scoped = env.with_local("card", TCard())
-            _check_expr(e.pred, scoped, bag)
-            _check_bool(e.pred, scoped, bag, "card-query predicate")
+            _check_expr(e.where, scoped, bag)
+            _check_bool(e.where, scoped, bag, "card-query predicate")
         return
     if isinstance(e, n.DomainQuery):
         binder_t = _domain_query_binder_type(e, env, bag)
         if e.source is not None:
             _check_expr(e.source, env, bag)  # the `in` source is in enclosing scope
         scoped = env.with_local(e.binder, binder_t)
-        _check_expr(e.pred, scoped, bag)
+        _check_expr(e.where, scoped, bag)
         phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
-        _check_bool(e.pred, scoped, bag, f"`{phrase} {e.spelled}` predicate")
+        _check_bool(e.where, scoped, bag, f"`{phrase} {e.spelled}` predicate")
         return
     if isinstance(e, n.Comprehension):
         if env.flavor == "piece":
@@ -2095,9 +2095,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         src = infer(e.source, env)
         elem: Type = src.element if isinstance(src, TCollection) else TAny()
         scoped = env.with_local(e.binder, elem)
-        if e.filter is not None:
-            _check_expr(e.filter, scoped, bag)
-            _check_bool(e.filter, scoped, bag, "aggregation `where` filter")
+        if e.where is not None:
+            _check_expr(e.where, scoped, bag)
+            _check_bool(e.where, scoped, bag, "aggregation `where` filter")
         _check_expr(e.body, scoped, bag)
         _check_agg_body(e, scoped, bag)
         if e.default is not None:
@@ -2318,12 +2318,12 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
             out: list[n.Expr] = []
             if not isinstance(s.amount, str):
                 out.append(s.amount)
-            for opt in (s.source, s.dest, s.visibility, s.filter):
+            for opt in (s.source, s.dest, s.visibility, s.where):
                 if opt is not None:
                     out.append(opt)
             return out
         case n.EpistemicOp():
-            return [s.target] if s.filter is None else [s.target, s.filter]
+            return [s.zone] if s.where is None else [s.zone, s.where]
         case n.Offer():
             return [s.player]
         case n.TrickRound():
@@ -2332,15 +2332,17 @@ def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
                 exprs.append(s.trump)
             return exprs
         case n.AuctionRound() | n.ClimbRound():
-            return [s.leader, s.participants, s.termination]
-        case n.IfStmt() | n.RepeatUntil():
+            return [s.leader, s.participants, s.until]
+        case n.IfStmt():
             return [s.cond]
+        case n.RepeatUntil():
+            return [s.until]
         case n.AsBlock():
             return [s.player]
         case n.Turns():
             # `again` is a state-var NAME (a string, validated by resolve),
             # not an expression — only the three expr positions walk here.
-            return [s.leader, s.participants, s.termination]
+            return [s.leader, s.participants, s.until]
         case n.Produce():
             return list(s.payloads)
         case n.RunStmt():
@@ -2363,7 +2365,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     """Check every expression `_stmt_exprs` holds directly, binding an
     implicit name where the construct's own runtime semantics require one.
 
-    `Transfer.filter` and `EpistemicOp.filter` are evaluated with `card`
+    `Transfer.where` and `EpistemicOp.where` are evaluated with `card`
     bound per candidate (runtime/execute.py's shared `_card_pred`:
     `ctx.with_local("card", c)`, used by both the movement selection and
     `reveal`) — the *only* two `_stmt_exprs` members whose
@@ -2376,7 +2378,7 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
     them — would be dark there. The filter must also itself be Boolean; the
     other direct expressions on these two node kinds (source/dest/amount/
     visibility, target) carry no binder and stay in the ambient `env`."""
-    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.filter is not None:
+    if isinstance(s, (n.Transfer, n.EpistemicOp)) and s.where is not None:
         # A joint filter (`where jointly`) binds `cards` — the candidate SET,
         # a card collection — where a per-card filter binds each `card`
         # (runtime `_select_joint` vs `_card_pred`; decisions.md
@@ -2385,11 +2387,11 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             scoped = env.with_local(content_noun(env.flavor, plural=True), TCollection(TCard()))
         else:
             scoped = env.with_local(content_noun(env.flavor, plural=False), TCard())
-        _check_expr(s.filter, scoped, bag)
+        _check_expr(s.where, scoped, bag)
         verb = s.verb if isinstance(s, n.Transfer) else s.op
-        _check_bool(s.filter, scoped, bag, f"'{verb}' filter")
+        _check_bool(s.where, scoped, bag, f"'{verb}' filter")
         for expr in _stmt_exprs(s):
-            if expr is not s.filter:
+            if expr is not s.where:
                 _check_expr(expr, env, bag)
         return
     if isinstance(s, n.LetStmt) and s.index is not None:
@@ -2531,7 +2533,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         case n.IfStmt():
             _check_bool(stmt.cond, env, bag, "if condition")
         case n.RepeatUntil():
-            _check_bool(stmt.cond, env, bag, "repeat-until condition")
+            _check_bool(stmt.until, env, bag, "repeat-until condition")
         case n.TrickRound():
             _check_round_actors(stmt, env, bag)
         case n.AuctionRound() | n.ClimbRound():
@@ -2539,14 +2541,14 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             # checked without asking whether it is there — which is the split's
             # point: the form that has no termination predicate cannot reach here.
             _check_round_actors(stmt, env, bag)
-            _check_bool(stmt.termination, env, bag, "round `until` condition")
+            _check_bool(stmt.until, env, bag, "round `until` condition")
         case n.Transfer():
             _check_transfer(stmt, env, bag)
         case n.EpistemicOp():
             # The type half of the zone-target rule, like `_check_transfer`'s
             # endpoints: a `local` root passes resolve's classification, and
             # the binder's inferred type decides here.
-            t = infer(stmt.target, env)
+            t = infer(stmt.zone, env)
             if not _is_zone_type(t):
                 bag.error(
                     f"'{stmt.op}' target must be a zone, got "
@@ -2555,7 +2557,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 )
         case n.AsBlock():
             # The block binds the acting player to one player, so its expression
-            # must BE a player. Integer stands for player (`assignable`), like
+            # must BE a player. Integer stands for player (`coercible`), like
             # `dealer : Player = 0` and a zone-family index.
             t = infer(stmt.player, env)
             _check_operand(
@@ -2582,13 +2584,13 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
                 "`turns … over` names the participants",
                 stmt.span,
             )
-            _check_bool(stmt.termination, env, bag, "turns `until` condition")
+            _check_bool(stmt.until, env, bag, "turns `until` condition")
             if stmt.again is not None:
                 at = env.state_vars.get(stmt.again)
                 # choke-point-exempt: `again` is a state-var NAME resolved to a
                 # type, not an operand expression — a name->declared-type check,
                 # Boolean-expected, with no literal to range.
-                if at is not None and not assignable(at, TBoolean()):  # choke-point-exempt
+                if at is not None and not coercible(at, TBoolean()):  # choke-point-exempt
                     bag.error(
                         f"`again {stmt.again}`: the go-again flag must be "
                         f"Boolean, got {_type_name(at)}",
@@ -2836,7 +2838,7 @@ def _continue_targets_in_item(item: n.PhaseItem) -> set[str]:
     else:
         for node in _control_flow_nodes(item):
             if isinstance(node, n.ContinueTo):
-                targets.add(node.target)
+                targets.add(node.phase)
     return targets
 
 
@@ -2845,7 +2847,7 @@ def _item_can_skip(item: n.PhaseItem) -> bool:
     body's hand loop. A nested `repeat until` catches its own skips, so they don't
     unwind here."""
     if isinstance(item, n.Phase):
-        if item.qualifier is not None and item.qualifier.kind == "repeats":
+        if item.qualifier is not None and item.qualifier.kind == "repeat_until":
             return False
         return any(_item_can_skip(sub) for sub in item.items)
     if isinstance(
@@ -3043,7 +3045,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
         in_hand_loop: bool,
     ) -> None:
         here_loop = in_hand_loop or (
-            phase.qualifier is not None and phase.qualifier.kind == "repeats"
+            phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
         )
         items = phase.items
         # All child phases are valid `continue to` targets; only *unqualified*
@@ -3087,7 +3089,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                 # so outer producers don't carry in (continue-to targets still do).
                 child_before = (
                     set()
-                    if item.qualifier is not None and item.qualifier.kind == "repeats"
+                    if item.qualifier is not None and item.qualifier.kind == "repeat_until"
                     else earlier
                 )
                 walk(item, child_before, later, here_loop)
@@ -3129,7 +3131,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 "in a before_each/after_each hook",
                                 node.span,
                             )
-                        elif isinstance(node, n.ContinueTo) and node.target not in later:
+                        elif isinstance(node, n.ContinueTo) and node.phase not in later:
                             # A mode name reaching here is the phase/mode
                             # confusion itself: before modes had their own
                             # keyword, `continue to <config-only sub-phase>`
@@ -3137,9 +3139,9 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                             # skips. Say which kind the name is, or the
                             # designer reads "not a sibling" as "no such name"
                             # while looking straight at the declaration.
-                            if node.target in mode_names:
+                            if node.phase in mode_names:
                                 bag.error(
-                                    f"continue to '{node.target}' names a mode, not a "
+                                    f"continue to '{node.phase}' names a mode, not a "
                                     f"phase — a mode is entered by a sibling mode's "
                                     f"`transition_to:` when its event fires, never "
                                     f"jumped to",
@@ -3147,7 +3149,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
                                 )
                             else:
                                 bag.error(
-                                    f"continue to '{node.target}' is not a later sibling "
+                                    f"continue to '{node.phase}' is not a later sibling "
                                     "phase",
                                     node.span,
                                 )
@@ -3173,7 +3175,7 @@ def _check_outcome_scope(game: Game, bag: DiagnosticBag) -> None:
     for idx, phase in enumerate(game.phases):
         # Same rule as the recursion: a top-level `repeat until` body can't rely
         # on an earlier top-level producer (it ran once, the loop reruns).
-        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeats"
+        is_repeat = phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
         before = (
             set()
             if is_repeat

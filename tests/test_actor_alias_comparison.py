@@ -136,7 +136,10 @@ from cardlang.typecheck import OP_CLASSES, OpClass
 # internal `==`/`!=` (cardlang.lark, "Equality is the word `is` / `is not`"), so
 # a grid over source text needs the map. Pinned complete against the registry
 # below, rather than hand-listed here and trusted.
-_EQUALITY_SURFACE: dict[str, str] = {"==": "is", "!=": "is not"}
+# Internal op -> surface spelling. Nearly an identity since B-1 made the
+# stored op the surface word; `is_not` still differs, because an identifier
+# cannot hold the space that `is not` is written with.
+_EQUALITY_SURFACE: dict[str, str] = {"is": "is", "is_not": "is not"}
 
 EQUALITY_OPS: tuple[str, ...] = tuple(
     sorted(op for op, cls in OP_CLASSES.items() if cls is OpClass.EQUALITY)
@@ -165,7 +168,7 @@ def test_ordering_two_players_is_already_a_type_error(op: str) -> None:
     the right, so its operands are never two names for one player.
 
     If Player ever becomes orderable this goes red, which is the signal to
-    widen `_check_alias_operands` past `("==", "!=")`.
+    widen `_check_alias_operands` past `("is", "is_not")`.
 
     red under: add `TPlayer` to the operand types
     `typecheck._check_ordering_operands` admits."""

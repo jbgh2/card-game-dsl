@@ -123,8 +123,8 @@ class TCollection:
     per-player/per-team state variable, an indexed `let` — and ``None`` for
     positional collections and untracked shapes. It drives the
     subscript/indexed-assignment key checks and the keyed-membership Owner Guard.
-    Facets do not decide TOP-LEVEL compatibility: `assignable`'s collection
-    arm compares elements only, and `unify` preserves facets the two sides
+    Facets do not decide TOP-LEVEL compatibility: `coercible`'s collection
+    arm compares elements only, and `join` preserves facets the two sides
     agree on rather than judging by them. (Nested collections compare
     elements with full equality, so a facet mismatch one level down does
     distinguish — no current value shape nests a flag-bearing collection.)
@@ -133,7 +133,7 @@ class TCollection:
 
     Facets are bookkeeping, and bookkeeping riding on a structural type must
     be PRESERVED by every site that rebuilds one — an obligation that already
-    bit once (`unify` dropped both facets; see its docstring). The promotion
+    bit once (`join` dropped both facets; see its docstring). The promotion
     path to real nominal kinds (`TZone`, `TMap`), and the three named
     triggers that would fire it, are recorded in issue #123."""
 
@@ -143,13 +143,13 @@ class TCollection:
     # zone-family subscript) — as opposed to a COMPUTED card collection (a
     # query result, a list literal), which types identically by element but
     # evaluates to a plain list. Transfer/epistemic zone positions require it;
-    # like `key`, it never participates in assignability or unification.
+    # like `key`, it never participates in coercion or joining.
     zone: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class TNull:
-    """The type of the `none` literal: the absence value, assignable only to an
+    """The type of the `none` literal: the absence value, which fits only an
     optional (or `TAny`). Distinct from `TOptional`, which is a *set* optional
     value that reads as its base (`Player?` used where `Player` is expected)."""
 
@@ -200,11 +200,14 @@ Type: TypeAlias = (
 )
 
 
-def unify(a: Type, b: Type) -> Type | None:
-    """The common type of ``a`` and ``b``, or ``None`` if incompatible.
+def join(a: Type, b: Type) -> Type | None:
+    """The least upper bound of ``a`` and ``b``, or ``None`` if they have none.
 
-    Equal types unify to themselves; ``TAny`` absorbs anything, at ANY depth; a
-    bare ``T`` and ``T?`` unify to ``T?``. Anything else is a mismatch.
+    A join, not a unification: there are no type variables here and nothing is
+    substituted, so the PL reading of "unify" would be a false friend.
+
+    Equal types join to themselves; ``TAny`` absorbs anything, at ANY depth; a
+    bare ``T`` and ``T?`` join to ``T?``. Anything else has no upper bound.
 
     The depth matters. Were `TAny` to absorb only at the top level, two
     collections would be compared by plain equality — and a deliberately-unrefined
@@ -218,16 +221,16 @@ def unify(a: Type, b: Type) -> Type | None:
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
     if isinstance(a, TStruct) and isinstance(b, TStruct):
-        # Nominal, for the reason `assignable` gives: same name, same type.
+        # Nominal, for the reason `coercible` gives: same name, same type.
         return a if a.name == b.name else None
     if isinstance(a, TCollection) and isinstance(b, TCollection):
-        element = unify(a.element, b.element)
+        element = join(a.element, b.element)
         if element is None:
             return None
         # PRESERVE the facets. Rebuilding bare TCollection(element) here
         # would erase them: `if c then hand[0] else hand[1]` — two genuine
-        # zones — would unify to a non-zone and be falsely rejected at every
-        # endpoint, and two same-keyed maps would unify to an unkeyed one,
+        # zones — would join to a non-zone and be falsely rejected at every
+        # endpoint, and two same-keyed maps would join to an unkeyed one,
         # sending the keyed-map Owner Guard dark through any IfExpr. The two
         # facets merge in OPPOSITE directions because they feed opposite
         # guard polarities: `zone` PERMITS (an endpoint requires a definite
@@ -253,13 +256,13 @@ def unify(a: Type, b: Type) -> Type | None:
         # an `IfExpr` over them to the permissive top — turning a stale
         # snapshot into a silently unchecked subtree, which is the defect the
         # nominal rule exists to prevent.
-        inner = unify(a.inner, b.inner)
+        inner = join(a.inner, b.inner)
         return TOptional(inner) if inner is not None else None
     if a == b:
         return a
-    if isinstance(a, TOptional) and unify(a.inner, b) == a.inner:
+    if isinstance(a, TOptional) and join(a.inner, b) == a.inner:
         return a
-    if isinstance(b, TOptional) and unify(b.inner, a) == b.inner:
+    if isinstance(b, TOptional) and join(b.inner, a) == b.inner:
         return b
     return None
 
@@ -269,8 +272,12 @@ def subscriptable(t: Type) -> bool:
     return isinstance(t, (TCollection, TAny))
 
 
-def assignable(src: Type, dst: Type) -> bool:
-    """Whether a value of type ``src`` may be assigned where ``dst`` is expected.
+def coercible(src: Type, dst: Type) -> bool:
+    """Whether a value of type ``src`` may stand where ``dst`` is expected.
+
+    A coercion relation, not a subtype one: callers use it symmetrically, and
+    `Integer` standing for `Player` is a coercion in a direction no subtype
+    ordering would license.
 
     `TAny` is compatible either way. A bare value fits its optional (`T` → `T?`).
     An `Integer` may stand for a `Player`/`Team` — both are 0-based int identities,
@@ -293,11 +300,11 @@ def assignable(src: Type, dst: Type) -> bool:
         return True
     if isinstance(dst, TOptional):
         inner = src.inner if isinstance(src, TOptional) else src
-        return assignable(inner, dst.inner)
+        return coercible(inner, dst.inner)
     if isinstance(src, TOptional):
         # An optional used where its base is expected: the DSL has no flow
         # narrowing, so a `Player?` known to be set reads as a `Player`.
-        return assignable(src.inner, dst)
+        return coercible(src.inner, dst)
     if isinstance(src, TInteger) and isinstance(dst, (TPlayer, TTeam)):
         return True
     if isinstance(src, TCollection) and isinstance(dst, TCollection):
@@ -308,5 +315,5 @@ def assignable(src: Type, dst: Type) -> bool:
         # be judged disjoint, exactly as the bare case was before the nominal
         # rule. The rule has to reach through every wrapper, or it is a
         # top-level special case.
-        return assignable(src.element, dst.element)
+        return coercible(src.element, dst.element)
     return False

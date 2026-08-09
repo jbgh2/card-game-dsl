@@ -51,9 +51,9 @@ def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.Rul
 
 
 def _apply_ref(names: list[str], ref: n.RuleRef) -> None:
-    if ref.op in ("plain", "add"):
+    if ref.delta in ("plain", "add"):
         names.append(ref.name)
-    elif ref.op == "remove" and ref.name in names:
+    elif ref.delta == "remove" and ref.name in names:
         names.remove(ref.name)
 
 
@@ -71,7 +71,7 @@ def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
     some sibling names.
     """
     if mode.transitions:
-        return not any(t.target in rs.fired_transitions for t in mode.transitions)
+        return not any(t.mode in rs.fired_transitions for t in mode.transitions)
     return mode.name in rs.fired_transitions
 
 
