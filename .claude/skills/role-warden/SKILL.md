@@ -38,6 +38,12 @@ clock (below), so markers carry an instance, not just a gap:
   counts as a sighting, so a re-taken Lease can never inherit a dead
   Lease's clock, and a gap that closes and later reopens gets flagged
   again rather than silently suppressed.
+- The reconciliation domain is derived, never sampled: the issues
+  carrying any `warden:` marker, found by comment search
+  (`gh search issues --repo <repo> "warden:" ` with `in:comments` — the
+  markers themselves are the registry of flags). A recency window is a
+  silent cap wearing a scan; if the search cannot run, say so in the
+  report rather than substituting a sample.
 
 ## The round, in order
 
@@ -73,9 +79,12 @@ clock (below), so markers carry an instance, not just a gap:
    The platform already blocks merge; the Warden surfaces the forgotten:
    one comment (`warden:threads`) per open PR carrying unresolved
    threads, listing the count.
-4. **Report.** End the round with counts per chore — flagged, skipped as
-   already-flagged, reaped, escalated — to whoever invoked it. Nothing
-   else is posted anywhere.
+4. **Report.** End the round with counts per chore — flagged,
+   skipped-as-already-flagged, cleared, reaped, escalated — and post it
+   as a comment on epic #274: the fleet's public record and the review
+   desk's inbox. Session messaging does not exist in unattended runs, so
+   the epic is the primary channel, not a fallback. Nothing else is
+   posted anywhere else.
 
 ## Bounds
 
