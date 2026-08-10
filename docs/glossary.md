@@ -147,7 +147,7 @@ these entries own the names.
 
 ## Reserved words — never use unqualified
 
-These carry several meanings each; always qualify them. Four more words are reserved AND name a concept of their own — they keep their entry above and carry `reserved: true`.
+These carry several meanings each; always qualify them. The ones that also name a concept of their own keep their entry in a section above as well.
 
 | Word | Approved compounds |
 |---|---|
@@ -160,6 +160,10 @@ These carry several meanings each; always qualify them. Four more words are rese
 | [harness](glossary/harness.md) | the shared proof harness (`tests/openspiel_ready/`) · the LLM harness (`experiments/llm_eval/`) · the [[operating-harness]] (process; `harness.md`) |
 | [index](glossary/index.md) | definition index (name→def) · rank index (rank→strength) · zone index (the keying domain) · subscript |
 | [kind](glossary/kind.md) | IR node tag (reserved) · AST discriminators (rename per node when touched — → F-9) |
+| [Library](glossary/library.md) | family library · the stdlib is not a library |
+| [Outcome](glossary/outcome.md) | one meaning only: the tagged result. The player sense is **winner** / **winner function**. Reserved as a declaration name even though no pronoun claims it (`resolve._KEYWORD_RESERVED`); `AuctionRound.outcome_fn` is the tagged sense, qualified because the bare word belongs to the designer's clause |
+| [Round](glossary/round.md) | the round statement/forms · (a "round of the game" is a *hand*) |
+| [Rule](glossary/rule.md) | game rule (`RuleDef`) · grammar rule (production) · never "checking principle" |
 | [state](glossary/state.md) | state variable · round state · world (`rs`) · info-state string · `state { }` block |
 | [type](glossary/type.md) | struct type · zone type · move type (not a type) · the checker's `Type` |
 | [value](glossary/value.md) | card points (`Deck.values`) · enum value · RHS/initializer · literal payload |

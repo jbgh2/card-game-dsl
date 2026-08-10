@@ -62,7 +62,7 @@ does it just document the journey? If the latter, cut it.
 concept, one spelling per concept. Prose in these docs — and comments,
 docstrings, diagnostics, and issues — uses the glossary's term, in full
 and in Title Case (the usage rules in its preamble). A word in its
-reserved table (§6) never appears unqualified. When a change needs a
+reserved-words table never appears unqualified. When a change needs a
 word the glossary lacks, mint the entry in the same change; when a
 change renames or retires a spelling, the glossary entry updates in the
 same change. Where current code diverges from the glossary,

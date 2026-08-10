@@ -81,15 +81,30 @@ def render(entries: list[dict[str, str]]) -> str:
             home = e.get("home") or ""
             out.append(f"| [{e['term']}](glossary/{e['_slug']}.md) | {e['definition']} | {home} |")
         out.append("")
-    reserved = [e for e in entries if e["status"] == "reserved"]
+    # Keyed on the `reserved` FLAG, not on `status`: a word can be reserved and
+    # still name a concept of its own (`round`, `rule`, `library`, `outcome`),
+    # and those four have `status: canonical`. Selecting by status would drop
+    # them from the one table that is supposed to list every word to qualify.
+    reserved = [e for e in entries if e["reserved"] == "true"]
     if reserved:
         out += ["## Reserved words — never use unqualified", "",
-                "These carry several meanings each; always qualify them. Four more "
-                "words are reserved AND name a concept of their own — they keep their "
-                "entry above and carry `reserved: true`.", "",
+                "These carry several meanings each; always qualify them. The ones "
+                "that also name a concept of their own keep their entry in a section "
+                "above as well.", "",
                 "| Word | Approved compounds |", "|---|---|"]
         for e in sorted(reserved, key=lambda x: x["_slug"]):
-            out.append(f"| [{e['term']}](glossary/{e['_slug']}.md) | {e['definition']} |")
+            compounds = e["definition"]
+            if e["status"] == "canonical":
+                marker = "**Reserved word.** Approved compounds: "
+                line = next((ln for ln in e["_body"].splitlines() if ln.startswith(marker)), None)
+                if line is None:
+                    raise EntryError(
+                        f"{e['_slug']}.md is `reserved: true` but its body states no "
+                        f"approved compounds — the reserved table would list the "
+                        f"concept's definition instead of the compounds to use"
+                    )
+                compounds = line[len(marker):]
+            out.append(f"| [{e['term']}](glossary/{e['_slug']}.md) | {compounds} |")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -42,32 +43,43 @@ from tools.glossary_index import (
     render,
 )
 
-# A wiki link is term-shaped: lowercase words, digits, hyphens. Anything
-# else -- commas, dots, capitals -- is Python subscript syntax
-# (`dict[str, list[int]]`), not a reference.
-_WIKI_LINK = r"\[\[([a-z0-9][a-z0-9 -]*)\]\]"
+# A wiki link, captured WIDE and validated after -- never narrowed to the
+# well-formed spelling. Narrowing is what a typo escapes through: a pattern
+# matching only `[a-z0-9-]+` does not match a capitalised or
+# underscored spelling at all, so the check whose entire job is catching
+# mistyped references reports success on precisely those.
+#
+# The discriminator against Python's `Callable[[int], str]` is the character
+# BEFORE the brackets, not the shape of what is inside: a subscript's `[[` always
+# follows an identifier or a closing bracket, a reference never does.
+_WIKI_LINK = r"(?<![\w\]])\[\[([^\[\]\n]+)\]\]"
+
+# Same discipline for the path spelling: accept any filename shape, then check
+# it, so an uppercase or underscored path is reported rather than skipped.
+_GLOSSARY_LINK = r"glossary/([A-Za-z0-9_.-]+)\.md"
 
 BOOLS = ("true", "false")
 REQUIRED = {"term", "definition", "layer", "status", "reserved", "home",
             "see", "retired_spellings", "findings"}
 
 
-# Directories whose contents are not this repo's prose. Matched against the path
-# RELATIVE to the root: an absolute match excludes everything when the checkout
-# itself sits under one of these names, which is how the first version of this
-# walk passed while resolving nothing (a worktree under `.claude/`).
-_SKIP_DIRS = frozenset({".git", ".venv", "__pycache__", ".claude", "node_modules"})
-
-
 def _tracked_text_files() -> list[pathlib.Path]:
-    """Every `.py` and `.md` in the repo, minus directories whose contents are
-    not ours to lint."""
-    out: list[pathlib.Path] = []
-    for pattern in ("**/*.py", "**/*.md"):
-        for p in ROOT.glob(pattern):
-            if set(p.relative_to(ROOT).parts) & _SKIP_DIRS:
-                continue
-            out.append(p)
+    """Every `.py` and `.md` file git tracks.
+
+    Asking git rather than walking the tree is the whole point: a hand-written
+    exclusion list gets this wrong in both directions. It first excluded the
+    ENTIRE repository, because it matched directory names against the absolute
+    path and this checkout lives under `.claude/worktrees/` -- both reference
+    checks passed while reading nothing. Correcting that to a relative match
+    then still dropped `.claude/skills/`, which git tracks and which is exactly
+    where a broken reference would mislead an agent. `git ls-files` has no
+    opinion to get wrong: tracked is tracked.
+    """
+    listing = subprocess.run(
+        ["git", "ls-files", "-z", "*.py", "*.md"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout
+    out = [ROOT / name for name in listing.split("\0") if name]
     assert out, "the file walk found nothing -- both reference checks are vacuous"
     return out
 
@@ -129,14 +141,18 @@ def test_every_wiki_link_resolves_to_an_entry() -> None:
     the linter that will actually fire as the docstring pass lands: a term
     linked before its entry exists, or after a retirement, fails here.
 
-    red under: write a wiki link to a term that has no entry.
+    red under: write a wiki link to a term that has no entry -- including
+    a MISSPELLED one (capitals, an underscore), which is the case a
+    narrower pattern would skip instead of report.
     """
     known = {e["_slug"] for e in load()} | {e["term"].lower() for e in load()}
     bad: list[str] = []
     for path in _tracked_text_files():
         for match in re.findall(_WIKI_LINK, path.read_text()):
+            if "," in match or not any(c.isalpha() for c in match):
+                continue  # a nested list literal, not a reference
             if match.lower() not in known and match.lower().replace(" ", "-") not in known:
-                bad.append(f"{path.relative_to(ROOT)}: [[{match}]]")
+                bad.append(f"{path.relative_to(ROOT)}: doubled-bracket {match!r}")
     assert not bad, "wiki links naming no entry:\n  " + "\n  ".join(bad)
 
 
@@ -151,7 +167,7 @@ def test_every_glossary_link_resolves_to_an_entry() -> None:
     known = {p.stem for p in ENTRIES.glob("*.md")}
     bad: list[str] = []
     for path in _tracked_text_files():
-        for match in re.findall(r"glossary/([a-z0-9-]+)\.md", path.read_text()):
+        for match in re.findall(_GLOSSARY_LINK, path.read_text()):
             if match.startswith("_"):
                 continue
             if match not in known:
