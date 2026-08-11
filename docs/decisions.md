@@ -111,7 +111,7 @@ Examples:
   not) rather than phase state, and the criterion carries over unchanged
   — no rule's `applies_when:` reads it; it gates only the take-pile
   move's preconditions, and its operative meaning is per-side anyway (a
-  partnership that has not melded is frozen out regardless, the
+  team that has not melded is frozen out regardless, the
   per-player-exception shape below). Correctly a boolean.
 
 The criterion: ask whether any rule reads the boolean in its
@@ -961,11 +961,11 @@ rather than a hole here — no corpus default is untyped.
 game Bridge {
   // No game-level state in Bridge.
 
-  phase rubber repeat until any partnership.games_won >= 2 {
+  phase rubber repeat until (any team where games_won[team] >= 2) {
     state {
-      games_won[partnership]              : Integer = 0
-      above_line[partnership]             : Integer = 0
-      below_line_current_game[partnership]: Integer = 0
+      games_won[team]              : Integer = 0
+      above_line[team]             : Integer = 0
+      below_line_current_game[team]: Integer = 0
     }
 
     phase hand_sequence {
@@ -973,7 +973,7 @@ game Bridge {
         contract       : Contract? = none
         declarer       : Player?   = none
         dummy          : Player?   = none
-        tricks_taken[partnership] : Integer = 0
+        tricks_taken[team] : Integer = 0
         dummy_revealed : Boolean   = false
       }
       // ... phases inside hand_sequence ...
@@ -1358,9 +1358,9 @@ rewrites to underlying forms.
 - `Suit`, `Rank` — enumerable value types defined by the game's
   `cards` header.
 - `Player` — bare identity; relational queries delegate to Seating.
-- `Partnership` (alias: `Team`) — declared in the game header;
-  indexable as a key into per-partnership state.
-- `Seating` — derived from `players` + `partnerships`; exposes
+- `Team` — declared in the game header; indexable as a key into
+  per-team state.
+- `Seating` — derived from `players` + `teams`; exposes
   `partner_of(p)`, `left_of(p)`, `right_of(p)`, `LHO_of(p)`,
   `RHO_of(p)`, `opposite_of(p)`. Relational queries are function
   calls (and the `offset_by` operator), never dot chains — see the
@@ -1794,7 +1794,7 @@ machinery, and two rummy-family games prove the two halves:
 
 - **The key flattens into zone-family names.** A group keyed by a small
   static domain declares one zone family per key value: Canasta's
-  per-partnership per-rank melds are eleven team-indexed `TeamPile`
+  per-team per-rank melds are eleven team-indexed `TeamPile`
   families (`meldA[team] … meld4[team]`), plus the black-three going-out
   group and the red-three row; Gin's three arrangement slots are
   `meldA/B/C[player]`. The one index a zone family carries is the *owner*
@@ -2743,7 +2743,7 @@ phase scoring {
 ```
 
 Each component takes the hand result and returns a `ScoreDelta` — a
-structured value carrying per-partnership (or per-player)
+structured value carrying per-team (or per-player)
 contributions. The scoring phase sums the deltas across all
 components and applies the result atomically.
 
@@ -2754,7 +2754,7 @@ contribute to a single applied write.
 
 **Structured-score shapes are per-game, not generalized.** Bridge's
 `ScoreDelta { above_line, below_line }` has two channels per
-partnership because the game-win threshold cares specifically about
+team because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
 history. The games whose score is a single integer per player
@@ -2794,7 +2794,7 @@ example).
 
 Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when
-a partnership's below-the-line score crosses 100; RubberBonus fires
+a team's below-the-line score crosses 100; RubberBonus fires
 when `games_won` reaches 2; Spades' bag-overflow fires when
 `bags >= 10`. These
 share one shape, distinct from the batched per-hand composition:

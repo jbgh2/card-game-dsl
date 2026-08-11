@@ -32,7 +32,7 @@ per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Schnapsen's two-card trick resolution; Skat's bid
 ladder, follow-class legality, trick winner, matador count, and overbid
 arithmetic; Tichu's climb queries over the shared `combinations.py` engine,
-partnership/finishing lookups, and the OpenSpiel combo codec; Coup's
+team/finishing lookups, and the OpenSpiel combo codec; Coup's
 in-game scans and trace emitters.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
