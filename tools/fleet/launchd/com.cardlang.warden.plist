@@ -3,9 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.cardlang.warden</string>
-  <!-- Stub: sync the clone, then exec the freshened wrapper. The exec
-       re-reads run-role.sh only after sync, so a wrapper update can
-       never corrupt a script mid-run.
+  <!-- Bare stub: all clone sync happens inside run-role.sh AFTER its
+       occupancy lock (two agents firing together must not race git in
+       the shared clone), and the wrapper is parse-safe against its own
+       in-run update, so a run executes the previous run's wrapper and
+       picks up changes one run later.
 
        Daily cadence: the operator adds the StartCalendarInterval stanza
        (Hour 8, Minute 10 — the app scheduler's slot, docs/harness.md
@@ -17,7 +19,7 @@
   <array>
     <string>/bin/bash</string>
     <string>-c</string>
-    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; /usr/bin/git fetch -q origin &amp;&amp; /usr/bin/git checkout -qB main origin/main &amp;&amp; exec ./tools/fleet/run-role.sh warden</string>
+    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; exec ./tools/fleet/run-role.sh warden</string>
   </array>
   <key>StandardOutPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-warden.out</string>
   <key>StandardErrorPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-warden.err</string>

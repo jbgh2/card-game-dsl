@@ -17,9 +17,12 @@ Pieces (all in this directory):
   design: it invokes the role's charter skill and carries only the
   headless adaptations (no pulling, worktrees inside the clone, checks
   via ./tools/verify.sh, foreground PR-watching, denials reported).
-- `launchd/com.cardlang.<role>.plist` — the launchd agents. The stub
-  syncs the clone before exec'ing the wrapper, so a wrapper update never
-  corrupts a running script.
+- `launchd/com.cardlang.<role>.plist` — the launchd agents: bare stubs
+  (cd + exec). All clone sync lives inside the wrapper, after its
+  occupancy lock — concurrent agents must not race git in the shared
+  clone — and the wrapper is parse-safe against its own in-run update
+  (a run executes the previous run's wrapper; changes land one run
+  later).
 
 ## Installing — the operator's hands, deliberately
 

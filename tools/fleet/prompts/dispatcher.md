@@ -27,10 +27,14 @@ chartered:
   body-sufficiency check (bounce loudly on failure: comment +
   needs-triage + release own ref) → cardlang-planning gates (a Gate 3.5
   stop-shape = park: comment the question, release the Lease, next) →
-  implement on the Lease branch in a worktree INSIDE this clone
-  (`git worktree add .claude/worktrees/issue-N claude/issue-N` — the
-  path is already gitignored, and headless file access does not extend
-  outside this clone) → push early → run locally what the change can
+  implement on the Lease branch in a worktree INSIDE this clone: the
+  Lease ref was born on the server after the wrapper's sync, so fetch
+  first, then create the local branch from the remote ref —
+  `git fetch -q origin && git worktree add -B claude/issue-N
+  .claude/worktrees/issue-N origin/claude/issue-N` (`-B` also absorbs a
+  leftover local branch from an earlier round; the path is already
+  gitignored, and headless file access does not extend outside this
+  clone) → push early → run locally what the change can
   affect, evidence that can fail (no piped exit codes): from the
   worktree root use `./tools/verify.sh mypy` and
   `./tools/verify.sh pytest -q -n 8` — verify.sh binds PYTHONPATH to
@@ -42,12 +46,18 @@ chartered:
   #143's contract — never edit #143 itself).
 - Watch, then answer — linearized for a headless session (a background
   watcher would outlive you): after ALL of the round's PRs are open,
-  watch each in the foreground (`./tools/pr-watch.sh <N> both`), handle
-  its review round per the thread rule (disposition reply + resolve; a
-  finding on the fix for a previous finding escalates to the operator —
-  say so on the PR and stand down), and re-watch after any fix push.
-  The charter's arm-in-background language is for interactive sessions;
-  every other step of its round binds here unchanged.
+  take them one at a time, and for each FIRST query what already landed
+  (`gh pr view <N> --json comments,reviews,statusCheckRollup` — a review
+  that arrived while you worked elsewhere is invisible to a watcher
+  started now, because pr-watch baselines at startup and reports only
+  increases). Handle anything already present, and only then watch in
+  the foreground (`./tools/pr-watch.sh <N> both`) for what hasn't.
+  Handle each review round per the thread rule (disposition reply +
+  resolve; a finding on the fix for a previous finding escalates to the
+  operator — say so on the PR and stand down); after any fix push,
+  query-then-watch again. The charter's arm-in-background language is
+  for interactive sessions; every other step of its round binds here
+  unchanged.
 - Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit, delete the
   branch); otherwise post the gate's evidence block as a PR comment and
   leave the PR for the operator.

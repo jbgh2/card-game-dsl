@@ -3,14 +3,20 @@
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.cardlang.dispatcher</string>
-  <!-- No StartCalendarInterval: the Dispatcher is kickstart-only until
+  <!-- Bare stub: all clone sync happens inside run-role.sh AFTER its
+       occupancy lock (two agents firing together must not race git in
+       the shared clone), and the wrapper is parse-safe against its own
+       in-run update, so a run executes the previous run's wrapper and
+       picks up changes one run later.
+
+       No StartCalendarInterval: the Dispatcher is kickstart-only until
        the operator sets a standing cadence. Fire with:
        launchctl kickstart gui/$UID/com.cardlang.dispatcher -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
     <string>-c</string>
-    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; /usr/bin/git fetch -q origin &amp;&amp; /usr/bin/git checkout -qB main origin/main &amp;&amp; exec ./tools/fleet/run-role.sh dispatcher</string>
+    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; exec ./tools/fleet/run-role.sh dispatcher</string>
   </array>
   <key>StandardOutPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-dispatcher.out</string>
   <key>StandardErrorPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-dispatcher.err</string>
