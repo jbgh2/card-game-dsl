@@ -1,6 +1,6 @@
 ---
 term: Game Description Error
-definition: A failure whose faulty artifact is the game description, not the engine — the base the runtime raises so a harness can catch "the game is wrong" without catching engine bugs. `GameDescriptionError` (`cardlang/runtime/errors.py`); [[owner-guard]]s raise `OwnerGuardError` and [[shadow-guard]]s raise `ShadowGuardError`, both subtypes, so the base names what is wrong and the subtype names the role that caught it.
+definition: A runtime refusal naming an illegal game description: `GameDescriptionError` (`cardlang/runtime/errors.py`), the base a harness catches. The base says WHAT is wrong; the subtype says which role caught it — an [[owner-guard]] raises `OwnerGuardError`, a [[shadow-guard]] raises `ShadowGuardError`. The base therefore reaches engine gaps too, which is why a harness catching it must not treat a `ShadowGuardError` as merely a bad game.
 layer: check
 status: canonical
 reserved: false
