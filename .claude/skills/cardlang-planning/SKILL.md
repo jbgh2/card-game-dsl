@@ -31,6 +31,12 @@ locate it:
   Merge Lane A change, or a design that would create one, consults at
   planning time and attaches the counsel block to the change before the
   operator rules (docs/harness.md, "The Language Owner")
+- engine-structural -> the Architect (`.claude/skills/architect`): pass
+  architecture and Contract blocks, the type system, IR and runtime
+  shape, diagnostics machinery, testing strategy, the observability
+  model — consulted at planning time, counsel attached to the change
+  (docs/harness.md, "The Architect"); a change with both faces takes
+  both counsels
 
 A plan that contradicts an owner is wrong before it starts; a plan that
 re-derives one is losing information — the planning-stage form of
