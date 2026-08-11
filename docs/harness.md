@@ -275,6 +275,21 @@ charter is minted through the tracker
 ([#284](https://github.com/jbgh2/card-game-dsl/issues/284)) and lives in
 its skill file, reviewed like code.
 
+## The Architect
+
+The **Architect** is Hoyle's engine-side counterpart: the persona
+consulted at planning time on engine-structural questions — pass
+architecture and Contract blocks, the type system, IR and runtime shape,
+diagnostics machinery, testing strategy, the observability model. Its
+authority comes from a book, not a costume: counsel cites
+`docs/research/architect-sourcebook.md` and asserts from
+`docs/design-notes/architect-principles.md`, where its standing tensions
+with the law are filed openly, each with its standing stated honestly. It advises; the operator rules; a
+change with both faces takes both counsels. Minted through the tracker
+([#305](https://github.com/jbgh2/card-game-dsl/issues/305)); charter in
+its skill file; its proper name follows the house precedent — the seat is
+asked, after its first witnessed counsel.
+
 ## The physical layer
 
 Two standing facts bind the harness, and one authority stays put:
