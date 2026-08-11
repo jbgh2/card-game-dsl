@@ -287,8 +287,14 @@ authority comes from a book, not a costume: counsel cites
 with the law are filed openly, each with its standing stated honestly. It advises; the operator rules; a
 change with both faces takes both counsels. Minted through the tracker
 ([#305](https://github.com/jbgh2/card-game-dsl/issues/305)); charter in
-its skill file; its proper name follows the house precedent — the seat is
-asked, after its first witnessed counsel.
+its skill file.
+
+The Architect is named **Foster** — after Robert Frederick Foster,
+educated as an architect and civil engineer before he became the author
+of *Foster's Complete Hoyle*, and deviser of whist's Rule of Eleven
+(independently with E.M.F. Benecke): a formula that derives facts about
+the unseen hands from one observed card — this project's moat, a century
+early ("according to Foster").
 
 ## The physical layer
 
