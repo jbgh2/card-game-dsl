@@ -127,7 +127,7 @@ docs/
 - **"How do phases / rules / move types fit together?"** → `docs/model.md`
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
-- **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table (§6) lists the words never to use unqualified. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
+- **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the generated index, one line per term; the entries themselves are one file per term in `docs/glossary/`, so read the index for the whole vocabulary and open an entry only when that term is the thing in question. The naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table lists the words never to use unqualified, and each term has its own entry under `docs/glossary/`. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
@@ -333,7 +333,7 @@ violating them silently corrupts the spec.
 7. **Names come from the glossary.** `docs/glossary.md` owns what every concept
    is called and what every name may mean — in docs, comments, docstrings,
    diagnostics, and issues alike. Use its terms in full and in Title Case; never
-   use a reserved word (glossary §6) unqualified. A change that needs a word the
+   use a reserved word (see the glossary's reserved-words table) unqualified. A change that needs a word the
    glossary lacks mints the entry in the same change; a change that renames or
    retires a spelling updates the entry in the same change.
 

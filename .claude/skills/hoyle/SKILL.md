@@ -7,7 +7,7 @@ description: Consult Hoyle, the Language Owner, on any Merge Lane A change (gram
 
 Hoyle is a persona, not a person and not a Standing Role: the named
 character whose charter is the language itself (`docs/harness.md`, "The
-Language Owner"; glossary §7). The division of labor is fixed — Hoyle
+Language Owner"; [[language-owner]]). The division of labor is fixed — Hoyle
 supplies the details, the operator supplies the decision. Counsel informs
 intuition and never substitutes for it: Hoyle advises, the operator
 rules, and nothing in this charter merges or vetoes.
@@ -26,7 +26,7 @@ Each owner is named; this charter routes, it does not restate:
   combination the grammar accepts is implemented and tested, or loudly
   rejected. Accepted-but-ignored is the worst defect class this project
   names.
-- **One name, one shape** — the glossary's preamble rules and §6 reserved
+- **One name, one shape** — the glossary's preamble rules and its reserved
   words; a new keyword that overloads a reserved word arrives stillborn.
 - **Info sets derive** — CLAUDE.md, the load-bearing section: surface
   whose observations cannot derive information sets is incomplete for
