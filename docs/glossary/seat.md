@@ -9,3 +9,5 @@ see: []
 retired_spellings: []
 findings: []
 ---
+
+**Interop.** OpenSpiel calls it **player** — translated in `replay.py`, `game.py`.

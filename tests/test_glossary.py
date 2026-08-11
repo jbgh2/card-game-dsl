@@ -6,14 +6,24 @@ property:   a term named in code or docs can be looked up. Concretely: every
             wiki link and `docs/glossary/` link anywhere in the repo names an
             entry that exists.
 domain:     every file under `docs/glossary/`, and every wiki link or
-            `docs/glossary/<slug>.md` reference in any tracked `.py` or `.md`.
+            `docs/glossary/<slug>.md` reference in the PROSE of any tracked `.py`
+            or `.md` -- Python comments and docstrings, Markdown outside a fence.
+            Code, and DSL fixtures written as Python strings, are not prose and
+            are out of the domain by construction (`_prose_text`).
 registry:   the entry directory itself, walked -- there is no hand-listed term
             list anywhere, so a term added or removed arrives here without
             anyone updating a fixture. Field vocabularies come from
             `tools.glossary_index.LAYERS` / `.STATUSES`.
 covered:    entry parse + field closure + slug/term uniqueness + index equality
-            + reference resolution, each over the full walk.
+            + reference resolution, each over the full walk; and the prose/code
+            boundary itself, as the parametrized rows of
+            `test_only_prose_positions_are_scanned_for_references`. Both
+            resolution checks assert they scanned a reference at all, so neither
+            can pass by reading nothing.
 sampled:    none.
+note:       This module is inside its own walk, so its comments and docstrings
+            never spell a live reference -- every example spelling lives in a
+            parametrized row, which is a string literal and therefore code.
 residual:   Resolution only, deliberately -- issue #214 D4. Nothing here checks
             that prose USES a reserved word correctly, or that a docstring
             mentioning a concept links it. Those are review judgment (and the
@@ -26,9 +36,12 @@ residual:   Resolution only, deliberately -- issue #214 D4. Nothing here checks
 
 from __future__ import annotations
 
+import ast
+import io
 import pathlib
 import re
 import subprocess
+import tokenize
 
 import pytest
 
@@ -49,9 +62,14 @@ from tools.glossary_index import (
 # underscored spelling at all, so the check whose entire job is catching
 # mistyped references reports success on precisely those.
 #
-# The discriminator against Python's `Callable[[int], str]` is the character
-# BEFORE the brackets, not the shape of what is inside: a subscript's `[[` always
-# follows an identifier or a closing bracket, a reference never does.
+# Capturing wide means the pattern alone cannot tell a reference from Python's
+# own doubled brackets, and it must not try: narrowing the SPELLING to exclude a
+# one-element nested list would re-admit every typo. So the discrimination is by
+# POSITION -- `_prose_text` hands these patterns only the regions where doubled
+# brackets mean a reference. What survives inside those regions is the lookbehind
+# against a subscript like `Callable` applied to a list, written in a docstring:
+# a subscript's brackets always follow an identifier or a closing bracket, a
+# reference's never do.
 _WIKI_LINK = r"(?<![\w\]])\[\[([^\[\]\n]+)\]\]"
 
 # Same discipline for the path spelling: accept any filename shape, then check
@@ -81,6 +99,55 @@ def _tracked_text_files() -> list[pathlib.Path]:
     ).stdout
     out = [ROOT / name for name in listing.split("\0") if name]
     assert out, "the file walk found nothing -- both reference checks are vacuous"
+    return out
+
+
+def _prose_text(suffix: str, text: str) -> str:
+    """The regions of a file where a doubled bracket MEANS a reference.
+
+    A reference is prose, so the discriminator is position, not spelling. Python
+    holds prose in exactly two places, comments and docstrings, and this takes
+    both and nothing else. A one-element nested list is code; a DSL fixture
+    written as a Python string is source in another language; neither reaches
+    the patterns, while a link in a docstring or a `#` comment does -- misspelled
+    exactly as written, which is the whole point of capturing wide. In Markdown
+    it is everything outside a fenced block, so a Python example in a fence gets
+    the same answer as the Python file it was copied from.
+
+    A tracked `.py` that will not parse raises here rather than being skipped: a
+    file silently dropped from the walk is the defect this module already had
+    once.
+    """
+    if suffix == ".py":
+        holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        prose = [
+            doc
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, holders) and (doc := ast.get_docstring(node, clean=False))
+        ]
+        prose += [
+            tok.string
+            for tok in tokenize.generate_tokens(io.StringIO(text).readline)
+            if tok.type == tokenize.COMMENT
+        ]
+        return "\n".join(prose)
+    kept, fenced = [], False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def _scannable() -> list[tuple[pathlib.Path, str]]:
+    out = []
+    for path in _tracked_text_files():
+        try:
+            out.append((path, _prose_text(path.suffix, path.read_text())))
+        except (SyntaxError, tokenize.TokenError) as exc:  # pragma: no cover - loud by design
+            raise AssertionError(f"{path.relative_to(ROOT)} will not parse: {exc}") from exc
     return out
 
 
@@ -147,13 +214,14 @@ def test_every_wiki_link_resolves_to_an_entry() -> None:
     """
     known = {e["_slug"] for e in load()} | {e["term"].lower() for e in load()}
     bad: list[str] = []
-    for path in _tracked_text_files():
-        for match in re.findall(_WIKI_LINK, path.read_text()):
-            if "," in match or not any(c.isalpha() for c in match):
-                continue  # a nested list literal, not a reference
+    seen = 0
+    for path, prose in _scannable():
+        for match in re.findall(_WIKI_LINK, prose):
+            seen += 1
             if match.lower() not in known and match.lower().replace(" ", "-") not in known:
                 bad.append(f"{path.relative_to(ROOT)}: doubled-bracket {match!r}")
     assert not bad, "wiki links naming no entry:\n  " + "\n  ".join(bad)
+    assert seen, "no wiki link was scanned at all -- this check validated nothing"
 
 
 def test_every_glossary_link_resolves_to_an_entry() -> None:
@@ -166,13 +234,51 @@ def test_every_glossary_link_resolves_to_an_entry() -> None:
     """
     known = {p.stem for p in ENTRIES.glob("*.md")}
     bad: list[str] = []
-    for path in _tracked_text_files():
-        for match in re.findall(_GLOSSARY_LINK, path.read_text()):
+    seen = 0
+    for path, prose in _scannable():
+        for match in re.findall(_GLOSSARY_LINK, prose):
             if match.startswith("_"):
                 continue
+            seen += 1
             if match not in known:
                 bad.append(f"{path.relative_to(ROOT)}: glossary/{match}.md")
     assert not bad, "glossary links naming no entry:\n  " + "\n  ".join(bad)
+    assert seen, "no glossary link was scanned at all -- this check validated nothing"
+
+
+@pytest.mark.parametrize("suffix,source,found", [
+    # Python code is not prose: these are list literals, and flagging them would
+    # redden the suite on valid code that never mentioned the glossary.
+    (".py", "rows = [[item]]\n", []),
+    (".py", "def f():\n    return [[value]]\n", []),
+    (".py", "x = ([[a]], [[b]])\n", []),
+    # A DSL fixture written as a string literal is source in another language,
+    # not prose -- the case that decided comments-and-docstrings over all strings.
+    (".py", 'SRC = """game { zones [[0, 1]] }"""\n', []),
+    # ... but a reference in a comment or a docstring is, misspelling included.
+    (".py", "# see [[owner-guard]]\n", ["owner-guard"]),
+    (".py", '"""doc [[Missing Term]]"""\n', ["Missing Term"]),
+    (".py", 'x = 1  # [[permissive_top]]\n', ["permissive_top"]),
+    # A type signature written inside a docstring: the lookbehind still earns
+    # its place, because tokenising cannot tell prose from a signature.
+    (".py", '"""Takes Callable[[int], str]."""\n', []),
+    # Markdown is prose except inside a fence -- a Python example pasted into a
+    # doc gets the same answer as the Python file it came from.
+    (".md", "See [[owner-guard]].\n", ["owner-guard"]),
+    (".md", "```python\nrows = [[item]]\n```\n", []),
+    (".md", "```\n[[x]]\n```\nand [[hand]] after\n", ["hand"]),
+])
+def test_only_prose_positions_are_scanned_for_references(
+    suffix: str, source: str, found: list[str]
+) -> None:
+    """The position discriminator, probed with the sentences it exists to tell
+    apart. Capturing wide (so typos are reported) is only safe because the text
+    handed to the pattern is prose; these rows pin both halves.
+
+    red under: make `_prose_text` return `text` unchanged -- the three Python
+    list-literal rows flag `item`/`value`/`a`.
+    """
+    assert re.findall(_WIKI_LINK, _prose_text(suffix, source)) == found
 
 
 def test_the_entry_directory_is_not_empty() -> None:

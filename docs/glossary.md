@@ -70,6 +70,7 @@ these entries own the names.
 | [Context](glossary/context.md) | `Ctx`: the immutable evaluation context threaded through the interpreter (actor, locals, pronoun bindings, chooser, tracer). | `state.py` |
 | [Form](glossary/form.md) | A round form's hook bundle (`TrickForm` / `AuctionForm` / `ClimbForm`) behind the `DecisionForm` protocol. Prefer "form" over "mechanic"; the accumulator dict is the [[round-state]]. | `mechanics.py` |
 | [Game](glossary/game.md) | The root unit: one `game { }` plus its supporting definitions. Not "program", "spec", or "source" except when meaning the file/text itself. | `n.Game` |
+| [Hand](glossary/hand.md) | One deal-to-scoring cycle of a game (`skip to next hand`, `hands_played`) — the *hand loop*, distinct from the *hand zone*; qualify either when ambiguity is possible. The hand loop currently has no structural marker in the language (→ F-6). | `driver.py` |
 | [Kernel Tables](glossary/kernel-tables.md) | The kernel's registry data: zone types + projections + capacities, board families, round-state fields, enum namespaces. Not library, not builtins — engine spec data, staged toward `cardlang/kernel/` at the second-family extraction (issue #203). | `stdlib/*.py` (interim) |
 | [Library](glossary/library.md) | A family library: a `library { }` file a game `uses`. The stdlib rules fragment is *not* a library. | `n.Library` |
 | [Loser](glossary/loser.md) | The game-level `loser:` clause — a player expression. Asymmetric with `winner:` by design. | `n.Loser` |
@@ -82,10 +83,10 @@ these entries own the names.
 | [Phase](glossary/phase.md) | A step in the game's sequential program: phases run in declaration order, and a phase ends when its work completes (the sense MTG taught every designer). This is the keyword's sole meaning — the rule-swapping flavor is a **mode** (→ F-8). | `n.Phase` |
 | [Player](glossary/player.md) | The participant occupying a seat. In today's engine seat and player coincide (`Player = int`); keep the two words distinct anyway — `domain-map.md` lists "seat vs agent identity" as a future forcing point. | `values.Player` |
 | [Position Domain](glossary/position-domain.md) | An integer or named-member index domain from `positions { }` or minted by `board:` (`cell`, plus the direction domain `dir`). | `board_domains.py` |
-| [Primitive](glossary/primitive.md) | Sanctioned game-local Python (a trick-winner function, a climb query, a call function). Its inputs are the **Primitive Bundle** (below). Declared in `cardlang/builtins/` (`PRIMITIVE_*`); dispatch seam `runtime/primitives.py` — its arm count is the elimination metric; inventory + roadmap in `design-notes/primitive-inventory.md`. | `reads.py`, `narrowing.py` |
+| [Primitive](glossary/primitive.md) | Sanctioned game-local Python (a trick-winner function, a climb query, a call function). Its inputs are the [[primitive-bundle]]. Declared in `cardlang/builtins/` (`PRIMITIVE_*`); dispatch seam `runtime/primitives.py` — its arm count is the elimination metric; inventory + roadmap in `design-notes/primitive-inventory.md`. | `reads.py`, `narrowing.py` |
 | [Primitive Bundle](glossary/primitive-bundle.md) | The pair every Primitive receives: the **facts** (`EngineFacts`) and its declared **reads** (`GameReads`). Named because it is one thing passed together, restated as `(facts, gr)` at every primitive signature; it becomes a NamedTuple when the sidecar design lands, and the two halves keep their own names either way. | `narrowing.py`, `reads.py` |
 | [Projection](glossary/projection.md) | The per-observer rendering of a zone (`identity`, `count_by_type`, …). "Visibility" is the *declaration*; "projection" is the derived view. | `stdlib/zones.py` |
-| [Round](glossary/round.md) | The kernel decision loop: the `round` keyword and its three **forms** — **trick form**, **auction form** (which also serves betting), **climb form**. "Round" never means "a round of the game"; that concept is a *hand* (below). The forms are distinct AST nodes — `TrickRound` / `AuctionRound` / `ClimbRound`, each carrying only its own form's clauses. Surface keyword unchanged; a surface word for trick stays parked on the second family. | `mechanics.py` |
+| [Round](glossary/round.md) | The kernel decision loop: the `round` keyword and its three **forms** — **trick form**, **auction form** (which also serves betting), **climb form**. "Round" never means "a round of the game"; that concept is a [[hand]]. The forms are distinct AST nodes — `TrickRound` / `AuctionRound` / `ClimbRound`, each carrying only its own form's clauses. Surface keyword unchanged; a surface word for trick stays parked on the second family. | `mechanics.py` |
 | [Round State](glossary/round-state.md) | What a running round publishes under the `state.` pronoun — the round's accumulator fields (`stdlib/round_state.py`), not state variables. | `round_state.py` |
 | [Rule](glossary/rule.md) | A named constraint on a move type (`constrains` / `applies_when` / `demands` / `exempts` / `if_impossible`). A **rule template** is a parameterized rule; instantiation substitutes arguments. | `n.RuleDef` |
 | [Seat](glossary/seat.md) | A player *position*: an index `0..players-1` into the turn ring. What zones are keyed by, what OpenSpiel calls a player. | `domains.Role.PLAYER` |
@@ -108,6 +109,7 @@ these entries own the names.
 | Term | Definition | Home |
 |---|---|---|
 | [Binder](glossary/binder.md) | A name introduced by a construct (`let`, loop variables, parameters, quantifier nouns). Resolve's `ref_kind` for one is `local`; prefer "binder" in prose. | `resolve.py` |
+| [Domain](glossary/domain.md) | A quantifiable domain: a row of `domains.DOMAINS` (player/team/suit/rank), plus position domains. Every other use of "domain" must be qualified — see the approved compounds below (→ F-4). | `domains.py` |
 | [IR](glossary/ir.md) | The resolved AST rendered as JSON-able dicts; the `kind` key is the node tag and is reserved for that (→ F-9). | `ir.py` |
 | [Namespace](glossary/namespace.md) | One of the closed set of name pools a bare name resolves against (state, zone, phase, function, …). Prefer over "category" / "bucket". | `resolve.py` |
 | [Parameter](glossary/parameter.md) | The named, typed slot of a declaration — one shared node across move types, functions, procedures, and rules. Per-construct admissible-type constraints live in each construct's Owner Guard, not the node. Tripwire: splits only if the four uses ever need different fields. Full word, not "Param" — new names follow the full-word pattern; the abbreviation keeps (`Ctx`, `Expr`, `Stmt`) are grandfathered, not precedent. | `n.Parameter` |
@@ -123,6 +125,7 @@ these entries own the names.
 |---|---|---|
 | [Game Tree Node Kinds](glossary/game-tree-node-kinds.md) | OpenSpiel calls it **decision node** / **terminal node** / **chance node**. Replay reifies the first two as `DecisionNode` / `TerminalNode`. Exactly one chance node exists, at the root, implicit in `CardlangState` (`_seed is None`); its outcomes are seeds that drive every rng draw. A future native simultaneous-move export would add `SimultaneousNode`. Not "Terminal" bare — that word is grammar/lexer vocabulary. — translated in `replay.py`, `game.py`. | `replay.py`, `game.py` |
 | [Observation Log](glossary/observation-log.md) | OpenSpiel calls it **information state** string (perfect recall). "Information state" is the per-player artifact; "information set" is the equivalence class it induces — don't interchange them (→ F-14) — translated in `infostate.py`. | `infostate.py` |
+| [Shuffle Seed](glossary/shuffle-seed.md) | OpenSpiel calls it the root **chance** node (4096 sampled seeds) — translated in `game.py`. | `game.py` |
 
 ## Check vocabulary
 
@@ -155,8 +158,8 @@ These carry several meanings each; always qualify them. The ones that also name 
 | [block](glossary/block.md) | fenced block (markdown) · `Block` node (synthetic) · braced body — say which |
 | [check](glossary/check.md) | a `_check_*` pass · the `is …` predicate is an **is-check**, not "a check" |
 | [direction](glossary/direction.md) | turn direction (the `direction:` clause, `clockwise`) · **seat direction** (the `SeatDirection` enum, `left/right/across/hold`: a relative direction around the seating ring, fed to `offset_by`; `hold` is the identity offset — Hearts table-talk; "pass direction" is ordinary prose for Hearts' variable, not a term) · board direction (`dir`/`TDir`) (→ F-15) |
-| [domain](glossary/domain.md) | quantifiable domain · parameter domain · position domain · choose range |
-| [hand](glossary/hand.md) | hand zone · hand loop / one hand |
+| [Domain](glossary/domain.md) | quantifiable domain · parameter domain · position domain · choose range |
+| [Hand](glossary/hand.md) | hand zone · hand loop / one hand |
 | [harness](glossary/harness.md) | the shared proof harness (`tests/openspiel_ready/`) · the LLM harness (`experiments/llm_eval/`) · the [[operating-harness]] (process; `harness.md`) |
 | [index](glossary/index.md) | definition index (name→def) · rank index (rank→strength) · zone index (the keying domain) · subscript |
 | [kind](glossary/kind.md) | IR node tag (reserved) · AST discriminators (rename per node when touched — → F-9) |
