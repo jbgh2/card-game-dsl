@@ -10,8 +10,6 @@ retired_spellings: []
 findings: [F-6]
 ---
 
-Naming the loop is not fixing it. F-6 is the defect — `driver.py` counts hands by
-testing `phase.name == "scoring"` — and it stays F-6's, tracked on its own terms;
-this entry exists so the concept has one spelling to be discussed under. The
-structural-marker question (what construct, if any, should mark the loop) belongs
-to that finding, not here.
+The loop has no structural marker: `driver.py` counts hands by testing a
+phase-name string literal, so a game whose scoring phase is named otherwise
+reports none. That defect is F-6's, not this entry's.

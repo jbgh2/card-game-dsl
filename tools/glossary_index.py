@@ -19,7 +19,12 @@ ENTRIES = ROOT / "docs" / "glossary"
 INDEX = ROOT / "docs" / "glossary.md"
 
 LAYERS = ("kernel", "card-family", "compiler", "interop", "check", "process")
-STATUSES = ("canonical", "reserved", "retired")
+
+# No `retired`: a retired spelling is a field on the canonical entry (issue #214,
+# D2), so it never needs an entry of its own. A status value nothing can carry is
+# a category that reads as available and is not -- the shape that let the reserved
+# words fall out of their own table.
+STATUSES = ("canonical", "reserved")
 
 # The section each layer heads in the index, in order.
 LAYER_SECTIONS = [

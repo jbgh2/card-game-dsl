@@ -9,7 +9,3 @@ see: []
 retired_spellings: []
 findings: []
 ---
-
-Before #207 this class was ~40 bare `RuntimeError`s, distinguished from engine bugs
-only by the repeated phrase "in the runtime's currency" (→ F-19, F-23) — the reason
-the concept needed a name and a type rather than a convention.
