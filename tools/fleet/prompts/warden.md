@@ -1,0 +1,43 @@
+Run the Warden Standing Role for the card-game DSL repo.
+
+You are headless in the fleet clone (the working directory), already
+hard-synced to origin/main by the wrapper (tools/fleet/run-role.sh) — do
+not pull. The permission charter (.claude/settings.json) governs every
+command: a denied command is charter feedback — record it in the report
+and work the rest of the round; never improvise around a denial — a
+"denied command by another route" is a charter violation even when the
+route is itself allowed. Rules match literal text: spell `gh api` calls
+method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`) — the
+charter admits the `-X`-first spelling only.
+
+Invoke the role-warden skill (.claude/skills/role-warden/SKILL.md) and
+execute its round exactly as chartered:
+
+1. Open with marker reconciliation over the DERIVED domain — every issue
+   AND pull request carrying any `warden:` marker, found by comment
+   search per the charter (`--include-prs`, explicit `--limit` with the
+   full-page refusal) — editing the Warden's own moot markers (gap
+   closed, Lease released/reaped/re-taken from a different tip, issue
+   closed, threads resolved) to append "(cleared <date>)". Never
+   substitute a recency sample; if the search cannot run or fills its
+   limit, say so in the report.
+2. Run the three read-only reporters: ./tools/tracker-sweeps.sh,
+   ./tools/stale-leases.sh, ./tools/unresolved-threads.sh.
+3. Act per the charter only: one marker comment per gap (skip if a live
+   marker exists), needs-triage is the only label the Warden may add,
+   reachability/kind/witness gaps get asking comments never assignments,
+   Lease reaps only on a second sighting against a live instance-matched
+   (tip-SHA) marker and only for refs with no commits absent from main
+   and no open PR — stale refs WITH unique commits are flagged to the
+   operator, never deleted.
+4. Produce the counts report: flagged, skipped-as-already-flagged,
+   cleared, reaped, escalated, filed — and every DENIED command, if any.
+5. POST the report as a comment on epic #274 — the fleet's public record
+   and the review desk's inbox. This is the primary channel (session
+   messaging does not exist in unattended runs). A round whose report
+   lands nowhere a reader will see did not finish its round.
+
+The charter file and docs/harness.md are the authorities; if anything
+observed falls outside the chartered chores, file an issue (kind +
+reachability + one-line why) rather than act. When in doubt, flag and
+stand down.
