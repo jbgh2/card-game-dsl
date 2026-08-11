@@ -287,8 +287,8 @@ authority comes from a book, not a costume: counsel cites
 with the law are filed openly, each with its standing stated honestly. It advises; the operator rules; a
 change with both faces takes both counsels. Minted through the tracker
 ([#305](https://github.com/jbgh2/card-game-dsl/issues/305)); charter in
-its skill file; its proper name follows the house precedent — the seat is
-asked, after its first witnessed counsel.
+its skill file; named **Foster** — chosen by the seat at its first
+witnessed counsel, per the house precedent that the seat is asked.
 
 ## The physical layer
 
