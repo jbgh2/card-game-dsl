@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cardlang.warden</string>
+  <!-- Bare stub: all clone sync happens inside run-role.sh AFTER its
+       occupancy lock (two agents firing together must not race git in
+       the shared clone), and the wrapper is parse-safe against its own
+       in-run update, so a run executes the previous run's wrapper and
+       picks up changes one run later.
+
+       Daily cadence: the operator adds the StartCalendarInterval stanza
+       (Hour 8, Minute 10 — the app scheduler's slot, docs/harness.md
+       "Standing Roles") before installing; an agent does not install a
+       standing schedule on its own authority. Without it the agent is
+       kickstart-only:
+       launchctl kickstart gui/$UID/com.cardlang.warden -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; exec ./tools/fleet/run-role.sh warden</string>
+  </array>
+  <key>StandardOutPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-warden.out</string>
+  <key>StandardErrorPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-warden.err</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>

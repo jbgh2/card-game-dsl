@@ -38,9 +38,11 @@ Two full phrases and a test-freeze word carry the whole taxonomy. Timing (static
 of a term — it's visible from where a guard lives, and both roles exist at both times.
 Per the preamble rules: always the full phrase, always Title Case — never "owner"
 (that's the zone-family owner) or "shadow". Bare "guard" is the family noun in prose
-only; "check" stays the fully generic word for any validation. Retired: *wall*,
-*backstop*, *gate*, *sweep* (mechanism words — how a guard checks is implementation),
-*twin* (a pinned Shadow Guard), *mirror*, *copy*, *sibling*. Freeing the word:
+only; "check" stays the fully generic word for any validation. Retired spellings, recorded on the entries: *wall* (Owner Guard), *backstop* and
+*twin* (Shadow Guard). Never names for a guard, but not retired spellings either:
+*gate*, *sweep*, *mirror*, *copy*, *sibling* — ordinary words with lives of their
+own here (the merge gate, sweeping a class, a sweep's sibling), so they take no
+`retired_spellings` entry and must not be rewritten out of those uses. Freeing the word:
 `MoveTypeDef.guard` → `.when` (a convergence rename the audit already mandated) rides
 the migration.
 

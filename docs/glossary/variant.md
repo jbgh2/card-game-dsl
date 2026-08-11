@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home: docs
 see: []
-retired_spellings: []
+retired_spellings: [VariantCase, TVariant, variant_registry]
 findings: []
 ---
