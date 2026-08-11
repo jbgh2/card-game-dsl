@@ -68,3 +68,7 @@ coverage.xml
 .superpowers
 experiments/llm_eval/results_kuhn/runs/
 experiments/llm_eval/results_kuhn/estimate/
+
+# The fleet permission charter is team state, versioned like the charters;
+# local overrides (settings.local.json) stay personal and ignored.
+!.claude/settings.json
