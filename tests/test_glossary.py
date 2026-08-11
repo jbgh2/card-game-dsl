@@ -198,6 +198,12 @@ def test_closed_fields_take_only_their_declared_values(field: str, allowed: tupl
 def test_terms_and_slugs_are_unique() -> None:
     """One name, one entry -- the glossary's own rule applied to itself.
 
+    Shadow Guard. `test_every_lookup_name_reaches_exactly_one_entry` owns this
+    class and is strictly wider: it canonicalises before comparing and covers
+    retired spellings too, so anything caught here is caught there. This stays
+    because a bare duplicate term is the common case and deserves to say so in
+    its own words, and it normalises the same way rather than a third way.
+
     Four words are BOTH a concept and a reserved word (`round`, `rule`,
     `library`, `outcome`). They are one entry carrying `reserved: true`, not
     two entries, which is why reservation is a field rather than a status.
@@ -205,7 +211,7 @@ def test_terms_and_slugs_are_unique() -> None:
     red under: copy any entry file to a new slug keeping its `term:`.
     """
     entries = load()
-    terms = [e["term"].lower() for e in entries]
+    terms = [_canon(e["term"]) for e in entries]
     slugs = [e["_slug"] for e in entries]
     assert len(set(terms)) == len(terms), (
         f"duplicate term: {sorted({t for t in terms if terms.count(t) > 1})}"
@@ -241,20 +247,34 @@ def test_a_stated_retirement_is_also_a_structured_one() -> None:
     )
 
 
+def _canon(name: str) -> str:
+    """The ONE normalisation a name gets before it is compared to anything.
+
+    Both the reference checks and the uniqueness check route through this, and
+    that is the point: when they normalised separately they disagreed, and the
+    disagreement was invisible. `[[card piece]]` resolved to `card-piece.md`
+    because the resolver dashed its input, while the namespace stored retired
+    spellings raw -- so a second entry could retire `card piece`, the reference
+    would still reach the first entry, and the collision check stayed green.
+    Two spellings of one rule is the defect; one function is the fix.
+    """
+    return name.strip().lower().replace(" ", "-")
+
+
+def _names_reaching(entry: dict[str, str]) -> set[str]:
+    """The canonical names a wiki link or glossary link may use for this entry."""
+    return {_canon(entry["_slug"]), _canon(entry["term"])}
+
+
 def _lookup_namespace() -> dict[str, list[str]]:
     """Every name the glossary can be looked up BY, mapped to the entries
-    claiming it. Derived from the resolver, not hand-listed: a reference resolves
-    by slug, by term, or by term-with-dashes (see
-    `test_every_wiki_link_resolves_to_an_entry`), and a retired spelling is a
-    name a reader greps too. All four kinds share one namespace, so all four
-    belong to one uniqueness check.
+    claiming it: the names a reference resolves by, plus the retired spellings a
+    reader greps. One namespace, so one uniqueness check -- and every member
+    normalised by `_canon`, exactly as the resolver normalises its input.
     """
     ns: dict[str, list[str]] = {}
     for e in load():
-        term = e["term"].lower()
-        for name in {e["_slug"], term, term.replace(" ", "-")} | {
-            s.lower() for s in _spellings(e)
-        }:
+        for name in _names_reaching(e) | {_canon(s) for s in _spellings(e)}:
             ns.setdefault(name, []).append(e["_slug"])
     assert ns, "the namespace is empty -- this check would pass over nothing"
     return ns
@@ -305,13 +325,13 @@ def test_every_wiki_link_resolves_to_an_entry() -> None:
     a MISSPELLED one (capitals, an underscore), which is the case a
     narrower pattern would skip instead of report.
     """
-    known = {e["_slug"] for e in load()} | {e["term"].lower() for e in load()}
+    known = {n for e in load() for n in _names_reaching(e)}
     bad: list[str] = []
     seen = 0
     for path, prose in _scannable():
         for match in re.findall(_WIKI_LINK, prose):
             seen += 1
-            if match.lower() not in known and match.lower().replace(" ", "-") not in known:
+            if _canon(match) not in known:
                 bad.append(f"{path.relative_to(ROOT)}: doubled-bracket {match!r}")
     assert not bad, "wiki links naming no entry:\n  " + "\n  ".join(bad)
     assert seen, "no wiki link was scanned at all -- this check validated nothing"
