@@ -284,7 +284,7 @@ diagnostics machinery, testing strategy, the observability model. Its
 authority comes from a book, not a costume: counsel cites
 `docs/research/architect-sourcebook.md` and asserts from
 `docs/design-notes/architect-principles.md`, where its standing tensions
-with settled law are filed openly. It advises; the operator rules; a
+with the law are filed openly, each with its standing stated honestly. It advises; the operator rules; a
 change with both faces takes both counsels. Minted through the tracker
 ([#305](https://github.com/jbgh2/card-game-dsl/issues/305)); charter in
 its skill file; its proper name follows the house precedent — the seat is

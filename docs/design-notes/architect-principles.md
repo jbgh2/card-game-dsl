@@ -62,13 +62,22 @@ P-n); an assertion is only as citable as its book entry, and the book's
 - A rule that must read knowledge is a model change, not a feature —
   GDL-III territory, a moat-level event (P15).
 
-## Standing tensions with settled law
+## Standing tensions
 
-Filed openly; the law stands until the operator rules otherwise.
+Filed openly; the law stands until the operator rules otherwise — and a
+tension may only be filed against something whose standing is stated
+honestly.
 
-- **P5 vs the LSP-recovery ruling.** The book holds that an IDE mode is
-  a second architecture (error-tolerant parse, lossless tree, tainted
-  error type) and that resolve-side recovery alone is half a pattern;
-  settled law routes the planned LSP mode through resolve-side recovery
-  and closed `TUnresolved`. The Architect's counsel will restate this
-  pressure when the LSP mode is actually planned — and not before.
+- **P5 vs the LSP-recovery position.** The book holds that an IDE mode
+  is a second architecture (error-tolerant parse, lossless tree, tainted
+  error type) and that resolve-side recovery alone is half a pattern.
+  The opposing position — route the planned LSP mode through
+  resolve-side recovery; `TUnresolved` stays closed — is an operator
+  ruling on record only in session memory: `docs/decisions.md` carries
+  the permissive-top discipline ("`Any` means the top, never a failed
+  lookup") but not the LSP-routing half. Until the operator either
+  records that ruling in the law or declares the question open, counsel
+  treats it as an unrecorded ruling, not settled law — not binding on
+  paper, and not the Architect's to overturn. The pressure gets restated
+  when the LSP mode is actually planned — and not before, at which point
+  the recording question comes with it.
