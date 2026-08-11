@@ -24,7 +24,16 @@ sampled:    none.
 note:       This module is inside its own walk, so its comments and docstrings
             never spell a live reference -- every example spelling lives in a
             parametrized row, which is a string literal and therefore code.
-residual:   Resolution only, deliberately -- issue #214 D4. Nothing here checks
+residual:   TWO ENTRIES MAY MEAN THE SAME THING and nothing here notices. The
+            names are guaranteed distinct; the meanings are not. This is not a
+            gap waiting for a check -- it was measured: lexical similarity scores
+            0.13 on a real instance (Hand Loop defined as Hand, caught in review
+            on PR #323), and "a compound must link its head" fails too, because
+            that entry did link `[[hand]]`. Semantic duplication is review
+            judgment, the same ruling #214 D4 makes for prose usage. R4, recorded
+            here rather than filed: the mechanism is the reviewer, and a check
+            that cannot fire would only look like coverage.
+            Resolution only, deliberately -- issue #214 D4. Nothing here checks
             that prose USES a reserved word correctly, or that a docstring
             mentioning a concept links it. Those are review judgment (and the
             direction review's job); a linter that guessed at them would fail on
