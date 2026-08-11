@@ -1,6 +1,6 @@
 ---
 term: Hand Loop
-definition: One deal-to-scoring cycle, as a construct rather than as a count — what `skip to next hand` skips to and what `hands_played` counts. The compound that qualifies the reserved word [[hand]] for the iteration sense, against the *hand zone*. It has no structural marker in the language: a phase-name string literal stands in for it, so a game whose scoring phase is named anything else reports zero hands played (→ F-6).
+definition: The repetition a game's hands are iterations of — what `skip to next hand` advances to the next pass of, and what deckcheck's per-hand capacity window is measured over. One pass through it is a [[hand]]; the loop is the construct, the hand is the cycle. The language never declares it: `SkipToNextHand` continues the enclosing `repeat until`, and `hands_played` counts phases literally named `scoring`, so a game naming its scoring phase otherwise reports none (→ F-6).
 layer: kernel
 status: canonical
 reserved: false
@@ -10,6 +10,5 @@ retired_spellings: []
 findings: [F-6]
 ---
 
-The loop has no structural marker: `driver.py` counts hands by testing a
-phase-name string literal, so a game whose scoring phase is named otherwise
-reports none. That defect is F-6's, not this entry's.
+Naming it does not declare it. Whether the language should carry a structural
+marker for the loop is F-6's question, not this entry's.

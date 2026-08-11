@@ -232,14 +232,19 @@ def test_a_stated_retirement_is_also_a_structured_one() -> None:
     )
 
 
-def test_a_retired_spelling_is_never_also_a_live_term() -> None:
+def test_a_retired_spelling_names_exactly_one_entry() -> None:
     """One name, one meaning -- `test_terms_and_slugs_are_unique` applied to the
-    other half of the same lookup namespace. A spelling that is retired HERE and
-    canonical THERE sends a reader to two entries with equal authority, which is
-    the defect the glossary exists to remove.
+    rest of the same lookup namespace. A reader greps an old spelling and must
+    land somewhere unambiguous, so a retired spelling may collide with neither a
+    live term NOR another entry's retired spelling: both send them to two entries
+    of equal authority, which is the defect the glossary exists to remove.
 
-    red under: add any live term (`team`, `transfer`) to another entry's
-    `retired_spellings`.
+    The domain is every name the glossary can be looked up by, not just the
+    current ones -- covering only the live half is how the first version of this
+    pin passed while the ambiguity it names was still expressible.
+
+    red under: add any live term (`team`, `transfer`) to an entry's
+    `retired_spellings`; or list one spelling on two entries.
     """
     entries = load()
     live = {e["term"].lower() for e in entries} | {e["_slug"] for e in entries}
@@ -248,6 +253,14 @@ def test_a_retired_spelling_is_never_also_a_live_term() -> None:
         for e in entries
         for s in _spellings(e)
         if s.lower() in live
+    ]
+    owners: dict[str, list[str]] = {}
+    for e in entries:
+        for s in _spellings(e):
+            owners.setdefault(s.lower(), []).append(e["_slug"])
+    clashes += [
+        f"{spelling!r} is retired by {sorted(slugs)} -- it must name one entry"
+        for spelling, slugs in owners.items() if len(slugs) > 1
     ]
     assert not clashes, "\n  ".join(clashes)
 
