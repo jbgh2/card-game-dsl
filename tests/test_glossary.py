@@ -232,37 +232,47 @@ def test_a_stated_retirement_is_also_a_structured_one() -> None:
     )
 
 
-def test_a_retired_spelling_names_exactly_one_entry() -> None:
-    """One name, one meaning -- `test_terms_and_slugs_are_unique` applied to the
-    rest of the same lookup namespace. A reader greps an old spelling and must
-    land somewhere unambiguous, so a retired spelling may collide with neither a
-    live term NOR another entry's retired spelling: both send them to two entries
-    of equal authority, which is the defect the glossary exists to remove.
-
-    The domain is every name the glossary can be looked up by, not just the
-    current ones -- covering only the live half is how the first version of this
-    pin passed while the ambiguity it names was still expressible.
-
-    red under: add any live term (`team`, `transfer`) to an entry's
-    `retired_spellings`; or list one spelling on two entries.
+def _lookup_namespace() -> dict[str, list[str]]:
+    """Every name the glossary can be looked up BY, mapped to the entries
+    claiming it. Derived from the resolver, not hand-listed: a reference resolves
+    by slug, by term, or by term-with-dashes (see
+    `test_every_wiki_link_resolves_to_an_entry`), and a retired spelling is a
+    name a reader greps too. All four kinds share one namespace, so all four
+    belong to one uniqueness check.
     """
-    entries = load()
-    live = {e["term"].lower() for e in entries} | {e["_slug"] for e in entries}
+    ns: dict[str, list[str]] = {}
+    for e in load():
+        term = e["term"].lower()
+        for name in {e["_slug"], term, term.replace(" ", "-")} | {
+            s.lower() for s in _spellings(e)
+        }:
+            ns.setdefault(name, []).append(e["_slug"])
+    assert ns, "the namespace is empty -- this check would pass over nothing"
+    return ns
+
+
+def test_every_lookup_name_reaches_exactly_one_entry() -> None:
+    """One name, one meaning, over the WHOLE namespace a reader can arrive by.
+
+    A name that two entries claim sends the reader to two authorities of equal
+    standing -- the defect the glossary exists to remove -- and it does not
+    matter which kind of name it is. Slug against slug, term against term,
+    retired spelling against live term, retired spelling against retired
+    spelling, and term against another entry's slug are one class, so they get
+    one check rather than the two-of-five this covered when the review found it.
+
+    red under: copy any entry to a new slug keeping its `term:`; or add a live
+    term (`team`, `transfer`) to another entry's `retired_spellings`; or list one
+    retired spelling on two entries.
+    """
     clashes = [
-        f"{e['_slug']}.md retires {s!r}, which is a live term"
-        for e in entries
-        for s in _spellings(e)
-        if s.lower() in live
+        f"{name!r} is claimed by {sorted(set(slugs))}"
+        for name, slugs in sorted(_lookup_namespace().items())
+        if len(set(slugs)) > 1
     ]
-    owners: dict[str, list[str]] = {}
-    for e in entries:
-        for s in _spellings(e):
-            owners.setdefault(s.lower(), []).append(e["_slug"])
-    clashes += [
-        f"{spelling!r} is retired by {sorted(slugs)} -- it must name one entry"
-        for spelling, slugs in owners.items() if len(slugs) > 1
-    ]
-    assert not clashes, "\n  ".join(clashes)
+    assert not clashes, (
+        "these names reach more than one entry:\n  " + "\n  ".join(clashes)
+    )
 
 
 def test_the_index_is_exactly_what_the_entries_generate() -> None:
