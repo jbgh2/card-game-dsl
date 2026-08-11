@@ -118,6 +118,10 @@ $(tail_block)"
 
   # Keep the last 30 role logs.
   ls -1t "$LOGDIR" | grep -E "^(warden|dispatcher)-" | tail -n +31 | while read -r f; do rm -f "$LOGDIR/$f"; done
+
+  # Leave the wall fresh (issue #279): best-effort — the war-room is the
+  # operator's pulse, never a gate on the round.
+  "$FLEET/tools/fleet/war-room.sh" >/dev/null 2>&1 || true
 }
 
 main "$@"
