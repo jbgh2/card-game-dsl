@@ -68,7 +68,15 @@ main() {
     echo "reclaimed stale lock (was: $HOLDER, age ${HOLDER_AGE}s)" >&2
   fi
   echo "$ROLE pid=$$ since $(date -u +%FT%TZ)" > "$LOCK/holder"
-  trap 'rm -rf "$LOCK"' EXIT
+  # Cleanup owns the wall refresh (issue #279): it must run on EVERY exit
+  # path — engine failure and watchdog kill included — and only after the
+  # lock is released, or the page records a finished role as RUN IN
+  # FLIGHT. Best-effort, never a gate on the round.
+  cleanup() {
+    rm -rf "$LOCK"
+    "$FLEET/tools/fleet/war-room.sh" >/dev/null 2>&1 || true
+  }
+  trap cleanup EXIT
 
   # Freshness, under the lock: reset --hard is the sync — checkout -B
   # alone re-points the ref but carries dirty tracked edits into the
