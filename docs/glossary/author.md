@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home:
 see: []
-retired_spellings: []
+retired_spellings: [currency, denominated]
 findings: [F-23]
 ---

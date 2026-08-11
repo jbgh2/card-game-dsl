@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home: `Role.TEAM`
 see: []
-retired_spellings: []
+retired_spellings: [partnership, partnerships:]
 findings: []
 ---

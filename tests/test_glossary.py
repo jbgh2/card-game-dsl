@@ -51,6 +51,7 @@ from tools.glossary_index import (
     LAYERS,
     ROOT,
     STATUSES,
+    EntryError,
     load,
     parse_entry,
     render,
@@ -100,6 +101,18 @@ def _tracked_text_files() -> list[pathlib.Path]:
     out = [ROOT / name for name in listing.split("\0") if name]
     assert out, "the file walk found nothing -- both reference checks are vacuous"
     return out
+
+
+def _spellings(entry: dict[str, str]) -> list[str]:
+    """The `retired_spellings` list, parsed. The frontmatter is a hand format
+    (see `parse_entry`), so the list is a hand parse too: `[a, b]` or `[]`."""
+    raw = entry["retired_spellings"].strip()
+    if not raw.startswith("[") or not raw.endswith("]"):
+        raise EntryError(
+            f"{entry['_slug']}.md: retired_spellings must be a [bracketed, list], "
+            f"got {raw!r}"
+        )
+    return [s.strip().strip("`") for s in raw[1:-1].split(",") if s.strip()]
 
 
 def _prose_text(suffix: str, text: str) -> str:
@@ -189,6 +202,54 @@ def test_terms_and_slugs_are_unique() -> None:
         f"duplicate term: {sorted({t for t in terms if terms.count(t) > 1})}"
     )
     assert len(set(slugs)) == len(slugs)
+
+
+def test_a_stated_retirement_is_also_a_structured_one() -> None:
+    """An entry that SAYS a spelling is retired carries it in `retired_spellings`.
+
+    The field is the half a reader greps: someone meeting `partnership` in a
+    closed issue lands on Team by finding the spelling, not by reading Team's
+    prose and recognising it. Prose alone leaves that lookup broken while
+    looking complete, so the two cannot be allowed to drift apart.
+
+    Deliberately checks PRESENCE, not contents: parsing which spellings a
+    sentence retires needs a regex over English, and that regex is the part
+    that would quietly stop matching. The entry corpus supplies the domain --
+    nothing here is hand-listed.
+
+    red under: empty any populated `retired_spellings` whose entry says
+    "Retired" (before this pin was satisfied, all ten were empty).
+    """
+    bad = [
+        e["_slug"]
+        for e in load()
+        if "Retired" in (e["definition"] + e.get("_body", ""))
+        and e["retired_spellings"].strip() in ("[]", "")
+    ]
+    assert not bad, (
+        "these entries state a retirement in prose but carry no "
+        f"`retired_spellings`: {sorted(bad)}"
+    )
+
+
+def test_a_retired_spelling_is_never_also_a_live_term() -> None:
+    """One name, one meaning -- `test_terms_and_slugs_are_unique` applied to the
+    other half of the same lookup namespace. A spelling that is retired HERE and
+    canonical THERE sends a reader to two entries with equal authority, which is
+    the defect the glossary exists to remove.
+
+    red under: add any live term (`team`, `transfer`) to another entry's
+    `retired_spellings`.
+    """
+    entries = load()
+    live = {e["term"].lower() for e in entries} | {e["_slug"] for e in entries}
+    clashes = [
+        f"{e['_slug']}.md retires {s!r}, which is a live term"
+        for e in entries
+        for s in _spellings(e)
+        if s.lower() in live
+    ]
+    assert not clashes, "\n  ".join(clashes)
 
 
 def test_the_index_is_exactly_what_the_entries_generate() -> None:
