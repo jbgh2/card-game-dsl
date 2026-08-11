@@ -6,6 +6,6 @@ status: canonical
 reserved: false
 home: `active_rules.py`
 see: []
-retired_spellings: []
+retired_spellings: [rule-delta sub-phase]
 findings: []
 ---
