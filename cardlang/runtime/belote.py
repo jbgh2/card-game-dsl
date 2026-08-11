@@ -9,7 +9,7 @@ contract scoring all run in the DSL (docs/games/belote.cardlang). This module
 holds only what is not expressible there:
 
 - `belote_trump_height` — a rank's strength within the trump suit
-  (J > 9 > A > 10 > K > Q > 8 > 7), the over-trump comparison's currency.
+  (J > 9 > A > 10 > K > Q > 8 > 7), the ordering the over-trump comparison uses.
   A pure rank map: the caller's demand filters on `card.suit is trump_suit`,
   so this needs no suit knowledge (the Tarot `tarot_trump_height` shape).
   Suit-contextual orders are explicitly outside the `ranking:` declaration's

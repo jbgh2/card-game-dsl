@@ -245,8 +245,8 @@ class ActionSpace:
                 if node.combos_fn not in climb_engines:
                     climb_engines.append(node.combos_fn)
             elif isinstance(node, n.Transfer) and node.joint:
-                # A joint selection's candidates are card SUBSETS — the combo
-                # block's currency, exactly like climb plays. The subset
+                # A joint selection's candidates are card SUBSETS — what the combo
+                # block deals in, exactly like climb plays. The subset
                 # universe is not statically derivable from the inline
                 # predicate, so the codec comes from a registry keyed by the
                 # predicate's root call (the climb-engine pattern one

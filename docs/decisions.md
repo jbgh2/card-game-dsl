@@ -1169,7 +1169,7 @@ units, because no single check covers every non-termination shape:
   number generous enough for the corpus's longest game (which used to
   make every other game's reported bound meaningless). Because the
   decision counter enforces the same bound on the same unit
-  `max_game_length` is denominated in (decisions, i.e. actions), a
+  `max_game_length` is measured in (decisions, i.e. actions), a
   registered game's real trajectory length cannot silently exceed what it
   advertises to OpenSpiel.
 
@@ -1512,8 +1512,8 @@ fall back to it:
   signatures, zone content types, struct types, operator result types,
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
-  a compiler bug, not a program error — so it fails in compiler
-  currency (an `AssertionError` naming the guard or builder that
+  a compiler bug, not a program error — so it fails in the compiler's
+  failure channel (an `AssertionError` naming the guard or builder that
   guarantees it), exactly as the runtime's `role_members` and
   `zone_observer_key` already did.
 - **An environment lookup raises.** A name resolve classified but the
@@ -1542,7 +1542,7 @@ fall back to it:
   plain name check. Each position's allowed set mirrors exactly what
   its type builder can resolve, so a name the guard admits is never one
   the builder still maps to the top, and no defect is reported twice in
-  two currencies.
+  two channels.
 
   A gate belongs to the DECLARATION, not to the uses that reach it: a
   gate run from the vocabulary sites that name a move would leave a move
@@ -1771,7 +1771,7 @@ not a hang. No satisfying subset is the no-implicit-actions error: guard
 the transfer so it is only reached when one exists.
 
 For the OpenSpiel target, joint candidates are card subsets — the combo
-block's currency, exactly like climb combination plays — and the subset
+what the block deals in, exactly like climb combination plays — and the subset
 universe comes from a **registered per-predicate codec**
 (`joint_codec_function`, the climb-engine codec pattern: the predicate's
 root call names it, `gin_arrange_ok` → the 329-meld universe of
@@ -3591,12 +3591,15 @@ be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
 
-An Owner Guard must also speak its **layer's failure currency**: the compile
+An Owner Guard must also speak its **layer's failure channel**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
-the wrong currency and suppresses every other diagnostic in the file);
+the wrong channel and suppresses every other diagnostic in the file);
 the runtime fails as typed exceptions; the proofs fail with a witness.
-Loud-but-wrong-layer is a bug with the same rank as silent.
+Loud-but-wrong-layer is a bug with the same rank as silent. "Channel" is
+never bare: a game's scoring channels, the observation channel and a
+library's feeding channel are different things (see the glossary's
+reserved words).
 
 **A check lands only after naming its owner (write-time triage).** Two
 tells at edit time mean information is being lost rather than defended:
@@ -3607,7 +3610,7 @@ declares), and *guarding* a condition that is already checked somewhere
 else. Either tell stops the edit — the fix is upstream, not local. Before
 it lands, the check is classified as exactly one of three things: an
 **Owner Guard** (it moves to the layer that owns the class, in that layer's
-currency, with a test), a **Shadow Guard** (it stays, and its comment names
+failure channel, with a test), a **Shadow Guard** (it stays, and its comment names
 the Owner Guard it shadows — and the recorded residual that makes it reachable,
 if one exists), or a **missing Owner Guard** (the Owner Guard is built at the owning
 layer, and the local site becomes a Shadow Guard citing it). A guard that
@@ -3616,7 +3619,7 @@ contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
 (`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
 decides where a check belongs. For the runtime packages the triage is
-mechanized: `tests/test_assert_triage.py` scrapes every assert-currency
+mechanized: `tests/test_assert_triage.py` scrapes every assert-channel
 site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
 any site whose attached text names neither a dispatch fallthrough nor the
 Owner Guard it shadows.
@@ -3664,15 +3667,15 @@ without it, and the temptation is to name the crash: "without this guard,
 `to each hand[0]` would die on the executor's `NameRef` assert". That
 couples the comment to another module's current implementation — the one
 detail a reader editing *this* file never sees, and the one most likely to
-move. Failure currency is deliberately mobile here: a bare `KeyError`
+move. The failure channel is deliberately mobile here: a bare `KeyError`
 becomes a typed `RuntimeError`, a Shadow Guard assert becomes an Owner Guard one layer
 up. Every comment naming the old type is then confidently wrong while still
 reading as precise, which is worse than vague. Name instead what the
 downstream layer *requires* — the thing that actually justifies the guard:
 "without this guard, it would reach the executor, which requires a zone in
 this position and refuses anything else at play time". The warning survives
-a change of currency; the coupling does not. The exception type is
-load-bearing in two places. The first is an argument *about* failure currency
+a change of channel; the coupling does not. The exception type is
+load-bearing in two places. The first is an argument *about* the failure channel
 ("a typed error, not a bare `KeyError`"), where the type is the subject
 rather than incidental colour. The second is a type that carries a guard's
 ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary section 5) — where
@@ -3952,8 +3955,8 @@ none is coming.
 **State reaches a library two ways, and the difference is ownership.** A library
 `requires` state the including GAME owns, and `state`s the state the LIBRARY
 owns. Both are checked at the `uses` line, so an unmet contract or a collision
-lands in the game's currency rather than as an undeclared name inside spliced
-library text the author never typed.
+is reported to the game's author rather than as an undeclared name inside
+spliced library text they never typed.
 
 ```text
 requires {
@@ -4041,11 +4044,11 @@ imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
 express, and name that case.
 
-A requirement's own index is checked first, and in the LIBRARY's currency:
+A requirement's own index is checked first, and reported to the LIBRARY's author:
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
 because an index must be a role a state variable can be keyed by
 (player/team) and no game could answer such a requirement. That is the
-library twin of the state-index guard, and the difference in currency is
+library twin of the state-index guard, and the difference is
 who can fix it — an unmet contract is a fact about the importing game, a
 malformed index is wrong in the library's own text. A mismatch between a
 well-formed requirement and the game's declaration names both roles
@@ -4078,8 +4081,8 @@ library alone, before any game is consulted. Without that the contract would be
 a suggestion: a body reading past it resolves against a game that happens to
 declare the extra name and fails against a game meeting the contract in full,
 reporting an unresolved-name error inside library text the game's author never
-wrote. That is the currency failure `requires` exists to prevent, arriving by
-the back door, and it is why the check reports in the LIBRARY's currency — the
+wrote. That is the misaddressed failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports to the LIBRARY's author — the
 library author is the only one who can fix it. The same rule makes a library
 deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one

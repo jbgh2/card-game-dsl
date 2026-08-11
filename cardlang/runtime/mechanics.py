@@ -501,8 +501,8 @@ class ClimbForm:
         ]
         if not self.ring:
             # Runtime DATA, not a compiler invariant: nobody satisfies `over`,
-            # so there is no one to lead and no one to follow. Report it in
-            # the participants' currency — the leader is not the problem.
+            # so there is no one to lead and no one to follow. Report it
+            # about the participants — the leader is not the problem.
             raise OwnerGuardError(
                 f"round climb: no participant to lead — the `over` set is "
                 f"empty, so the round has no actor (leader was "
