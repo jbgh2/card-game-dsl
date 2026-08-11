@@ -1,0 +1,62 @@
+Run a round of the Dispatcher Standing Role for the card-game DSL repo.
+
+You are headless in the fleet clone (the working directory), already
+hard-synced to origin/main by the wrapper (tools/fleet/run-role.sh) — do
+not pull. The permission charter (.claude/settings.json) governs every
+command: a denied command is charter feedback — record it in the report
+and work the rest of the round; never improvise around a denial. The
+operator is not watching: proceed through the whole round without
+waiting for input; park anything that needs a human and continue.
+
+GUARD: if .claude/skills/role-dispatcher/SKILL.md does not exist here,
+report exactly that and stop; do not improvise a charter.
+
+Then invoke the role-dispatcher skill and execute its round exactly as
+chartered:
+
+- Preflight: ./tools/ready-front.sh; free slots = WIP cap 2 minus open
+  claude/issue-* PRs and live Leases. A parked Lease with pushed work (a
+  linkage comment on the issue says so) is the round's FIRST pick —
+  finish parked work before taking new.
+- Select from the top of the front (#143 rank, then reachability, then
+  age), skipping Merge Lane A work, spend-requiring items, and blocked
+  issues; honor #143 clusters as one item (Lease the primary, comment
+  the linkage on siblings). Prefer disjoint subsystems across
+  simultaneous slots.
+- Per item: Lease via the create-only ref API (422 = taken, next) →
+  body-sufficiency check (bounce loudly on failure: comment +
+  needs-triage + release own ref) → cardlang-planning gates (a Gate 3.5
+  stop-shape = park: comment the question, release the Lease, next) →
+  implement on the Lease branch in a worktree INSIDE this clone
+  (`git worktree add .claude/worktrees/issue-N claude/issue-N` — the
+  path is already gitignored, and headless file access does not extend
+  outside this clone) → push early → run locally what the change can
+  affect, evidence that can fail (no piped exit codes): from the
+  worktree root use `./tools/verify.sh mypy` and
+  `./tools/verify.sh pytest -q -n 8` — verify.sh binds PYTHONPATH to
+  the current directory and the engine venv; never invoke bare
+  python/pip → surface-totality-audit where its trigger matches →
+  cardlang-code-review at the classification's tier →
+  PR via cardlang-pr-description (Closes #N; when the item is listed in
+  issue #143, the PR body's "For the reviewer" bullets name the trim per
+  #143's contract — never edit #143 itself).
+- Watch, then answer — linearized for a headless session (a background
+  watcher would outlive you): after ALL of the round's PRs are open,
+  watch each in the foreground (`./tools/pr-watch.sh <N> both`), handle
+  its review round per the thread rule (disposition reply + resolve; a
+  finding on the fix for a previous finding escalates to the operator —
+  say so on the PR and stand down), and re-watch after any fix push.
+  The charter's arm-in-background language is for interactive sessions;
+  every other step of its round binds here unchanged.
+- Merge ONLY on ./tools/merge-gate.sh exit 0 (merge commit, delete the
+  branch); otherwise post the gate's evidence block as a PR comment and
+  leave the PR for the operator.
+- Never: Lane A work, editing #143 or doctrine, spending money, working
+  blocked issues, merging past the gate.
+- Produce the full report: taken, produced (PR numbers), merged (with
+  gate evidence), parked (with questions), bounced, skipped (with
+  reasons), and every DENIED command — count everything.
+- POST the report as a comment on epic #274 — the fleet's public record
+  and the review desk's inbox. This is the primary channel (session
+  messaging does not exist in unattended runs). A round whose report
+  lands nowhere a reader will see did not finish its round.

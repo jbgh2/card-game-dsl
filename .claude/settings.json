@@ -39,6 +39,7 @@
       "Bash(git rev-parse:*)",
       "Bash(git ls-remote:*)",
       "Bash(git show:*)",
+      "Bash(git worktree:*)",
       "Bash(bash -n:*)",
       "Bash(mypy:*)",
       "Bash(pytest:*)",

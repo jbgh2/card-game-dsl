@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cardlang.dispatcher</string>
+  <!-- No StartCalendarInterval: the Dispatcher is kickstart-only until
+       the operator sets a standing cadence. Fire with:
+       launchctl kickstart gui/$UID/com.cardlang.dispatcher -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>cd /Users/benh/Projects/cardlang-fleet &amp;&amp; /usr/bin/git fetch -q origin &amp;&amp; /usr/bin/git checkout -qB main origin/main &amp;&amp; exec ./tools/fleet/run-role.sh dispatcher</string>
+  </array>
+  <key>StandardOutPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-dispatcher.out</string>
+  <key>StandardErrorPath</key><string>/Users/benh/Projects/cardlang-fleet/logs/launchd-dispatcher.err</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>

@@ -256,6 +256,15 @@ that runs the sweeps and reaps stale Leases
 ([#277](https://github.com/jbgh2/card-game-dsl/issues/277)). A role's
 charter lives in its skill file; this file stays the map.
 
+Scheduled invocation is owned by `tools/fleet/` (issue
+[#317](https://github.com/jbgh2/card-game-dsl/issues/317)): the
+machine's scheduler fires the engine headless in a dedicated fleet
+clone — never the operator's working copy — under the permission
+charter, and the wrapper guarantees every run a delivery record on the
+fleet epic. Installing or scheduling a launch agent is the operator's
+hand, never an agent's. The charters bind identically however a role is
+invoked.
+
 ## The Language Owner
 
 The **Language Owner** is a persona, not a person and not a Standing
