@@ -3,11 +3,11 @@
 `run_oracle` is the whole T1 contract in one function: an arbitrary text
 either passes `cardlang.pipeline.check_dsl`, or it fails as a located
 `DiagnosticError` — those are the only two legitimate outcomes. ANY other
-exception escaping `check_dsl` is a finding, in the wrong-currency defect
+exception escaping `check_dsl` is a finding, in the wrong-channel defect
 class (decisions.md "Closed-domain completeness"; severity 5 in the
 `cardlang-code-review` skill's order): the front end let an internal Python
 exception leak instead of rejecting the input in its own diagnostic
-currency.
+channel.
 
 `run_playout` is T3: a mutant that PASSES the pipeline is not yet proven
 sound — it still has to run. A bounded random playout under a deterministic
@@ -162,7 +162,7 @@ class _CappedSortedChooser:
     PROCEED where the real runtime errors — masking exactly the
     accepted-then-crashes-at-playout findings T3 exists to catch (an
     empty pool at `k >= 1` is the special case, subsumed here). The check is
-    the same condition in the harness's own currency (`AssertionError`,
+    the same condition in the harness's own channel (`AssertionError`,
     naming the violated invariant), which `run_playout` reports as a
     `"crash"` finding just like the runtime's `ValueError` would be."""
 

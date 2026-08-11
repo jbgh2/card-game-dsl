@@ -260,11 +260,11 @@ def test_card_literal_with_a_nondeck_rank_still_rejected() -> None:
 #
 # `ranking:` coverage is unchecked: a PARTIAL `ranking:` is a
 # deliberate feature, but a card whose rank falls outside it crashes
-# `rank_value`'s `rank_index` lookup at play time in the wrong currency. The
+# `rank_value`'s `rank_index` lookup at play time in the wrong channel. The
 # ledger above records that half as having no pinning test. This is it.
 #
 # `xfail_strict` is on (pyproject.toml), so when that lookup is given the
-# runtime's typed currency this test XPASSES and FAILS the build — forcing
+# runtime's typed channel this test XPASSES and FAILS the build — forcing
 # the ledger above to be retired in the same change that closes the gap.
 # A prose residual cannot do that; it just quietly stops being true.
 
@@ -298,9 +298,9 @@ def test_a_partial_ranking_accepts_at_check_time() -> None:
     raises=KeyError,
     reason="`ranking:` coverage is unchecked: rank_value's "
     "rank_index lookup has no wall, so a rank outside a partial ranking "
-    "surfaces as a bare KeyError instead of the runtime's typed currency",
+    "surfaces as a bare KeyError instead of the runtime's typed channel",
 )
-def test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_currency() -> None:
+def test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_channel() -> None:
     game = check_dsl(_PARTIAL_RANKING_GAME, "partial.cardlang")
     with pytest.raises(OwnerGuardError):
         play_game(game, random.Random(0))

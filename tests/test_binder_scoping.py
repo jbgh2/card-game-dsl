@@ -2,7 +2,7 @@
 
 Collected into one flat game-wide `locals` set, binders would let a stray
 `card` anywhere in the file resolve as `local` and fail only at runtime
-with a KeyError (wrong failure currency), and a name bound by a `let` in one
+with a KeyError (wrong failure channel), and a name bound by a `let` in one
 phase would resolve everywhere. `_rewrite` scopes every binder to exactly the
 sub-fields its construct binds it in (`_BINDER_SCOPE_FIELDS`, driven by the
 `_introduced_binders` registry), and `let` names fold sequentially through

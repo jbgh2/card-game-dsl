@@ -278,7 +278,7 @@ def test_offer_of_parameterized_move_is_accepted() -> None:
 # The runtime-assert census (walls-at-the-right-level) converted these from bare
 # asserts / silent absences into typed RuntimeErrors: each is a condition only
 # live state can decide, so it cannot be walled statically — but it CAN fail in
-# the right currency, at the cause. These pins keep a later edit from quietly
+# the right channel, at the cause. These pins keep a later edit from quietly
 # restoring the silent form (player_holding's old body returned None, which
 # key-errored some unrelated subscript later).
 

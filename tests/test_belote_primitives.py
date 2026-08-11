@@ -6,7 +6,7 @@ Completeness ledger (surface-totality-audit)
 --------------------------------------------
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of the new stdlib
-            names fails loud in the owning layer's currency
+            names fails loud in the owning layer's channel
 domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_WINNERS
             row x {name, arity, param types, dispatch arm,
             reads row} + the primitives' own value domains (32 ranks x
@@ -174,7 +174,7 @@ def test_best_is_rejects_a_non_class_argument() -> None:
         )
 
 
-# --- misuse probes: the new stdlib names, in the owning layer's currency ---
+# --- misuse probes: the new stdlib names, in the owning layer's channel ---
 
 
 def _expect_rejected(text: str, fragment: str) -> None:

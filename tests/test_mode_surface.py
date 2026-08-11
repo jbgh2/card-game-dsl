@@ -27,7 +27,7 @@ their product.
 Completeness ledger (decisions.md "Closed-domain completeness")
 --------------------------------------------------------------
 property:   every combination of item x container is either implemented or
-            rejected in its owning layer's currency; every mode-set shape is
+            rejected in its owning layer's channel; every mode-set shape is
             either given a defined meaning or walled
 domain:     (a) `?phase_item` alternatives x {phase body, mode body};
             (b) `mode_def` x every item container in the grammar;
@@ -370,7 +370,7 @@ def test_mode_set_shape(shape: str) -> None:
 
 # --------------------------------------------------------------------------
 # Misuse probes (audit Step 2) — the plausible wrong sentences, each proven
-# loud in its owning layer's currency.
+# loud in its owning layer's channel.
 # --------------------------------------------------------------------------
 
 
@@ -378,7 +378,7 @@ def test_retired_spelling_names_the_replacement() -> None:
     """A mode written as a `phase`, which is how every pre-#208 file spells it.
 
     This is the highest-traffic wrong sentence in the language after the split,
-    so a bare "no terminal matches ':'" would be the wrong currency in
+    so a bare "no terminal matches ':'" would be the wrong channel in
     practice: located, but naming neither the mistake nor the fix.
     """
     src = _game(

@@ -202,8 +202,8 @@ def _outcome(src: str) -> str:
     try:
         check_dsl(src, "grid")
     except AssertionError:
-        return "raise"          # compiler-currency failure: always a defect here
-    except Exception as e:  # noqa: BLE001 - every user-facing currency is in scope
+        return "raise"          # compiler-channel failure: always a defect here
+    except Exception as e:  # noqa: BLE001 - every user-facing channel is in scope
         msg = str(e)
         if "syntax error" in msg:
             return "syntax"

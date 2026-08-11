@@ -5,7 +5,7 @@ cross-cutting sequence); roadmap.md kept only what is not work — the
 out-of-scope list, the walls ledger for grammar surface the checker defers,
 and the pointers. A reference naming a section that moved to an issue is then
 prose contradicting the spec, invisible because prose has no compiler: the
-`ZONE_METHODS` class one currency over (issue #110, the backticked-identifier
+`ZONE_METHODS` class one medium over (issue #110, the backticked-identifier
 scrape). This module is that compiler for the one file whose sections were
 just redistributed.
 
@@ -38,7 +38,7 @@ registry:  roadmap.md's own headings, parsed from the file at test time (``##``
            renaming a section reddens every reference to the old name and no
            expected-title list can drift from the file.
 covered:   both reference shapes (title-quoting and bare) in both comment
-           currencies (Python docstring/comment, Markdown prose and link
+           media (Python docstring/comment, Markdown prose and link
            text), and both dash spellings (``--`` and em dash) — each pinned by
            a synthetic-source probe below, so the classifier cannot rot
            vacuously green.

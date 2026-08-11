@@ -2,7 +2,7 @@
 
 The surface-totality audit's adversarial pass for adding Canasta: no new
 grammar landed, so the probes target the registry seams the new deck and
-primitives open — each proven loud in its layer's failure currency.
+primitives open — each proven loud in its layer's failure channel.
 
 property:   canasta108 is served identically at every deck consumer, and
             every seam it opens fails loud: the ranking-convention path

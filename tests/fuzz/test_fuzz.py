@@ -8,7 +8,7 @@ nothing: `"rejected"` (a `DiagnosticError` — the pipeline did its job),
 `"terminated"`, and `"cutoff"` (the playout ran clean, whether or not it
 reached a natural end within the step budget — see `oracle.py`,
 "Termination"). Two outcomes are findings: an oracle `"crash"`
-(wrong-currency) or a playout `"crash"` (accepted-then-crashes-at-playout).
+(wrong-channel) or a playout `"crash"` (accepted-then-crashes-at-playout).
 
 A finding at an `EXCUSED` triple is expected — it is already shrunk,
 classified, and pinned in `findings.KNOWN_FINDINGS` — and does not fail this
@@ -127,7 +127,7 @@ def _new_finding_message(
         f"NEW fuzz finding at {game_path.name} / {operator} / seed={seed} "
         f"({stage}): {outcome.summary()}\n"
         "This is not a regression to fix here — shrink it by hand, classify "
-        "it (wrong-currency-crash / accepted-then-crashes-at-playout), and "
+        "it (wrong-channel-crash / accepted-then-crashes-at-playout), and "
         "record it in tests/fuzz/findings.py's KNOWN_FINDINGS (see that "
         "module's docstring for the ledger format and the feed-forward "
         "rule) plus add it to this module's EXCUSED table."

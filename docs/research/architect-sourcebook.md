@@ -30,7 +30,7 @@ The repo's live tensions this book is aimed at, for orientation:
 - the permissive top and its producer-raises containment
   (decisions.md, "`Any` means the top, never a failed lookup");
 - the corpus-anchored-oracle gap (issues #271, #272, #273);
-- the "accepted-but-ignored" and "wrong-currency failure" defect classes
+- the "accepted-but-ignored" and "wrong-channel failure" defect classes
   (decisions.md, "Surface totality" and "Closed-domain completeness");
 - the seven-stage front-end smear and the Contract-block pass discipline
   (`docs/design-notes/kernel-extensibility.md`; `resolve.py` / `typecheck.py`
@@ -251,7 +251,7 @@ kinds with structural read views) is the standard migration path.
   coercions-not-subtyping while making preservation free.
 - **decisions.md "`Any` means the top, never a failed lookup" is
   independently confirmed doctrine.** The producer-raises discipline (closed
-  registry miss raises in compiler currency; environment miss raises; the
+  registry miss raises in the compiler channel; environment miss raises; the
   permissive set is enumerated and pinned) is the same invariant as
   `ErrorGuaranteed`, enforced socially rather than by construction — rustc
   makes the error type *unconstructible* without the proof token, which is
@@ -355,8 +355,8 @@ tests minimize unrelated noise so snapshots stay reviewable.
 
 - The repo's diagnostic doctrine — `DiagnosticBag`, span plus
   designer-readable message, "on any error it raises with every diagnostic
-  collected, not just the first" (`resolve.py`), and the wrong-currency rule
-  ("a raw registry raise mid-resolve is loud in the wrong currency and
+  collected, not just the first" (`resolve.py`), and the wrong-channel rule
+  ("a raw registry raise mid-resolve is loud in the wrong channel and
   suppresses every other diagnostic in the file", decisions.md
   "Closed-domain completeness") — is the settled practice. What the repo has
   that the literature lacks a name for is the *addressee* discipline
@@ -837,7 +837,7 @@ area(s) whose evidence carries it. Proposals, not spec.
    diagnostic.** Blessed-snapshot testing of rendered diagnostics is the
    settled practice; adopt it the first time a message-quality residual (of
    which #133 is one) is promoted to work. (Area 3)
-7. **Failure currency is addressee, span, and applicability.** A diagnostic
+7. **The failure channel is addressee, span, and applicability.** A diagnostic
    names its Author, points at the smallest span that signifies, and marks
    any suggestion as mechanical or not before tooling may apply it.
    (Area 3; extends existing doctrine with the applicability flag.)

@@ -19,7 +19,7 @@ failed lookup".
 Completeness ledger
 -------------------
 property:   a name/registry lookup whose domain is closed never degrades to
-            the permissive top — it raises, in compiler currency (an
+            the permissive top — it raises, in compiler channel (an
             `AssertionError` naming the wall or builder that guarantees it),
             so an incomplete environment surfaces as a crash at the miss
             rather than as a silently-passing type check.
@@ -199,7 +199,7 @@ def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
 
 def test_every_name_taking_registry_lookup_raises_on_an_unknown_role() -> None:
     """The registry lookups that still take a NAME answer a divergence the same
-    way: in compiler currency, never by defaulting.
+    way: in compiler channel, never by defaulting.
 
     Only three still can. `role_type`, `binds_actor` and `role_members` take a
     `domains.Role`, so an unknown role is unwritable at every call site and

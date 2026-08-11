@@ -84,7 +84,7 @@ per-rank tally) is rejected: a zone or state index must be a
 `zone_key_of` domain (player/team — `cardlang/domains.py`), because the
 runtime keys those stores by an observer-anchored member set. A family
 library's `requires { seen[rank] : Integer }` is rejected on the same
-grounds and in the library's own currency, since a requirement names
+grounds and to the library's own author, since a requirement names
 state the including game declares and no game may declare that index. A
 per-value tally is expressible today as per-player state plus a query;
 lift the guard when a game genuinely wants the store (the runtime's

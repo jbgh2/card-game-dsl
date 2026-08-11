@@ -84,7 +84,7 @@ covered:    the two parametrized grids below — `test_provably_equal_operands_
             pronoun behaviour pin, and the misuse probes: a role no registry
             row defines must still reach the author as its OWN located
             diagnostic rather than as this sweep's registry lookup raising in
-            compiler currency (`test_a_role_no_row_defines_still_gets_its_own_
+            compiler channel (`test_a_role_no_row_defines_still_gets_its_own_
             diagnostic` — the metamorphic reorder suite found that one, on a
             `for each column c` this grid had no cell for), and the procedure
             pronoun wall that bounds the residual below.
@@ -617,8 +617,8 @@ def test_a_role_no_row_defines_still_gets_its_own_diagnostic(
 ) -> None:
     """A malformed role must reach the author as the located diagnostic that
     names it, never as this sweep's registry lookup raising in compiler
-    currency — which would suppress every other diagnostic in the file
-    (decisions.md "Closed-domain completeness", failure currency).
+    channel — which would suppress every other diagnostic in the file
+    (decisions.md "Closed-domain completeness", failure channel).
 
     Found by `tests/metamorphic/test_reorder.py::…[positions_for_each]` when
     the sweep called `domains.binds_actor` before testing membership.

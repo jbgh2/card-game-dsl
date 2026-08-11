@@ -1011,7 +1011,7 @@ def _check_provided_readonly(
     refuses rather than as the shadow `_bad_write_target` would call it — a
     different sentence about the same defect, and the fix (rename) is the same.
 
-    Reported in the GAME's currency, unlike `_check_library_encapsulation` next
+    Reported to the GAME's author, unlike `_check_library_encapsulation` next
     door: the game's author wrote the assignment and is the only one who can
     withdraw it."""
     for node in _walk(game):
@@ -1031,8 +1031,8 @@ def _check_provided_readonly(
 @dataclass(frozen=True)
 class _SlotLeak:
     """One bare-string reference in a library that names something the library
-    does not have — the slot registry's finding, in the currency the
-    encapsulation Owner Guard reports."""
+    does not have — the slot registry's finding, addressed as the
+    encapsulation Owner Guard addresses it."""
 
     node: object
     field: str
@@ -1133,7 +1133,7 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "either. Zone contracts falsified that: a game DOES declare "
         "position-indexed zone families (Klondike's `tableau_down[column]`), so a "
         "contract could name a position domain the importing game alone declares. "
-        "`_check_require_indexes` refuses it, in the library's currency, for a "
+        "`_check_require_indexes` refuses it, to the library's author, for a "
         "requirement and for a provided variable alike"
     ),
     "role": (
@@ -1142,21 +1142,21 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "importing game's component set: `for each suit` is accepted by a card game and "
         "refused by a piece game. So this is deck-agnosticism escaping through a role, "
         "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
-        "typecheck's flavor wall refuses it in the LIBRARY's currency — but the "
+        "typecheck's flavor wall refuses it to the LIBRARY's author — but the "
         "library-alone property is weaker here than the sweep provides (issue #183)"
     ),
     "content_kind": (
         "walled elsewhere: typecheck compares the item noun against the game's content "
-        "flavor and reports in the library's currency. NOT, as this row first claimed, "
+        "flavor and reports to the library's author. NOT, as this row first claimed, "
         "because a movement always names a zone the classified pass refuses — that "
         "premise is now doubly false, since a movement may also name a CONTRACTED "
         "zone; re-probed with an unknown noun and with a flavor-wrong one, both "
-        "refused in the library's currency (issue #170)"
+        "refused to the library's author (issue #170)"
     ),
     "outcome_tag": (
         "walled elsewhere: a `produce` outside a define or outcome-phase body is "
         "refused outright, and a tag naming no declared outcome is refused against the "
-        "outcome registry — both in the library's currency (probed via the full "
+        "outcome registry — both to the library's author (probed via the full "
         "pipeline; `resolve` alone accepts them, which is what made the first reading "
         "of this row say the tags were merely `owned` by a swept name)"
     ),
@@ -1276,7 +1276,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         suits=frozenset(),
     )
     # `_rewrite` both classifies and reports, and its report ("unresolved name
-    # 'x'") is the GAME's currency — the wrong one here — so the bag is thrown
+    # 'x'") is the GAME's author — the wrong one here — so the bag is thrown
     # away and the classified TREE is read instead. Reading `ref_kind` is the
     # sanctioned use of what this pass stamps (see the module Contract), not a
     # re-derivation: which names a body binds, and where, stays the property of
@@ -1424,7 +1424,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     importing it. Without it a body reading past its contract resolves against a
     game that happens to declare the extra name and fails against a game meeting
     the contract in full, with an unresolved-name error pointing inside library
-    text the game's author never wrote. That is the exact currency failure
+    text the game's author never wrote. That is the exact misaddressed failure
     `_check_requires` exists to prevent, arriving through the back door.
 
     The class is bounded by the reference-slot registry rather than by which
@@ -1433,7 +1433,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     `_LIBRARY_UNSWEPT`. That is the property this Owner Guard can be read as proving —
     it is no longer "everything the classifier happens to see".
 
-    Reported in the LIBRARY's currency: the span is in the library file, because
+    Reported to the LIBRARY's author: the span is in the library file, because
     the library author is the only one who can fix it. The importing game's one
     available "fix" — declaring the extra name — is the accident that hid the
     leak in the first place."""
@@ -1514,15 +1514,15 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     declare it", which is advice no game can take: `x : Hand` names an owned
     zone type with no owner, and no `zones { }` line the author could write
     would answer it. A contract that cannot be met is the library author's bug,
-    so it is reported in the library's currency, like every other
+    so it is reported to the library's author, like every other
     library-alone property (decisions.md "Family libraries").
 
     The zone SHAPE rules are `_resolve_zone`'s, which owns that class for the
     game's own declarations. This is a SECOND implementation of them, not a call
-    into the first, and deliberately: the two report in different currencies (a
+    into the first, and deliberately: the two report to different authors (a
     library's own file, against the library alone; a game's declaration, while
     resolving it) and run at different times, so sharing a body would mean
-    threading a currency through it. This copy is the Owner Guard of its own
+    threading an author through it. This copy is the Owner Guard of its own
     class, not a Shadow Guard of `_resolve_zone`'s: a library author can write
     `x : Hand` with no game in sight, `_resolve_zone` never runs on that path,
     and so nothing else can decide the case (decisions.md "Closed-domain
@@ -1605,7 +1605,7 @@ def _check_zone_requirement(
     count is still checked here so the contract's guarantee does not depend on
     another Owner Guard's coverage.
 
-    Reported on the game's `uses` line, in the game's currency — the shape
+    Reported on the game's `uses` line, to the game's author — the shape
     questions the LIBRARY could get wrong are `_check_contract_shapes`', and
     ran before any game was consulted."""
     spelled = _spelled_contract(want)
@@ -1676,7 +1676,7 @@ def _check_require_indexes(library: n.Library, bag: DiagnosticBag) -> None:
     the library's file, which reads as the library being blamed by a pass that
     never saw it. Caught here instead, before any game is consulted.
 
-    Reported in the LIBRARY's currency, unlike every other `requires` failure,
+    Reported to the LIBRARY's author, unlike every other `requires` failure,
     and the difference is who can fix it: an unmet contract is a fact about the
     importing GAME (it did not declare what the library asked for), while an
     index naming no indexable role is wrong in the library's own text, and no
@@ -1730,7 +1730,7 @@ def _check_requires(
     twice, and the second failure ("the game does not declare it") would be
     advice pointing away from the real defect.
 
-    Reported on the game's `uses` line, in the game's currency: the author wrote
+    Reported on the game's `uses` line, to the game's author: the author wrote
     that line, and an undeclared-name error surfacing from inside spliced library
     text would name symbols they never typed.
 
@@ -2396,7 +2396,7 @@ def _check_state_default_scope(game: n.Game, bag: DiagnosticBag) -> None:
     splices the provided decls in FRONT of the game's own, so a provided default
     reading one of the library's `requires` names reaches a variable the game
     declares strictly later — never in scope, whatever the game does. That
-    subclass is refused before the splice, in the library's own currency, by
+    subclass is refused before the splice, to the library's own author, by
     `_check_library_encapsulation`; this Owner Guard is what owns the general class,
     and would catch it here too if the library check were removed.
 
@@ -2770,7 +2770,7 @@ def _sweep_aliases(
         # but it reports into the SAME bag rather than halting, so this sweep
         # still walks a tree holding a role no row defines (`for each column
         # c`, a declared position domain). The registry answers such a role
-        # with a compiler-currency raise — correct for a registry divergence,
+        # with a compiler-channel raise — correct for a registry divergence,
         # wrong here, where it would replace the located diagnostic the author
         # needs with an assert and suppress every other diagnostic in the file.
         # Not the Owner Guard: the role's legality is decided above.
@@ -3933,7 +3933,7 @@ def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
     have a place in the French template — for any other deck (tarot78's
     atouts, tichu56's specials, coup15's characters) filtering would
     silently produce a partial or empty ranking, an accepted-but-ignored
-    declaration. Rejected here, in deck-membership currency, with the
+    declaration. Rejected here, in deck-membership terms, with the
     offending ranks named. An unknown deck already got its diagnostic in
     `_resolve_component_set`; the convention is left unexpanded then (empty
     `ranking`), matching how the rest of resolve degrades without a deck."""
@@ -4371,7 +4371,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     declared move type), procedure parameters by `_PROCEDURE_DOMAINS`, and
     rule-template parameters by `_check_template`'s Suit-only gate. Adding a
     second name check over any of them would report one defect twice, in two
-    currencies.
+    channels.
     """
     defined_types = {t.name for t in game.types}
     # A declared position domain is a legal annotation here: the parameter or
@@ -4421,7 +4421,7 @@ def _check_declared_type_names(game: n.Game, bag: DiagnosticBag) -> None:
     # REACH, not strength — it ran only for a move an offering enumerates —
     # and the fix is to run it for every declared move type, at its own call
     # site, rather than to shadow it with a second diagnostic in a different
-    # currency (two messages for one defect is noise).
+    # channel (two messages for one defect is noise).
 
 
 # The closed set of procedure-parameter domains (decisions.md "Named
@@ -4985,7 +4985,7 @@ def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
     # players 0 and 1. Without this Owner Guard a game with three-plus (or one) seats
     # resolves clean and then dies at setup/play with the frame's registry-bug
     # `ValueError` when a verb is called for seat 2 -- a typechecked game
-    # failing at runtime, in the wrong currency. Require exactly two players (a
+    # failing at runtime, in the wrong channel. Require exactly two players (a
     # RANGE is refused even where it includes two, since the game may be
     # instantiated with more).
     players = game.players
@@ -5225,7 +5225,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # The form gated its DOMAIN (above) and not its BODY. The executor
                 # implements exactly one body shape, so everything else compiled and
                 # then died on a bare assert — a runtime crash for a statically
-                # checkable error, in the wrong currency. `run` made it reachable
+                # checkable error, in the wrong channel. `run` made it reachable
                 # from an entirely natural-looking program (`each player
                 # simultaneously: run pass_card(player)`), since an expansion is a
                 # block and never a bare movement.

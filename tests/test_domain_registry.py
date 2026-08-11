@@ -116,7 +116,7 @@ Completeness ledger
                    …`), then dies on a BARE ASSERT in `execute._pass_selection`.
                    Pre-existing, and on the form's BODY axis rather than this
                    module's domain axis — the domain gate is total; the body gate
-                   is missing. Wrong failure currency (a bare assert, not a
+                   is missing. Wrong failure channel (a bare assert, not a
                    diagnostic). Recorded here, in this ledger, which owns
                    it: the form's BODY axis has no other home.
 """
@@ -236,7 +236,7 @@ def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
     # `cardlang.domains.DOMAINS` — module ledger, residual 1) now matches ANY
     # noun, so `any color where` parses and is walled by resolve instead,
     # under the position-domain registry's name rather than this one's. Still
-    # a closed cell -- the currency moved from parse.py to resolve.py.
+    # a closed cell -- the channel moved from parse.py to resolve.py.
     #
     # red under: removing (or `pass`-ing) the `_check_domain_query` call in
     # `resolve()` (cardlang/resolve.py) makes this assertion fail -- verified

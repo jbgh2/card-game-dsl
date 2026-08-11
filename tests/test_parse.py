@@ -197,7 +197,7 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
     # the whole Node domain is test_node_registry.py's
     # `test_every_node_kind_is_frozen` + `test_every_node_kind_has_slots`,
     # enumerated from the module's own dataclass registry. This exists only to
-    # fail in the parse tests' own currency — a reader who breaks the memo's
+    # fail in the parse tests' own channel — a reader who breaks the memo's
     # immutability premise while editing here sees it immediately, rather than
     # in a registry test two files away.
     game = parse_text(_unique("MemoFrozen"), "f.dsl")

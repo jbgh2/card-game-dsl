@@ -955,7 +955,7 @@ and its declaration combinations need ten game-local primitives, all reading
 `cardlang/runtime/belote.py`:
 
 - `belote_trump_height(card: Card) → Integer` — a rank's strength within
-  the trump suit (1..8), the over-trump comparison's currency (the demand
+  the trump suit (1..8), the ordering the over-trump comparison uses (the demand
   filters on `card.suit is trump_suit` itself).
 - `belote_trick_winner` — a **winner function** (named on `round …
   winner belote_trick_winner`): highest trump under the J-9 trump order if

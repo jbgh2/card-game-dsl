@@ -28,7 +28,7 @@ covered:    all three failure cells and both hits; the key cell over all
 
 sampled:    nothing on the failure matrix. The message's key LIST is asserted
             to name the family's real keys, not pinned character-for-character
-            — the wall is the currency and the named role, not the rendering.
+            — the wall is the channel and the named role, not the rendering.
 
 residual:   the key branch is reachable from a checker-accepted game, not
             only from an engine bug: a zone-family subscript's index is
@@ -43,7 +43,7 @@ residual:   the key branch is reachable from a checker-accepted game, not
             wall owing a typed error rather than a backstop. Probed below.
             Game-local primitives are outside
             this module's domain — they reach zones through
-            cardlang/runtime/reads.py, whose registry and currency are
+            cardlang/runtime/reads.py, whose registry and channel are
             pinned by tests/test_primitive_reads.py.
 """
 
@@ -200,7 +200,7 @@ def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
     which tightened exactly the literal half of this residual; the computed
     half is what keeps this a reachable wall. If the index rule is tightened
     further (computed keys too), this test fails and the residual — and the
-    currency argument resting on it — must be revisited."""
+    channel argument resting on it — must be revisited."""
     game = check_dsl(
         """game G {
   players: 4

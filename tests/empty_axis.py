@@ -23,7 +23,7 @@ def may_be_empty(
 
     `reason` says why nothing is a legitimate answer today, and names what
     carries the guarantee meanwhile. `argcount` matches the number of names the
-    parametrization declares — a mismatch is loud in pytest's own currency
+    parametrization declares — a mismatch is loud in pytest's own channel
     ("the number of names must be equal to the number of values").
 
     A NONEMPTY `values` is refused rather than passed through. An authorization

@@ -97,7 +97,7 @@ def test_the_family_is_the_glob() -> None:
 @pytest.mark.parametrize("member", _members(), ids=_ids())
 def test_every_member_binds_the_library(member: Path) -> None:
     """The contract is met and the spliced game is well typed — the whole
-    pipeline, in the currency a family author would meet."""
+    pipeline, in the channel a family author would meet."""
     check_dsl(member.read_text(), member.name)
 
 

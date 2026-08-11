@@ -456,7 +456,7 @@ def test_a_role_slot_admits_exactly_its_declared_domains(
         # so this row deviates from a pinned convention and must say so out
         # loud: a malformed index is wrong in the library's own text and no
         # game can answer it. The `team` cell is excluded because it is a
-        # genuine CONTRACT mismatch, which keeps the game's currency.
+        # genuine CONTRACT mismatch, which keeps the game's author.
         assert "probe_lib.cardlang:" in str(exc.value), (
             f"{slot} x {value}: refused in the wrong file — a malformed "
             f"requirement index is the library's defect:\n    {exc.value}"

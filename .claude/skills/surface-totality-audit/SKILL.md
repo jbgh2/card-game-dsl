@@ -157,7 +157,7 @@ registry member loses exactly its new cells from the replay.
 For each new or extended surface form, write the **five most plausible wrong
 sentences** a designer or an LLM author would produce, and run each through
 `check_dsl`. Every probe must yield a diagnostic with a span, in the layer's
-failure currency (compile = bag-collected diagnostic; runtime = typed
+failure channel (compile = bag-collected diagnostic; runtime = typed
 exception; never a bare assert, a raw Python error, or — worst — a
 *differently-shaped successful parse*). Draw probes from these categories,
 which map one-to-one onto this repo's historical misses:
@@ -189,7 +189,7 @@ which map one-to-one onto this repo's historical misses:
    `:`, the singular/plural noun swap.
 
 Probes that correctly fail loud become **rejection tests** in the change.
-Probes that reveal a silent misread or a wrong-currency failure are defects
+Probes that reveal a silent misread or a wrong-channel failure are defects
 to fix before the change ships — or loud guards plus a roadmap record if
 genuinely deferred.
 

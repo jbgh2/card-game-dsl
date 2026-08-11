@@ -311,7 +311,7 @@ def test_fused_amount_typos_are_loud() -> None:
     # alternative makes the amount position genuinely ambiguous for unanchored
     # keywords) and compile clean. Anchored they fail loudly — `onecards` reparses
     # as amount-expr `chosen` + item `onecards` and dies in resolve;
-    # `allcards` is a plain syntax error. Loud in SOME located currency is
+    # `allcards` is a plain syntax error. Loud in SOME located channel is
     # the property; the split parse is the defect.
     with pytest.raises(DiagnosticError):
         check_dsl(

@@ -569,12 +569,12 @@ def test_a_refused_authorization_stops_collection(
     `OutcomeException` pytest deliberately special-cases at import time: that is
     how `importorskip` retires a whole module quietly. Asserting the function
     raises when called from a test body (the two tests below) proves the
-    function raises; it does not prove the currency survives the trip. If it did
+    function raises; it does not prove the channel survives the trip. If it did
     not, this whole mechanism would be the vacuously-green class it exists to
     stop.
 
     red under: swap either refusal in `tests/empty_axis.py` for
-    `pytest.skip(reason=..., allow_module_level=True)`, the currency
+    `pytest.skip(reason=..., allow_module_level=True)`, the channel
     `importorskip` uses — the module retires itself, the reason never reaches
     the output, and the run reports no tests collected instead of the refusal.
     Note which assertion catches that: the returncode one does NOT, because

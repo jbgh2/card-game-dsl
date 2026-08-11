@@ -180,7 +180,7 @@ def test_call_funcs_are_dispatchable() -> None:
                 f"{name!r} falls through call()'s default arm: {e}"
             )
         except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
-            pass  # dispatched; the currency split is walled by test_assert_triage.py
+            pass  # dispatched; the channel split is walled by test_assert_triage.py
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:

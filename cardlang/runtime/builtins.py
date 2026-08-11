@@ -96,7 +96,7 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     if board is None:
         # Resolve's Owner Guard rejects `lines()` in a boardless game
         # (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it in the
-        # runtime's own currency, should the call ever reach here without a
+        # runtime's own channel, should the call ever reach here without a
         # board.
         raise ShadowGuardError(
             "resolve._check_board_call",
@@ -106,7 +106,7 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
     # at runtime. `lines` raises `OwnerGuardError` for both, so there is
     # nothing to convert here — the bound's Owner Guard already speaks the
-    # runtime's typed currency and names the game author.
+    # runtime's typed channel and names the game author.
     return board.lines(k)
 
 
@@ -114,7 +114,7 @@ def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     """The instantiated `board:` entry the class-1 movement/region verbs read
     (the `_lines` twin). Resolve's Owner Guard rejects a board-only call in a
     boardless game (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it
-    in the runtime's own currency, naming the missing `board:`, should such a
+    in the runtime's own channel, naming the missing `board:`, should such a
     call ever reach here without a board."""
     board = ctx.rs.board
     if board is None:

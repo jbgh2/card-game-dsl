@@ -33,7 +33,7 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
              | procedure_def
 
 // What the including game must declare, checked at its `uses` line so the
-// error lands in the game's currency rather than inside spliced library text.
+// error reaches the game's author rather than inside spliced library text.
 // Deliberately `state_decl` minus the `= <default>`: a required variable's
 // initial value is the GAME's to choose (Stud's raise cap is 3, Leduc's is 2),
 // and a library that could set one would be configuring the game rather than

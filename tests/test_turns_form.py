@@ -303,7 +303,7 @@ def test_non_seat_leader_is_a_loud_typed_error() -> None:
     # (the operand choke point ranges it, tests/test_player_literal_range.py); the
     # leader here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer without
     # folding, like the phantom-key `n[0 + 9]`), so it passes the static wall and
-    # the runtime must wall the non-seat value in game currency — the same
+    # the runtime must wall the non-seat value to the game's author — the same
     # seat-wall class as `as (0 + 5)` — never a bare ValueError from rotation
     # arithmetic.
     game = check_dsl(

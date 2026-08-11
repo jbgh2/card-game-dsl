@@ -3,7 +3,7 @@
 The surface-totality artifact for the import tier (CLAUDE.md, decisions.md
 "Surface totality" / "Closed-domain completeness"). Every wall `_apply_uses`
 raises is probed here with the most plausible WRONG sentence for it, and each is
-proven loud in the layer whose currency it belongs to — resolve's diagnostic bag,
+proven loud in the layer whose channel it belongs to — resolve's diagnostic bag,
 carrying the game's own `uses` span, never a stray name error from inside library
 text the author did not write.
 
@@ -159,7 +159,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_
           be`. `_check_contract_shapes` is a second implementation of
           `_resolve_zone`'s class rather than a call into it (different
-          currencies, different times), so what is pinned is that the two agree
+          channels, different times), so what is pinned is that the two agree
           — 20 cells redden under disabling the owner-arity rule on one side
           alone. Position-indexed cells are absent by construction, not by
           omission: a contract cannot be position-indexed.
@@ -175,7 +175,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `_check_library_collisions`'s stdlib leg to move_types.
           The read-only grid — write-site kind x state kind, 6 cells executed by
           `test_game_text_may_not_write_library_provided_state`, the 3 provided
-          cells commanded REJECT (in the GAME's currency, naming the variable and
+          cells commanded REJECT (to the GAME's author, naming the variable and
           its library) and the 3 required cells commanded ACCEPT as the control
           that keeps the wall from passing by making provided state unwritable
           because unreachable. `test_game_text_may_read_library_provided_state`
@@ -254,7 +254,7 @@ residual: one on provided state, deliberate and named here so its absence from
           contract for `hand`, so that probe resolves clean and the noun IS
           reached. Re-probed, both ways: an unknown noun (`coin`) and a REAL but
           flavor-dependent one (`piece` in a card game) are each refused by
-          typecheck's item-noun and flavor walls, in the LIBRARY's currency. So
+          typecheck's item-noun and flavor walls, to the LIBRARY's author. So
           the outcome holds on a wall that names the noun rather than on one that
           never got there — a stronger reason than the one it replaces. R4, and
           its `_LIBRARY_UNSWEPT` row says so.
@@ -266,7 +266,7 @@ paragraph). Kuhn imports `raise` and never offers it. That is the tier working
 as designed — `uses` names a family, not a manifest — and its cost at the
 OpenSpiel target is pinned to zero in
 `tests/openspiel_ready/test_kuhn_poker.py`, not here: the claim is about the
-action-space derivation, so it belongs in the currency of the adapter.
+action-space derivation, so it belongs in the channel of the adapter.
 """
 
 from __future__ import annotations
@@ -586,7 +586,7 @@ def test_an_unhandled_library_item_is_loud() -> None:
     An `AssertionError`, not a `DiagnosticError`, and matching `game()`'s arm
     exactly: a grammar alternative with no builder arm is a defect in this
     package, not a sentence the designer got wrong, so it may not be reported in
-    the author-facing diagnostic currency.
+    the author-facing diagnostic channel.
 
     red under: delete the `else: raise AssertionError` arm from
     `parse.library()`."""
@@ -594,7 +594,7 @@ def test_an_unhandled_library_item_is_loud() -> None:
     tree.children.append(Tree("an_eighth_library_item", []))
     # Lark wraps a builder-callback exception in `VisitError`, and `_transform`
     # unwraps only `DiagnosticError` — deliberately, since that is the
-    # author-facing currency and this is not. `game()`'s arm surfaces the same
+    # author-facing channel and this is not. `game()`'s arm surfaces the same
     # way, which is what "the equivalent arm" means here.
     with pytest.raises(VisitError) as exc:
         _transform(_Builder("L.cardlang", 0), tree)
@@ -1145,7 +1145,7 @@ def test_a_requirement_is_answered_by_exactly_one_matching_declaration(
     with pytest.raises(DiagnosticError) as exc:
         resolve(game)
     assert "probe.cardlang:3:" in str(exc.value), (
-        "every requires failure lands on the `uses` line, in the game's currency"
+        "every requires failure lands on the `uses` line, to the game's author"
     )
 
 
@@ -1228,7 +1228,7 @@ def test_a_malformed_requirement_is_not_also_blamed_on_the_game(
 
     Asserted as the ABSENCE of the game's source name across the whole rendered
     bag, not as a message count: the point is that nothing was blamed on the
-    game, and a future third diagnostic in the library's own currency should
+    game, and a future third diagnostic in the library's own channel should
     not redden this.
 
     red under: delete the `want.span in malformed` guard from
@@ -1260,7 +1260,7 @@ def test_a_malformed_requirement_is_not_also_blamed_on_the_game(
 
 
 def test_unmet_requirement_is_reported_on_the_uses_line() -> None:
-    """The diagnostics-currency requirement: the author wrote `uses`, so that is
+    """The diagnostics-channel requirement: the author wrote `uses`, so that is
     where the failure lands — not as an undeclared `raise_cap` deep inside
     library text they never typed."""
     game = _game()
@@ -1349,7 +1349,7 @@ def parse_default(literal: str) -> n.Expr:
 # namespaces, not of any game that imports it: a leak reaching past the contract
 # resolves fine against a game that happens to declare the extra name and fails
 # against a game that satisfies the contract exactly — reported inside library
-# text the author never wrote, which is the very currency failure the contract
+# text the author never wrote, which is the very misaddressed failure the contract
 # exists to prevent.
 #
 # The grid is definition kind x reference kind: WHERE the leak is written (the
@@ -1522,7 +1522,7 @@ def test_a_library_may_not_reach_past_its_contract(
     field: str, kind: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every leak is refused, wherever it is written and whatever it reaches
-    for, and refused in the LIBRARY's currency — the span is in the library
+    for, and refused to the LIBRARY's author — the span is in the library
     file, because the library author is who must fix it. A game cannot: the
     only thing it could do is provide the name, which is exactly the accident
     that made the leak invisible.
@@ -2092,7 +2092,7 @@ def test_a_library_may_not_name_what_it_does_not_have(
     slot: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Every bare-string reference into a namespace the library lacks is refused,
-    in the LIBRARY's currency, quoting the name — so the author is told which
+    to the LIBRARY's author, quoting the name — so the author is told which
     word made their library depend on one particular game.
 
     The quoted name is half the command. A refusal alone would not distinguish
@@ -2347,7 +2347,7 @@ def test_game_text_may_not_write_library_provided_state(
     assert f"cannot write '{var}_" in message, message
     assert "library 'provider' provides it" in message, message
     assert "writer.cardlang:" in message, (
-        f"a game's illegal write is reported in the GAME's currency:\n{message}"
+        f"a game's illegal write is reported to the GAME's author:\n{message}"
     )
 
 
@@ -2460,7 +2460,7 @@ _CLAIMED = "claimed"
 # the axis is the non-empty SUBSETS of the claim kinds rather than the kinds.
 # cell -> (message needle, the FILE the diagnostic must land in), or None to
 # accept. The location is half the command, not decoration: these walls split
-# currency deliberately. A library contradicting itself is the library author's
+# author deliberately. A library contradicting itself is the library author's
 # to fix, so it lands in the library file; everything else is the game author's.
 _GAME_FILE = "claimer.cardlang:"
 _LIB_A_FILE = "docs/libraries/lib_a.cardlang:"
@@ -2861,7 +2861,7 @@ def _expected_contract_outcome(
     return "accept" if declared_in == "zones" else "game"
 
 
-# What each REJECTING game-currency cell must actually say. Three walls, and
+# What each REJECTING game-addressed cell must actually say. Three walls, and
 # which one fires is a property of the cell rather than of the message: a
 # contract answered from the wrong block gets the near-miss diagnostic that
 # names the block the declaration IS in, and one answered from no block at all
@@ -2890,7 +2890,7 @@ def test_a_contract_entry_is_answered_from_the_block_its_type_names(
 
     Three cells accept — a state type answered from `state { }`, an owned zone
     type answered from `zones { }`, a singleton zone type answered from
-    `zones { }` — and every other cell is a commanded refusal, in the currency
+    `zones { }` — and every other cell is a commanded refusal, in the channel
     the failure belongs to. The `?`-on-a-zone and args-on-a-state rows are the
     reason the grid crosses shape with source rather than testing them apart:
     the two spellings the widened type slot can carry are exactly the two that
@@ -2929,7 +2929,7 @@ def test_a_contract_entry_is_answered_from_the_block_its_type_names(
         "docs/libraries/probe.cardlang" if expected == "library" else "probe.cardlang:1"
     )
     assert where in message, (
-        f"cell expected to fail in the {expected}'s currency:\n{message}"
+        f"cell expected to fail to the {expected}'s author:\n{message}"
     )
     # The span alone is too weak on the game side: every game-level diagnostic
     # carries `probe.cardlang:1`, so a cell could go green on a `max_length`
@@ -2961,10 +2961,10 @@ def test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be(
     one class — is this zone shape well formed? — and this pins them equal.
 
     They are NOT one function, deliberately: they report in different
-    currencies (the library's file against the library alone; the game's
+    authors (the library's file against the library alone; the game's
     against its own declaration) and they run at different times (before any
     game is consulted; while resolving one). Sharing a body would mean
-    threading a currency through it. So the copy stays and the AGREEMENT is
+    threading an author through it. So the copy stays and the AGREEMENT is
     what is checked, which is the shape decisions.md's write-time triage asks
     for — a backstop naming the wall it shadows, plus a pin that the shadow is
     faithful. A contract admitting a shape the game's own block refuses would

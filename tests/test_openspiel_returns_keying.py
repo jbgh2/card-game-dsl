@@ -62,7 +62,7 @@ residual:   none for the keying itself -- every game that REACHES `returns_for`
             (`winner: highest pot`, no index) never reaches this function at all
             -- it type-checks, then `driver` dies building the score dict
             (`dict(rs.get(target))` on an int) with a bare `TypeError`, the
-            wrong currency for a checked game. Run and confirmed while writing
+            wrong channel for a checked game. Run and confirmed while writing
             this. That is a missing checker wall on the `winner:` target, not a
             returns-mapping hole.
 """

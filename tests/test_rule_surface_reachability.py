@@ -283,7 +283,7 @@ def test_rule_surface_grid(
         ),
     ],
 )
-def test_misuse_probe_is_rejected_in_the_right_currency(
+def test_misuse_probe_is_rejected_in_the_right_channel(
     label: str, clauses: str, needle: str
 ) -> None:
     with pytest.raises(DiagnosticError) as excinfo:

@@ -239,7 +239,7 @@ def _guard_tests(
 ) -> list[tuple[str, ast.expr]]:
     """`(enclosing function, condition)` for every `assert` and raising `if`.
 
-    Both statement shapes, because the currency is not the point — a
+    Both statement shapes, because the channel is not the point — a
     reconciliation guard written as `if VIEW != {...}: raise` is the same guard.
     `orelse` is excluded: a raise in the else branch is not guarded by this test.
 
@@ -610,7 +610,7 @@ def accepted_two_conjuncts(x):
 
 def accepted_if_raise(x):
     if VIEW != {"a"}:
-        raise ValueError("the same guard in the other currency")
+        raise ValueError("the same guard in the other channel")
 
 def accepted_frozenset_call(x):
     assert VIEW == frozenset({"a"}), "the constructor form"

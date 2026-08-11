@@ -32,7 +32,7 @@ loud failure is the system working; silence is the enemy.
    fail: an assertion loop over nodes a retired construct can no longer
    produce, a ledger row with no pinning test (decisions.md "Closed-domain
    completeness").
-5. **Wrong-currency failure** — the right rejection in the wrong shape or
+5. **Wrong-channel failure** — the right rejection in the wrong shape or
    layer: a raw lark/Python exception where a located, bag-collected
    diagnostic belongs; a bare `assert`; a runtime crash for a statically
    checkable error; a diagnostic that directs the user to syntax the grammar
@@ -127,7 +127,7 @@ dominant cause of misses.
   postfix positions, and any value that crosses a layer without its type.
   Also hunt unvalidated literals: a string or name compared against a domain
   (ranks, suits, zone names) that no layer checks membership in.
-- **C. Failure-currency auditor.** Every new or changed error path: compile
+- **C. Failure-channel auditor.** Every new or changed error path: compile
   errors are located, bag-collected diagnostics; runtime errors are typed
   exceptions; no bare `assert` on a user-reachable path; no raw
   lark/Python exception escaping (the `VisitError`-unwrap class — check

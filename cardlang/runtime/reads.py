@@ -508,7 +508,7 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     `player_holding` scans `hand[player]`, the language-wide magic name
     (decisions.md "Declared parameter domains"). Not registry-keyed — the
     coupling is to the language rule, not to any one game file — but held to
-    the same failure currency: a game that declares no `hand[player]` family
+    the same failure channel: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name check only covers games with `Card`-typed move parameters, so this
     is an Owner Guard, not a Shadow Guard.)

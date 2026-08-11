@@ -530,7 +530,7 @@ def test_magic_hand_backstop() -> None:
 # --- misuse probes (the adversarial pass) -----------------------------------
 #
 # One probe per defect the pins exist to catch. Each proves the failure is
-# LOUD and lands in the right layer's currency (a test assertion here; a
+# LOUD and lands in the right layer's channel (a test assertion here; a
 # PrimitiveReadError at runtime) — never a silently-narrowed rename domain or
 # a KeyError three phases later.
 

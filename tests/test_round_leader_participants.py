@@ -40,7 +40,7 @@ residual:   The `participants_empty` column is CAPTURED per path, not
             found it: the trick path reaches `highest_of_led_suit` with zero
             plays and dies on a raw `ValueError: max() arg is an empty
             sequence` from `stdlib.py`, not a typed error naming the empty
-            participant set. That is a real defect of the currency class
+            participant set. That is a real defect of the channel class
             (decisions.md: a runtime failure is a typed error with the fix in
             its message, never a bare Python exception) -- R3, reachable by a
             designer whose `over` predicate empties. Filed as issue #167; not
