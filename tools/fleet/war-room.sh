@@ -203,6 +203,7 @@ else
     emit '<p class="muted">no run logs found (warden-*.log, dispatcher-*.log, launchd-*.out/err)</p>'
   else
     head -15 "$TMP/runs.all" > "$TMP/runs.top"
+    runs_total="$(wc -l < "$TMP/runs.all" | tr -d ' ')"
     emit '<table>'
     emit '<tr><th>log</th><th>mtime (UTC)</th><th>bytes</th><th>last line</th></tr>'
     while IFS='|' read -r r_mtime r_size r_path; do
@@ -212,6 +213,9 @@ else
       emit "<tr><td>$(esc "$(basename "$r_path")")</td><td>$(esc "$r_when")</td><td>$(esc "$r_size")</td><td class=\"mono\">$(esc "$r_last")</td></tr>"
     done < "$TMP/runs.top"
     emit '</table>'
+    if [ "$runs_total" -gt 15 ]; then
+      emit "<p class=\"muted\">showing newest 15 of $runs_total logs</p>"
+    fi
   fi
 fi
 emit '</div>'
@@ -222,15 +226,17 @@ emit '<h2>Live Leases</h2>'
 # Deliberate set +e island: a failed ls-remote renders FAILED; an empty result
 # is a legitimate "none".
 set +e
-leases_raw="$(git -C "$REPO_ROOT" ls-remote origin "refs/heads/claude/*" 2> "$TMP/leases.err")"
+git -C "$REPO_ROOT" ls-remote origin "refs/heads/claude/issue-*" > "$TMP/leases.raw" 2> "$TMP/leases.err"
 leases_rc=$?
 set -e
+# A Lease is exactly claude/issue-<N> (docs/harness.md, "Leases"); other
+# claude/* branches are not Leases and must not show as occupied work.
+grep -E $'refs/heads/claude/issue-[0-9]+$' "$TMP/leases.raw" > "$TMP/leases.lst" 2>/dev/null || true
 if [ "$leases_rc" -ne 0 ]; then
-  emit_failed "git ls-remote origin refs/heads/claude/* failed (exit $leases_rc)" "$(cat "$TMP/leases.err" 2>/dev/null)"
-elif [ -z "$leases_raw" ]; then
+  emit_failed "git ls-remote origin refs/heads/claude/issue-* failed (exit $leases_rc)" "$(cat "$TMP/leases.err" 2>/dev/null)"
+elif [ ! -s "$TMP/leases.lst" ]; then
   emit '<p class="muted">none</p>'
 else
-  printf '%s\n' "$leases_raw" > "$TMP/leases.lst"
   emit '<table>'
   emit '<tr><th>Lease branch</th><th>tip</th></tr>'
   while read -r l_sha l_ref; do
@@ -247,7 +253,7 @@ emit '<h2>Open PRs</h2>'
 # Deliberate set +e island: gh or jq failing renders FAILED, never a dead
 # build and never a silently empty table.
 set +e
-prs_json="$(gh pr list --repo "$REPO" --json number,title,headRefName,updatedAt,statusCheckRollup 2> "$TMP/prs.err")"
+prs_json="$(gh pr list --repo "$REPO" --limit 200 --json number,title,headRefName,updatedAt,statusCheckRollup 2> "$TMP/prs.err")"
 prs_rc=$?
 set -e
 if [ "$prs_rc" -ne 0 ]; then
@@ -287,6 +293,13 @@ else
   elif [ ! -s "$TMP/prs.rows" ]; then
     emit '<p class="muted">none</p>'
   else
+    # A result that fills the explicit limit is a capped read, not the
+    # domain (CLAUDE.md, "The tracker" — silent caps): say so, loudly,
+    # and still render the partial view beneath.
+    prs_count="$(wc -l < "$TMP/prs.rows" | tr -d ' ')"
+    if [ "$prs_count" -ge 200 ]; then
+      emit_failed "gh pr list filled its --limit 200 — a capped read, not the domain" ""
+    fi
     emit '<table>'
     emit '<tr><th>PR</th><th>title</th><th>branch</th><th>updated</th><th>checks</th></tr>'
     while IFS="$US" read -r pr_num pr_title pr_branch pr_updated pr_checks; do
@@ -314,14 +327,21 @@ else
   # ever hit a recycled pid. The watchdog is detached from our stdio so no
   # background writer can hold a caller's pipe open after we exit.
   set +e
+  # set -m gives the sweep its own process group, so a timeout kill takes
+  # the whole tree — ready-front's gh children included — not just the
+  # wrapper shell (orphaned gh processes would otherwise accumulate under
+  # repeated GETs).
+  set -m
   ( cd "$REPO_ROOT" && exec "$READY_FRONT" ) > "$TMP/rf.out" 2> "$TMP/rf.err" &
   rf_pid=$!
-  ( sleep "$READY_FRONT_TIMEOUT"; if kill "$rf_pid" 2>/dev/null; then : > "$TMP/rf.timedout"; fi ) > /dev/null 2>&1 &
+  set +m
+  ( sleep "$READY_FRONT_TIMEOUT"; if kill -- -"$rf_pid" 2>/dev/null; then : > "$TMP/rf.timedout"; fi ) > /dev/null 2>&1 &
   wd_pid=$!
   wait "$rf_pid"
   rf_rc=$?
   kill "$wd_pid" 2>/dev/null
   wait "$wd_pid" 2>/dev/null
+  kill -- -"$rf_pid" 2>/dev/null
   set -e
   if [ -f "$TMP/rf.timedout" ] && [ "$rf_rc" -ne 0 ]; then
     emit_failed "ready-front.sh timed out after ${READY_FRONT_TIMEOUT}s and was killed (exit $rf_rc); partial output below" ""
@@ -338,8 +358,12 @@ emit '<div class="sec" id="reports">'
 emit '<h2>Latest reports</h2>'
 emit "<p class=\"muted\">last 3 comments on <a href=\"https://github.com/$REPO/issues/$REPORTS_ISSUE\">issue #$REPORTS_ISSUE</a>, newest first</p>"
 # Deliberate set +e island: a failed gh api call renders FAILED in place.
+# --paginate walks every page (the endpoint is oldest-first, so without it
+# the "latest" reports would go permanently stale at comment 100); each
+# page arrives as its own array, so the object stream is reassembled into
+# one array for the tail-walk below.
 set +e
-gh api "repos/$REPO/issues/$REPORTS_ISSUE/comments?per_page=100" > "$TMP/comments.json" 2> "$TMP/comments.err"
+gh api --paginate "repos/$REPO/issues/$REPORTS_ISSUE/comments?per_page=100" --jq '.[]' 2> "$TMP/comments.err" | jq -s '.' > "$TMP/comments.json"
 rep_rc=$?
 set -e
 if [ "$rep_rc" -ne 0 ]; then
