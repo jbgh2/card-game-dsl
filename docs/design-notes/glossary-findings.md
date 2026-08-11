@@ -222,7 +222,7 @@ code. The strongest cases, each currently expressed as repeated prose or a raw t
   in for it.
 
 **F-21 ·** The check vocabulary itself sprawls (wall / gate / sweep / backstop / pin /
-twin / mirror / copy / sibling, with no defined distinctions); the glossary §5 fixes
+twin / mirror / copy / sibling, with no defined distinctions); the glossary's check vocabulary fixes
 meanings for six and retires the rest.
 
 **F-22 ·** `_resolve_*` vs `_check_*` in resolve.py are interchangeable —
@@ -244,7 +244,7 @@ vocabulary; compile-vs-runtime). The glossary fixes one sense.
   spelling still open) — settled spec; nothing here reopens them.
 - **Interop word divergence** (`action`, `player`, `state` meaning OpenSpiel's things
   inside `cardlang/openspiel/`) — correct anti-corruption-layer behavior per
-  `domain-map.md`, recorded as an explicit translation table in the glossary §4.
+  `domain-map.md`, recorded as an explicit translation table in the glossary's OpenSpiel-boundary section.
 - Tracked issues touching naming: #112 (quantifier productions hardcoded), #123
   (`TZone`/`TMap` promotion — would resolve the `TCollection` facet flags), #139
   (combo-block deferrals), #153/#154 (winner/scores keying), #97 (corpus not in
