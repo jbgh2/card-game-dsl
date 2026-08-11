@@ -4,7 +4,11 @@ You are headless in the fleet clone (the working directory), already
 hard-synced to origin/main by the wrapper (tools/fleet/run-role.sh) — do
 not pull. The permission charter (.claude/settings.json) governs every
 command: a denied command is charter feedback — record it in the report
-and work the rest of the round; never improvise around a denial.
+and work the rest of the round; never improvise around a denial — a
+"denied command by another route" is a charter violation even when the
+route is itself allowed. Rules match literal text: spell `gh api` calls
+method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`) — the
+charter admits the `-X`-first spelling only.
 
 Invoke the role-warden skill (.claude/skills/role-warden/SKILL.md) and
 execute its round exactly as chartered:
