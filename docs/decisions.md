@@ -948,7 +948,7 @@ when it runs.
 not silently stored: the default's inferred type must be assignable to the
 variable's declared type — the same `assignable` relation an ordinary
 assignment uses (`typecheck._check_state_default_type`, the initial-value
-twin of `_check_assign`). For an indexed variable the default is checked
+Shadow Guard of `_check_assign`). For an indexed variable the default is checked
 against the element type, since `score[player] : Integer = 0` broadcasts
 one value to every key. The check is as sharp as the inferencer and no
 sharper: a default whose type the inferencer leaves as the permissive top
@@ -2450,7 +2450,7 @@ consumes no randomness — every seed yields the identical game.
 
 The acceptance property for `Card`-as-a-specialization-of-`Piece` is
 that **the card corpus cannot tell**: every card game keeps `cards:`,
-its card queries, and byte-identical behavior. Piece twins of the
+its card queries, and byte-identical behavior. Piece Shadow Guards of the
 card-query and aggregation forms are deliberately absent from the
 grammar (a piece game counts and aggregates through the generic
 collection surfaces a card game shares); the deferred declaration-site
@@ -2603,7 +2603,7 @@ declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
 the direction in that player's frame. Five closed stdlib verbs read the
 board entry (rejected in a boardless game naming `board:`, the `lines(k)`
-twins):
+Shadow Guards):
 
 - `neighbor(from, along, player)` — the cell one step along `along` in
   `player`'s frame, a `TCell`. It is **total**: an off-board step is a
@@ -3557,7 +3557,7 @@ one layer out: the count is a second statement of a fact the code already
 holds, and the two drift (`decisions.md` is not exempt from
 [maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
 Where the set is worth naming, name the registry that defines it — the
-prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+prose-only game Shadow Guards are `PROSE_ONLY_TWINS`, not "six Shadow Guards" — so a
 reader can count it and a change that grows it cannot leave the sentence
 behind. Identifiers in prose carry the same hazard for the same reason:
 nothing checks that a backticked name still resolves, so one naming a
@@ -4048,7 +4048,7 @@ A requirement's own index is checked first, and reported to the LIBRARY's author
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
 because an index must be a role a state variable can be keyed by
 (player/team) and no game could answer such a requirement. That is the
-library twin of the state-index guard, and the difference is
+library Shadow Guard of the state-index guard, and the difference is
 who can fix it — an unmet contract is a fact about the importing game, a
 malformed index is wrong in the library's own text. A mismatch between a
 well-formed requirement and the game's declaration names both roles

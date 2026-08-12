@@ -15,7 +15,7 @@ the four modes of their product.
 
 Contract
 --------
-Assumes: resolve has walled the mode-role invariant — every mode is exactly one
+Assumes: resolve has guarded the mode-role invariant — every mode is exactly one
 of a transition SOURCE or a transition TARGET (`_check_modes`). Both functions
 here rely on it: a mode that were both would be read as a source and its
 target-ness ignored, and a mode that were neither could never be active at all.
@@ -67,7 +67,7 @@ def _mode_active(mode: n.Mode, rs: RuntimeState) -> bool:
     restriction anybody chose.
 
     A TARGET mode holds once its own name has fired. The two branches are
-    exhaustive because resolve walls the roles: a mode with no transition is one
+    exhaustive because resolve guards the roles: a mode with no transition is one
     some sibling names.
     """
     if mode.transitions:

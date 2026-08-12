@@ -29,7 +29,7 @@ generator covers the ones nobody did. The corpus exercises a sliver of the
 grammar's sentence space — decisions.md says exactly this about corpus-first
 coverage — and this harness is the standing sweep for the two loudness
 defect classes: raw-exception escapes, and accepted sentences that crash
-downstream instead of being rejected at the wall that owns them.
+downstream instead of being rejected at the Owner Guard that owns them.
 
 ## Shape
 
@@ -40,7 +40,7 @@ mutations of `docs/games/*.cardlang` — delete a clause or line, duplicate a
 declaration, swap adjacent tokens, rename one occurrence of an identifier,
 truncate a block — each mutant fed to `pipeline.check_dsl` under the oracle.
 This stage alone should surface wrong-channel findings; each is triaged
-wall/backstop/missing-wall per the write-time triage before it is fixed.
+Owner Guard / Shadow Guard / missing Owner Guard per the write-time triage before it is fixed.
 
 **Stage 2 — grammar-directed generation**: a sentence generator walking
 `cardlang/grammar/cardlang.lark` directly — depth-bounded rule expansion with

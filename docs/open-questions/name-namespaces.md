@@ -1,7 +1,7 @@
 # One spelling, several namespaces: what a bare name means
 
 **Tier 2 — high impact, blocked on a design decision rather than a data point.**
-Not urgent (every known instance is now walled), but it is the shared root of
+Not urgent (every known instance is now guarded), but it is the shared root of
 several defects that each looked local when found, and it will keep generating
 them.
 
@@ -51,7 +51,7 @@ Every defect below was reported as its own thing. They are one thing.
   global. **Closed** for the two scope-participating fields; the rest are registry
   keys (`Call.func`, `Produces.define`, `Round`'s zones) which cannot be shadowed.
 
-Each fix is a wall around a *consequence*. None of them changes the thing that
+Each fix is a Owner Guard around a *consequence*. None of them changes the thing that
 produces the consequences: one syntactic form, six namespaces, precedence rules
 instead of distinctions.
 
@@ -62,9 +62,9 @@ which namespace a name is in?**
 
 Three coherent answers, and the corpus does not yet force one:
 
-- **Keep precedence, wall each seam as it appears.** What we have. Cheap, and each
-  wall is individually defensible — but the seams are found by defect, not by
-  enumeration, and the walls accumulate. It also leaves a real asymmetry standing:
+- **Keep precedence, Owner Guard each seam as it appears.** What we have. Cheap, and each
+  Owner Guard is individually defensible — but the seams are found by defect, not by
+  enumeration, and the Owner Guards accumulate. It also leaves a real asymmetry standing:
   a parameter may *shadow* a state variable for reads (legal) while an assignment
   to it is rejected (illegal), which is coherent but not obviously *intended*.
 - **Forbid cross-namespace shadowing.** A binder may not take the name of a state

@@ -81,8 +81,8 @@ per-PR by preference. Two rules compose the table:
 
 The Paths column is machine-read: `tools/lane-of.sh` classifies a diff by
 matching every changed file against every row and taking the supremum
-lane across all matches — so twin rows sharing a path resolve to their
-stricter twin mechanically, and relaxing to the softer twin (a
+lane across all matches — so Shadow Guard rows sharing a path resolve to their
+stricter Shadow Guard mechanically, and relaxing to the softer Shadow Guard (a
 coverage-only test change, a mechanical tools fix, a hygiene edit) is
 judgment the tool never performs and an agent never performs on its own
 behalf. A file matching no row is reported unmapped and defaults to
@@ -146,7 +146,7 @@ moving on — it watches review activity and the gate as independent,
 concurrent signals — and handles its own review rounds in-context when
 woken: the author holds the diff's reasoning and is the best respondent.
 A PR whose author is gone falls to the Warden's thread sweep as the
-backstop, and the event-driven trigger for authorless rounds is tracker
+Shadow Guard, and the event-driven trigger for authorless rounds is tracker
 work on the epic. The check is derived, like everything else:
 
 ```bash

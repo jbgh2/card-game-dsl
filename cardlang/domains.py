@@ -291,7 +291,7 @@ def require_role(name: str, what: str) -> Role:
     if role is None:
         raise AssertionError(
             f"'{name}' is not a {what} (resolve rejects these) — a role "
-            f"reaching here without a registry row means a wall was bypassed, "
+            f"reaching here without a registry row means an Owner Guard was bypassed, "
             f"not that the game is wrong"
         )
     return role

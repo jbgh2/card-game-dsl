@@ -219,7 +219,7 @@ not, with the reason:
 - **Simultaneous reveal** (Goofspiel — a standard 52-card game already
   in OpenSpiel): the kernel is sequential; `each player
   simultaneously:` is thin. Sequentialize-with-concealment is
-  info-set-equivalent, so this is a transform to build, not a wall.
+  info-set-equivalent, so this is a transform to build, not a Owner Guard.
   Goofspiel is likely the cheapest witness this note names.
 - **Open rule spaces** (Mao): out by the axis-3 guardrail, and out for
   OpenSpiel too.

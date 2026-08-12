@@ -159,7 +159,7 @@ keep the DSL in lockstep with the language:
   not-yet-implemented surface rather than the current one.
 
 A bare fence (no tag) or an unrecognized tag fails the test loudly, naming
-the doc file and line — that wall is what keeps a future edit from adding
+the doc file and line — that Owner Guard is what keeps a future edit from adding
 an unclassified block by accident. `cardlang.extract.extract_blocks` itself
 ignores the info string (it always did — Markdown parsing stays the only
 thing that module knows about), so tagging every block does not change how

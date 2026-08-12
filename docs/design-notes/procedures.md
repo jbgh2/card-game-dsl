@@ -3,7 +3,7 @@
 *Status: settled and implemented — kept for the forcing evidence and for the
 questions §5 left open, each of which is answered below with what decided it. The
 ruling itself is spec: [../decisions.md](../decisions.md) "Named procedures"
-(the surface, the textual-reuse guarantee, hermeticity, the three hygiene walls,
+(the surface, the textual-reuse guarantee, hermeticity, the three hygiene Owner Guards,
 the closed parameter domain). The deferred cells are in
 issue #134; the completeness ledger is
 `tests/test_procedures.py`.*
@@ -127,17 +127,17 @@ this note never considered, and all of them are reachable:
 - **A body binder captures a caller's local**, inbound (through an argument) or
   outbound (a body `let` leaking forward into the caller's sequence).
 
-The first implementation walled the capture cases and shipped the rest. That was
-wrong twice over: it left the decision-duplication defects live, and the walls it
+The first implementation guarded the capture cases and shipped the rest. That was
+wrong twice over: it left the decision-duplication defects live, and the Owner Guards it
 did build were the kind that teach an author to work around a bug rather than fix
 it. Coup's `lose_influence` carried a `let loser = victim` line whose only job was
 to defeat by-name substitution.
 
 The fix is to stop treating substitution as the primitive. Expansion binds each
 argument to a `let` in the caller's context — once, by value — and wraps the body
-in a block. Every defect above becomes impossible instead of walled, the two
-capture walls become vacuous and are deleted, and Coup's workaround line goes with
-them. The one wall that survives is the one expansion cannot fix: a body binder
+in a block. Every defect above becomes impossible instead of guarded, the two
+capture Owner Guards become vacuous and are deleted, and Coup's workaround line goes with
+them. The one Owner Guard that survives is the one expansion cannot fix: a body binder
 sharing a *parameter's* name is ambiguous at classification time.
 
 The lesson generalizes past this construct: "behaves as if pasted" is not a safety
@@ -163,6 +163,6 @@ is.
 - **The lockstep adopters are deferred, and here is why.** Tichu's grand-call
   poll, go-fish's book completion and Skat's Reizen shape all sit around a
   `round`, and a `round` may not appear in a procedure body: it binds its own
-  `outcome`, which the body's pronoun wall cannot yet distinguish from the
+  `outcome`, which the body's pronoun Owner Guard cannot yet distinguish from the
   caller's. Rejected whole rather than shipped half-usable. Recorded in
   issue #134; lifting it is what those three games need.

@@ -492,7 +492,7 @@ observable becomes depended-upon, whether promised or not.
   sharing, and the issue's own mechanism-of-arrival note (shared material two
   procedure-calls deep has nowhere to go) is the forcing shape to watch.
 - Surface totality's third state ("grammatically inexpressible") plus the
-  walls ledger (`roadmap.md`) is a *reserved-syntax registry* in evolution
+  guards ledger (`roadmap.md`) is a *reserved-syntax registry* in evolution
   terms — the same instrument Rust uses when it reserves keywords in a new
   edition ahead of features.
 
@@ -670,7 +670,7 @@ Models of Partially Observable Multiagent Decision Making", Artificial
 Intelligence 2022) argues the classical
 extensive-form formalism obscures exactly what algorithms need, and rebuild
 the model on *factored observations distinguishing private and public* — the
-theory-side twin of this repo's projection lattice and its
+theory-side Shadow Guard of this repo's projection lattice and its
 public/private/semi-private event taxonomy (decisions.md, "Formal
 distinctions"). OpenSpiel itself encodes the practice: `spiel.h` requires
 "the information state should be perfect-recall, i.e. if two states have a
@@ -847,7 +847,7 @@ area(s) whose evidence carries it. Proposals, not spec.
    ignoring: a version header, if reserved, parses and statically rejects
    every value but the current version — an accepted-but-ignored header is
    exactly the silent trap "Surface totality" names, and this book may not
-   recommend one. (Area 4; the reservation-by-wall pattern is already house
+   recommend one. (Area 4; the reservation-by-guard pattern is already house
    practice.)
 9. **The grammar is the single source; every scrape of it is derived and
    pinned.** Keyword-identifier collision is permanently the grammar

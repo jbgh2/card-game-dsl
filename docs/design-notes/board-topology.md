@@ -75,7 +75,7 @@ event, never a side effect of a game PR.
 A game selects a board the way it selects a deck — by name, from a
 closed stdlib registry, never by hand-enumerating cells
 ([domain-map.md](domain-map.md) names per-game cell enumeration as the
-nullary-explosion wall returning):
+nullary-explosion Owner Guard returning):
 
 ```text
 board: grid(3, 3)          // tic-tac-toe
@@ -94,7 +94,7 @@ A registry entry — generated (grids, hex tilings, tracks) or enumerated
   ([decisions.md](../decisions.md) "Position domains and positional
   zones") with registry-minted named constants (`a1 … h8`,
   `p1 … p24`) in place of integer bounds, reconciled by the same
-  name-collision wall.
+  name-collision Owner Guard.
 - **Relations**: named edge sets — `orthogonal`, `diagonal`,
   `dark_diagonal`, hex adjacency, track successor. Where a game's
   movement is rank-asymmetric, the entry also carries **per-player
@@ -175,7 +175,7 @@ birth** ([decisions.md](../decisions.md) "Closed-domain completeness"):
 every relation total over the entry's cells and symmetric where
 declared, jump triples consistent with their base relation, lines and
 regions subsets of the cell set — all pinned by a static test derived
-from the registry, with a loud runtime refusal as the backstop. An
+from the registry, with a loud runtime refusal as the Shadow Guard. An
 in-file bespoke graph syntax is deliberately deferred: five ladder
 games use five registry entries, and the first game whose board is
 genuinely one-off (a Catan-shaped map) is the witness that forces the
@@ -192,7 +192,7 @@ into the guard-masked cross-product and the OpenSpiel action space.
 Boards do not add a rival mechanism: **a board entry mints a position
 domain** — with two extensions over the `positions {}` block's
 integer-keyed form: members are **named constants** (`a1 … h8`,
-reconciled by the same name-collision wall), and the domain carries
+reconciled by the same name-collision Owner Guard), and the domain carries
 the topology data of §2.1 (relations, regions, lines, frames) for the
 query verbs to consult. The 256-member cap accommodates every ladder
 board (the largest is 10×10 = 100). This also answers the recorded
@@ -214,7 +214,7 @@ Zone types: `Cell` (the one-card holding space FreeCell landed) is
 **reused** for capacity-1 squares — same profile, one spelling per
 concept — with **capacity** made a typed zone-type property in the
 same change (1 for `Cell`, unbounded for the new stack row `Point`),
-enforced as a loud runtime wall and respected by movement guards.
+enforced as a loud runtime Owner Guard and respected by movement guards.
 `HiddenCell<Owner>` (identity to owner, **trivial** to others —
 `count_only` would leak occupancy, which for a board cell *is* the
 secret) pairs with `Cell` exactly as the landed `HiddenStack` pairs
@@ -225,19 +225,19 @@ requirements doc — per-position zone families sharing a projection
 policy — and it is the entire visibility story for boards: projections
 attach to cells because cells are zones.
 
-One landed wall matters here: **positions are unowned** — an
+One landed Owner Guard matters here: **positions are unowned** — an
 owner-differentiated zone type on a position index is rejected because
 its owner projection would be unreachable. Wave A never touches that
-wall (`Cell`, `Point` are uniform-projection rows, exactly the class
-the wall admits).
+Owner Guard (`Cell`, `Point` are uniform-projection rows, exactly the class
+the Owner Guard admits).
 
 The double-indexed family (`ocean[player][cell]`) is one genuinely new
 index shape — Battleship needs a board *per player* — and it is where
-the positions-are-unowned wall gets its stage-4 **amendment, not an
+the positions-are-unowned Owner Guard gets its stage-4 **amendment, not an
 exception**: an owner-differentiated type is legal on a compound index
 iff a component supplies the owner key (here `player`; the position
 component stays unowned), which is the same contract the landed
-owner-argument wall already enforces on single-index families. A
+owner-argument Owner Guard already enforces on single-index families. A
 `HiddenCell` on a bare position index stays rejected.
 
 ### 2.3 One individuated content kind: `Piece`, with `Card` as its deck specialization
@@ -268,13 +268,13 @@ zones, projections, movement, and multiplicity attach to the **base**,
 so pieces need no new observation machinery (two identical men are
 duplicate entries exactly as Pinochle's doubled deck already is, and
 Stratego's hidden ranks are piece identity under a hiding projection).
-What the direction changes is **where the walls sit**. Modelling
+What the direction changes is **where the Owner Guards sit**. Modelling
 pieces as cards would give every card convention a per-construct
-backstop excluding piece games — `ranking:` over sides, follow-suit
+Shadow Guard excluding piece games — `ranking:` over sides, follow-suit
 over pieces, a hand-order `Card` parameter in a game with no hands —
-the backstop-proliferation tell of
+the Shadow Guard-proliferation tell of
 [decisions.md](../decisions.md)'s write-time triage. With
-`Card ⊂ Piece`, each of those is one wall at the content-kind level:
+`Card ⊂ Piece`, each of those is one Owner Guard at the content-kind level:
 the construct demands deck content, and the checker rejects it in a
 piece game by type, naming the kind. (Piece interactions that look
 rank-like but are not a linear order — spy beats marshal — stay
@@ -361,7 +361,7 @@ encode moves. Adjacency,
 occupancy, and path-clearness live in guards as **masks**, never as
 domains that grow or shrink. Every board decision is therefore an
 ordinary parameterized `offer` — one flat candidate list, one chooser
-draw, one announce — and the no-implicit-actions wall
+draw, one announce — and the no-implicit-actions Owner Guard
 ([decisions.md](../decisions.md)) carries over unchanged: a player
 with no legal placement is a phase-termination predicate, never a
 silently skipped turn.
@@ -374,7 +374,7 @@ the `turns` form's `again` axis ([decisions.md](../decisions.md) "The
 `turns` form") plus a position-typed chain-anchor state variable
 (public, as all state is) expresses "same piece continues" —
 position-typed `state` is currently **rejected surface** (a recorded
-walled residual, issue #111); the wall lifts at stage 5, whose Barrage shuttle
+guarded residual, issue #111); the Owner Guard lifts at stage 5, whose Barrage shuttle
 rule is its first forcing witness, and the chain anchor reuses the
 lift. Mandatory capture is a reusable declarative rule — and that is
 a commitment about where rules are *going*, not a description of
@@ -414,7 +414,7 @@ only declared topology data and zone contents:
   cell-query surface mirrors the card-query register — `cells in
   <region> where <pred>`, `number of cells in …`, `any/all cell(s)
   in … where` — one spelling per concept, lifted to positions. This
-  is a deliberate **wall-lift**: quantifiers and iteration over
+  is a deliberate **guard-lift**: quantifiers and iteration over
   position domains are currently rejected surface with recorded
   residuals (issue #111 — no solitaire addressed columns by loop
   or quantifier);
@@ -574,7 +574,7 @@ does not move.
 5. **Stratego, Barrage variant** (10×10 with lakes; 8 pieces per side:
    Flag, Spy, 2 Scouts, Miner, General, Marshal, Bomb; two-square
    rule in scope — its shuttle tracking is the first forcing witness
-   for position-typed state, whose recorded wall lifts here — chase
+   for position-typed state, whose recorded Owner Guard lifts here — chase
    rule scoped out and named in the entry; **no
    native oracle** — verified absent from OpenSpiel; DeepNash was
    never open-sourced). The moat rung: C3 attribute-level projections
@@ -667,7 +667,7 @@ not re-litigated:
 ## 4. Implementation staging
 
 Each stage is one PR-train: its registries and pins land together
-(closed-domain completeness — registry, static pin, runtime wall, on
+(closed-domain completeness — registry, static pin, runtime Owner Guard, on
 day one), its surface passes the totality audit (the grid authored red
 before the implementation + misuse-probe rejection tests + completeness
 ledger), and its witness's proof module + differential check close it.
@@ -676,18 +676,18 @@ parse them.
 
 - **Stage 1 — structure.** Grammar: `board:` and `pieces:` as
   `game_item` alternatives (docking at the existing skeleton-clause
-  walls, which grow their combination matrix: `board:` requires
+  Owner Guards, which grow their combination matrix: `board:` requires
   `pieces:`, `cards:`+`board:` together rejected-until-witnessed,
   `ranking:` demands deck content). The `BOARDS` registry with the
   wave-A entries + integrity pins; the component-set registry
   generalizing `DECKS` — **`Card ⊂ Piece` lands here**, with
-  byte-identical card-corpus behavior as its acceptance wall;
+  byte-identical card-corpus behavior as its acceptance Owner Guard;
   board entries minting **named-member position domains** through the
-  landed declared-domain machinery (same collision wall; deliberately
+  landed declared-domain machinery (same collision Owner Guard; deliberately
   no new row in the built-in domains registry, per the alternative
   positional-zones.md already rejected); capacity as a typed
   zone-type property on the existing `Cell` row (`Cell` = 1, every
-  other row unbounded), enforced as a loud movement wall. The `Point`
+  other row unbounded), enforced as a loud movement Owner Guard. The `Point`
   row (an unbounded stack) and the `HiddenCell` probe row are deferred
   to their witnesses (backgammon at stage 3, battleship at stage 4),
   not bundled here.
@@ -697,7 +697,7 @@ parse them.
   enums; cell-zone endpoints through the existing movement executor;
   class 1–4 verbs into the stdlib call/signature/dispatch registries;
   the cell-query register — lifting the recorded position
-  quantifier/iteration walls against their board witnesses (§2.5).
+  quantifier/iteration Owner Guards against their board witnesses (§2.5).
   Witnesses: tic-tac-toe, then breakthrough;
   the GOPS differential harness generalized to a reusable
   native-oracle comparison. Perfect-info proof modules (adapter
@@ -708,7 +708,7 @@ parse them.
   extended to roll sites. Witness: backgammon.
 - **Stage 4 — probes.** The probe action (declared pure predicate
   over a hidden zone, result announced to declared observers);
-  double-indexed zone families with the unowned-wall amendment
+  double-indexed zone families with the unowned-Owner Guard amendment
   (owner key supplied by the player component — §2.2) and the
   `HiddenCell` row. Witness: battleship — budgeted together with
   extending the Cheat-anchored constructive world generator
@@ -717,9 +717,9 @@ parse them.
 - **Stage 5 — the moat workstream.** C3 attribute-level emission
   classes + C6 anonymous-persistent movement identity, with the
   partition-proof battery extended **first** as the acceptance bar.
-  Also lifts the position-typed `state` wall (a recorded residual):
+  Also lifts the position-typed `state` Owner Guard (a recorded residual):
   the two-square shuttle rule tracks the mover's previous from/to,
-  the wall's first forcing witness; draughts' chain anchor reuses the
+  the Owner Guard's first forcing witness; draughts' chain anchor reuses the
   lift at stage 7. Witness: Barrage. Explicitly a moat-level event
   with its own sign-off.
 - **Stage 6 — fixed points.** `reachable`/`region` as bounded
@@ -755,7 +755,7 @@ questions, not silently deciding them:
   [decisions.md](../decisions.md) "Boards and cells" and "Component sets:
   cards and pieces": a component set's two axes bind positionally (axis 1
   = the suit slot, axis 2 = the rank slot); noun/content agreement is a
-  typecheck wall; the board declaration is `board: <family>(<args>)`
+  typecheck Owner Guard; the board declaration is `board: <family>(<args>)`
   selecting a `BOARDS` family; and a bare `a1` stays a name, not a minted
   cell constant (cell literals are a recorded residual,
   issue #111). One-spelling-per-concept held throughout.
@@ -769,14 +769,14 @@ questions, not silently deciding them:
   wave C is its forcing set.
 - **Mutable topology** (Quoridor-class walls, growth) and the
   **in-file board form** (Catan-class maps): each waits on its
-  witness; both are named walls until then.
+  witness; both are named Owner Guards until then.
 - **The spatial leak lint** (requirements doc, key finding 8): owned
   by the knowledge model; its static half is unscheduled.
 - **The positional residuals this ladder does not lift**: the landed
   positional machinery is this design's substrate (§2.2), and the
-  ladder lifts exactly three of its recorded walls (quantifiers and
+  ladder lifts exactly three of its recorded Owner Guards (quantifiers and
   iteration at stage 2, position-typed state at stage 5). The others
-  stay walled on their own witnesses — the positional slice movement
+  stay guarded on their own witnesses — the positional slice movement
   on Spider, the position-family gather on a first gathering layout
   (issue #111) — and nothing here re-sequences them.
 

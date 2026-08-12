@@ -142,9 +142,9 @@ _KNOWN_ROLES = ZONE_INDEX_ROLES
 # zone-indexable role fails here BY NAME rather than escaping the Owner Guards
 # below, which implement the `team` row only.
 assert ZONE_INDEX_ROLES == {Role.PLAYER, Role.TEAM}, (
-    f"resolve's empty-domain walls implement the `team` row only; "
+    f"resolve's empty-domain Owner Guards implement the `team` row only; "
     f"ZONE_INDEX_ROLES is {role_names(ZONE_INDEX_ROLES)} — decide whether the new "
-    f"role's domain can be empty, and extend those walls, before widening the "
+    f"role's domain can be empty, and extend those Owner Guards, before widening the "
     f"domain table"
 )
 
@@ -1128,7 +1128,7 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
     "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
     "stdlib_query": "closed: the stdlib round-query registries, identical either side",
     "index_domain": (
-        "walled elsewhere, and NOT closed — the row's earlier reading claimed the "
+        "guarded elsewhere, and NOT closed — the row's earlier reading claimed the "
         "namespace was closed because a game may not declare a non-role index "
         "either. Zone contracts falsified that: a game DOES declare "
         "position-indexed zone families (Klondike's `tableau_down[column]`), so a "
@@ -1137,16 +1137,16 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "requirement and for a provided variable alike"
     ),
     "role": (
-        "walled elsewhere, and NOT closed — the row's first reading was wrong. The role "
+        "guarded elsewhere, and NOT closed — the row's first reading was wrong. The role "
         "NAMES are the domain registry's, but `suit`/`rank` admissibility follows the "
         "importing game's component set: `for each suit` is accepted by a card game and "
         "refused by a piece game. So this is deck-agnosticism escaping through a role, "
         "the same property `deck_rank`/`deck_suit` are swept for. It is not silent — "
-        "typecheck's flavor wall refuses it to the LIBRARY's author — but the "
+        "typecheck's flavor Owner Guard refuses it to the LIBRARY's author — but the "
         "library-alone property is weaker here than the sweep provides (issue #183)"
     ),
     "content_kind": (
-        "walled elsewhere: typecheck compares the item noun against the game's content "
+        "guarded elsewhere: typecheck compares the item noun against the game's content "
         "flavor and reports to the library's author. NOT, as this row first claimed, "
         "because a movement always names a zone the classified pass refuses — that "
         "premise is now doubly false, since a movement may also name a CONTRACTED "
@@ -1154,14 +1154,14 @@ _LIBRARY_UNSWEPT: dict[str, str] = {
         "refused to the library's author (issue #170)"
     ),
     "outcome_tag": (
-        "walled elsewhere: a `produce` outside a define or outcome-phase body is "
+        "guarded elsewhere: a `produce` outside a define or outcome-phase body is "
         "refused outright, and a tag naming no declared outcome is refused against the "
         "outcome registry — both to the library's author (probed via the full "
         "pipeline; `resolve` alone accepts them, which is what made the first reading "
         "of this row say the tags were merely `owned` by a swept name)"
     ),
     "param": (
-        "walled elsewhere: `NamedArg` is refused outright — named call arguments are "
+        "guarded elsewhere: `NamedArg` is refused outright — named call arguments are "
         "not supported, so the parameter name never reaches a namespace"
     ),
     "field": (
@@ -2940,7 +2940,7 @@ def _check_teams(game: n.Game, bag: DiagnosticBag) -> None:
     earlier one, so the game plays on with that seat scoring for a team its
     author did not put it on.
 
-    The wall belongs HERE, at the declaration, and not at any of the readers,
+    The Owner Guard belongs HERE, at the declaration, and not at any of the readers,
     because one of the readers is the information sets. A team zone family
     asks `domains.zone_observer_key` who owns an instance, which for a team
     is `rs.team_of.get(observer)` -- so a seat in no team is silently a
@@ -3506,7 +3506,7 @@ def _check_modes(phase: n.Phase, bag: DiagnosticBag) -> None:
     A mode is one side of one condition — the "before", which declares the
     transitions that end it, or the "after", which a sibling names. The two
     rejected shapes are not hypothetical; both ran silently wrong before this
-    wall existed, and `check_dsl` accepted both:
+    Owner Guard existed, and `check_dsl` accepted both:
 
     - BOTH (a chain, or a self-loop): the runtime keys a mode's activity on ITS
       target having fired, not on its having been entered, so the middle mode
@@ -4480,7 +4480,7 @@ _PROCEDURE_PARAM_DOMAINS = frozenset({"Player", "Rank", "Rank?", "Integer"})
 # A `produces:` over a DEFINE is not in the class: a define is invoked fresh at each
 # site and has no ordering or uniqueness rule, which is why it stays allowed.
 _NON_LOCAL_STMTS = (n.Produce, n.ContinueTo, n.SkipToNextHand)
-# All three forms, not only the two that bind a winner: the wall enforces
+# All three forms, not only the two that bind a winner: the Owner Guard enforces
 # more than its name and message say (issue #290), and narrowing it here
 # would relax it as a side effect of a refactor.
 _WINNER_BINDING_STMTS = (n.TrickRound, n.AuctionRound, n.ClimbRound)
@@ -4647,7 +4647,7 @@ def _check_procedures(game: n.Game, bag: DiagnosticBag) -> None:
                         f"procedure '{proc.name}' contains a `round`, which binds "
                         f"its own `winner` for the statements after it; a "
                         f"procedure body may not yet hold one, because the body's "
-                        f"`winner` wall cannot distinguish a round-local binding "
+                        f"`winner` Owner Guard cannot distinguish a round-local binding "
                         f"from the caller's call-site pronoun (procedures.md)",
                         nd.span,
                     )
@@ -5484,7 +5484,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     # `play_combination` — nothing in `ClimbForm` reads this
                     # field at all — so any other name ran as a climb regardless
                     # and meant nothing (decisions.md "Surface totality"). The
-                    # trick form has carried the same wall since its surface was
+                    # trick form has carried the same Owner Guard since its surface was
                     # written; this form went without one.
                     bag.error(
                         f"the climb round form runs `{CLIMB_DECISION_MOVE_TYPE}`; "
