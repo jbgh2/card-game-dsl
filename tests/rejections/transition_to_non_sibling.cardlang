@@ -1,7 +1,7 @@
-// Wall: resolve.py's `transition_to:` sibling-MODE check. `nowhere` is not a
+// Guard: resolve.py's `transition_to:` sibling-MODE check. `nowhere` is not a
 // mode of `play`, so the target is rejected even though `play_to_trick` is a
 // real library move event. `b` is gone: with `a` pointing elsewhere, `b` would
-// be an orphan and its own wall would fire first, hiding the case named here.
+// be an orphan and its own guard would fire first, hiding the case named here.
 game TransitionToNonSibling {
   players: 2
   max_length: 1000

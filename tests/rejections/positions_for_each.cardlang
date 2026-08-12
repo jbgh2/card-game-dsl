@@ -1,4 +1,4 @@
-// Wall: resolve.py's iteration-role registry check. A position is
+// Guard: resolve.py's iteration-role registry check. A position is
 // not an iteration role (deferred; issue #111 records it): columns
 // are addressed by literal or parameter, never looped over.
 game PositionsForEach {

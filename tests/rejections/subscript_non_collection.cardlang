@@ -1,4 +1,4 @@
-// Wall: typecheck.py's subscript-legality check. `total` is a bare Integer,
+// Guard: typecheck.py's subscript-legality check. `total` is a bare Integer,
 // not a collection, so indexing it with `[p]` is rejected rather than
 // crashing at runtime on an unsubscriptable value.
 game SubscriptNonCollection {

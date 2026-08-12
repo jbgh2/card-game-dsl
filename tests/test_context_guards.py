@@ -7,7 +7,7 @@ Completeness ledger — statement-context totality
 property:  every `_stmt_exprs` position that the runtime evaluates with an
            implicit binder in scope is checked with that same binder in
            scope at typecheck time — no expression position where a Card
-           wall (or any binder-typed wall) is silently dark because the
+           guard (or any binder-typed guard) is silently dark because the
            statement walk left it unbound.
 domain:    every branch of `_stmt_exprs` (`cardlang/typecheck.py`) — the
            registry of "which expressions does a statement hold directly":
@@ -27,11 +27,11 @@ registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            special, which is what makes "the whole class is exactly these
            two members" a checked claim, not an assumption.
 covered:   Transfer.where and EpistemicOp.where, each: rejects an unknown
-           Card field inside the filter (the closed CARD_FIELDS wall, now
+           Card field inside the filter (the closed CARD_FIELDS guard, now
            reachable — THE PROBE); rejects a non-Boolean filter; accepts the
            real corpus shape (`card.suit is hearts`/`card.rank is Q`).
            Transfer.source is confirmed to still run its own (unrelated,
-           pre-existing) zone-family-index wall in the SAME statement a
+           pre-existing) zone-family-index guard in the SAME statement a
            filter is present on — proof the two checks don't interfere.
 sampled:   none — the domain is small (8 `_stmt_exprs` branches) and every
            branch is either exhaustively argued (the 6 non-Transfer/
@@ -39,10 +39,10 @@ sampled:   none — the domain is small (8 `_stmt_exprs` branches) and every
            `_stmt_exprs`'s source directly, restated in
            `_check_stmt_exprs`'s docstring) or probed above.
 residual:  none for this property. (The general let-bound-locals residual
-           from test_operator_walls.py applies here too — a filter that
+           from test_operator_guards.py applies here too — a filter that
            only references a `let`-bound name stays `TAny` — but that is
            the same pre-existing, module-spanning gap, not specific to this
-           wall; not re-recorded.)
+           guard; not re-recorded.)
 
 Completeness ledger — IsCheck totality
 -----------------------------------------
@@ -78,7 +78,7 @@ sampled:   none/not_none's reject branch is probed once (TInteger); every
            not none`/`is empty`/`is not empty` sites in `docs/games/*.
            cardlang`) confirmed every real usage is on a declared `T?`
            state var, a zone/zone-family, or a `TAny` pronoun member —
-           zero corpus trips from either wall.
+           zero corpus trips from either guard.
 residual:  none.
 """
 
@@ -134,7 +134,7 @@ def _rejects(src: str, needle: str) -> None:
 def test_movement_filter_rejects_an_unknown_card_field() -> None:
     # The headline probe. Were `_stmt_exprs` to run the filter
     # through the flat, unbound `env`, `card` would type `TAny` (an unbound
-    # local) and the closed CARD_FIELDS wall would never fire.
+    # local) and the closed CARD_FIELDS guard would never fire.
     _rejects(
         _game("deal 5 cards from deck where card.colour is 3 to each hand"),
         "Card has no field 'colour'",
@@ -174,7 +174,7 @@ def test_movement_source_is_still_checked_unbound_alongside_a_filter() -> None:
     # The OTHER Transfer expressions (source/dest/amount/visibility) carry no
     # `card` binder and are checked in the ambient environment — proven by a
     # statement that has BOTH a real filter AND a source-side error, so the
-    # source's own (unrelated) zone-family-index wall must still fire.
+    # source's own (unrelated) zone-family-index guard must still fire.
     _rejects(
         _game("move all cards from hand[hearts] where card.suit is hearts to pile"),
         "`hand` is keyed by Player — got Suit",

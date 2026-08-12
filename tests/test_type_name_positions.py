@@ -9,7 +9,7 @@ the registries — so a new position or a new name source arrives as uncovered
 cells that force someone to classify them, rather than as silence.
 
 The defect class this exists to close (docs/decisions.md, "Closed-domain
-completeness"): a domain whose axes are hand-listed. The wall this module
+completeness"): a domain whose axes are hand-listed. The guard this module
 grids was first written against a five-position axis that a fresh-context
 framing check found to be nine; the four it missed (procedure parameters,
 rule parameters, phase-outcome payloads, struct literals) were invisible
@@ -61,7 +61,7 @@ Completeness ledger
                    semantically such a value is an Integer with a declared
                    range (a TCell for a board cell), but no corpus game wants
                    one, so this grid does not guess a cell nobody has decided.
-                   The wall is loud but the message spells it `unknown type
+                   The guard is loud but the message spells it `unknown type
                    '<name>'`; naming the sharper reason (a position domain is
                    not a declared type in this slot) is a message-quality
                    residual, and the grid asserts admit-vs-reject only, not the
@@ -69,7 +69,7 @@ Completeness ledger
                 2. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
                    (`Hand<player>`) and role/domain ids (the `player` in
                    `hand[player]`, `for each player`) are type-ish names with
-                   their own registries and their own walls; the framing check
+                   their own registries and their own guards; the framing check
                    enumerated seven such positions. They are a different
                    domain, not a missing part of this one. Their own raggedness
                    -- a zone index admits position domains where a state index
@@ -197,7 +197,7 @@ def _outcome(src: str) -> str:
     """What this position's type-name gate did with the name.
 
     The subject is the gate, not whole-program validity: a probe that clears
-    the gate and then trips an unrelated wall is still `admit`.
+    the gate and then trips an unrelated guard is still `admit`.
     """
     try:
         check_dsl(src, "grid")
@@ -263,7 +263,7 @@ def test_a_retired_type_name_is_loud_in_every_position(position: str) -> None:
     spelling is the sharpest case of this module's property, because it is the
     one an author has in muscle memory and in an in-flight game file: a
     silently-`TAny` `pass_direction` would keep typechecking and exempt itself
-    from the `offset_by` operand wall. The grid above covers the CLASS (an
+    from the `offset_by` operand guard. The grid above covers the CLASS (an
     unrecognized name, via `UNKNOWN_NAME`); this covers the retired member of
     it by name, in all nine positions.
 
@@ -283,7 +283,7 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
     """Admission is half the property; the RESULTING TYPE is the other half.
 
     A gate that admits a name whose builder maps it to the top is worse than a
-    gate that rejects it: the name is accepted and every wall below it goes
+    gate that rejects it: the name is accepted and every guard below it goes
     off. The grid above tests the verdict, so it cannot see this — a review
     found exactly that hole here, where position domains were admitted at the
     payload positions while `_payload_type` still resolved them to the top.

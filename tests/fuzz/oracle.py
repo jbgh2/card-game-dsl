@@ -18,7 +18,7 @@ len(candidates)` precondition, of which "never empty" is the special case —
 see `_CappedSortedChooser`), and the terminal `GameResult` reconciles
 against the game's own declared `winner:`/`loser:` shape. An exception here
 is a second, distinct finding class: "accepted-then-crashes-at-playout" —
-the mutant slipped past every static wall and only broke at runtime.
+the mutant slipped past every static guard and only broke at runtime.
 
 The chooser. Same idiom as `tests/metamorphic/pairing.py` (T1 of the
 metamorphic suite, merged first): sort every candidate list by

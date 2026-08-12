@@ -47,7 +47,7 @@ below pins each partial's omission set EXACTLY
 still fails. A card whose rank falls outside a partial ranking still
 crashes `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime instead
 of erroring at resolve time — recorded HERE, in this module's ledger and
-the strict xfail below, walled only by that runtime KeyError, not by this
+the strict xfail below, guarded only by that runtime KeyError, not by this
 check.
 
 Adjacent cell closed here (same two-source domain, opposite direction):
@@ -297,7 +297,7 @@ def test_a_partial_ranking_accepts_at_check_time() -> None:
 @pytest.mark.xfail(
     raises=KeyError,
     reason="`ranking:` coverage is unchecked: rank_value's "
-    "rank_index lookup has no wall, so a rank outside a partial ranking "
+    "rank_index lookup has no guard, so a rank outside a partial ranking "
     "surfaces as a bare KeyError instead of the runtime's typed channel",
 )
 def test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_channel() -> None:

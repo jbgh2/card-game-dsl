@@ -26,7 +26,7 @@ sampled:    full-game reachability of each contract family via the playout
             open-misère line (tests/openspiel_ready/test_five_hundred.py)
 residual:   the lead-time joker nomination Pagat allows when leading an
             un-nominated joker (modelled as "not before the holder's last
-            card" — the wall is `lead_ok` returning False, loud as an empty
+            card" — the guard is `lead_ok` returning False, loud as an empty
             candidate set never arises and the restriction is documented in
             five-hundred.md "Chosen ruleset"; recorded in issue #106)
 """

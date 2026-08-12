@@ -3,7 +3,7 @@
 
 - negative Integer literals (`-200`, retiring the `0 - 200` workaround);
 - name-form rank literals resolving bare (`card.rank == K`, `Duke`), with the
-  enum-comparison wall steering the numeric ranks ("10", "21" — bare numbers
+  enum-comparison guard steering the numeric ranks ("10", "21" — bare numbers
   are Integers) to the validated string spelling and rejecting every
   silently-false shape;
 - `any`/`all`/`for each` over the suit and rank domains;
@@ -96,7 +96,7 @@ def test_ranks_come_from_the_deck_not_the_ranking_declaration() -> None:
     check_dsl(src, "mini.cardlang")
 
 
-# --- the enum-comparison wall (every silently-false shape is loud) ---
+# --- the enum-comparison guard (every silently-false shape is loud) ---
 
 
 def test_rejects_rank_compared_with_integer() -> None:

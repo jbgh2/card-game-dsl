@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_positions`. An inclusive range needs
+// Guard: resolve.py `_resolve_positions`. An inclusive range needs
 // lo <= hi; an inverted range would declare an empty domain whose
 // every zone family has zero instances — accepted-but-ignored.
 game PositionsInvertedRange {

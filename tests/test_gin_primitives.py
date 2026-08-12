@@ -96,7 +96,7 @@ def test_meld_codec_rejects_a_non_meld() -> None:
 
 
 def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
-    """The game-local-primitive precondition wall (one chokepoint for the
+    """The game-local-primitive precondition guard (one chokepoint for the
     whole class, cribbage included): running a primitive against a game
     without its zones is a typed RuntimeError naming the situation, never a
     bare KeyError naming only the zone.

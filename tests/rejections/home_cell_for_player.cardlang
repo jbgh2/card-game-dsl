@@ -1,4 +1,4 @@
-// Wall: typecheck's Call arg-type check. home(Player)->Collection<Cell>; a `cell`-typed
+// Guard: typecheck's Call arg-type check. home(Player)->Collection<Cell>; a `cell`-typed
 // argument is a TCell where a TPlayer is required, a type error.
 game HomeCellForPlayer {
   players: 2

@@ -42,10 +42,10 @@ covered:    `test_round_cell_builds_its_own_node`,
             (`combos_fn` on a trick) without either being hand-listed.
             `test_only_the_runnable_move_type_is_accepted` crosses the move-type
             axis whole, both directions -- and it is the row that earned its
-            keep: the climbing form had no such wall, so `round climb
+            keep: the climbing form had no such guard, so `round climb
             submit_bid` was accepted and played out identically to
             `play_combination` (big-two, same seed, same scores). The trick
-            form's wall, which does fire, is that cell's control.
+            form's guard, which does fire, is that cell's control.
 sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
             setting an `outcome` clause: an auction with one raises its tagged
             result for an enclosing `produces:` arm to catch, so a minimal game
@@ -437,7 +437,7 @@ def test_only_the_runnable_move_type_is_accepted(node: type, runnable: str) -> N
     """A form naming a move type its decision site cannot run is rejected.
 
     The misuse probe, and it found a real hole: the trick form has carried this
-    wall since the surface was written, and the climbing form never had one.
+    guard since the surface was written, and the climbing form never had one.
     `round climb submit_bid` was accepted and then played out as an ordinary
     climb -- big-two scored identically with the move type replaced. Seven of
     the eight `LIBRARY_MOVE_TYPES` spellings meant nothing there.

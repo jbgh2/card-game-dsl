@@ -1,11 +1,11 @@
 """A zone-position expression — a movement endpoint (`from <here>` /
 `to <here>`) or an epistemic op's target (`shuffle <here>`, `reveal …`) — must
 be zone-shaped: `resolve._bad_zone_endpoint`, the same rule-shape as the
-write-target wall, one grammar position over.
+write-target guard, one grammar position over.
 
 The grammar already keeps literals out of these positions, so each is
 name-rooted and its root has a classification. Most classifications cannot be
-a zone, and without this wall each would sail through the checker: `deal 1
+a zone, and without this guard each would sail through the checker: `deal 1
 cards from turn to each hand` and `shuffle turn` (with `turn : Integer = 0`)
 would check clean and die mid-playout on the executor's non-zone guard — a
 statically nameable error surfacing at play time instead of check time. The
@@ -36,7 +36,7 @@ residual:   a `local` root whose initializer types `TAny` (an `outcome`
             typing's ordinary rule, not a blind spot: lets are TYPED now, so
             `let h = 3` is rejected at check time (the type half of the rule,
             `_check_transfer`) while `let h = hand[0]` still passes on its
-            merits. The executor's typed RuntimeError remains the backstop
+            merits. The executor's typed RuntimeError remains the Shadow Guard
             for the TAny path (tests/test_fail_loud.py pins it directly).
 """
 
@@ -108,7 +108,7 @@ def _game(body: str) -> str:
         ),
         (
             "let x = 1\n    move 1 cards from deck to hand[0]\n    move all cards from tur to deck",
-            "unresolved name 'tur'",  # the typo cell: the classifier itself is the wall
+            "unresolved name 'tur'",  # the typo cell: the classifier itself is the guard
         ),
     ],
 )
@@ -132,8 +132,8 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
              "is a family keyed by team"),
         ),
         (
-            # The non-NameRef cell of the same wall: a subscripted destination
-            # under `each` would slip past a wall guarding only bare names
+            # The non-NameRef cell of the same guard: a subscripted destination
+            # under `each` would slip past a guard guarding only bare names
             # and die on the executor's NameRef assert.
             "deal 1 cards from deck to each hand[0]",
             "`to each` deals into a player-indexed family named bare",
@@ -143,9 +143,9 @@ def test_a_non_zone_endpoint_is_rejected_at_resolve(body: str, expected: str) ->
 def test_to_each_requires_a_player_indexed_family(body: str, expected: str) -> None:
     """The arity axis of the zone-position domain. `to each X` deals one
     parcel per PLAYER (the executor iterates seats and keys X[player]), so
-    without this wall a singleton and a TEAM family alike would reach the zone
+    without this guard a singleton and a TEAM family alike would reach the zone
     store, which serves only keys its family actually covers — player keying is
-    assumed at the executor, and this wall is what checks it at the surface."""
+    assumed at the executor, and this guard is what checks it at the surface."""
     with pytest.raises(DiagnosticError) as excinfo:
         check_dsl(_game(body), "probe.cardlang")
     assert expected in str(excinfo.value)
@@ -166,7 +166,7 @@ def test_zone_shaped_endpoints_still_check() -> None:
 
 def test_a_zone_valued_local_is_accepted_and_a_non_zone_one_is_not() -> None:
     # Both halves of the rule at the `local` root. Resolve's classification
-    # wall lets any binder through (a binder MAY hold a zone); the type half
+    # guard lets any binder through (a binder MAY hold a zone); the type half
     # (`_check_transfer`, now that lets are typed) decides by what the binder
     # actually holds.
     check_dsl(

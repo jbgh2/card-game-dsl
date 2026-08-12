@@ -27,7 +27,7 @@ def test_hearts_parses_into_one_game_and_two_rules() -> None:
     tree = parse_to_tree(HEARTS.read_text(), str(HEARTS))
     top = tree.children
     # game + 2 rules. `PassExactlyThreeCards` was a third until its
-    # `demands: actions where` form was walled as unenforceable
+    # `demands: actions where` form was guarded as unenforceable
     # (tests/test_rule_surface_reachability.py).
     assert len(top) == 3
     kinds = [t.data for t in top if isinstance(t, Tree)]

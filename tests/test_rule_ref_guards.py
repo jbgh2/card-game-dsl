@@ -34,7 +34,7 @@ Covered (20 cells — full cross product):
       argument count and domain, plain/add cleanly instantiate — sampled
       below (`lib-param (args)`, `local-param (args)`).
     ‡ `remove`/`override` of a local template that no `plain`/`add` ever
-      instantiates ALSO trips the pre-existing "never instantiated" wall
+      instantiates ALSO trips the pre-existing "never instantiated" guard
       (the template's own declaration is never proven, whether or not a
       remove/override references it) — two true, independently repairable
       diagnostics, not a contradiction (both point at the same fix: add it
@@ -61,7 +61,7 @@ tree, so referent kind cannot affect its outcome.
 Residual: `_check_remove_reachability`'s cluster precision is coarser than
 full runtime precision in two narrow, corpus-unexercised ways (order within
 one list; cross-sibling delta references) — recorded in issue #103, not
-walled further here.
+guarded further here.
 """
 
 from __future__ import annotations
@@ -302,7 +302,7 @@ def test_override_x_local_plain_rejected_single_message() -> None:
 def test_override_x_local_param_rejected_both_true_and_repairable() -> None:
     # `override` never instantiates (module docstring), so a LOCAL template
     # referenced only by override still trips the pre-existing "never
-    # instantiated" wall too — two true, independently repairable messages.
+    # instantiated" guard too — two true, independently repairable messages.
     report = _rejects(_game("override LocalParam", rules=LOCAL_PARAM), "not yet supported")
     assert "never instantiated" in report
     assert "pass arguments" not in report

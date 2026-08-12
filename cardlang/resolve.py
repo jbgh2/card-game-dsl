@@ -3986,7 +3986,7 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     falls outside a partial ranking still crashes `rank_value`'s
     `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
     accepted residual, guarded only by that runtime KeyError, not by this
-    check; the ledger is tests/test_ranking_wall.py."""
+    check; the ledger is tests/test_ranking_guard.py."""
     if game.ranking_convention is not None:
         # Convention arm: `_expand_ranking` built the tuple from the deck's
         # own ranks filtered through a registry template — unique and

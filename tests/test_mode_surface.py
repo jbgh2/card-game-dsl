@@ -28,7 +28,7 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 --------------------------------------------------------------
 property:   every combination of item x container is either implemented or
             rejected in its owning layer's channel; every mode-set shape is
-            either given a defined meaning or walled
+            either given a defined meaning or guarded
 domain:     (a) `?phase_item` alternatives x {phase body, mode body};
             (b) `mode_def` x every item container in the grammar;
             (c) the per-mode role 2x2, (declares a transition) x (is targeted);
@@ -77,7 +77,7 @@ residual:   - three RUNTIME behaviours reachable through this surface are
               phase wipes a live ancestor's mode state; and a mode's delta
               applies for the remainder of the trick in which its condition
               ends (`trick_ctx` is computed once per trick). R2/R2/R3,
-              issue #282 — walled by nothing, which is why they are here.
+              issue #282 — guarded by nothing, which is why they are here.
             - a genuine 3+ stage progression has no mode encoding and routes
               to a state variable with `applies_when`. Walled by the role 2x2's
               `both` cell with a diagnostic naming that route. R3 — a designer
@@ -279,7 +279,7 @@ def _role_game(source: bool, target: bool) -> str:
 def test_mode_role(source: bool, target: bool) -> None:
     """Exactly one of source or target. Both rejects are proven defects.
 
-    `both` is the chain (or self-loop): before this wall, mode 2 of a
+    `both` is the chain (or self-loop): before this guard, mode 2 of a
     three-mode chain was active from t=0 because its own activity was keyed on
     ITS target having fired, not on its having been entered.
 
@@ -318,7 +318,7 @@ _SET_SOURCE = {
     ],
     # Two sources naming one target. Reads as "two conditions ending
     # together"; the runtime makes it one condition with two triggers and two
-    # different deltas, so it is walled.
+    # different deltas, so it is guarded.
     "shared_terminal": [
         "mode a { transition_to: z when play_to_trick }",
         "mode c { transition_to: z when play_to_trick }",
@@ -360,10 +360,10 @@ def test_mode_set_shape(shape: str) -> None:
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(src, "mini.cardlang")
     # Not a bare `raises`: a syntax error would satisfy that, so a rejected
-    # shape would go green while the wall it names did not exist.
+    # shape would go green while the guard it names did not exist.
     message = str(ei.value)
     assert "syntax error" not in message, (
-        f"{shape} was rejected by the parser, not by the mode-role wall: {message}"
+        f"{shape} was rejected by the parser, not by the mode-role guard: {message}"
     )
     assert "mode" in message, message
 
@@ -409,7 +409,7 @@ def test_legal_moves_in_a_mode_names_the_replacement() -> None:
 def test_legal_moves_delta_operator_is_a_grammar_error() -> None:
     """`legal_moves: [+ X]` — the symmetry with `active_rules` that the spec
     once claimed. The grammar admits only bare names here, so it fails at
-    parse. Carried over from the wall module this grid replaced: the wall's
+    parse. Carried over from the guard module this grid replaced: the guard's
     own domain dissolved with `_is_rule_delta`, but this boundary-token
     probe is about `legal_moves`'s list syntax and outlives it."""
     assert not _parses(_game("    legal_moves: [+ play_to_trick]"))
@@ -420,7 +420,7 @@ def test_transition_predicate_is_typechecked_inside_a_mode() -> None:
 
     The arm that checks it used to match `n.TransitionTo` as a PHASE item;
     once transitions moved inside modes, that arm stopped matching anything
-    and the predicate would have gone unchecked — a wall silently emptied by
+    and the predicate would have gone unchecked — a guard silently emptied by
     the very change that reorganised the surface.
     """
     src = _game(
@@ -444,7 +444,7 @@ def test_the_role_wall_reaches_every_nesting_depth(depth: int) -> None:
     """Modes at depth, since `?phase_item` includes `phase` and the corpus puts
     them three levels down.
 
-    A wall written against one level is the shape that guards the fixture and
+    A guard written against one level is the shape that guards the fixture and
     not the games: this grid's other cells all sit at depth 1, while hearts and
     spades declare their modes at depth 3.
     """
@@ -577,7 +577,7 @@ def test_a_mode_name_is_unique_game_wide_not_merely_per_phase() -> None:
 
 
 def test_two_sibling_modes_may_not_share_a_name() -> None:
-    """The same wall at its narrowest scope: one reference cannot name two
+    """The same guard at its narrowest scope: one reference cannot name two
     declarations, and activating both stacks deltas nobody asked for."""
     src = _game(
         "    mode fresh { transition_to: done when play_to_trick }\n"

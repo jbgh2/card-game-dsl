@@ -1,4 +1,4 @@
-// Wall: resolve's `_resolve_board` mint-site collision (the `cell` collision's
+// Guard: resolve's `_resolve_board` mint-site collision (the `cell` collision's
 // twin). The board mints a movement-direction domain named `dir`, so a
 // declared `positions { dir : ... }` clashes with it and is rejected. `dir` is
 // a separate source from `game.positions`, but the mint site still guards the

@@ -1,4 +1,4 @@
-// Wall: typecheck.py's struct-literal field check. `Contract` declares two
+// Guard: typecheck.py's struct-literal field check. `Contract` declares two
 // fields (`level`, `suit`); the literal supplies only `level`, so the
 // missing field is rejected rather than left implicitly zero-valued.
 type Contract = { level : Integer  suit : Suit }

@@ -1,9 +1,9 @@
-// Wall: typecheck's `loser:` arm, which routes the selection through the
+// Guard: typecheck's `loser:` arm, which routes the selection through the
 // operand choke point against `Player`. `loser:` names the losing player
 // directly, so a selection whose type is concretely something else can never
 // denote one. Before the choke point this clause carried no player check at
 // all and the mistake surfaced only as a typed RuntimeError once a playout
-// reached the outcome (issue #107); the driver's raise stays as the backstop
+// reached the outcome (issue #107); the driver's raise stays as the Shadow Guard
 // for a gradually-typed (`TAny`) selection, which the checker cannot judge.
 game LoserSelectionNotAPlayer {
   players: 2

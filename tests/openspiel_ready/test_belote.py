@@ -16,7 +16,7 @@ legality of every replayed play is unchanged; rank-sensitive over-trump
 demands can still reject a pair, which the harness skips.
 
 `conformance_steps=150`: a full game to 1000 runs past 400 decisions, the
-O(n^2) re-simulation wall of the score-target class (Bridge, Skat, Tichu).
+O(n^2) re-simulation guard of the score-target class (Bridge, Skat, Tichu).
 
 `adapter_terminal_steps=500`: the seed-5 greedy line reaches TerminalNode at a
 measured 418 steps.

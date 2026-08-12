@@ -3,12 +3,12 @@
 A `board: grid(3, 3)` clause mints one position domain named `cell` whose
 members are the board's cells (`a1`..`c3`, string members), riding the
 landed `positions {}` substrate (decisions.md "Boards and cells"): same
-collision wall, same two consumption surfaces (zone-family index,
+collision guard, same two consumption surfaces (zone-family index,
 move-parameter domain), same unowned rule. Cell values type as the new
 `TCell`; integer position domains keep `TInteger` exactly.
 
 This module is the grid for Task 6. Its two axes both derive from
-registries, never from the wall's own coverage:
+registries, never from the guard's own coverage:
 
   * the clause-combination axis from `BOARD_FAMILIES`
     (cardlang/stdlib/boards.py) x the content-flavor stamp x the position
@@ -45,7 +45,7 @@ covered:    clause axis, each cell proven by a run probe below --
                                                 placeholder None)
               collision with positions{cell} -> reject (resolve, names both)
               collision with a built-in name -> reject (reuses the standing
-                                                wall; constant today, swept)
+                                                guard; constant today, swept)
             TCell value-position axis, each proven by a run probe below --
               move parameter `place(at:cell)`        -> accept (TCell)
               let binder `let c = at`                -> accept (TCell)
@@ -341,7 +341,7 @@ def test_cell_equality_with_integer_is_rejected() -> None:
 
 def test_cell_ordering_is_rejected() -> None:
     # ordering needs a second cell to compare; a lone `at < at` still hits the
-    # Integers-only ordering wall.
+    # Integers-only ordering guard.
     src = board_game(
         moves=(
             "move_type place(at : cell, at2 : cell) {\n"
@@ -392,11 +392,11 @@ def test_cell_index_on_an_integer_family_is_rejected() -> None:
     assert "keyed by Integer" in _reject(src)
 
 
-# --- clause combination walls -------------------------------------------------
+# --- clause combination guards -------------------------------------------------
 
 
 def test_board_without_pieces_is_rejected() -> None:
-    # a card game with a board: the same wall as board+cards (parse enforces
+    # a card game with a board: the same guard as board+cards (parse enforces
     # cards XOR pieces, so "no pieces" and "has cards" are one condition).
     msg = _reject(
         board_game(
@@ -449,7 +449,7 @@ def test_duplicate_board_clause_is_rejected() -> None:
     )
 
 
-# --- position-typed state stays walled (KNOWN_TYPE_NAMES unchanged) -----------
+# --- position-typed state stays guarded (KNOWN_TYPE_NAMES unchanged) -----------
 
 
 def test_cell_typed_state_variable_is_rejected() -> None:
@@ -470,7 +470,7 @@ def test_cell_function_parameter_admits_and_types_as_tcell() -> None:
     # A position domain is ADMITTED at a function parameter, resolving to its
     # member type rather than the permissive TAny (`_check_declared_type_names`;
     # tests/test_type_name_positions.py P6). For a board `cell` that member
-    # type is TCell -- so `f(x : cell)` checks clean, and TCell's operand walls
+    # type is TCell -- so `f(x : cell)` checks clean, and TCell's operand guards
     # fire (arithmetic on x is a type error), which is the leak-free guarantee
     # main's grid cannot reach (it exercises the integer `column`, not `cell`).
     check_dsl(board_game() + "function f(x : cell) = 1\n", "b.cardlang")
@@ -505,7 +505,7 @@ def test_bare_cell_constant_is_an_unknown_name() -> None:
 
 
 def test_quantifier_over_cell_is_accepted_after_the_task_7_lift() -> None:
-    # `any cell where ...` was the Task-7 wall-lift; it is now LIVE (the
+    # `any cell where ...` was the Task-7 guard-lift; it is now LIVE (the
     # cell/line query register, tests/test_cell_queries.py). Kept here as the
     # cross-module marker that this board-clause residual retired.
     check_dsl(

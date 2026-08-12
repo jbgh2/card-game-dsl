@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_zone`. A position-indexed family is keyed by its
+// Guard: resolve.py `_resolve_zone`. A position-indexed family is keyed by its
 // index position, so an owner argument naming a DIFFERENT position (or a role)
 // is accepted and then ignored. `Cascade<slot>` on a `[column]` family still
 // keys by `column` — the `<slot>` is silently dropped. Require arg == index.

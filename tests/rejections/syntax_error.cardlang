@@ -1,4 +1,4 @@
-// Wall: parse.py's `UnexpectedInput` wrapping. The `zones {` block is never
+// Guard: parse.py's `UnexpectedInput` wrapping. The `zones {` block is never
 // closed, so the grammar itself cannot recognize what follows — rejected at
 // parse time, before resolve/typecheck ever run.
 game SyntaxError {

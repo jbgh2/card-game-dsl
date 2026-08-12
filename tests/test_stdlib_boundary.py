@@ -13,7 +13,7 @@ bare Python adapters, and it coerces SIGNATURE-DRIVEN at its entry (via
 argument is stripped to its elements iff its declared param type is
 ``TCollection``.  A ``TAny`` param passes raw — polymorphic adapters
 (``suit_of``: "a card or a single-card zone") dispatch on the shape
-themselves, so a blanket coercion is a defect, not a stronger wall (it
+themselves, so a blanket coercion is a defect, not a stronger guard (it
 turned the schnapsen trump indicator into a bare list; the playout
 suite caught it).
 
@@ -45,7 +45,7 @@ Completeness ledger
                playout.
     residual:  a TCollection param with zone=True (an adapter wanting the
                Zone HANDLE under a collection type) would be stripped by
-               the boundary; test_no_stdlib_param_demands_a_zone walls the
+               the boundary; test_no_stdlib_param_demands_a_zone guards the
                registry so adding one forces the boundary decision to be
                revisited instead of the handle being silently stripped.
 """
@@ -200,7 +200,7 @@ def test_polymorphic_param_set_is_pinned() -> None:
 
 
 def test_polymorphic_suit_of_still_sees_the_zone() -> None:
-    """The counter-direction of the wall: `suit_of` declares TAny and
+    """The counter-direction of the guard: `suit_of` declares TAny and
     dispatches on shape ("a card or a single-card zone"), so the boundary
     must NOT strip its Zone argument — the schnapsen trump indicator is the
     corpus witness.  Blanket coercion broke exactly this."""

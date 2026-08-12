@@ -39,7 +39,7 @@ class DecisionNode:
 
     The DYNAMIC occurrence. A *decision point* is the static thing: one chooser
     call site in the interpreter. The two are not the same concept and do not
-    share a word (glossary section 4).
+    share a word (the glossary's OpenSpiel boundary).
     """
 
     player: int

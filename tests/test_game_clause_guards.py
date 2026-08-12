@@ -1,4 +1,4 @@
-"""Game-clause structural walls: omission and duplication over the whole
+"""Game-clause structural guards: omission and duplication over the whole
 clause domain of the `game` production, plus the content-clause axis
 (`cards:` / `pieces:` — which component set a game plays with).
 
@@ -65,18 +65,18 @@ registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             legs, scraped by `_card_rank_excluded` and `_struct_type_excluded`
             so both sides of each pin stay derived.
 covered:    duplication — exhaustively, every single-valued clause (all
-            alternatives except `phase`), one probe each, parse-layer wall
+            alternatives except `phase`), one probe each, parse-layer guard
             (the `pieces` probe doubles as the pieces-duplicated-beside-
-            `cards:` cell: BASE carries `cards:`, and the duplicate wall
-            deterministically fires before the mutual-exclusion wall);
-            omission — `players:`/content clause (parse wall, including the
+            `cards:` cell: BASE carries `cards:`, and the duplicate guard
+            deterministically fires before the mutual-exclusion guard);
+            omission — `players:`/content clause (parse guard, including the
             both-at-once bag rendering), `max_length:` and joint
-            `winner:`/`loser:` (resolve walls, pinned by their own
+            `winner:`/`loser:` (resolve guards, pinned by their own
             rejection fixtures), `state`/`zones`/`trump`/`teams`/
             `direction`/`ranking` omission is legal by design (probed by
             the valid BASE game here, which omits four of them);
-            game-count — zero and two, parse wall;
-            content clause — both-present (parse wall), each cell of the
+            game-count — zero and two, parse guard;
+            content clause — both-present (parse guard), each cell of the
             clause x name-flavor matrix at resolve: cross-flavor names
             rejected with the right clause named, unknown names listed
             against the clause's own flavor only (both directions probed),
@@ -100,7 +100,7 @@ covered:    duplication — exhaustively, every single-valued clause (all
             `expr`, checked against the grammar rather than assumed:
             `winner:` takes `rank_dir NAME`.
 sampled:    `ranking:` omission with rank-dependent constructs in play is
-            typecheck's `has_ranking` gate (tests/test_ranking_wall.py);
+            typecheck's `has_ranking` gate (tests/test_ranking_guard.py);
             zero-`phase` games are accepted with defined degenerate
             semantics (no decisions; result read from initial state —
             verified by playout while authoring this module, not pinned
@@ -119,16 +119,16 @@ residual:   the declaration/use symmetry the struct-literal exclusion
             be constructed — declarable-but-unusable, the same property, one
             axis over. Pre-existing (it parses identically before and after
             the terminal), but inside the domain this module claims, so it
-            is named rather than left to look walled. Wall: the empty type
+            is named rather than left to look guarded. Guard: the empty type
             is inert — nothing can construct it, so no game can depend on
             one silently doing something. Recorded in issue #125.
             The content-clause surface adds no residual: `ranking:`/`trump:`
             DECLARED in a piece game, and every other card-content surface,
-            are rejected naming the kind by the content-agreement walls
-            (tests/test_piece_content_walls.py), and the runtime driver runs
+            are rejected naming the kind by the content-agreement guards
+            (tests/test_piece_content_guards.py), and the runtime driver runs
             a piece game — this module owns the clause STRUCTURE, while the
-            vocabulary walls and the piece-game playout live in that flagship
-            ledger. Every other cell above is walled or legal-by-design.
+            vocabulary guards and the piece-game playout live in that flagship
+            ledger. Every other cell above is guarded or legal-by-design.
 """
 
 from __future__ import annotations
@@ -502,15 +502,15 @@ BASE_LINES: tuple[str, ...] = (
 BASE = "\n".join(BASE_LINES) + "\n"
 
 # grammar rule name -> a clause line (or block) valid enough to parse, for
-# clauses BASE does not already carry. The duplicate wall fires at parse
+# clauses BASE does not already carry. The duplicate guard fires at parse
 # time, before resolve, so these only need to be grammatical.
 _EXTRA_CLAUSE: dict[str, str] = {
     "positions": "  positions { column : 1..3 }",
     # BASE carries `cards:`, so this probe doubles as the pieces-duplicated-
-    # beside-cards cell: `once()` raises before the mutual-exclusion wall.
+    # beside-cards cell: `once()` raises before the mutual-exclusion guard.
     "pieces": "  pieces: xo_marks",
     # Likewise duplicated beside `cards:`: `once("board:")` fires at parse,
-    # before resolve's board-requires-pieces wall ever runs.
+    # before resolve's board-requires-pieces guard ever runs.
     "board": "  board: grid(3, 3)",
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
@@ -537,17 +537,17 @@ def _duplicate_probe(rule_name: str) -> str:
 
 
 # The clauses a game may legitimately write MORE THAN ONCE, each with the reason
-# and with where its own repeat-abuse wall lives — a clause is not exempt from
+# and with where its own repeat-abuse guard lives — a clause is not exempt from
 # duplication checking just by being here, it is checked somewhere else.
 #
 #   phase      — a game is a sequence of phases; repetition IS the construct.
 #   uses_decl  — a game uses as many family libraries as it draws on
 #                (decisions.md "Family libraries"). Repeating the SAME library is
-#                still a defect, and is walled in `resolve._apply_uses`, not in
+#                still a defect, and is guarded in `resolve._apply_uses`, not in
 #                parse: only resolve knows the library names.
 REPEATABLE: dict[str, str] = {
     "phase": "a game is a sequence of phases",
-    "uses_decl": "a game may use several libraries; the repeated-NAME wall is "
+    "uses_decl": "a game may use several libraries; the repeated-NAME guard is "
     "in resolve._apply_uses, which is the pass that knows library names",
 }
 
@@ -565,7 +565,7 @@ def test_game_item_registry_pin() -> None:
     assert alternatives == set(SINGLE_VALUED) | set(REPEATABLE), (
         "the `game` production's clause list changed — classify the new "
         "clause in SINGLE_VALUED (or in REPEATABLE, with the reason and the "
-        "location of its own repeat wall) and give it omission/duplication probes"
+        "location of its own repeat guard) and give it omission/duplication probes"
     )
 
 
@@ -576,7 +576,7 @@ def test_base_probe_is_accepted() -> None:
 @pytest.mark.parametrize("rule_name", sorted(SINGLE_VALUED))
 def test_duplicate_clause_rejected(rule_name: str) -> None:
     """Every single-valued clause, repeated, is rejected at the second
-    occurrence — never silently last-wins (the parse.py `game()` wall,
+    occurrence — never silently last-wins (the parse.py `game()` guard,
     which spans every single-valued clause, not just `state { }`)."""
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_duplicate_probe(rule_name), "dup.cardlang")
@@ -615,7 +615,7 @@ def test_missing_players_and_cards_reports_both() -> None:
 
 
 def test_no_game_block_rejected() -> None:
-    """`start: top_item+` accepts a game-less source; without this wall it
+    """`start: top_item+` accepts a game-less source; without this guard it
     would escape as a StopIteration inside lark's VisitError."""
     text = "rule nothing {\n  demands: actions where true\n}\n"
     with pytest.raises(DiagnosticError) as exc:
@@ -624,7 +624,7 @@ def test_no_game_block_rejected() -> None:
 
 
 def test_two_game_blocks_rejected_at_the_second() -> None:
-    """Without this wall, a second game block would be silently discarded
+    """Without this guard, a second game block would be silently discarded
     (first-wins)."""
     text = BASE + BASE.replace("Probe", "Probe2")
     with pytest.raises(DiagnosticError) as exc:
@@ -641,8 +641,8 @@ def test_known_directions_accepted(value: str) -> None:
 
 
 def test_unknown_direction_rejected() -> None:
-    """Without this wall, `direction: anticlockwise` would be silently read as
-    clockwise (driver.py's `!= "counterclockwise"` test) — the resolve wall
+    """Without this guard, `direction: anticlockwise` would be silently read as
+    clockwise (driver.py's `!= "counterclockwise"` test) — the resolve guard
     names the value set instead."""
     text = BASE.replace("  max_length", "  direction: anticlockwise\n  max_length")
     with pytest.raises(DiagnosticError) as exc:
@@ -676,7 +676,7 @@ def test_piece_probe_is_accepted() -> None:
 
 def test_content_flavor_stamped_from_clause() -> None:
     """`Game.content_flavor` records WHICH clause appeared — stamped at
-    parse, the single source resolve's flavor walls dispatch on. `Game.deck`
+    parse, the single source resolve's flavor guards dispatch on. `Game.deck`
     holds the selected set name for both flavors."""
     assert parse_text(BASE, "base.cardlang").content_flavor == "card"
     game = parse_text(PIECE_BASE, "piece.cardlang")
@@ -697,7 +697,7 @@ def test_both_content_clauses_rejected() -> None:
 
 
 def test_cards_naming_a_piece_set_rejected() -> None:
-    """A piece-flavored name under `cards:` gets the cross-flavor wall with
+    """A piece-flavored name under `cards:` gets the cross-flavor guard with
     the right clause named — never the unknown-deck list (the name IS
     known, just not a deck)."""
     text = BASE.replace("cards: standard52", "cards: xo_marks")

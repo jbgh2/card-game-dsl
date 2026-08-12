@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_component_set`, the cross-flavor arm — the
+// Guard: resolve.py's `_resolve_component_set`, the cross-flavor arm — the
 // mirror of pieces_names_a_deck. `xo_marks` is a known PIECE set, so the
 // fix is the other clause, not another deck name.
 game CardsNamesAPieceSet {

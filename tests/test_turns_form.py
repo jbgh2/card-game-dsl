@@ -14,7 +14,7 @@ domain:     clause presence (again present/absent) × (leader, participants,
             state var).
 registry:   the Stmt/Node unions (assert_never dispatch in resolve,
             typecheck ×4, ir, deckcheck, execute — mypy-forced) plus the
-            two generic walkers (expand, openspiel/encoding) whose wall is
+            two generic walkers (expand, openspiel/encoding) whose guard is
             reflection over dataclass fields.
 covered:    - `turns` with and without `again` parse to the Turns node;
               fused keyword typos (`turnst`, `againgo`) are loud syntax
@@ -32,7 +32,7 @@ covered:    - `turns` with and without `again` parse to the Turns node;
               repeats the same player and is CONSUMED on read (a stale flag
               buys at most one repeat) [runtime]
             - a non-seat leader (out-of-range Integer, loose pronoun) is a
-              typed RuntimeError at the bind — the `as`/`offer` seat-wall
+              typed RuntimeError at the bind — the `as`/`offer` seat-guard
               class, never rotation-arithmetic ValueError [runtime]
             - a full lap with no eligible participant is a loud
               RuntimeError, never a silent skip or an infinite spin
@@ -104,7 +104,7 @@ def test_turns_with_again_clause_parses() -> None:
     assert nodes[0].again == "go"
 
 
-# --- resolve/typecheck walls (misuse probes) ---
+# --- resolve/typecheck guards (misuse probes) ---
 
 
 def test_turns_checks_clean() -> None:
@@ -229,7 +229,7 @@ def test_until_is_checked_before_the_first_turn() -> None:
 def test_participants_reevaluated_per_advance() -> None:
     # A player leaves the ring the moment their score reaches 10 — the filter
     # must see mid-loop state, so each seat takes exactly one turn and the
-    # loop ends when nobody is eligible... which must be the loud wall, so
+    # loop ends when nobody is eligible... which must be the loud guard, so
     # `until` fires first here: everyone at 10 IS the termination.
     game = check_dsl(
         _game(
@@ -302,9 +302,9 @@ def test_non_seat_leader_is_a_loud_typed_error() -> None:
     # A LITERAL out-of-range leader (`turns … from 5`) is rejected statically now
     # (the operand choke point ranges it, tests/test_player_literal_range.py); the
     # leader here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer without
-    # folding, like the phantom-key `n[0 + 9]`), so it passes the static wall and
-    # the runtime must wall the non-seat value to the game's author — the same
-    # seat-wall class as `as (0 + 5)` — never a bare ValueError from rotation
+    # folding, like the phantom-key `n[0 + 9]`), so it passes the static guard and
+    # the runtime must guard the non-seat value to the game's author — the same
+    # seat-guard class as `as (0 + 5)` — never a bare ValueError from rotation
     # arithmetic.
     game = check_dsl(
         _game("  phase p { turns t from (0 + 5) over all players until stop { score[t] += 1 } }"),
@@ -355,7 +355,7 @@ def test_participants_narrowed_by_anothers_turn_are_skipped() -> None:
 
 def test_decisionless_nontermination_hits_the_iteration_backstop() -> None:
     # A body that makes no decisions is invisible to the max_length DECISION
-    # counter — the turn count itself must be bounded (the same backstop as
+    # counter — the turn count itself must be bounded (the same Shadow Guard as
     # `repeat until`, one loop class, one guard).
     game = check_dsl(
         _game(

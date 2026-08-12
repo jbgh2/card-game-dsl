@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_component_set`. An unknown name in `pieces:`
+// Guard: resolve.py's `_resolve_component_set`. An unknown name in `pieces:`
 // is diagnosed against the PIECE-flavored rows of the component-set registry
 // only — a designer who wrote `pieces:` is choosing among piece sets, so
 // the card-deck list would be noise.

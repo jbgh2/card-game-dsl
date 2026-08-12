@@ -35,7 +35,7 @@ def test_hearts_ir_is_well_formed() -> None:
     assert isinstance(phases, list) and len(phases) == 1
     # Four: Hearts' two own rules plus the two library rules resolve
     # splices in. `PassExactlyThreeCards` was a fifth until its
-    # `demands: actions where` form was walled as unenforceable
+    # `demands: actions where` form was guarded as unenforceable
     # (tests/test_rule_surface_reachability.py) — the pass movement's
     # `chosen 3` is what binds that count.
     assert isinstance(rules, list) and len(rules) == 4

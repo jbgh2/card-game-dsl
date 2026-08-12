@@ -14,7 +14,7 @@ once, by hand; this module makes it mechanical, so an untriaged assert cannot
 land silently between censuses.
 
 The mechanism (the ``inspect.getsource``-scrape idiom of
-tests/test_operator_walls.py, widened to whole packages): every ``assert``
+tests/test_operator_guards.py, widened to whole packages): every ``assert``
 statement and ``raise AssertionError`` in the runtime packages must carry, in
 its *attached text* — the statement's own source lines (message strings and
 trailing comments included), the contiguous ``#`` block immediately above it,
@@ -84,8 +84,8 @@ import cardlang.stdlib
 FALLTHROUGH_MARKERS = ("unknown ", "no declared ")
 GUARANTOR_WORDS = (
     # A site that stands behind another guard IS a Shadow Guard, so that is the
-    # self-tag; everything else names the owning pass. `backstop` is retired
-    # (docs/glossary.md section 5) and deliberately absent — this tuple is what
+    # self-tag; everything else names the owning pass. `backstop` is never a name
+    # for this role (the glossary's reserved words) and deliberately absent — this tuple is what
     # makes the retirement enforceable rather than advisory.
     #
     # `owner guard` is deliberately NOT here. An assert is compiler-bug channel,

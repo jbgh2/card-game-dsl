@@ -1,4 +1,4 @@
-// Wall: the grammar's `?mode_item`. `window` is a mode — a condition, whose
+// Guard: the grammar's `?mode_item`. `window` is a mode — a condition, whose
 // body is configuration only — so a `legal_moves:` there is consulted by no
 // runtime consumer and would be silently ignored. The move menu is set by the
 // phase you are in, never toggled by a condition, so this is a parse error

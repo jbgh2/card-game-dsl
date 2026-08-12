@@ -618,7 +618,7 @@ list_lit: "[" expr ("," expr)* "]"
 // this is at the absorbed end rather than at each absorbing one.
 //
 // The exclusion is in two parts, pinned separately in
-// tests/test_game_clause_walls.py:
+// tests/test_game_clause_guards.py:
 //
 //   1. NAME's OWN lookahead, repeated verbatim. A position-specific terminal
 //      may only ever remove spellings: admitting a word NAME refuses would make
@@ -644,7 +644,7 @@ card_literal: card_rank _OF_KW NAME
 // clause spelled as two bare names (`uses <library>`) is otherwise absorbed into
 // the enumeration and vanishes silently. Excluded here rather than from NAME so
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
-// tests/test_game_clause_walls.py::test_card_rank_excludes_every_clause_keyword.
+// tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
 CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 

@@ -122,7 +122,7 @@ xfail_strict = true
 # choke point, so this covers `parametrize` marks, `metafunc.parametrize` and
 # `fixture(params=)` alike. Axes that are legitimately empty say so at the call
 # site with tests/empty_axis.py's `may_be_empty`, pinned by
-# tests/test_empty_axis_wall.py.
+# tests/test_empty_axis_guard.py.
 empty_parameter_set_mark = "fail_at_collect"
 
 [tool.mypy]

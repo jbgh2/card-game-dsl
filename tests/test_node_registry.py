@@ -11,12 +11,12 @@ can drift silently transmits that silence to everything derived from it — an
 and mypy cannot know.
 
 This module also owns the IMMUTABILITY invariant the memo in `cardlang/parse.py`
-rests on (its Contract block cites the walls below by name). Sharing checked
+rests on (its Contract block cites the guards below by name). Sharing checked
 trees is not new — `openspiel/replay.py`'s `load()` has been `lru_cache`d since
 2026-06-07 — but it was opt-in, one cache one caller reached deliberately.
 Memoizing `parse_text`/`_check` makes it the DEFAULT for every caller, which is
 why these invariants stop being properties the vocabulary happens to have and
-become walls.
+become guards.
 
 property:   (1) `Node` contains exactly the dataclasses defined in
             `cardlang.ast.nodes` — no more, no fewer; (2) a shared AST cannot
@@ -34,7 +34,7 @@ covered:    the full membership equation, both directions; and all four
             over `cardlang/` refuses `object.__setattr__` of a declared field,
             the one route the language cannot close since it is the call
             frozen's own `__init__` uses; and a field-type check refuses
-            mutable containers, which no `setattr` wall can see. `Span` is
+            mutable containers, which no `setattr` guard can see. `Span` is
             pinned separately: every node carries one, so it is reachable from
             every shared tree, but it lives outside this module's `__module__`
             filter.
@@ -162,11 +162,11 @@ def test_no_node_field_holds_a_mutable_container() -> None:
     """`frozen` and `slots` protect the node OBJECT; neither protects what a
     field POINTS AT. One `list[...]` field and a shared tree is mutable again
     through it — `game.zones.append(...)` needs no `setattr` at all, so every
-    other wall here would still pass.
+    other guard here would still pass.
 
     Nothing enforced this before; it held because the vocabulary happens to be
     scalars, tuples, and nodes. That is the definition of a convention, and the
-    memo makes it load-bearing, so it is walled here."""
+    memo makes it load-bearing, so it is guarded here."""
     offenders = sorted(
         f"{cls.__name__}.{f.name}: {f.type}"
         for cls in _module_dataclasses()
@@ -183,13 +183,13 @@ def test_the_span_type_is_frozen_and_slotted_too() -> None:
     """`Span` lives in `cardlang.diagnostics`, so the `__module__` filter in
     `_module_dataclasses()` excludes it — but every node carries one, which
     makes it reachable from every memo-shared tree and part of the same hazard
-    domain. The wall above enumerates the nodes; this pins the one non-node
+    domain. The guard above enumerates the nodes; this pins the one non-node
     type they all hold."""
     assert Span.__dataclass_params__.frozen, "Span must be frozen"  # type: ignore[attr-defined]
     assert "__slots__" in Span.__dict__, "Span must declare its own __slots__"
 
 
-# The one mutation route `frozen` + `slots` do NOT close, walled here instead.
+# The one mutation route `frozen` + `slots` do NOT close, guarded here instead.
 # Matched over the parsed AST, not the text: `cardlang/parse.py`'s own Contract
 # block names both spellings in prose, and a text scrape flags its own
 # documentation.
@@ -228,7 +228,7 @@ def test_no_setattr_bypass_on_shared_asts() -> None:
     Nothing in the language can prevent it, so the guarantee is that the call
     does not appear at all. That was true by accident before this was written;
     this makes it true by construction, which is the difference between a
-    convention and a wall (decisions.md "Closed-domain completeness"). A pass
+    convention and a guard (decisions.md "Closed-domain completeness"). A pass
     that genuinely needs to change a node builds a new one with
     `dataclasses.replace`."""
     root = pathlib.Path(__file__).parent.parent / "cardlang"
@@ -246,7 +246,7 @@ def test_no_setattr_bypass_on_shared_asts() -> None:
 
 
 def test_probe_the_bypass_scrape_actually_matches() -> None:
-    """Guards the wall above against becoming vacuous: a matcher that silently
+    """Guards the guard above against becoming vacuous: a matcher that silently
     stopped matching would report zero offenders and read as a clean bill of
     health. Also pins that a mention in PROSE is not a hit — `parse.py`'s
     Contract block names both spellings, and a text scrape flagged it."""

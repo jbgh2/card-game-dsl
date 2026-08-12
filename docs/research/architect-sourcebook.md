@@ -360,7 +360,7 @@ tests minimize unrelated noise so snapshots stay reviewable.
   suppresses every other diagnostic in the file", decisions.md
   "Closed-domain completeness") — is the settled practice. What the repo has
   that the literature lacks a name for is the *addressee* discipline
-  (glossary section 5: every failure reported to its Author, in their
+  (glossary/author.md: every failure reported to its Author, in their
   vocabulary — game author, library author, engine maintainer); Elm gestures
   at it, the glossary states it as a rule. Worth keeping as a contribution,
   not an import.
@@ -765,7 +765,7 @@ is simply outside the language.
   semantics will be forced fastest by the topology/pose axes
   (generalization-path axes 1-2), which is where Ludii's and RBG's
   board-first designs are the prior art to raid for query-surface shape.
-- The Interop glossary translation table (glossary section 4) and the
+- The Interop glossary translation table (the glossary's OpenSpiel boundary) and the
   seed-at-root chance design map one-to-one onto OpenSpiel's documented node
   kinds; the perfect-recall sentence from `spiel.h` is the external statement
   of the pin `tests/openspiel_ready/` proves per game.

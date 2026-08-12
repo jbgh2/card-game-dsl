@@ -1,9 +1,9 @@
 """The type foundations under `Subscript`, `Member` and `Call`, where a
-mistyped receiver silently disarms every wall downstream of it.
+mistyped receiver silently disarms every guard downstream of it.
 
 Four areas, one section below each: a zone-family subscript types as the
 family's content (not as a single Card, which would degrade an aggregation
-source to `TAny` and take every wall in the body dark with it); the Card
+source to `TAny` and take every guard in the body dark with it); the Card
 field pair lives in one `CARD_FIELDS` registry rather than at two sites that
 can drift; `action.card.*` and the bare `actor` pronoun are typed from
 `ACTION_FIELDS` rather than left as `TAny` and silently `False`; and
@@ -133,15 +133,15 @@ def _rejects(src: str, needle: str) -> None:
 def test_aggregation_over_a_zone_family_binds_card_not_any() -> None:
     # Without the subscript typing this would pass too (a TAny source is
     # permissive), but for the wrong reason — proven by the next test, which
-    # shows the wall firing *inside* the same shape.
+    # shows the guard firing *inside* the same shape.
     _accepts(_game("let probe = sum of rank_value(card) over cards in hand[0]"))
 
 
-def test_aggregation_body_over_a_zone_family_is_walled() -> None:
+def test_aggregation_body_over_a_zone_family_is_guarded() -> None:
     # Without this, `hand[0]` would infer as a single Card, so the
     # comprehension source would not be a TCollection, so `card` would bind
     # TAny inside the body and a bad field would silently pass. With the
-    # subscript typing, `card : Card` and the Card-field wall fires.
+    # subscript typing, `card : Card` and the Card-field guard fires.
     _rejects(
         _game(
             "let probe = sum of rank_value(card) over cards in hand[0] "
@@ -156,11 +156,11 @@ def test_aggregation_body_over_a_zone_family_is_walled() -> None:
 
 def test_card_membership_in_a_zone_family_is_accepted() -> None:
     # Without this, `hand[0]` would infer as Card, so the `in` right-hand-side
-    # wall would reject this with "must be a collection... got Card".
+    # guard would reject this with "must be a collection... got Card".
     _accepts(_game("let probe = (Q of spades) in hand[0]"))
 
 
-# --- the new dot-access wall (a zone family is a collection, not a Card) ---
+# --- the new dot-access guard (a zone family is a collection, not a Card) ---
 
 
 def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
@@ -168,7 +168,7 @@ def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
     # clean as `Rank` and only fail at play time, where a field read is served
     # only for the value shapes that HAVE fields and a zone is not one of them.
     # With the subscript typing, `hand[0] : Collection<Card>` and the
-    # collection-has-no-fields wall catches it statically.
+    # collection-has-no-fields guard catches it statically.
     _rejects(_game("let probe = hand[0].rank"), "a collection has no fields")
 
 
@@ -268,7 +268,7 @@ def test_unknown_card_field_message_lists_both_registry_fields() -> None:
 # =============================================================================
 
 
-def test_action_card_suit_flows_through_to_the_enum_wall() -> None:
+def test_action_card_suit_flows_through_to_the_enum_guard() -> None:
     # Without this typing, `action` would be TAny, so `action.card` and
     # `action.card.suit` would both be TAny too, and `action.card.suit is 3`
     # would typecheck clean — silently False at runtime (hearts.md/spades.md's
@@ -317,7 +317,7 @@ def test_bare_actor_pronoun_types_as_player() -> None:
     )
 
 
-def test_actor_dot_access_is_rejected_by_the_object_model_wall() -> None:
+def test_actor_dot_access_is_rejected_by_the_object_model_guard() -> None:
     # Without this typing `actor` would be TAny (permissive); it is Player,
     # and Player is in the closed dot-form-rejection set (decisions.md "Typed
     # object model") — `actor.foo` must reject the same way `p.foo` already

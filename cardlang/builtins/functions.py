@@ -225,7 +225,7 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # that touch only players/teams/seats/zone counts or ordered-collection POSITION
 # (top_of/bottom_of), never a card's content or a board -- stay legal
 # everywhere. The three sets partition the registry, pinned by
-# tests/test_piece_content_walls.py so a newly registered call cannot land
+# tests/test_piece_content_guards.py so a newly registered call cannot land
 # unclassified (the "vacuously green" guard) and tests/test_signatures.py.
 # Derived by an audit that read every implementation; membership IS the
 # classification rationale (decisions.md "Closed-domain completeness"). The

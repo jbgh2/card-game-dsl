@@ -1,5 +1,5 @@
-// Wall: resolve's declared-type-name check on a user function's parameters.
-// `Integar` is a typo for `Integer`. Before this wall the name fell through
+// Guard: resolve's declared-type-name check on a user function's parameters.
+// `Integar` is a typo for `Integer`. Before this guard the name fell through
 // `typecheck.type_from_name` to the permissive `TAny`, so the body's
 // `x is hearts` — an always-false Integer/Suit comparison the checker rejects
 // when the parameter is spelled correctly — was silently accepted. Making a

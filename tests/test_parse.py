@@ -100,8 +100,8 @@ def test_comments_are_ignored() -> None:
 # One probe per condition the memo's soundness rests on: it actually fires; its
 # key separates what changes the AST; its key does NOT separate mere argument
 # spellings; it never caches a rejection; and the front end it stands in for is
-# deterministic, so a cached answer equals a recomputed one. A last backstop
-# pins the immutability that lets two callers hold one tree — the wall for that
+# deterministic, so a cached answer equals a recomputed one. A last Shadow Guard
+# pins the immutability that lets two callers hold one tree — the guard for that
 # is test_node_registry.py, which this one names rather than duplicates.
 # ---------------------------------------------------------------------------
 
@@ -193,7 +193,7 @@ def test_the_front_end_is_deterministic_on_repeat(game: str) -> None:
 
 
 def test_a_shared_ast_cannot_be_mutated() -> None:
-    # A BACKSTOP, not the wall: it probes one field of one node. The wall for
+    # A BACKSTOP, not the guard: it probes one field of one node. The guard for
     # the whole Node domain is test_node_registry.py's
     # `test_every_node_kind_is_frozen` + `test_every_node_kind_has_slots`,
     # enumerated from the module's own dataclass registry. This exists only to

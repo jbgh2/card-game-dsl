@@ -21,7 +21,7 @@ Completeness ledger
                 every layer that consumes them — a row that says `iterable` is
                 iterable, a row that says `binds_actor` really rebinds
                 `ctx.acting_as` when iterated, a row that says NOT `simultaneous`
-                is walled loudly out of `each … simultaneously`, and a row's
+                is guarded loudly out of `each … simultaneously`, and a row's
                 `param_domains` are exactly the move-parameter spellings the
                 checker admits and the action space enumerates. No column may be
                 a claim the code does not honour, and no form may be reachable
@@ -49,7 +49,7 @@ Completeness ledger
                 every one executed as a probe below, plus:
                   - quantifier: all 8 productions accepted (`test_every_row_is_
                     quantifiable`), and each row's BINDER TYPE witnessed by a
-                    cross-typed predicate that must be walled by the type layer
+                    cross-typed predicate that must be guarded by the type layer
                     (`test_a_quantifier_binder_types_as_its_rows_binder_type`) —
                     a binder typed `TAny` would let those through.
                   - `for each`: accepted for every `iterable` row, and ACTORHOOD
@@ -57,22 +57,22 @@ Completeness ledger
                     (`test_for_each_binds_the_actor_iff_the_row_is_a_seat_domain`)
                     — the seat/value asymmetry is checked as data, not asserted.
                   - `each … simultaneously`: accepted for the `simultaneous` row,
-                    walled with "simultaneous moves are per player" for the other
-                    three. The wall message itself is derived from the column.
+                    guarded with "simultaneous moves are per player" for the other
+                    three. The guard message itself is derived from the column.
                   - move params: the 8 declared-type spellings — `Player`, `Suit`,
                     `Suit?`, `Rank` accepted; `Player?`, `Team`, `Team?`, `Rank?`
-                    walled with "unsupported parameter domain". Plus `Card` (the
+                    guarded with "unsupported parameter domain". Plus `Card` (the
                     documented non-row outlier, accepted), an unknown type name,
-                    and `Integer` (deferred), each walled.
+                    and `Integer` (deferred), each guarded.
                   - the rank divergence: `for each rank` is legal with no
                     `ranking:` (it iterates deck order) while a `Rank` PARAM in
-                    the same game is walled — the two member columns really are
+                    the same game is guarded — the two member columns really are
                     two columns (`test_the_rank_rows_two_member_columns_diverge`).
                 Non-row nouns (`for each color`, `each color simultaneously`) are
-                walled against THIS registry's `_ITERATION_ROLES`/
+                guarded against THIS registry's `_ITERATION_ROLES`/
                 `SIMULTANEOUS_ROLES` columns — closed, not open. A non-row
                 QUANTIFIER noun (`any color where …`) is a different cell with a
-                different wall, against a DIFFERENT registry (`game.positions`,
+                different guard, against a DIFFERENT registry (`game.positions`,
                 not `cardlang.domains.DOMAINS`) — see residual 1.
 
     sampled:    Member ORDER is pinned by example, not exhaustively: the corpus
@@ -100,13 +100,13 @@ Completeness ledger
                    `resolve.py::_check_domain_query`, and is rejected as an
                    "unknown position domain" — a diagnostic naming the wrong
                    universe (position domains) rather than the DOMAINS rows it
-                   was actually competing with. Still a loud wall (a resolve
+                   was actually competing with. Still a loud guard (a resolve
                    diagnostic, not a silent accept), so still a residual and not
                    a defect — but the failure moved from grammar-inexpressible
                    to resolve-rejected-under-a-misleading-name, which is the more
                    surprising of the two. `for_each`/`each … simultaneously` are
                    unaffected: both already parsed any NAME before Task 7 and
-                   wall on `_ITERATION_ROLES`/`SIMULTANEOUS_ROLES` membership at
+                   guard on `_ITERATION_ROLES`/`SIMULTANEOUS_ROLES` membership at
                    resolve, unchanged. Witnessed by
                    `test_a_non_row_noun_parses_but_is_rejected_at_resolve`, which
                    pins the current mechanism in place of the retired one.
@@ -199,7 +199,7 @@ def _all(row: Domain) -> str:
 
 # A predicate of the WRONG type for each row's binder: if the binder were typed
 # `TAny` (or typed from some table other than the row's `binder_type`), these
-# would sail through the type layer. Each must be walled.
+# would sail through the type layer. Each must be guarded.
 CROSS_TYPED: dict[str, str] = {
     "player": "player is hearts",
     "team": "team is hearts",
@@ -234,7 +234,7 @@ def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
     # and a non-row noun was a SYNTAX error. Task 7's `any QNOUN where`
     # production (for `game.positions`, a registry separate from
     # `cardlang.domains.DOMAINS` — module ledger, residual 1) now matches ANY
-    # noun, so `any color where` parses and is walled by resolve instead,
+    # noun, so `any color where` parses and is guarded by resolve instead,
     # under the position-domain registry's name rather than this one's. Still
     # a closed cell -- the channel moved from parse.py to resolve.py.
     #
@@ -317,7 +317,7 @@ def _first_decision_state(game: n.Game) -> Any:
 def test_each_simultaneously_accepts_exactly_the_seat_rows() -> None:
     # The body is role-NEUTRAL (`hand[0]`, not `hand[player]`), so the only thing
     # varying across the cells is the role: a body reading `player` would make the
-    # value rows fail on an unresolved-name wall instead of the domain wall, and
+    # value rows fail on an unresolved-name guard instead of the domain guard, and
     # the cell would be green for the wrong reason.
     for row in DOMAINS:
         src = _src(f"each {row.id.value} simultaneously:\n      move chosen 3 cards from hand[0] to pile")
@@ -398,7 +398,7 @@ def test_the_card_outlier_is_admitted_but_is_not_a_row() -> None:
     assert "Card" not in {s for row in DOMAINS for s in row.param_domains}
 
 
-def test_an_unknown_and_a_deferred_param_domain_are_walled() -> None:
+def test_an_unknown_and_a_deferred_param_domain_are_guarded() -> None:
     _rejects(
         _src(vocab="stop, m", extra=_param_move("Color")),
         "move 'm' has unsupported parameter domain 'Color'",

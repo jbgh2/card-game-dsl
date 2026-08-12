@@ -188,7 +188,7 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         ("Action-id and card-encoding misses at the OpenSpiel adapter seam. "
         "Author is the adapter maintainer; OpenSpiel's own contract is what "
         "these enforce, and Interop is an anti-corruption layer whose "
-        "vocabulary is deliberately separate (glossary section 4)."),
+        "vocabulary is deliberately separate (the glossary's OpenSpiel boundary)."),
     ),
     # --- not defects: deferred surface ---------------------------------------
     ("cardlang/openspiel/encoding.py", "NotImplementedError"): (

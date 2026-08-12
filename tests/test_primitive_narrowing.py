@@ -21,7 +21,7 @@ domain:     every game-local primitive (derived: the dispatch tables in
             today) x every `EngineFacts` field (derived: the dataclass).
 registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             the safe polarity — a NEW runtime module is a game module by
-            default and must pass the wall); `NARROWED` (sites proven
+            default and must pass the guard); `NARROWED` (sites proven
             handle-free) and `MIGRATED` (primitives), both now covering
             everything the dispatch routes; `_STILL_REACHES` (the
             per-cell work list, now EMPTY — stage 2 is complete);
@@ -103,9 +103,9 @@ sampled:    behavioral identity rides the byte-identical goldens and the
 residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             `tarot_auction_outcome`) are implemented INSIDE
             `cardlang/runtime/primitives.py`, which is engine core, so the
-            game-module wall does not reach them; they are game knowledge
+            game-module guard does not reach them; they are game knowledge
             in the language package and stage 4 (co-location) owns their
-            move. Wall: `test_engine_core_game_knowledge_is_named`, which
+            move. Guard: `test_engine_core_game_knowledge_is_named`, which
             fails if that set changes without this ledger changing.
             Record: issue #142.
             (2) `EngineFacts` is MODULE-granular by ratified stage-2 scope
@@ -114,7 +114,7 @@ residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             narrowing that remains is stage 3's, and until it lands a
             primitive can read a fact it does not need, and every call
             materializes its module's whole row whether or not it reads
-            any of it. Wall: the field set is closed and every field is
+            any of it. Guard: the field set is closed and every field is
             pinned to a consumer (c), so the bundle cannot grow
             speculatively; the per-call cost is recorded in
             issue #142.
@@ -176,7 +176,7 @@ RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
 #
 # Hand-authored as the EXCLUSION half only, so the polarity is safe: a new
 # file under cardlang/runtime/ is a game module until someone argues it into
-# this table, and therefore has to pass the wall. Each row names why the
+# this table, and therefore has to pass the guard. Each row names why the
 # engine core legitimately holds an engine handle.
 _ENGINE_CORE: dict[str, str] = {
     "__init__.py": "package init",
@@ -430,7 +430,7 @@ NARROWED: frozenset[str] = frozenset(
     }
 )
 
-# Primitives narrowed by stage 2 so far, for the module-level wall below.
+# Primitives narrowed by stage 2 so far, for the module-level guard below.
 MIGRATED: frozenset[str] = frozenset(
     {
         "belote_best_is",
@@ -1418,7 +1418,7 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
 def test_tracing_primitive_returns_events(name: str) -> None:
     """A listed primitive hands its events back as data. Until it is
     migrated it still emits through `ctx.trace`, so the cell is a strict
-    xfail — the same self-closing shape as the walls above."""
+    xfail — the same self-closing shape as the guards above."""
     impl = next(i for i in _GAME_IMPLS if i.primitive == name)
     scan = _scan_module(impl.module)
     assert "ctx.trace" not in scan.hits, (
@@ -1454,7 +1454,7 @@ _ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = frozenset(
 def test_engine_core_game_knowledge_is_named() -> None:
     """The residual, pinned so it cannot grow quietly. These primitives are
     implemented inside primitives.py — engine core — so the game-module
-    wall does not reach them; stage 4 (co-location) owns their move. A NEW
+    guard does not reach them; stage 4 (co-location) owns their move. A NEW
     per-game function added to primitives.py fails here."""
     rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/primitives.py"}
     assert rows == {

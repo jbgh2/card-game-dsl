@@ -3,7 +3,7 @@
 The compile passes fail as diagnostics and the proofs fail with a witness; the
 runtime fails as a typed exception (decisions.md "Closed-domain completeness").
 This module is that third channel's definition site, and its types carry the
-Owner Guard / Shadow Guard distinction (glossary section 5) rather than merely
+Owner Guard / Shadow Guard distinction (glossary/owner-guard.md, glossary/shadow-guard.md) rather than merely
 reporting it: the type IS the classification, so a guard that changes role
 changes its type. That is deliberate — a guard moving from authoritative to
 redundant, or one layer to another, is a design change, and the type is what

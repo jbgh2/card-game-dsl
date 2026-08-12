@@ -5,7 +5,7 @@ axis that derives to nothing stops the build instead of retiring itself as a
 skip. A few axes are legitimately empty — the live docs hold zero
 `cardlang`-tagged blocks today, and those code paths are proven by synthetic
 fixtures instead — and this is the only sanctioned way to say so. The reason
-rides beside the axis; `tests/test_empty_axis_wall.py` pins the set of call
+rides beside the axis; `tests/test_empty_axis_guard.py` pins the set of call
 sites, so a new authorization cannot land unnoticed.
 """
 
@@ -46,7 +46,7 @@ def may_be_empty(
         pytest.fail(
             f"authorized empty axis is no longer empty ({len(values)} value(s)) — "
             f"the authorization said {reason!r}. Drop the may_be_empty() wrapper "
-            "and its row in tests/test_empty_axis_wall.py's "
+            "and its row in tests/test_empty_axis_guard.py's "
             "_AUTHORIZED_EMPTY_AXES; the axis can stand on its own now.",
             pytrace=False,
         )

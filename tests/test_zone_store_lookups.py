@@ -28,7 +28,7 @@ covered:    all three failure cells and both hits; the key cell over all
 
 sampled:    nothing on the failure matrix. The message's key LIST is asserted
             to name the family's real keys, not pinned character-for-character
-            — the wall is the channel and the named role, not the rendering.
+            — the guard is the channel and the named role, not the rendering.
 
 residual:   the key branch is reachable from a checker-accepted game, not
             only from an engine bug: a zone-family subscript's index is
@@ -37,10 +37,10 @@ residual:   the key branch is reachable from a checker-accepted game, not
             type-checks and arrives here (the index-strictness residual in
             tests/test_zone_family_typing.py's ledger). An out-of-range player LITERAL
             (`hand[9]`) is now caught earlier by the static player-literal
-            wall (typecheck `_check_role_literal`,
+            guard (typecheck `_check_role_literal`,
             tests/test_player_literal_range.py) — that tightened the literal
             half of the deferral; the computed half is why this is still a
-            wall owing a typed error rather than a backstop. Probed below.
+            guard owing a typed error rather than a Shadow Guard. Probed below.
             Game-local primitives are outside
             this module's domain — they reach zones through
             cardlang/runtime/reads.py, whose registry and channel are
@@ -188,17 +188,17 @@ def test_instance_refuses_a_key_a_position_family_does_not_cover() -> None:
 # --- the recorded residual, probed ------------------------------------------
 
 
-def test_a_checker_accepted_game_can_reach_the_key_wall() -> None:
+def test_a_checker_accepted_game_can_reach_the_key_guard() -> None:
     """The `residual:` cell above, made real. A zone-family index is checked
     with `types.assignable`, which admits an Integer, so `hand[0 + 9]` in a
     4-player game type-checks (the index-strictness residual in this
     module's ledger) and
-    arrives here — the wall is author-reachable and owes a typed error rather
+    arrives here — the guard is author-reachable and owes a typed error rather
     than an assert. The index is COMPUTED (`0 + 9`), not the literal `9`: an
-    out-of-range player LITERAL is caught earlier by the static wall
+    out-of-range player LITERAL is caught earlier by the static guard
     (typecheck `_check_role_literal`, tests/test_player_literal_range.py),
     which tightened exactly the literal half of this residual; the computed
-    half is what keeps this a reachable wall. If the index rule is tightened
+    half is what keeps this a reachable guard. If the index rule is tightened
     further (computed keys too), this test fails and the residual — and the
     channel argument resting on it — must be revisited."""
     game = check_dsl(

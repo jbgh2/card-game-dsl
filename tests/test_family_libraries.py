@@ -1,7 +1,7 @@
 """Misuse probes for the `uses` family-library tier, plus its completeness pin.
 
 The surface-totality artifact for the import tier (CLAUDE.md, decisions.md
-"Surface totality" / "Closed-domain completeness"). Every wall `_apply_uses`
+"Surface totality" / "Closed-domain completeness"). Every guard `_apply_uses`
 raises is probed here with the most plausible WRONG sentence for it, and each is
 proven loud in the layer whose channel it belongs to — resolve's diagnostic bag,
 carrying the game's own `uses` span, never a stray name error from inside library
@@ -40,7 +40,7 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           whether the game declares it, and the two-library cross of {requires,
           state} times the same.
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
-          `library_item_alternatives` (shared with tests/test_game_clause_walls,
+          `library_item_alternatives` (shared with tests/test_game_clause_guards,
           which owns the other half of the same absorption class and pins the
           `STRUCT_TYPE_NAME` terminal against both clause registries); the
           DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
@@ -62,11 +62,11 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           reads its handler's first-parameter annotation, because
           `runtime/state.py`'s `Store.set` is the one door onto persistent state,
           so the statements reaching it ARE the write sites. Pinned in both
-          directions against `resolve._STATE_WRITE_SITES` (what the wall sweeps)
+          directions against `resolve._STATE_WRITE_SITES` (what the guard sweeps)
           and `_WRITE_STMT` (what this grid probes) by
           `test_write_sites_cover_every_state_writing_node`, with
           `test_every_write_site_field_exists_on_its_node` under it so a renamed
-          field cannot leave the wall silently covering two forms of three;
+          field cannot leave the guard silently covering two forms of three;
           the CLAIM-KIND axis from `n.Library`'s state clauses — its fields minus
           its name, its span and the definition kinds — pinned by
           `test_claim_axis_covers_every_library_state_clause`;
@@ -128,7 +128,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           (`test_the_bare_string_state_read_counts_toward_the_contract`): before
           it, `turns … again <var>` had no correct spelling at all — naming the
           variable in `requires` made the entry look dead to the ledger test
-          below, and leaving it out was the leak. 24 cells were open before the wall and
+          below, and leaving it out was the leak. 24 cells were open before the guard and
           the `card_literal` column for a commit after it — both red-before-green
           transitions are in this branch's history. The `state` ROW was born
           green (its sweep shipped with the splice, a commit ahead of its
@@ -148,11 +148,11 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           well-formed entry the game does not answer lands on its `uses` line.
           57 of the 72 ran red before the implementation existed — 48 of them
           because the sentence could not be spelled at all — and the transition
-          is in this branch's history. Beside it, the wall the discriminator
+          is in this branch's history. Beside it, the guard the discriminator
           RESTS on: a declared `type` or a `positions { }` name may not take a
           zone type's spelling (2 cells,
           `test_an_author_may_not_take_a_zone_type_name`, both red before the
-          wall). Without it `type Hand = { … }` makes `requires { x : Hand }`
+          guard). Without it `type Hand = { … }` makes `requires { x : Hand }`
           mean two things and the classification picks one silently.
           The SHAPE-AGREEMENT grid — every `LIBRARY_ZONE_TYPES` member x
           {owner argument, none} x {indexed, not}, 64 cells executed by
@@ -177,7 +177,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_game_text_may_not_write_library_provided_state`, the 3 provided
           cells commanded REJECT (to the GAME's author, naming the variable and
           its library) and the 3 required cells commanded ACCEPT as the control
-          that keeps the wall from passing by making provided state unwritable
+          that keeps the guard from passing by making provided state unwritable
           because unreachable. `test_game_text_may_read_library_provided_state`
           is the other control: read-only has to permit the read.
           The claim grid — 6 one-library cells
@@ -187,11 +187,11 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           would also fail for the unrelated reason that the game does not declare
           the name. Two cells accept: a contract the game meets, and two
           libraries requiring one name. All 11 rejecting-or-newly-accepting cells
-          across both grids were commanded before the walls existed and ran red
+          across both grids were commanded before the guards existed and ran red
           under `xfail(strict=True)`; the transition is in this branch's history.
-sampled:  the read-only wall's CONTAINER axis — six game-owned places a write
+sampled:  the read-only guard's CONTAINER axis — six game-owned places a write
           can sit (`test_the_read_only_wall_reaches_every_container`), sampled
-          rather than derived on purpose: the wall walks `_walk(game)`, total
+          rather than derived on purpose: the guard walks `_walk(game)`, total
           dataclass recursion over the whole Game, so reachability is one
           property of `_walk` and not a per-site dispatch that could cover some
           containers and miss others. The cells are regression evidence for that
@@ -211,7 +211,7 @@ sampled:  the read-only wall's CONTAINER axis — six game-owned places a write
 residual: one on provided state, deliberate and named here so its absence from
           the probes is not read as an omission. There is no DEAD-PROVISION
           check: a `requires` entry no definition reads is dead contract and is
-          walled (`test_every_library_contracts_for_exactly_what_it_reaches`),
+          guarded (`test_every_library_contracts_for_exactly_what_it_reaches`),
           but the mirror does not hold for provided state, because a provided
           variable exists precisely so it CAN be read from outside the library —
           by the importing game. Whether any game reads it is not a
@@ -236,9 +236,9 @@ residual: one on provided state, deliberate and named here so its absence from
              declaration is in scope where the library's definitions run. Moving
              Kuhn's `limit` into `phase deal` while the imported `bet` runs in
              `phase betting` passes resolve and typecheck and dies mid-playout
-             on a bare KeyError. Deliberately not walled here: the root cause is
+             on a bare KeyError. Deliberately not guarded here: the root cause is
              the general cross-phase state-scope hole (a plain game with no
-             library reproduces it), and the wall bounding it is that a
+             library reproduces it), and the guard bounding it is that a
              requirement declared NOWHERE is rejected, so what is unchecked is a
              declaration that exists but cannot be reached. The grid does not
              claim this cell — `_check_requires`'s docstring says what is
@@ -254,8 +254,8 @@ residual: one on provided state, deliberate and named here so its absence from
           contract for `hand`, so that probe resolves clean and the noun IS
           reached. Re-probed, both ways: an unknown noun (`coin`) and a REAL but
           flavor-dependent one (`piece` in a card game) are each refused by
-          typecheck's item-noun and flavor walls, to the LIBRARY's author. So
-          the outcome holds on a wall that names the noun rather than on one that
+          typecheck's item-noun and flavor guards, to the LIBRARY's author. So
+          the outcome holds on a guard that names the noun rather than on one that
           never got there — a stronger reason than the one it replaces. R4, and
           its `_LIBRARY_UNSWEPT` row says so.
 
@@ -312,11 +312,11 @@ from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES
-from tests.test_game_clause_walls import library_item_alternatives
+from tests.test_game_clause_guards import library_item_alternatives
 
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
 # probe below is this game plus exactly one thing wrong, so a failure names the
-# wall under test and nothing else.
+# guard under test and nothing else.
 #
 # `acted` and `limit` are deliberately absent: the library PROVIDES those, so
 # declaring them here would be the game/provided collision rather than the
@@ -364,7 +364,7 @@ def _game(
 
 def _rejects(game: n.Game, *needles: str) -> None:
     """Resolve `game`, require it to fail, and require the message to say the
-    thing the wall exists to say — not merely to fail somehow."""
+    thing the guard exists to say — not merely to fail somehow."""
     with pytest.raises(DiagnosticError) as exc:
         resolve(game)
     message = str(exc.value)
@@ -636,7 +636,7 @@ _DEF_SOURCE: dict[str, str] = {
 
 
 def test_def_kinds_covers_every_library_field() -> None:
-    """`_LIBRARY_DEF_KINDS` is the closed domain the collision walls sweep, so it
+    """`_LIBRARY_DEF_KINDS` is the closed domain the collision guards sweep, so it
     must equal `n.Library`'s definition fields exactly. A seventh form added to
     the node without an entry there would ship unwalled; this is the static
     failure that prevents it.
@@ -667,7 +667,7 @@ def test_game_local_definition_may_not_shadow_a_library_one(
     field: str, noun: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`uses` imports, it does not inherit — so a game-local definition under an
-    imported name is an error, not an override. This is the wall that keeps the
+    imported name is an error, not an override. This is the guard that keeps the
     tier composition rather than inheritance (decisions.md "Family libraries").
 
     red under: delete the `if definition.name in local` arm of
@@ -741,7 +741,7 @@ def test_two_libraries_may_not_define_the_same_name(
 #               those buckets plus def kinds and positions
 #               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
 #               a hand-list compared to another hand-list.
-# covered:    the full INJECT x TARGET cross, executed. Three walls share it and
+# covered:    the full INJECT x TARGET cross, executed. Three guards share it and
 #             the grid does not care which fires: same-kind def collisions are
 #             `_check_library_collisions`, provided-vs-game-state is
 #             `_check_state_claims`, and every off-diagonal cell (D3 = deck /
@@ -754,7 +754,7 @@ def test_two_libraries_may_not_define_the_same_name(
 #             same-kind lib-vs-lib is, by `_check_library_collisions` /
 #             `_check_state_claims`. It is unreachable in the one-library corpus
 #             (no game `uses` two), so it is recorded in issue #136 against the
-#             shared name-registry deferral rather than walled now: the honest
+#             shared name-registry deferral rather than guarded now: the honest
 #             fix folds every library's injected names into one pool and is the
 #             same table the `requires`-residual wants, not a second bolt-on.
 #             The refusal that IS built is CONSERVATIVE by decision, like the
@@ -872,7 +872,7 @@ def test_game_bindings_covers_every_resolvable_value_bucket() -> None:
     """The registry pin the TARGET axis answers to: every bare name `_categories`
     resolves for a game must appear in `_game_bindings`, so a value bucket added
     to `_categories` (a new deck-derived namespace, another stdlib table wired
-    into `functions`) cannot slip past the shadow wall uncovered. This is the
+    into `functions`) cannot slip past the shadow guard uncovered. This is the
     check that would have caught the `functions`-bucket = `PRIMITIVE_VALUE_NAMES`
     hole by construction, rather than by an audit noticing a hand-list lied.
 
@@ -913,7 +913,7 @@ def test_target_axis_names_every_resolvable_bucket() -> None:
     """The grid's TARGET axis is the resolvable buckets (state / zone / deck
     values / stdlib values) plus the def kinds and positions that own a name
     outside `_classify`. Stated against the buckets, not a bare re-listing, so a
-    new target the wall gains is a failure here until the grid exercises it.
+    new target the guard gains is a failure here until the grid exercises it.
 
     red under: drop a namespace from `_TARGET_NAME`."""
     from cardlang.resolve import _LIBRARY_DEF_KINDS as DEFS
@@ -935,7 +935,7 @@ def test_a_library_may_not_inject_a_name_the_game_already_uses(
 
     red under: delete `_check_library_shadows_game` (fails every off-diagonal
     cell); the same-kind and provided-vs-state cells stay green on their own
-    walls, which is why this grid does not stand in for their red-unders."""
+    guards, which is why this grid does not stand in for their red-unders."""
     name = _TARGET_NAME[target]
     lib = parse_library(
         "library lib { " + _INJECT[inject].format(n=name) + " }",
@@ -1123,7 +1123,7 @@ def test_a_requirement_is_answered_by_exactly_one_matching_declaration(
     `requires`d name, which is an interface rather than game-private state
     (decisions.md "Family libraries", the metamorphic-rename carve-out).
 
-    red under: replace the multiplicity wall in `_check_requires` with either
+    red under: replace the multiplicity guard in `_check_requires` with either
     bias — `declared[want.name][0]` or `[-1]`."""
     game = _game(
         phase_state=f"state {{ {_SHAPE_TEXT[shape]} }}" if multiplicity == 2 else "",
@@ -1395,7 +1395,7 @@ _LEAK_SITE: dict[str, str] = {
 # is the same shape in the same slot, so a cell that rejects can only be
 # rejecting the leak. Three kinds have no control by construction: a library
 # holds no zones and names no deck, so there is no in-contract way to write a
-# zone name, a suit, or a card — for those the wall is total, and the site's
+# zone name, a suit, or a card — for those the guard is total, and the site's
 # own validity is established by the `state` and `call` controls beside them.
 _LEAK_READS: dict[str, tuple[str, str | None]] = {
     "state": ("undeclared_thing", "declared_thing"),
@@ -1448,7 +1448,7 @@ def test_the_reference_axis_covers_every_game_fed_namespace() -> None:
     Derived rather than spelled, because spelling it is how this axis went wrong:
     it began as {state, call} and silently omitted zones, deck values and card
     literals — three channels the design forbids a library, one of which the
-    wall did not in fact refuse.
+    guard did not in fact refuse.
 
     red under: add a field to `_Categories`, or drop a key from
     `_AXIS_NAMESPACE`."""
@@ -1624,19 +1624,19 @@ def test_a_provided_default_may_not_reach_the_contract(
     a scope rule alone: the read lives in the callee's body, which the walk over
     a default never enters.
 
-    The two cells are pinned by DIFFERENT walls, and the `state` cell says which
+    The two cells are pinned by DIFFERENT guards, and the `state` cell says which
     on purpose. Refusal alone does not distinguish them: the general
-    declare-order wall also refuses that sentence, also with a span in this
+    declare-order guard also refuses that sentence, also with a span in this
     file, so an assertion on span-and-raise stays green with the library check
     deleted — verified by deleting it. What only the library check produces is
     the word `contract`, and with it the advice decisions.md commits to. The
-    general wall can only say "declare it earlier", which is the one thing a
+    general guard can only say "declare it earlier", which is the one thing a
     library author cannot do.
 
     red under: delete the provided-default loop from
     `_check_library_encapsulation` (fails `state` on the message assertion, NOT
     on the raise), or the `n.Call` arm from `_check_state_default_scope` (fails
-    `call`, which is legitimately the general wall's — the loop matches
+    `call`, which is legitimately the general guard's — the loop matches
     `NameRef`s, not calls)."""
     _patch_libraries(monkeypatch, {"leaky": _leaky("state", kind, leaking=False)})
     with pytest.raises(DiagnosticError) as exc:
@@ -1646,7 +1646,7 @@ def test_a_provided_default_may_not_reach_the_contract(
     )
     if kind == "state":
         assert "contract" in str(exc.value), (
-            "must be the library check's message, not the general wall's: only "
+            "must be the library check's message, not the general guard's: only "
             "one of them can tell the author the name is theirs to contract for"
         )
 
@@ -1785,7 +1785,7 @@ def test_a_body_reading_its_own_parameter_is_not_a_leak(field: str) -> None:
 # quote, the same clause reaching only what the library has — or None where no
 # legal counterpart exists). Three namespaces have no control by construction: a
 # library declares no zones, no phases and no position domains, so there is no
-# in-contract way to write one, and the wall over them is total.
+# in-contract way to write one, and the guard over them is total.
 _SLOT_LEAK: dict[str, tuple[str, str, str | None]] = {
     "Turns.again": (
         "move_type m {{ effect {{ turns q from actor over all players "
@@ -2236,10 +2236,10 @@ _WRITE_STMT: dict[str, str] = {
 def test_write_sites_cover_every_state_writing_node() -> None:
     """The registry pin, run in both directions at once. The runtime's set of
     state-writing statements is the authority; `resolve._STATE_WRITE_SITES` (the
-    set the read-only wall sweeps) and `_WRITE_STMT` (the set this grid probes)
+    set the read-only guard sweeps) and `_WRITE_STMT` (the set this grid probes)
     must both equal it. A fourth write form added to the language fails here
-    until the wall covers it AND a cell exists for it — which is the point: a
-    write form the wall does not know is a hole in the read-only rule, and one
+    until the guard covers it AND a cell exists for it — which is the point: a
+    write form the guard does not know is a hole in the read-only rule, and one
     the grid does not know is a hole that looks closed.
 
     red under: drop an entry from `resolve._STATE_WRITE_SITES`, or a key from
@@ -2252,7 +2252,7 @@ def test_write_sites_cover_every_state_writing_node() -> None:
 def test_every_write_site_field_exists_on_its_node() -> None:
     """The other half of the registry: each entry names a field its node really
     has. A renamed field would otherwise leave `_written_state_name` returning
-    None for that whole write form — the wall silently covering two of three
+    None for that whole write form — the guard silently covering two of three
     forms, with every grid cell still green because the grid asks the same
     stale registry.
 
@@ -2309,7 +2309,7 @@ def _provider() -> n.Library:
 
 
 def _write_cells() -> list[object]:
-    """Write-site kind x state kind. The `provided` column is the wall; the
+    """Write-site kind x state kind. The `provided` column is the guard; the
     `required` column is its control — the same statement, one name over, which
     must stay legal, since writing state the game declared is the whole point of
     `requires`."""
@@ -2331,7 +2331,7 @@ def test_game_text_may_not_write_library_provided_state(
     """Provided state is the library's: the game may read it, and may not write
     it. Refused for every write form the language has, not only `:=`.
 
-    The failure lands in the GAME, unlike the encapsulation wall next door: the
+    The failure lands in the GAME, unlike the encapsulation guard next door: the
     game's author wrote the assignment, and the only fix is theirs. It names
     both the variable and the library, because "you may not write this" is
     useless without "and here is who owns it"."""
@@ -2352,12 +2352,12 @@ def test_game_text_may_not_write_library_provided_state(
 
 
 # Where a write can be WRITTEN — one game-owned container per cell, each holding
-# the same illegal write. Not a derived axis, and deliberately so: the wall walks
+# the same illegal write. Not a derived axis, and deliberately so: the guard walks
 # `_walk(game)`, which is total dataclass recursion over the whole Game, so
 # reachability is ONE property of `_walk` rather than a per-container dispatch
 # that could cover some sites and miss others. These cells are regression
 # evidence for that, not a completeness argument — the ledger records them as
-# sampled. They exist because "the wall fires at a phase statement" would
+# sampled. They exist because "the guard fires at a phase statement" would
 # otherwise have been the only thing anyone had checked, and a write inside a
 # game's own move-type effect is the cell an author would actually hit.
 _WRITE_CONTAINER: dict[str, tuple[str, str]] = {
@@ -2392,9 +2392,9 @@ game Host {{
 def test_the_read_only_wall_reaches_every_container(
     container: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The same illegal write, moved around the game. A wall that fires at a
+    """The same illegal write, moved around the game. A guard that fires at a
     top-level phase statement and not inside a move-type effect would be a hole
-    wearing a wall's name — and the effect is where a poker author would most
+    wearing a guard's name — and the effect is where a poker author would most
     plausibly write one, since that is where the library's own moves write it.
 
     Note the host nests `phase play` inside `phase outer`: a sub-phase is the
@@ -2422,7 +2422,7 @@ def test_game_text_may_read_library_provided_state(
 ) -> None:
     """The other half of read-only, and the reason the rule is not simply
     "provided state is private": a game reads what the library provides all the
-    time — Stud's own `fold` guard reads the standing bet. Without this the wall
+    time — Stud's own `fold` guard reads the standing bet. Without this the guard
     could be passing by making provided state unreachable."""
     _patch_libraries(monkeypatch, {"provider": _provider()})
     source = _WRITE_HOST.replace("WRITE", "score := prov_int + 1")
@@ -2459,7 +2459,7 @@ _CLAIMED = "claimed"
 # the game declares it. `both` is the same library provoking itself, which is why
 # the axis is the non-empty SUBSETS of the claim kinds rather than the kinds.
 # cell -> (message needle, the FILE the diagnostic must land in), or None to
-# accept. The location is half the command, not decoration: these walls split
+# accept. The location is half the command, not decoration: these guards split
 # author deliberately. A library contradicting itself is the library author's
 # to fix, so it lands in the library file; everything else is the game author's.
 _GAME_FILE = "claimer.cardlang:"
@@ -2478,7 +2478,7 @@ _ONE_LIBRARY_CELLS: dict[tuple[str, bool], tuple[str, str] | None] = {
 }
 
 # The two-library grid: what each of two libraries claims, times the same. Only
-# the unordered pairs — the walls are symmetric and a mirrored cell would assert
+# the unordered pairs — the guards are symmetric and a mirrored cell would assert
 # nothing the first does not.
 _TWO_LIBRARY_CELLS: dict[tuple[str, str, bool], tuple[str, str] | None] = {
     ("requires", "requires", True): None,  # one declaration answers both
@@ -2603,9 +2603,9 @@ def test_every_library_contracts_for_exactly_what_it_reaches(name: str) -> None:
     """Both directions of the contract, for every library in docs/libraries/ —
     the registry, not the one library that exists today.
 
-    Sufficiency (nothing reached past the contract) is what the wall enforces,
+    Sufficiency (nothing reached past the contract) is what the guard enforces,
     asserted here as the acceptance half: the corpus library must actually
-    satisfy the wall the grid above proves fires. Minimality (nothing in the
+    satisfy the guard the grid above proves fires. Minimality (nothing in the
     contract that is never reached) is the other direction — a `requires` entry
     no definition reads is dead contract, forcing every consumer to declare
     state for no reason.
@@ -2658,7 +2658,7 @@ def test_poker_betting_is_registered() -> None:
 # The discriminator is only a DERIVATION while no name reaches two registries.
 # That is not free: a library may define its own `type`s, and a game its own
 # `positions`, in namespaces that did not reserve the zone-type names. Both are
-# walled below, and the wall is what the derivation rests on.
+# guarded below, and the guard is what the derivation rests on.
 
 _CONTRACT_TARGETS: dict[str, str] = {"zones": "ZoneDecl", "state": "StateDecl"}
 
@@ -2732,7 +2732,7 @@ def test_the_type_registries_a_contract_reads_stay_disjoint() -> None:
 
 @pytest.mark.parametrize("kind", ["type", "position"])
 def test_an_author_may_not_take_a_zone_type_name(kind: str) -> None:
-    """The wall the derivation rests on. `Hand` means a zone type; a game `type
+    """The guard the derivation rests on. `Hand` means a zone type; a game `type
     Hand = { … }` or `positions { Hand : 1..5 }` would make `requires { x :
     Hand }` mean two things at once, and the classification would silently pick
     one. Refused where the name is DECLARED — the layer that owns "a name that
@@ -2861,7 +2861,7 @@ def _expected_contract_outcome(
     return "accept" if declared_in == "zones" else "game"
 
 
-# What each REJECTING game-addressed cell must actually say. Three walls, and
+# What each REJECTING game-addressed cell must actually say. Three guards, and
 # which one fires is a property of the cell rather than of the message: a
 # contract answered from the wrong block gets the near-miss diagnostic that
 # names the block the declaration IS in, and one answered from no block at all
@@ -2934,7 +2934,7 @@ def test_a_contract_entry_is_answered_from_the_block_its_type_names(
     # The span alone is too weak on the game side: every game-level diagnostic
     # carries `probe.cardlang:1`, so a cell could go green on a `max_length`
     # error it was never testing. Both probes in this module's history failed
-    # exactly that way, so the cell names the wall it commands as well.
+    # exactly that way, so the cell names the guard it commands as well.
     needle = "requires" if expected == "library" else _EXPECTED_NEEDLE[
         (source, declared_in)
     ]
@@ -2966,7 +2966,7 @@ def test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be(
     game is consulted; while resolving one). Sharing a body would mean
     threading an author through it. So the copy stays and the AGREEMENT is
     what is checked, which is the shape decisions.md's write-time triage asks
-    for — a backstop naming the wall it shadows, plus a pin that the shadow is
+    for — a Shadow Guard naming the guard it shadows, plus a pin that the shadow is
     faithful. A contract admitting a shape the game's own block refuses would
     be a contract no game could ever meet.
 

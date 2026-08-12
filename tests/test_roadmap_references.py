@@ -2,7 +2,7 @@
 
 The deferred-work backlog moved to the GitHub tracker (issue #143 orders the
 cross-cutting sequence); roadmap.md kept only what is not work — the
-out-of-scope list, the walls ledger for grammar surface the checker defers,
+out-of-scope list, the guards ledger for grammar surface the checker defers,
 and the pointers. A reference naming a section that moved to an issue is then
 prose contradicting the spec, invisible because prose has no compiler: the
 `ZONE_METHODS` class one medium over (issue #110, the backticked-identifier
@@ -54,7 +54,7 @@ residual:  ``docs/superpowers/plans/`` and ``docs/research/`` are outside the
            Python DIAGNOSTIC text is carved out as a DERIVED class
            (`_diagnostic_lines`): the argument of a diagnostic-bag call
            (`DIAGNOSTIC_METHODS`) or anything inside a `raise`. A designer who
-           hits a wall offline can open a repo doc and cannot open a tracker
+           hits a guard offline can open a repo doc and cannot open a tracker
            issue, so those messages keep naming roadmap.md. Deriving the class
            keeps a new diagnostic exempt the day it is written while a new
            comment is not; a hand-list would be the partial enumeration this
@@ -202,7 +202,7 @@ def _allowed(relative: str, line: str) -> bool:
 def _diagnostic_lines(text: str) -> set[int]:
     """Line numbers spanned by user-facing DIAGNOSTIC text in a Python module.
 
-    A diagnostic names a repo doc because a designer who hits the wall can open
+    A diagnostic names a repo doc because a designer who hits the guard can open
     `docs/roadmap.md` from their checkout and cannot open a tracker issue
     offline. The class is DERIVED rather than enumerated, so a new diagnostic
     is carved out the day it is written — but it is derived from what makes a
@@ -309,8 +309,8 @@ def test_the_registry_is_parsed_from_the_file_not_hand_listed() -> None:
 
 
 def test_both_dash_spellings_normalize_to_one_title() -> None:
-    assert _normalize("Positional zones -- walled residuals") == _normalize(
-        "Positional zones — walled residuals"
+    assert _normalize("Positional zones -- guarded residuals") == _normalize(
+        "Positional zones — guarded residuals"
     )
 
 
@@ -369,5 +369,5 @@ def test_diagnostic_text_is_carved_out_but_other_strings_are_not() -> None:
 def test_a_partial_quote_of_a_live_heading_does_not_resolve() -> None:
     live = _live_titles()
     full = "Grammar surface deferred by the checker"
-    assert _normalize(full) in live, "the walls ledger heading moved"
+    assert _normalize(full) in live, "the guards ledger heading moved"
     assert _normalize("Grammar surface deferred") not in live

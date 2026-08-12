@@ -18,7 +18,7 @@ The obligation splits in two, and this module owns the first half:
   renders the same ids from states at different points of the same game.
 - **The renderings agree wherever the ids do** (the world-pair proofs, which
   assert `action_strings(...)` alongside every legal-action agreement). Those
-  assertions are BACKSTOPS shadowing this module's wall: with the renderer pure,
+  assertions are BACKSTOPS shadowing this module's guard: with the renderer pure,
   equal ids give equal strings by construction, so they cannot fail on their own.
   They are stated where the property is claimed so the composition is visible at
   the point of use, and they turn red the moment a world-sensitive renderer ships
@@ -37,7 +37,7 @@ Completeness (decisions.md, "Closed-domain completeness")
   occurrence must be an attribute read on the entitled list, so a delegation
   like `helper(self, action)` is rejected rather than passed. It was written
   total over attribute *reads* only, which let exactly that delegation through
-  while reporting a clean wall; the distinction is the wall, not a detail of
+  while reporting a clean guard; the distinction is the guard, not a detail of
   it. The differential runs over every registered game (derived from
   `REGISTERED_GAMES`, not listed), rendering each state's full legal set plus a
   fixed spread across the action space, at every step of a short greedy walk.
@@ -61,12 +61,12 @@ red under (the world read): make `_action_to_string` return
 `space.to_string(action) + ('!' if len(self._history_ids) % 2 else '')`. RUN
 result, not a prediction — the scrape reddens naming `_history_ids`, the
 differential reddens on every registered game, and the adapter-agreement
-assertion reddens. The DSL world-pair backstops stay GREEN under that same
-mutation, which is the measurement that says they are backstops: they compare
+assertion reddens. The DSL world-pair Shadow Guards stay GREEN under that same
+mutation, which is the measurement that says they are Shadow Guards: they compare
 two worlds of one implementation, and the mutation moves both worlds
 identically. Their own reddening mutation is necessarily two-part — a
 world-sensitive renderer AND `action_strings` threaded with the world — and
-the wall above is what stops the one-part version shipping quietly.
+the guard above is what stops the one-part version shipping quietly.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def _renderer() -> ast.FunctionDef:
 
 
 def test_the_renderer_reads_nothing_of_the_world() -> None:
-    """The wall. Every use of `self` in `_action_to_string` must be an entitled
+    """The guard. Every use of `self` in `_action_to_string` must be an entitled
     attribute read — the game, and nothing that varies within one.
 
     An `ast` scrape rather than a behavioural check, for the reason the purity
@@ -107,7 +107,7 @@ def test_the_renderer_reads_nothing_of_the_world() -> None:
     while the scrape proves no branch exists that could read the world.
 
     Stated over USES of `self`, not over attribute reads. Those are different
-    checks and the difference is the whole wall: `helper(self, action)` performs
+    checks and the difference is the whole guard: `helper(self, action)` performs
     no attribute read at all, so an attribute-only scrape passes it while the
     helper receives the entire world — seed, history, replayed state. A rendering
     that reaches the world through a callee is exactly as much of a leak channel
@@ -197,7 +197,7 @@ def test_action_strings_do_not_move_with_the_state(short_name: str, filename: st
                 f"observer different action text"
             )
             # And the adapter renders what the DSL-level action space does, so
-            # the DSL-level proofs' string backstops speak about the same bytes.
+            # the DSL-level proofs' string Shadow Guards speak about the same bytes.
             assert got == action_strings(space, [aid])[0]
         state.apply_action(legal[0])
         steps += 1

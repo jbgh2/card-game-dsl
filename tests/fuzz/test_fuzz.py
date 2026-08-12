@@ -38,7 +38,7 @@ is Earley rather than LALR and parse cost scales with source size.
 `CARDLANG_FUZZ_SEEDS` overrides the list
 (comma-separated) for a deeper but still-bounded run; `FUZZ_BUDGET_SECONDS`
 (seconds) turns on `test_fuzz_open_ended_local`, a single unparametrized
-test that keeps sweeping increasing seeds until the wall-clock budget is
+test that keeps sweeping increasing seeds until the guard-clock budget is
 spent — the plan's env-var knob for local/scheduled use.
 
 Ledger (decisions.md "Closed-domain completeness")
@@ -77,7 +77,7 @@ residual:   grammar-DIRECTED generation (the plan's T4, walking
             are not implemented — every finding above was shrunk by hand
             (`oracle.py`'s "Residual"). `duplicate_declaration` and
             `swap_adjacent_tokens` found nothing in the discovery sweep;
-            that is evidence those walls hold against THESE five seeds on
+            that is evidence those guards hold against THESE five seeds on
             THIS corpus, not a completeness claim about the operators
             themselves — a wider `CARDLANG_FUZZ_SEEDS` or `FUZZ_BUDGET_SECONDS`
             run may surface more.
@@ -136,7 +136,7 @@ def _new_finding_message(
 
 def _finding_by_slug(slug: str) -> Finding:
     # `test_excused_table_targets_known_findings` pins that every EXCUSED
-    # slug resolves; this lookup is its backstop at use time.
+    # slug resolves; this lookup is its Shadow Guard at use time.
     matches = [f for f in KNOWN_FINDINGS if f.slug == slug]
     assert matches, f"EXCUSED names unknown finding {slug!r}"
     return matches[0]
@@ -331,7 +331,7 @@ def test_excused_table_targets_known_findings() -> None:
 def test_fuzz_open_ended_local() -> None:
     """The plan's env-var knob (grammar-fuzzing.md, "CI is deterministic"):
     with `FUZZ_BUDGET_SECONDS` set, sweep increasing seeds across the whole
-    corpus x operator grid until the wall-clock budget runs out. Skipped by
+    corpus x operator grid until the guard-clock budget runs out. Skipped by
     default — this is the local/scheduled mode, not part of ordinary CI."""
     budget = os.environ.get("FUZZ_BUDGET_SECONDS")
     if not budget:

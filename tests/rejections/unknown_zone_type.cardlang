@@ -1,4 +1,4 @@
-// Wall: resolve.py's zone-type reference check. `Nonesuch` names no library
+// Guard: resolve.py's zone-type reference check. `Nonesuch` names no library
 // zone type (cardlang/stdlib/zones.py's LIBRARY_ZONE_TYPES), so the zone
 // declaration itself is rejected before anything downstream runs.
 game UnknownZoneType {

@@ -43,8 +43,8 @@ domain:     {the card-content surface positions -- enumerated below} x
 registry:   cardlang.domains.DOMAINS / CARD_AXIS_ROLES / PARAM_DOMAIN_ORDER;
             cardlang.builtins.functions.CALL_FUNCS / DECK_ONLY_CALL_FUNCS;
             cardlang.runtime.values.COMPONENT_SETS (the piece set xo_marks) and
-            content_kind_clause (the one diagnostic prefix every wall opens
-            with, asserted here so the walls cannot drift from the grid).
+            content_kind_clause (the one diagnostic prefix every guard opens
+            with, asserted here so the guards cannot drift from the grid).
 covered:    the parametrizations below, each over its registry --
             test_move_param_domain_flavor (PARAM_DOMAIN_ORDER + Card x flavor),
             test_quantifier_role_flavor / test_for_each_role_flavor (DOMAINS
@@ -61,7 +61,7 @@ covered:    the parametrizations below, each over its registry --
             side->suit translation, and piece-set resolution/construction
             (build_deck seeding the box) are observed, not assumed (red
             under the side->rank map swap, which scores {0: 0, 1: 0}).
-sampled:    the field wall is a type-layer wall (`_check_expr`'s `Member` arm),
+sampled:    the field guard is a type-layer guard (`_check_expr`'s `Member` arm),
             so it fires in every predicate context where an item is bound, not
             only the movement filter that seeds most cells here -- sampled by
             the pronoun-rooted chain `action.card.<axis>` in a move guard
@@ -77,11 +77,11 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
             rule-obligation machinery -- a per-round `round ... trump`, the
             `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/
             `actions where` card predicates, an outcome-function name, and a
-            suit argument to a rule template -- is NOT flavor-walled here: that
+            suit argument to a rule template -- is NOT flavor-guarded here: that
             machinery is card-oriented and out of rung-1 scope (the topology
             ladder defers the rule system to a later rung), and a piece game
             reaching it degrades loudly through the existing card-zone /
-            name-resolution / deck-only-call walls rather than silently taking
+            name-resolution / deck-only-call guards rather than silently taking
             card meaning. Likewise a card-content TYPE annotation (`Suit`/
             `Rank`/`Card`) at a declaration site is accepted AT the annotation
             in BOTH flavors (the name is a known type); loudness then comes
@@ -101,7 +101,7 @@ residual:   card-content vocabulary reachable ONLY through the trick-taking and
             -- `struct_registry` types it against the default `CARD_FIELDS`
             (its inference env carries no game flavor), reached in a piece game
             only through a card-content struct field, itself a loud residual. A
-            declaration-site / rule-system wall naming the kind is deferred and
+            declaration-site / rule-system guard naming the kind is deferred and
             recorded in issue #114. Piece TWINS of the
             card-query and aggregation forms are grammatically inexpressible (no
             `pieces in ...` / `over pieces in ...` productions -- deliberately
@@ -130,7 +130,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.values import content_kind_clause
 
 # The two flavor prefixes every piece/card mismatch diagnostic opens with, from
-# the one runtime helper the walls themselves call -- so a wall whose wording
+# the one runtime helper the guards themselves call -- so a guard whose wording
 # drifts from the grid fails here.
 PIECE_KIND = content_kind_clause("piece", "xo_marks")
 CARD_KIND = content_kind_clause("card", "standard52")
@@ -187,7 +187,7 @@ def piece_game(*, clause: str = "", filt: str = "piece.side is x", body: str = "
 def _reject(source: str) -> str:
     """`check_dsl` the source, require a `DiagnosticError`, and return the full
     diagnostic text -- the primary message plus every co-reported note -- so an
-    assertion need not depend on which wall happens to sort first in the bag."""
+    assertion need not depend on which guard happens to sort first in the bag."""
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "grid.cardlang")
     parts = [exc.value.diagnostic.message]
@@ -201,7 +201,7 @@ def _accept(source: str) -> None:
 
 # --- item noun (movement) --------------------------------------------------
 # `Transfer.item` is a free NAME (grammar `selection: [select_mode] amount
-# NAME`), conventionally the content noun; the wall makes it agree with flavor.
+# NAME`), conventionally the content noun; the guard makes it agree with flavor.
 
 
 def test_item_noun_cards_accepted_in_card_game() -> None:
@@ -251,14 +251,14 @@ def test_field_suit_rejected_in_piece_game() -> None:
 
 def test_field_side_rejected_in_card_game() -> None:
     # RHS `hearts` resolves in a card deck (so the only error is the field
-    # wall, not an unresolved name); `side` is not a card field.
+    # guard, not an unresolved name); `side` is not a card field.
     text = _reject(card_game(filt="card.side is hearts"))
     assert "field 'side'" in text and ("rank" in text and "suit" in text)
 
 
 def test_cross_axis_compare_rejected_in_piece_game() -> None:
     # `piece.side is mark` compares the side axis (x/o) with a kind value (mark):
-    # the existing cross-enum wall catches it once each axis has its own enum.
+    # the existing cross-enum guard catches it once each axis has its own enum.
     assert "can never be equal" in _reject(piece_game(filt="piece.side is mark"))
 
 
@@ -275,7 +275,7 @@ def test_bare_binder_outside_filter_is_unresolved() -> None:
 def test_mixed_vocabulary_rejected_in_piece_game() -> None:
     # `sum of rank_value(piece) over cards in box`: a card aggregation, a deck-
     # only call, and the wrong binder at once -- loudly rejected, the deck-only
-    # wall naming the kind.
+    # guard naming the kind.
     src = piece_game().replace(
         "n : Integer = 0", "n : Integer = sum of rank_value(piece) over cards in box"
     )
@@ -464,14 +464,14 @@ def test_move_param_domain_flavor_gates_declared_but_unoffered() -> None:
 
 # --- deck-reading stdlib calls ---------------------------------------------
 # Every DECK_ONLY_CALL_FUNCS member reads suit/rank/points; a call to one in a
-# piece game is a resolve wall. A generic member (top_of) accepts in both.
+# piece game is a resolve guard. A generic member (top_of) accepts in both.
 
 
 def test_stdlib_call_funcs_totally_classified() -> None:
     # Non-vacuous: all three sets are explicit literals (functions.py:223 keeps
     # them so, not derived by subtraction), so a call in NONE (a newly
     # registered function nobody classified) makes the union fall short and this
-    # names it; a call in two breaks disjointness. The wall's domain is exactly
+    # names it; a call in two breaks disjointness. The guard's domain is exactly
     # CALL_FUNCS, partitioned into deck-only / board-only / generic.
     #
     # red under: add a name to CALL_FUNCS (or drop one from a
@@ -493,7 +493,7 @@ def test_stdlib_call_funcs_totally_classified() -> None:
 
 @pytest.mark.parametrize("fn", sorted(DECK_ONLY_CALL_FUNCS))
 def test_deck_only_call_rejected_in_piece_game(fn: str) -> None:
-    # The wall fires on the call NAME, before argument checking, so a uniform
+    # The guard fires on the call NAME, before argument checking, so a uniform
     # placeholder argument suffices for every signature.
     src = piece_game().replace("n : Integer = 0", f"n : Integer = {fn}(0)")
     assert PIECE_KIND in _reject(src)
@@ -507,7 +507,7 @@ def test_generic_call_accepts_in_both_flavors() -> None:
 
 # --- card literals ---------------------------------------------------------
 # `mark of x` is a well-formed card literal against xo_marks' ranks/suits; the
-# wall rejects the card-literal form in a piece game (advisor gap: else
+# guard rejects the card-literal form in a piece game (advisor gap: else
 # accepted-but-ignored once the piece namespaces populate).
 
 
@@ -534,14 +534,14 @@ def test_reveal_accepted_in_card_game() -> None:
 
 
 # --- pronoun-rooted field chain (sampled) ----------------------------------
-# `action.card.<axis>` is a `Member` on a `TCard`, the same wall as a bare
+# `action.card.<axis>` is a `Member` on a `TCard`, the same guard as a bare
 # binder's field access -- sampled to prove the pronoun path is covered too.
 
 
 def test_pronoun_rooted_field_access() -> None:
     # `action.card` is a `TCard`; `.suit` on it is the same `Member`-on-TCard
-    # wall as a bare `piece.suit`. RHS `x` resolves in a piece game so the only
-    # error is the field wall. (`action` binds in a move `when :` guard.)
+    # guard as a bare `piece.suit`. RHS `x` resolves in a piece game so the only
+    # error is the field guard. (`action` binds in a move `when :` guard.)
     top = (
         "move_type act(v : Player) { when : action.card.suit is x  "
         "effect { n += 1 } }\n"

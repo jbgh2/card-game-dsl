@@ -3678,7 +3678,7 @@ a change of channel; the coupling does not. The exception type is
 load-bearing in two places. The first is an argument *about* the failure channel
 ("a typed error, not a bare `KeyError`"), where the type is the subject
 rather than incidental colour. The second is a type that carries a guard's
-ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary section 5) — where
+ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary/owner-guard.md, glossary/shadow-guard.md) — where
 the type IS the classification rather than a report of it. Mobility still runs
 in the direction this rule was written for: bare to typed is an upgrade in
 specificity, and it stays free. What is no longer free is a guard changing

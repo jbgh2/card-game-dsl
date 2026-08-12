@@ -22,7 +22,7 @@ proofs:
   observer log pins + identity-projection pins) and permutes the entire
   remaining hidden set across hands — validity by construction, asserted
   per observer, plus one discriminating probe per pin class proving the
-  analysis is load-bearing (a decode-pin violation trips the replay wall; a
+  analysis is load-bearing (a decode-pin violation trips the replay guard; a
   log-pin violation replays legally but visibly differs — the exact
   "legally-replayed but distinguishable" world the swap harness could not
   rule out).
@@ -43,7 +43,7 @@ hands {1, 3} — both untouched by the replayed prefix, so `swap_axis="any"` is
 sound here: on this game a hidden pair either replays legally (neither card
 was chosen) and is then genuinely unobserved — every emission that reads
 hidden content (the flip) names the cards it read, so unchosen means unseen —
-or trips the replay wall and is skipped. The constructive tests above carry
+or trips the replay guard and is skipped. The constructive tests above carry
 the burden the sampled swap cannot: lines where the hidden-function channel
 actually fired. Greedy play_four (lowest vocab id) sheds seat 0's hand in
 four unchallenged turns, so the greedy line terminates at 101 steps and the
@@ -278,7 +278,7 @@ def test_constructive_worlds_are_indistinguishable(seed: int) -> None:
                     f"observer {observer}: same information set, different "
                     f"legal actions under the constructed world"
                 )
-                # ...and the same offer must READ the same. Backstop; the wall
+                # ...and the same offer must READ the same. Shadow Guard; the guard
                 # is `test_action_strings.py` (see `harness.action_strings`).
                 assert action_strings(space, pause_b.legal) == action_strings(
                     space, pause_a.legal
@@ -314,12 +314,12 @@ def _initial_hands(seed: int) -> dict[int, list[Card]]:
     return captured
 
 
-def test_decode_pin_violation_trips_the_replay_wall() -> None:
+def test_decode_pin_violation_trips_the_replay_guard() -> None:
     """The discriminating probe for the decode-pin class: move a card the
     line PLAYED AND FLIPPED (the hidden-function channel's own cards) out of
     its deal-time hand, and the replay must refuse loudly — the recorded
     chosen-card action no longer matches a live candidate. This is what makes
-    'legal replay' a real wall for the generator, not an assumption."""
+    'legal replay' a real guard for the generator, not an assumption."""
     seed = 5
     hist = _challenge_rich_line(seed)
     pause_a, plan = plan_worlds(PATH, seed, hist, 0, "hand")

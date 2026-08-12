@@ -12,7 +12,7 @@ un-reproduce a pinned finding. `test_fuzz.py`'s
 `test_known_findings_still_reproduce` replays every entry here and asserts
 the SAME outcome kind, exception type, and a message substring — "loud and
 pinned" (grammar-fuzzing.md via the task brief that built this package): if
-someone fixes the underlying wall without updating this ledger, that test
+someone fixes the underlying guard without updating this ledger, that test
 starts failing, which is the intended prompt to do the other half of the
 feed-forward rule below.
 
@@ -36,7 +36,7 @@ NOT this package): delete its `Finding` entry here, delete its
 + `.expected` (if the fix makes it a proper `DiagnosticError`) so the fix
 becomes a permanent regression case — `test_rejections.py`'s own module
 docstring is the authority on that pair's format. A playout-class finding
-whose fix is a NEW static wall (rather than an accepted runtime behavior)
+whose fix is a NEW static guard (rather than an accepted runtime behavior)
 follows the same path; a playout-class finding whose fix only improves the
 runtime's own error message stays a `RuntimeError`/`AssertionError` outside
 `DiagnosticError`'s channel and does not migrate to `tests/rejections/` —

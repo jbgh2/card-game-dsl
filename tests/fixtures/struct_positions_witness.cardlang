@@ -40,7 +40,7 @@ game StructPositionsWitness {
 
 // A struct with a DERIVED field whose body calls a function: the shape whose
 // registry is solved by a fixpoint, and whose earlier fixed-pass versions lost
-// walls silently.
+// guards silently.
 type Weight = { base : Integer } derived { doubled = twice(base) }
 
 function twice(n : Integer) = n * 2

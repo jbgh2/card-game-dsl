@@ -1,7 +1,7 @@
-// Wall: resolve.py `_check_position_family_refs`. The bare-family
+// Guard: resolve.py `_check_position_family_refs`. The bare-family
 // actor sugar (`hand` = the acting player's hand) keys by SEAT; a
 // position family has no seat keys, so a bare reference must be
-// subscripted. The runtime's phantom-key error is the backstop.
+// subscripted. The runtime's phantom-key error is the Shadow Guard.
 game PositionsBareFamilyReference {
   players: 1
   direction: clockwise

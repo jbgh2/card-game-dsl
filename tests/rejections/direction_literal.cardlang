@@ -1,4 +1,4 @@
-// Wall: resolve's name resolution. A direction MEMBER (`ahead`) is not
+// Guard: resolve's name resolution. A direction MEMBER (`ahead`) is not
 // expression-nameable -- there are no direction literals (the cell-literal
 // twin). `along` is a valid `dir` move parameter, but naming a member `ahead`
 // in the guard stays an unresolved-name diagnostic; `is_diagonal(along)` and

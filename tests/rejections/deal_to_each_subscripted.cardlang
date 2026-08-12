@@ -1,4 +1,4 @@
-// Wall: resolve.py's Movement `dest_each` check. The executor keys a
+// Guard: resolve.py's Movement `dest_each` check. The executor keys a
 // `to each` family by BARE name per seat, so a subscripted destination like
 // `hand[0]` targets one zone, not a family — rejected rather than silently
 // dealing into a single player's hand under `each`.

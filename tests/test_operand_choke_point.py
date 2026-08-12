@@ -2,7 +2,7 @@
 
 The class this guards: "an integer literal in a Player/Team position must name a
 real seat/team." It is closed not by enumerating the positions (that list rots
-the day a new position is added -- exactly how PR #92's per-site wall failed
+the day a new position is added -- exactly how PR #92's per-site guard failed
 three review rounds) but by routing EVERY operand coercion through one function,
 `typecheck._check_operand`, which runs the seat/team range check. This module is
 the pin that keeps it closed: it fails the day a new coercion site calls

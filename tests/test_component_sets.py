@@ -2,12 +2,12 @@
 
 property:   every COMPONENT_SETS row is well-formed; DECKS is exactly its
             card-flavored projection; sizes pin to build_deck; every
-            ComponentSet construction either satisfies the axes wall or
+            ComponentSet construction either satisfies the axes guard or
             raises ValueError naming the violated invariant; every
             build_deck lookup miss raises NotImplementedError naming
             component sets
 domain:     COMPONENT_SETS rows x {flavor, axes, deck payload, size};
-            ComponentSet.__post_init__'s wall x {axes distinct, both axes
+            ComponentSet.__post_init__'s guard x {axes distinct, both axes
             identifiers, piece flavor vs the ("suit","rank") reserved
             spelling} x {pass, fail}; build_deck's name lookup x {known,
             unknown}; component_set()'s {hit, miss}
@@ -19,7 +19,7 @@ covered:    all rows, exhaustively parametrized below; DECKS-view equality;
             each piece set's composition pinned item-by-item (xo_marks,
             breakthrough_men — the flavor whose axes are per-set, so a
             miscounted side would otherwise reach only its own game);
-            each of the wall's
+            each of the guard's
             three branches fired directly (duplicate axes, non-identifier
             axis, piece flavor spelling "suit"/"rank"); build_deck's
             unknown-name refusal (message pinned to name component sets and
@@ -102,7 +102,7 @@ def test_build_deck_preserves_registry_literal_order() -> None:
     assert [m.suit for m in marks] == ["x"] * 5 + ["o"] * 4
 
 
-# --- misuse probes: the ComponentSet construction wall -----------------
+# --- misuse probes: the ComponentSet construction guard -----------------
 #
 # Each probe is a plausible mistake a future caller (the pieces: clause
 # lands in a later task) could make when building a ComponentSet by hand.

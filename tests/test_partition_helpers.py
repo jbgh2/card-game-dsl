@@ -142,7 +142,7 @@ def test_every_declared_projection_has_a_probe_set() -> None:
 
 
 def test_unknown_projection_fails_loudly_at_probe_time() -> None:
-    """The runtime backstop behind the static pin above: if a zone's
+    """The runtime Shadow Guard behind the static pin above: if a zone's
     projection level has no probe entry, the matrix refuses to run rather
     than passing vacuously over that zone."""
     import pytest as _pytest

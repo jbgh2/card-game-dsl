@@ -180,7 +180,7 @@ def test_call_funcs_are_dispatchable() -> None:
                 f"{name!r} falls through call()'s default arm: {e}"
             )
         except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
-            pass  # dispatched; the channel split is walled by test_assert_triage.py
+            pass  # dispatched; the channel split is guarded by test_assert_triage.py
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:
@@ -188,9 +188,9 @@ def test_deck_only_classification_partitions_call_funcs() -> None:
     # every stdlib call is deck-only (rejected in a piece game), board-only
     # (rejected in a boardless game), or generic (legal everywhere), exactly
     # one, none omitted. A newly registered call absent from all three sets
-    # fails here rather than silently defaulting -- the wall's domain stays
+    # fails here rather than silently defaulting -- the guard's domain stays
     # exactly CALL_FUNCS. (The rejection behavior itself is
-    # tests/test_piece_content_walls.py.)
+    # tests/test_piece_content_guards.py.)
     assert (
         DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | ANY_FLAVOR_CALL_FUNCS
         == CALL_FUNCS

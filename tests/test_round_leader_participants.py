@@ -50,16 +50,16 @@ residual:   The `participants_empty` column is CAPTURED per path, not
             column admits `ValueError` for exactly that cell so the row states
             today's truth rather than the truth we want.
 
-            The two `leader_out_of_range` columns are both green, walled at
+            The two `leader_out_of_range` columns are both green, guarded at
             DIFFERENT layers, and the split is the point. The LITERAL spelling
             (`from 9`) is rejected at typecheck by the player-literal range
-            wall, identically for all five paths. The COMPUTED spelling
-            (`from 4 + 5`) escapes that wall entirely — `_check_operand`'s
+            guard, identically for all five paths. The COMPUTED spelling
+            (`from 4 + 5`) escapes that guard entirely — `_check_operand`'s
             range check recognizes a direct `IntLit`, and an `Integer` is
-            assignable to `Player` — and is walled at runtime instead, inside
+            assignable to `Player` — and is guarded at runtime instead, inside
             `Seating.turn_order_from`.
 
-            That runtime wall is this change's, and it closes issue #168. It
+            That runtime guard is this change's, and it closes issue #168. It
             is placed at the ONE site every `from <leader>` clause converges
             on rather than at the four forms that build rings, because the
             defect was never climb-specific: `turn_order_from` was pure
@@ -67,7 +67,7 @@ residual:   The `participants_empty` column is CAPTURED per path, not
             led from seat 1 in the trick and both auction paths too, and would
             have in climb as soon as #24 removed the participants test that
             had been catching it by accident. `turns` was the only member
-            already walled (execute.py:596-601), which is what made the
+            already guarded (execute.py:596-601), which is what made the
             asymmetry visible. The same test also closes the non-int case
             (`none`-valued `Player?`, an unrefined pronoun) that previously
             died on a bare `TypeError`.
@@ -85,9 +85,9 @@ with no access to the plan or the diff. Diffing its axis list against the
 author's changed the grid twice, and both changes are load-bearing:
   - it found `turns` — a fifth member of the leader/participants class that
     the author's `round`-rooted derivation had missed entirely, and the ONLY
-    member that already walls its leader. The path axis grew from 4 to 5.
+    member that already guards its leader. The path axis grew from 4 to 5.
   - it found that an out-of-range leader is silently normalized, disproving
-    an author-written residual line that had claimed the case was walled
+    an author-written residual line that had claimed the case was guarded
     elsewhere and therefore "not a cell". That line was wrong; the corrected
     capture is above. It also showed that removing the climb form's refusal
     would DELETE that form's only out-of-range catch (it fell out of the
@@ -249,7 +249,7 @@ PREDICATES = {
     "leader_out_of_range_computed": "x[player] >= 0",
 }
 
-# The literal spelling is caught by the player-literal range wall at
+# The literal spelling is caught by the player-literal range guard at
 # typecheck. The COMPUTED spelling is the same seat written as arithmetic:
 # `_check_operand`'s range check recognizes a direct `IntLit` only, and an
 # `Integer` is assignable to `Player`, so it reaches the runtime unchallenged.
@@ -375,14 +375,14 @@ def test_leader_participants_grid(
 
     if relationship == "leader_out_of_range_literal":
         # UNIFORM across all five paths, and settled one layer UP: the
-        # player-literal range wall rejects the game at typecheck, so no path
+        # player-literal range guard rejects the game at typecheck, so no path
         # reaches the runtime with an out-of-range leader LITERAL.
         with pytest.raises(DiagnosticError, match="out of range"):
             check_dsl(src, "grid.cardlang")
         return
 
     if relationship == "leader_out_of_range_computed":
-        # The same seat written as arithmetic escapes that wall entirely and
+        # The same seat written as arithmetic escapes that guard entirely and
         # reaches the runtime. Every path must refuse it there, in the
         # Owner Guard — silently normalizing `9` to seat 1 and running
         # the round with the wrong leader is the defect issue #168 names.

@@ -48,7 +48,7 @@ def test_offer_with_no_legal_move_raises() -> None:
 # `hi` is runtime state (2), below the literal `lo` (5): the range is empty only
 # at playout, so resolve can't reject it (a static inverted range like `5 .. 2`
 # is caught earlier — see test_choose_ceiling.py). This exercises the runtime
-# empty-range guard, which is `_choose`'s backstop for a dynamic bound.
+# empty-range guard, which is `_choose`'s Shadow Guard for a dynamic bound.
 CHOOSE_EMPTY_RANGE = """
 game G {
   players: 2
@@ -275,9 +275,9 @@ def test_offer_of_parameterized_move_is_accepted() -> None:
 
 # --- runtime DATA conditions fail as Owner Guards ------------------------------
 #
-# The runtime-assert census (walls-at-the-right-level) converted these from bare
+# The runtime-assert census (guards-at-the-right-level) converted these from bare
 # asserts / silent absences into typed RuntimeErrors: each is a condition only
-# live state can decide, so it cannot be walled statically — but it CAN fail in
+# live state can decide, so it cannot be guarded statically — but it CAN fail in
 # the right channel, at the cause. These pins keep a later edit from quietly
 # restoring the silent form (player_holding's old body returned None, which
 # key-errored some unrelated subscript later).
@@ -410,7 +410,7 @@ game G {
 
 def test_bare_family_read_without_an_actor_raises() -> None:
     # `hand` bare is the acting player's hand — sugar with no referent in a
-    # phase body, where nobody is acting. The static wall needs
+    # phase body, where nobody is acting. The static guard needs
     # statement-position context resolve does not thread yet, so the runtime
     # error carries the fix instead.
     with pytest.raises(OwnerGuardError, match="no acting player"):
@@ -419,8 +419,8 @@ def test_bare_family_read_without_an_actor_raises() -> None:
 
 # The index is COMPUTED (`0 + 9`), not a literal `9`: an out-of-range player
 # LITERAL is caught statically now (typecheck `_check_role_literal`,
-# tests/test_player_literal_range.py), so reaching this runtime wall from a
-# checked game needs a key the literal wall does not see -- a computed one.
+# tests/test_player_literal_range.py), so reaching this runtime guard from a
+# checked game needs a key the literal guard does not see -- a computed one.
 PHANTOM_KEY_WRITE = """
 game G {
   players: 4
@@ -435,21 +435,21 @@ game G {
 
 
 def test_a_write_outside_the_declared_key_set_raises() -> None:
-    # Without this wall, `n[0 + 9] := 1` in a 4-player game would mint a phantom
+    # Without this guard, `n[0 + 9] := 1` in a 4-player game would mint a phantom
     # seat silently — and `winner: highest n` would crown player 9. The
     # store's key set is the index domain's member set; a write outside it is
     # a runtime error at the write. A LITERAL seat 9 is rejected earlier (the
-    # static player-literal wall); this is the backstop for the computed key.
+    # static player-literal guard); this is the Shadow Guard for the computed key.
     with pytest.raises(OwnerGuardError, match="outside the variable's declared domain"):
         _run(PHANTOM_KEY_WRITE)
 
 
 def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
-    # The runtime backstop behind the typed-endpoint wall. `let h = 5` then
+    # The runtime Shadow Guard behind the typed-endpoint guard. `let h = 5` then
     # `move all cards from h to deck` is REJECTED statically now (lets are
     # typed), so reaching this branch from a checked program needs a value
     # the checker deliberately leaves loose (`outcome`, an unregistered
-    # action field) — hence a constructed statement: the backstop is not a
+    # action field) — hence a constructed statement: the Shadow Guard is not a
     # dead branch, and it must answer as an Owner Guard, not with a
     # bare assert.
     import random
@@ -477,8 +477,8 @@ def test_a_non_zone_value_at_a_movement_endpoint_raises_a_typed_error() -> None:
 # The selection is UNREFINED (a mixed `if` whose branches disagree, so `infer`
 # gives `TAny`), not a literal `"oops"`: a statically-typed non-player loser is
 # rejected at check time now (the operand choke point types `loser:` as a
-# Player, tests/test_player_literal_range.py), so reaching this runtime backstop
-# from a checked game needs a selection the type wall cannot see through -- the
+# Player, tests/test_player_literal_range.py), so reaching this runtime Shadow Guard
+# from a checked game needs a selection the type guard cannot see through -- the
 # permissive top. The `else` branch is taken at runtime (no player has `x == 1`).
 LOSER_NOT_A_PLAYER = """
 game G {
@@ -494,7 +494,7 @@ game G {
 
 
 def test_a_non_player_loser_selection_raises_a_typed_error() -> None:
-    # The runtime backstop behind the static `loser:` type wall. A non-player
+    # The runtime Shadow Guard behind the static `loser:` type guard. A non-player
     # selection the checker CAN type (`loser: "oops"`) is rejected statically; a
     # selection typed `TAny` slips past, and the driver checks the value's
     # player-ness as an Owner Guard.

@@ -1,4 +1,4 @@
-// Wall: resolve's declared-type-name check on a variant case's payload types.
+// Guard: resolve's declared-type-name check on a variant case's payload types.
 // A `define`'s payload type names had no validity check at all, so `Integar`
 // fell through `typecheck._payload_type` -> `type_from_name` to the permissive
 // `TAny`, and every `produces:` arm binder carrying that payload inherited it —

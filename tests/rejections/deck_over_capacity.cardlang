@@ -1,4 +1,4 @@
-// Wall: deckcheck.py's static deck-capacity check. An 8-player Stud-like
+// Guard: deckcheck.py's static deck-capacity check. An 8-player Stud-like
 // deal plan (`deal 8 cards ... to each hand`) needs 64 cards from a 52-card
 // deck in one hand — a compile error, not a runtime `ValueError` on an
 // exhausted deck.
