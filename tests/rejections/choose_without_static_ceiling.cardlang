@@ -1,4 +1,4 @@
-// Wall: resolve.py's integer-`choose` ceiling check (docs/decisions.md, "The
+// Guard: resolve.py's integer-`choose` ceiling check (docs/decisions.md, "The
 // integer `choose` domain"). `n` is a runtime state variable, not a literal,
 // and no `up to N` clause declares a static ceiling — so the OpenSpiel
 // action space cannot be sized up front.

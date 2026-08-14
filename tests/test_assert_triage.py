@@ -1,8 +1,8 @@
-"""Every assert-currency site in the runtime packages is write-time-triaged.
+"""Every assert-channel site in the runtime packages is write-time-triaged.
 
 decisions.md "Closed-domain completeness" (write-time triage): a check lands
 only after naming its owner — an **Owner Guard** (moved to the owning layer,
-in that layer's currency), a **Shadow Guard** (it stays, and its comment names
+in that layer's channel), a **Shadow Guard** (it stays, and its comment names
 the Owner Guard it shadows), or a **missing Owner Guard** (the Owner Guard is
 built upstream and the site becomes a Shadow Guard citing it). Anything a
 game description can cause, the runtime refuses with a role-bearing
@@ -14,7 +14,7 @@ once, by hand; this module makes it mechanical, so an untriaged assert cannot
 land silently between censuses.
 
 The mechanism (the ``inspect.getsource``-scrape idiom of
-tests/test_operator_walls.py, widened to whole packages): every ``assert``
+tests/test_operator_guards.py, widened to whole packages): every ``assert``
 statement and ``raise AssertionError`` in the runtime packages must carry, in
 its *attached text* — the statement's own source lines (message strings and
 trailing comments included), the contiguous ``#`` block immediately above it,
@@ -38,7 +38,7 @@ site with neither tag fails the build with the triage instructions.
 
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
-property:  every assert-currency site in the runtime packages names its triage
+property:  every assert-channel site in the runtime packages names its triage
            class (dispatch fallthrough, or Shadow Guard naming its Owner Guard) in
            machine-checkable form.
 domain:    ``ast.Assert`` nodes and ``ast.Raise`` nodes whose exception is
@@ -62,7 +62,7 @@ sampled:   the guarantor vocabulary is a closed word list (this module's
            the gate enforces that triage is *stated*, review enforces that it
            is *true*.
 residual:  compile-pass modules (cardlang/parse.py … ir.py, openspiel/) are
-           outside the domain — their failure currency for internal
+           outside the domain — their failure channel for internal
            invariants is the assert, guarded per-pass by the ``Contract``
            blocks in their module docstrings and the assert_never dispatch
            pins, so a blanket scrape would mis-rank their sites. Extending the
@@ -84,11 +84,11 @@ import cardlang.stdlib
 FALLTHROUGH_MARKERS = ("unknown ", "no declared ")
 GUARANTOR_WORDS = (
     # A site that stands behind another guard IS a Shadow Guard, so that is the
-    # self-tag; everything else names the owning pass. `backstop` is retired
-    # (docs/glossary.md section 5) and deliberately absent — this tuple is what
+    # self-tag; everything else names the owning pass. `backstop` is never a name
+    # for this role (the glossary's reserved words) and deliberately absent — this tuple is what
     # makes the retirement enforceable rather than advisory.
     #
-    # `owner guard` is deliberately NOT here. An assert is compiler-bug currency,
+    # `owner guard` is deliberately NOT here. An assert is compiler-bug channel,
     # so an assert site can never BE the Owner Guard: a condition a game can
     # reach is a MISSING Owner Guard and must raise a typed error instead. As a
     # tag it would name no upstream guarantor and, because matching is by
@@ -199,7 +199,7 @@ def test_every_runtime_assert_site_is_triaged() -> None:
     untagged = [s for s in _runtime_sites() if not s.triaged]
     listing = "\n".join(f"  {s.module}:{s.line}: {s.source}" for s in untagged)
     assert not untagged, (
-        f"{len(untagged)} untriaged assert-currency site(s) in the runtime "
+        f"{len(untagged)} untriaged assert-channel site(s) in the runtime "
         f"packages:\n{listing}\n"
         "Write-time triage (decisions.md 'Closed-domain completeness'): a "
         "check lands as an Owner Guard at the owning layer, in that layer's "
@@ -253,7 +253,7 @@ def test_probe_bare_owner_guard_label_is_flagged() -> None:
     """`Owner Guard` is not a guarantor word, and this is where that is enforced.
 
     The tag's job is to NAME the upstream guard a site stands behind. An assert
-    is compiler-bug currency, so an assert site can never be the Owner Guard
+    is compiler-bug channel, so an assert site can never be the Owner Guard
     itself — a condition a game can reach is a MISSING Owner Guard and must
     raise a typed error instead. Admitting the phrase would therefore let a site
     self-label with a word that identifies no guarantor, and since matching is
@@ -311,7 +311,7 @@ def test_probe_comment_above_enclosing_if_is_accepted() -> None:
 def test_probe_typed_errors_are_outside_the_domain() -> None:
     src = (
         "def f(x):\n"
-        '    raise RuntimeError("wrong currency lives elsewhere")\n'
+        '    raise RuntimeError("wrong channel lives elsewhere")\n'
         "def g(x):\n"
         '    raise ValueError("also not scraped")\n'
     )

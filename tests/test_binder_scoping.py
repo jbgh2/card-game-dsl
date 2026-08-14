@@ -2,7 +2,7 @@
 
 Collected into one flat game-wide `locals` set, binders would let a stray
 `card` anywhere in the file resolve as `local` and fail only at runtime
-with a KeyError (wrong failure currency), and a name bound by a `let` in one
+with a KeyError (wrong failure channel), and a name bound by a `let` in one
 phase would resolve everywhere. `_rewrite` scopes every binder to exactly the
 sub-fields its construct binds it in (`_BINDER_SCOPE_FIELDS`, driven by the
 `_introduced_binders` registry), and `let` names fold sequentially through
@@ -57,7 +57,7 @@ covered-by-design:
               test above pins the behavior)
             - one-level shadowing of the implicit binders stays legal (the
               spec allows an inner query's `card` inside an outer one —
-              decisions.md "The expression register"); no shadowing wall
+              decisions.md "The expression register"); no shadowing guard
 sampled:    the sequential fold at ProduceArm.body goes through the same
             single tuple arm of `_rewrite_value` as every site above and is
             corpus-witnessed (Schnapsen's `play produces:` arms bind
@@ -297,7 +297,7 @@ def test_card_query_source_is_outside_the_card_scope() -> None:
 
 def test_nested_card_queries_shadow_legally() -> None:
     # One-level shadowing of the implicit binder is deliberate spec surface
-    # (decisions.md "The expression register") — no wall.
+    # (decisions.md "The expression register") — no guard.
     _accepts(
         """
   phase p {
@@ -421,7 +421,7 @@ move_type m {
 
 def test_rotate_of_a_let_bound_local_is_rejected() -> None:
     # The runtime's `_rotate` reads/writes `ctx.rs` (persistent state) only;
-    # a let-bound target could never work, and without this wall it would
+    # a let-bound target could never work, and without this guard it would
     # slip through the classifier to fail at playout.
     _rejects(
         """

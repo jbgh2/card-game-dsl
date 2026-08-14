@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_ranking`. A misspelled convention is not a
+// Guard: resolve.py `_resolve_ranking`. A misspelled convention is not a
 // grammar error — its words are legal NAMEs, so it falls through to the
 // enumeration arm and is rejected as unknown ranks, with the hint naming
 // the closed convention set (the words match convention vocabulary).

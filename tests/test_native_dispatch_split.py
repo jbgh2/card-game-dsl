@@ -34,7 +34,7 @@ residual:   the `climb_universe_function` / `climb_codec_function` /
             membership row. Their joint coverage of PRIMITIVE_CLIMB_LEADS is
             tests/test_signatures.py's property, not this grid's. R4, and
             this ledger owns the record: the two codec dispatchers return
-            None on a miss by design, and the absence is walled loudly where
+            None on a miss by design, and the absence is guarded loudly where
             it matters (`ActionSpace.for_game`).
 
             Not a residual, recorded because it was one until issue #202:

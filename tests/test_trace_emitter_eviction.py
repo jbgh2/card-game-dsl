@@ -20,7 +20,7 @@ domain:     evicted name {coup_note_reveal, tichu_hand_summary} x
             framing sweep of the whole cardlang/ package (the audit's
             Step 1): the seven name registries in builtins/functions.py,
             CALL_SIGS, the runtime dispatch arms, the implementing module
-            namespaces, resolve's unknown-call and shadow walls, the
+            namespaces, resolve's unknown-call and shadow guards, the
             PRIMITIVE_READS inventory, plus the lockstep docs surface
             (docs/games/*.{cardlang,md}, docs/library.md).
 registry:   cardlang/builtins/functions.py (all seven name-sets, imported
@@ -49,7 +49,7 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
             stays registered this stage: its `coup_game` payload
             recomputes conservation totals from engine state, not from
             movement views, so its harness reproduction is its own design
-            step. Wall: the staged plan (primitive-sidecars.md §5);
+            step. Guard: the staged plan (primitive-sidecars.md §5);
             record: issue #142. The prose scan deliberately covers only
             the spec-current surface — design notes legitimately name the
             evicted names when describing this very migration.
@@ -152,7 +152,7 @@ def test_prose_has_no_reference(name: str) -> None:
 
 def _shadow_probe(name: str) -> str:
     """A game defining (and calling) its own function under an evicted name.
-    While the name was registered, resolve's shadow wall rejected the
+    While the name was registered, resolve's shadow guard rejected the
     definition; after the eviction the name is an ordinary user-function
     name — the strongest witness that it fully left the namespace."""
     return f"""
@@ -183,8 +183,8 @@ def test_name_is_free_for_user_functions(name: str) -> None:
 
 def test_shadow_wall_still_guards_registered_names() -> None:
     """The control row for the freedom cells: the same probe shape under a
-    still-registered name must die on the SHADOW wall's own message. This
-    pins that the probe reaches the wall — without it, a probe broken
+    still-registered name must die on the SHADOW guard's own message. This
+    pins that the probe reaches the guard — without it, a probe broken
     earlier in the pipeline (a syntax error also raises DiagnosticError)
     would make the freedom cells pass vacuously."""
     with pytest.raises(DiagnosticError, match="shadows the stdlib function"):

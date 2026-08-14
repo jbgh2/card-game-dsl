@@ -58,7 +58,7 @@ covered:    every terminal x every derived sample that ends on a word
             exclude `-` as well, which over this grammar is `as` (a prefix of
             `as-equally-as-possible`) and nothing else.
             The grid is a property of REGEXES, so it is backed by executed
-            witnesses in the parser's own currency: `test_fused_*` reject one
+            witnesses in the parser's own channel: `test_fused_*` reject one
             real sentence per fusion SHAPE (keyword+name, keyword+keyword,
             keyword+integer, word-shaped-terminal+name, integer+keyword), and
             `test_*_still_parses` keep the legitimate whole-word identifiers

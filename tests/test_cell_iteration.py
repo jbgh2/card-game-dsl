@@ -4,14 +4,14 @@ The statement twin of the landed cell QUANTIFIER register (tests/
 test_cell_queries.py). A `for each <role> <binder>` may range over the closed
 seat/axis roles and, from rung 2, over a board's NAMED-MEMBER position domain
 (`cell`) -- breakthrough's fixed setup array is the witness that lifts the
-recorded `for each <position>` residual (issue #111). Integer `positions {}` domains stay walled: no game
+recorded `for each <position>` residual (issue #111). Integer `positions {}` domains stay guarded: no game
 addresses columns by loop, so they remain rejected rather than
 accepted-and-unwitnessed.
 
 Three seams carry it, and they must land together (each is dark until the one
 before it opens):
   * resolve admits the role iff it is a named-member position domain
-    (`_validate_refs`, the `ForEach` wall);
+    (`_validate_refs`, the `ForEach` guard);
   * typecheck types the binder from the game's position domains -- the
     `ForEach` node rides `_Binders` lazily, exactly as a `let` does, because a
     position domain's member type is per-game and only `_scoped_env` holds it
@@ -51,22 +51,22 @@ covered:    each cell proven by a run probe below --
               cell in Collection<Card>          -> reject (typecheck)
 sampled:    none -- every row above is an executed probe.
 red under:  the five ACCEPT rows are born red -- reverting any of the three
-            seams (resolve wall, `_scoped_env` ForEach arm, `_for_each`
+            seams (resolve guard, `_scoped_env` ForEach arm, `_for_each`
             position arm) fails them, verified by stashing all three. The three
-            WALL/control rows are born green and carry their own mutations:
+            GUARD/control rows are born green and carry their own mutations:
             `for each column` reddens if integer domains join
             `iterable_positions`; the boardless row reddens if the lift stops
             gating on the game's OWN domains (a global `cell` admission); and
             `for each player` reddens if the position arm shadows the closed
             role path (drop the `in ctx.rs.position_domains` guard).
-residual:   `for each <integer position>` stays walled (no witness; the wall
+residual:   `for each <integer position>` stays guarded (no witness; the guard
             and its roadmap line are the record). A collection-valued
             `for each cell c in <expr>` form is grammatically inexpressible
             (the bare role form plus a membership guard covers the setup
             witness); implement when a game needs the restricted form.
-            A `c.foo` on the binder is walled by the Member arm, swept as the
+            A `c.foo` on the binder is guarded by the Member arm, swept as the
             fieldless-type class in tests/test_typecheck_errors.py -- not
-            re-walled here.
+            re-guarded here.
 """
 
 from __future__ import annotations
@@ -183,9 +183,9 @@ def test_for_each_cell_membership_selects_the_region() -> None:
 
 def test_for_each_cell_binder_is_a_cell() -> None:
     # Proven by consumption: `square[c]` is a cell-indexed family, so the
-    # subscript-key wall (coercible(idx, Cell)) accepts only a Cell-typed
+    # subscript-key guard (coercible(idx, Cell)) accepts only a Cell-typed
     # binder. A `c.foo` on it is rejected by the Member arm's fieldless-type
-    # class (tests/test_typecheck_errors.py) -- cross-referenced, not re-walled.
+    # class (tests/test_typecheck_errors.py) -- cross-referenced, not re-guarded.
     check_dsl(
         board_game(
             setup=DEAL
@@ -205,7 +205,7 @@ def test_for_each_player_still_accepted() -> None:
     )
 
 
-# --- reject: what stays walled ------------------------------------------------
+# --- reject: what stays guarded ------------------------------------------------
 
 
 def test_for_each_over_an_integer_position_domain_is_rejected() -> None:
@@ -255,7 +255,7 @@ game G {
 
 def test_cell_membership_against_a_card_collection_is_rejected() -> None:
     # Membership is generic (`unify`), so the wrong-element case was already
-    # walled; this pins that the region forms did not open a hole in it.
+    # guarded; this pins that the region forms did not open a hole in it.
     msg = _reject(
         board_game(
             setup=DEAL + "    for each cell c: if c in box { n := 1 }\n"

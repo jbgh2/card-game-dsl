@@ -1,7 +1,7 @@
 """Suite-wide Pin: a `ShadowGuardError` anywhere in the run is a failure.
 
 A Shadow Guard is defined as unreachable while the Owner Guard it names is
-correct (docs/glossary.md section 5). That is a guarantee only while something
+correct (docs/glossary/shadow-guard.md). That is a guarantee only while something
 enforces it; unenforced, it decays into a comment. This module is the
 enforcement.
 

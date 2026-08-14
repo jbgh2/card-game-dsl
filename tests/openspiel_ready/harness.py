@@ -125,7 +125,7 @@ def manifest(seeds: tuple[int, ...] = SWAP_SEEDS) -> list[Any]:
 def action_strings(space: Any, actions: list[int]) -> list[str]:
     """The rendered action text for `actions` — the bytes a prompt shows.
 
-    BACKSTOP HELPER. Its wall is `test_action_strings.py`, which pins that
+    SHADOW-GUARD HELPER. Its guard is `test_action_strings.py`, which pins that
     `CardlangState._action_to_string` reads nothing of the world: given that,
     equal ids give equal strings, so the world-pair assertions calling this
     cannot fail on their own — measured, under that module's named mutation.
@@ -133,7 +133,7 @@ def action_strings(space: Any, actions: list[int]) -> list[str]:
     so a reader of the swap proof can see that the ids agreeing is not the
     whole claim about what an observer is shown.
 
-    The one CALLER that is not a backstop is the adapter-agreement proof, which
+    The one CALLER that is not a Shadow Guard is the adapter-agreement proof, which
     compares this against `state.action_to_string` — two implementations, so it
     discriminates.
     """
@@ -561,7 +561,7 @@ class ReadinessProofs:
                 f"only-in-A={sorted(set(pause_a.legal) - set(pause_b.legal))} "
                 f"only-in-B={sorted(set(pause_b.legal) - set(pause_a.legal))}"
             )
-            # ...and the same offer must READ the same. Backstop; the wall is
+            # ...and the same offer must READ the same. Shadow Guard; the guard is
             # `test_action_strings.py` (see `action_strings`).
             assert action_strings(space, pause_b.legal) == strings_a, (
                 f"{spec.short_name}: same legal actions, different rendered text "

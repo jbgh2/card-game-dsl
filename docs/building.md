@@ -38,7 +38,7 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST 
   [model.md](model.md).
 - **resolve** — name resolution over lexically-nested scopes (game → phase →
   sub-phase → mechanic-internal `state {}`, per [decisions.md](decisions.md),
-  "State scoping"). Every `constrains:`, every `active_rules:` entry, every
+  "State scoping (lexical)"). Every `constrains:`, every `active_rules:` entry, every
   zone/type/rule/mechanic reference, and every `state.*` access resolves to a
   declaration, or fails with a span.
 - **typecheck** — the typed object model from [decisions.md](decisions.md):
@@ -230,13 +230,13 @@ construct.
    is the defect class the matrix exists to prevent.
 7. **The rejection corpus pins the diagnostic MESSAGE, not just the fact of
    rejection.** `tests/rejections/` pairs a deliberately broken game
-   (`<case>.cardlang`, complete enough to reach the one wall it probes) with a
+   (`<case>.cardlang`, complete enough to reach the one Owner Guard it probes) with a
    golden of its rendered diagnostic (`<case>.expected`), harnessed by
    `tests/test_rejections.py` (a rustc-"ui test" shape). The scattered
-   per-module `DiagnosticError` tests prove a wall still fires from the right
+   per-module `DiagnosticError` tests prove a Owner Guard still fires from the right
    AST shape; this corpus proves the sentence a designer actually reads still
    reads the same way — a message can silently regress in wording or span
-   while every substring-assertion test stays green. A new wall ships with a
+   while every substring-assertion test stays green. A new Owner Guard ships with a
    rejection-corpus case in the same change. Goldens are regenerated only
    deliberately, with `REJECTIONS_BLESS=1` (see the module's docstring), and
    the diff is read before it is committed.

@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_phase_item` LegalMoves arm. `nonesuch_move`
+// Guard: resolve.py's `_resolve_phase_item` LegalMoves arm. `nonesuch_move`
 // names no library move type (cardlang/stdlib LIBRARY_MOVE_TYPES), so the
 // phase's move menu is rejected rather than silently offering nothing.
 game LegalMovesUnknownMoveType {

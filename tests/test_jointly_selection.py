@@ -43,9 +43,9 @@ covered:    - `where jointly` parses with `joint=True`; plain `where` stays
               [grammar]
             - a joint `some` return INTO the deck credits ONE card, not a
               refill — the over-credit accepted a mid-deal crash [deckcheck]
-            - the action space walls an unregistered/inline joint predicate,
+            - the action space guards an unregistered/inline joint predicate,
               a climb+joint game, and two distinct joint codecs — all three
-              NotImplementedError walls probed [encoding]
+              NotImplementedError guards probed [encoding]
 sampled:    the single-dest destination shape shares the ordinary movement
             path after selection — pinned by one single-dest test.
 residual:   `jointly` under `random` mode (uniform over satisfying subsets)
@@ -311,7 +311,7 @@ def test_fused_amount_typos_are_loud() -> None:
     # alternative makes the amount position genuinely ambiguous for unanchored
     # keywords) and compile clean. Anchored they fail loudly — `onecards` reparses
     # as amount-expr `chosen` + item `onecards` and dies in resolve;
-    # `allcards` is a plain syntax error. Loud in SOME located currency is
+    # `allcards` is a plain syntax error. Loud in SOME located channel is
     # the property; the split parse is the defect.
     with pytest.raises(DiagnosticError):
         check_dsl(
@@ -327,7 +327,7 @@ def test_fused_amount_typos_are_loud() -> None:
 
 def test_jointly_with_to_each_is_rejected() -> None:
     # `to each` would make every destination seat its own subset decider over
-    # the shrinking pool — walled until a game wants that shape.
+    # the shrinking pool — guarded until a game wants that shape.
     with pytest.raises(DiagnosticError) as e:
         check_dsl(
             _game(
@@ -340,7 +340,7 @@ def test_jointly_with_to_each_is_rejected() -> None:
 
 
 def test_negative_and_zero_amounts_are_loud() -> None:
-    # The amount-expression domain wall: a negative amount would silently
+    # The amount-expression domain guard: a negative amount would silently
     # slice from the wrong end (`deal -2` would move 50 of 52 cards); a
     # zero `chosen` is a vacuous decision node.
     game = check_dsl(
@@ -435,7 +435,7 @@ def test_joint_flag_survives_into_the_ir() -> None:
 def test_action_space_walls_an_unregistered_joint_predicate() -> None:
     # The OpenSpiel action space needs the joint predicate's subset universe
     # (a registered codec, the climb-engine pattern). An inline predicate has
-    # none — the wall must be loud, never a silently absent combo block.
+    # none — the guard must be loud, never a silently absent combo block.
     from cardlang.openspiel.encoding import ActionSpace
 
     game = check_dsl(
@@ -482,7 +482,7 @@ def test_action_space_walls_a_climb_plus_joint_game() -> None:
 
 def test_action_space_walls_two_distinct_joint_codecs(monkeypatch: Any) -> None:
     # Two joint predicates whose registered codecs are DIFFERENT objects need
-    # a composed combo block — walled until a game forces the design. The
+    # a composed combo block — guarded until a game forces the design. The
     # registry is monkeypatched because today's only registered codecs (both
     # gin roots) deliberately share one singleton.
     from cardlang.openspiel.encoding import ActionSpace

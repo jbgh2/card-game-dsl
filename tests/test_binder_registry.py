@@ -23,7 +23,7 @@ domain:     every AST node kind that binds a name — which is NOT the same as
             (the arm body's bare `actor` classified as that local instead), and
             `_check_functions` / `_check_procedures` mistook a legitimately-bound
             arm name for an unbound reference. The lesson is the skill's own: a
-            domain derived from the wrong registry measures the wall against
+            domain derived from the wrong registry measures the guard against
             itself.
 registry:   `cardlang.ast.nodes.Node` — the closed union of ALL node kinds (it
             holds `ProduceArm`, which `Expr`/`Stmt` do not)

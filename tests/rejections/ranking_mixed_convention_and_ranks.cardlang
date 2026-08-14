@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_ranking`. A convention keyword mixed with
+// Guard: resolve.py `_resolve_ranking`. A convention keyword mixed with
 // explicit ranks has no single reading — the whole clause is taken as an
 // enumeration (the convention spellings are reserved only for an EXACT
 // full-clause match), so the convention words reject as unknown ranks,

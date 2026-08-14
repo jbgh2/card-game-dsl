@@ -2,16 +2,16 @@
 
 Misuse-probe rejection tests today live scattered as inline DSL strings
 across per-module test files (`grep -rl DiagnosticError tests/`), each
-asserting a substring of the message. That proves a wall still fires; it
+asserting a substring of the message. That proves a guard still fires; it
 does not prove the MESSAGE a designer actually reads still reads the same
 way. `tests/rejections/` is a rustc-"ui test"-style corpus that promotes the
 rendered diagnostic itself to a regression-tested artifact: one deliberately
-broken game per named wall class (`<case>.cardlang`), paired with a golden
+broken game per named guard class (`<case>.cardlang`), paired with a golden
 of exactly what the front end prints for it (`<case>.expected`).
 
 This module is additive. It does not migrate or delete the scattered
 per-module rejection tests — those stay as the fine-grained proof that a
-wall fires from the right AST shape; this corpus is the coarse-grained proof
+guard fires from the right AST shape; this corpus is the coarse-grained proof
 that the message a human reads is still the message that was written.
 
 Rendering
@@ -43,14 +43,14 @@ property:   every `.cardlang` file in `tests/rejections/` is rejected by
             contains only rejected programs), and its rendered diagnostic
             matches its `.expected` golden byte-for-byte.
 domain:     the file-pair registry — `tests/rejections/*.cardlang` paired
-            with `tests/rejections/*.expected`, one pair per named wall
+            with `tests/rejections/*.expected`, one pair per named guard
             class the corpus currently samples.
 registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expected`
             pins both directions of the glob (mirrors the idiom in
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    one case per named wall class (the directory glob is the
+covered:    one case per named guard class (the directory glob is the
             registry; the harness floor-pins a minimum corpus size), each
             independently verified (by reading the produced diagnostic
             while authoring it, not just observing a raise) to fail for its
@@ -68,7 +68,7 @@ covered:    one case per named wall class (the directory glob is the
             {` block), `legal_moves:` naming an unknown move type,
             `rule.constrains:` naming an unknown move type, a reserved-word
             collision (a zone declared `state`), a procedure body binder
-            shadowing its own parameter's name (the one hygiene wall
+            shadowing its own parameter's name (the one hygiene guard
             expansion cannot replace by construction — cardlang/expand.py's
             docstring), a `deal … to each` destination named as a
             subscripted zone rather than the bare family, a game declaring
@@ -77,39 +77,39 @@ covered:    one case per named wall class (the directory glob is the
             tests/fuzz/findings.py's feed-forward rule), both missing at
             once (the bag-plus-note rendering), a repeated single-valued
             game clause (`players:` seeds the class; the closed domain is
-            swept by tests/test_game_clause_walls.py), a source with no
+            swept by tests/test_game_clause_guards.py), a source with no
             `game { }` block, a source with two, an unknown
             `direction:` value, the five misuse probes of the `pieces:`
             content clause — `cards:` and `pieces:` declared together, a
             repeated `pieces:`, an unknown `pieces:` name (listed against
             the piece-flavored registry rows only), a `pieces:` name that
             is a card deck, and a `cards:` name that is a piece set (the
-            fine-grained sweep is tests/test_game_clause_walls.py's
+            fine-grained sweep is tests/test_game_clause_guards.py's
             content-clause section), and a call to either evicted trace
             emitter (`coup_note_reveal` / `tichu_hand_summary`, the
             primitive-sidecars stage-1 removals — the standard
             unknown-function diagnostic, pinned per name because these
             spellings exist in the wild in pre-eviction rules text).
-sampled:    the wall-class population itself — every diagnostic emission
+sampled:    the guard-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language
-            evolves (a new checker rule is a new wall), not a closed
+            evolves (a new checker rule is a new guard), not a closed
             registry this module cross-products against. The fixtures are
-            representative wall classes, one seed per class named above;
+            representative guard classes, one seed per class named above;
             they are not exhaustive over every diagnostic call site in the
-            front end (those stay covered, per-wall, by the scattered
+            front end (those stay covered, per-guard, by the scattered
             `DiagnosticError` tests this corpus does not replace).
-residual:   none named as of this writing. The four wall classes recorded
+residual:   none named as of this writing. The four guard classes recorded
             residual as of the previous writing (raw grammar/syntax errors,
             `legal_moves:`/`rule.constrains:` naming an unknown move type,
             reserved-word collisions, and the procedure-hygiene binder-shadow
-            wall) are now mirrored above; the procedure-hygiene walls beyond
+            guard) are now mirrored above; the procedure-hygiene guards beyond
             the one binder-shadow case stay uncovered here by design, not by
             oversight — `cardlang/expand.py`'s docstring and
             `tests/test_procedures.py`'s own completeness ledger both state
             hygiene is closed BY CONSTRUCTION with exactly one remaining
-            wall, which is the case mirrored here. Per the rule recorded in
-            docs/building.md, a newly written wall ships its own
+            guard, which is the case mirrored here. Per the rule recorded in
+            docs/building.md, a newly written guard ships its own
             rejection-corpus case going forward rather than growing a
             residual list.
 """
@@ -168,7 +168,7 @@ def test_every_cardlang_case_has_a_matching_expected() -> None:
     # commissioned size fails loud instead of silently.
     assert len(cardlang_stems) >= 12, (
         f"tests/rejections/ has only {len(cardlang_stems)} case(s) — the "
-        "corpus is meant to hold at least one case per named wall class "
+        "corpus is meant to hold at least one case per named guard class "
         "(12+); an emptied or broken glob must not go unnoticed"
     )
 

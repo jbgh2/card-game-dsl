@@ -193,7 +193,7 @@ class ZoneStore:
         return self.singles[name]
 
     def instance(self, name: str, key: int | str) -> Zone:
-        # Both lookups fail in the runtime's typed currency, never as a bare
+        # Both lookups fail in the runtime's typed channel, never as a bare
         # KeyError — the name and the key are equally capable of missing, so
         # neither is left to the raw dict.
         #
@@ -202,7 +202,7 @@ class ZoneStore:
         # spell literally (resolve's Card-parameter hand-family rule is the
         # Owner Guard, not an AST provenance). Game-local primitives do not reach
         # here at all — cardlang/runtime/reads.py is their sanctioned path,
-        # holding both lookups to this same currency against its
+        # holding both lookups to this same channel against its
         # declared-reads registry.
         #
         # KEYS, by contrast, are author-reachable: a zone-family subscript's

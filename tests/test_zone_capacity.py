@@ -1,5 +1,5 @@
 """Zone capacity: `ZONE_CAPACITY` (cardlang/stdlib/zones.py) and the movement
-executor's overfill wall (`cardlang/runtime/execute.py::_deposit`).
+executor's overfill guard (`cardlang/runtime/execute.py::_deposit`).
 
 property:   every LIBRARY_ZONE_TYPES row declares a capacity (an int or None
             for unbounded); every runtime append to a zone routes through the
@@ -20,7 +20,7 @@ covered:    the registry-total pin (set(ZONE_CAPACITY) == set(
             succeeds and leaves the zone AT capacity; one more card into
             that now-full Cell overfills); FreeCell (the corpus's one Cell-
             typed game) still typechecks clean and a random playout never
-            trips the wall (its own guard, `cells[slot] is empty`, makes
+            trips the guard (its own guard, `cells[slot] is empty`, makes
             every to_cell move a no-op once the cell is full — direct
             evidence here, corroborated externally by the full
             tests/test_playout_freecell.py run recorded in the task report)
@@ -47,7 +47,7 @@ residual:   the `Point` row (an unbounded stack, backgammon's witness — see
             checks that `play_zone` names a KNOWN zone, never its declared
             TYPE (cardlang/resolve.py, the `nd.play_zone not in zone_names`
             checks) — so a future game pointing a round's play zone at a
-            Cell is reachable IN PRINCIPLE, not statically walled. It is not
+            Cell is reachable IN PRINCIPLE, not statically guarded. It is not
             corpus-reachable today: every round/trick/climb form is card-
             flavored (issue #114), and Cell is
             used by exactly one corpus game (FreeCell), which uses no round
@@ -103,7 +103,7 @@ def test_zone_capacity_is_keyerror_loud_for_an_unknown_type() -> None:
         zone_capacity("NotAZoneType")
 
 
-# --- the overfill wall, driven through a synthetic minimal game ---
+# --- the overfill guard, driven through a synthetic minimal game ---
 
 
 def _dealt_chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
@@ -175,17 +175,17 @@ def test_one_more_card_into_an_already_full_cell_overfills() -> None:
     assert ctx.rs.zones.instance("slot", 0).cards == [HEARTS_A]
 
 
-# --- the negative: FreeCell's honest guards keep the wall from ever firing ---
+# --- the negative: FreeCell's honest guards keep the guard from ever firing ---
 
 
 def test_freecell_corpus_game_still_typechecks_clean() -> None:
     check_source(FREECELL)  # parse -> resolve -> typecheck -> deck-capacity; must not raise
 
 
-def test_freecell_playout_never_trips_the_capacity_wall() -> None:
+def test_freecell_playout_never_trips_the_capacity_guard() -> None:
     """FreeCell's `to_cell` move type guards on `cells[slot] is empty`, so an
     honest playout should never reach `_deposit`'s overfill branch -- a
-    RuntimeError here would mean either the wall or the guard is wrong.
+    RuntimeError here would mean either the guard or the guard is wrong.
     Complements the full tests/test_playout_freecell.py run (its own
     per-decision `len(cell) <= 1` invariant checks), recorded as external
     evidence in the task report."""

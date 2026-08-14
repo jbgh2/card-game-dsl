@@ -43,7 +43,7 @@
 //     staging state still closes legally (Gin's arrange-guard totality,
 //     per card). No `where jointly` selection: canasta108 holds duplicate
 //     identical cards, which the combo block's frozenset canonicalization
-//     cannot tell apart (walled loudly at ActionSpace.for_game).
+//     cannot tell apart (guarded loudly at ActionSpace.for_game).
 //   - The per-(side, rank) melds are eleven team-indexed zone families plus
 //     the black-three go-out pile — the zone-family flattening of
 //     decisions.md "Meld groups: flattened zone families".

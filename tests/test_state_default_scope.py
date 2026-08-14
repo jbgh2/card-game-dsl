@@ -10,7 +10,7 @@ shipped a control-row test COMMANDING that sentence accepted.
 
 The class is not the library, though: after the splice a provided default and a
 game default are the same node in the same block, and a plain game reproduces the
-defect with no `uses` line at all. So the wall is the base language's, swept over
+defect with no `uses` line at all. So the guard is the base language's, swept over
 the whole scope relation rather than patched at the library end (decisions.md
 "Closed-domain completeness": sweep the class, don't patch the instance).
 
@@ -21,7 +21,7 @@ property:   a `state { }` default that `check_dsl` accepts survives declare
             runtime error from evaluating it before the world exists. Every
             cell asserts BOTH halves: refused cells are refused with a located
             diagnostic, accepted cells are actually PLAYED.
-domain:     TWO axes, each read off its own registry rather than off the wall.
+domain:     TWO axes, each read off its own registry rather than off the guard.
 
             (1) The SCOPE relation, for a name in the default's own tree:
             the state-block tree crossed with every declared name. `_BLOCKS`
@@ -31,7 +31,7 @@ domain:     TWO axes, each read off its own registry rather than off the wall.
             to what the code happens to do.
 
             (2) The `n.Expr` UNION — every expression kind the grammar can put
-            in a default position, not the kinds this wall handles. That axis
+            in a default position, not the kinds this guard handles. That axis
             is what found the `Choose` cell, which no witness and no argument
             had suggested: the "two channels, direct and indirect" reasoning
             that preceded it was an argument about NAMES, and a `choose` needs
@@ -54,16 +54,16 @@ sampled:    two shapes, each a single instance standing for a family.
             game with no `teams`, a query over a positional zone — is
             sampled by proxy, not swept. The team case was spot-checked and is
             clean (an empty role domain evaluates to `false`, it does not
-            crash); the rest are unprobed, and belong to whatever wall owns
+            crash); the rest are unprobed, and belong to whatever guard owns
             empty role domains rather than to this one.
 residual:   none. `AllPlayers` was this grid's one open row — `v : Integer =
             all players` was accepted because a default was never checked
-            against its declared type — and it is now closed by the type wall
+            against its declared type — and it is now closed by the type guard
             (`test_state_default_type.py`, decisions.md "State scoping
             (lexical)"), which refuses it along with the other precisely-typed
             mismatches (`StrLit`, `ListLit`). Those three appear in
             `_EXPR_REFUSED` above, refused before declare order is reached; the
-            record that named this residual has moved to the type wall's ledger.
+            record that named this residual has moved to the type guard's ledger.
 """
 
 from __future__ import annotations
@@ -280,13 +280,13 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
     "DomainQuery": ("Boolean", "any column where first > 0", ""),
 }
 
-# Every kind that must be REFUSED, and by whose wall — the grid's property is
-# "accounted for", not "refused by THIS wall", so a cell a sibling default-check
+# Every kind that must be REFUSED, and by whose guard — the grid's property is
+# "accounted for", not "refused by THIS guard", so a cell a sibling default-check
 # owns is listed with the message that check emits. Everything else must survive
 # declare time, asserted by PLAYING it, not by accepting it.
 #   - Call / Choose: this file's `_check_state_default_scope`.
 #   - Member: the pre-existing `state.`-publishes check, long before declare order.
-#   - StrLit / ListLit / AllPlayers: the TYPE wall
+#   - StrLit / ListLit / AllPlayers: the TYPE guard
 #     (`test_state_default_type.py`) — a `String` / collection default cannot fit
 #     the `Integer` these cells declare, so they never reach declare time. This
 #     is where the `AllPlayers` row that was this grid's one residual is closed.
@@ -304,7 +304,7 @@ _EXPR_REFUSED = {
 def test_the_expr_axis_is_the_whole_union() -> None:
     """The grid's second axis is `n.Expr` itself, so an expression kind added to
     the language joins it or fails here. Deriving the axis from the kinds the
-    wall already handles is the failure this guard exists to prevent — it is how
+    guard already handles is the failure this guard exists to prevent — it is how
     the `Choose` cell stayed invisible through an argument that sounded complete.
 
     red under: delete a key from `_EXPR_CELLS`."""
@@ -321,14 +321,14 @@ def test_every_expression_kind_is_accounted_for_in_a_default(kind: str) -> None:
     forbidden outcome is the middle one this whole change exists to remove:
     accepted by `check_dsl`, then dead at declare time.
 
-    A refusal may come from any wall a default passes through — this grid asserts
-    the kind is ACCOUNTED FOR, not that this file's wall is the one that fires.
+    A refusal may come from any guard a default passes through — this grid asserts
+    the kind is ACCOUNTED FOR, not that this file's guard is the one that fires.
     `StrLit`, `ListLit` and `AllPlayers` on an `Integer` var are refused by the
-    type wall (`test_state_default_type.py`), which is where the `AllPlayers` row
+    type guard (`test_state_default_type.py`), which is where the `AllPlayers` row
     that was once this grid's lone residual is now closed.
 
     red under: delete any arm of `_check_state_default_scope` (the Call/Choose
-    rows redden); the type-wall rows have their own red-under in their file."""
+    rows redden); the type-guard rows have their own red-under in their file."""
     type_name, default, tail = _EXPR_CELLS[kind]
     source = f"""
 game Probe {{

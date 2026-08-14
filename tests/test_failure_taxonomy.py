@@ -140,7 +140,7 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # --- the compile passes' own channel -----------------------------------
     # Diagnostics are bag-collected and carry spans; a compile failure is never
     # a play-time refusal, and catching one as a game-description failure would
-    # cross two currencies.
+    # cross two channels.
     "DiagnosticError": {"in_game_description_tree": False, "is_runtime_error": False},
 }
 

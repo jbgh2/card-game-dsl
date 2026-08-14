@@ -260,7 +260,7 @@ def _member(obj: Any, field: str) -> Any:
             # `state.<field>` against the UNION of every form's published set, because
             # a reference is not statically attached to a form (a library rule is
             # activated in context). So a trick game CAN name a climb-published field
-            # and reach here. That makes this a game-description error — the currency
+            # and reach here. That makes this a game-description error — the channel
             # the runtime uses for "the description asked for something impossible at
             # play time" — not a compiler bug, and not a bare KeyError.
             #
@@ -386,7 +386,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
                 # state the checker cannot see. Typed error, not an assert —
                 # the game author wrote a `the player where …` whose premise
                 # failed, and they should hear that in the runtime's failure
-                # currency.
+                # channel.
                 raise OwnerGuardError(
                     f"`the player where …` matched {len(matches)} players, "
                     f"expected exactly 1"

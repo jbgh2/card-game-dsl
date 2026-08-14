@@ -566,7 +566,7 @@ def _untyped_operator(op: str) -> AssertionError:
     """A `BinOp` operator `infer` has no result type for.
 
     Kept out of `infer`'s BinOp arm deliberately: that arm is scraped as the
-    operator registry (tests/test_operator_walls.py reconciles it against
+    operator registry (tests/test_operator_guards.py reconciles it against
     `OP_CLASSES`), so a message with quoted text inside it would read as
     operators. The old blanket `TAny` here meant a NEW operator typed as the
     permissive top and passed every operand Owner Guard silently — the inference-side
@@ -651,7 +651,7 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                 return TPlayer()
             # Every operator the parser builds is typed above; an unrecognized
             # one is loud (the message lives in `_untyped_operator` so this arm
-            # holds operator literals ONLY — tests/test_operator_walls.py
+            # holds operator literals ONLY — tests/test_operator_guards.py
             # scrapes it as the operator registry).
             raise _untyped_operator(e.op)
         case n.Not() | n.IsCheck() | n.Quantifier():
@@ -785,7 +785,7 @@ def _env_miss(kind: str, name: str, env_field: str, builder: str) -> AssertionEr
         f"{kind} '{name}' was classified by resolve but is absent from "
         f"`TypeEnv.{env_field}` — {builder} and the resolver's classification "
         f"have diverged, so this expression would type as the permissive top "
-        f"and every type wall below it would silently pass. This is a checker "
+        f"and every type Owner Guard below it would silently pass. This is a checker "
         f"bug: thread the binding through, never bind `TAny` here to quiet it."
     )
 
@@ -1419,7 +1419,7 @@ def _check_enum_operand(
 # family that determines what a *sound* operand looks like — this is a
 # second, independent read of the same registry (not derived from
 # `infer`'s tuples in code, since their grouping is by *result* type, not
-# operand legality), so `tests/test_operator_walls.py` pins the two against
+# operand legality), so `tests/test_operator_guards.py` pins the two against
 # each other: a new operator landing in `infer` without a matching
 # `OP_CLASSES` entry fails that test instead of silently reaching runtime
 # unchecked.
@@ -2417,8 +2417,8 @@ def _check_stmt_exprs(s: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> None:
             # without procedures silently skipped this arity and argument-type
             # Owner Guard rather than failing, and it is the ONLY place a procedure's
             # parameter annotations bite (after expansion the call site is
-            # gone). See decisions.md, "The permissive top and the lookup-miss
-            # walls" — a fallback standing in for an answer the program has is
+            # gone). See decisions.md, "`Any` means the top,
+            # never a failed lookup" — a fallback standing in for an answer the program has is
             # a silent wrong answer.
             raise _env_miss(
                 "procedure", s.name, "procedures", "`_procedure_sigs`"

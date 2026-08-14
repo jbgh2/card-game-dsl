@@ -125,13 +125,13 @@ def test_enumerate_domain_rejects_card() -> None:
 
 def test_a_domain_with_no_param_spelling_is_walled_at_the_param_column() -> None:
     """`team` is a registry row with `param_domains=()` — quantifiable and iterable,
-    but not a declarable parameter domain. The wall lives in that column, and it is
+    but not a declarable parameter domain. The guard lives in that column, and it is
     the right place for it: `enumerate_domain` refuses the spelling outright, so a
     `Team`-parameterized move can never enumerate zero candidates and die mid-decision
     (an offer with no legal move).
 
     Its `static_members`, by contrast, must be REAL — the deck-capacity gate reads it
-    to know how many times a `for each team` body runs. Walling it too, on the theory
+    to know how many times a `for each team` body runs. Guarding it too, on the theory
     that a domain with no parameter spelling has no static domain at all, would conflate
     two different questions ("can a move range over this?" and "how big is this?"), and
     the gate would pay for it: it would assume every non-player loop runs once, so a

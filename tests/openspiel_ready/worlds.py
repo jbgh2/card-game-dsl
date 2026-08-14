@@ -15,7 +15,7 @@ iff any of:
   (`ActionSpace.decode` of an action id that denotes a Card). These cards
   must sit exactly where world A's deal put them for the same actions to
   replay: a chosen-card action names its card, so moving that card at deal
-  time makes the recorded action illegal (the replay wall raises).
+  time makes the recorded action illegal (the replay guard raises).
 - **log pin** — its identity appears in the observer's observation log at
   the pause: the deal of their own hand, a flip/reveal arrival in an
   identity zone, a pickup arriving in their own hand, their own `chose`
@@ -172,7 +172,7 @@ def permuted_replay(
     permutation: the flattened free-card list shifts by the size of the first
     `rotation` container(s), so consecutive values yield distinct worlds.
 
-    Raises ValueError if the constructed world fails the replay wall — which
+    Raises ValueError if the constructed world fails the replay guard — which
     the entitlement analysis exists to make impossible; a raise here means a
     pin class is missing, and the caller's test should let it propagate."""
     labels = [label for label, cards in plan.free.items() if cards]

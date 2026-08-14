@@ -1,8 +1,8 @@
-// Wall: resolve.py `_resolve_positions`. A declared position may not
+// Guard: resolve.py `_resolve_positions`. A declared position may not
 // reuse a built-in domain id or type spelling, nor a name the game
 // declares as a `type`: the reconciliation between those sources and
 // the per-game block is rejection, so lookups that consult positions
-// first can never shadow a row or a struct. Three sources, one wall —
+// first can never shadow a row or a struct. Three sources, one guard —
 // the declared-type source was added after a review found `positions
 // { R : 1..4 }` beside `type R` silently reading the struct as the
 // position's Integer.

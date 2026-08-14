@@ -84,7 +84,7 @@ covered:    every block in the domain carries a recognized tag
             are each independently proven with synthetic fixtures
             (test_self_*), since the real docs currently contain zero
             `cardlang`, zero `cardlang-bad`, and zero `cardlang-bad-
-            fragment` blocks — the wall still has to have teeth on the day
+            fragment` blocks — the guard still has to have teeth on the day
             one of those tags is used for the first time. For
             cardlang-bad-fragment specifically, the synthetic fixtures also
             prove the negative: a *benign* fragment mistagged
@@ -568,7 +568,7 @@ def _rejected_when_wrapped(
 
 
 # ---------------------------------------------------------------------------
-# The wall: every block must be classified.
+# The guard: every block must be classified.
 # ---------------------------------------------------------------------------
 
 
@@ -731,7 +731,7 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
 # ---------------------------------------------------------------------------
 # Self-tests: prove each code path with synthetic fixtures, independent of
 # what the real docs currently contain (today they hold zero `cardlang`,
-# zero `cardlang-bad`, and zero `cardlang-bad-fragment` blocks — the wall
+# zero `cardlang-bad`, and zero `cardlang-bad-fragment` blocks — the guard
 # must still have teeth).
 # ---------------------------------------------------------------------------
 

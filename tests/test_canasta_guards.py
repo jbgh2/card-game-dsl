@@ -2,7 +2,7 @@
 
 The surface-totality audit's adversarial pass for adding Canasta: no new
 grammar landed, so the probes target the registry seams the new deck and
-primitives open — each proven loud in its layer's failure currency.
+primitives open — each proven loud in its layer's failure channel.
 
 property:   canasta108 is served identically at every deck consumer, and
             every seam it opens fails loud: the ranking-convention path
@@ -24,12 +24,12 @@ covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             tests/test_primitive_reads.py (two-sided row pin, automatic);
             adapter registration: the corpus glob <-> registry pin and the
             proof-module coverage pin (both two-sided, automatic); the
-            probes below (convention wall, combo wall, unknown name, wrong
+            probes below (convention guard, combo guard, unknown name, wrong
             arity); the 54-distinct-card block pin below
 sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
             deal plan (tests/test_playout_canasta.py)
 residual:   joint selections on ANY duplicate-card deck (the combo block's
-            frozenset canonicalization collapses copies) — walled loudly at
+            frozenset canonicalization collapses copies) — guarded loudly at
             ActionSpace.for_game (probed below) and recorded in
             roadmap.md, "Grammar surface deferred by the checker"
 """
@@ -72,7 +72,7 @@ def test_joint_selection_walled_on_a_duplicate_card_deck() -> None:
     # canasta108 holds two copies of every standard card: the combo block's
     # frozenset canonicalization would collide {K♠,K♠} with {K♠}, so a
     # `where jointly` selection on such a deck is refused loudly at action-
-    # space construction — the audit's residual, walled
+    # space construction — the audit's residual, guarded
     # (roadmap.md, "Grammar surface deferred by the checker").
     from cardlang.openspiel.encoding import ActionSpace
 

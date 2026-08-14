@@ -232,7 +232,7 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
     assert not overlap, (
         f"zone and state-variable namespaces share {sorted(overlap)} — T2's "
         "single flat rename map cannot tell which declaration a NameRef of "
-        "that spelling denotes without resolving scope; this backstop has "
+        "that spelling denotes without resolving scope; this Shadow Guard has "
         "not fired against the current corpus (rename.py's module docstring)"
     )
     domain = zone_names | state_names

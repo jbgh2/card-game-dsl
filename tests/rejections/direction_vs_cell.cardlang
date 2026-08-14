@@ -1,4 +1,4 @@
-// Wall: typecheck's equality-operand disjointness rule. A movement direction
+// Guard: typecheck's equality-operand disjointness rule. A movement direction
 // (TDir) and a board cell (TCell) are distinct types with no common value, so
 // `at is along` can never be equal and is rejected. This proves the new TDir
 // does NOT collide with TCell (a silent accept would be the permissive-top

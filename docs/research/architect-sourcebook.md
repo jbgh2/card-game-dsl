@@ -30,7 +30,7 @@ The repo's live tensions this book is aimed at, for orientation:
 - the permissive top and its producer-raises containment
   (decisions.md, "`Any` means the top, never a failed lookup");
 - the corpus-anchored-oracle gap (issues #271, #272, #273);
-- the "accepted-but-ignored" and "wrong-currency failure" defect classes
+- the "accepted-but-ignored" and "wrong-channel failure" defect classes
   (decisions.md, "Surface totality" and "Closed-domain completeness");
 - the seven-stage front-end smear and the Contract-block pass discipline
   (`docs/design-notes/kernel-extensibility.md`; `resolve.py` / `typecheck.py`
@@ -251,7 +251,7 @@ kinds with structural read views) is the standard migration path.
   coercions-not-subtyping while making preservation free.
 - **decisions.md "`Any` means the top, never a failed lookup" is
   independently confirmed doctrine.** The producer-raises discipline (closed
-  registry miss raises in compiler currency; environment miss raises; the
+  registry miss raises in the compiler channel; environment miss raises; the
   permissive set is enumerated and pinned) is the same invariant as
   `ErrorGuaranteed`, enforced socially rather than by construction — rustc
   makes the error type *unconstructible* without the proof token, which is
@@ -355,12 +355,12 @@ tests minimize unrelated noise so snapshots stay reviewable.
 
 - The repo's diagnostic doctrine — `DiagnosticBag`, span plus
   designer-readable message, "on any error it raises with every diagnostic
-  collected, not just the first" (`resolve.py`), and the wrong-currency rule
-  ("a raw registry raise mid-resolve is loud in the wrong currency and
+  collected, not just the first" (`resolve.py`), and the wrong-channel rule
+  ("a raw registry raise mid-resolve is loud in the wrong channel and
   suppresses every other diagnostic in the file", decisions.md
   "Closed-domain completeness") — is the settled practice. What the repo has
   that the literature lacks a name for is the *addressee* discipline
-  (glossary section 5: every failure reported to its Author, in their
+  (glossary/author.md: every failure reported to its Author, in their
   vocabulary — game author, library author, engine maintainer); Elm gestures
   at it, the glossary states it as a rule. Worth keeping as a contribution,
   not an import.
@@ -492,7 +492,7 @@ observable becomes depended-upon, whether promised or not.
   sharing, and the issue's own mechanism-of-arrival note (shared material two
   procedure-calls deep has nowhere to go) is the forcing shape to watch.
 - Surface totality's third state ("grammatically inexpressible") plus the
-  walls ledger (`roadmap.md`) is a *reserved-syntax registry* in evolution
+  guards ledger (`roadmap.md`) is a *reserved-syntax registry* in evolution
   terms — the same instrument Rust uses when it reserves keywords in a new
   edition ahead of features.
 
@@ -670,7 +670,7 @@ Models of Partially Observable Multiagent Decision Making", Artificial
 Intelligence 2022) argues the classical
 extensive-form formalism obscures exactly what algorithms need, and rebuild
 the model on *factored observations distinguishing private and public* — the
-theory-side twin of this repo's projection lattice and its
+theory-side Shadow Guard of this repo's projection lattice and its
 public/private/semi-private event taxonomy (decisions.md, "Formal
 distinctions"). OpenSpiel itself encodes the practice: `spiel.h` requires
 "the information state should be perfect-recall, i.e. if two states have a
@@ -765,7 +765,7 @@ is simply outside the language.
   semantics will be forced fastest by the topology/pose axes
   (generalization-path axes 1-2), which is where Ludii's and RBG's
   board-first designs are the prior art to raid for query-surface shape.
-- The Interop glossary translation table (glossary section 4) and the
+- The Interop glossary translation table (the glossary's OpenSpiel boundary) and the
   seed-at-root chance design map one-to-one onto OpenSpiel's documented node
   kinds; the perfect-recall sentence from `spiel.h` is the external statement
   of the pin `tests/openspiel_ready/` proves per game.
@@ -837,7 +837,7 @@ area(s) whose evidence carries it. Proposals, not spec.
    diagnostic.** Blessed-snapshot testing of rendered diagnostics is the
    settled practice; adopt it the first time a message-quality residual (of
    which #133 is one) is promoted to work. (Area 3)
-7. **Failure currency is addressee, span, and applicability.** A diagnostic
+7. **The failure channel is addressee, span, and applicability.** A diagnostic
    names its Author, points at the smallest span that signifies, and marks
    any suggestion as mechanical or not before tooling may apply it.
    (Area 3; extends existing doctrine with the applicability flag.)
@@ -847,7 +847,7 @@ area(s) whose evidence carries it. Proposals, not spec.
    ignoring: a version header, if reserved, parses and statically rejects
    every value but the current version — an accepted-but-ignored header is
    exactly the silent trap "Surface totality" names, and this book may not
-   recommend one. (Area 4; the reservation-by-wall pattern is already house
+   recommend one. (Area 4; the reservation-by-guard pattern is already house
    practice.)
 9. **The grammar is the single source; every scrape of it is derived and
    pinned.** Keyword-identifier collision is permanently the grammar

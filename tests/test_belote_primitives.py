@@ -6,7 +6,7 @@ Completeness ledger (surface-totality-audit)
 --------------------------------------------
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of the new stdlib
-            names fails loud in the owning layer's currency
+            names fails loud in the owning layer's channel
 domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_WINNERS
             row x {name, arity, param types, dispatch arm,
             reads row} + the primitives' own value domains (32 ranks x
@@ -19,7 +19,7 @@ registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             (glob-pinned by tests/test_typecheck_corpus.py)
 covered:    name/arity/type misuse at resolve/typecheck (the five probes
             below, each a DiagnosticError with a span); the trick/auction
-            outcome-namespace crossings both ways; the runtime walls
+            outcome-namespace crossings both ways; the runtime guards
             (non-pack rank, non-class guard argument) as typed errors;
             decomposition known-values for every combination class, the
             natural (non-play) sequence order, the carre-first overlap
@@ -32,12 +32,12 @@ sampled:    the ctx-reading accessors (belote_decl_* / opp_winning /
             window, and settlement from traces) and the proof module's
             pinned lines (tests/openspiel_ready/test_belote.py) rather
             than by synthetic RuntimeState fixtures here
-residual:   the premature-call walls (`belote_opp_winning` /
+residual:   the premature-call guards (`belote_opp_winning` /
             `belote_royal_player` outside any round; opp_winning with no
             actor) are loud typed RuntimeErrors by construction (the
             `_round_state` / actor guards) but reachable only from a game
-            file no corpus game resembles; they carry their wall in the
-            primitive itself and need no roadmap record (the wall exists;
+            file no corpus game resembles; they carry their guard in the
+            primitive itself and need no roadmap record (the guard exists;
             only a synthetic-fixture probe is deferred)
 """
 
@@ -157,7 +157,7 @@ def test_best_combination_ordering_class_then_height_then_trump() -> None:
     assert combos[0] == (1, 8, True, 20)
 
 
-# --- the runtime walls (typed, at the cause) ---
+# --- the runtime guards (typed, at the cause) ---
 
 
 def test_trump_height_rejects_a_non_pack_rank() -> None:
@@ -166,7 +166,7 @@ def test_trump_height_rejects_a_non_pack_rank() -> None:
 
 
 def test_best_is_rejects_a_non_class_argument() -> None:
-    # The class wall fires before any bundle read, so no runtime state is
+    # The class guard fires before any bundle read, so no runtime state is
     # needed to probe it (the argument is a literal in the game file).
     with pytest.raises(OwnerGuardError, match="not a declaration class"):
         belote_best_is(
@@ -174,7 +174,7 @@ def test_best_is_rejects_a_non_class_argument() -> None:
         )
 
 
-# --- misuse probes: the new stdlib names, in the owning layer's currency ---
+# --- misuse probes: the new stdlib names, in the owning layer's channel ---
 
 
 def _expect_rejected(text: str, fragment: str) -> None:

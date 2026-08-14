@@ -34,7 +34,7 @@ def test_round_winner_fn_rejected_as_early_predicate() -> None:
 
 def test_early_predicate_rejected_as_winner_fn() -> None:
     """The converse direction: an early predicate ((card, led_suit) -> Boolean)
-    is not a valid trick winner function. Both directions of the partition are walled,
+    is not a valid trick winner function. Both directions of the partition are guarded,
     which is why the `early` set sits deliberately outside PRIMITIVE_VALUE_NAMES
     even though the runtime dispatches both through `value_function`.
 

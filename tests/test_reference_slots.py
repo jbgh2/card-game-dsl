@@ -6,7 +6,7 @@ once and every consumer then reads off `ref_kind`. A minority hold their name as
 a plain string, and a pass built on `NameRef` is structurally blind to those.
 The blindness is not a design boundary: it is whichever consumer forgot the slot
 exists, which is how a family library could reach past its `requires` contract
-through `turns … again <var>` while the wall next door reported the property
+through `turns … again <var>` while the guard next door reported the property
 proven (issue #138).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -471,7 +471,7 @@ def test_slot_namespace_answers_only_for_references() -> None:
 
 
 def test_the_offering_rename_is_complete_in_the_package() -> None:
-    """"vocabulary" is retired from `cardlang/` (issue #206, glossary section 2).
+    """"vocabulary" is retired from `cardlang/` (issue #206, docs/glossary/offering.md).
 
     The word had three senses in code — the OFFERING (a menu of moves presented
     to a decider), the word-stock the DSL gives designers, and assorted closed

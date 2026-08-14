@@ -1,4 +1,4 @@
-"""Operator-axis totality for the BinOp operand walls (typecheck.py's
+"""Operator-axis totality for the BinOp operand guards (typecheck.py's
 `_check_binop` dispatcher and its six per-class helpers).
 
 Completeness ledger
@@ -22,7 +22,7 @@ registry:  `OP_CLASSES` (operator -> class) pinned against `infer`'s BinOp
 covered:   (class, operand-type) cells with an executed probe in this
            module:
              equality    x TEnum(cross-enum), TEnum-vs-Integer  [pre-existing
-                          wall, re-probed here for the dispatcher wiring],
+                          guard, re-probed here for the dispatcher wiring],
                           TEnum-vs-TCard (reject + whole-card hint),
                           TEnum-vs-TBoolean (reject) — the default arm that
                           makes `_check_enum_operand` total over concrete
@@ -73,7 +73,7 @@ residual:  a `let` whose initializer itself types `TAny` (an unregistered
            later — the same rule as everywhere else `TAny` flows, not a
            blind spot of the walk. `let`-bound locals are otherwise TYPED
            across statements (the sequential fold in `_seq_tree_scoped`,
-           resolved by `_scoped_env`), so every wall in this module fires
+           resolved by `_scoped_env`), so every guard in this module fires
            through a `let` exactly as it fires on the inline expression —
            pinned by the let-laundered probes in this module and the
            dedicated ledger in tests/test_let_typing.py.
@@ -130,7 +130,7 @@ def _rejects(src: str, needle: str) -> None:
 
 
 def test_op_classes_is_exactly_infers_binop_registry() -> None:
-    """`OP_CLASSES` (the operand-wall dispatcher's registry) must classify
+    """`OP_CLASSES` (the operand-guard dispatcher's registry) must classify
     every operator `infer`'s BinOp arm recognizes — no more, no less.
     Scraped from `infer`'s own source (the three `e.op in (...)` / `==`
     tuples) rather than hand-copied, so a new operator added to `infer`
@@ -147,7 +147,7 @@ def test_op_classes_is_exactly_infers_binop_registry() -> None:
 
 def test_an_unclassified_operator_fails_loud_not_silent() -> None:
     """`_op_class` itself, exercised directly: every real operator classifies
-    (no AssertionError) — the runtime backstop behind the static pin above."""
+    (no AssertionError) — the runtime Shadow Guard behind the static pin above."""
     from cardlang.typecheck import _op_class
 
     for op in OP_CLASSES:
@@ -157,7 +157,7 @@ def test_an_unclassified_operator_fails_loud_not_silent() -> None:
 
 
 # =============================================================================
-# equality (==, !=) — the dispatcher re-wires the pre-existing enum wall
+# equality (==, !=) — the dispatcher re-wires the pre-existing enum guard
 # =============================================================================
 
 
@@ -197,7 +197,7 @@ def test_equality_enum_vs_boolean_rejected_by_the_default_arm() -> None:
 
 
 def test_membership_literal_list_rejects_a_card_element() -> None:
-    # The literal-list path routes through the same per-element enum wall, so
+    # The literal-list path routes through the same per-element enum guard, so
     # the default arm closes it too: a Card in a Suit-compared list is never
     # true, and without that arm would slip past the early return.
     _rejects(
@@ -297,7 +297,7 @@ def test_logical_accepts_booleans() -> None:
 def test_logical_rejects_a_smuggled_integer_even_though_and_infers_boolean() -> None:
     # `and`'s own infer() arm is a fixed TBoolean regardless of its operands,
     # so a bug like `if (a and 3) {...}` is invisible to a top-level Boolean
-    # check on the whole `if` condition — this wall catches it at the
+    # check on the whole `if` condition — this guard catches it at the
     # operator itself. THE PROBE: a plausible typo (`score[0] and 3` where
     # the author meant `score[0] > 0 and 3 > 1` or similar) must reject.
     _rejects(
@@ -334,7 +334,7 @@ def test_membership_rejects_non_collection_right_hand_side() -> None:
 
 def test_membership_rejects_integer_against_a_suit_list() -> None:
     # The headline probe: `Integer in [hearts, spades]` — the general
-    # `unify`-based wall, not the enum-literal path (the left operand
+    # `unify`-based guard, not the enum-literal path (the left operand
     # isn't itself an enum).
     _rejects(
         _game("let probe = 3 in [hearts, spades]"),
@@ -353,7 +353,7 @@ def test_membership_rejects_a_suit_against_a_card_collection() -> None:
 def test_membership_keeps_the_enum_literal_list_validation() -> None:
     # doppelkopf.cardlang's real shape: `card.rank in [A, "10"]` must stay
     # legal (the retained ListLit per-element path, not the general unify
-    # wall — the list's inferred element type is TAny-ish across mixed
+    # guard — the list's inferred element type is TAny-ish across mixed
     # literal forms, so only the literal-by-literal check catches misuse).
     _accepts(
         _game(
@@ -416,7 +416,7 @@ def test_offset_by_rejects_a_non_direction_right_operand() -> None:
 
 
 def test_offset_by_types_through_a_let() -> None:
-    # Lets are typed, so this pins the wall in both
+    # Lets are typed, so this pins the guard in both
     # directions: a Player-valued let is a legal receiver on its own merits,
     # and an Integer-valued let is rejected exactly as the inline literal
     # would be.
@@ -433,7 +433,7 @@ def test_offset_by_types_through_a_let() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The equality wall's operand matrix — swept over the type registry
+# The equality guard's operand matrix — swept over the type registry
 # ---------------------------------------------------------------------------
 
 _EQ_GAME = """
@@ -467,7 +467,7 @@ game G {{
 # not hand-listed: a new declarable type lands here as a KeyError until someone
 # gives it an operand and classifies its row, which is the whole point of a
 # registry-derived matrix (a ledger claiming this over a hand-listed literal
-# would be the "measuring the wall against itself" trap).
+# would be the "measuring the guard against itself" trap).
 _OPERAND_FOR = {
     "Boolean": "flag",
     "Integer": "n",
@@ -503,13 +503,13 @@ _COMPARABLE |= {
 def test_equality_operand_matrix(left: str, right: str) -> None:
     """The full cross-product of the scalar type registry under `is`.
 
-    Were this wall to fire only when one side is an enum, an entire row would go
+    Were this guard to fire only when one side is an enum, an entire row would go
     dark: `flag is hearts`, `flag is 1`, `flag is "x"`, `n is "x"`, `who is "x"`
     would all be accepted — comparisons that are ALWAYS FALSE. Boolean is the
     easy one to miss: a typed round-state pronoun makes
     `state.trick_terminated_early` a Boolean, so a Boolean-vs-enum comparison is
     a spelling a designer reaches for. Per decisions.md "Closed-domain
-    completeness" the wall sweeps the whole class, and this matrix is what keeps
+    completeness" the guard sweeps the whole class, and this matrix is what keeps
     it swept."""
     pred = f"{_OPERANDS[left]} is {_OPERANDS[right]}"
     src = _EQ_GAME.format(pred=pred)

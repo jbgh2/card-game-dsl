@@ -9,7 +9,7 @@ exit 0 — GREEN. That is the "vacuously green" class (`docs/decisions.md`,
 "Closed-domain completeness") defeating the mechanism this repo leans on most,
 an axis derived in code from a registry or a filesystem glob.
 
-The wall is pytest's own: `empty_parameter_set_mark = "fail_at_collect"` in
+The guard is pytest's own: `empty_parameter_set_mark = "fail_at_collect"` in
 `pyproject.toml`. It is preferred to a scrape or a collect-the-suite test for a
 reason that is derived, not assumed — every parameter set in pytest is born at
 one choke point, `ParameterSet._for_parametrize`, so the flag covers
@@ -24,7 +24,7 @@ What the flag cannot know is that an axis is empty *on purpose*. Three are:
 the live docs hold zero `cardlang`, zero `cardlang-bad` and zero
 `cardlang-bad-fragment` blocks, and `tests/test_doc_snippets.py` proves those
 code paths with synthetic fixtures instead. So the flag is the deny-everything
-wall and `tests/empty_axis.py`'s `may_be_empty` is the only door through it:
+guard and `tests/empty_axis.py`'s `may_be_empty` is the only door through it:
 the reason rides at the call site, the set of call sites is pinned below, and
 an authorized axis that STOPS being empty fails loud — the `xfail_strict`
 bargain, so closing the gap forces the record of it to be updated in the same
@@ -62,7 +62,7 @@ registry:   `_birth_sites()` derives the site axis from `_pytest/**/*.py` by
             AST — a pytest release that grows a fourth site reddens it by name.
             `_authorized_empty_axes()` derives the authorization table from
             `tests/**/*.py` by AST. `pyproject.toml`'s
-            `empty_parameter_set_mark` is the wall itself.
+            `empty_parameter_set_mark` is the guard itself.
 covered:    the grid — `test_the_wall_holds_at_every_birth_site`, ten cells
             (`_GRID`), each a generated module run under a real sub-pytest
             against this repo's own ini file, asserting the collection error or
@@ -70,10 +70,10 @@ covered:    the grid — `test_the_wall_holds_at_every_birth_site`, ten cells
             makes: the site axis pin
             (`test_the_birth_sites_are_the_ones_pytest_has`), whose scrape is
             proven to fire against a synthetic tree
-            (`test_the_birth_site_scrape_can_see_a_call`); the wall's
+            (`test_the_birth_site_scrape_can_see_a_call`); the guard's
             installation (`test_the_wall_is_installed`); the authorization
             table (`test_every_authorized_empty_axis_is_pinned`) and the
-            attribution wall that makes it total
+            attribution guard that makes it total
             (`test_every_helper_call_is_attributed_to_a_test`), whose scrapes
             are likewise proven to fire
             (`test_the_authorization_scrape_can_see_a_call`); the door's two
@@ -90,7 +90,7 @@ covered:    the grid — `test_the_wall_holds_at_every_birth_site`, ten cells
             CI always installs it. Every pin above that was born green carries
             its reddening mutation in its own docstring, run and reverted.
 sampled:    none. Every cell of the crossed domain is an executed row.
-residual:   FIVE, each with its wall or its owner:
+residual:   FIVE, each with its guard or its owner:
             (1) an axis that NARROWS without reaching zero (a glob matching 3
             of 60 modules) is the same defect and no count-based check sees it.
             Deliberately not machinery: issue #143's scope note for #150 rules
@@ -100,14 +100,14 @@ residual:   FIVE, each with its wall or its owner:
             (2) a nonempty axis every row of which skips at RUN time
             (`tests/test_family_libraries.py`, `tests/fuzz/test_fuzz.py` call
             `pytest.skip()` from inside the test body) evaporates the same
-            guarantee one stage later, where a collection-time wall cannot
-            reach. No wall; recorded as issue #162 — R4, and filed anyway
+            guarantee one stage later, where a collection-time guard cannot
+            reach. No guard; recorded as issue #162 — R4, and filed anyway
             because the guarantee it guards (a check that claims coverage
             actually runs) is rigor-critical.
             (3) a module that skips itself at COLLECTION takes every test in it
-            away. Today that is only `pytest.importorskip("pyspiel")`, walled
+            away. Today that is only `pytest.importorskip("pyspiel")`, guarded
             by `tests/test_optional_pyspiel.py::test_every_test_module_imports_without_pyspiel`
-            plus CI installing the extra — a wall that exists, in another
+            plus CI installing the extra — a guard that exists, in another
             module, so it is named rather than rebuilt. R4 — reaching it
             takes a test author adding an `importorskip`, or an install
             without the extra.
@@ -115,7 +115,7 @@ residual:   FIVE, each with its wall or its owner:
             at the call site, but nothing checks that it stays true; the
             staleness pin covers the case that actually bites (the axis becomes
             nonempty). R4, this ledger owns the record.
-            (5) the wall is ini configuration, so `-o
+            (5) the guard is ini configuration, so `-o
             empty_parameter_set_mark=skip` on a command line disables it for
             that run, and a hand-written `pytest.param(..., marks=skip)`
             bypasses the door without touching the pin. Both are deliberate
@@ -180,7 +180,7 @@ def _birth_sites(root: pathlib.Path = _PYTEST) -> dict[str, list[str]]:
 
 
 # The choke point has ONE caller, and that caller has two internal ones. This is
-# the whole reason the ini flag is the wall rather than a scrape of our own: all
+# the whole reason the ini flag is the guard rather than a scrape of our own: all
 # three surface spellings funnel through a single gate, so covering the gate
 # covers spellings nobody has written yet.
 _BIRTH_SITES = {
@@ -269,11 +269,11 @@ def _probe_source(site: str, authorized: bool, argcount: int) -> str:
             "def test_cell(a0):\n"
             "    assert False\n"
         )
-    raise AssertionError(f"unknown birth site {site!r}")  # backstop: _GRID owns the axis
+    raise AssertionError(f"unknown birth site {site!r}")  # Shadow Guard: _GRID owns the axis
 
 
 # Every cell of the crossed domain, and the outcome each one is DESIGNED to
-# have. `collect_error`: the wall fires and collection stops. `authorized_skip`:
+# have. `collect_error`: the guard fires and collection stops. `authorized_skip`:
 # the door opens and exactly one placeholder is skipped, carrying its reason.
 # Arity 2 exists only where the site admits several names; a fixture yields one
 # value, so `fixture_params` has no arity-2 cell to write.
@@ -339,7 +339,7 @@ def test_the_wall_holds_at_every_birth_site(
     if expected == "collect_error":
         assert proc.returncode != 0, (
             f"{site}/arity {argcount}: an empty axis collected cleanly — the "
-            f"wall does not reach this birth site.\n{out}"
+            f"guard does not reach this birth site.\n{out}"
         )
         assert "Empty parameter set" in out, (
             f"{site}/arity {argcount}: the run failed, but not for the empty "
@@ -357,7 +357,7 @@ def test_the_wall_holds_at_every_birth_site(
 
 
 def test_the_wall_is_installed(request: pytest.FixtureRequest) -> None:
-    """The grid proves what the wall DOES; this proves this repo has it.
+    """The grid proves what the guard DOES; this proves this repo has it.
 
     red under: delete `empty_parameter_set_mark` from `[tool.pytest.ini_options]`
     in pyproject.toml."""
@@ -380,7 +380,7 @@ def _helper_calls(tree: ast.AST) -> list[ast.Call]:
 
     `ast.Attribute` counts: `ea.may_be_empty(...)` after `import
     tests.empty_axis as ea` is the same call, and matching only the bare name
-    would hide it from BOTH the attribution table and the stray wall — an
+    would hide it from BOTH the attribution table and the stray guard — an
     authorized axis with no row anywhere, which is a hole rather than an
     under-report. Enumerating one spelling is the deny-list this repo forbids,
     and `tests/test_role_comparison_pin.py` records it missing four shapes that
@@ -401,7 +401,7 @@ def _authorized_empty_axes(root: pathlib.Path = _TESTS) -> dict[str, list[str]]:
 
     Attribution is by DECORATOR: a `may_be_empty` call inside a test function's
     decorator list names that function. A call anywhere else is not attributed,
-    which would leave it outside the pin — so it is walled instead, by
+    which would leave it outside the pin — so it is guarded instead, by
     `test_every_helper_call_is_attributed_to_a_test`.
 
     The helper's name appears in this module only inside generated source
@@ -494,7 +494,7 @@ def test_the_authorization_scrape_can_see_a_call(tmp_path: pathlib.Path) -> None
     """Both scrapes above are load-bearing, so prove they FIRE.
 
     A scrape that matched nothing would also be green against the real tree —
-    `_AUTHORIZED_EMPTY_AXES` would just be `{}`, and the wall would be a check
+    `_AUTHORIZED_EMPTY_AXES` would just be `{}`, and the guard would be a check
     that cannot fail. Fed a synthetic tree carrying an attributed call under
     each of the helper's two spellings — bare name, and qualified through a
     module alias — plus one stray call and one decorated test that does not use
@@ -569,12 +569,12 @@ def test_a_refused_authorization_stops_collection(
     `OutcomeException` pytest deliberately special-cases at import time: that is
     how `importorskip` retires a whole module quietly. Asserting the function
     raises when called from a test body (the two tests below) proves the
-    function raises; it does not prove the currency survives the trip. If it did
+    function raises; it does not prove the channel survives the trip. If it did
     not, this whole mechanism would be the vacuously-green class it exists to
     stop.
 
     red under: swap either refusal in `tests/empty_axis.py` for
-    `pytest.skip(reason=..., allow_module_level=True)`, the currency
+    `pytest.skip(reason=..., allow_module_level=True)`, the channel
     `importorskip` uses — the module retires itself, the reason never reaches
     the output, and the run reports no tests collected instead of the refusal.
     Note which assertion catches that: the returncode one does NOT, because
@@ -603,7 +603,7 @@ def test_an_argcount_mismatch_is_loud() -> None:
     """A placeholder of the wrong arity is refused by pytest itself, at
     collection, naming both counts — so `may_be_empty` does not re-check it.
 
-    This is a backstop's docstring, not a wall: the wall is pytest's own
+    This is a backstop's docstring, not a guard: the guard is pytest's own
     `ParameterSet._for_parametrize` length check. Pinned because "the layer
     below catches it" is exactly the claim that goes stale unnoticed."""
     probe = _probe_source("parametrize_mark", authorized=True, argcount=1).replace(
@@ -615,7 +615,7 @@ def test_an_argcount_mismatch_is_loud() -> None:
 
 
 def test_the_suite_collects_clean_without_pyspiel() -> None:
-    """The wall must hold on a core install, which no other gate collects under.
+    """The guard must hold on a core install, which no other gate collects under.
 
     The flag converts a skip into a hard collection ERROR, so an axis that is
     nonempty only because the `openspiel` extra is present would take its whole

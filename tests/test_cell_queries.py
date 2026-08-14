@@ -1,4 +1,4 @@
-"""Cell and line queries: the position-quantifier wall lift, with `lines(k)`.
+"""Cell and line queries: the position-quantifier guard lift, with `lines(k)`.
 
 The bare quantifier forms (`any <domain> where …`, `all <domain>s where …`,
 `number of <domain>s where …`) now range over ANY declared position domain —
@@ -7,7 +7,7 @@ like the fixed `player`/`team`/`suit`/`rank` forms range over their own
 domains. Two COLLECTION forms iterate an evaluated line/cell collection:
 `any line in <expr> where …` (binds `line`) and `all cells in <expr> where …`
 (binds `cell`). `lines(k)` is the stdlib call a board's declared lines are
-read through. This is the rung-1 wall lift decisions.md "Position domains
+read through. This is the rung-1 guard lift decisions.md "Position domains
 and positional zones" and "Boards and cells" describe; the grammar, resolve,
 typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`
 (`q_any_domain`/`q_all_domain`/`q_count_domain`/`q_any_in`/`q_all_in`),
@@ -58,7 +58,7 @@ covered:    grammar precedence — every fixed keyword form (any player/all
             bare form, integer member (TInteger) — `any column where
             cascade[column] is empty` legal and runtime-correct in a
             FreeCell-shaped positions{}-declaring fixture (empty -> True,
-            full -> False) — the wall lift is one mechanism, both member
+            full -> False) — the guard lift is one mechanism, both member
             kinds;
             collection form — `any line in lines(3) where all cells in line
             where …` false on an empty/partial/draw board, true exactly when
@@ -73,7 +73,7 @@ covered:    grammar precedence — every fixed keyword form (any player/all
             using the INNER rebind (proven both ways it could land: an
             empty-board probe that is only true under the inner reading,
             and a full-board probe that is only false under the inner
-            reading — the existing lexical-shadow rule, not a new wall);
+            reading — the existing lexical-shadow rule, not a new guard);
             IR emission — the bare and collection forms both emit
             `{"kind": "domain_query", ...}` with the documented key set;
             rejections, each pinning the exact diagnostic and the layer
@@ -89,9 +89,9 @@ covered:    grammar precedence — every fixed keyword form (any player/all
             …` (grammar — tests/rejections/
             cell_count_in_collection_not_admitted.cardlang); a cross-
             reference probe that `any suit where` in a piece game still
-            hits Task 3's flavor wall (QNOUN's keyword exclusion routes it
+            hits Task 3's flavor guard (QNOUN's keyword exclusion routes it
             to the FIXED `Quantifier` production, never `q_any_domain` — the
-            noun exclusion IS the wall, nothing new to test beyond routing).
+            noun exclusion IS the guard, nothing new to test beyond routing).
 sampled:    the integer-domain positive row is one fixture (a FreeCell-
             shaped `column` domain), not a sweep over every declared-
             positions{} shape — Task 6's test_board_clause.py and
@@ -107,9 +107,9 @@ residual:   collection-noun quantifiers beyond {cell, line}; the missing
             aggregation over a cell/line collection (`sum of … over cells
             in … where …` — `agg_query` stays fixed to `"cards" "in"
             zone_expr`); the non-literal-`k` `lines(k)` static bound (only
-            a literal integer argument is resolve-walled; a computed `k`'s
+            a literal integer argument is resolve-guarded; a computed `k`'s
             out-of-range value surfaces as a runtime `RuntimeError` instead)
-            — all four recorded in issue #111, each with the wall that makes it loud rather than
+            — all four recorded in issue #111, each with the guard that makes it loud rather than
             silent (a syntax error, or the runtime refusal) rather than a
             TODO.
 
@@ -170,7 +170,7 @@ NINE_CELLS = ("a1", "b1", "c1", "a2", "b2", "c2", "a3", "b3", "c3")
 #
 # `board_game` mirrors tests/test_board_clause.py's builder of the same name
 # (kept local, not imported, matching this corpus's per-module convention —
-# tests/test_piece_content_walls.py's card_game/piece_game do the same).
+# tests/test_piece_content_guards.py's card_game/piece_game do the same).
 
 
 def board_game(
@@ -220,7 +220,7 @@ def board_game(
 def card_game(*, body: str) -> str:
     """A minimal BOARDLESS, POSITIONLESS card game — the universe every
     "unknown position domain" diagnostic must fall back to. Mirrors
-    tests/test_piece_content_walls.py's `card_game`."""
+    tests/test_piece_content_guards.py's `card_game`."""
     return (
         "game G {\n"
         "  players: 2\n"
@@ -613,7 +613,7 @@ def test_scripted_full_board_draw_flips_all_cells_and_count_at_nine() -> None:
 
 
 # =============================================================================
-# Positive: bare quantifier over an INTEGER position domain (the wall lift
+# Positive: bare quantifier over an INTEGER position domain (the guard lift
 # covers both member kinds through one mechanism)
 # =============================================================================
 
@@ -636,7 +636,7 @@ def test_bare_quantifier_over_integer_domain_false_when_all_columns_full() -> No
 
 # =============================================================================
 # Positive: nested collection-binder shadowing (the existing lexical-shadow
-# rule, not a new wall -- proven both ways so the assertion cannot pass under
+# rule, not a new guard -- proven both ways so the assertion cannot pass under
 # the WRONG reading by accident).
 # =============================================================================
 
@@ -743,7 +743,7 @@ def test_bare_number_of_cells_in_a_boardless_positionless_game_names_the_collect
 
 def test_noun_element_mismatch_any_cell_in_lines_where() -> None:
     # lines(3)'s elements are LINES, not cells -- `cell` demands a single
-    # line as its source (the typecheck wall, not resolve: the noun `cell`
+    # line as its source (the typecheck guard, not resolve: the noun `cell`
     # is admitted, only its source's SHAPE is wrong).
     src = board_game(
         moves=(
@@ -765,7 +765,7 @@ def test_noun_element_mismatch_any_cell_in_lines_where() -> None:
 
 def test_wrong_type_collection_source_all_cells_in_a_zone() -> None:
     # `box` is a real Deck zone (not a cell literal, which would hit the
-    # unrelated cell-constant residual wall first) -- a Collection<Card>,
+    # unrelated cell-constant residual guard first) -- a Collection<Card>,
     # not a TLine, so `cell`'s single-line source demand rejects it.
     src = board_game(
         moves=(
@@ -809,8 +809,8 @@ def test_lines_out_of_range_literal_is_a_static_resolve_error() -> None:
 
 
 def test_lines_out_of_range_at_runtime_is_a_typed_error() -> None:
-    """The resolve wall covers a LITERAL out-of-range k; a k only knowable at
-    runtime reaches the `_lines` backstop, which must raise a typed
+    """The resolve guard covers a LITERAL out-of-range k; a k only knowable at
+    runtime reaches the `_lines` Shadow Guard, which must raise a typed
     RuntimeError, never let the underlying ValueError escape the boundary."""
     game = check_dsl(_board_probe_src("done"), "probe.cardlang")
     ctx = _board_ctx(game, {})
@@ -838,15 +838,15 @@ def test_binder_escapes_its_quantifier_scope() -> None:
 
 # `for each cell` -- the STATEMENT twin of this module's quantifier register --
 # is live from rung 2 (breakthrough's setup array is the witness that lifted the
-# `for each <position>` residual). Its grid, and the integer-position wall that
+# `for each <position>` residual). Its grid, and the integer-position guard that
 # did NOT lift with it, are tests/test_cell_iteration.py.
 
 
-def test_suit_quantifier_in_a_piece_game_still_hits_the_task_3_flavor_wall() -> None:
-    # Cross-reference, not a re-wall: QNOUN excludes suit/rank/player/team/
+def test_suit_quantifier_in_a_piece_game_still_hits_the_task_3_flavor_guard() -> None:
+    # Cross-reference, not a re-guard: QNOUN excludes suit/rank/player/team/
     # card spellings, so `any suit where` can only derive the FIXED
     # `Quantifier` production (q_any_suit), which Task 3 already rejects in
-    # a piece game. The noun exclusion IS the wall; this pins the routing.
+    # a piece game. The noun exclusion IS the guard; this pins the routing.
     src = board_game(
         moves=(
             "move_type place(at : cell) {\n"
@@ -872,7 +872,7 @@ def test_collection_noun_registries_agree() -> None:
     # and typecheck's `_COLLECTION_BINDER_TYPES` (types the admitted binder, via
     # a `.get(noun, TAny())` recovery fallback). A noun added to the resolve
     # gate alone would be admitted, then silently typed `TAny` — the permissive
-    # top quieting every downstream wall on it. This pins the two sites to one
+    # top quieting every downstream guard on it. This pins the two sites to one
     # domain so the drift reddens here instead.
     # red under: adding `"region"` to `_COLLECTION_NOUNS` without a matching
     # `_COLLECTION_BINDER_TYPES` row reddens this assertion.

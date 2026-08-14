@@ -35,9 +35,9 @@ KEY. Those are `str` and must stay `str` -- there is no role to promote. But
 they are also exactly what a future role dispatch would look like on its way
 in, spelled as a string because nobody classified it.
 
-So the coincidence band is walled by multiset: every string literal under
+So the coincidence band is guarded by multiset: every string literal under
 `cardlang/` that COINCIDES with a role spelling is authorized, per module. The
-wall does not classify a literal; it forces a new one to be looked at, and the
+guard does not classify a literal; it forces a new one to be looked at, and the
 question it forces is the useful one -- *is this a role, and should it be a
 `Role`?*
 
@@ -51,12 +51,12 @@ domain:     the first half is mypy's, over every expression in the package --
             The second half is every `str` constant under `cardlang/**/*.py[i]`
             whose value equals a role spelling, crossed with the module it sits
             in. Both axes DERIVED: the role ids from `domains.Role` (so adding
-            a row widens the wall without editing it), the module set from the
+            a row widens the guard without editing it), the module set from the
             filesystem glob (so a new module is covered the day it lands).
 registry:   `cardlang.domains.Role` for the spellings; `cardlang/**/*.py[i]`
             for the modules.
-covered:    the multiset wall over every coincident literal in every module
-            (`test_role_spellings_outside_the_type_are_walled`); the derivation
+covered:    the multiset guard over every coincident literal in every module
+            (`test_role_spellings_outside_the_type_are_guarded`); the derivation
             pin (`test_the_role_axis_follows_whatever_registry_it_is_given`),
             which calls the derivation with a SYNTHETIC registry so a
             hand-written set fails even when it happens to equal today's; and
@@ -128,7 +128,7 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
     """Every string literal that spells a role id, per module.
 
     Read from the AST, not the text, so a role id inside a COMMENT is not a hit
-    (this module's own prose would otherwise wall itself) while a role id
+    (this module's own prose would otherwise guard itself) while a role id
     inside a string literal is -- which is the right way round: the comment
     cannot become a dispatch, the literal can.
 
@@ -177,10 +177,10 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
 }
 
 
-def test_role_spellings_outside_the_type_are_walled() -> None:
+def test_role_spellings_outside_the_type_are_guarded() -> None:
     """Every string that spells a role is an authorized coincidence.
 
-    This is also what makes the wall non-vacuous in the deleting direction: an
+    This is also what makes the guard non-vacuous in the deleting direction: an
     empty derivation is compared against a nonempty baseline and fails by name,
     so a `_PACKAGE` that resolves to nothing cannot pass.
 
@@ -214,8 +214,8 @@ def test_the_role_axis_follows_whatever_registry_it_is_given() -> None:
         replace(DOMAINS[1], id=_Fake("gambit")),  # type: ignore[arg-type]
     ]
     assert _role_ids(synthetic) == {"strain", "gambit"}
-    # Backstop, not a wall: an empty real registry is already caught by the
-    # multiset wall above (no role ids -> no literals -> empty derivation), but
+    # Shadow Guard, not a guard: an empty real registry is already caught by the
+    # multiset guard above (no role ids -> no literals -> empty derivation), but
     # that failure reads as a table diff. This one names the cause.
     assert _ROLE_IDS, "the registry yielded no roles — the derivation is broken"
 

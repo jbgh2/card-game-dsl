@@ -501,8 +501,8 @@ class ClimbForm:
         ]
         if not self.ring:
             # Runtime DATA, not a compiler invariant: nobody satisfies `over`,
-            # so there is no one to lead and no one to follow. Report it in
-            # the participants' currency — the leader is not the problem.
+            # so there is no one to lead and no one to follow. Report it
+            # about the participants — the leader is not the problem.
             raise OwnerGuardError(
                 f"round climb: no participant to lead — the `over` set is "
                 f"empty, so the round has no actor (leader was "
@@ -634,7 +634,7 @@ def _fire_transitions(phase: n.Phase | None, move: Move, ctx: Ctx) -> None:
             # Shadow Guard. The Owner Guard is `resolve._resolve_transition`,
             # which rejects any event move type but `play_to_trick`, so no
             # other kind reaches here. Kept because this loop fires effects:
-            # were the wall ever relaxed, silently treating an unknown event
+            # were the Owner Guard ever relaxed, silently treating an unknown event
             # as a trick play is the worse failure.
             if t.event.move_type != "play_to_trick":
                 continue

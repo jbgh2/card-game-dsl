@@ -167,7 +167,7 @@ checklist for resolving this question.
   line (each seed's line is distinct, with its own flip and pickup pattern
   and its own derived pin set), with legal-action agreement
   when the observer is to move, and one discriminating probe per pin class
-  (a decode-pin violation trips the replay wall; a log-pin violation
+  (a decode-pin violation trips the replay Owner Guard; a log-pin violation
   replays legally but visibly differs, the world the axis heuristic could
   never rule out). Paired-history probes pin the channel itself: two lines
   one hidden played card apart are byte-identical to every non-claimant

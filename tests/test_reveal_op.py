@@ -2,7 +2,7 @@
 publicly identifies one matching card without moving it — the card stays in
 its zone, and the event reaches every player's log regardless of the zone's
 declared visibility (unlike a movement, which projects through it). Semantics:
-library.md "Memory operations" (the `reveal` entry).
+library.md "Operations" (the `reveal` entry).
 """
 
 from __future__ import annotations

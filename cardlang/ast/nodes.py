@@ -627,7 +627,7 @@ class AuctionRound:
 
     A continuous ring over a heterogeneous offering (bids/passes/bets), looping
     until the termination predicate holds. No card source/into zones — these
-    moves do not move cards (decisions.md "Interactive decisions": the same
+    moves do not move cards (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same
     kernel round along the offering/termination axes).
 
     `outcome_fn` is the one genuinely optional clause here, and it is what makes

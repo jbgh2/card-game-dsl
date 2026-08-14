@@ -81,7 +81,7 @@ as three pairs falls out arithmetically). One exclusion/wilds clause.
 own declarable order, defaulting to natural ace-to-king, and is NOT the
 strength `ranking:` — Big Two's strength order (3 low, 2 high) is not
 its straight order. Salvo masked this because its ranking is natural.
-No wraparound; a wraparound toggle is deferred behind a wall.
+No wraparound; a wraparound toggle is deferred behind a Owner Guard.
 
 The surface, in the language's register (no indefinite articles — the
 corpus's determiners are all semantic: one/all/each/any/the; "of a
@@ -169,7 +169,7 @@ should be DECLARABLE from game files (the family-library `uses` tier on
 its unmerged branch reportedly introduces small declared decks;
 reconcile with that work rather than beside it). Wild participation in
 combinations belongs to tier 1's wilds clause (exclusion — Salvo) with
-substitution (Canasta) walled to of-a-kind families when it lands.
+substitution (Canasta) restricted to of-a-kind families when it lands.
 
 ## Sequencing fork (the open decision)
 

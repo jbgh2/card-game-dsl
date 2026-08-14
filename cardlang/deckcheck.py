@@ -66,7 +66,7 @@ def check_capacity(game: n.Game) -> n.Game:
     # once" would count a loop over a VALUE domain (`for each suit s: deal 15 cards
     # …`) as one iteration: it would demand four times what this gate checked, pass,
     # and fail mid-deal, where the executor requires a source to hold at least the
-    # cards a deal asks for — the exact failure currency the gate exists to replace.
+    # cards a deal asks for — the exact failure channel the gate exists to replace.
     # A new domain row arrives here already counted.
     sources = DomainSources(
         suits=sorted(suit_names(game.deck)),
@@ -246,7 +246,7 @@ def _stmt_usage(
             return carry, carry
         case n.Turns():
             # A turn loop's iteration count is runtime data — the same
-            # currency as `repeat until`, with the same soundness argument:
+            # case as `repeat until`, with the same soundness argument:
             # `until` is checked before the first turn (runtime `_turns`),
             # so the zero-iteration execution always exists.
             return carry, carry
@@ -261,7 +261,7 @@ def _stmt_usage(
             # An offered move's EFFECT can draw from the deck, but move effects
             # are outside this gate's domain entirely (it walks phase bodies,
             # and a move can be offered arbitrarily many times, so its draws
-            # are not statically boundable — same currency as repeat-until).
+            # are not statically boundable — same case as repeat-until).
             # Recorded as a domain limit in the module docstring and issue #135.
             return carry, carry
         case (

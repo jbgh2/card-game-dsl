@@ -1,4 +1,4 @@
-// Wall: resolve.py `_expand_ranking`. A ranking convention orders the
+// Guard: resolve.py `_expand_ranking`. A ranking convention orders the
 // standard A..2 rank set; a deck with ranks outside it (tichu56's specials
 // here — tarot78's atouts and coup15's characters are the same cell) has no
 // place for them in any template, so silently filtering would produce a

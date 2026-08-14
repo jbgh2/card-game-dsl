@@ -9,11 +9,11 @@ contract scoring all run in the DSL (docs/games/belote.cardlang). This module
 holds only what is not expressible there:
 
 - `belote_trump_height` — a rank's strength within the trump suit
-  (J > 9 > A > 10 > K > Q > 8 > 7), the over-trump comparison's currency.
+  (J > 9 > A > 10 > K > Q > 8 > 7), the ordering the over-trump comparison uses.
   A pure rank map: the caller's demand filters on `card.suit is trump_suit`,
   so this needs no suit knowledge (the Tarot `tarot_trump_height` shape).
   Suit-contextual orders are explicitly outside the `ranking:` declaration's
-  scope (decisions.md, "The `ranking:` declaration"), so the trump reorder
+  scope (decisions.md, "The `ranking:` declaration: enumeration or convention"), so the trump reorder
   lives here while the plain-suit order stays `ranking: ace-ten`.
 - `belote_trick_winner` — the trick round's `outcome` function: highest trump
   under the trump order if any trump was played, else highest of the led suit
@@ -52,7 +52,7 @@ descending runs of the REMAINING cards in the natural A K Q J 10 9 8 7
 order, each run at its greatest declarable length (5+ → quinte on the top
 five, 4 → quarte, 3 → tierce), the strongest by (class, height, trump).
 Announcing is scoped to that one best combination per player (belote.md,
-"Scope and departures").
+"Scope and departures from the reference").
 """
 
 from __future__ import annotations

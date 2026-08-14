@@ -1,4 +1,4 @@
-// Wall: resolve.py's `active_rules:` referent check. `Nonexistent` names no
+// Guard: resolve.py's `active_rules:` referent check. `Nonexistent` names no
 // rule declared in this game (and no library rule), so the reference is
 // rejected before the rule set is ever instantiated.
 game ActiveRulesUndefinedRule {

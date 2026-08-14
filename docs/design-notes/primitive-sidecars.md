@@ -108,7 +108,7 @@ the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
 `pot_share`) graduate there when a second poker game lands, per the usual
 corpus-first promotion.
 
-**What this is not.** The `instantiate` lesson
+**What this is not.** The [[instantiate-lesson]]
 ([principles.md](../principles.md)) stands untouched: no control flow, no
 movement, no decisions, no mutation in Python — hell was Python holding
 mechanics and touching state invisibly, not Python computing a score from a
@@ -120,7 +120,7 @@ interface cannot express one.
 - **Granularity, not the handle.** The `Ctx` coupling is gone: no game
   module names `Ctx`, `RuntimeState`, `ZoneStore` or `Chooser`, so a
   primitive structurally cannot mutate state, make a decision, or read a
-  name its module never declared (stage 2; the crossed wall in
+  name its module never declared (stage 2; the crossed Owner Guard in
   `tests/test_primitive_narrowing.py`). What it CAN still do is read a
   declared name it does not personally need, because both bundles the
   binder hands over — `GameReads` from `PRIMITIVE_READS`, and the closed
@@ -203,7 +203,7 @@ EXACTLY as they are; the implementation is rewritten
 values-in/value-out, and the dispatch layer binds what the
 implementation may see and passes plain values. Scorers first, the
 accumulator-readers (`pot_share`) and trick-terminal readers last.
-Acceptance per PR: no `Ctx` reaches any game module (the crossed wall
+Acceptance per PR: no `Ctx` reaches any game module (the crossed Owner Guard
 in `tests/test_primitive_narrowing.py`), the declared-reads pins hold,
 goldens byte-identical — this stage is a pure refactor.
 
@@ -245,7 +245,7 @@ stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
 Resolve/typecheck: declared-but-unimplemented and
 implemented-but-undeclared are both errors; call sites check against
 the DECLARED signature; the reads clause validates zone and state
-names. Scope wall for v1: the reads clause is checked for name
+names. Scope Owner Guard for v1: the reads clause is checked for name
 validity and drives what the dispatch hands over — the derived-reveal
 analysis (hidden reads flowing into public state) is recorded
 follow-on work, not silently absent. Registry, signatures, and

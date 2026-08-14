@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_board` via `board_entry`. The grid family's
+// Guard: resolve.py's `_resolve_board` via `board_entry`. The grid family's
 // arguments must lie in 1..16; `grid(0, 3)` violates the lower bound, a
 // ValueError naming the bound.
 game BoardBadArgs {

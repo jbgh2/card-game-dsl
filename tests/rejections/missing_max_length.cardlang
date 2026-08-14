@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_max_length`. Every game must declare
+// Owner Guard: resolve.py's `_resolve_max_length`. Every game must declare
 // `max_length: <n>` — the bound the runtime enforces and the OpenSpiel
 // adapter reports (docs/decisions.md, "Game length as a declared contract").
 // This game omits it entirely.

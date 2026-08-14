@@ -199,7 +199,7 @@ and "Closed-domain completeness". Its artifacts are mandatory in the change:
 the **grid** (the crossed coverage domain as an executable parametrized
 test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
-wrong sentences, each proven loud in the right layer's currency), and the
+wrong sentences, each proven loud in the right layer's failure channel), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
 `covered` IS the grid; no residual cell without both a guard and a record —
 a tracker issue cited as `issue #N`, or the ledger row alone for an R4
@@ -253,7 +253,7 @@ gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
   --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
 ```
 
-An issue's title and Summary speak impact currency; its Detail speaks
+An issue's title and Summary speak impact; its Detail speaks
 mechanism. The title states what a designer or the engine experiences, not
 where the fix goes ("a team typo plays to completion", not
 "validate teams at resolve time"). The Summary answers, in a few

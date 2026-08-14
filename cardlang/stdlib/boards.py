@@ -131,7 +131,7 @@ class BoardEntry:
     def neighbor(self, cell: str, direction: str, player: int) -> str | None:
         """The cell one step along `direction` in `player`'s frame, or None off
         the board's edge -- the registry-internal PARTIAL lookup (a later task's
-        stdlib verb wraps it total-with-backstop; a guard's `has_step` gates
+        stdlib verb wraps it total-with-Shadow-Guard; a guard's `has_step` gates
         it). Generated from cell coords + the actor-resolved offset, never a
         literal per-cell table."""
         width, height = self._grid_args()

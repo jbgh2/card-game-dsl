@@ -49,7 +49,7 @@ zone, function, type) or the two dedicated new sweeps
 (`_check_reserved_params`, `_check_reserved_binders`).
 
 Sampled: not every (word x declaration-kind) cell gets its own test — one
-word per declaration-kind test is enough to prove the wall fires there
+word per declaration-kind test is enough to prove the guard fires there
 (`_check_reserved` is a single, shared, unconditional function; a per-word
 test would only re-exercise `RESERVED_VALUE_NAMES` membership, already
 covered by the acceptance/rejection pins directly on that constant).
@@ -61,7 +61,7 @@ runtime clears them before a call), so a parameter of the same name is not
 a hijack, it is the error message's own prescribed repair ("pass the value
 in as a parameter instead"). `tests/test_functions.py`'s pre-existing
 `function lead(actor : Player) = score[actor]` pins exactly this shape and
-was the first-draft version of this wall's regression: a too-broad
+was the first-draft version of this guard's regression: a too-broad
 reservation rejected it. `state`/`active_rules` stay reserved for function
 parameters (both remain READABLE inside a function body), and so does
 `outcome` — its reservation is keyword-shaped, not pronoun-shaped, so
@@ -100,7 +100,7 @@ def _rejects(src: str, needle: str) -> None:
     assert needle in str(ei.value), str(ei.value)
 
 
-# --- executed evidence of the pre-fix hijack (both now walled) -------------
+# --- executed evidence of the pre-fix hijack (both now guarded) -------------
 
 
 def test_reserved_value_names_registry_is_exactly_the_documented_set() -> None:
@@ -449,5 +449,5 @@ game Mini {
 @pytest.mark.parametrize("path", sorted(GAMES.glob("*.cardlang")), ids=lambda p: p.stem)
 def test_corpus_declares_no_reserved_names(path: Path) -> None:
     # The corpus uses none of RESERVED_VALUE_NAMES as a declaration — this
-    # wall changes no game's resolve outcome.
+    # guard changes no game's resolve outcome.
     check_source(path)

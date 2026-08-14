@@ -502,7 +502,7 @@ the back rows. Pieces move one square orthogonally (Scouts any clear
 distance); attacking reveals both ranks and removes the loser (Spy
 kills Marshal when attacking; Miner defuses Bomb; Flag capture wins);
 two-square shuttle rule in scope (its tracking state is
-position-typed — the recorded position-typed-state wall lifts here,
+position-typed — the recorded position-typed-state Owner Guard lifts here,
 first witness), the chase rule scoped out and named.
 
 **Why interesting.** The one moat-level rung: position-public,
@@ -578,7 +578,7 @@ unenforced today; the ladder resolves that by binding rules at every
 kernel decision site) — jump
 `(from, over, to)` triples as declared relation data, multi-jump
 chains on the `turns` form's `again` axis with a position-typed chain
-anchor (reusing the wall-lift the [stratego-barrage](#stratego-barrage)
+anchor (reusing the guard-lift the [stratego-barrage](#stratego-barrage)
 rung lands),
 promotion as a supply swap, and counter-based draw state. English over
 International deliberately: no capture maximization, so the gated

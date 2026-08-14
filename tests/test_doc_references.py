@@ -1,11 +1,26 @@
-"""Every prose reference to docs/roadmap.md still resolves to a live section.
+"""Every prose reference to a repo doc still resolves to a live section.
+
+Two properties, one mechanism. The roadmap half requires a section title AND
+checks it, because that file's sections were redistributed to the tracker and a
+bare pointer there is untrackable. The general half only checks the titles that
+are given, across every doc someone cites by section: `decisions.md` alone is
+cited hundreds of times, mostly bare, and demanding a title everywhere would be
+a different and far larger rule.
+
+The general half was added after the narrow one had run for months over one
+file while the LAW went unchecked. It found twenty-three stale citations on its
+first run -- `Interactive decisions`, `Loop lifecycle`, `State scoping` and six
+more, most of them partial quotes of headings that had grown a qualifier. One
+came from `bbe49ce`, whose message says it renamed two headings "and every
+citation with them"; it moved all but one, and nothing could tell.
+
 
 The deferred-work backlog moved to the GitHub tracker (issue #143 orders the
 cross-cutting sequence); roadmap.md kept only what is not work — the
-out-of-scope list, the walls ledger for grammar surface the checker defers,
+out-of-scope list, the guards ledger for grammar surface the checker defers,
 and the pointers. A reference naming a section that moved to an issue is then
 prose contradicting the spec, invisible because prose has no compiler: the
-`ZONE_METHODS` class one currency over (issue #110, the backticked-identifier
+`ZONE_METHODS` class one medium over (issue #110, the backticked-identifier
 scrape). This module is that compiler for the one file whose sections were
 just redistributed.
 
@@ -33,12 +48,17 @@ domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
            and ``CLAUDE.md`` — times every line mentioning ``roadmap.md``.
            Files are enumerated by glob, so a new module, doc or game is
            in-domain the day it exists.
-registry:  roadmap.md's own headings, parsed from the file at test time (``##``
+registry:  for the general half, `_cited_docs()` -- every ``docs/*.md`` that some
+           line cites WITH a quoted title, derived from the same walk, so a doc
+           joins the domain the day someone quotes one of its sections and no
+           list can lag. A heading's enumerator (``2. ``) is registered both
+           ways, since a number is layout and citations omit it.
+           For the roadmap half: roadmap.md's own headings, parsed at test time (``##``
            sections and ``**bold**`` item lead-ins, at any nesting depth), so
            renaming a section reddens every reference to the old name and no
            expected-title list can drift from the file.
 covered:   both reference shapes (title-quoting and bare) in both comment
-           currencies (Python docstring/comment, Markdown prose and link
+           media (Python docstring/comment, Markdown prose and link
            text), and both dash spellings (``--`` and em dash) — each pinned by
            a synthetic-source probe below, so the classifier cannot rot
            vacuously green.
@@ -54,7 +74,7 @@ residual:  ``docs/superpowers/plans/`` and ``docs/research/`` are outside the
            Python DIAGNOSTIC text is carved out as a DERIVED class
            (`_diagnostic_lines`): the argument of a diagnostic-bag call
            (`DIAGNOSTIC_METHODS`) or anything inside a `raise`. A designer who
-           hits a wall offline can open a repo doc and cannot open a tracker
+           hits a guard offline can open a repo doc and cannot open a tracker
            issue, so those messages keep naming roadmap.md. Deriving the class
            keeps a new diagnostic exempt the day it is written while a new
            comment is not; a hand-list would be the partial enumeration this
@@ -84,7 +104,7 @@ ROADMAP = REPO_ROOT / "docs" / "roadmap.md"
 EXCLUDED_DIRS = (
     "docs/superpowers/plans/",
     "docs/research/",
-    "tests/test_roadmap_references.py",
+    "tests/test_doc_references.py",
 )
 
 # Bare mentions that legitimately name the file as a whole rather than a
@@ -135,7 +155,9 @@ def _candidate_titles(window: str) -> list[str]:
     ]
 
 _SECTION = re.compile(r"^#{2,4}\s+(.+?)\s*$")
-_BOLD_LEAD = re.compile(r"^\s*(?:[-*]\s+)?\*\*(.+?)\*\*")
+# A lead-in may be bulleted or NUMBERED (`5. **Scoring.**`); the enumerator is
+# layout either way, exactly as it is on a heading.
+_BOLD_LEAD = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+)?\*\*(.+?)\*\*")
 
 
 def _normalize(title: str) -> str:
@@ -145,15 +167,74 @@ def _normalize(title: str) -> str:
     return text.rstrip(".,:;").strip()
 
 
-def _live_titles() -> set[str]:
-    """The section names roadmap.md carries, parsed from the file itself."""
+def _titles_of(doc: Path) -> set[str]:
+    """The section names a doc carries, parsed from the file itself."""
     titles: set[str] = set()
-    for line in ROADMAP.read_text().splitlines():
+    for line in doc.read_text().splitlines():
         for pattern in (_SECTION, _BOLD_LEAD):
             found = pattern.match(line)
             if found:
-                titles.add(_normalize(found.group(1)))
+                heading = found.group(1)
+                titles.add(_normalize(heading))
+                titles.add(_normalize(re.sub(r"^\d+[.)]\s+", "", heading)))
     return titles
+
+
+def _live_titles() -> set[str]:
+    """roadmap.md's own sections -- the original check's registry."""
+    return _titles_of(ROADMAP)
+
+
+# A citation that QUOTES a section: the title must follow the file name
+# directly, optionally through a markdown link tail. Kept tighter than
+# `_candidate_titles`, which scans a three-line window for roadmap.md and would
+# otherwise attach a title belonging to the next citation along.
+_QUOTED_CITATION = re.compile(
+    r'(?:docs/)?(?P<doc>(?:[a-z][a-z-]*/)?[a-z][a-z-]*\.md)(?:\]\([^)]*\))?'
+    # Quote pairs, matched not lumped: a title may contain an apostrophe, so
+    # each form excludes only its OWN closing mark. The single-quoted form
+    # additionally demands a separator, or `decisions.md's contract` opens one.
+    r'(?:[\s,]*"(?P<t1>[\w`][^"\n]{3,89})"'
+    r'|[\s,]*\u201c(?P<t2>[\w`][^\u201d\n]{3,89})\u201d'
+    r"|[\s,]+'(?P<t3>[\w`][^'\n]{3,89})')"
+)
+
+
+def _resolve_doc(name: str) -> Path | None:
+    """The file a citation names, wherever under `docs/` it lives.
+
+    A citation writes the basename as often as the path (`lexical-cleanup.md`,
+    not `design-notes/lexical-cleanup.md`), so resolving only `docs/<name>`
+    dropped every nested doc into the "unknown file, skip it" branch — the
+    check's domain silently ending at the top level while its ledger claimed
+    otherwise. Ambiguity is refused rather than guessed: two files sharing a
+    basename make the citation unresolvable, which is a naming problem to
+    report, not one to pick a winner for.
+    """
+    direct = REPO_ROOT / "docs" / name
+    if direct.is_file():
+        return direct
+    matches = [p for p in (REPO_ROOT / "docs").rglob(Path(name).name) if p.is_file()]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _cited_docs() -> dict[str, Path]:
+    """Every `docs/*.md` that some line cites WITH a quoted title.
+
+    Derived from the repo, never listed: a doc joins the domain the day someone
+    quotes one of its sections, so the check cannot lag a new citation. That is
+    the difference between this and the roadmap half, whose single file is
+    named because its sections were redistributed to the tracker.
+    """
+    found: dict[str, Path] = {}
+    for path in _in_domain():
+        for match in _QUOTED_CITATION.finditer(path.read_text()):
+            name = match.group("doc")
+            target = _resolve_doc(name)
+            if target is not None and target != path:
+                found[name] = target
+    assert found, "no quoted citation found at all -- this check would be vacuous"
+    return found
 
 
 def _in_domain() -> list[Path]:
@@ -164,7 +245,6 @@ def _in_domain() -> list[Path]:
     return sorted(
         p for p in paths
         if p.is_file()
-        and p != ROADMAP
         and not any(d in p.relative_to(REPO_ROOT).as_posix() for d in EXCLUDED_DIRS)
     )
 
@@ -202,7 +282,7 @@ def _allowed(relative: str, line: str) -> bool:
 def _diagnostic_lines(text: str) -> set[int]:
     """Line numbers spanned by user-facing DIAGNOSTIC text in a Python module.
 
-    A diagnostic names a repo doc because a designer who hits the wall can open
+    A diagnostic names a repo doc because a designer who hits the guard can open
     `docs/roadmap.md` from their checkout and cannot open a tracker issue
     offline. The class is DERIVED rather than enumerated, so a new diagnostic
     is carved out the day it is written — but it is derived from what makes a
@@ -281,6 +361,52 @@ def test_every_roadmap_reference_names_a_live_section() -> None:
     )
 
 
+def test_every_quoted_section_title_resolves() -> None:
+    """A citation that names a section names one the file still carries.
+
+    The roadmap half above also REQUIRES a title, because that file's sections
+    were redistributed and a bare pointer there is untrackable. This half only
+    checks the ones that are given: `decisions.md` is cited hundreds of times,
+    mostly as a bare "see decisions.md", and demanding a title everywhere would
+    be a different and much larger rule. Checking what is named without
+    requiring naming is the same split the roadmap half already draws for its
+    exempt lines.
+
+    red under: change any cited heading in `docs/decisions.md` without moving
+    its citations -- which is precisely how the twenty-three this found got
+    there, `bbe49ce` renaming two headings and claiming it moved "every
+    citation with them".
+    """
+    live = {name: _titles_of(path) for name, path in _cited_docs().items()}
+    unresolved: list[str] = []
+    for path in _in_domain():
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        # Scanned whole, not line by line. Prose wraps, so a citation routinely
+        # puts the file on one line and its title on the next, and validating
+        # per line -- while the registry scan read whole files -- left exactly
+        # those unchecked. Scanning the text once and deriving the line from the
+        # match offset covers them without a sliding window, which would report
+        # a wrapped citation twice.
+        text = path.read_text()
+        for match in _QUOTED_CITATION.finditer(text):
+            doc = match.group("doc")
+            title = match.group("t1") or match.group("t2") or match.group("t3")
+            if doc not in live or path.name == Path(doc).name:
+                continue
+            if _normalize(title) not in live[doc]:
+                number = text.count("\n", 0, match.start()) + 1
+                unresolved.append(
+                    f"{relative}:{number}: quotes {doc} section {title!r}, "
+                    f"which {doc} does not carry -- quote the whole heading, "
+                    f"a partial one reads live while being stale"
+                    f"\n    {match.group(0).strip()}"
+                )
+    assert not unresolved, (
+        f"{len(unresolved)} section citation(s) do not resolve:\n\n"
+        + "\n".join(unresolved)
+    )
+
+
 def test_every_whole_file_pointer_still_matches_a_real_site() -> None:
     """A listed exemption that matches nothing is a blanket in waiting."""
     dead: list[tuple[str, str]] = []
@@ -309,8 +435,8 @@ def test_the_registry_is_parsed_from_the_file_not_hand_listed() -> None:
 
 
 def test_both_dash_spellings_normalize_to_one_title() -> None:
-    assert _normalize("Positional zones -- walled residuals") == _normalize(
-        "Positional zones — walled residuals"
+    assert _normalize("Positional zones -- guarded residuals") == _normalize(
+        "Positional zones — guarded residuals"
     )
 
 
@@ -369,5 +495,5 @@ def test_diagnostic_text_is_carved_out_but_other_strings_are_not() -> None:
 def test_a_partial_quote_of_a_live_heading_does_not_resolve() -> None:
     live = _live_titles()
     full = "Grammar surface deferred by the checker"
-    assert _normalize(full) in live, "the walls ledger heading moved"
+    assert _normalize(full) in live, "the guards ledger heading moved"
     assert _normalize("Grammar surface deferred") not in live

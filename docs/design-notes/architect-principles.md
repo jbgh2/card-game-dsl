@@ -33,7 +33,7 @@ P-n); an assertion is only as citable as its book entry, and the book's
   diagnostic; the blessed-snapshot mechanism exists in-house
   (`tests/test_rejections.py`) — adoption means residual cases, never a
   second harness (P6).
-- Failure currency is addressee, span, and applicability (P7; extends
+- The failure channel is addressee, span, and applicability (P7; extends
   the glossary's addressee discipline with the applicability flag).
 
 ## Evolution

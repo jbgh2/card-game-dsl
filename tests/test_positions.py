@@ -17,14 +17,14 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             (ZoneStore keys, observation ownership, runtime candidate
             enumeration, static vocab enumeration).
 registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
-            n.Game.positions; the collision wall `_resolve_positions` is the
+            n.Game.positions; the collision guard `_resolve_positions` is the
             reconciliation between the two definition sites — swept here
             registry-derived, so neither source can grow past it.
 covered:    zone index + type arg — a position works as either (Klondike/
             FreeCell corpus + this module), and a type arg naming a domain
-            OTHER than the index is rejected (the owner==index wall:
+            OTHER than the index is rejected (the owner==index guard:
             test_position_family_owner_arg_must_match_its_index +
-            tests/rejections/positions_zone_owner_arg_mismatch; the wall is
+            tests/rejections/positions_zone_owner_arg_mismatch; the guard is
             general, stated in tests/test_zone_index_roles.py);
             move params — both the action-space vocab (both games + the
             vocab-order pin below) and their TYPING in guards/effects (a
@@ -32,21 +32,21 @@ covered:    zone index + type arg — a position works as either (Klondike/
             wrong-domain use like `src is hearts` is caught —
             test_position_move_param_types_as_integer_not_any); the
             collision sweep (every built-in id and spelling, derived from
-            the registries); bounds walls incl. the 256-member ceiling
+            the registries); bounds guards incl. the 256-member ceiling
             boundary; unowned ownership (`zone_observer_key` -> None,
             hence the `others` projection for every observer — pinned in
             the proof modules' fact matrices); bare-family references
-            (rejection corpus + the runtime backstop probe below); state
+            (rejection corpus + the runtime Shadow Guard probe below); state
             index/type, for-each, simultaneous, param typos (rejection
             corpus tests/rejections/positions_*); `to each` (existing
-            player-index wall, probed below); quantifier nouns
+            player-index guard, probed below); quantifier nouns
             (grammatically inexpressible — the quantifier production is a
             closed alternative set).
 sampled:    the canonical gather over a position family (order-preserving
             per the canonical zone-collection rule; no corpus game gathers
             one — decisions.md states the interaction explicitly).
 residual:   `for each <position>` and position-indexed state stores are
-            walled with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
+            guarded with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
             a non-identity zone is policed per game by the openspiel_ready
             legal-action-agreement proofs, not statically (same roadmap
             entry).
@@ -130,7 +130,7 @@ def test_member_ceiling_boundary() -> None:
 
 def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name() -> None:
     """The reconciliation sweep, derived from BOTH source registries (never
-    from the wall's own set): every domain id, every declared-type spelling,
+    from the guard's own set): every domain id, every declared-type spelling,
     and every KNOWN_TYPE_NAMES member must be rejected as a position name —
     the two definition sites can never disagree about a spelling."""
     spellings = (
@@ -254,7 +254,7 @@ def test_positions_are_unowned_for_every_observer() -> None:
     assert zone_observer_key("column", captured["rs"], 0) is None
 
 
-# --- the runtime backstop behind the bare-reference wall ---------------------
+# --- the runtime Shadow Guard behind the bare-reference guard ---------------------
 
 
 @pytest.mark.expects_shadow_guard
@@ -287,7 +287,7 @@ def test_bare_position_family_read_is_a_typed_runtime_error() -> None:
     assert caught.value.leaked == "resolve._check_position_family_refs"
 
 
-# --- `to each` over a position family (the existing wall owns the class) -----
+# --- `to each` over a position family (the existing guard owns the class) -----
 
 
 def test_to_each_position_family_is_rejected() -> None:
@@ -308,10 +308,10 @@ def test_to_each_position_family_is_rejected() -> None:
 def test_position_family_owner_arg_must_match_its_index(zones: str) -> None:
     # The type-arg slot's MISUSE. A position family is keyed by its index
     # position, so an owner argument naming a different position — or a role —
-    # is accepted-but-ignored. Distinct from the projection-uniformity wall
+    # is accepted-but-ignored. Distinct from the projection-uniformity guard
     # (a non-uniform type like Hand on a position index): here the type is
     # uniform (Cascade), only the argument's domain is wrong. The role-indexed
-    # counterpart (`hand[player] : Cascade<column>`) and the general wall live
+    # counterpart (`hand[player] : Cascade<column>`) and the general guard live
     # in tests/test_zone_index_roles.py and the rejection corpus.
     with pytest.raises(
         DiagnosticError, match="must name the same domain as the index"
@@ -324,7 +324,7 @@ def test_position_family_owner_arg_must_match_its_index(zones: str) -> None:
 
 def test_role_indexed_family_may_not_take_a_position_owner_arg() -> None:
     # The fourth (role, position) direction: a role-indexed family with a
-    # position type arg (`foo[player] : Cascade<column>`). Same wall — the
+    # position type arg (`foo[player] : Cascade<column>`). Same guard — the
     # family keys by the player index and the `<column>` is ignored. (`pile`
     # keeps `column` a validly-used position so nothing else complains.)
     with pytest.raises(

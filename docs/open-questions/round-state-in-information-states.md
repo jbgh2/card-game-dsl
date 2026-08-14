@@ -52,11 +52,11 @@ form's published set, and cannot prove that the round actually running
 publishes the field being read. `state.shed_first` (a climb field) inside a
 trick phase type-checks.
 
-The runtime is walled: a read with no live or just-completed frame now fails
+The runtime is guarded: a read with no live or just-completed frame now fails
 loudly rather than returning a stale one from a different form (the
 `AuctionForm` `last_round_state` clear, pinned by
 `test_auction_does_not_leave_a_stale_trick_frame`). So this is a static
-imprecision with a loud runtime backstop, not a silent miss — but the
+imprecision with a loud runtime Shadow Guard, not a silent miss — but the
 diagnostic a designer wants ("this phase runs a trick, and `shed_first` is a
 climb field") is not available, and giving it means attaching references to
 forms, which is the same static-context question the encoding axis above turns

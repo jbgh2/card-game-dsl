@@ -1,4 +1,4 @@
-// Wall: the grammar. The collection quantifier register admits only the
+// Guard: the grammar. The collection quantifier register admits only the
 // boolean `any`/`all` shapes (`q_any_in`/`q_all_in`); no production spells
 // `number of <noun> in <expr> where …` (the collection twin of `number of
 // cells where …`), so it is a raw syntax error, not a resolve diagnostic

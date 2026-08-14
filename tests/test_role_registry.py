@@ -119,7 +119,7 @@ def test_resolve_fixed_domains_is_the_registrys_param_domain_union() -> None:
 def test_resolve_reads_the_simultaneous_column_not_a_hardcoded_player() -> None:
     # The `each … simultaneously` gate was a bare `!= "player"`. It must now be
     # the registry's `simultaneous` column, so a future seat domain lights the
-    # form up (and a future value domain stays walled) from the table alone.
+    # form up (and a future value domain stays guarded) from the table alone.
     assert getattr(resolve, "SIMULTANEOUS_ROLES") is SIMULTANEOUS_ROLES
 
 
@@ -160,7 +160,7 @@ def test_role_type_is_concrete_for_every_registry_member() -> None:
 
 def test_a_name_outside_the_registry_never_reaches_role_type() -> None:
     """A role outside the registry is a REGISTRY DIVERGENCE, not a program
-    error — every role-bearing surface is walled against a subset of the
+    error — every role-bearing surface is guarded against a subset of the
     registry (tests/test_permissive_top.py pins all five), so a miss means two
     registries disagree.
 
@@ -168,7 +168,7 @@ def test_a_name_outside_the_registry_never_reaches_role_type() -> None:
     lives at the classification step instead, which is where a parsed name
     stops being a string. It used to return the permissive `TAny`, which types
     the binder as the top and silently exempts every use of it from every type
-    wall (decisions.md, "`Any` means the top, never a failed lookup").
+    guard (decisions.md, "`Any` means the top, never a failed lookup").
 
     red under: return `None` instead of raising from `domains.require_role`."""
     with pytest.raises(AssertionError) as ei:
@@ -220,7 +220,7 @@ def test_a_rows_type_name_is_a_declarable_type_with_the_same_type() -> None:
     agree today, and nothing said they had to — and `type_from_name` falls back to
     `TAny` for an unknown name, so a fifth row whose `type_name` was not also a
     declarable type would make `move_type m(x : Color)` pass resolve (the domain is
-    in the table) and then type as `Any`, taking every equality and ordering wall
+    in the table) and then type as `Any`, taking every equality and ordering guard
     dark on that parameter. Silently.
 
     Two sites, no pin, is the finding — even while they agree."""

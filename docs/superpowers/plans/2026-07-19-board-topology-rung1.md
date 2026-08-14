@@ -116,7 +116,7 @@ def test_xo_marks_composition() -> None:
 - Modify: `cardlang/ast/nodes.py` (`Game.content_flavor` or equivalent; keep `Game.deck` as the selected set name)
 - Modify: `cardlang/resolve.py` (`_resolve_deck` generalizes to component sets; flavor-aware walls)
 - Modify: `cardlang/ir.py` (emit the flavor only if the IR carries the deck today — mirror whatever `deck` emission exists)
-- Tests: `tests/test_game_clause_walls.py` (GAME_ITEMS pin + new walls), `tests/rejections/` fixtures
+- Tests: `tests/test_game_clause_guards.py` (GAME_ITEMS pin + new walls), `tests/rejections/` fixtures
 - Modify: `tests/rejections/missing_cards_declaration.expected` (message now names both clauses)
 
 **Interfaces:**
@@ -124,7 +124,7 @@ def test_xo_marks_composition() -> None:
 - Produces: grammar `pieces: "pieces" ":" NAME`; `Game.deck: str` stays the selected component-set name; `Game.content_flavor: str` (`"card"`/`"piece"`) stamped at parse from which clause appeared. Resolve rejects: a `cards:` name that is piece-flavored ("'xo_marks' is a piece set — declare it with `pieces:`"), a `pieces:` name that is card-flavored, both clauses together ("a game declares `cards:` or `pieces:`, not both — no game has witnessed needing both"), neither ("must declare `cards: <deck>` or `pieces: <set>`" — update the parse wall's message and fixture).
 
 - [ ] **Step 1: Audit first.** Enumerate the clause matrix: {cards only, pieces only, both, neither, duplicate pieces, unknown pieces name, cross-flavor name in each clause} x {parse, resolve} — every cell implemented or walled. Write the five misuse probes as rejection fixtures: `pieces_and_cards_together`, `pieces_unknown_set`, `pieces_names_a_deck`, `cards_names_a_piece_set`, `duplicate_pieces_clause` (each `.cardlang` + `.expected` under `tests/rejections/`, matching the existing fixture format).
-- [ ] **Step 2: Write failing wall tests** — extend `tests/test_game_clause_walls.py`: update the `GAME_ITEMS` registry pin to include `pieces` (14 alternatives), add parametrized rejection-fixture runs for the five probes, update the missing-clause message test. Run; expected failures: grammar error on `pieces:` fixture parse.
+- [ ] **Step 2: Write failing wall tests** — extend `tests/test_game_clause_guards.py`: update the `GAME_ITEMS` registry pin to include `pieces` (14 alternatives), add parametrized rejection-fixture runs for the five probes, update the missing-clause message test. Run; expected failures: grammar error on `pieces:` fixture parse.
 - [ ] **Step 3: Implement** grammar + parse builder (`pieces` -> `_Pieces(name, span)`; `game()` `once("pieces:")`; mutual-exclusion + missing-either walls with the messages above; stamp `content_flavor`), resolve `_resolve_deck` -> `_resolve_component_set` (unknown-name message lists sets of the matching flavor), and thread flavor into `TypeEnv`/resolve categories for Task 3's walls (a `flavor: str` field, defaulted `"card"`).
 - [ ] **Step 4: Run the new tests + full suite + mypy; byte-identity holds** (no golden diffs — card games take the `cards:` path verbatim).
 - [ ] **Step 5: Commit** `feat: pieces: clause — component-set selection with flavor walls`
@@ -136,7 +136,7 @@ def test_xo_marks_composition() -> None:
 - Modify: `cardlang/resolve.py` (`_node_binders` `:250-257` flavor-driven; quantifier/iteration roles `suit`/`rank` flavor wall; `Card`/`Suit`/`Suit?`/`Rank` param flavor wall in `_check_move_params`; `ranking:`/`trump:` flavor walls; deck-only stdlib call wall)
 - Modify: `cardlang/stdlib/functions.py` (add `DECK_ONLY_CALL_FUNCS: frozenset[str]`)
 - Modify: `cardlang/runtime/execute.py` / `cardlang/runtime/evaluate.py` (filter/query binder name from flavor — bind BOTH the flavor noun and keep evaluation identical)
-- Tests: `tests/test_piece_content_walls.py` (new; the flavor matrix + ledger), `tests/rejections/` probes, `tests/test_signatures.py` (deck-only classification pin)
+- Tests: `tests/test_piece_content_guards.py` (new; the flavor matrix + ledger), `tests/rejections/` probes, `tests/test_signatures.py` (deck-only classification pin)
 
 **Interfaces:**
 - Consumes: `Game.content_flavor`, `ComponentSet.axes`.
@@ -144,7 +144,7 @@ def test_xo_marks_composition() -> None:
 - Produces: `DECK_ONLY_CALL_FUNCS` (at minimum `rank_value`, `suit_of`, `card_value`, plus whatever the audit's sweep of `STDLIB_CALL_FUNCS` classifies as reading suit/rank/ranking semantics), pinned by a totality test: every `STDLIB_CALL_FUNCS` member is classified generic-or-deck-only by an explicit table assertion.
 
 - [ ] **Step 1: Audit first — this is the stage-1 flagship matrix.** Domain axes from their registries: noun-bearing constructs (grammar movement/reveal/cq_*/agg productions + `_node_binders` + param-domain table + game_item clauses + `DOMAINS` quantifier roles + `STDLIB_CALL_FUNCS`) x flavor {card, piece}. Every cell: implemented / rejected-naming-the-kind / grammatically inexpressible (piece-query grammar forms — record in roadmap). Include pronoun-rooted field contexts (`action.card.*` if the pronoun surface exposes card fields) in the wrong-axis probe set. Write probes: `piece.suit` in a piece game, `card.side` in a card game, `any card in ...` in a piece game, `rank_value(...)` in a piece game, `ranking: aces low` under `pieces:`, `move one card ...` in a piece game, `any suit where ...` in a piece game, plus the shadowed-binder probe (`piece` referenced outside a filter).
-- [ ] **Step 2: Write the failing matrix tests** in `tests/test_piece_content_walls.py` — a parametrized table of (source fragment, expected diagnostic substring) driving `check_source`, with the ledger in the docstring. Include POSITIVE cells: a minimal piece game (hand-rolled inline source with `pieces: xo_marks`, a Deck-typed `box`, one `PlayerPile` reserve, a filtered `move all pieces ... where piece.side is x`) typechecks clean end-to-end.
+- [ ] **Step 2: Write the failing matrix tests** in `tests/test_piece_content_guards.py` — a parametrized table of (source fragment, expected diagnostic substring) driving `check_source`, with the ledger in the docstring. Include POSITIVE cells: a minimal piece game (hand-rolled inline source with `pieces: xo_marks`, a Deck-typed `box`, one `PlayerPile` reserve, a filtered `move all pieces ... where piece.side is x`) typechecks clean end-to-end.
 - [ ] **Step 3: Implement** (walls at the named file:line seams; field table = `{axes[0]: TEnum(axes[0]-spelling), axes[1]: ...}` with the card flavor mapping to today's exact `CARD_FIELDS` values so deck diagnostics/IR are unchanged). Keep every runtime binder binding through one helper that reads the flavor (`"card"` vs `"piece"`) so evaluate/execute cannot drift.
 - [ ] **Step 4: Byte-identity + full gates.** 8 IR goldens zero-diff, full `pytest -q`, `mypy`.
 - [ ] **Step 5: Commit** `feat: Card is the deck flavor of Piece — noun/axis/flavor walls at the content-kind level`

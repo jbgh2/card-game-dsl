@@ -20,7 +20,7 @@ without guarding dies at COLLECTION on a core install, which is not the "skip"
 pyproject.toml promises — every test in it silently stops running, including
 the ones that never needed the extra. That is the same defect the President
 review caught in the corpus pin, and it has now been caught twice by review and
-never by a gate, because CI always installs the extra. So it gets a wall.
+never by a gate, because CI always installs the extra. So it gets a guard.
 """
 
 from __future__ import annotations

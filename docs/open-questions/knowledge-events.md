@@ -60,7 +60,7 @@ for whoever closes the question:
    (kind, height, trump) triple per decision fits the closed
    `Rank`-parameter domain; Belote's multi-combination announcements
    ("tierce, tierce") do not fit one decision and are scoped to the
-   best combination per player (belote.md, "Scope and departures").
+   best combination per player (belote.md, "Scope and departures from the reference").
    A first-class `announce <fact>` op (catalogued in library.md,
    unbuilt) with a typed computed payload is what would lift that
    bound.

@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_check_duplicate_names` over the zone namespace. `deck`
+// Guard: resolve.py's `_check_duplicate_names` over the zone namespace. `deck`
 // is declared twice; the later declaration would otherwise silently shadow
 // the earlier one (accepted-but-ignored at the declaration level).
 game DuplicateZone {

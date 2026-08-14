@@ -8,7 +8,7 @@ latent failures it forecloses: capturing `actor` (the guard would be true for
 every `p` — now refused outright, decisions.md "Naming the acting player twice",
 `tests/test_actor_alias_comparison.py`), and — when the body mutates the guard
 variable — re-matching a later player mid-pass, which stays a live hazard no
-wall can see.
+guard can see.
 
 property:   `as <p> { … }` binds the acting player to exactly one evaluated
             Player, runs its body once, in a block scope whose `let`s do not
@@ -21,7 +21,7 @@ registry:   the Expr and Stmt unions (cardlang/ast/nodes.py). The statement
             matches in resolve, typecheck (×4), ir, deckcheck, and
             runtime/execute (a missing arm is a mypy error), AND the two
             reflection-based generic walkers — `expand._rewrite_value` and
-            `openspiel/encoding._walk` — whose wall is genericity over every
+            `openspiel/encoding._walk` — whose guard is genericity over every
             dataclass field, so `AsBlock.body` is reached without either
             knowing `AsBlock` exists.
 covered:    - omitted player-expr / malformed → parse error [grammar]
@@ -33,7 +33,7 @@ covered:    - omitted player-expr / malformed → parse error [grammar]
               runtime (a COMPUTED `as (0 + 5)` in a 2-player game -- a literal
               `as 5` is rejected statically now; or a TAny pronoun like
               `as active_rules`) → loud RuntimeError at `acting_as` — the
-              acting-player analogue of the phantom-key write wall, so `as` is
+              acting-player analogue of the phantom-key write guard, so `as` is
               never more dangerous than the guarded loop it replaces [runtime]
             - body `let` does not escape the block [resolve + runtime]
             - the acting player reaches a `chosen` movement in the body via
@@ -158,7 +158,7 @@ def test_out_of_range_player_is_a_loud_runtime_error() -> None:
     # bind time rather than reach the chooser as a bogus decider. A LITERAL `as 5`
     # is rejected statically now (the operand choke point ranges it); the seat
     # here is COMPUTED (`0 + 5`, a BinOp the checker leaves Integer, like the
-    # phantom-key `n[0 + 9]`), so it reaches this runtime bind-time wall.
+    # phantom-key `n[0 + 9]`), so it reaches this runtime bind-time guard.
     game = _decision_game(
         "as (0 + 5) { move chosen 1 cards from hand[dealer] to discard }"
     )
@@ -168,8 +168,8 @@ def test_out_of_range_player_is_a_loud_runtime_error() -> None:
 
 def test_tany_non_player_bound_as_actor_is_a_loud_runtime_error() -> None:
     # A pronoun the checker leaves TAny (`active_rules`) passes the static Player
-    # wall, but binding its non-seat value (an empty tuple) as the actor is
-    # walled at `acting_as`, not silently handed to the chooser.
+    # guard, but binding its non-seat value (an empty tuple) as the actor is
+    # guarded at `acting_as`, not silently handed to the chooser.
     game = _decision_game(
         "as active_rules { move chosen 1 cards from hand[dealer] to discard }"
     )

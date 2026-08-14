@@ -119,7 +119,7 @@ class TestReadiness(ReadinessProofs):
                 "same information set, different legal actions — the offer leaks "
                 "chance-hidden content"
             )
-            # ...and the same offer must READ the same. Backstop; the wall is
+            # ...and the same offer must READ the same. Shadow Guard; the guard is
             # `test_action_strings.py` (see `harness.action_strings`).
             assert action_strings(space, pause_b.legal) == action_strings(
                 space, pause_a.legal

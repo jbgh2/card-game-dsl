@@ -111,7 +111,7 @@ Examples:
   not) rather than phase state, and the criterion carries over unchanged
   — no rule's `applies_when:` reads it; it gates only the take-pile
   move's preconditions, and its operative meaning is per-side anyway (a
-  partnership that has not melded is frozen out regardless, the
+  team that has not melded is frozen out regardless, the
   per-player-exception shape below). Correctly a boolean.
 
 The criterion: ask whether any rule reads the boolean in its
@@ -948,7 +948,7 @@ when it runs.
 not silently stored: the default's inferred type must be assignable to the
 variable's declared type — the same `assignable` relation an ordinary
 assignment uses (`typecheck._check_state_default_type`, the initial-value
-twin of `_check_assign`). For an indexed variable the default is checked
+Shadow Guard of `_check_assign`). For an indexed variable the default is checked
 against the element type, since `score[player] : Integer = 0` broadcasts
 one value to every key. The check is as sharp as the inferencer and no
 sharper: a default whose type the inferencer leaves as the permissive top
@@ -961,11 +961,11 @@ rather than a hole here — no corpus default is untyped.
 game Bridge {
   // No game-level state in Bridge.
 
-  phase rubber repeat until any partnership.games_won >= 2 {
+  phase rubber repeat until (any team where games_won[team] >= 2) {
     state {
-      games_won[partnership]              : Integer = 0
-      above_line[partnership]             : Integer = 0
-      below_line_current_game[partnership]: Integer = 0
+      games_won[team]              : Integer = 0
+      above_line[team]             : Integer = 0
+      below_line_current_game[team]: Integer = 0
     }
 
     phase hand_sequence {
@@ -973,7 +973,7 @@ game Bridge {
         contract       : Contract? = none
         declarer       : Player?   = none
         dummy          : Player?   = none
-        tricks_taken[partnership] : Integer = 0
+        tricks_taken[team] : Integer = 0
         dummy_revealed : Boolean   = false
       }
       // ... phases inside hand_sequence ...
@@ -1169,7 +1169,7 @@ units, because no single check covers every non-termination shape:
   number generous enough for the corpus's longest game (which used to
   make every other game's reported bound meaningless). Because the
   decision counter enforces the same bound on the same unit
-  `max_game_length` is denominated in (decisions, i.e. actions), a
+  `max_game_length` is measured in (decisions, i.e. actions), a
   registered game's real trajectory length cannot silently exceed what it
   advertises to OpenSpiel.
 
@@ -1358,9 +1358,9 @@ rewrites to underlying forms.
 - `Suit`, `Rank` — enumerable value types defined by the game's
   `cards` header.
 - `Player` — bare identity; relational queries delegate to Seating.
-- `Partnership` (alias: `Team`) — declared in the game header;
-  indexable as a key into per-partnership state.
-- `Seating` — derived from `players` + `partnerships`; exposes
+- `Team` — declared in the game header; indexable as a key into
+  per-team state.
+- `Seating` — derived from `players` + `teams`; exposes
   `partner_of(p)`, `left_of(p)`, `right_of(p)`, `LHO_of(p)`,
   `RHO_of(p)`, `opposite_of(p)`. Relational queries are function
   calls (and the `offset_by` operator), never dot chains — see the
@@ -1512,8 +1512,8 @@ fall back to it:
   signatures, zone content types, struct types, operator result types,
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
-  a compiler bug, not a program error — so it fails in compiler
-  currency (an `AssertionError` naming the guard or builder that
+  a compiler bug, not a program error — so it fails in the compiler's
+  failure channel (an `AssertionError` naming the guard or builder that
   guarantees it), exactly as the runtime's `role_members` and
   `zone_observer_key` already did.
 - **An environment lookup raises.** A name resolve classified but the
@@ -1542,7 +1542,7 @@ fall back to it:
   plain name check. Each position's allowed set mirrors exactly what
   its type builder can resolve, so a name the guard admits is never one
   the builder still maps to the top, and no defect is reported twice in
-  two currencies.
+  two channels.
 
   A gate belongs to the DECLARATION, not to the uses that reach it: a
   gate run from the vocabulary sites that name a move would leave a move
@@ -1771,7 +1771,7 @@ not a hang. No satisfying subset is the no-implicit-actions error: guard
 the transfer so it is only reached when one exists.
 
 For the OpenSpiel target, joint candidates are card subsets — the combo
-block's currency, exactly like climb combination plays — and the subset
+what the block deals in, exactly like climb combination plays — and the subset
 universe comes from a **registered per-predicate codec**
 (`joint_codec_function`, the climb-engine codec pattern: the predicate's
 root call names it, `gin_arrange_ok` → the 329-meld universe of
@@ -1794,7 +1794,7 @@ machinery, and two rummy-family games prove the two halves:
 
 - **The key flattens into zone-family names.** A group keyed by a small
   static domain declares one zone family per key value: Canasta's
-  per-partnership per-rank melds are eleven team-indexed `TeamPile`
+  per-team per-rank melds are eleven team-indexed `TeamPile`
   families (`meldA[team] … meld4[team]`), plus the black-three going-out
   group and the red-three row; Gin's three arrangement slots are
   `meldA/B/C[player]`. The one index a zone family carries is the *owner*
@@ -2450,7 +2450,7 @@ consumes no randomness — every seed yields the identical game.
 
 The acceptance property for `Card`-as-a-specialization-of-`Piece` is
 that **the card corpus cannot tell**: every card game keeps `cards:`,
-its card queries, and byte-identical behavior. Piece twins of the
+its card queries, and byte-identical behavior. Piece Shadow Guards of the
 card-query and aggregation forms are deliberately absent from the
 grammar (a piece game counts and aggregates through the generic
 collection surfaces a card game shares); the deferred declaration-site
@@ -2603,7 +2603,7 @@ declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
 the direction in that player's frame. Five closed stdlib verbs read the
 board entry (rejected in a boardless game naming `board:`, the `lines(k)`
-twins):
+Shadow Guards):
 
 - `neighbor(from, along, player)` — the cell one step along `along` in
   `player`'s frame, a `TCell`. It is **total**: an off-board step is a
@@ -2743,7 +2743,7 @@ phase scoring {
 ```
 
 Each component takes the hand result and returns a `ScoreDelta` — a
-structured value carrying per-partnership (or per-player)
+structured value carrying per-team (or per-player)
 contributions. The scoring phase sums the deltas across all
 components and applies the result atomically.
 
@@ -2754,7 +2754,7 @@ contribute to a single applied write.
 
 **Structured-score shapes are per-game, not generalized.** Bridge's
 `ScoreDelta { above_line, below_line }` has two channels per
-partnership because the game-win threshold cares specifically about
+team because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
 history. The games whose score is a single integer per player
@@ -2794,7 +2794,7 @@ example).
 
 Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when
-a partnership's below-the-line score crosses 100; RubberBonus fires
+a team's below-the-line score crosses 100; RubberBonus fires
 when `games_won` reaches 2; Spades' bag-overflow fires when
 `bags >= 10`. These
 share one shape, distinct from the batched per-hand composition:
@@ -3557,7 +3557,7 @@ one layer out: the count is a second statement of a fact the code already
 holds, and the two drift (`decisions.md` is not exempt from
 [maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
 Where the set is worth naming, name the registry that defines it — the
-prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+prose-only game Shadow Guards are `PROSE_ONLY_TWINS`, not "six Shadow Guards" — so a
 reader can count it and a change that grows it cannot leave the sentence
 behind. Identifiers in prose carry the same hazard for the same reason:
 nothing checks that a backticked name still resolves, so one naming a
@@ -3591,12 +3591,15 @@ be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
 
-An Owner Guard must also speak its **layer's failure currency**: the compile
+An Owner Guard must also speak its **layer's failure channel**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
-the wrong currency and suppresses every other diagnostic in the file);
+the wrong channel and suppresses every other diagnostic in the file);
 the runtime fails as typed exceptions; the proofs fail with a witness.
-Loud-but-wrong-layer is a bug with the same rank as silent.
+Loud-but-wrong-layer is a bug with the same rank as silent. "Channel" is
+never bare: a game's scoring channels, the observation channel and a
+library's feeding channel are different things (see the glossary's
+reserved words).
 
 **A check lands only after naming its owner (write-time triage).** Two
 tells at edit time mean information is being lost rather than defended:
@@ -3607,7 +3610,7 @@ declares), and *guarding* a condition that is already checked somewhere
 else. Either tell stops the edit — the fix is upstream, not local. Before
 it lands, the check is classified as exactly one of three things: an
 **Owner Guard** (it moves to the layer that owns the class, in that layer's
-currency, with a test), a **Shadow Guard** (it stays, and its comment names
+failure channel, with a test), a **Shadow Guard** (it stays, and its comment names
 the Owner Guard it shadows — and the recorded residual that makes it reachable,
 if one exists), or a **missing Owner Guard** (the Owner Guard is built at the owning
 layer, and the local site becomes a Shadow Guard citing it). A guard that
@@ -3616,7 +3619,7 @@ contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
 (`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
 decides where a check belongs. For the runtime packages the triage is
-mechanized: `tests/test_assert_triage.py` scrapes every assert-currency
+mechanized: `tests/test_assert_triage.py` scrapes every assert-channel
 site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
 any site whose attached text names neither a dispatch fallthrough nor the
 Owner Guard it shadows.
@@ -3664,18 +3667,18 @@ without it, and the temptation is to name the crash: "without this guard,
 `to each hand[0]` would die on the executor's `NameRef` assert". That
 couples the comment to another module's current implementation — the one
 detail a reader editing *this* file never sees, and the one most likely to
-move. Failure currency is deliberately mobile here: a bare `KeyError`
+move. The failure channel is deliberately mobile here: a bare `KeyError`
 becomes a typed `RuntimeError`, a Shadow Guard assert becomes an Owner Guard one layer
 up. Every comment naming the old type is then confidently wrong while still
 reading as precise, which is worse than vague. Name instead what the
 downstream layer *requires* — the thing that actually justifies the guard:
 "without this guard, it would reach the executor, which requires a zone in
 this position and refuses anything else at play time". The warning survives
-a change of currency; the coupling does not. The exception type is
-load-bearing in two places. The first is an argument *about* failure currency
+a change of channel; the coupling does not. The exception type is
+load-bearing in two places. The first is an argument *about* the failure channel
 ("a typed error, not a bare `KeyError`"), where the type is the subject
 rather than incidental colour. The second is a type that carries a guard's
-ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary section 5) — where
+ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary/owner-guard.md, glossary/shadow-guard.md) — where
 the type IS the classification rather than a report of it. Mobility still runs
 in the direction this rule was written for: bare to typed is an upgrade in
 specificity, and it stays free. What is no longer free is a guard changing
@@ -3952,8 +3955,8 @@ none is coming.
 **State reaches a library two ways, and the difference is ownership.** A library
 `requires` state the including GAME owns, and `state`s the state the LIBRARY
 owns. Both are checked at the `uses` line, so an unmet contract or a collision
-lands in the game's currency rather than as an undeclared name inside spliced
-library text the author never typed.
+is reported to the game's author rather than as an undeclared name inside
+spliced library text they never typed.
 
 ```text
 requires {
@@ -4041,11 +4044,11 @@ imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
 express, and name that case.
 
-A requirement's own index is checked first, and in the LIBRARY's currency:
+A requirement's own index is checked first, and reported to the LIBRARY's author:
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
 because an index must be a role a state variable can be keyed by
 (player/team) and no game could answer such a requirement. That is the
-library twin of the state-index guard, and the difference in currency is
+library Shadow Guard of the state-index guard, and the difference is
 who can fix it — an unmet contract is a fact about the importing game, a
 malformed index is wrong in the library's own text. A mismatch between a
 well-formed requirement and the game's declaration names both roles
@@ -4078,8 +4081,8 @@ library alone, before any game is consulted. Without that the contract would be
 a suggestion: a body reading past it resolves against a game that happens to
 declare the extra name and fails against a game meeting the contract in full,
 reporting an unresolved-name error inside library text the game's author never
-wrote. That is the currency failure `requires` exists to prevent, arriving by
-the back door, and it is why the check reports in the LIBRARY's currency — the
+wrote. That is the misaddressed failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports to the LIBRARY's author — the
 library author is the only one who can fix it. The same rule makes a library
 deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one

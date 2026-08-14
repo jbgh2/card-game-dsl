@@ -1,11 +1,11 @@
 ---
 term: Shadow Guard
-definition: A deliberately redundant guard standing behind an Owner Guard it names; unreachable if that Owner Guard is correct. Its firing is always an engine gap: it addresses the engine maintainer, and its message leads with the Owner Guard that leaked, game context second. Code artifact: runtime Owner Guards raise `OwnerGuardError`, Shadow Guards raise `ShadowGuardError`, both subtypes of `GameDescriptionError` (`cardlang/runtime/errors.py`) — the base names what's wrong (catch it in harnesses), the subtype names the role that caught it, and any `ShadowGuardError` raised anywhere in the suite is a failure (Pinned in `tests/conftest.py`). Where each class sits is itself Pinned, in `tests/test_failure_taxonomy.py`. Retired: `backstop`, `twin` (→ F-19).
+definition: A deliberately redundant guard standing behind an Owner Guard it names; unreachable if that Owner Guard is correct. Its firing is always an engine gap: it addresses the engine maintainer, and its message leads with the Owner Guard that leaked, game context second. Code artifact: runtime Owner Guards raise `OwnerGuardError`, Shadow Guards raise `ShadowGuardError`, both subtypes of `GameDescriptionError` (`cardlang/runtime/errors.py`) — the base names what's wrong (catch it in harnesses), the subtype names the role that caught it, and any `ShadowGuardError` raised anywhere in the suite is a failure (Pinned in `tests/conftest.py`). Where each class sits is itself Pinned, in `tests/test_failure_taxonomy.py`. Never names for this role: `backstop`, `twin` (→ F-19). Both have their own lives — a `max_length` backstop is a real termination bound, and a game's readable twin is its prose counterpart — so what is retired is the guard sense, not the spelling.
 layer: check
 status: canonical
 reserved: false
 home:
 see: []
-retired_spellings: [backstop, twin]
+retired_spellings: []
 findings: []
 ---

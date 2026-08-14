@@ -69,7 +69,7 @@ covered:    the bad-args rejection grid (unknown family, arity 1, arity 3,
             case that documents the adequacy skip (constructs, homes overlap
             on the middle rank); each born-green movement pin's reddening
             witness as a focused negative test (see "red under (movement)");
-            and the method input walls -- unknown direction, seat other than
+            and the method input guards -- unknown direction, seat other than
             0/1, off-grid cell, and a non-grid family -- each refused loudly.
 sampled:    16x16 relies on the closed-form count only (brute force over
             every k-combination of 256 cells is infeasible); the closed-form
@@ -393,7 +393,7 @@ def test_lines_rejects_a_family_outside_the_registry() -> None:
 
 
 # ---------------------------------------------------------------------------
-# BoardEntry construction backstop
+# BoardEntry construction Shadow Guard
 # ---------------------------------------------------------------------------
 
 
@@ -651,7 +651,7 @@ def test_home_disjoint_pin_reddens(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Transfer: method input walls (registry-internal refusals -- the stdlib verbs
+# Transfer: method input guards (registry-internal refusals -- the stdlib verbs
 # that wrap these only ever pass a valid cell / direction / seat)
 # ---------------------------------------------------------------------------
 

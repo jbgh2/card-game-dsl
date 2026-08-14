@@ -457,7 +457,7 @@ class _Builder(Transformer[Token, n.Game]):
         # filters have no residue, so an item no filter matches is dropped
         # without a word — the accepted-but-ignored defect class, at the
         # granularity of a whole clause. `game()` below is the sibling this
-        # mirrors, down to the `else` arm's currency.
+        # mirrors, down to the `else` arm's channel.
         requires: tuple[n.RequireDecl, ...] = ()
         seen_requires = False
         state: n.StateBlock | None = None
@@ -512,7 +512,7 @@ class _Builder(Transformer[Token, n.Game]):
                 procedures.append(item)
             else:
                 # An `?library_item` alternative with no arm above. Compiler-bug
-                # currency, exactly as in `game()`: a grammar alternative nobody
+                # channel, exactly as in `game()`: a grammar alternative nobody
                 # taught the builder about is a defect in this package, not a
                 # sentence the designer got wrong, so it may not be reported as
                 # an author-facing diagnostic. Pinned by

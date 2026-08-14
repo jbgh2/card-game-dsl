@@ -29,13 +29,13 @@ registry:  the four AST node types (`cardlang/ast/nodes.py`) and the `agg`
 covered:   Quantifier.body (Boolean-checked, both roles reachable via
            `any`/`all` x `player`/`team`/`suit`/`rank` share one code path —
            `player` sampled); PlayerQuery.pred (Boolean-checked);
-           CardQuery.source (the shared `_check_card_source` wall, probed
+           CardQuery.source (the shared `_check_card_source` guard, probed
            on a wrong-element collection AND on a non-collection bare-Card
            source — the latter cell is the easy one to miss: without it a
            card-typed non-collection would unify with TCard and pass, then
            crash at runtime iteration; reused by Comprehension);
            CardQuery.pred (Boolean-checked); Comprehension.source (shared
-           wall, reused); Comprehension.where (Boolean-checked);
+           guard, reused); Comprehension.where (Boolean-checked);
            Comprehension.body (Integer-checked for all three `agg` values;
            the TEnum sub-case is checked separately for `sum` — a
            TypeError-at-runtime message — and `max`/`min` — a silent-
@@ -51,7 +51,7 @@ covered:   Quantifier.body (Boolean-checked, both roles reachable via
            scope (the grammar's own reading: a default is a fallback value,
            not a per-card predicate), so a misparsed default that references
            `card` surfaces as an "unresolved name" at resolve time, a
-           stronger diagnosis of the identical bug. This typecheck-level wall's real,
+           stronger diagnosis of the identical bug. This typecheck-level guard's real,
            non-redundant domain is a misparsed default that does NOT
            reference the binder — any Boolean expression valid in the outer
            scope (a plain state var, a function call) — which resolves
@@ -65,16 +65,16 @@ sampled:   Quantifier's four roles (`player`/`team`/`suit`/`rank`) all route
            `_check_card_source`/pred-Boolean calls before the kind-specific
            runtime dispatch — `count` (no pred) and `set`/`any` (with pred)
            are both probed; `all` shares `any`'s code path unprobed.
-residual:  same let-bound-locals residual as test_operator_walls.py (a
+residual:  same let-bound-locals residual as test_operator_guards.py (a
            `let`-derived aggregation source/body/filter/default stays
-           `TAny` and passes every wall here vacuously) — not re-derived,
+           `TAny` and passes every guard here vacuously) — not re-derived,
            see that module's ledger, which owns it. No new residual is
            introduced by this
-           module: the Boolean-default misparse wall is deliberately
+           module: the Boolean-default misparse guard is deliberately
            over-broad by design (a `where`-clause-adjacent Boolean default
            is flagged even in the vanishingly unlikely case that a
            Boolean-body aggregation genuinely intends a Boolean default —
-           no corpus game does this, and the wall is deliberately scoped to
+           no corpus game does this, and the guard is deliberately scoped to
            this trade-off: "almost always" the misparse, not "always"), so
            it is not tracked as a coverage gap.
 """
@@ -126,7 +126,7 @@ _FLAGS = "flag_a : Boolean = false  flag_b : Boolean = true"
 
 def test_the_headline_misparse_is_rejected() -> None:
     # The headline probe (`card.suit is hearts or card.suit is spades`).
-    # Two layers can each catch this sentence: THIS module's wall, or
+    # Two layers can each catch this sentence: THIS module's guard, or
     # resolve's binder scoping — resolve evaluates `Comprehension.default`
     # OUTSIDE the `card` binder's scope (the grammar's own reading: a default
     # is a fallback value, not a per-card predicate), so `card` in the default
@@ -135,7 +135,7 @@ def test_the_headline_misparse_is_rejected() -> None:
     # deliberately layer-agnostic (rejected, full stop) rather than pinned to
     # one message: pinning it to resolve's message would make this test fail
     # whenever that scoping is reshaped, for a reason having nothing to do
-    # with this module's wall.
+    # with this module's guard.
     with pytest.raises(DiagnosticError):
         check_dsl(
             _game(
@@ -144,12 +144,12 @@ def test_the_headline_misparse_is_rejected() -> None:
             ),
             "mini.cardlang",
         )
-    # The typecheck-level wall THIS module adds is not redundant with that
+    # The typecheck-level guard THIS module adds is not redundant with that
     # resolve-level fix, and this is the case that proves it: a misparsed
     # default that does NOT reference `card` — any Boolean expression valid
     # in the outer scope, e.g. a plain state var — resolves cleanly
     # regardless of resolve.py's scoping and reaches typecheck unchallenged.
-    # This probe is pinned to the wall's own message, since nothing outside
+    # This probe is pinned to the guard's own message, since nothing outside
     # this module can catch it.
     _rejects(
         _game(
@@ -229,7 +229,7 @@ def test_card_query_source_rejects_a_non_card_collection() -> None:
 
 
 def test_card_query_source_rejects_a_bare_card() -> None:
-    # A card-TYPED source is still not a collection: without this wall it
+    # A card-TYPED source is still not a collection: without this guard it
     # would unify with TCard, pass, and `list(elements(card))` would crash at
     # runtime.
     _rejects(

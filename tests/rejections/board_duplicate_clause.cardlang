@@ -1,4 +1,4 @@
-// Wall: parse.py's `game()` `once("board:")`. A game declares one `board:`
+// Guard: parse.py's `game()` `once("board:")`. A game declares one `board:`
 // clause; a repeat is rejected before any tree exists (a parse-level
 // rejection -- pinned in tests/metamorphic/test_reorder.py's
 // _PARSE_LEVEL_CASES).

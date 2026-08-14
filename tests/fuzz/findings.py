@@ -12,17 +12,17 @@ un-reproduce a pinned finding. `test_fuzz.py`'s
 `test_known_findings_still_reproduce` replays every entry here and asserts
 the SAME outcome kind, exception type, and a message substring — "loud and
 pinned" (grammar-fuzzing.md via the task brief that built this package): if
-someone fixes the underlying wall without updating this ledger, that test
+someone fixes the underlying guard without updating this ledger, that test
 starts failing, which is the intended prompt to do the other half of the
 feed-forward rule below.
 
 Two classes (only `delete_line` has produced findings across the discovery
 sweep this ledger is built from — the whole corpus x every operator x
 seeds 0..4; every finding currently recorded is playout-class, the
-wrong-currency entries having been fixed and fed forward to
+wrong-channel entries having been fixed and fed forward to
 `tests/rejections/`):
 
-- `"wrong-currency-crash"`: `run_oracle` (T1) returns `"crash"` — the front
+- `"wrong-channel-crash"`: `run_oracle` (T1) returns `"crash"` — the front
   end let something other than `DiagnosticError` escape `check_dsl`.
 - `"accepted-then-crashes-at-playout"`: `run_oracle` returns `"passed"` but
   `run_playout` (T3) returns `"crash"` — the mutant is a well-typed program
@@ -36,10 +36,10 @@ NOT this package): delete its `Finding` entry here, delete its
 + `.expected` (if the fix makes it a proper `DiagnosticError`) so the fix
 becomes a permanent regression case — `test_rejections.py`'s own module
 docstring is the authority on that pair's format. A playout-class finding
-whose fix is a NEW static wall (rather than an accepted runtime behavior)
+whose fix is a NEW static guard (rather than an accepted runtime behavior)
 follows the same path; a playout-class finding whose fix only improves the
 runtime's own error message stays a `RuntimeError`/`AssertionError` outside
-`DiagnosticError`'s currency and does not migrate to `tests/rejections/` —
+`DiagnosticError`'s channel and does not migrate to `tests/rejections/` —
 it just gets deleted from this ledger once the message is re-pinned wherever
 that runtime path already has its own test.
 """
@@ -52,18 +52,18 @@ from typing import Literal
 
 FINDINGS_DIR = Path(__file__).resolve().parent / "known_findings"
 
-Classification = Literal["wrong-currency-crash", "accepted-then-crashes-at-playout"]
+Classification = Literal["wrong-channel-crash", "accepted-then-crashes-at-playout"]
 
 
 @dataclass(frozen=True)
 class Finding:
     slug: str
     classification: Classification
-    # Which stage crashes: T1 (`run_oracle`) for wrong-currency, T3
+    # Which stage crashes: T1 (`run_oracle`) for wrong-channel, T3
     # (`run_playout`, on a game `run_oracle` accepted) for playout findings.
     stage: Literal["oracle", "playout"]
     exception_type_name: str  # `type(exception).__name__` — pinned by name,
-    # not by importing the type, since the wrong-currency case's exception
+    # not by importing the type, since the wrong-channel case's exception
     # (`lark.exceptions.VisitError`) lives in a dependency this package
     # otherwise has no reason to import directly.
     message_substring: str

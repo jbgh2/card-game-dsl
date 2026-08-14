@@ -62,7 +62,7 @@ residual:   three, each a limit of what a SCRAPE can see rather than a cell
             3. Bare `assert` statements are outside the domain — they raise no
                `ast.Raise` node. `tests/test_assert_triage.py` owns them and is
                total over the same two runtime packages, so the pair covers
-               the assert-currency sites this module cannot see. Note those
+               the assert-channel sites this module cannot see. Note those
                vanish under `python -O`, including three import-time registry
                reconciliations (`domains.py:400`, `resolve.py:139`,
                `runtime/reads.py:366`); nothing in this repo runs `-O`, and
@@ -111,7 +111,7 @@ _ACCOUNTED = frozenset(
         "_untyped_operator",
         "_undeclared",
         "_missing",
-        # the engine maintainer's currency, owned by tests/test_assert_triage.py
+        # the engine maintainer's channel, owned by tests/test_assert_triage.py
         "AssertionError",
         # `raise exc.orig_exc` — re-raising an already-classified exception
         "exc.orig_exc",
@@ -135,7 +135,7 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "resolve's catch narrows to OwnerGuardError precisely so these "
         "propagate as engine failures instead of becoming a diagnostic on the "
         "designer's `board:` line. Giving them an engine-bug TYPE is the "
-        "assert-currency question, which tests/test_assert_triage.py owns."),
+        "assert-channel question, which tests/test_assert_triage.py owns."),
     ),
     ("cardlang/runtime/values.py", "ValueError"): (
         4,
@@ -188,7 +188,7 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         ("Action-id and card-encoding misses at the OpenSpiel adapter seam. "
         "Author is the adapter maintainer; OpenSpiel's own contract is what "
         "these enforce, and Interop is an anti-corruption layer whose "
-        "vocabulary is deliberately separate (glossary section 4)."),
+        "vocabulary is deliberately separate (the glossary's OpenSpiel boundary)."),
     ),
     # --- not defects: deferred surface ---------------------------------------
     ("cardlang/openspiel/encoding.py", "NotImplementedError"): (
@@ -203,7 +203,7 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         1,
         ("component_set's registry miss. Its docstring names "
         "resolve._resolve_component_set as the Owner Guard, so this is really "
-        "a Shadow Guard wearing the wrong currency — the one row here that is "
+        "a Shadow Guard wearing the wrong channel — the one row here that is "
         "a genuine mis-typing rather than a different Author. Left because its "
         "test pins NotImplementedError by name and the fix is a separate, "
         "provable change; recorded rather than swept so it is not mistaken "

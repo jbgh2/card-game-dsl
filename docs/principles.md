@@ -234,7 +234,7 @@ project through these visibility settings. Perfect recall by default;
 instance that lexically encloses its declaration. Refactoring a
 phase carries its state with it. Mutation within a phase body is
 sequential, with `apply_components:` as the one batched-write
-exception. (See [decisions.md](decisions.md), "State scoping" and
+exception. (See [decisions.md](decisions.md), "State scoping (lexical)" and
 "Mutation semantics".)
 
 **Round forms own their internal state.** The trick, auction, betting, and

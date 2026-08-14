@@ -201,7 +201,7 @@ Game-local rules that recur as *names* but not as bodies:
   `rank_value` within the trump suit vs `tarot_trump_height()`)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
-  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
+  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption (`exempts:`)");
   see below.
 - `MustFollowEffectiveSuit` — French Tarot's follow rule (see
   `MustFollowSuit` above)
@@ -562,7 +562,7 @@ statement; trick routing is ordinary body transfers after a `round` returns.
 - `move` — the generic relocation (`move all cards from X to Y`). The
   destination-only form `move all cards to <zone>` is a **gather**: it collects
   every card from all other zones into that zone (per-hand cleanup; see
-  [decisions.md](decisions.md) "Loop lifecycle")
+  [decisions.md](decisions.md) "Loop lifecycle: `before_each` and `after_each`")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
 
@@ -875,7 +875,7 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
 - `five_hundred_lead_ok(p: Player, c: Card) → Boolean` — lead legality: an
   un-nominated joker may not be led in the no-trump family before the
   holder's last card (the modelled form of the lead-nomination rule —
-  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset").
+  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset (modelling notes)").
 - `five_hundred_trick_winner(leader: Player) → Player` — the completed
   trick's winner (three cards in a misère — the declarer's partner sits
   out — else four): highest trump (joker > bowers > A..), else highest of
@@ -955,7 +955,7 @@ and its declaration combinations need ten game-local primitives, all reading
 `cardlang/runtime/belote.py`:
 
 - `belote_trump_height(card: Card) → Integer` — a rank's strength within
-  the trump suit (1..8), the over-trump comparison's currency (the demand
+  the trump suit (1..8), the ordering the over-trump comparison uses (the demand
   filters on `card.suit is trump_suit` itself).
 - `belote_trick_winner` — a **winner function** (named on `round …
   winner belote_trick_winner`): highest trump under the J-9 trump order if

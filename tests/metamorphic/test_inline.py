@@ -38,7 +38,7 @@ residual:   THREE GAMES ARE OUT OF DOMAIN, and named rather than absent
             inline.py's splice is also deliberately NOT a general procedure
             inliner (its module docstring lists exactly the shape envelope
             both pinned games sit inside: no nested `run` inside a
-            procedure body — a resolve-level wall — no call-site argument
+            procedure body — a resolve-level guard — no call-site argument
             beyond a bare identifier/literal, every call site
             brace-scoped). A game outside that envelope needs the splice
             generalized before this suite covers it — not fixed here,
@@ -184,7 +184,7 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
 def test_every_run_argument_is_bare(path: Path) -> None:
     """inline.py's soundness argument (module docstring) assumes every `run`
     argument is a bare identifier or bare enum literal — checked here (unlike
-    "no nested run", this one is NOT a language-level wall, just true of
+    "no nested run", this one is NOT a language-level guard, just true of
     Coup's text today)."""
     game = pairing.parse_corpus_game(path)
     for nd in _walk(game):

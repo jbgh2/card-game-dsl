@@ -76,7 +76,7 @@ clockwise.
   are this corpus's fixed choice.
 - **Totality of the offices.** With five players, four shed before the hand
   ends, so President and Vice-President always exist; the `is not none`
-  guards around the score updates are a totality backstop, never taken.
+  guards around the score updates are a totality Shadow Guard, never taken.
 
 ## How the description maps to the DSL
 

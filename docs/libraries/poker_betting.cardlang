@@ -47,7 +47,7 @@ library poker_betting {
   }
 
   // What the including game must declare. Checked at its `uses` line, so an
-  // unmet requirement is reported in the game's currency rather than as an
+  // unmet requirement is reported to the game's author rather than as an
   // undeclared name inside text the author did not write. Each is here because
   // a game genuinely touches it: the four chip variables and `folded` are
   // written by antes, settlements and each game's own `fold`, and `raises` by

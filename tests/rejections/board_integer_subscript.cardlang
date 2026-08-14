@@ -1,4 +1,4 @@
-// Wall: typecheck.py's Subscript arm. A cell-keyed zone family (`square[cell]
+// Guard: typecheck.py's Subscript arm. A cell-keyed zone family (`square[cell]
 // : Cell<cell>`) subscripts only with a TCell-typed expression; a bare integer
 // index (`square[7]`) can never denote a cell, a type error.
 game BoardIntegerSubscript {

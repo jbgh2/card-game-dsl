@@ -61,7 +61,7 @@ residual:   cells on this surface that this ledger does NOT close, each
             - `team_of(p)` and the thirteen primitives reading
               `facts.team_of[p]` raise a bare `KeyError` rather than the
               runtime's own error, in a game that declares no `teams:`
-              (issue #299); guard: none — this wall makes the seat-in-no-team
+              (issue #299); guard: none — this guard makes the seat-in-no-team
               trigger unreachable for a game that DOES declare teams, but
               the teamless trigger survives it.
             - a teamless game's `any team where` is silently `False`,

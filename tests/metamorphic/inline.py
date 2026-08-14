@@ -46,14 +46,14 @@ merely true of these games' text: `resolve.py`'s `_check_procedures` rejects
 a call graph)", so no corpus game that passes resolve (all of them) could
 have nested calls to splice in sequence. Every
 argument is a bare identifier or bare enum literal (checked by
-`test_inline.py`, since nothing walls this the way nesting is walled) — no
+`test_inline.py`, since nothing guards this the way nesting is guarded) — no
 argument expression has a side effect a naive re-evaluation could duplicate
 (moot here regardless, since this transform binds each argument via `let`
 exactly once, matching expand.py), and a bare-name/literal argument also
 means the WHOLE-WORD parameter-name rewrite inside a call site's OWN
 argument list can never accidentally rewrite the thing being passed in.
 Every call site already sits inside a `{ }` block (a move-type effect or an
-`if` body — also checked, not walled), so splicing multiple `let` + body
+`if` body — also checked, not guarded), so splicing multiple `let` + body
 statements in place of one `run` line never needs to introduce braces of its
 own. A general inliner would additionally need to: parse arbitrary argument
 expressions (balanced-paren/bracket comma splitting, implemented here
@@ -184,7 +184,7 @@ def splice_procedures(text: str) -> str:
 
     # Splice call sites first (procedure bodies are still present in `text`
     # at this point, but no call site lies WITHIN a procedure body — that
-    # would be a nested `run`, which resolve's `_check_procedures` wall
+    # would be a nested `run`, which resolve's `_check_procedures` guard
     # rejects language-wide — so processing them in file order and
     # patching from the end backward is safe and simple).
     edits: list[tuple[int, int, str]] = []  # (start, end, replacement), any order

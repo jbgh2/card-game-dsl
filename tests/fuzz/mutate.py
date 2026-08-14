@@ -76,7 +76,7 @@ def delete_line(text: str, rng: random.Random) -> str | None:
 
 def duplicate_declaration(text: str, rng: random.Random) -> str | None:
     """Insert a second copy of a declaration-shaped line right after itself —
-    the shape most likely to trip a duplicate-name wall in resolve."""
+    the shape most likely to trip a duplicate-name guard in resolve."""
     lines = text.splitlines(keepends=True)
     candidates = [i for i, line in enumerate(lines) if _DECLARATION_LINE_RE.match(line)]
     if not candidates:
@@ -113,7 +113,7 @@ def rename_identifier(text: str, rng: random.Random) -> str | None:
     """Rename exactly ONE occurrence of an identifier (leaving every other
     occurrence — including the declaration it may be renaming away from, or
     a sibling use it now dangles — untouched). This is the operator aimed
-    squarely at resolve's undefined-name / mismatched-reference walls."""
+    squarely at resolve's undefined-name / mismatched-reference guards."""
     matches = list(_IDENTIFIER_RE.finditer(text))
     if not matches:
         return None

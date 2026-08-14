@@ -97,7 +97,7 @@ def _trump_order(game_type: str, trump_suit: str | None) -> list[tuple[str, str]
         # The contract is live game state (Null names no trump suit, and the
         # docstrings of the consumers say the game guards for it), so being
         # called without one is the description's error, in the runtime's
-        # currency.
+        # channel.
         raise OwnerGuardError(
             f"skat trump order consulted for a {game_type!r} contract with no "
             f"trump suit declared"

@@ -1,4 +1,4 @@
-// Wall: typecheck.py's enum-equality operand check. `hearts` is a Suit and
+// Guard: typecheck.py's enum-equality operand check. `hearts` is a Suit and
 // `left` is a SeatDirection; the two enums can never compare equal, so `is` is
 // rejected rather than silently always-false at runtime.
 game CrossEnumComparison {

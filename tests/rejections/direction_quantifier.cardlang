@@ -1,5 +1,5 @@
-// Wall: resolve's `_check_domain_query`. `dir` is a separate source, NOT a
-// `game.positions` name, so `any dir where ...` -- which the quantifier wall
+// Guard: resolve's `_check_domain_query`. `dir` is a separate source, NOT a
+// `game.positions` name, so `any dir where ...` -- which the quantifier guard
 // validates against the declared position domains -- rejects for free naming
 // the declared universe (`cell`). A direction is a move parameter only, never
 // a quantifier binder.
