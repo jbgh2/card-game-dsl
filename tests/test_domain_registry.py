@@ -4,7 +4,7 @@ Every row of `cardlang.domains.DOMAINS` crossed with every form that ranges over
 a domain — the quantifiers, `for each`, `each … simultaneously`, and the
 move-parameter/action-space surface. Each cell is either GREEN (accepted, and
 for `for each` its actorhood matches the row's `binds_actor` column) or a
-declared WALL with its diagnostic. The matrix is DERIVED from the registry, not
+declared GUARD with its diagnostic. The matrix is DERIVED from the registry, not
 hand-listed: a new row (or a new column value on an existing row) is a new set
 of cells that this module forces someone to classify.
 

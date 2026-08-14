@@ -79,7 +79,7 @@ residual:   - three RUNTIME behaviours reachable through this surface are
               ends (`trick_ctx` is computed once per trick). R2/R2/R3,
               issue #282 — guarded by nothing, which is why they are here.
             - a genuine 3+ stage progression has no mode encoding and routes
-              to a state variable with `applies_when`. Walled by the role 2x2's
+              to a state variable with `applies_when`. Guarded by the role 2x2's
               `both` cell with a diagnostic naming that route. R3 — a designer
               with three rule sets meets it. Growth slot, issue #266.
             - `mode` nested inside `mode` rejects (grid (b)); the growth slot

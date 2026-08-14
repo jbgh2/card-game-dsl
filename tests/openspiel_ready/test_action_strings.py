@@ -18,7 +18,7 @@ The obligation splits in two, and this module owns the first half:
   renders the same ids from states at different points of the same game.
 - **The renderings agree wherever the ids do** (the world-pair proofs, which
   assert `action_strings(...)` alongside every legal-action agreement). Those
-  assertions are BACKSTOPS shadowing this module's guard: with the renderer pure,
+  assertions are SHADOW GUARDS shadowing this module's Owner Guard: with the renderer pure,
   equal ids give equal strings by construction, so they cannot fail on their own.
   They are stated where the property is claimed so the composition is visible at
   the point of use, and they turn red the moment a world-sensitive renderer ships

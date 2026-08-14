@@ -155,7 +155,9 @@ def _candidate_titles(window: str) -> list[str]:
     ]
 
 _SECTION = re.compile(r"^#{2,4}\s+(.+?)\s*$")
-_BOLD_LEAD = re.compile(r"^\s*(?:[-*]\s+)?\*\*(.+?)\*\*")
+# A lead-in may be bulleted or NUMBERED (`5. **Scoring.**`); the enumerator is
+# layout either way, exactly as it is on a heading.
+_BOLD_LEAD = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+)?\*\*(.+?)\*\*")
 
 
 def _normalize(title: str) -> str:
@@ -188,8 +190,26 @@ def _live_titles() -> set[str]:
 # `_candidate_titles`, which scans a three-line window for roadmap.md and would
 # otherwise attach a title belonging to the next citation along.
 _QUOTED_CITATION = re.compile(
-    r'(?:docs/)?(?P<doc>[a-z][a-z-]*\.md)(?:\]\([^)]*\))?[\s,]*["\u201c](?P<title>[\w`][^"\u201d\n]{3,89})["\u201d]'
+    r'(?:docs/)?(?P<doc>(?:[a-z][a-z-]*/)?[a-z][a-z-]*\.md)(?:\]\([^)]*\))?[\s,]*["\u201c](?P<title>[\w`][^"\u201d\n]{3,89})["\u201d]'
 )
+
+
+def _resolve_doc(name: str) -> Path | None:
+    """The file a citation names, wherever under `docs/` it lives.
+
+    A citation writes the basename as often as the path (`lexical-cleanup.md`,
+    not `design-notes/lexical-cleanup.md`), so resolving only `docs/<name>`
+    dropped every nested doc into the "unknown file, skip it" branch — the
+    check's domain silently ending at the top level while its ledger claimed
+    otherwise. Ambiguity is refused rather than guessed: two files sharing a
+    basename make the citation unresolvable, which is a naming problem to
+    report, not one to pick a winner for.
+    """
+    direct = REPO_ROOT / "docs" / name
+    if direct.is_file():
+        return direct
+    matches = [p for p in (REPO_ROOT / "docs").rglob(Path(name).name) if p.is_file()]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _cited_docs() -> dict[str, Path]:
@@ -204,8 +224,8 @@ def _cited_docs() -> dict[str, Path]:
     for path in _in_domain():
         for match in _QUOTED_CITATION.finditer(path.read_text()):
             name = match.group("doc")
-            target = REPO_ROOT / "docs" / name
-            if target.is_file() and target != path:
+            target = _resolve_doc(name)
+            if target is not None and target != path:
                 found[name] = target
     assert found, "no quoted citation found at all -- this check would be vacuous"
     return found
@@ -355,18 +375,25 @@ def test_every_quoted_section_title_resolves() -> None:
     unresolved: list[str] = []
     for path in _in_domain():
         relative = path.relative_to(REPO_ROOT).as_posix()
-        for number, line in enumerate(path.read_text().splitlines(), 1):
-            for match in _QUOTED_CITATION.finditer(line):
-                doc, title = match.group("doc"), match.group("title")
-                if doc not in live or path.name == doc:
-                    continue
-                if _normalize(title) not in live[doc]:
-                    unresolved.append(
-                        f"{relative}:{number}: quotes {doc} section {title!r}, "
-                        f"which {doc} does not carry -- quote the whole heading, "
-                        f"a partial one reads live while being stale"
-                        f"\n    {line.strip()}"
-                    )
+        # Scanned whole, not line by line. Prose wraps, so a citation routinely
+        # puts the file on one line and its title on the next, and validating
+        # per line -- while the registry scan read whole files -- left exactly
+        # those unchecked. Scanning the text once and deriving the line from the
+        # match offset covers them without a sliding window, which would report
+        # a wrapped citation twice.
+        text = path.read_text()
+        for match in _QUOTED_CITATION.finditer(text):
+            doc, title = match.group("doc"), match.group("title")
+            if doc not in live or path.name == Path(doc).name:
+                continue
+            if _normalize(title) not in live[doc]:
+                number = text.count("\n", 0, match.start()) + 1
+                unresolved.append(
+                    f"{relative}:{number}: quotes {doc} section {title!r}, "
+                    f"which {doc} does not carry -- quote the whole heading, "
+                    f"a partial one reads live while being stale"
+                    f"\n    {match.group(0).strip()}"
+                )
     assert not unresolved, (
         f"{len(unresolved)} section citation(s) do not resolve:\n\n"
         + "\n".join(unresolved)

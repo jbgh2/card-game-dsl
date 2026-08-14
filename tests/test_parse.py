@@ -193,7 +193,7 @@ def test_the_front_end_is_deterministic_on_repeat(game: str) -> None:
 
 
 def test_a_shared_ast_cannot_be_mutated() -> None:
-    # A BACKSTOP, not the guard: it probes one field of one node. The guard for
+    # A SHADOW GUARD, not the Owner Guard: it probes one field of one node. The guard for
     # the whole Node domain is test_node_registry.py's
     # `test_every_node_kind_is_frozen` + `test_every_node_kind_has_slots`,
     # enumerated from the module's own dataclass registry. This exists only to

@@ -125,7 +125,7 @@ def manifest(seeds: tuple[int, ...] = SWAP_SEEDS) -> list[Any]:
 def action_strings(space: Any, actions: list[int]) -> list[str]:
     """The rendered action text for `actions` — the bytes a prompt shows.
 
-    BACKSTOP HELPER. Its guard is `test_action_strings.py`, which pins that
+    SHADOW-GUARD HELPER. Its guard is `test_action_strings.py`, which pins that
     `CardlangState._action_to_string` reads nothing of the world: given that,
     equal ids give equal strings, so the world-pair assertions calling this
     cannot fail on their own — measured, under that module's named mutation.

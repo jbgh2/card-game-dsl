@@ -1181,16 +1181,16 @@ def _parse_state_decl(text: str) -> n.StateDecl:
 # reason, so a new field on `n.RequireDecl` fails the pin below until someone
 # decides which it is.
 _MALFORMED_REQUIREMENT: dict[str, str | None] = {
-    # Not an indexable role. Walled by `resolve._check_require_indexes`.
+    # Not an indexable role. Guarded by `resolve._check_require_indexes`.
     "index": "q[hearts] : Integer",
-    # A type the library cannot resolve on its own. Walled by
+    # A type the library cannot resolve on its own. Guarded by
     # `resolve._check_library_encapsulation`.
     "type_name": "q : Integar",
     # Cannot be malformed: `?` is present or absent and the grammar admits no
     # third state, so there is no ill-formed value for the comparison to
     # misreport.
     "optional": None,
-    # A zone type carrying the wrong number of owner arguments. Walled by
+    # A zone type carrying the wrong number of owner arguments. Guarded by
     # `resolve._check_contract_shapes`, which reports at the requirement's span
     # like the other two — so the suppression covers it with nothing added,
     # which is the property the span-matching design was chosen for.

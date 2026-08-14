@@ -179,7 +179,7 @@ def lead_ok(pool: list[Card], c: Card, trump: str | None, joker_suit: str | None
     """The pure lead rule: anything may be led, except that in the no-trump
     family an un-nominated joker may not be led before the holder's last
     card (the modelled form of Pagat's lead-nomination rule — see
-    five-hundred.md, "Chosen ruleset"). Under a trump contract the joker is
+    five-hundred.md, "Chosen ruleset (modelling notes)"). Under a trump contract the joker is
     simply the top trump and leads freely; a nominated joker leads as the
     highest card of its suit."""
     if trump is not None or c.suit != "joker":

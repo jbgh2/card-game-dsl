@@ -52,7 +52,7 @@ descending runs of the REMAINING cards in the natural A K Q J 10 9 8 7
 order, each run at its greatest declarable length (5+ → quinte on the top
 five, 4 → quarte, 3 → tierce), the strongest by (class, height, trump).
 Announcing is scoped to that one best combination per player (belote.md,
-"Scope and departures").
+"Scope and departures from the reference").
 """
 
 from __future__ import annotations

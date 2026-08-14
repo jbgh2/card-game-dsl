@@ -1,4 +1,4 @@
-"""T2 (+T3): the corpus-mutation sweep (grammar-fuzzing.md, "Stage 1").
+"""T2 (+T3): the corpus-mutation sweep (grammar-fuzzing.md, "Stage 1 — corpus mutation").
 
 Every `(corpus game, operator, seed)` triple in the fixed CI grid below
 produces one mutant (`mutate.mutate_text`), which is run through the T1

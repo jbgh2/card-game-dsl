@@ -94,7 +94,7 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             green suite did not: unequal `TStruct`s for one nominal type
             (`expects R, got R`, now closed by nominal struct comparison in
             `types.assignable`/`unify`), and a derived field frozen at the top
-            when its type flowed through a function return (a LOST WALL --
+            when its type flowed through a function return (a LOST GUARD --
             `score[p] := s.flag` accepted a Boolean into an Integer state
             variable). Both are pinned below. Corpus exposure is zero: no game
             declares a struct, which is exactly why the suite was silent.
@@ -175,7 +175,7 @@ game G {{
 
 
 def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
-    """`role_type` raises for a role outside `BY_ID`. That is only a WALL (as
+    """`role_type` raises for a role outside `BY_ID`. That is only a GUARD (as
     opposed to a live crash) because every surface that produces a role draws
     from a set `BY_ID` covers: the parser's four hard-coded quantifier
     spellings, and the four role sets resolve validates against."""

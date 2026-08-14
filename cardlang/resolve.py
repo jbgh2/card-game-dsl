@@ -1116,7 +1116,7 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 #
 # Three shapes of reason, and they are not interchangeable. CLOSED: the
 # namespace is the same for a library as for a game, so no importing game can
-# feed it. WALLED ELSEWHERE: the name IS game-fed, and another pass refuses it —
+# feed it. GUARDED ELSEWHERE: the name IS game-fed, and another pass refuses it —
 # the row must then say WHICH pass, because "something catches it" is how a
 # reason becomes untrue without anyone noticing. DESIGNED: nothing checks the
 # name anywhere, by a recorded decision.

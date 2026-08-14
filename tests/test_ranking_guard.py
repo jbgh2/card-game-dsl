@@ -38,7 +38,7 @@ Residual: coverage (every deck rank present) is deliberately NOT required —
 `tests/test_action_space_multiparam.py`'s
 `test_rank_domain_sourced_from_game_ranking_not_deck` pins a genuine PARTIAL
 `ranking:` (`ranking: A K Q` under standard52's 13 ranks) as a supported,
-deliberate feature that narrows the `Rank` move-parameter domain; walling
+deliberate feature that narrows the `Rank` move-parameter domain; guarding
 partial coverage here would break that regression test. The corpus carries
 one deliberate partial — Canasta's eleven meldable natural ranks under
 canasta108's 14 (wilds and threes are never a meld's rank) — and the sweep

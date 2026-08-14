@@ -53,7 +53,7 @@ sampled:    none -- every row above is an executed probe.
 red under:  the five ACCEPT rows are born red -- reverting any of the three
             seams (resolve guard, `_scoped_env` ForEach arm, `_for_each`
             position arm) fails them, verified by stashing all three. The three
-            WALL/control rows are born green and carry their own mutations:
+            GUARD/control rows are born green and carry their own mutations:
             `for each column` reddens if integer domains join
             `iterable_positions`; the boardless row reddens if the lift stops
             gating on the game's OWN domains (a global `cell` admission); and

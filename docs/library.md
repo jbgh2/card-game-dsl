@@ -875,7 +875,7 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
 - `five_hundred_lead_ok(p: Player, c: Card) → Boolean` — lead legality: an
   un-nominated joker may not be led in the no-trump family before the
   holder's last card (the modelled form of the lead-nomination rule —
-  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset").
+  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset (modelling notes)").
 - `five_hundred_trick_winner(leader: Player) → Player` — the completed
   trick's winner (three cards in a misère — the declarer's partner sits
   out — else four): highest trump (joker > bowers > A..), else highest of

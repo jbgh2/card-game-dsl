@@ -548,7 +548,7 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
 # Authorized one by one: each either validates a value AGAINST the registry
 # (widening the table widens the guard, so there is no hard-coded row to
 # witness) or reconciles two derived views against each other, which likewise
-# has no literal to go stale. Walled rather than trusted, because the predicate
+# has no literal to go stale. Guarded rather than trusted, because the predicate
 # is a proxy: a reconciliation written without a literal collection lands here,
 # and must be looked at rather than pass unnoticed.
 _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {

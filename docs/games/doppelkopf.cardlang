@@ -281,7 +281,7 @@ game Doppelkopf {
       }
 
       // Winner determination (DDV-aligned; verified against both Pagat
-      // worked examples — see doppelkopf.md "Scoring, worked"):
+      // worked examples — see doppelkopf.md "Scoring"):
       // a side that fails any level it announced loses to the other side
       // unless that side also failed its own; with announcements fulfilled
       // (or none made) the base targets decide — Re 121 / Kontra 120,
