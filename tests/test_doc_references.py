@@ -190,7 +190,13 @@ def _live_titles() -> set[str]:
 # `_candidate_titles`, which scans a three-line window for roadmap.md and would
 # otherwise attach a title belonging to the next citation along.
 _QUOTED_CITATION = re.compile(
-    r'(?:docs/)?(?P<doc>(?:[a-z][a-z-]*/)?[a-z][a-z-]*\.md)(?:\]\([^)]*\))?[\s,]*["\u201c](?P<title>[\w`][^"\u201d\n]{3,89})["\u201d]'
+    r'(?:docs/)?(?P<doc>(?:[a-z][a-z-]*/)?[a-z][a-z-]*\.md)(?:\]\([^)]*\))?'
+    # Quote pairs, matched not lumped: a title may contain an apostrophe, so
+    # each form excludes only its OWN closing mark. The single-quoted form
+    # additionally demands a separator, or `decisions.md's contract` opens one.
+    r'(?:[\s,]*"(?P<t1>[\w`][^"\n]{3,89})"'
+    r'|[\s,]*\u201c(?P<t2>[\w`][^\u201d\n]{3,89})\u201d'
+    r"|[\s,]+'(?P<t3>[\w`][^'\n]{3,89})')"
 )
 
 
@@ -383,7 +389,8 @@ def test_every_quoted_section_title_resolves() -> None:
         # a wrapped citation twice.
         text = path.read_text()
         for match in _QUOTED_CITATION.finditer(text):
-            doc, title = match.group("doc"), match.group("title")
+            doc = match.group("doc")
+            title = match.group("t1") or match.group("t2") or match.group("t3")
             if doc not in live or path.name == Path(doc).name:
                 continue
             if _normalize(title) not in live[doc]:
