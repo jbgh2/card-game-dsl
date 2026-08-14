@@ -108,7 +108,7 @@ the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
 `pot_share`) graduate there when a second poker game lands, per the usual
 corpus-first promotion.
 
-**What this is not.** The `instantiate` lesson
+**What this is not.** The [[instantiate-lesson]]
 ([principles.md](../principles.md)) stands untouched: no control flow, no
 movement, no decisions, no mutation in Python — hell was Python holding
 mechanics and touching state invisibly, not Python computing a score from a

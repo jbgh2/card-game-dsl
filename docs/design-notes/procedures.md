@@ -37,7 +37,7 @@ substitution. Concretely:
   sets — are exactly what inline text would emit. A procedure can never
   create an info-set gap, because it does not exist at the layer where
   observations are emitted. This is what keeps the construct on the right
-  side of the `instantiate` lesson ([../principles.md](../principles.md)):
+  side of the [[instantiate-lesson]] ([../principles.md](../principles.md)):
   the retired escape hatch injected *Python* behavior the kernel could not
   see; a procedure injects only DSL the kernel already interprets.
 - **No recursion, no dynamic dispatch.** Like functions: the call graph is
