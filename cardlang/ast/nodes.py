@@ -1058,7 +1058,7 @@ class ProcedureDef:
 
 @dataclass(frozen=True, slots=True)
 class OutcomeCase:
-    """One case of a outcome outcome: a tag with zero or more typed payloads."""
+    """One case of an outcome: a tag with zero or more typed payloads."""
 
     tag: str
     payload_types: tuple[str, ...]

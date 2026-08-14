@@ -5,7 +5,7 @@ Every `run NAME(args)` is replaced, in place, by the named procedure's body; the
 exists, so the IR, the runtime, and the OpenSpiel adapter never learn that
 procedures are a thing — they see the statements. That is the safety argument for
 the construct (decisions.md "Named procedures"): because the body IS the inline
-statements, the observation events it emits, and therefore the information sets
+statements, the [[observation-event]]s it emits, and therefore the information sets
 derived from them, are exactly what inline text would have emitted. A procedure
 cannot open an info-set gap because it does not exist at the layer where
 observations are emitted.

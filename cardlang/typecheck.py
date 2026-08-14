@@ -7,9 +7,9 @@ stdlib argument types, subscripting only collections, and Boolean conditions
 (`if` / `repeat until` / phase qualifiers). It accepts the whole corpus and
 rejects real type errors.
 
-Pragmatic by design: unrefined positions (pronoun member access, lambda values,
-the `Resource`/`ChipStack` query API) infer the permissive `TAny`, which
-propagates without error. Deferred to later stages: outcome outcome types and
+Pragmatic by design: unrefined positions ([[pronoun]] member access, lambda values,
+the `Resource`/`ChipStack` query API) infer the [[permissive-top]] `TAny`, which
+propagates without error. Deferred to later stages: outcome types and
 exhaustiveness (`TOutcome`), user-defined `type` declarations (`TStruct`), full
 `ZoneContents`/`Resource` typing, and payload-type narrowing.
 
@@ -2242,7 +2242,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         elif isinstance(bare, _FIELDLESS_RECEIVERS):
             # The fieldless value types: a position (TCell), a movement
             # direction (TDir), a line/region (TLine), an enum value, a string,
-            # none, or a outcome outcome. None has user-accessible fields, so a
+            # none, or an outcome. None has user-accessible fields, so a
             # dot form on one would otherwise reach no arm and infer TAny with
             # no diagnostic -- the permissive-top gap a `cell`/`dir` binder or a
             # movement verb's TCell return could slip through. The whole

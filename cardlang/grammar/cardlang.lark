@@ -182,7 +182,7 @@ loser: _LOSER_KW ":" expr
 // ----------------------------------------------------------------------------
 
 phase: _PHASE_KW NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
-// A phase that can resolve more than one way declares its outcome outcome type
+// A phase that can resolve more than one way declares its outcome type
 // here; the enclosing structure pattern-matches on it with `produces:`.
 phase_outcome: "->" _OUTCOME_KW outcome_set
 // One lexeme for iteration everywhere: the phase qualifier matches the
@@ -439,7 +439,7 @@ procedure_def: _PROCEDURE_KW NAME "(" [parameter ("," parameter)*] ")" "{" state
 move_when: _WHEN_KW ":" applies_pred
 move_effect: _EFFECT_KW "{" statement* "}"
 
-// A named param-light definition with a typed outcome outcome. Its body runs
+// A named param-light definition with a typed outcome. Its body runs
 // with the enclosing context bound and `produce`s one outcome. Consumed by a
 // `produces:` block (see produces_stmt).
 define_def: _DEFINE_KW NAME "->" outcome_set "{" statement* "}"

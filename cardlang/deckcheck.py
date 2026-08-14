@@ -7,7 +7,7 @@ Seven-Card Stud needing 60 cards from a 52-card deck, a 5-player Bridge needing 
 is a compile error, not a runtime `ValueError` on an exhausted deck.
 
 It tracks usage as a running count that **resets when the deck is refilled** — a
-movement whose destination is the deck (`move all cards to deck`) puts cards back,
+[[transfer]] whose destination is the deck (`move all cards to deck`) puts cards back,
 so deals before and after it draw from separate fills and must not be summed. The
 window's bound is the peak usage at any single deal.
 

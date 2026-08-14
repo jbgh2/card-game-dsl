@@ -503,7 +503,7 @@ These land inside the workstreams above and are shared on the third use:
   failure"), used by Stud's chips and Coup's coins. *Distinct from Stud's side-pot
   reconciliation,* which is poker-specific: Coup has no pot (a coin/treasury
   economy, not a shared pot), so it shares the primitive but not the layering. The
-  side-pot pot stays Stud-local until a second poker variant (Hold'em) lands;
+  side-pot stays Stud-local until a second poker variant (Hold'em) lands;
 - the `Combination` model + queries — Workstream 3, reused by Pinochle and
   Cribbage.
 

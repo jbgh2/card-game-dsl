@@ -1,6 +1,6 @@
 """The one seam that reads a game's position domains as name -> members.
 
-A game's quantifiable position domains are the union of its declared
+A game's quantifiable [[position-domain]]s are the union of its declared
 `positions { }` block (integer members) and its `board:` clause (the minted
 `cell` domain, string members) -- decisions.md "Boards and cells". Resolve
 appends the board-minted domain into `Game.positions` as a named-member
@@ -8,7 +8,7 @@ appends the board-minted domain into `Game.positions` as a named-member
 `Game.positions`.
 
 Both consumers that build a `DomainSources.positions` -- `runtime/driver.py`
-(the live candidate enumeration) and `openspiel/encoding.py` (the static
+(the live [[candidate]] enumeration) and `openspiel/encoding.py` (the static
 action space) -- call this one function rather than each writing the
 `{p.name: p.members ...}` comprehension, so the runtime and the advertised
 action space cannot diverge. A leaf module (it imports only the AST) so both

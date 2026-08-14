@@ -6,7 +6,7 @@ construct, rules) are preserved as tagged nodes. Spans are a front-end
 diagnostic concern and are deliberately omitted, so the IR is stable under
 reformatting of the source and suitable for golden-file snapshots.
 
-Every node carries a ``kind`` tag so an IR consumer can dispatch without
+Every node carries a ``[[kind]]`` tag so an IR consumer can dispatch without
 re-deriving shape. This emitter is the first consumer to walk the whole node
 set, so its `match` statements are checked exhaustively (`assert_never`)
 under ``mypy --strict``.

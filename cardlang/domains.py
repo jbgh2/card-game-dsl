@@ -1,5 +1,5 @@
 """The closed registry of *quantifiable domains* — the finite value sets the
-language can range a binder or a move parameter over.
+language can range a [[binder]] or a move [[parameter]] over.
 
 One row per domain, one column per facet the rest of the engine needs —
 derived once here rather than re-derived by each consumer:

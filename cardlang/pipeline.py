@@ -5,7 +5,7 @@ tests all run the exact same path:
 
     (extract) -> parse -> resolve -> typecheck -> expand -> deck-capacity (-> emit IR)
 
-`expand` splices every procedure body into its `run` sites. It sits after
+`expand` [[splice]]s every procedure body into its `run` sites. It sits after
 typecheck because a procedure's parameter types can only be enforced while the
 call site still exists (cardlang/expand.py), and before deck-capacity because
 every stage downstream of it — capacity, IR, runtime, OpenSpiel — is entitled to
