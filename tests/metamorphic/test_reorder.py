@@ -31,7 +31,7 @@ covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
             pair against an equal tree — the same object once `_check` is
             memoized — and pass for free. The zones axis covers
             every game: a gather visits zones in canonical sorted-name order
-            (`execute.py::_gather`; decisions.md "Loop lifecycle"), the
+            (`execute.py::_gather`; decisions.md "Loop lifecycle: `before_each` and `after_each`"), the
             canonicalization that retired this suite's original gather-order
             finding and its per-game exclusion.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.

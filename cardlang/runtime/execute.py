@@ -482,7 +482,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
 def _rotate(stmt: n.RotateStmt, ctx: Ctx) -> None:
     # Advance the variable to the next value in the cycle. Loop state persists
     # across iterations and `before_each` rotates each hand, so the cycle
-    # advances hand to hand (see decisions.md "Loop lifecycle").
+    # advances hand to hand (see decisions.md "Loop lifecycle: `before_each` and `after_each`").
     current = ctx.rs.get(stmt.target.name)
     values = list(stmt.values)
     idx = values.index(current) if current in values else -1
@@ -743,7 +743,7 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # For Hearts' pass, the per-player bodies are independent transfers, and a
     # player's source hand isn't read by another's body, so sequential
     # execution with the chooser reading current hands is equivalent (see
-    # decisions.md "Simultaneous moves").
+    # decisions.md "Simultaneous moves and atomic effect").
     # This executor IMPLEMENTS only the player row (it iterates seats and
     # rebinds `acting_as`), so it pins the registry's whole simultaneous column
     # to that fact: widening SIMULTANEOUS_ROLES in the domain table without

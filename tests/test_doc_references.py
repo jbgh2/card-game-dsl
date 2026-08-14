@@ -1,4 +1,19 @@
-"""Every prose reference to docs/roadmap.md still resolves to a live section.
+"""Every prose reference to a repo doc still resolves to a live section.
+
+Two properties, one mechanism. The roadmap half requires a section title AND
+checks it, because that file's sections were redistributed to the tracker and a
+bare pointer there is untrackable. The general half only checks the titles that
+are given, across every doc someone cites by section: `decisions.md` alone is
+cited hundreds of times, mostly bare, and demanding a title everywhere would be
+a different and far larger rule.
+
+The general half was added after the narrow one had run for months over one
+file while the LAW went unchecked. It found twenty-three stale citations on its
+first run -- `Interactive decisions`, `Loop lifecycle`, `State scoping` and six
+more, most of them partial quotes of headings that had grown a qualifier. One
+came from `bbe49ce`, whose message says it renamed two headings "and every
+citation with them"; it moved all but one, and nothing could tell.
+
 
 The deferred-work backlog moved to the GitHub tracker (issue #143 orders the
 cross-cutting sequence); roadmap.md kept only what is not work — the
@@ -33,7 +48,12 @@ domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
            and ``CLAUDE.md`` — times every line mentioning ``roadmap.md``.
            Files are enumerated by glob, so a new module, doc or game is
            in-domain the day it exists.
-registry:  roadmap.md's own headings, parsed from the file at test time (``##``
+registry:  for the general half, `_cited_docs()` -- every ``docs/*.md`` that some
+           line cites WITH a quoted title, derived from the same walk, so a doc
+           joins the domain the day someone quotes one of its sections and no
+           list can lag. A heading's enumerator (``2. ``) is registered both
+           ways, since a number is layout and citations omit it.
+           For the roadmap half: roadmap.md's own headings, parsed at test time (``##``
            sections and ``**bold**`` item lead-ins, at any nesting depth), so
            renaming a section reddens every reference to the old name and no
            expected-title list can drift from the file.
@@ -84,7 +104,7 @@ ROADMAP = REPO_ROOT / "docs" / "roadmap.md"
 EXCLUDED_DIRS = (
     "docs/superpowers/plans/",
     "docs/research/",
-    "tests/test_roadmap_references.py",
+    "tests/test_doc_references.py",
 )
 
 # Bare mentions that legitimately name the file as a whole rather than a
@@ -145,15 +165,50 @@ def _normalize(title: str) -> str:
     return text.rstrip(".,:;").strip()
 
 
-def _live_titles() -> set[str]:
-    """The section names roadmap.md carries, parsed from the file itself."""
+def _titles_of(doc: Path) -> set[str]:
+    """The section names a doc carries, parsed from the file itself."""
     titles: set[str] = set()
-    for line in ROADMAP.read_text().splitlines():
+    for line in doc.read_text().splitlines():
         for pattern in (_SECTION, _BOLD_LEAD):
             found = pattern.match(line)
             if found:
-                titles.add(_normalize(found.group(1)))
+                heading = found.group(1)
+                titles.add(_normalize(heading))
+                titles.add(_normalize(re.sub(r"^\d+[.)]\s+", "", heading)))
     return titles
+
+
+def _live_titles() -> set[str]:
+    """roadmap.md's own sections -- the original check's registry."""
+    return _titles_of(ROADMAP)
+
+
+# A citation that QUOTES a section: the title must follow the file name
+# directly, optionally through a markdown link tail. Kept tighter than
+# `_candidate_titles`, which scans a three-line window for roadmap.md and would
+# otherwise attach a title belonging to the next citation along.
+_QUOTED_CITATION = re.compile(
+    r'(?:docs/)?(?P<doc>[a-z][a-z-]*\.md)(?:\]\([^)]*\))?[\s,]*["\u201c](?P<title>[\w`][^"\u201d\n]{3,89})["\u201d]'
+)
+
+
+def _cited_docs() -> dict[str, Path]:
+    """Every `docs/*.md` that some line cites WITH a quoted title.
+
+    Derived from the repo, never listed: a doc joins the domain the day someone
+    quotes one of its sections, so the check cannot lag a new citation. That is
+    the difference between this and the roadmap half, whose single file is
+    named because its sections were redistributed to the tracker.
+    """
+    found: dict[str, Path] = {}
+    for path in _in_domain():
+        for match in _QUOTED_CITATION.finditer(path.read_text()):
+            name = match.group("doc")
+            target = REPO_ROOT / "docs" / name
+            if target.is_file() and target != path:
+                found[name] = target
+    assert found, "no quoted citation found at all -- this check would be vacuous"
+    return found
 
 
 def _in_domain() -> list[Path]:
@@ -164,7 +219,6 @@ def _in_domain() -> list[Path]:
     return sorted(
         p for p in paths
         if p.is_file()
-        and p != ROADMAP
         and not any(d in p.relative_to(REPO_ROOT).as_posix() for d in EXCLUDED_DIRS)
     )
 
@@ -277,6 +331,44 @@ def test_every_roadmap_reference_names_a_live_section() -> None:
                 )
     assert not unresolved, (
         f"{len(unresolved)} roadmap.md reference(s) do not resolve:\n\n"
+        + "\n".join(unresolved)
+    )
+
+
+def test_every_quoted_section_title_resolves() -> None:
+    """A citation that names a section names one the file still carries.
+
+    The roadmap half above also REQUIRES a title, because that file's sections
+    were redistributed and a bare pointer there is untrackable. This half only
+    checks the ones that are given: `decisions.md` is cited hundreds of times,
+    mostly as a bare "see decisions.md", and demanding a title everywhere would
+    be a different and much larger rule. Checking what is named without
+    requiring naming is the same split the roadmap half already draws for its
+    exempt lines.
+
+    red under: change any cited heading in `docs/decisions.md` without moving
+    its citations -- which is precisely how the twenty-three this found got
+    there, `bbe49ce` renaming two headings and claiming it moved "every
+    citation with them".
+    """
+    live = {name: _titles_of(path) for name, path in _cited_docs().items()}
+    unresolved: list[str] = []
+    for path in _in_domain():
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            for match in _QUOTED_CITATION.finditer(line):
+                doc, title = match.group("doc"), match.group("title")
+                if doc not in live or path.name == doc:
+                    continue
+                if _normalize(title) not in live[doc]:
+                    unresolved.append(
+                        f"{relative}:{number}: quotes {doc} section {title!r}, "
+                        f"which {doc} does not carry -- quote the whole heading, "
+                        f"a partial one reads live while being stale"
+                        f"\n    {line.strip()}"
+                    )
+    assert not unresolved, (
+        f"{len(unresolved)} section citation(s) do not resolve:\n\n"
         + "\n".join(unresolved)
     )
 

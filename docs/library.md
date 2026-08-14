@@ -201,7 +201,7 @@ Game-local rules that recur as *names* but not as bodies:
   `rank_value` within the trump suit vs `tarot_trump_height()`)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
-  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
+  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption (`exempts:`)");
   see below.
 - `MustFollowEffectiveSuit` — French Tarot's follow rule (see
   `MustFollowSuit` above)
@@ -562,7 +562,7 @@ statement; trick routing is ordinary body transfers after a `round` returns.
 - `move` — the generic relocation (`move all cards from X to Y`). The
   destination-only form `move all cards to <zone>` is a **gather**: it collects
   every card from all other zones into that zone (per-hand cleanup; see
-  [decisions.md](decisions.md) "Loop lifecycle")
+  [decisions.md](decisions.md) "Loop lifecycle: `before_each` and `after_each`")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
 

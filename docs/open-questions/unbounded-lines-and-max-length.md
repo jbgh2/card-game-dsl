@@ -2,7 +2,7 @@
 
 **Tier 3 — medium impact, narrow scope.** Every game declares `max_length`,
 the decision-count backstop the runtime enforces on every playout
-(decisions.md "Game length bounds"): exceeding it raises, on the theory that
+(decisions.md "Game length as a declared contract"): exceeding it raises, on the theory that
 a game past its declared bound is a non-termination *bug*. That theory held
 for the whole corpus — trick games shed cards, auctions strictly escalate,
 betting has bounded streets — until Coup reached real interactive scope.
@@ -52,6 +52,6 @@ game arrives to confirm the shape, or earlier if an OpenSpiel consumer
 actually drives Coup down a passive line (today's harness walks are
 depth-bounded or random, so nothing in-repo reaches the backstop).
 
-Related: decisions.md "Game length bounds" (the backstop's contract);
+Related: decisions.md "Game length as a declared contract" (the backstop's contract);
 [games/coup.cardlang](../games/coup.cardlang) (the unbounded witness);
 kernel-migration.md Workstream 5 (the interactive upgrade that surfaced it).

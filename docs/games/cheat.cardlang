@@ -47,7 +47,7 @@
 // The claim vocabulary is OPEN — the called rank ranges over all 13 ranks,
 // where Coup's challengeable claims are five characters — making this the
 // second challenge-window instance after Coup toward the `challenge` stdlib
-// promotion at a third instance (decisions.md "Interactive decisions";
+// promotion at a third instance (decisions.md "Interactive decisions: a kernel and an in-DSL standard library";
 // issue #140). The window stays a game-local procedure until then.
 
 game Cheat {

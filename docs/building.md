@@ -38,7 +38,7 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST 
   [model.md](model.md).
 - **resolve** — name resolution over lexically-nested scopes (game → phase →
   sub-phase → mechanic-internal `state {}`, per [decisions.md](decisions.md),
-  "State scoping"). Every `constrains:`, every `active_rules:` entry, every
+  "State scoping (lexical)"). Every `constrains:`, every `active_rules:` entry, every
   zone/type/rule/mechanic reference, and every `state.*` access resolves to a
   declaration, or fails with a span.
 - **typecheck** — the typed object model from [decisions.md](decisions.md):

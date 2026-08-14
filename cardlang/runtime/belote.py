@@ -13,7 +13,7 @@ holds only what is not expressible there:
   A pure rank map: the caller's demand filters on `card.suit is trump_suit`,
   so this needs no suit knowledge (the Tarot `tarot_trump_height` shape).
   Suit-contextual orders are explicitly outside the `ranking:` declaration's
-  scope (decisions.md, "The `ranking:` declaration"), so the trump reorder
+  scope (decisions.md, "The `ranking:` declaration: enumeration or convention"), so the trump reorder
   lives here while the plain-suit order stays `ranking: ace-ten`.
 - `belote_trick_winner` — the trick round's `outcome` function: highest trump
   under the trump order if any trump was played, else highest of the led suit

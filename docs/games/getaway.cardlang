@@ -7,7 +7,7 @@
 // suit to pick up the pile; a player who sheds all their cards is out; the last
 // player still holding cards is the loser. The non-standard steal and
 // draw-from-waste variants in getaway.md are intentionally not formalized here
-// (see decisions.md "Game result: winner and loser" and the review notes).
+// (see decisions.md "Game result: `winner:` and `loser:`" and the review notes).
 
 game Getaway {
 
