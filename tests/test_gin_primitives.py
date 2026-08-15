@@ -1,4 +1,4 @@
-"""Known-value tests for Gin Rummy's stdlib primitives
+"""Known-value tests for Gin Rummy's Primitives
 (cardlang/runtime/gin.py), following the test_cribbage_primitives.py pattern:
 the combination machinery — meld validity, the optimal-deadwood partition,
 the meld-universe codec — is proven against hands whose values are known by

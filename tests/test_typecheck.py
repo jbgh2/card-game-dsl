@@ -40,4 +40,4 @@ def test_value_enum_map_classifies_suits_ranks_directions() -> None:
     m = value_enum_map(game)
     assert m["hearts"] == TEnum("Suit")  # a standard52 suit
     assert m["A"] == TEnum("Rank")  # a rank from `ranking:`
-    assert m["left"] == TEnum("SeatDirection")  # a stdlib seat direction
+    assert m["left"] == TEnum("SeatDirection")  # a SeatDirection enum value

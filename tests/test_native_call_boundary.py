@@ -1,4 +1,4 @@
-"""The stdlib call boundary: arguments arrive in their declared type's shape.
+"""The native call boundary: arguments arrive in their declared type's shape.
 
 A collection-typed expression has exactly two runtime shapes — a ``Zone``
 (a zone reference or family subscript) and a plain ``list`` (a query, a
@@ -18,7 +18,7 @@ turned the schnapsen trump indicator into a bare list; the playout
 suite caught it).
 
 Completeness ledger
-    property:  every stdlib argument reaches its adapter in the shape the
+    property:  every native argument reaches its adapter in the shape the
                adapter's declared param type promises — TCollection params
                as elements (never a raw TypeError on a Zone), TAny params
                untouched (the adapter's own shape dispatch still sees the
@@ -45,7 +45,7 @@ Completeness ledger
                playout.
     residual:  a TCollection param with zone=True (an adapter wanting the
                Zone HANDLE under a collection type) would be stripped by
-               the boundary; test_no_stdlib_param_demands_a_zone guards the
+               the boundary; test_no_native_param_demands_a_zone guards the
                registry so adding one forces the boundary decision to be
                revisited instead of the handle being silently stripped.
 """
@@ -150,16 +150,16 @@ _ZONE_PROBES: dict[str, str] = {
 
 
 def test_every_collection_param_function_has_a_zone_probe() -> None:
-    """The probe table is registry-derived: a new TCollection-param stdlib
+    """The probe table is registry-derived: a new TCollection-param native
     function fails here until it gets a zone-argument probe."""
     assert _collection_param_funcs() == set(_ZONE_PROBES), (
-        "a stdlib function with a TCollection param has no zone-argument "
+        "a native function with a TCollection param has no zone-argument "
         "probe in _ZONE_PROBES — its adapter would be one Zone subscript "
         "away from a raw TypeError; add the probe"
     )
 
 
-def test_no_stdlib_param_demands_a_zone() -> None:
+def test_no_native_param_demands_a_zone() -> None:
     """The boundary coerces Zone -> elements for every argument, so no
     CALL_SIGS param may claim it wants the Zone handle itself; a zone=True
     param must revisit `coerce_args` in cardlang/runtime/reads.py."""
@@ -170,7 +170,7 @@ def test_no_stdlib_param_demands_a_zone() -> None:
         if isinstance(p, TCollection) and p.zone
     ]
     assert not offenders, (
-        f"{offenders} declare zone-handle params, but the stdlib call "
+        f"{offenders} declare zone-handle params, but the native call "
         "boundary strips Zone to its elements — a zone-wanting primitive "
         "needs the boundary decision revisited, not a silent strip"
     )
@@ -192,7 +192,7 @@ def test_polymorphic_param_set_is_pinned() -> None:
     boundary must pass their arguments raw.  A new TAny-param function must
     decide its shape handling here and gets a probe like suit_of's."""
     assert _polymorphic_param_funcs() == {"suit_of"}, (
-        "a stdlib function with a TAny (polymorphic) param joined the "
+        "a native function with a TAny (polymorphic) param joined the "
         "boundary — its adapter sees raw shapes (no coercion); add a "
         "zone-argument probe for it beside test_polymorphic_suit_of_"
         "still_sees_the_zone"

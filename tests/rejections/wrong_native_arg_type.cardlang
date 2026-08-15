@@ -1,4 +1,4 @@
-// Guard: typecheck.py's stdlib call-signature check. `player_holding` expects
+// Guard: typecheck.py's native call-signature check. `player_holding` expects
 // a Card; `hearts` is a Suit.
 game WrongStdlibArgType {
   players: 2

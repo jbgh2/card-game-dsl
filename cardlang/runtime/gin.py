@@ -1,4 +1,4 @@
-"""Gin Rummy's runtime support (pure stdlib primitives).
+"""Gin Rummy's runtime support (pure Primitives).
 
 The whole hand — the upcard ritual, the draw-discard `turns` loop, the knock,
 the showdown's declared arrangements (joint selections), the layoffs, and the
@@ -7,7 +7,7 @@ This module holds what is not expressible there:
 
 - `card_points` — A=1, pips, face=10. The `card_value()` deck table is empty
   for standard52 (`cardlang/runtime/values.py`), and `cards:` has no syntax
-  for a per-game point table, so the points are a primitive — Cribbage's
+  for a per-game point table, so the points are a [[primitive]] — Cribbage's
   `peg_value` precedent exactly.
 - `valid_meld` — a set (3-4 of a rank) or a run (3+ consecutive, same suit,
   ace low). The joint validity of a card GROUP; per-card filters cannot say

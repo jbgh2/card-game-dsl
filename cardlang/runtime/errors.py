@@ -1,9 +1,9 @@
-"""The runtime's typed failure channel, keyed on a guard's ROLE.
+"""The runtime's typed [[failure-channel]], keyed on a guard's ROLE.
 
 The compile passes fail as diagnostics and the proofs fail with a witness; the
 runtime fails as a typed exception (decisions.md "Closed-domain completeness").
 This module is that third channel's definition site, and its types carry the
-Owner Guard / Shadow Guard distinction (glossary/owner-guard.md, glossary/shadow-guard.md) rather than merely
+[[owner-guard]] / [[shadow-guard]] distinction rather than merely
 reporting it: the type IS the classification, so a guard that changes role
 changes its type. That is deliberate — a guard moving from authoritative to
 redundant, or one layer to another, is a design change, and the type is what
@@ -27,7 +27,8 @@ What is deliberately NOT in this tree
 not the game author, so it stays outside and roots at `RuntimeError`. That
 disjointness is exactly why `GameDescriptionError` roots at `Exception` rather
 than `RuntimeError`: rooting at `RuntimeError` would silently make every
-`PrimitiveReadError` a `GameDescriptionError`, which is false about its Author.
+`PrimitiveReadError` a `GameDescriptionError`, which is false about its
+[[author]].
 
 `IllegalMove` (runtime/state.py) is not a defect at all — the game author wrote
 `error(...)` deliberately and the move being refused IS the rule working. It

@@ -651,7 +651,7 @@ def test_home_disjoint_pin_reddens(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Transfer: method input guards (registry-internal refusals -- the stdlib verbs
+# Transfer: method input guards (registry-internal refusals -- the Builtin verbs
 # that wrap these only ever pass a valid cell / direction / seat)
 # ---------------------------------------------------------------------------
 

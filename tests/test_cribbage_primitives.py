@@ -1,4 +1,4 @@
-"""Known-value tests for Cribbage's stdlib primitives
+"""Known-value tests for Cribbage's Primitives
 (cardlang/runtime/cribbage.py), following the test_tarot_primitives.py /
 test_pinochle_meld.py precedent for a migrated game's pure-primitive module.
 

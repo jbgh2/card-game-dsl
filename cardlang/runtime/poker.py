@@ -20,11 +20,11 @@ playout invariant every poker game leans on cannot see it (decisions.md
 
 What stays with each game is what reads its zones: Stud's door-card seat
 selectors, Hold'em's busted-seat ring skip, and each game's `pot_share`
-primitive, which knows which of its own zones the contenders' cards sit in.
+[[primitive]], which knows which of its own zones the contenders' cards sit in.
 
 Pure functions of card values, so no declared-reads row and no bundle: nothing
 here touches runtime state. (design-notes/primitive-sidecars.md §2 promotes
-the poker-*family* names to the stdlib once a second poker game lands; that
+the poker-*family* names to the Builtins once a second poker game lands; that
 promotion is about the DSL-visible selectors, not these, which no game names.)
 """
 

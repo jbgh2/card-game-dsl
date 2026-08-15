@@ -1,15 +1,16 @@
 """Native function and value-callback names, by the home that implements each.
 
-The name resolver checks bare-name references (a `round`'s `winner` / `outcome` /
-`early` function, a climbing round's `combinations` / `follows` query) and `f(...)`
-calls against these sets, so the IR can mark them as functions and unknown
-names are caught. There is no zone-method namespace here: the expression layer
-has no method register (decisions.md "The expression register"). Seeded for the
-formalized corpus; extended corpus-first.
+The name resolver checks bare-name references (a [[round]]'s [[winner]] /
+`outcome` / `early` function, a climbing round's `combinations` / `follows`
+query) and `f(...)` calls against these sets, so the IR can mark them as
+functions and unknown names are caught. There is no zone-method namespace here:
+the expression layer has no method register (decisions.md "The expression
+register"). Seeded for the formalized corpus; extended corpus-first.
 
-`BUILTIN_*` names a generic function the language ships; `PRIMITIVE_*` names
-sanctioned game-local Python (glossary; issue #200). Nothing here is the
-**Stdlib**, which is the layer written in the language (`cardlang/stdlib/`).
+`BUILTIN_*` names a generic function the language ships ([[builtins]]);
+`PRIMITIVE_*` names sanctioned game-local Python ([[primitive]]; issue #200).
+Nothing here is the **[[stdlib]]**, which is the layer written in the language
+(`cardlang/stdlib/`).
 """
 
 from __future__ import annotations

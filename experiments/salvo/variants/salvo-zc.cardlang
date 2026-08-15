@@ -23,7 +23,7 @@
 //   Snap itself shows as face-down card-backs at locations. Initiative
 //   alternates each round to balance the information edge.
 // - NO COMBOS yet: cribbage-style combination scoring lives in a registered
-//   stdlib primitive, not in-DSL combinators; a salvo primitive is round-2
+//   Primitive, not in-DSL combinators; a salvo primitive is round-2
 //   work. Base-game sims isolate the interaction question first (combos are
 //   self-synergy — if the base game is double solitaire, combos worsen it).
 // - NO JOKERS yet: they ride the same round-2 change.

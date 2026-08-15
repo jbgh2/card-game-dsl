@@ -4,7 +4,7 @@ definition: Sanctioned game-local Python (a trick-winner function, a climb query
 layer: kernel
 status: canonical
 reserved: false
-home: `reads.py`, `narrowing.py`
+home: `runtime/primitives.py`, `cardlang/builtins/` (`PRIMITIVE_*`)
 see: []
 retired_spellings: []
 findings: []

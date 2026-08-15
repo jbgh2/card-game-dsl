@@ -1,8 +1,8 @@
-# Game primitives: from stdlib registries to sealed sidecars
+# Game primitives: from Primitive registries to sealed sidecars
 
 *Status: design analysis / proposal — not a settled decision. The committed
 spec is in [decisions.md](../decisions.md); the sanctioned role of game-local
-Python is described in [library.md](../library.md) "Stdlib functions" and the
+Python is described in [library.md](../library.md) "Native functions" and the
 history that produced it in [kernel-migration.md](../kernel-migration.md).
 This note is about the package boundary and the primitive interface, not the
 language surface.*

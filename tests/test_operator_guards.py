@@ -477,7 +477,7 @@ _OPERAND_FOR = {
     "Rank": "rk",
     "Team": "team_of(who)",
     "Card": "(2 of clubs)",  # a card literal — NOT a `let`, which would type TAny
-    "SeatDirection": "left",  # the stdlib seat-ring enum (left/right/across/hold)
+    "SeatDirection": "left",  # the SeatDirection enum (left/right/across/hold)
 }
 
 assert set(_OPERAND_FOR) == KNOWN_TYPE_NAMES, (

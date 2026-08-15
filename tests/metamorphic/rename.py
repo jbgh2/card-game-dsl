@@ -11,7 +11,7 @@ Why a blind textual rename of every matching `NameRef` is sound here, pre-
 resolve, with no scope information available yet: `resolve._classify`
 (`cardlang/resolve.py`) resolves a bare name against ONE flat, ordered set of
 namespaces — locals, then state vars, then zones, then enum values, then
-pronouns, then stdlib functions — and only ZONES and STATE VARIABLES are
+pronouns, then native functions — and only ZONES and STATE VARIABLES are
 declared here (rule/move-type/procedure/function/define/type names live in
 their own dedicated syntactic slots — `constrains:`, `active_rules:`,
 `x.field`, `transition_to:` — never reachable as a bare `NameRef`; see
@@ -80,7 +80,7 @@ corpus-wide.
 **Game-local runtime primitives are written against ONE game's specific
 declared spelling.** A corpus game with a bespoke mechanic ships a
 `cardlang/runtime/<game>.py` module of Python (kernel-migration.md's sanctioned "game-local
-stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
+Primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
 Tichu's `tichu_next_holder`, …) that reads live `RuntimeState` by the
 zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
 derived from the AST the way `execute.py`/`evaluate.py` read a

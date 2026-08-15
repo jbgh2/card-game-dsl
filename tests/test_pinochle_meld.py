@@ -1,7 +1,7 @@
 """Known-value tests for Pinochle's meld scoring (`pinochle_meld`).
 
 The kernel migration (docs/kernel-migration.md) leaves melding a pure Python
-computation — `pinochle_meld_value`, a game-local stdlib primitive like Stud's
+computation — `pinochle_meld_value`, a game-local Primitive like Stud's
 `pot_share` — since it is forced (a rational player melds everything), not a
 choice. The playout invariants (conservation, per-trick winner correctness;
 tests/test_playout_pinochle.py) cannot catch a misvalued combination, so these

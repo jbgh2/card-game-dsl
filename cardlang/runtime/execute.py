@@ -1,8 +1,9 @@
 """Statement executor.
 
 `execute(stmt, ctx)` runs one statement, mutating `ctx.rs`. A statement may
-introduce a binding for the rest of its body (a `let`), so `execute` returns
-the (possibly extended) context the caller threads into subsequent statements.
+introduce a [[binder]] for the rest of its body (a `let`), so `execute` returns
+the (possibly extended) [[context]] the caller threads into subsequent
+statements.
 """
 
 from __future__ import annotations
@@ -271,7 +272,7 @@ def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
 
 
 def _check_count(count: int, mode: str | None) -> int:
-    """The amount-expression domain Owner Guard: an amount is runtime data (a
+    """The amount-expression domain [[owner-guard]]: an amount is runtime data (a
     computed expression can go negative at a ring's edge), and Python's
     negative slice would SILENTLY move len+count cards — the worst class.
     Negative is never meaningful; zero under `chosen` is a vacuous decision
@@ -585,7 +586,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     the previous player again when the `again` state var read true at the
     boundary (the form CONSUMES the flag: it resets to false on read, so a
     stale write can never silently monopolize the loop — only a write
-    during the turn keeps the turn), else the next seat in GAME direction
+    during the turn keeps the turn), else the next seat in TURN direction
     (`Seating.clockwise`, the same axis the round forms rotate on); skip
     seats failing the participants predicate (re-evaluated per pick, so
     elimination falls out); bind the binder and the acting player and run
@@ -642,7 +643,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
 
 
 def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Player]:
-    """One full lap starting after `frm`, stepping in game direction
+    """One full lap starting after `frm`, stepping in turn direction
     (`step` = +1 clockwise, -1 counterclockwise — `Seating`'s convention)."""
     i = order.index(frm)
     return [order[(i + step * k) % len(order)] for k in range(1, len(order) + 1)]

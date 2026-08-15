@@ -5,7 +5,7 @@ deck) or `pieces:` (a piece set); every surface that spells card-content
 vocabulary -- the movement/reveal item noun, the filter binder, `.suit`/`.rank`
 field access, the card-query and aggregation forms, the `ranking:`/`trump:`
 clauses, the `suit`/`rank` quantifier and iteration roles, the Card/Suit/Rank
-move-parameter domains, the deck-reading stdlib calls, and card literals --
+move-parameter domains, the deck-reading native calls, and card literals --
 must AGREE with the declared flavor: legal (in its flavor spelling) in a card
 game, rejected NAMING THE KIND in a piece game, and vice versa. A piece game's
 own axis vocabulary (the `side`/`kind` fields, the `x`/`o`/`mark` values) works
@@ -36,7 +36,7 @@ domain:     {the card-content surface positions -- enumerated below} x
               - move-parameter domains -- `cardlang.domains.PARAM_DOMAIN_ORDER`
                 plus `Card`, the card-content domains (Suit/Suit?/Rank/Card) vs
                 Player;
-              - deck-reading stdlib calls -- `DECK_ONLY_CALL_FUNCS` (itself the
+              - deck-reading native calls -- `DECK_ONLY_CALL_FUNCS` (itself the
                 audited subset of `CALL_FUNCS`), vs a generic member
                 (top_of);
               - axis values -- the piece set's `deck_suits`/`deck_ranks`.
@@ -462,12 +462,12 @@ def test_move_param_domain_flavor_gates_declared_but_unoffered() -> None:
     assert PIECE_KIND in _reject(piece_game(top=top))
 
 
-# --- deck-reading stdlib calls ---------------------------------------------
+# --- deck-reading native calls ---------------------------------------------
 # Every DECK_ONLY_CALL_FUNCS member reads suit/rank/points; a call to one in a
 # piece game is a resolve guard. A generic member (top_of) accepts in both.
 
 
-def test_stdlib_call_funcs_totally_classified() -> None:
+def test_native_call_funcs_totally_classified() -> None:
     # Non-vacuous: all three sets are explicit literals (functions.py:223 keeps
     # them so, not derived by subtraction), so a call in NONE (a newly
     # registered function nobody classified) makes the union fall short and this

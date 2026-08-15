@@ -1,11 +1,11 @@
 """The general information state (perfect recall, per player) — derived, not
 hand-authored.
 
-A player's information state is a pure function of (a) their projected view of
-every zone through its declared library-type visibility, (b) the declared
-state variables — public by convention: hidden information lives only in
+A player's information state is a pure function of (a) their view of every zone
+through the [[projection]] its declared library type gives them, (b) the declared
+[[state-variable]]s — public by convention: hidden information lives only in
 zones (SP1 spec, "State variables are public"), and (c) their accumulated
-per-observer observation log (perfect recall; a `Muck`'s contents are trivial
+per-observer [[observation-log]] (perfect recall; a `Muck`'s contents are trivial
 going forward while prior observations persist in the log). The string is
 deterministic and human-readable — it doubles as the designer/LLM feed.
 """

@@ -1,10 +1,11 @@
-"""French Tarot's runtime support (pure stdlib primitives).
+"""French Tarot's runtime support (pure Primitives).
 
-The whole hand — the four-level bid (the auction form of the kernel `round`),
-the chien handling by bid level, the eighteen atout-trump tricks with the
-Excuse's special routing and the must-follow/must-trump/must-over-trump
-obligations (the `ExcuseIsExempt`/`MustFollowSuit`/`MustTrumpIfVoid`/
-`MustOverTrump` rule cascade), and the bouts-conditional threshold scoring all
+The whole hand — the four-level bid (the auction [[form]] of the kernel
+[[round]]), the chien handling by bid level, the eighteen atout-trump
+[[trick]]s with the Excuse's special routing and the
+must-follow/must-trump/must-over-trump obligations (the
+`ExcuseIsExempt`/`MustFollowSuit`/`MustTrumpIfVoid`/`MustOverTrump` [[rule]]
+cascade), and the bouts-conditional threshold scoring all
 run in the DSL (docs/games/french-tarot.cardlang). This module holds only what
 is not expressible there:
 

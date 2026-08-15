@@ -1,7 +1,7 @@
 """The adapter's game registry — derived from the corpus directory, importable
 without pyspiel.
 
-`GAMES` maps each corpus game's OpenSpiel short name to its `docs/games/`
+`GAMES` maps each corpus [[game]]'s OpenSpiel short name to its `docs/games/`
 filename. It is DERIVED from the directory rather than hand-listed: the corpus
 *is* whatever `.cardlang` files sit in `docs/games/` (CLAUDE.md), and the short
 name is mechanical — `cardlang_` + the file stem with `-` turned to `_`

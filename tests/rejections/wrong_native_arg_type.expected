@@ -1,0 +1,1 @@
+wrong_native_arg_type.cardlang:11:15: error: player_holding() expects Card, got Suit

@@ -17,7 +17,7 @@
 // unordered, where the reference draws from hand-ordered legality — and run
 // as three single-actor filtered movements per trick over `skat_follow_ok`
 // (jacks + the trump suit are one follow class; Null has no trumps), with the
-// winner, matadors, and the overbid arithmetic in game-local stdlib
+// winner, matadors, and the overbid arithmetic in game-local Primitive
 // primitives (skat_trick_winner, skat_matadors, skat_effective_loss).
 
 game Skat {

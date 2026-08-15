@@ -480,9 +480,9 @@ def _play(src: str, seeds: range) -> list[tuple[str, ...]]:
                 seen.append(fired)
         return out
 
-    # Patching the `phases` module attribute is the whole patch: both callers
-    # reach it as `phases.compute_active_rules`, neither holds its own
-    # reference. (An earlier version also looped over `driver`/`mechanics`
+    # Patching the `active_rules` module attribute is the whole patch: both
+    # callers reach it as `active_rules.compute_active_rules`, neither holds its
+    # own reference. (An earlier version also looped over `driver`/`mechanics`
     # guarded by `hasattr` — dead code that read as defensive breadth.)
     ph.compute_active_rules = spy
     try:

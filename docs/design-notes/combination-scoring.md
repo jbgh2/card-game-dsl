@@ -2,7 +2,7 @@
 
 Status: exploratory analysis (proposal, not settled spec). Provenance: the
 Salvo experiment (`experiments/salvo/`) reached its combos-and-jokers round
-and stopped, by design review, rather than add another per-game stdlib
+and stopped, by design review, rather than add another per-game Primitive
 primitive. This note characterizes what the language cannot currently say,
 how often the corpus has already paid for that in Python, and a two-tier
 proposal shaped in review with the designer. It composes with

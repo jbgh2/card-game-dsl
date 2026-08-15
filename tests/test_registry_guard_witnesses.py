@@ -177,7 +177,7 @@ def _registry_constants(root: pathlib.Path = _PACKAGE) -> frozenset[str]:
     Deliberately a SUPERSET of "registry view": narrowing it to
     collection-valued constants would need a judgement per constant, and the
     judgement that matters is made below by the literal-collection predicate.
-    Completeness by superset, never by judgement — a stdlib registry or an AST
+    Completeness by superset, never by judgement — a native registry or an AST
     union's mode set is in the vocabulary the day it lands, with nobody
     deciding it belongs."""
     out: set[str] = set()

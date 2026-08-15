@@ -16,7 +16,7 @@ A bare `NAME` in this language can denote any of six things:
 | a zone | `hand`, `deck` | `rs.zones` |
 | a deck value | `hearts`, `Q` | its own string |
 | a pronoun | `actor`, `state`, `outcome` | the call-site `Ctx` |
-| a function | `pending`, a stdlib name | the function index |
+| a function | `pending`, a native name | the function index |
 
 `resolve._classify` picks between them **by precedence** — binders first, then
 state variables, then zones, then values, then pronouns. Nothing in the surface

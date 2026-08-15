@@ -1,4 +1,4 @@
-"""Class-1 movement/region stdlib verbs: neighbor / has_step / is_diagonal /
+"""Class-1 movement/region Builtin verbs: neighbor / has_step / is_diagonal /
 home / far_row -- the `lines` twin (a BOARD_ONLY call reading the `board:`).
 
 The five verbs are the geometry the rung-2 `step(from : cell, along : dir)`
@@ -91,7 +91,7 @@ covered:    the grid below, each a running row --
 sampled:    the geometry values -- representative cells per verb (a1/d4/h8 +
             edges), not all 64 cells x 3 dirs x 2 frames: BoardEntry geometry
             is exhaustively integrity-pinned in Task 2's tests/
-            test_boards_registry.py; this module samples the stdlib WRAPPING
+            test_boards_registry.py; this module samples the Builtin WRAPPING
             (dispatch + coercion + Shadow Guard) over it;
             the arg-type matrix -- sampled across is_diagonal/home/neighbor
             (Cell->Dir, Cell->Player, Dir->Player, arity); has_step's three

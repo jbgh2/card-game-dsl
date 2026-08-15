@@ -1,14 +1,14 @@
 """Derived per-game action encoding.
 
-Every decision a kernel game can pose maps to a stable global action id — the
-same id means the same action in every world, which is what makes determinized
-replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
+Every decision a kernel game can pose maps to a stable global [[action]] id —
+the same id means the same action in every world, which is what makes
+determinized replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
 layout, of: the card block (always — the standard 52 for any deck expressible
 in it, else a per-game block derived from the deck itself; see
 `_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
 the integer block `0..ceiling` (games with `choose`, sized to the game's
 largest declared `choose` ceiling — decisions.md "Declared parameter domains");
-the offering block (moves
+the [[offering]] block (moves
 flattened over their parameter domains, declared order); and the combination
 block — the climb engine's enumerated `universe()` query (canonically ordered
 and golden-pinned; Big Two) or, when the universe is too large to enumerate,
@@ -20,7 +20,7 @@ offering ids: its domain is state-dependent (the actor's live hand), and a card
 play already has an id — the card block's. `encode` folds a `(move, card)`
 candidate into `card_to_action(card)` and `match` accepts either
 representation, so a card's id is identical whether it is a leader's
-`play_card` or a follower's movement pick (Option B, SP6 sign-off 1).
+`play_card` or a follower's [[transfer]] pick (Option B, SP6 sign-off 1).
 """
 
 from __future__ import annotations

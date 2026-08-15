@@ -1,4 +1,4 @@
-"""Known-value tests for 500's stdlib primitives
+"""Known-value tests for 500's Primitives
 (cardlang/runtime/five_hundred.py), following the gin/cribbage pattern: the
 pure decision cores — the bid ladder, follow/lead legality, the trick winner
 — are proven against positions whose answers are known by construction,

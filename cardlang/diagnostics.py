@@ -1,10 +1,11 @@
 """Span-precise source locations and diagnostics.
 
-Every stage of the pipeline reports problems as :class:`Diagnostic` values
-carrying a :class:`Span` back into the original DSL source. The quality of
-these messages is the tool's value (docs/building.md, "CI gates"), so the
-span is threaded through from the very first stage rather than bolted on
-later.
+Every compile stage of the [[pipeline]] reports problems as :class:`Diagnostic`
+values carrying a :class:`Span` back into the original DSL source — this is the
+compile half of the [[failure-channel]], the runtime half being
+`runtime/errors.py`. The quality of these messages is the tool's value
+(docs/building.md, "CI gates"), so the span is threaded through from the very
+first stage rather than bolted on later.
 """
 
 from __future__ import annotations
