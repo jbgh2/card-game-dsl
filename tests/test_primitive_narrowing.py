@@ -383,7 +383,6 @@ NARROWED: frozenset[str] = frozenset(
         "schnapsen.py::ROW",
         "schnapsen.py::schnapsen_trick_winner",
         "skat.py::ROW",
-        "skat.py::skat_effective_loss",
         "skat.py::skat_follow_ok",
         "skat.py::skat_matadors",
         "skat.py::skat_next_bid",
@@ -1149,8 +1148,8 @@ def test_corpus_play_types_are_slotted() -> None:
     they must be truly immutable (frozen AND slotted), not just frozen —
     otherwise deep_freeze would refuse them mid-playout."""
     from cardlang.runtime.bigtwo import Play as BigTwoPlay
-    from cardlang.runtime.tichu_combinations import Play as CombinationsPlay
     from cardlang.runtime.president import Play as PresidentPlay
+    from cardlang.runtime.tichu_combinations import Play as CombinationsPlay
 
     for cls in (BigTwoPlay, CombinationsPlay, PresidentPlay):
         # The `key` field types differ across the three (tuple/float/int); the

@@ -41,8 +41,9 @@ one-draw `declare_suit(s : Suit)` round. The ten tricks are three single-actor
 filtered movements per trick over the `skat_follow_ok` follow-class predicate
 (the four jacks and the trump suit are one class; Null has no trumps and its
 own rank order), with the winner from the game-local `skat_trick_winner`
-primitive; scoring writes `score[declarer]` directly through `skat_matadors`
-and the overbid-aware `skat_effective_loss`.
+primitive; scoring writes `score[declarer]` directly through `skat_matadors`,
+with the overbid rule's smallest-covering-multiple written as rounded
+division (`working_bid divided by base rounded up`) in the game text.
 
 ```
 game Skat {
@@ -167,7 +168,9 @@ game Skat {
       if is_null {
         let game_value = if hand_mode then 35 else 23
         if declarer_tricks is 0 and game_value >= working_bid { score[declarer] += game_value }
-        else { score[declarer] -= 2 * skat_effective_loss(game_value, working_bid, game_value) }
+        else { score[declarer] -= 2 * (if game_value >= working_bid
+                                       then game_value
+                                       else game_value * (working_bid divided by game_value rounded up)) }
       } else {
         let pts = (sum of card_value(card) over cards in captured[declarer]) + (sum of card_value(card) over cards in skat)
         let base = if is_grand then 24
@@ -179,7 +182,9 @@ game Skat {
         let schwarz = if declarer_tricks is 10 or declarer_tricks is 0 then 1 else 0
         let game_value = base * (matadors + 1 + (if hand_mode then 1 else 0) + schneider + schwarz)
         if pts >= 61 and game_value >= working_bid { score[declarer] += game_value }
-        else { score[declarer] -= 2 * skat_effective_loss(game_value, working_bid, base) }
+        else { score[declarer] -= 2 * (if game_value >= working_bid
+                                       then game_value
+                                       else base * (working_bid divided by base rounded up)) }
       }
     }
 

@@ -1168,6 +1168,48 @@ class _Builder(Transformer[Token, n.Game]):
             "offset_by", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta)
         )
 
+    def divided_by_rounded_up(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp(
+            "divided_by_rounded_up",
+            _as_expr(c[0]),
+            _as_expr(c[1]),
+            span=self._span(meta),
+        )
+
+    def divided_by_rounded_down(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp(
+            "divided_by_rounded_down",
+            _as_expr(c[0]),
+            _as_expr(c[1]),
+            span=self._span(meta),
+        )
+
+    def div_symbol(self, meta: Meta, c: list[object]) -> n.BinOp:
+        # Retired spellings (decisions.md "The expression register"): the
+        # lexer still owns the tokens so the rejection can name the fix.
+        # `//` is absent by necessity, not oversight — it introduces a
+        # comment, so no builder can ever see it (the grammar's factor
+        # comment and tests/test_divided_by.py's characterization).
+        symbol = str(c[1])
+        if symbol == "/":
+            hint = (
+                "division names its rounding: write "
+                "`a divided by b rounded down` (floor) or "
+                "`a divided by b rounded up` (ceiling)"
+            )
+        else:  # "%"
+            hint = (
+                "there is no remainder form; write "
+                "`a - (a divided by b rounded down) * b`"
+            )
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`{symbol}` is not an operator in this language — {hint}",
+                self._span(meta),
+            )
+        )
+
     def arg_list(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
         return tuple(c)
 

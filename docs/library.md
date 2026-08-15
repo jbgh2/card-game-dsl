@@ -424,8 +424,10 @@ more scoring-heavy games (Bridge variants, Pinochle's full meld
 scoring). Skat added another scoring shape (game_value computed from
 base × multiplier with matadors, hand, schneider, schwarz inputs)
 but kept the per-game-helper pattern — the multiplier arithmetic is plain
-statements in the game file over the `skat_matadors` /
-`skat_effective_loss` primitives rather than a generalized abstraction.
+statements in the game file over the `skat_matadors` primitive rather
+than a generalized abstraction, with the overbid rule's
+smallest-covering-multiple written as rounded division
+(`divided by … rounded up`) in the game text.
 
 ## Phase types
 
@@ -845,10 +847,10 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
   rank order). Emits the play/trick_end/trick traces the playout harness
   recomputes winners from.
 - `skat_matadors(p: Player) → Integer` — the with/without run from the club
-  Jack down the trump order, over `p`'s hand plus the skat.
-- `skat_effective_loss(game_value: Integer, bid: Integer, base: Integer) →
-  Integer` — the loss base under the overbid rule (the smallest multiple of
-  the base covering the bid; a ceiling the expression language lacks).
+  Jack down the trump order, over `p`'s hand plus the skat. (The overbid
+  rule's loss base — the smallest multiple of the base covering the bid —
+  is not a primitive: the game text writes it as
+  `base * (working_bid divided by base rounded up)`.)
 
 500's contract machinery is six game-local primitives reading
 `cardlang/runtime/five_hundred.py`; the play-legality ones read the declared

@@ -62,15 +62,15 @@ from cardlang.types import (
     TLine,
     TNull,
     TOptional,
+    TOutcome,
     TPlayer,
     TString,
     TStruct,
     TTeam,
-    TOutcome,
     Type,
     coercible,
-    subscriptable,
     join,
+    subscriptable,
 )
 
 
@@ -642,6 +642,9 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if e.op in ("is", "is_not", "<", ">", "<=", ">=", "and", "or", "in"):
                 return TBoolean()
             if e.op in ("+", "-", "*"):
+                return TInteger()
+            if e.op in ("divided_by_rounded_up", "divided_by_rounded_down"):
+                # Rounded division: Integer operands, Integer result.
                 return TInteger()
             if e.op == "offset_by":
                 # Seat arithmetic yields a seat, whatever the walk knows about
@@ -1444,11 +1447,27 @@ OP_CLASSES: dict[str, OpClass] = {
     "+": OpClass.ARITHMETIC,
     "-": OpClass.ARITHMETIC,
     "*": OpClass.ARITHMETIC,
+    "divided_by_rounded_up": OpClass.ARITHMETIC,
+    "divided_by_rounded_down": OpClass.ARITHMETIC,
     "and": OpClass.LOGICAL,
     "or": OpClass.LOGICAL,
     "in": OpClass.MEMBERSHIP,
     "offset_by": OpClass.OFFSET_BY,
 }
+
+
+# The surface spelling of each operator whose internal op string is not its
+# own surface phrase — diagnostics render through this map so an internal
+# spelling never reaches a designer. Symbols and `offset_by` are their own
+# surface; only the rounded-division ops differ.
+OP_SURFACE: dict[str, str] = {
+    "divided_by_rounded_up": "divided by ... rounded up",
+    "divided_by_rounded_down": "divided by ... rounded down",
+}
+
+
+def _op_word(op: str) -> str:
+    return OP_SURFACE.get(op, op)
 
 
 def _op_class(op: str) -> OpClass:
@@ -1579,30 +1598,41 @@ def _check_ordering_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> No
 
 
 def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """`+ - *`: only Integers are numeric in this language. A concrete enum
-    operand is the worst case here — `+` string-concatenates it at runtime
-    instead of raising, so a bug like `card.rank + 1` reads as legal and is
-    silently wrong every time it runs. Every other concrete non-Integer
-    operand rejects the same way as ordering. TAny/TInteger pass."""
+    """`+ - *` and rounded division: only Integers are numeric in this
+    language. A concrete enum operand is the worst case for `+` — it
+    string-concatenates at runtime instead of raising, so a bug like
+    `card.rank + 1` reads as legal and is silently wrong every time it runs;
+    the concatenation clause is stated only for the ops it is true of. Every
+    other concrete non-Integer operand rejects the same way as ordering.
+    TAny/TInteger pass. Messages render the op through `_op_word` so the
+    rounded-division ops speak their surface phrase, never the internal
+    spelling."""
+    word = _op_word(e.op)
     for operand in (e.left, e.right):
         bare = _bare(infer(operand, env))
         if isinstance(bare, (TAny, TInteger)):
             continue
         if isinstance(bare, TEnum) and bare.name == "Rank":
             bag.error(
-                f"'{e.op}' expects Integer operands — enum values have no "
+                f"'{word}' expects Integer operands — enum values have no "
                 "numeric value — compare strength via rank_value(...)",
+                operand.span,
+            )
+        elif isinstance(bare, TEnum) and e.op in ("+", "-", "*"):
+            bag.error(
+                f"'{word}' expects Integer operands, got {bare.name} — an "
+                "enum value concatenates as a string at runtime, not adds",
                 operand.span,
             )
         elif isinstance(bare, TEnum):
             bag.error(
-                f"'{e.op}' expects Integer operands, got {bare.name} — an "
-                "enum value concatenates as a string at runtime, not adds",
+                f"'{word}' expects Integer operands, got {bare.name} — an "
+                "enum value has no numeric value",
                 operand.span,
             )
         else:
             bag.error(
-                f"'{e.op}' expects Integer operands, got {_type_name(bare)}",
+                f"'{word}' expects Integer operands, got {_type_name(bare)}",
                 operand.span,
             )
 
