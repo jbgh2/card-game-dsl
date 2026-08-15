@@ -1,4 +1,4 @@
-"""French Tarot's runtime support (pure stdlib primitives).
+"""French Tarot's runtime support (pure Primitives).
 
 The whole hand — the four-level bid (the auction [[form]] of the kernel
 [[round]]), the chien handling by bid level, the eighteen atout-trump

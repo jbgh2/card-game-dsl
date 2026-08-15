@@ -145,7 +145,7 @@ class BoardEntry:
 
     def has_step(self, cell: str, direction: str, player: int) -> bool:
         """Whether the step along `direction` stays on the board -- the guard
-        predicate that gates the total stdlib `neighbor`. Delegates to
+        predicate that gates the total Builtin `neighbor`. Delegates to
         `neighbor`, so the two agree by construction."""
         return self.neighbor(cell, direction, player) is not None
 

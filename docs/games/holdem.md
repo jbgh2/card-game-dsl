@@ -44,7 +44,7 @@ and the showdown as plain statements — a contested hand reveals the contenders
 hole cards, each entrant collects its side-pot share via `holdem_pot_share(p)`,
 and the hands leave play to the muck.
 
-Two stdlib primitives, both pure reads. `holdem_pot_share` is the side-pot query
+Two Primitives, both pure reads. `holdem_pot_share` is the side-pot query
 (the committed-total layering, odd chip to the first winner in seat order,
 uncalled remainder to the best contender). `holdem_next_entrant` is the seat-ring
 skip — the same shape as Coup's `coup_next_in_game` — and both the button's own

@@ -1,4 +1,4 @@
-"""Belote's runtime support (pure stdlib primitives).
+"""Belote's runtime support (pure Primitives).
 
 The whole hand — the two-round take/name trump-making over the turned card,
 the eight tricks under the follow/trump/over-trump obligation cascade (the

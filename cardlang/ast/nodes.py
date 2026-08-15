@@ -418,7 +418,7 @@ class RotateStmt:
 
     `target` is a `NameRef` for the same reason `AssignStmt.target` is: `rotate` writes
     persistent state, so it is a write target and must be classified like one. `values`
-    stays a tuple of strings — those are deck/stdlib enum values validated against a
+    stays a tuple of strings — those are deck/kernel enum values validated against a
     registry, and they are not scope participants (nothing can shadow them into meaning
     something else)."""
 

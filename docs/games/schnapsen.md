@@ -46,7 +46,7 @@ state-dependent Card domain ([decisions.md](../decisions.md) "Declared
 parameter domains"). The follower answers with a filtered chosen movement
 over the in-file `follow_ok` cascade (strict follow-and-head once the talon is
 closed or exhausted), and the trick, claim-at-66, and paired talon draws are
-plain statements around the game-local `schnapsen_trick_winner` stdlib
+plain statements around the game-local `schnapsen_trick_winner` Primitive
 primitive. The hand resolves three ways and produces a typed outcome —
 `claimed`, `talon_closed`, or `open_play` — which the `play` phase declares
 and the `scoring` phase settles with a `produces:` block (see

@@ -107,7 +107,7 @@ def elements(value: Any) -> Any:
     runtime shapes of a collection-typed expression.  The evaluator applies
     it at its own consuming sites (card-query and comprehension sources, the
     right-hand side of `in`, rule fallbacks, `turns` participants), and
-    `stdlib.call` applies it to every argument at its entry, so bare-Python
+    `reads.coerce_args` applies it to every argument at its entry, so bare-Python
     adapters never see a Zone handle.  A Zone yields its `.cards` list
     (already a materialized, multi-pass `list`); anything else passes
     through unchanged, since a `[...]` literal, a nested query or

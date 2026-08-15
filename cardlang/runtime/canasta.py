@@ -1,4 +1,4 @@
-"""Canasta's runtime support (pure stdlib primitives).
+"""Canasta's runtime support (pure Primitives).
 
 The whole hand — the draw-or-take turn loop, the announce-then-stage meld
 window, the frozen pile, the initial-meld minimums, and the per-team hand

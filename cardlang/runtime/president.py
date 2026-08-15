@@ -1,4 +1,4 @@
-"""President's combination engine and game-local stdlib queries.
+"""President's combination engine and game-local Primitive queries.
 
 The corpus's third climbing game (after Tichu and Big Two). The whole hand runs
 on the climb [[form]] of [[round]] (`docs/games/president.cardlang`); this module
@@ -82,7 +82,7 @@ def _by_rank(hand: list[Card]) -> dict[str, list[Card]]:
 
 
 # ---------------------------------------------------------------------------
-# The climbing-form stdlib queries (named on `round climb` in president.cardlang)
+# The climbing-form Primitive queries (named on `round climb` in president.cardlang)
 # ---------------------------------------------------------------------------
 
 

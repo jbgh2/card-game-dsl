@@ -12,7 +12,7 @@
 // `round` (the move vocabulary below, a shrinking participants ring, and
 // `pinochle_auction_outcome`). Trump declaration is a one-draw `round offering
 // [declare_trump_suit]` guarded by `has_marriage`; meld is a forced (not
-// chosen) per-player `pinochle_meld_value(p)` stdlib query, credited to each
+// chosen) per-player `pinochle_meld_value(p)` Primitive query, credited to each
 // player's team. The twelve strict tricks run on the trick form of `round`,
 // legality narrowed by the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/
 // MustOverTrump rule cascade (follow suit and head the trick if able; else

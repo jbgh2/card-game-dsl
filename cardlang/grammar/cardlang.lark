@@ -396,7 +396,7 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // beats the standing play or passes; the trick ends when action returns to the
 // last player who played, or the `until` predicate holds (a player has shed out).
 // The engine is named by `combinations` (the lead-options query) and `follows`
-// (the legal-follows query) — game-local stdlib queries, since the combination
+// (the legal-follows query) — game-local Primitive queries, since the combination
 // rules differ across games. The winning player (the last to play) is bound as
 // `winner` for the surrounding body, which routes the pile and the next lead;
 // there is no winner *function* — the winner is the loop's last player, not a

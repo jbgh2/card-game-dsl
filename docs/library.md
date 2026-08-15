@@ -72,8 +72,7 @@ Key design notes:
 
 - **The combination engine is named, not built in.** `combinations` names a
   lead-options query (every combination a hand may lead) and `follows` a
-  legal-follows query (those that beat the standing play). They are **game-local
-  stdlib** ([decisions.md](decisions.md) "The climbing form of `round`"): Big Two's
+  legal-follows query (those that beat the standing play). They are **game-local Primitive** ([decisions.md](decisions.md) "The climbing form of `round`"): Big Two's
   and Tichu's combination rules genuinely differ (suit tie-breaks, flushes and
   quads, cross-type five-card beating vs. bombs and special cards), so the engines
   stay per-game until a third instance. The construct depends only on their
@@ -240,7 +239,7 @@ with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowEffectiveSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+`MustFollowEffectiveSuit`'s demand reads the Builtin `tarot_led_suit()` (the first
 non-Excuse card played, or "excuse" if only the Excuse has been played so
 far) rather than the kernel's own `state.led_suit` (the literal first card,
 "excuse" included) — the split that reproduces the reference rule exactly:
@@ -267,7 +266,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 - **Pinochle's strict-trick play** is the ordinary trick `round` with no new
   construct: legality narrows through the `active_rules:` cascade documented
   under "Rules" above. Meld settles in a plain statement around the
-  `pinochle_meld_value(player)` stdlib query (see "Stdlib functions") — a pure
+  `pinochle_meld_value(player)` Primitive query (see "Native functions") — a pure
   read of the live hand and the declared trump; `meld_score[team_of(p)] +=
   pinochle_meld_value(p)` is what credits it to the team. Not yet the shared
   combination model floated for Workstream 3 — game-local until a second
@@ -307,8 +306,8 @@ match) and so must trump if able, a quirk the split preserves precisely.
   `bet_by`/`acted`/`committed`) is ordinary phase state; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
-  seats come from the `bring_in_seat()` / `first_to_act_seat()` stdlib selectors.
-  The showdown settles in plain statements around the `pot_share(player)` stdlib
+  seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
+  The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
   (committed-total levels, ties split with the odd chip to the first winner in
   seat order, uncalled remainder to the best contender), a pure read of the
@@ -325,8 +324,8 @@ match) and so must trump if able, a quirk the split preserves precisely.
   121-point cutoff one scoring component at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
-  count) and decoded by the `peg_origin_of` stdlib query. Six game-local stdlib
-  primitives (see "Stdlib functions") — `peg_value`, `peg_pair_points`,
+  count) and decoded by the `peg_origin_of` Primitive query. Six game-local Primitive
+  primitives (see "Native functions") — `peg_value`, `peg_pair_points`,
   `peg_run_points`, `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value`
   — hold the pegging-count and show scorers, in the same game-local shape as
   Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
@@ -344,7 +343,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
   cascade (strict follow-and-head once the talon is closed or exhausted,
   anything while open), and the trick, claim-at-66, and paired talon draws are
   plain statements around the game-local `schnapsen_trick_winner` primitive
-  (see "Stdlib functions"), with three `produce` sites for the typed
+  (see "Native functions"), with three `produce` sites for the typed
   `claimed | talon_closed | open_play` outcome.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
   sequential auction `round`s over role-guarded two-participant rings (the
@@ -394,7 +393,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 > **Status: proposed, not yet built.** No game runs a `scoring_component` /
 > `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
 > decompositions below are the intended design; the corpus scores through
-> game-local statements and stdlib primitives (see the Mechanics section above and
+> game-local statements and Primitives (see the Mechanics section above and
 > `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
 > when the subsystem is built.
 
@@ -442,7 +441,7 @@ and library (named compositions of primitives). Full design background
 in [decisions.md](decisions.md) "Typed object model" and "Knowledge,
 visibility, and the projection model".
 
-### Stdlib types (built into the language)
+### Built-in types
 
 - `Card` — individuated object: `{ suit, rank, attributes, optional facing }`.
 - `Resource<Type>` — fungible quantity of the named type. Declared by
@@ -454,7 +453,7 @@ visibility, and the projection model".
 - `Seating` — derived from `players` + `teams`. The surface
   operator is `offset_by` (`dealer offset_by left` — seat arithmetic in
   the game's declared direction); team lookup is the
-  `team_of(player)` stdlib function. An English replacement for
+  `team_of(player)` native function. An English replacement for
   `offset_by` — the clunkiest-reading operator in the language — is a
   decided direction whose spelling is still open
   ([design-notes/lexical-cleanup.md](design-notes/lexical-cleanup.md) §7).
@@ -478,7 +477,7 @@ visibility, and the projection model".
 
 ### Library zone types
 
-The closed set of stdlib zone types, each shown with the per-observer
+The closed set of kernel zone types, each shown with the per-observer
 projection it encodes. The `Zone<Contents> { composition: ... }`
 notation is the model, not a surface a game writes — a game selects a
 named type in its `zones {}` block (see [decisions.md](decisions.md),
@@ -605,14 +604,14 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 the `transfer` verb as their primary one.
 
-## Stdlib component sets
+## Built-in component sets
 
 The component sets a game can name — the individuated content of its
 zones (see [decisions.md](decisions.md), "Component sets: cards and
 pieces"). A game names one directly in its `cards:` line (a card deck)
 or `pieces:` line (a piece set) and does not compose or extend it in the
 surface; each entry below shows the set's content, which lives in the
-stdlib registry. A **deck** is the card-flavored set, its two axes named
+native registry. A **deck** is the card-flavored set, its two axes named
 `suit` and `rank` (see also [decisions.md](decisions.md), "Deck
 declaration"); these are the card entries:
 
@@ -677,7 +676,7 @@ Each entry captures a set's *composition* only. Card-point values,
 ranking for play, follow-suit semantics, and trump status are all
 per-game declarations on a deck; a piece set carries none of them.
 
-## Stdlib boards
+## Built-in boards
 
 The spatial boards a game can name in its `board:` line (see
 [decisions.md](decisions.md), "Boards and cells"). A game names a
@@ -705,7 +704,7 @@ A board mints two named-member domains: the position domain `cell`
 move-parameter domain `dir` (its directions). See
 [decisions.md](decisions.md), "Boards and cells".
 
-## Stdlib state
+## Built-in state
 
 Game state variables provided by the language with conventional
 defaults. A game opts in by referencing the name; if no reference,
@@ -719,7 +718,7 @@ the variable is not allocated.
   in multi-player clockwise games (Spades, Pinochle, Bridge, Stud,
   Cribbage), `dealer := other player` in two-player games
   (Schnapsen, Cribbage). Hearts and Getaway don't reference
-  `dealer` and pay no cost for the stdlib slot.
+  `dealer` and pay no cost for the Primitive slot.
 
 - **Turn-order start.** The initial position of turn order is
   runtime-supplied, the same way `initial_dealer` is. Dealing games
@@ -731,7 +730,7 @@ the variable is not allocated.
   game") is the runtime's concern, not the rules engine's. A dedicated
   first-player syntax is deferred — see issue #120.
 
-## Stdlib functions
+## Native functions
 
 Standard helpers available across games. A function below (or a game-local
 primitive in the same shape) that reads live zones or state does so by the
@@ -746,7 +745,7 @@ mid-playout.
 - `best_five_card_hand(cards: Set<Card>) → HandRank` — given a set of
   cards (typically 7 for Stud, 5 for draw poker, 2+5 community for
   Hold'em), returns the best 5-card poker hand as a `HandRank`
-  value. Stdlib because every poker variant needs it; the
+  value. A Builtin because every poker variant needs it; the
   implementation is standard and not game-specific.
 - `next_active_player(p) → Player` — returns the next player
   clockwise from `p` who is not folded and not all-in. A general

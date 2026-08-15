@@ -316,9 +316,9 @@ def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
     )
 
 
-def test_call_signature_registry_covers_every_stdlib_call_function() -> None:
+def test_call_signature_registry_covers_every_native_call_function() -> None:
     """`infer`'s Call arm raises when a call has no signature; resolve rejects
-    a call to an unknown name, so the two stdlib registries must agree."""
+    a call to an unknown name, so the two native registries must agree."""
     assert set(CALL_FUNCS) == set(CALL_SIGS)
 
 
@@ -612,7 +612,7 @@ def test_a_derived_field_reached_through_a_function_keeps_its_real_type() -> Non
         "turn",  # a state variable
         "deck",  # a zone
         "actor",  # a pronoun
-        "rank_value(2 of clubs)",  # a stdlib call
+        "rank_value(2 of clubs)",  # a native call
         "x + 1",  # the struct's own declared field
     ],
 )

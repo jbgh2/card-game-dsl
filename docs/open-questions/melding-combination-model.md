@@ -1,12 +1,12 @@
 # A reusable combination model for melding
 
 **Tier 4 — low impact, defer until forced.** Melding works in the corpus, but
-each game's meld scoring is a game-local stdlib primitive rather than a shared
+each game's meld scoring is a game-local Primitive rather than a shared
 model, and the one place two meld categories genuinely overlap was resolved by
 hand rather than by a rule the language owns.
 
 Pinochle's meld phase is a flat `Counter`-based tally
-(`pinochle_meld_value`, a game-local stdlib primitive — the DSL body itself is
+(`pinochle_meld_value`, a game-local Primitive — the DSL body itself is
 fully migrated, so this is a missing abstraction, not migration debt). Canasta
 scores its melds through zone censuses over the meld zones themselves
 (`canasta_canasta_bonus`, and the group *is* the zone — decisions.md "Joint

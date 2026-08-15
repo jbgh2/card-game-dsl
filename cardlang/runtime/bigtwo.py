@@ -1,4 +1,4 @@
-"""The Big Two combination engine and its climbing-form stdlib queries.
+"""The Big Two combination engine and its climbing-form Primitive queries.
 
 The corpus's second climbing game (after Tichu) and the partner instance that —
 together with Tichu — shapes the kernel `climb` construct. Big Two's whole hand
@@ -178,7 +178,7 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
 
 
 # ---------------------------------------------------------------------------
-# The climbing-form stdlib queries (named on `round climb` in big-two.cardlang)
+# The climbing-form Primitive queries (named on `round climb` in big-two.cardlang)
 # ---------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-"""Type signatures for the stdlib functions and value-callbacks.
+"""Type signatures for the native functions and value-callbacks.
 
 Companion to :mod:`cardlang.builtins.functions` (which holds the *names*); these
 tables hold the *types*, consumed by the type checker. The keys reconcile with

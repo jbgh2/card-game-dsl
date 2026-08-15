@@ -368,8 +368,8 @@ def test_ranking_gate_fires_in_a_movement_filter_too() -> None:
     )
 
 
-def test_ranking_gate_does_not_touch_other_stdlib_calls() -> None:
-    # A no-ranking game (Coup's shape) still calls other stdlib functions
+def test_ranking_gate_does_not_touch_other_native_calls() -> None:
+    # A no-ranking game (Coup's shape) still calls other native functions
     # freely — only the registered ranking-dependent ones are gated.
     _accepts(
         _game(

@@ -62,7 +62,7 @@ covered:    one case per named guard class (the directory glob is the
             non-collection, a per-movement `visibility =` override, a
             missing `max_length:`, an over-capacity deck plan (8-player
             deal exceeding a 52-card deck), an integer `choose` with no
-            static ceiling, a wrong-typed stdlib call argument, a struct
+            static ceiling, a wrong-typed native call argument, a struct
             literal missing a declared field, a raw grammar/syntax error
             (parse.py's `UnexpectedInput` wrapping, over an unclosed `zones
             {` block), `legal_moves:` naming an unknown move type,

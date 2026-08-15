@@ -128,7 +128,7 @@ Where corpus growth actually lands, and the signal that says stop and
 design rather than accrete:
 
 - **Card games** mostly grow registries inside existing domains (decks,
-  stdlib primitives, round axes) — the drilled, pinned path. The first
+  Primitives, round axes) — the drilled, pinned path. The first
   genuinely new pressure: observer-dependent phase outcomes (500's open
   misère, Belote's declarations —
   [knowledge-events](../open-questions/knowledge-events.md)).

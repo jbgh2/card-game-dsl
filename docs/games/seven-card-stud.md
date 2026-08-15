@@ -27,7 +27,7 @@ leader and offers the first still-pending player, so after a raise re-opens
 earlier seats action returns to the earliest owing seat), and the showdown as
 plain statements — a contested hand reveals the contenders' hole cards into the
 public board, each entrant collects its side-pot share via `pot_share(p)`, and
-the hands leave play to the muck. The stdlib primitives are pure reads: the
+the hands leave play to the muck. The Primitives are pure reads: the
 door-card seat selectors (`bring_in_seat` / `first_to_act_seat`) and the
 side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
 The 4th-street open-pair limit doubling is simplified out.

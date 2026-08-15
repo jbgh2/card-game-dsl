@@ -152,9 +152,9 @@ def test_hermeticity_diagnostic_names_every_call_site_pronoun() -> None:
     assert not missing, f"diagnostic omits {missing}: {message}"
 
 
-def test_function_shadowing_a_stdlib_call_is_rejected() -> None:
-    # A user function may not reuse a stdlib call name: a call would type-check
-    # against the stdlib signature but dispatch to the user function at runtime
+def test_function_shadowing_a_native_call_is_rejected() -> None:
+    # A user function may not reuse a native call name: a call would type-check
+    # against the native signature but dispatch to the user function at runtime
     # (`evaluate` consults user functions first). Reject the collision.
     src = SRC + "function team_of(p : Player) = score[p] >= 0\n"
     with pytest.raises(DiagnosticError):

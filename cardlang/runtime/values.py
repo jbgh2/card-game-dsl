@@ -1,7 +1,7 @@
 """Runtime value types: cards, players, and the seating ring.
 
 These are the concrete objects the interpreter manipulates — the live
-counterparts to the DSL's `Card`, `Player`, and `Seating` stdlib types. `Card`
+counterparts to the DSL's `Card`, `Player`, and `Seating` built-in types. `Card`
 carries both flavors of [[card-piece]]: a board game's marks and men are `Card`s
 too. `COMPONENT_SETS` below is the registry a game's `cards:`/`pieces:` clause
 selects from: card decks, uniform and not, and the board games' piece sets.

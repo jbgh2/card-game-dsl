@@ -106,7 +106,7 @@ def _trump_order(game_type: str, trump_suit: str | None) -> list[tuple[str, str]
     return jacks + [(r, trump_suit) for r in ("A", "10", "K", "Q", "9", "8", "7")]
 
 
-# --- the stdlib call surface -------------------------------------------------
+# --- the native call surface -------------------------------------------------
 
 
 def skat_next_bid(value: int) -> int:

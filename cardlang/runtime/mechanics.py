@@ -125,7 +125,7 @@ class TrickForm:
     def __init__(self, stmt: n.TrickRound, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
 
-        # `winner_fn` / `early_termination` are bare stdlib value-function names
+        # `winner_fn` / `early_termination` are bare native value-function names
         # on the node, validated at resolve time. Nothing is asserted about them
         # or about the card zones: the node's own field types say they are
         # present, which is what the split bought.
@@ -219,7 +219,7 @@ class TrickForm:
             self.trump,
             reads.deep_freeze(ctx.rs.rank_index),
         )
-        # every function in the stdlib trick-winner registry returns a seat
+        # every function in the Primitive trick-winner registry returns a seat
         assert isinstance(winner, int)
         ctx.trace("trick", (winner, [c for _, c in state["played"]]))
         return winner

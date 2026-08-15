@@ -11,7 +11,7 @@ the class of error a type checker catches before anything runs:
 - every `transition_to:` target is a sibling phase.
 
 Deep expression name resolution (state variables, suits, the `action` fields,
-stdlib functions) needs the typed object model and lands with the type
+native functions) needs the typed object model and lands with the type
 checker; this pass is the structural net.
 
 On success an immutably rewritten :class:`Game` flows on (rule templates
@@ -392,27 +392,27 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # the split is load-bearing, not a nicety: an OFFERING names move types the
     # game defines (`_check_offering_moves` against `defined_move_types`),
     # while `constrains:`, `legal_moves:`, a transition event and a trick/climb
-    # round's move type name the STDLIB registry (`LIBRARY_MOVE_TYPES`). Only
+    # round's move type name the kernel registry (`LIBRARY_MOVE_TYPES`). Only
     # the first pair is a channel an importing game can feed.
     (n.Offer, "offering"): "move_type",
     (n.AuctionRound, "offering"): "move_type",
-    (n.TrickRound, "move_type"): "stdlib_move_type",
-    (n.ClimbRound, "move_type"): "stdlib_move_type",
-    (n.LegalMoves, "move_types"): "stdlib_move_type",
-    (n.MoveEvent, "move_type"): "stdlib_move_type",
-    (n.RuleDef, "constrains"): "stdlib_move_type",
+    (n.TrickRound, "move_type"): "kernel_move_type",
+    (n.ClimbRound, "move_type"): "kernel_move_type",
+    (n.LegalMoves, "move_types"): "kernel_move_type",
+    (n.MoveEvent, "move_type"): "kernel_move_type",
+    (n.RuleDef, "constrains"): "kernel_move_type",
     (n.RuleRef, "name"): "rule",
     (n.Produces, "define"): "define",
     (n.RunStmt, "name"): "procedure",
     (n.Call, "func"): "function",
-    # The stdlib query registries a `round` selects from. A closed stdlib table
+    # The Primitive query registries a `round` selects from. A closed kernel table
     # in every direction — the same names for a library as for a game — which is
     # why they are references and yet not a channel a game can feed.
-    (n.TrickRound, "winner_fn"): "stdlib_query",
-    (n.TrickRound, "early_termination"): "stdlib_query",
-    (n.AuctionRound, "outcome_fn"): "stdlib_query",
-    (n.ClimbRound, "combos_fn"): "stdlib_query",
-    (n.ClimbRound, "follows_fn"): "stdlib_query",
+    (n.TrickRound, "winner_fn"): "primitive_query",
+    (n.TrickRound, "early_termination"): "primitive_query",
+    (n.AuctionRound, "outcome_fn"): "primitive_query",
+    (n.ClimbRound, "combos_fn"): "primitive_query",
+    (n.ClimbRound, "follows_fn"): "primitive_query",
     # Deck-derived values, held as strings rather than classified names.
     (n.CardLiteral, "rank"): "deck_rank",
     (n.CardLiteral, "suit"): "deck_suit",
@@ -431,7 +431,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.ZoneDecl, "index"): "index_domain",
     (n.StateDecl, "index"): "index_domain",
     (n.RequireDecl, "index"): "index_domain",
-    # Zone types and their arguments (`Hand<player>`): the stdlib zone-type
+    # Zone types and their arguments (`Hand<player>`): the kernel zone-type
     # registry, and a role or type name in parameter position.
     (n.TypeRef, "name"): "zone_type",
     (n.TypeArg, "name"): "zone_type_arg",
@@ -707,14 +707,14 @@ def _check_library_collisions(
     libraries: list[tuple[n.UsesDecl, n.Library]],
     bag: DiagnosticBag,
 ) -> None:
-    """The three-way collision matrix — game / library / stdlib — swept across
+    """The three-way collision matrix — game / library / kernel — swept across
     every definition kind in `_LIBRARY_DEF_KINDS` rather than the kinds that
     happen to collide in today's corpus (decisions.md "Closed-domain
     completeness": sweep the class, don't patch the instance).
 
-    The stdlib leg covers the two registries whose names share ONE namespace with
+    The kernel leg covers the two registries whose names share ONE namespace with
     a game's definitions: rules (library rules splice into `game.rules`) and call
-    functions. Stdlib MOVE types are deliberately not a cell: they and a game's
+    functions. Kernel MOVE types are deliberately not a cell: they and a game's
     `move_type` definitions are two disjoint consult paths that never merge
     (`stdlib/moves.py`, and Stud/Skat/Schnapsen/Coup all rely on it), so a guard
     here would reject four games that are correct today."""
@@ -757,8 +757,8 @@ def _check_library_collisions(
             if fn.name in CALL_FUNCS:
                 bag.error(
                     f"library '{library.name}' defines function '{fn.name}', "
-                    f"which shadows the stdlib function of the same name; rename "
-                    f"it (a call would type-check against the stdlib signature "
+                    f"which shadows the native function of the same name; rename "
+                    f"it (a call would type-check against the native signature "
                     f"but run this one instead)",
                     fn.span,
                 )
@@ -816,9 +816,9 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
             continue  # already added above, with their own spans
         for definition in getattr(game, field):
             bindings.setdefault(definition.name, (noun, definition.span))
-    # `_classify`'s `function` bucket is the STDLIB value names, not the game's
+    # `_classify`'s `function` bucket is the native value names, not the game's
     # own functions (those resolve as `Call`s, never as bare names) — so a
-    # provided variable spelled like a stdlib value shadows it exactly as a
+    # provided variable spelled like a native value shadows it exactly as a
     # deck-value clash does, `state_vars` winning over `functions`. Lowest
     # precedence, added last, so a real game binding keeps the reported noun.
     # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
@@ -1125,8 +1125,8 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # closed were all wrong on first writing — each said the classified pass refused
 # the case, and each case in fact resolves clean and is refused a stage later.
 _LIBRARY_UNSWEPT: dict[str, str] = {
-    "stdlib_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
-    "stdlib_query": "closed: the stdlib round-query registries, identical either side",
+    "kernel_move_type": "closed: `LIBRARY_MOVE_TYPES`, identical for a library and a game",
+    "primitive_query": "closed: the Primitive round-query registries, identical either side",
     "index_domain": (
         "guarded elsewhere, and NOT closed — the row's earlier reading claimed the "
         "namespace was closed because a game may not declare a non-role index "
@@ -1378,7 +1378,7 @@ _NAMESPACE_ADVICE: dict[str, str] = {
     ),
     "type": (
         "declare the type in the library, or keep this definition in the game "
-        "(a `requires` entry's type is a state type or a stdlib zone type)"
+        "(a `requires` entry's type is a state type or a kernel zone type)"
     ),
     "move_type": "define the move type in the library, or keep this definition in the game",
     "define": "define it in the library, or keep this definition in the game",
@@ -1449,7 +1449,7 @@ def _check_library_encapsulation(library: n.Library, bag: DiagnosticBag) -> None
     for call in reach.unknown_calls:
         bag.error(
             f"library '{library.name}' calls '{call.func}', which is neither "
-            f"defined in the library nor a stdlib function — a library's "
+            f"defined in the library nor a native function — a library's "
             f"definitions may not reach into the game that imports them",
             call.span,
         )
@@ -3040,7 +3040,7 @@ _POSITION_MEMBER_CEILING = 256
 
 
 def _check_zone_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
-    """A declared `type` may not take a stdlib zone type's spelling.
+    """A declared `type` may not take a kernel zone type's spelling.
 
     `Hand` already means a zone type. A `type Hand = { … }` beside it would make
     one name mean two things in the one position that reads BOTH registries — a
@@ -3946,7 +3946,7 @@ def _expand_ranking(game: n.Game, bag: DiagnosticBag) -> n.Game:
 
     french = frozenset(RANKS)
     # The ORDERED runtime deck_ranks (first-appearance tuple), not this
-    # module's stdlib frozenset wrapper: the offenders appear in the
+    # kernel enums' frozenset wrapper: the offenders appear in the
     # diagnostic, and frozenset iteration is hash-seed-dependent — a
     # rejection golden built on it flakes across CI runs.
     offenders = [r for r in ordered_deck_ranks(game.deck) if r not in french]
@@ -4298,8 +4298,8 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     state — not a name the flat classifier tagged `local` from some unrelated binder,
     and not the call-site pronouns (`_CALL_SITE_PRONOUNS` — the runtime clears
     them); and the call graph must be acyclic (a cycle would loop forever at runtime).
-    A function may not reuse a stdlib call name: a call would type-check against the
-    stdlib signature but dispatch to the user function at run time."""
+    A function may not reuse a native call name: a call would type-check against the
+    native signature but dispatch to the user function at run time."""
     fn_names = {f.name for f in game.functions}
     calls: dict[str, set[str]] = {
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
@@ -4308,8 +4308,8 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     for fn in game.functions:
         if fn.name in CALL_FUNCS:
             bag.error(
-                f"function '{fn.name}' shadows the stdlib function of the same name; "
-                f"rename it (a call would type-check against the stdlib signature but "
+                f"function '{fn.name}' shadows the native function of the same name; "
+                f"rename it (a call would type-check against the native signature but "
                 f"run this function instead)",
                 fn.span,
             )
@@ -4969,7 +4969,7 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
 
 
 def _check_board_call(nd: n.Call, game: n.Game, bag: DiagnosticBag) -> None:
-    """The board-reading stdlib calls (`lines`, BOARD_ONLY_CALL_FUNCS): a
+    """The board-reading native calls (`lines`, BOARD_ONLY_CALL_FUNCS): a
     boardless game has no board to read, and a literal `k` outside the board's
     line span is a static error. The bound is reused from the board entry's own
     `lines()` (cardlang/stdlib/boards.py), so resolve and the runtime share one
@@ -5070,7 +5070,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
             case n.Call() if (
                 game.content_flavor == "piece" and nd.func in DECK_ONLY_CALL_FUNCS
             ):
-                # A deck-reading stdlib call (suit_of, rank_value, a trick-
+                # A deck-reading native call (suit_of, rank_value, a trick-
                 # winner, ...) has nothing to read in a piece game. The generic
                 # calls (top_of, team_of, ...) are absent from DECK_ONLY and
                 # stay legal.

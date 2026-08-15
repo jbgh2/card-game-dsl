@@ -1,7 +1,7 @@
-"""Stud's seat-selector stdlib primitives (bring-in and first-to-act).
+"""Stud's seat-selector Primitives (bring-in and first-to-act).
 
 These are argmin/argmax over players keyed on card ranks/suits — not expressible
-in the DSL today — so they are stdlib runtime-primitives called from the betting
+in the DSL today — so they are Primitives called from the betting
 phase. The pure ranking logic is unit-tested here against known cards; their
 DSL-callability (signature wiring) is checked with a fixture that references both.
 """
@@ -35,7 +35,7 @@ def test_highest_upcards_compares_sorted_ranks_lexicographically() -> None:
     assert _highest_upcards([0, 1], up) == 0
 
 
-# Both selectors are nullary stdlib calls returning a Player; the resolver/checker
+# Both selectors are nullary native calls returning a Player; the resolver/checker
 # must accept them in expression position (the betting phase assigns the result to
 # a `leader`/`bringer` state var).
 _FIXTURE = """

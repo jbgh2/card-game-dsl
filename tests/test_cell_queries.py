@@ -6,7 +6,7 @@ a board's minted `cell` domain or an integer `positions {}` name — exactly
 like the fixed `player`/`team`/`suit`/`rank` forms range over their own
 domains. Two COLLECTION forms iterate an evaluated line/cell collection:
 `any line in <expr> where …` (binds `line`) and `all cells in <expr> where …`
-(binds `cell`). `lines(k)` is the stdlib call a board's declared lines are
+(binds `cell`). `lines(k)` is the native call a board's declared lines are
 read through. This is the rung-1 guard lift decisions.md "Position domains
 and positional zones" and "Boards and cells" describe; the grammar, resolve,
 typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`

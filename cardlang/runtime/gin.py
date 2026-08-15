@@ -1,4 +1,4 @@
-"""Gin Rummy's runtime support (pure stdlib primitives).
+"""Gin Rummy's runtime support (pure Primitives).
 
 The whole hand — the upcard ritual, the draw-discard `turns` loop, the knock,
 the showdown's declared arrangements (joint selections), the layoffs, and the

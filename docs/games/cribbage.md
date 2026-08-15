@@ -29,10 +29,10 @@ time. Pegging needs no `round` form of its own — no existing round fits its
 per-play scoring plus forced-play flow — so the current sub-round's card
 provenance (who played each `play_pile` card) is carried by two `Integer` state
 variables (`seq_bits`/`seq_len`, public information: every player watched the
-count) and decoded by the `peg_origin_of` stdlib primitive at each close, which
+count) and decoded by the `peg_origin_of` Primitive at each close, which
 routes the pile into `played[dealer]` / `played[nondealer]`. The combination
 scorers (fifteens, pairs, runs, flush, his nob) and the pegging-count scorers are
-stdlib primitives, unit-tested against known hands (the 29-hand, runs with
+Primitives, unit-tested against known hands (the 29-hand, runs with
 multiplicity, flushes, his nob).
 
 ```

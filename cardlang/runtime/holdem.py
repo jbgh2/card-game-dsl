@@ -11,7 +11,7 @@ expressible there:
   blinds past players who busted out (the DSL has no "next seat satisfying a
   predicate"; `coup_next_in_game` and `tichu_next_holder` are the same shape);
 - `holdem_pot_share` — the showdown side-pot query (argmax over poker-rank
-  tuples per commitment layer), the stdlib primitive the showdown's settle
+  tuples per commitment layer), the Primitive the showdown's settle
   statement calls.
 
 The hand evaluator is family-wide and lives in `cardlang/runtime/poker.py`,

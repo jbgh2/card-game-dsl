@@ -46,7 +46,7 @@ Each hand:
    penalty reaches 100; the **lowest** total wins.
 
 The hand runs on the kernel **`round climb`** construct: one combination-climbing
-trick per round, with the combination engine named as the game-local stdlib
+trick per round, with the combination engine named as the game-local Primitive
 queries `bigtwo_lead_options` (lead candidates, 3♦-filtered on the opening) and
 `bigtwo_follows` (legal follows). The climbing loop, the pile routing, the
 shed-out finish, and penalty scoring are DSL. Scope reductions (random play): each

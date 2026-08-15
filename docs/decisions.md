@@ -372,7 +372,7 @@ the standard `MustFollowSuit` rule consults instead of comparing
 `c1.suit is c2.suit` directly. Most games keep the default
 (printed-suit equality); games with contextual suits override.
 Same shape as a `round`'s `winner` or `early` function — a per-game or
-stdlib function referenced by name, not a new language construct.
+native function referenced by name, not a new language construct.
 
 ## The auction form of `round`
 
@@ -670,7 +670,7 @@ Two decisions distinguish it from the trick and auction forms:
   the transfer vocabulary moves cards *by count* (`all` / `one` / `N cards`), never
   a named set. So a combination play cannot be a DSL `move_type` effect the way a
   bet is, and there is no DSL-visible `Combination` value. Instead the engine is two
-  **game-local stdlib queries** named on the round — `combinations` (lead options)
+  **game-local Primitive queries** named on the round — `combinations` (lead options)
   and `follows` (legal follows) — and the climb form performs the card transfer itself.
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
@@ -688,7 +688,7 @@ As with the auction form, the round's only decision points are the per-turn
 candidate draws (the lead query, then `[follows…, pass]`); the scoring and routing
 in the surrounding body consume no randomness — where a game's *rules* are random
 (Tichu's Dragon trick going to a random opponent, its random-rate call gates at
-the migrated scope), that randomness is a game-local stdlib primitive drawing on
+the migrated scope), that randomness is a game-local Primitive drawing on
 the shared `rng`, not a chooser decision. So a climbing hand re-expressed on
 this form reproduces a hand-written engine's behaviour byte-for-byte when it
 presents the same per-turn candidate lists — the property both migrations
@@ -1333,11 +1333,11 @@ assignments are imperative writes following the same rules.
 
 ## Typed object model
 
-The language has a typed object model with stdlib types built in,
+The language has a typed object model with built-in types,
 user-defined types declared per-game, and convenience sugar that
 rewrites to underlying forms.
 
-**Stdlib types (built into the language):**
+**Built-in types:**
 
 - `Card` — `{ suit, rank, attributes, optional facing }`. Suit and
   rank are declared at the game level (`cards { suits: { ... } }`,
@@ -1403,7 +1403,7 @@ accessed identically to declared fields (`result.made`) but are
 stored nowhere; the compiler inlines them.
 
 User-defined types may be parameterized with the same angle-bracket
-convention as stdlib generics. They are the language's extension
+convention as built-in generics. They are the language's extension
 point for genuine record types. The current corpus models its
 structured values with flat state variables and functions instead —
 Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
@@ -1428,7 +1428,7 @@ takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
 declares them.
 
 **Deck declaration.** The `cards:` line names the deck a game uses.
-The deck is a constant from the closed stdlib registry (`DECKS` in
+The deck is a constant from the closed kernel table (`DECKS` in
 `cardlang/runtime/values.py`): a game selects one by name and does not
 spell out its cards.
 
@@ -1442,8 +1442,8 @@ not share a single rank list: French Tarot's 78 (four 14-card suits, a
 21-card trump suit, and the Excuse) and Tichu's 56 (the standard 52
 plus the four special cards Mahjong, Dog, Phoenix, Dragon). Those
 compositions live in the registry, not in per-game syntax;
-[library.md](library.md) "Stdlib component sets" catalogues them
-(decks are its card-flavored entries), and adding a deck is a stdlib
+[library.md](library.md) "Built-in component sets" catalogues them
+(decks are its card-flavored entries), and adding a deck is a kernel-table
 registry addition. Tichu's non-(suit, rank) specials
 are a separate question from the registry itself; see
 [open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).
@@ -1508,7 +1508,7 @@ invisible: nothing in the program looks wrong.
 is one `Any`, and it means the top. A lookup whose domain is closed does not
 fall back to it:
 
-- **A closed-registry lookup raises.** Binder roles, stdlib call
+- **A closed-registry lookup raises.** Binder roles, native call
   signatures, zone content types, struct types, operator result types,
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
@@ -1552,7 +1552,7 @@ fall back to it:
 **What stays permissive is a small audited set**, enumerated and pinned by a
 test so a new permissive site must be classified rather than added:
 values with no better type (a diverging `error()`, context-dependent
-stdlib returns the signature model cannot express, deferred pronoun
+native returns the signature model cannot express, deferred pronoun
 shapes, a forward struct reference), and propagation downstream of a
 guard that already fired. Gradual typing is preserved — the top still flows
 and still suppresses errors where it is deliberate.
@@ -2152,13 +2152,13 @@ hidden_deck   : Zone<Card>     { composition: count_only to all }
 catan_hand    : Zone<Resource> { composition: count_by_type to owner, count_only to others }
 ```
 
-The set of zone types is a closed stdlib registry (`ZONE_PROJECTIONS`
+The set of zone types is a closed kernel table (`ZONE_PROJECTIONS`
 in `cardlang/stdlib/zones.py`, wrapped as the named aliases in
 [library.md](library.md), "Library zone types"). A game does not write
 a `composition` block or declare a new zone type — it selects a named
 type in its `zones {}` block, and the type carries the projection
 (`hand[player] : Hand<player>`). Adding a projection profile is a
-stdlib registry addition, not a surface a game reaches.
+kernel-table addition, not a surface a game reaches.
 
 ### Per-observer visibility on moves
 
@@ -2248,7 +2248,7 @@ Modelling belief-about-belief would add machinery no in-scope game
 exercises. If a game ever surfaces a rule that reads second-order
 knowledge, this is the decision to revisit.
 
-### Stdlib memory-affecting operations
+### Native memory-affecting operations
 
 | Operation | What it does | Effect on projections |
 |---|---|---|
@@ -2387,7 +2387,7 @@ the suffix — not new surface). Sequence *knowledge* is derived, not
 declared: an identity-entitled observer saw every arrival event, so order
 falls out of the observation log under perfect recall.
 
-`top_of(z)` / `bottom_of(z)` are stdlib functions over any card
+`top_of(z)` / `bottom_of(z)` are native functions over any card
 collection; on an empty collection they fail loudly at runtime (guard
 first — `Z is not empty`). Their use in a move *guard* is subject to the
 same discipline as every guard expression: legality must not read
@@ -2399,7 +2399,7 @@ legal-action-agreement proofs police (`tests/openspiel_ready/`).
 A game's individuated zone content is declared with exactly one head
 clause — `cards: <deck>` (a card deck) or `pieces: <set>` (a piece set)
 — naming one entry of the closed component-set registry
-([library.md](library.md), "Stdlib component sets"). The two are
+([library.md](library.md), "Built-in component sets"). The two are
 mutually exclusive and one is required; a game declaring both, or
 neither, is rejected (no game has witnessed needing both).
 
@@ -2432,7 +2432,7 @@ are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
 field access, the card-query and aggregation forms, the `ranking:` and
 `trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
 `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
-stdlib calls, and card literals. Each rejection sits at the layer that
+native calls, and card literals. Each rejection sits at the layer that
 owns the operand-kind class (the typechecker), naming the kind rather
 than parsing the construct and silently giving it card meaning — the
 "accepted-but-ignored" failure this guard exists to prevent.
@@ -2485,7 +2485,7 @@ to its witness; see issue #118.
 
 A game with a spatial board declares it with a `board: <family>(<args>)`
 clause: it selects a family from the closed `BOARDS` registry
-([library.md](library.md), "Stdlib boards") and gives its integer
+([library.md](library.md), "Built-in boards") and gives its integer
 arguments.
 
 ```text
@@ -2557,7 +2557,7 @@ escape instead. Where a collection value exists, two collection forms
 iterate it: `any line in <lines> where <pred>` walks a collection of
 lines (binder `line`, type `TLine`), and `all cells in <line> where
 <pred>` walks the cells of one line (binder `cell`, type `TCell`).
-`lines(k)` is the stdlib call the board's declared length-`k` lines are
+`lines(k)` is the native call the board's declared length-`k` lines are
 read through — every straight run of `k` cells along a row, column, or
 diagonal — returning a collection of `TLine`, each an ordered tuple of
 cells; `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A
@@ -2601,7 +2601,7 @@ one player's forward and the other's backward, because the second seat's
 frame is the 180-degree rotation of the first's — one shared board, a
 declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
-the direction in that player's frame. Five closed stdlib verbs read the
+the direction in that player's frame. Five closed Builtin verbs read the
 board entry (rejected in a boardless game naming `board:`, the `lines(k)`
 Shadow Guards):
 
@@ -2722,7 +2722,7 @@ for elimination games that select the player who *still* holds cards.
 > **Status: designed, not yet built.** No game runs this subsystem — the runtime
 > has no `apply_components:` construct, and `ScoreDelta`/`triggered_by:` are not
 > implemented. It is the intended shape for composed scoring; the corpus scores
-> through game-local statements and stdlib primitives today (Bridge and Spades
+> through game-local statements and Primitives today (Bridge and Spades
 > inline; Pinochle's `pinochle_meld_value`, Tarot's `tarot_per_opp`, Cribbage's
 > pegging/show primitives). The components named here and in the sibling sections
 > are the proposed decomposition, promoted corpus-first when the subsystem lands.
@@ -4021,7 +4021,7 @@ declares no `positions { }` and cannot name one, so a position-indexed zone
 family cannot be contracted at all.
 
 That the derivation IS a derivation rests on a guard: a declared `type` and a
-per-game `positions { }` name may not take a stdlib zone type's spelling. Without
+per-game `positions { }` name may not take a kernel zone type's spelling. Without
 it `type Hand = { … }` would make `requires { x : Hand }` mean two things, and
 the classification would silently pick one.
 
@@ -4267,6 +4267,6 @@ different *shape* of material. Read Survey 2 as "phases were not forced by this
 family", not as "phases are settled".
 
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
-records the one deliberate non-cell: stdlib move types and a game's `move_type`
+records the one deliberate non-cell: kernel move types and a game's `move_type`
 definitions are disjoint consult paths that never share a namespace, so there is
 no collision there to guard against.

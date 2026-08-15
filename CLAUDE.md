@@ -34,7 +34,7 @@ legal-action agreement, the per-visible-fact soundness matrix, a seed/rng
 non-observability pin, adapter agreement, perfect recall; per-game caveats
 and rationale live in the proof modules themselves). No per-game
 observation rules, no Python escape-hatch mechanic (the `instantiate`
-construct is deleted), no per-game branch outside the stdlib primitive
+construct is deleted), no per-game branch outside the Primitive
 registries. **The evolving honesty line is tracked in two named places,
 not here:** `docs/kernel-migration.md` (workstream status and remaining
 scope reductions) and `docs/open-questions/structural-infoset-proofs.md`
@@ -189,8 +189,7 @@ quoting local evidence, run the checks as written. In particular:
   exit code. CI is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
-that adds or extends grammar surface, a checker Owner Guard or diagnostic, a stdlib
-registry, or any closed-domain mechanism — **including a change answering a
+that adds or extends grammar surface, a checker Owner Guard or diagnostic, a kernel table, or any closed-domain mechanism — **including a change answering a
 review finding on one**, where the finding is a sample of a class and never
 the spec for the fix — additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill

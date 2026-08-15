@@ -26,7 +26,7 @@ ordinary statements, registered in `cardlang/openspiel/game.py:GAMES` with
 the readiness proofs green (`tests/openspiel_ready/`).
 
 The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
-stdlib primitives the DSL calls: Stud's poker evaluator, seat selectors, and
+Primitives the DSL calls: Stud's poker evaluator, seat selectors, and
 `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
 per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Schnapsen's two-card trick resolution; Skat's bid
@@ -36,7 +36,7 @@ team/finishing lookups, and the OpenSpiel combo codec; Coup's
 in-game scans and trace emitters.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
-stdlib primitive registries; every `tests/test_playout_*.py` green with
+Primitive registries; every `tests/test_playout_*.py` green with
 behaviour preserved (byte-identical goldens per migration, sanctioned
 normalizations recorded in `tests/test_migration_characterization.py`); IR
 goldens unchanged (no kernel game ever emitted an `instantiate` node);
@@ -228,7 +228,7 @@ the monolith does not.
 auction, play, and scoring in one Python function until the whole hand moved
 in that game's migration (auction on this workstream's form, trick play on the
 Step 0 `round` or hand-ordered filtered movements, scoring as game-local
-stdlib primitives rather than Workstream 4's shared `scoring_component`
+Primitives rather than Workstream 4's shared `scoring_component`
 subsystem — see that workstream's note below). Bridge was already split (play
 is DSL), so it finished first and validated `auction` end to end.
 
@@ -255,10 +255,10 @@ amount syntax" / "Resource transfer failure").
   ([decisions.md](decisions.md), "The auction form of `round`"); the continuous
   ring (`order ring`, the default) was the only order built before. Reused by
   Coup's WS5 response windows.
-- **Seat selectors as stdlib primitives.** The bring-in (lowest door card) and the
+- **Seat selectors as Primitives.** The bring-in (lowest door card) and the
   first-to-act (highest visible upcards) are argmin/argmax over players keyed on
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
-  are Stud-local stdlib functions called from the betting phase (like `team_of`),
+  are Stud-local Primitives called from the betting phase (like `team_of`),
   pure reads of the dealt cards (no RNG).
 - **The showdown runs in the DSL — done.** A contested hand reveals the
   contenders' hole cards into the `PublicHand` (two movements per contender —
@@ -399,9 +399,9 @@ components"), which the runtime has so far folded inline (issue #115).
   (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
   pegging's per-play scoring plus forced-play flow, so it uses none; the current
   sub-round's card provenance is carried in two `Integer` state variables and
-  decoded by the `peg_origin_of` stdlib primitive. The module-level Cribbage
+  decoded by the `peg_origin_of` Primitive. The module-level Cribbage
   scorers (pegging counts + the show's fifteens/pairs/runs/flush/his-nob) re-homed
-  as game-local stdlib primitives, like Stud's `pot_share` and Pinochle's
+  as game-local Primitives, like Stud's `pot_share` and Pinochle's
   `pinochle_meld_value` — migrate, don't redesign; promoting them to the shared
   `scoring_component` subsystem is corpus-first future work, not a requirement
   this migration carried.
@@ -417,12 +417,12 @@ components"), which the runtime has so far folded inline (issue #115).
   outside any trick `round`); marriages score 20/40 into a `pending` counter
   flushed on the declarer's first trick win; the `claimed | talon_closed |
   open_play` outcome `produce`s from the phase body. The two-card trick
-  resolution re-homed as the game-local `schnapsen_trick_winner` stdlib
+  resolution re-homed as the game-local `schnapsen_trick_winner` Primitive
   primitive (the `pot_share`/`pinochle_meld_value` shape).
 - **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
   declaration, meld, and the twelve strict tricks) landed on the kernel via
   Workstream 1 (above) before this workstream reached it. Meld stayed a
-  Counter-based, game-local `pinochle_meld_value` stdlib primitive (like
+  Counter-based, game-local `pinochle_meld_value` Primitive (like
   Stud's `pot_share`) rather than either this workstream's `scoring_component`
   subsystem or Workstream 3's combination model — migrate, don't redesign;
   promoting it to either shared mechanism is corpus-first future work, not a
@@ -430,7 +430,7 @@ components"), which the runtime has so far folded inline (issue #115).
 - **Tarot** — *done, ahead of this workstream.* Likewise landed via Workstream
   1 (above): the bouts-conditional threshold, the taker's doubled card points,
   the petit-au-bout adjustment, and the bid multiplier all settle in
-  `tarot_per_opp`, a game-local stdlib primitive in the same shape as
+  `tarot_per_opp`, a game-local Primitive in the same shape as
   `pinochle_meld_value`/`pot_share` — not this workstream's `scoring_component`
   subsystem.
 
@@ -438,7 +438,7 @@ components"), which the runtime has so far folded inline (issue #115).
 the per-hand `game_score` vector golden (`tests/test_migration_characterization.py`
 — a hand settles only 1–3 game points, so the per-hand vector surfaces a draw
 divergence at the hand it first perturbs); the Cribbage scorers kept their
-unit-test coverage as stdlib queries.
+unit-test coverage as Primitive queries.
 
 ## Workstream 5 — Challenge, block, influence (Coup)
 
@@ -518,7 +518,7 @@ These land inside the workstreams above and are shared on the third use:
    Tichu's special-card flows on the climb form's terminal state).
 5. **Cribbage + Schnapsen** — done, without the scoring-component subsystem
    (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
-   statements plus game-local stdlib primitives; the subsystem itself remains
+   statements plus game-local Primitives; the subsystem itself remains
    unbuilt, corpus-first future work).
 6. **Coup** — done at real interactive scope: challenge / block / claim /
    target are player decisions (Workstream 5; Tichu's call windows remain).

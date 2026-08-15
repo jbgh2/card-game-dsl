@@ -8,7 +8,7 @@ cascade. This module holds only what is not expressible there: `pinochle_meld`
 — the pure, RNG-free Counter-based meld tally (runs, marriages, dix, pinochle,
 and the four-around sets; doubles score the published double values; the only
 intra-class overlap handled is the trump run subsuming its own marriage) — and
-`pinochle_meld_value`, the declared-reads stdlib-call wrapper the DSL's `for each
+`pinochle_meld_value`, the declared-reads native-call wrapper the DSL's `for each
 player p: meld_score[team_of(p)] += pinochle_meld_value(p)` calls. Melding is
 forced (a rational player melds everything), so it is a pure computation, not
 a choice.

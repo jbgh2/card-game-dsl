@@ -103,7 +103,7 @@ game G {
 
 def test_rejects_wrong_binder_type_use() -> None:
     # `amount` binds an Integer; passing it to `player_holding` (which expects a
-    # Card) errors via the existing stdlib-arg check — proving the binder is
+    # Card) errors via the existing native-arg check — proving the binder is
     # typed (not TAny) inside the arm body.
     src = """
 define settle -> { won(Integer) | lost } { produce won(7) }

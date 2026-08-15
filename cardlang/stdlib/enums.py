@@ -1,7 +1,7 @@
-"""Enumerable values a game's deck and the stdlib types define.
+"""Enumerable values a game's deck and the built-in types define.
 
 Suits and ranks come from the deck; SeatDirection (the seat-direction payload) is
-a stdlib enum. The name resolver gives a bare name the `enum_value` [[ref-kind]]
+a built-in enum. The name resolver gives a bare name the `enum_value` [[ref-kind]]
 when it appears here, so the [[ir]] can distinguish `left` / `hearts` (values)
 from `leader` (a variable).
 Seeded for the formalized corpus; extended corpus-first.

@@ -1,9 +1,9 @@
 """Typecheck stage.
 
 Infers a :class:`~cardlang.types.Type` for every expression (`infer` over a
-`TypeEnv` built from declared state vars, zone contents, and the deck/stdlib
+`TypeEnv` built from declared state vars, zone contents, and the deck / built-in
 enum values) and validates: sensible player counts, assignment compatibility,
-stdlib argument types, subscripting only collections, and Boolean conditions
+native argument types, subscripting only collections, and Boolean conditions
 (`if` / `repeat until` / phase qualifiers). It accepts the whole corpus and
 rejects real type errors.
 
@@ -148,7 +148,7 @@ def item_field_table(game: Game) -> dict[str, Type]:
 # tests/test_zone_family_typing.py, which records it).
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
-# stdlib functions whose result depends on a declared `ranking:` (they index
+# native functions whose result depends on a declared `ranking:` (they index
 # `ctx.rs.rank_index`, empty when the game declares none — runtime/builtins.py
 # `rank_value` requires every rank it is asked for to be present in that
 # index, and has nothing to fall back on). resolve.py already
@@ -205,7 +205,7 @@ def type_from_name(
 
 
 def value_enum_map(game: Game) -> dict[str, TEnum]:
-    """Map each deck/stdlib enum *value* to its enum type.
+    """Map each deck/kernel enum *value* to its enum type.
 
     `resolve` collapses suits, ranks, and seat directions into one
     `enum_value` ref_kind; the type checker re-derives which enum each value
@@ -481,7 +481,7 @@ def outcome_registry(
 @dataclass(frozen=True)
 class TypeEnv:
     """The types a bare name resolves against during inference: declared state
-    vars, zone contents, deck/stdlib enum values, and scoped local binders."""
+    vars, zone contents, deck/kernel enum values, and scoped local binders."""
 
     state_vars: Mapping[str, Type] = field(default_factory=dict)
     zones: Mapping[str, Type] = field(default_factory=dict)
@@ -629,13 +629,13 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             if sig is None:
                 # `CALL_SIGS` covers `CALL_FUNCS` exactly (pinned by
                 # tests/test_permissive_top.py), and resolve rejects a call to
-                # any name that is neither a stdlib function nor a declared
+                # any name that is neither a native function nor a declared
                 # one — so a missing signature is a registry divergence.
                 raise AssertionError(
                     f"call to '{e.func}' has no signature in CALL_SIGS and no "
                     f"declared function — resolve rejects unknown calls before "
-                    f"this pass, so the stdlib signature registry has drifted "
-                    f"from the stdlib function registry"
+                    f"this pass, so the native signature registry has drifted "
+                    f"from the native function registry"
                 )
             return sig.ret
         case n.BinOp():
@@ -905,7 +905,7 @@ def env_from_game(
     game: Game, structs: Mapping[str, TStruct] | None = None
 ) -> TypeEnv:
     """Build the top-level type environment: declared state vars (value types),
-    zone contents, the deck/stdlib enum value map, and the user struct types.
+    zone contents, the deck/kernel enum value map, and the user struct types.
 
     ``structs`` lets the caller supply a registry it has already built — which
     `struct_and_function_registries` does on every round of its fixpoint, and
@@ -1211,7 +1211,7 @@ def _all_statements(game: Game) -> Iterator[n.Stmt]:
 
 def _arg_exprs(args: tuple[n.Arg, ...]) -> list[n.Expr]:
     """The positional expression arguments of a call (named args are not used by
-    the stdlib functions/methods being checked)."""
+    the native functions/methods being checked)."""
     return [a for a in args if not isinstance(a, n.NamedArg)]
 
 
@@ -1334,7 +1334,7 @@ def _procedure_sigs(game: Game) -> dict[str, Sig]:
 
 
 def _enum_domain(env: TypeEnv, enum_name: str) -> frozenset[str]:
-    """Every value of a deck/stdlib enum, from the value->enum map."""
+    """Every value of a deck/kernel enum, from the value->enum map."""
     return frozenset(v for v, t in env.value_enums.items() if t.name == enum_name)
 
 
@@ -2034,7 +2034,7 @@ def _check_participants(
 
 
 def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
-    """Recursively validate a single expression: stdlib argument types and
+    """Recursively validate a single expression: native argument types and
     subscript legality. Types of unrefined sub-parts are `TAny` (permissive).
 
     Binder-introducing expressions extend the environment for their body, so

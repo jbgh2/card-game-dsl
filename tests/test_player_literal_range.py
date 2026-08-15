@@ -23,7 +23,7 @@ tests/test_teams_partition.py).
 The position axis is the framing-check reconciliation -- a fresh reading of the
 grammar and AST for every place an integer reaches a Player/Team, NOT the set of
 sites the guard happens to touch. It is: the EXPRESSION and CALL positions
-(zone-family subscript, keyed-state index read/write, stdlib/game-function/
+(zone-family subscript, keyed-state index read/write, native/game-function/
 procedure call arg, each also with an OPTIONAL `Player?`/`Team?` expectation);
 the DECLARATION and BINDING positions (`state` default, scalar `:=`, struct
 field, variant payload, `as`, `turns from`/`over`); and the clauses that carried
@@ -135,7 +135,7 @@ _OUT_OF_RANGE = [
     ("zone subscript", "    move all cards from hand[0] to hand[5]\n"),
     ("state index (write)", "    score[5] := 1\n"),
     ("state index (read)", "    score[0] := score[5]\n"),
-    ("stdlib call arg (team_of)", "    score[0] := 0 offset_by (if team_of(5) is team_of(0) then left else right)\n"),
+    ("native call arg (team_of)", "    score[0] := 0 offset_by (if team_of(5) is team_of(0) then left else right)\n"),
 ]
 
 

@@ -258,7 +258,7 @@ def test_the_type_name_grid(cell: tuple[str, str]) -> None:
 
 @pytest.mark.parametrize("position", sorted(POSITIONS))
 def test_a_retired_type_name_is_loud_in_every_position(position: str) -> None:
-    """`Direction` was the stdlib seat-ring enum's declared name until issue
+    """`Direction` was the SeatDirection enum's declared name until issue
     #201 renamed it `SeatDirection`, and Hearts declared one. A retired
     spelling is the sharpest case of this module's property, because it is the
     one an author has in muscle memory and in an in-flight game file: a

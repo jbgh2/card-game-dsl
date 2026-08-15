@@ -1,7 +1,7 @@
 """The narrow interface a game-local [[primitive]] sees.
 
 A primitive is sanctioned Python for pure value computation (library.md
-"Stdlib functions"). Until this module existed, that purity was
+"Native functions"). Until this module existed, that purity was
 conventional: the dispatch layer handed each primitive the engine's whole
 `Ctx` and trusted it to self-serve politely. `Ctx` carries the chooser (so
 a "pure read" could make a decision), the tracer and observer (so it could

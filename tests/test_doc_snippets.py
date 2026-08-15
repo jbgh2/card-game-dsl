@@ -127,7 +127,7 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
                 declarations — no such production exists; per-observer
                 projection is a closed Python registry
                 (cardlang/stdlib/zones.py `ZONE_PROJECTIONS`), keyed by the
-                stdlib zone-type name a game references inside `zones {}`,
+                kernel zone-type name a game references inside `zones {}`,
                 never authored inline.
               - `type` fields with a range/union/parameterized shape
                 (`level : Integer in 1..7`, `suit : Suit | NT`,
@@ -179,10 +179,10 @@ KNOWN_TAGS = frozenset(
 # deck-capacity) has enough context to run. The recipes share a common
 # zone/state vocabulary (`_SHARED_ZONES`/`_SHARED_STATE`) so they read like
 # one small game, not seven unrelated ones — but each recipe adds only the
-# names its own fragment actually references (a stdlib rule/move-type name,
+# names its own fragment actually references (a kernel rule/move-type name,
 # never an invented game-specific one). Fragments that need genuinely
 # game-specific vocabulary (a bid-level enum, an undeclared rule with no
-# stdlib analog) have no recipe and are not tagged `cardlang-fragment` or
+# kernel analog) have no recipe and are not tagged `cardlang-fragment` or
 # `cardlang-bad-fragment` in the docs — see the module docstring's ledger
 # "residual" section.
 #
@@ -239,7 +239,7 @@ game Skeleton {{
 def _wrap_active_rules_shadowing(frag: str) -> str:
     # decisions.md "Sub-phase rule and legal-move deltas": plain shadowing
     # (no +/-/override). The rule names are the doc's own illustrative
-    # letters, given a trivial always-true body against the stdlib move type.
+    # letters, given a trivial always-true body against the kernel move type.
     rules = "\n".join(
         f"rule {name} {{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }}"
         for name in ("A", "B", "C", "X", "Y")
@@ -256,7 +256,7 @@ def _wrap_first_trick_phase(frag: str) -> str:
 
 
 def _wrap_play_phase(frag: str) -> str:
-    # References only stdlib names (play_to_trick, highest_of_led_suit,
+    # References only native names (play_to_trick, highest_of_led_suit,
     # on_play_off_led_suit) and shared-skeleton state (leader, eliminated).
     return _game(f"{frag}\n  winner: highest score")
 
@@ -409,7 +409,7 @@ game Skeleton {{
 
 
 def _wrap_library_zones_block(frag: str) -> str:
-    # `frag` is a complete `zones { ... }` game_item (library.md's stdlib
+    # `frag` is a complete `zones { ... }` game_item (library.md's kernel
     # zone-type usage example).
     return f"""
 game Skeleton {{

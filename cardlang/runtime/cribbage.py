@@ -1,4 +1,4 @@
-"""Cribbage's runtime support (pure stdlib primitives).
+"""Cribbage's runtime support (pure Primitives).
 
 The whole hand — the crib discards, the starter cut (his heels), pegging
 (fifteens, pairs, runs, 31, go / last card), and the show (fifteens, pairs,

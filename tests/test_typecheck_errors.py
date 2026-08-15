@@ -36,7 +36,7 @@ def test_rejects_suit_assigned_to_integer_var() -> None:
     assert "score" in str(ei.value) or "Suit" in str(ei.value) or "Integer" in str(ei.value)
 
 
-def test_rejects_wrong_stdlib_arg_type() -> None:
+def test_rejects_wrong_native_arg_type() -> None:
     # `player_holding` expects a Card; `hearts` is a Suit.
     src = _game(
         "score[player] : Integer = 0  dealer : Player = 0",
