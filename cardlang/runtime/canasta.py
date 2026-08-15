@@ -163,10 +163,6 @@ def _meld_of(gr: reads.GameReads, team: int, rank: str) -> list[Card]:
     )
 
 
-def _team_has_canasta(gr: reads.GameReads, team: int) -> bool:
-    return any(len(cards) >= 7 for _, cards in _meld_zones(gr, team))
-
-
 def _team_melded(gr: reads.GameReads, team: int) -> bool:
     return bool(gr.state["team_melded"][team])
 
@@ -325,35 +321,6 @@ def _live_attempt(facts: EngineFacts, gr: reads.GameReads, p: Player) -> _Attemp
 # --- bundle adapters (DSL-visible; signatures in builtins/signatures.py) -------
 
 
-def canasta_is_red3(facts: EngineFacts, gr: reads.GameReads, card: Card) -> bool:
-    """Is this card a red three (bonus card, swept to the team's row)?"""
-    return is_red3(card)
-
-
-def canasta_is_black3(facts: EngineFacts, gr: reads.GameReads, card: Card) -> bool:
-    """Is this card a black three (stop card; meldable only when going out)?"""
-    return is_black3(card)
-
-
-def canasta_top_starts_pile(facts: EngineFacts, gr: reads.GameReads) -> bool:
-    """May the current turned card start the discard pile? A wild card or a
-    red three is turned under (freezing the pile) and another card turned —
-    the deal loop's condition."""
-    c = _top_card(gr)
-    return not is_wild(c) and not is_red3(c)
-
-
-def canasta_top_is_wild(facts: EngineFacts, gr: reads.GameReads) -> bool:
-    """Did the discard just made freeze the pile (a wild card on top)?"""
-    return is_wild(_top_card(gr))
-
-
-def canasta_pile_rank(facts: EngineFacts, gr: reads.GameReads) -> str:
-    """The rank of the pile's top card — the meld a take must feed. Guarded
-    by canasta_can_take_pile, so the top is a meldable natural rank here."""
-    return _top_card(gr).rank
-
-
 def canasta_can_take_pile(facts: EngineFacts, gr: reads.GameReads, p: Player) -> bool:
     """May `p` take the discard pile? The top card must be a natural meldable
     rank (never a wild or any three), and a complete legal take must exist:
@@ -443,47 +410,6 @@ def canasta_close_ok(facts: EngineFacts, gr: reads.GameReads, p: Player) -> bool
     return _close_legal(_live_attempt(facts, gr, p), 0, 0)
 
 
-def canasta_add_ok(facts: EngineFacts, gr: reads.GameReads, p: Player, rank: str, card: Card) -> bool:
-    """May `card` be laid directly onto the side's standing meld of `rank`?
-    A natural of the rank always fits; a wild fits while the pile holds
-    fewer than three. Guarded by go-out safety: the add must leave two
-    cards in hand, or the side with (or completing) a canasta."""
-    team = facts.team_of[p]
-    existing = _meld_of(gr, team, rank)
-    if not existing:
-        return False  # no standing meld — start one (the initial-minimum path)
-    if card.rank == rank:
-        pass
-    elif is_wild(card):
-        if sum(1 for c in existing if is_wild(c)) >= 3:
-            return False
-    else:
-        return False
-    hand_after = len(_hand(gr, p)) - 1
-    canasta_after = _team_has_canasta(gr, team) or len(existing) + 1 >= 7
-    return hand_after >= 2 or canasta_after
-
-
-def canasta_discard_ok(facts: EngineFacts, gr: reads.GameReads, p: Player, card: Card) -> bool:
-    """May `p` end the turn by discarding `card`? Any card may be discarded;
-    discarding the LAST card is going out, legal only once the side has a
-    canasta."""
-    if len(_hand(gr, p)) >= 2:
-        return True
-    return _team_has_canasta(gr, facts.team_of[p])
-
-
-def canasta_black3_ok(facts: EngineFacts, gr: reads.GameReads, p: Player) -> bool:
-    """May `p` meld their black threes? Only as part of going out: the side
-    has a canasta, the hand is three or four black threes plus at most one
-    other card (the final discard), and the group takes no wilds."""
-    if not _team_has_canasta(gr, facts.team_of[p]):
-        return False
-    hand = _hand(gr, p)
-    b3 = sum(1 for c in hand if is_black3(c))
-    return b3 in (3, 4) and len(hand) in (b3, b3 + 1)
-
-
 # --- scoring -----------------------------------------------------------------
 
 
@@ -499,13 +425,6 @@ def canasta_canasta_bonus(facts: EngineFacts, gr: reads.GameReads, team: int) ->
     """The canasta bonuses: 500 per natural canasta, 300 per mixed — each
     meld pile scored as an object, by its own composition."""
     return sum(canasta_bonus_for(cards) for _, cards in _meld_zones(gr, team))
-
-
-def canasta_red3_bonus(facts: EngineFacts, gr: reads.GameReads, team: int) -> int:
-    """The red-three bonus: +100 each (+800 for all four) when the side has
-    melded, else the same amounts negative."""
-    count = len(gr.families["red3"][team])
-    return red3_bonus_for(count, _team_melded(gr, team))
 
 
 def canasta_hand_points(facts: EngineFacts, gr: reads.GameReads, team: int) -> int:
