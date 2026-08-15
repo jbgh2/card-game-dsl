@@ -189,7 +189,7 @@ quoting local evidence, run the checks as written. In particular:
   exit code. CI is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
-that adds or extends grammar surface, a checker Owner Guard or diagnostic, a kernel table, or any closed-domain mechanism — **including a change answering a
+that adds or extends grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any closed-domain mechanism — **including a change answering a
 review finding on one**, where the finding is a sample of a class and never
 the spec for the fix — additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill

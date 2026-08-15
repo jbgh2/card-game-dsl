@@ -13,8 +13,8 @@ typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`
 (`q_any_domain`/`q_all_domain`/`q_count_domain`/`q_any_in`/`q_all_in`),
 `cardlang/resolve.py` (`_check_domain_query`, `_check_board_call`),
 `cardlang/typecheck.py` (`_domain_query_binder_type`), `cardlang/runtime/
-evaluate.py` (`_domain_query`), and `cardlang/stdlib/{functions,signatures}.py`
-+ `cardlang/runtime/primitives.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
+evaluate.py` (`_domain_query`), and `cardlang/builtins/{functions,signatures}.py`
++ `cardlang/runtime/builtins.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------

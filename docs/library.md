@@ -239,7 +239,7 @@ with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowEffectiveSuit`'s demand reads the Builtin `tarot_led_suit()` (the first
+`MustFollowEffectiveSuit`'s demand reads the Primitive `tarot_led_suit()` (the first
 non-Excuse card played, or "excuse" if only the Excuse has been played so
 far) rather than the kernel's own `state.led_suit` (the literal first card,
 "excuse" included) — the split that reproduces the reference rule exactly:

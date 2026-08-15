@@ -160,9 +160,10 @@ corpus today is not an acceptable resting state under either outcome.
 
 The catalogue of query Primitives grows so prose becomes formal calls. The library
 already names many query shapes (`highest … over`, `cards in … where`, `offset_by`); the
-rest are formalized as named, typed native functions defined as data in
-`cardlang/stdlib/`. This is corpus-first: a primitive enters the stdlib because a
-game needs it. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
+rest are formalized as named, typed native functions declared as data in
+`cardlang/builtins/` and dispatched from `runtime/`. This is corpus-first: a
+Primitive is added because a game needs it; the stdlib is the DSL-written layer
+and is where such a function goes only once it is expressible in the language. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
 spellings fixed by the grammar, and the game files are updated to match.
 
 **Grammar-growth guard.** Before adding a production for a new surface verb,
@@ -190,7 +191,7 @@ construct.
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
 | `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
-| `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Primitive query) |
+| `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Builtin query) |
 | `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |

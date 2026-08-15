@@ -258,7 +258,8 @@ amount syntax" / "Resource transfer failure").
 - **Seat selectors as Primitives.** The bring-in (lowest door card) and the
   first-to-act (highest visible upcards) are argmin/argmax over players keyed on
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
-  are Stud-local Primitives called from the betting phase (like `team_of`),
+  are Stud-local Primitives, called from the betting phase by name exactly as
+  the Builtin `team_of` is,
   pure reads of the dealt cards (no RNG).
 - **The showdown runs in the DSL — done.** A contested hand reveals the
   contenders' hole cards into the `PublicHand` (two movements per contender —
