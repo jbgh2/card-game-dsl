@@ -1,8 +1,8 @@
-"""Standard-library rules, as parsed definitions.
+"""Standard-library [[rule]]s, as parsed definitions.
 
 The bodies live in ``rules.cardlang`` (real DSL, so the library and the games
 speak one language); this module parses them once and exposes the registry the
-resolver splices from. A game activates a library rule by name in
+resolver [[splice]]s from. A game activates a library rule by name in
 ``active_rules:`` without defining it; defining a rule under a library name is
 rejected (the local copy would drift from the shared body silently).
 """

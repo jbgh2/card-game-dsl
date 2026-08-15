@@ -1,8 +1,9 @@
 """BOARDS registry: board families as closed static data, in the DECKS style
 (cardlang/runtime/values.py). A game selects a board by family name and
 integer arguments (docs/design-notes/board-topology.md S2.1); this module
-turns that selection into a BoardEntry -- cells and their lines -- never by
-hand-enumerating cells per game. Only the grid family is registered at rung
+turns that selection into a BoardEntry -- the cells of the `cell`
+[[position-domain]] and their lines -- never by hand-enumerating cells per
+game. Only the grid family is registered at rung
 1; relations, regions, frames, and jump triples are later rungs' additions
 (issue #124), not fields of BoardEntry today.
 """

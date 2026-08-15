@@ -6,9 +6,10 @@ consumer dispatches with structural ``match`` ending in
 without handling it everywhere a type error rather than a silent gap
 (docs/building.md, "Typed-AST discipline").
 
-This covers the Hearts construct set: the game header and its blocks, phases,
-the statement forms, rules, and the expression sublanguage. It grows one
-construct at a time as more of the corpus is formalized.
+The construct set is the whole corpus's: the [[game]] header and its blocks,
+[[phase]]s and [[mode]]s, the statement forms including the [[round]] forms and
+`turns`, [[rule]]s, boards and positions, and the expression sublanguage. It
+grows one construct at a time as the corpus forces one (`docs/games/`).
 """
 
 from __future__ import annotations
@@ -26,11 +27,13 @@ from cardlang.types import Flavor
 
 @dataclass(frozen=True, slots=True)
 class NameRef:
-    """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
-    the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
-    ``enum_value``, ``function``, ``null`` (the absence literal `none`), or a
-    ``pronoun`` (``resolve._PRONOUNS`` — the context namespaces, `actor` among
-    them). ``None`` until resolved."""
+    """A bare identifier. Its [[ref-kind]] is filled by the resolver,
+    classifying the name as one of: ``local`` (a [[binder]]/let), ``state_var``,
+    ``zone``, ``enum_value``, ``function``, ``bool`` (`true`/`false`), ``null``
+    (the absence literal `none`), or a [[pronoun]] (``resolve._PRONOUNS`` — the
+    context namespaces, `actor` among them). ``None`` until resolved; the eight
+    are what `runtime/evaluate.py` dispatches over, so this list is that
+    dispatch's domain and not a sample of it."""
 
     name: str
     span: Span | None = None

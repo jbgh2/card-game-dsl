@@ -1,4 +1,4 @@
-"""Standard-library zone types, as data.
+"""Standard-library [[zone]] types, as data.
 
 The library zone aliases from library.md, recorded as a table the resolver
 checks references against. ``takes_owner`` records whether the type is
@@ -37,7 +37,7 @@ LIBRARY_ZONE_TYPES: dict[str, bool] = {
 
 @dataclass(frozen=True)
 class ZoneVisibility:
-    """Per-observer projection of a zone's contents (decisions.md "Knowledge,
+    """Per-observer [[projection]] of a zone's contents (decisions.md "Knowledge,
     visibility, and the projection model"). `owner` applies to the observer the
     zone's index names (the owning player, or a member of the owning team);
     `others` to everyone else. Unowned zones use the same projection for both."""

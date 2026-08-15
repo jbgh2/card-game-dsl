@@ -1,8 +1,9 @@
 """Enumerable values a game's deck and the stdlib types define.
 
-Suits and ranks come from the deck; SeatDirection is a stdlib enum. The name
-resolver classifies a bare name as an enum value when it appears here, so the
-IR can distinguish `left` / `hearts` (values) from `leader` (a variable).
+Suits and ranks come from the deck; SeatDirection (the seat-direction payload) is
+a stdlib enum. The name resolver gives a bare name the `enum_value` [[ref-kind]]
+when it appears here, so the [[ir]] can distinguish `left` / `hearts` (values)
+from `leader` (a variable).
 Seeded for the formalized corpus; extended corpus-first.
 
 The membership functions here are `suit_names`/`rank_names`, not

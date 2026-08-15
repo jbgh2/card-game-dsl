@@ -15,8 +15,9 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
-              :class:`Span`. No semantic claims — names are unclassified
-              (``NameRef.ref_kind`` is ``None``) and nothing is typed.
+              :class:`Span`. No semantic claims — names carry no
+              [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
+              nothing is typed.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
               callers parsing the same ``(text, source_name, line_offset)``
@@ -24,7 +25,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               every other holder. A pass that wants to change a node builds a
               new one with ``dataclasses.replace``.
 
-              Four Owner Guards hold that, each closing a different route, all
+              Four [[owner-guard]]s hold that, each closing a different route, all
               enumerated in tests/test_node_registry.py: ``frozen=True``
               refuses every ordinary ``setattr`` (CPython's frozen
               ``__setattr__`` raises for ANY name on a direct instance, not
