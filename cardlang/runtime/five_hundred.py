@@ -3,7 +3,7 @@
 The hand runs fully on the kernel (five-hundred.cardlang): the ascending
 auction is the drop-out ring [[form]] of `round` (the Pinochle shape), the kitty
 pickup and discard are plain [[transfer]]s, the joker nomination an `offer`, and
-the ten tricks single-actor filtered transfers (the Skat/Doppelkopf shape).
+the ten tricks single-actor filtered movements (the Skat/Doppelkopf shape).
 What stays game-local: the 27-rung bid ladder with the misère insertions, the
 per-contract follow/lead legality, and trick resolution — the joker and both
 bowers behave in all respects as members of the trump suit (the Skat

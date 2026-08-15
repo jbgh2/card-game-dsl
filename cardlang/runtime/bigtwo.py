@@ -3,8 +3,8 @@
 The corpus's second climbing game (after Tichu) and the partner instance that —
 together with Tichu — shapes the kernel `climb` construct. Big Two's whole hand
 runs on the climb [[form]] of [[round]] (`docs/games/big-two.cardlang`); this
-module is the RNG-free
-combination engine plus the three game-local queries the climb round names:
+module is the RNG-free combination engine plus the three game-local queries the
+climb round names:
 `bigtwo_lead_options` (lead candidates), `bigtwo_follows` (legal follows), and
 `first_leader_seat` (the 3♦ holder, who leads the first hand).
 
