@@ -411,16 +411,10 @@ NARROWED: frozenset[str] = frozenset(
         "tichu.py::ROW",
         "tichu.py::TICHU_COMBO_CODEC",
         "tichu.py::tichu_card_points",
-        "tichu.py::tichu_double_victory",
         "tichu.py::tichu_dragon_won",
-        "tichu.py::tichu_first_out",
         "tichu.py::tichu_follows",
         "tichu.py::tichu_lead_options",
-        "tichu.py::tichu_mahjong_holder",
         "tichu.py::tichu_next_holder",
-        "tichu.py::tichu_opponent_team",
-        "tichu.py::tichu_partner",
-        "tichu.py::tichu_players_holding",
     }
 )
 
@@ -493,16 +487,10 @@ MIGRATED: frozenset[str] = frozenset(
         "tarot_led_suit",
         "tarot_per_opp",
         "tichu_card_points",
-        "tichu_double_victory",
         "tichu_dragon_won",
-        "tichu_first_out",
         "tichu_follows",
         "tichu_lead_options",
-        "tichu_mahjong_holder",
         "tichu_next_holder",
-        "tichu_opponent_team",
-        "tichu_partner",
-        "tichu_players_holding",
     }
 )
 
@@ -788,7 +776,6 @@ def _narrowing() -> Any:
 # pinned`, and a row naming a field that does not exist fails too.
 _FACT_SOURCES: dict[str, str] = {
     "seating": "rs.seating",
-    "teams": "rs.teams",
     "team_of": "rs.team_of",
     "rank_index": "rs.rank_index",
     "round_state": "rs.mech_state[-1] if rs.mech_state else rs.last_round_state",
@@ -803,7 +790,6 @@ _FACT_SOURCES: dict[str, str] = {
 # narrowed is still a consumed fact, not a speculative field.
 _FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
     "seating": ("facts.seating", "ctx.rs.seating"),
-    "teams": ("facts.teams", "ctx.rs.teams"),
     "team_of": ("facts.team_of", "ctx.rs.team_of"),
     "rank_index": ("facts.rank_index", "ctx.rs.rank_index"),
     "round_state": ("facts.round_state", "ctx.rs.mech_state"),
@@ -885,7 +871,6 @@ def test_engine_fact_carries_the_engine_value(field: str) -> None:
     facts = narrowing.engine_facts(rs, actor=1)
     expected: dict[str, Any] = {
         "seating": rs.seating,
-        "teams": reads_mod.deep_freeze(rs.teams),
         "team_of": reads_mod.deep_freeze(rs.team_of),
         "rank_index": reads_mod.deep_freeze(rs.rank_index),
         "round_state": reads_mod.deep_freeze(rs.last_round_state),
@@ -901,8 +886,8 @@ def test_engine_facts_holds_no_live_engine_object_by_identity() -> None:
     reaches the engine's object), yet the walker treats frozen+slots as safe.
     So pin the copy directly — engine_facts freezes every field, so no
     dataclass/mapping fact is the engine's live object. This is the guard that
-    would have caught `seating` being passed by identity. (An immutable tuple
-    of scalars like `teams` may keep identity — safe, nothing to setattr.)"""
+    would have caught `seating` being passed by identity. (A scalar like
+    `actor` may keep identity — safe, nothing to setattr.)"""
     narrowing = _narrowing()
     rs = _live_state()
     facts = narrowing.engine_facts(rs, actor=0)

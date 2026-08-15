@@ -430,7 +430,6 @@ def test_a_street_opening_two_handed_lifts_the_raise_cap() -> None:
 def _facts(count: int) -> EngineFacts:
     return EngineFacts(
         seating=Seating(count),
-        teams=(),
         team_of={},
         rank_index={},
         round_state=None,

@@ -104,14 +104,8 @@ CALL_SIGS: dict[str, Sig] = {
         (TInteger(), TInteger(), TInteger()), TInteger()
     ),  # Skat: the overbid-aware loss base
     "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
-    "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
-    "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards
-    "tichu_double_victory": Sig((), TBoolean()),  # Tichu: first two finishers teammates?
-    "tichu_partner": Sig((TPlayer(),), TPlayer()),  # Tichu: the teammate
     "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
-    "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace

@@ -149,22 +149,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_effective_loss
 
             return skat_effective_loss(args[0], args[1], args[2])
-        case "tichu_mahjong_holder":
-            from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
-
-            return tichu_mahjong_holder(*_bind(ctx, ROW))
-        case "tichu_players_holding":
-            from cardlang.runtime.tichu import ROW, tichu_players_holding
-
-            return tichu_players_holding(*_bind(ctx, ROW))
-        case "tichu_double_victory":
-            from cardlang.runtime.tichu import ROW, tichu_double_victory
-
-            return tichu_double_victory(*_bind(ctx, ROW))
-        case "tichu_partner":
-            from cardlang.runtime.tichu import ROW, tichu_partner
-
-            return tichu_partner(*_bind(ctx, ROW), args[0])
         case "tichu_next_holder":
             from cardlang.runtime.tichu import ROW, tichu_next_holder
 
@@ -173,14 +157,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
             return tichu_dragon_won(*_bind(ctx, ROW))
-        case "tichu_opponent_team":
-            from cardlang.runtime.tichu import ROW, tichu_opponent_team
-
-            return tichu_opponent_team(*_bind(ctx, ROW), args[0])
-        case "tichu_first_out":
-            from cardlang.runtime.tichu import ROW, tichu_first_out
-
-            return tichu_first_out(*_bind(ctx, ROW))
         case "tichu_card_points":
             from cardlang.runtime.tichu import ROW as TICHU_ROW
             from cardlang.runtime.tichu import tichu_card_points
