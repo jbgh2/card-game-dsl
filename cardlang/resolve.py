@@ -707,14 +707,15 @@ def _check_library_collisions(
     libraries: list[tuple[n.UsesDecl, n.Library]],
     bag: DiagnosticBag,
 ) -> None:
-    """The three-way collision matrix — game / library / kernel — swept across
+    """The three-way collision matrix — game / library / engine — swept across
     every definition kind in `_LIBRARY_DEF_KINDS` rather than the kinds that
     happen to collide in today's corpus (decisions.md "Closed-domain
     completeness": sweep the class, don't patch the instance).
 
-    The kernel leg covers the two registries whose names share ONE namespace with
-    a game's definitions: rules (library rules splice into `game.rules`) and call
-    functions. Kernel MOVE types are deliberately not a cell: they and a game's
+    The engine leg covers the two registries whose names share ONE namespace with
+    a game's definitions: rules (the stdlib rule index, which library rules splice
+    into `game.rules`) and native call functions — two different namespaces, which
+    is why the leg is named for the engine rather than for either of them. Kernel MOVE types are deliberately not a cell: they and a game's
     `move_type` definitions are two disjoint consult paths that never merge
     (`stdlib/moves.py`, and Stud/Skat/Schnapsen/Coup all rely on it), so a guard
     here would reject four games that are correct today."""

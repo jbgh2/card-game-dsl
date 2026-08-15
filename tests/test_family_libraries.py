@@ -172,7 +172,7 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           is `_ENGINE_REGISTRY_REJECTS`, where `False` is as deliberate as `True`.
           Born-green cells carry their reddening edit as `red under:` in the
           test docstring; the move-type accept was demonstrated red by extending
-          `_check_library_collisions`'s kernel leg to move_types.
+          `_check_library_collisions`'s engine leg to move_types.
           The read-only grid — write-site kind x state kind, 6 cells executed by
           `test_game_text_may_not_write_library_provided_state`, the 3 provided
           cells commanded REJECT (to the GAME's author, naming the variable and
@@ -948,7 +948,7 @@ def test_a_library_may_not_inject_a_name_the_game_already_uses(
 def _engine_registry_member(field: str) -> str | None:
     """A real member of one of the engine's own name registries that shares a
     namespace with this definition kind, drawn FROM the registry, or None when
-    no registry exists for the kind. Only one of the three is the kernel leg (the
+    no registry exists for the kind. Only one of the three is the engine leg (the
     parsed rules fragment); the others are the native call declarations and a
     kernel table. Derived rather than spelled: a hand-written probe name can
     silently not be a member of the registry it claims to probe, which is
@@ -963,11 +963,14 @@ def _engine_registry_member(field: str) -> str | None:
     return min(members) if members else None
 
 
-# The kernel leg of the collision grid: for each definition kind, whether a
-# library defining something under a REAL native name of that kind is rejected.
+# The engine leg of the collision grid: for each definition kind, whether a
+# library defining something under a REAL engine name of that kind is rejected.
+# `engine` because the three kinds reach three different namespaces — the
+# stdlib rule index, the native `CALL_FUNCS`, and the kernel table
+# `LIBRARY_MOVE_TYPES` — so no narrower word covers the axis.
 # `False` is as much a commanded decision as `True` — move_types are a
 # deliberate non-collision (two disjoint consult paths), and the three kinds
-# with no native registry cannot collide at all.
+# with no engine registry cannot collide at all.
 _ENGINE_REGISTRY_REJECTS: dict[str, bool] = {
     "rules": True,
     "functions": True,
@@ -1002,10 +1005,10 @@ def test_library_definition_against_the_kernel_namespace(
 
     The accepting cells are the load-bearing ones. kernel move types and a game's
     `move_type` definitions are disjoint consult paths that never share a
-    namespace, so a library defining one under a native name must NOT be an
+    namespace, so a library defining one under a kernel move-type name must NOT be an
     error: six corpus games depend on that (see `_kernel_move_type_games`).
 
-    red under: extend `_check_library_collisions`'s kernel leg to move_types, or
+    red under: extend `_check_library_collisions`'s engine leg to move_types, or
     delete its `stdlib_rules()` leg."""
     name = _engine_registry_member(field)
     if name is None:
@@ -1044,7 +1047,8 @@ def test_the_accepting_move_type_cell_has_real_corpus_dependents() -> None:
     game below then fails to resolve."""
     dependents = _kernel_move_type_games()
     assert len(dependents) >= 3, (
-        f"only {dependents} still define a move type under a native name; if this "
+        f"only {dependents} still define a move type under a kernel move-type name; "
+        f"if this "
         f"reaches zero the non-collision is no longer load-bearing and the "
         f"residual ledger row should be revisited rather than left standing"
     )

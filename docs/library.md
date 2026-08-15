@@ -611,7 +611,7 @@ zones (see [decisions.md](decisions.md), "Component sets: cards and
 pieces"). A game names one directly in its `cards:` line (a card deck)
 or `pieces:` line (a piece set) and does not compose or extend it in the
 surface; each entry below shows the set's content, which lives in the
-native registry. A **deck** is the card-flavored set, its two axes named
+kernel `COMPONENT_SETS` registry. A **deck** is the card-flavored set, its two axes named
 `suit` and `rank` (see also [decisions.md](decisions.md), "Deck
 declaration"); these are the card entries:
 
@@ -718,7 +718,7 @@ the variable is not allocated.
   in multi-player clockwise games (Spades, Pinochle, Bridge, Stud,
   Cribbage), `dealer := other player` in two-player games
   (Schnapsen, Cribbage). Hearts and Getaway don't reference
-  `dealer` and pay no cost for the Primitive slot.
+  `dealer` and pay no cost for the state slot.
 
 - **Turn-order start.** The initial position of turn order is
   runtime-supplied, the same way `initial_dealer` is. Dealing games
