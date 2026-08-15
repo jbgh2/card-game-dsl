@@ -6,7 +6,7 @@ the class of error a type checker catches before anything runs:
 - every zone's type names a known library zone type (and is parameterized
   correctly);
 - every `active_rules:` entry names a rule defined in the game;
-- every move type referenced by `constrains:`, `legal_moves:`, or a
+- every [[move-type]] referenced by `constrains:`, `legal_moves:`, or a
   transition event is a known library move type;
 - every `transition_to:` target is a sibling phase.
 

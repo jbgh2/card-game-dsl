@@ -1,4 +1,4 @@
-"""Family libraries: the import tier between game-local and stdlib.
+"""Family libraries: the import tier between game-local and [[stdlib]].
 
 A library is a file of the definition forms a game already holds — move_types,
 rules, functions, procedures, types, defines — plus a ``requires`` block naming
@@ -6,8 +6,8 @@ what its including game must declare: state variables, and zones. A game names
 one with ``uses <library>`` and resolution is flat and two-level: game, then the
 named libraries, then the stdlib. See decisions.md "Family libraries".
 
-This module owns only *finding and parsing* library files. The splice, the
-collision Owner Guards, and the requires check live in ``resolve`` — they are
+This module owns only *finding and parsing* library files. The [[splice]], the
+collision [[owner-guard]]s, and the requires check live in ``resolve`` — they are
 name resolution, and that is the pass whose contract owns names.
 
 Where library files live

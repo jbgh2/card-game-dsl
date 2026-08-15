@@ -7,7 +7,7 @@ type-checkable constructs.
 
 Scope today is pragmatic: enough to type the corpus and catch real type errors.
 Collections and zone contents are typed loosely (`TCollection`, often of
-`TCard`); `TAny` is the permissive top that propagates through every operation
+`TCard`); `TAny` is the [[permissive-top]] that propagates through every operation
 without error, used for the deferred parts of the typed object model (the full
 `ZoneContents` query API, `Resource` generics, card attributes/facing).
 `TStruct` types a declared `type`, and `TOutcome` a `define`'s or an outcome
