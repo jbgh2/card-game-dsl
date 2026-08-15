@@ -48,7 +48,7 @@ registry:  the class axis derives by importing every module of the package and
 covered:   the full cross product, as `test_containment` — every derived class
            against every predicate, expected values in `_EXPECTED`.
 sampled:   none. The cross product is total over both axes.
-residual:  stdlib exception classes raised directly by the engine
+residual:  builtin Python exception classes raised directly by the engine
            (`ValueError`, `KeyError`, ...) are not classes the engine DEFINES,
            so they have no position to pin here; that they are raised at all
            where a role type belongs is the census's property, not this

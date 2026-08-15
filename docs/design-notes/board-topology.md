@@ -20,7 +20,7 @@ under "Boards: the topology witness ladder".*
 ## 1. The shape of the design, in one paragraph
 
 A **board is an indexed family of zones plus declared static data about
-their indices**. The board declaration (a closed stdlib registry entry,
+their indices**. The board declaration (a closed kernel table entry,
 the same medicine as decks) generates a finite named-member position
 domain (its cells),
 named **relations** (edge sets), named **regions** (cell subsets), and
@@ -73,7 +73,7 @@ event, never a side effect of a game PR.
 ### 2.1 The board declaration
 
 A game selects a board the way it selects a deck — by name, from a
-closed stdlib registry, never by hand-enumerating cells
+closed kernel table, never by hand-enumerating cells
 ([domain-map.md](domain-map.md) names per-game cell enumeration as the
 nullary-explosion Owner Guard returning):
 
@@ -401,7 +401,7 @@ is needed for the ladder.
 ### 2.5 Queries: closed verbs over declared data
 
 The query surface is the requirements doc's class 1–6 inventory,
-admitted rung by rung, each verb a closed stdlib function
+admitted rung by rung, each verb a closed Builtin
 (registry + signature + dispatch, per
 [domain-map.md](domain-map.md)'s Decision/Description pins) reading
 only declared topology data and zone contents:
@@ -695,7 +695,7 @@ parse them.
   the landed position-parameter enumeration (ids from the declared
   domain, no new action-space block kind) plus the small direction
   enums; cell-zone endpoints through the existing movement executor;
-  class 1–4 verbs into the stdlib call/signature/dispatch registries;
+  class 1–4 verbs into the native call/signature/dispatch registries;
   the cell-query register — lifting the recorded position
   quantifier/iteration Owner Guards against their board witnesses (§2.5).
   Witnesses: tic-tac-toe, then breakthrough;

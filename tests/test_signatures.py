@@ -185,7 +185,7 @@ def test_call_funcs_are_dispatchable() -> None:
 
 def test_deck_only_classification_partitions_call_funcs() -> None:
     # The feature classification (functions.py) partitions the call registry:
-    # every stdlib call is deck-only (rejected in a piece game), board-only
+    # every native call is deck-only (rejected in a piece game), board-only
     # (rejected in a boardless game), or generic (legal everywhere), exactly
     # one, none omitted. A newly registered call absent from all three sets
     # fails here rather than silently defaulting -- the guard's domain stays
@@ -211,7 +211,7 @@ def test_known_call_signatures() -> None:
 
 # --- CALL_SIGS <-> runtime dispatch reconciliation ----------------------------
 #
-# CALL_SIGS states each stdlib function's interface once for the checker; the
+# CALL_SIGS states each native function's interface once for the checker; the
 # `call()` match (across both dispatch homes) states it again for the runtime (how many
 # `args[i]` the arm consumes, and the Python annotations of the helper it
 # forwards to). Two statements of one interface, which nothing else

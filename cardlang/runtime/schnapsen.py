@@ -1,12 +1,12 @@
-"""Schnapsen's game-local runtime primitive.
+"""Schnapsen's game-local runtime [[primitive]].
 
 The hand runs fully on the kernel (schnapsen.cardlang): the leader's mixed lead
-decision is the auction form of `round` over a single-participant ring, the
-follower's strict-endgame answer a filtered movement, and the trick/claim/draw
-bookkeeping plain statements. What stays game-local is the two-card trick
-resolution — who won, given that `trick_pile` holds the leader's led card and
-then the follower's answer. It returns the play/trick_end/trick trace events
-alongside the winner, and the dispatch layer emits them; the
+decision is the auction [[form]] of `round` over a single-participant ring, the
+follower's strict-endgame answer a filtered [[transfer]], and the
+trick/claim/draw bookkeeping plain statements. What stays game-local is the
+two-card trick resolution — who won, given that `trick_pile` holds the leader's
+led card and then the follower's answer. It returns the play/trick_end/trick
+[[trace-event]]s alongside the winner, and the dispatch layer emits them; the
 playout-invariant harness checks winners against those
 (tests/test_playout_schnapsen.py).
 """

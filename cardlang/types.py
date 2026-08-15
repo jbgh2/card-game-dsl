@@ -101,7 +101,7 @@ class TLine:
 
 @dataclass(frozen=True, slots=True)
 class TEnum:
-    """A deck/stdlib value enum: ``Suit``, ``Rank``, ``Direction``."""
+    """A deck / built-in value enum: ``Suit``, ``Rank``, ``Direction``."""
 
     name: str
 

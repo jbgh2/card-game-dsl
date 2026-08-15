@@ -393,7 +393,7 @@ differential scale; `results_mini_seed{0,3,14}.json`):
 The round stopped before implementation. Expressing the combo bonus
 table requires combinatorial-structure queries over a zone (same-rank
 groups, runs, flushes) that the language does not have; the shortest
-path — another registered per-game stdlib primitive in cribbage's mold
+path — another registered per-game Primitive in cribbage's mold
 — is exactly the pattern this experiment exists to surface, not extend
 (designer's call, on review). The hole turns out to be the language's
 largest recurring one: five shipped witnesses already pay for it in

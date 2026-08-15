@@ -1,13 +1,13 @@
-"""Type signatures for the stdlib functions and value-callbacks.
+"""Type signatures for the native functions and value-callbacks.
 
 Companion to :mod:`cardlang.builtins.functions` (which holds the *names*); these
 tables hold the *types*, consumed by the type checker. The keys reconcile with
-the name sets (asserted in tests), keeping "stdlib is data" single-sourced.
+the name sets (asserted in tests), keeping "the native surface is data" single-sourced.
 
 Looseness is deliberate where the corpus forces it: `suit_of` accepts a card or a
-single-card zone, so its argument is `TAny`; outcome value-callbacks return
-`TAny`; the `Resource` zone (`ChipStack`) holds `TAny`. These track the deferred
-parts of the typed object model.
+single-card zone, so its argument is the [[permissive-top]] `TAny`; outcome
+value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
+These track the deferred parts of the typed object model.
 """
 
 from __future__ import annotations

@@ -6,15 +6,15 @@ a board's minted `cell` domain or an integer `positions {}` name — exactly
 like the fixed `player`/`team`/`suit`/`rank` forms range over their own
 domains. Two COLLECTION forms iterate an evaluated line/cell collection:
 `any line in <expr> where …` (binds `line`) and `all cells in <expr> where …`
-(binds `cell`). `lines(k)` is the stdlib call a board's declared lines are
+(binds `cell`). `lines(k)` is the native call a board's declared lines are
 read through. This is the rung-1 guard lift decisions.md "Position domains
 and positional zones" and "Boards and cells" describe; the grammar, resolve,
 typecheck, runtime, and stdlib surfaces are `cardlang/grammar/cardlang.lark`
 (`q_any_domain`/`q_all_domain`/`q_count_domain`/`q_any_in`/`q_all_in`),
 `cardlang/resolve.py` (`_check_domain_query`, `_check_board_call`),
 `cardlang/typecheck.py` (`_domain_query_binder_type`), `cardlang/runtime/
-evaluate.py` (`_domain_query`), and `cardlang/stdlib/{functions,signatures}.py`
-+ `cardlang/runtime/primitives.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
+evaluate.py` (`_domain_query`), and `cardlang/builtins/{functions,signatures}.py`
++ `cardlang/runtime/builtins.py` (`lines`, `BOARD_ONLY_CALL_FUNCS`).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 -----------------------------------------------------------------

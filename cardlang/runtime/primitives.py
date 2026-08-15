@@ -1,15 +1,16 @@
-"""Primitives: the sanctioned game-local Python.
+"""[[primitive]]s: the sanctioned game-local Python.
 
 A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
 are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
-(`reads.GameReads`); the pair is the Primitive's bundle. The arms below are the
-dispatch seam, and their count is the elimination metric: it trends to zero as
-`design-notes/primitive-inventory.md`'s constructs land in the language.
+(`reads.GameReads`); the pair is the [[primitive-bundle]]. The arms below are
+the dispatch seam, and their count is the elimination metric: it trends to zero
+as `design-notes/primitive-inventory.md`'s constructs land in the language.
 
-Its two siblings are deliberately separate words: **Builtins** are the generic
-native functions the language ships (`cardlang/runtime/builtins.py`), and the
-**Stdlib** is the layer written in the language itself (`cardlang/stdlib/`).
+Its two siblings are deliberately separate words: **[[builtins]]** are the
+generic native functions the language ships (`cardlang/runtime/builtins.py`),
+and the **[[stdlib]]** is the layer written in the language itself
+(`cardlang/stdlib/`).
 
 Contract
 --------
@@ -489,7 +490,7 @@ def joint_codec_function(name: str) -> Any | None:
     (`climb_codec_function` below) one construct over: pure card-set <->
     action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
     over the predicate's satisfying-subset universe. Keyed corpus-first; a
-    joint predicate with no registered codec meets a loud Owner Guard at
+    joint predicate with no registered codec meets a loud [[owner-guard]] at
     `ActionSpace.for_game`, never silently absent from the action space."""
     match name:
         case "gin_arrange_ok" | "gin_valid_meld":

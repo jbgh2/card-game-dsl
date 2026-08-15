@@ -1,7 +1,8 @@
-"""What a `round` publishes to `state.` — the one registry, two consumers.
+"""What a [[round]] publishes to `state.` — the [[round-state]], one registry
+and two consumers.
 
-The `state.` pronoun reads the live round's accumulator (`runtime/state.py`'s
-`mech_state`). That accumulator is also the form's *working memory*: `TrickForm`
+The `state.` [[pronoun]] reads the live round's accumulator (`runtime/state.py`'s
+`mech_state`). That accumulator is also the [[form]]'s *working memory*: `TrickForm`
 drives `next_actor` off a ring cursor `idx` and a materialized `order`, and both
 sit in the same dict as `led_suit`. With nothing distinguishing them and nothing
 checking the field name, `state.idx` would type-check, run, and silently change
@@ -16,10 +17,10 @@ publishing (or hiding) a field without saying so here fails a test rather than
 quietly widening the language.
 
 Typing the fields is the second half of the win. Untyped, `state.led_suit` would
-infer `TAny`, which is contagious: `card.suit is state.idx` would compare a Suit
-to an Integer and slip past the enum-comparison Owner Guard because the
-right-hand side is untyped. With a declared type, every existing guard works
-there.
+infer the [[permissive-top]] `TAny`, which is contagious: `card.suit is
+state.idx` would compare a Suit to an Integer and slip past the enum-comparison
+[[owner-guard]] because the right-hand side is untyped. With a declared type,
+every existing guard works there.
 """
 
 from __future__ import annotations

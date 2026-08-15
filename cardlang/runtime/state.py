@@ -1,10 +1,10 @@
 """Runtime game state and the evaluation/execution context.
 
-`RuntimeState` is the live, mutable world: zones holding cards and a stack of
-scope frames holding state variables. `Ctx` is the (immutable) context threaded
-through expression evaluation and statement execution — the acting player, the
-local bindings (lambda/comprehension/for-each binders), and the bound
-`outcome` / `action` / mechanic state.
+`RuntimeState` is the live, mutable [[world]]: zones holding cards and a stack
+of scope frames holding [[state-variable]]s. `Ctx` is the (immutable) context
+threaded through expression evaluation and statement execution — the acting
+player, the local bindings (lambda/comprehension/for-each [[binder]]s), and the
+bound `outcome` / `action` / mechanic state.
 """
 
 from __future__ import annotations
@@ -52,12 +52,13 @@ class _ContinueTo(Exception):
 
 
 class _SkipHand(Exception):
-    """`skip to next hand` — unwinds to the enclosing `repeat until` hand loop,
-    which proceeds to its next iteration (after_each still runs)."""
+    """`skip to next hand` — unwinds to the enclosing `repeat until`
+    [[hand-loop]], which proceeds to its next iteration (after_each still
+    runs)."""
 
 
 class ChooserAbort(Exception):
-    """Raised by a chooser to suspend a playout at a decision point.
+    """Raised by a [[chooser]] to suspend a playout at a decision point.
 
     The steppable-adapter seam (e.g. the OpenSpiel adapter): a chooser may abort
     the run instead of returning a choice, carrying the deciding ``player`` and
@@ -106,7 +107,7 @@ def elements(value: Any) -> Any:
     runtime shapes of a collection-typed expression.  The evaluator applies
     it at its own consuming sites (card-query and comprehension sources, the
     right-hand side of `in`, rule fallbacks, `turns` participants), and
-    `stdlib.call` applies it to every argument at its entry, so bare-Python
+    `reads.coerce_args` applies it to every argument at its entry, so bare-Python
     adapters never see a Zone handle.  A Zone yields its `.cards` list
     (already a materialized, multi-pass `list`); anything else passes
     through unchanged, since a `[...]` literal, a nested query or
@@ -118,9 +119,9 @@ def elements(value: Any) -> Any:
 
 
 class ZoneStore:
-    """All zone instances. Singleton zones map to one Zone; an indexed family
-    maps to one Zone per index value — per player for `hand[player]`, per team
-    for `captured[team]`."""
+    """All [[zone]] instances. Singleton zones map to one Zone; an indexed
+    family maps to one Zone per index value — per player for `hand[player]`,
+    per team for `captured[team]`."""
 
     def __init__(
         self,
@@ -243,7 +244,7 @@ class ZoneStore:
 
 
 class RuntimeState:
-    """The live world: zones plus a stack of variable scope frames."""
+    """The live [[world]]: zones plus a stack of variable scope frames."""
 
     def __init__(self, seating: Seating, zones: ZoneStore, rng: random.Random) -> None:
         # Annotated explicitly: `state` and `domains` are now a module cycle
@@ -285,9 +286,9 @@ class RuntimeState:
         # `game.positions`, read by `zone_observer_key` (unowned families)
         # and `mechanics.param_domain` (position move parameters).
         self.position_domains: dict[str, tuple[int, ...] | tuple[str, ...]] = {}
-        # The board-minted movement-direction domain, name -> ordered members
-        # (decisions.md "Boards and cells", rung-2 movement); set by the driver
-        # from `board_domains.directions_of`. A SEPARATE map from
+        # The board-direction domain the `board:` clause mints, name -> ordered
+        # members (decisions.md "Boards and cells", rung-2 movement); set by the
+        # driver from `board_domains.directions_of`. A SEPARATE map from
         # `position_domains` (the `dir` domain is not a position), read by
         # `mechanics.param_domain` for a `dir` move parameter.
         self.direction_domains: dict[str, tuple[str, ...]] = {}
@@ -332,7 +333,8 @@ class RuntimeState:
 
 @dataclass(frozen=True, slots=True)
 class Move:
-    """A play move, as inspected by `action.card` / `action.actor` predicates."""
+    """A play [[move]], as inspected by `action.card` / `action.actor`
+    predicates."""
 
     card: Card
     actor: Player
@@ -355,7 +357,8 @@ Chooser = Callable[[Player, list[Any], int], list[Any]]
 
 @dataclass(frozen=True, slots=True)
 class Ctx:
-    """Immutable evaluation/execution context threaded through the interpreter."""
+    """The immutable evaluation/execution [[context]] threaded through the
+    interpreter."""
 
     rs: RuntimeState
     chooser: Chooser
@@ -389,7 +392,7 @@ class Ctx:
         `as active_rules`, `as winner` before a round has produced one, `as 5`
         in a two-player game), would otherwise reach the chooser as a phantom
         decider and silently corrupt the decision node's information set. This is
-        the acting-player analogue of the phantom-key write Owner Guard in
+        the acting-player analogue of the phantom-key write [[owner-guard]] in
         `RuntimeState.set`, and it is what keeps `as` from being *more* dangerous
         than the guarded loop it replaces (a `for each player p: if p is <who>`
         guard never matches a non-seat, so it drops the decision; `as` binds

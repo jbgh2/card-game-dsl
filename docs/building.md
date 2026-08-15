@@ -97,7 +97,7 @@ expressions (`<actor> chooses <description>`), and zone-query chains
 (`cards in hand where card.suit is state.led_suit`). This is the hard
 part of the grammar and where most of the corpus's informal prose hides. It has
 its own node hierarchy, its own fixtures, and its own type rules, checked against
-the stdlib `ZoneContents` query API in [decisions.md](decisions.md).
+the built-in `ZoneContents` query API in [decisions.md](decisions.md).
 
 ## Typed-AST discipline
 
@@ -131,7 +131,7 @@ live in different places and have different exit conditions.
   Rewritten into formal syntax now, with no residue. Includes large operation
   bodies (e.g. `reconcile_pots`) when existing constructs suffice.
 
-- **`runtime-primitive`** — a pure, total stdlib function with a complete,
+- **`runtime-primitive`** — a pure, total native function with a complete,
   unambiguous typed signature and standard, well-known semantics whose *body is a
   runtime computation* (e.g. `best_five_card_hand : Set<Card> → HandRank`). This
   is not a gap: the DSL fully expresses the interface, and the front end — a
@@ -158,11 +158,12 @@ current at the time a player folded" (event-indexed state) — that specific mis
 feature becomes a `language-gap` open question. The prose-comment algorithm in the
 corpus today is not an acceptable resting state under either outcome.
 
-The stdlib of query primitives grows so prose becomes formal calls. The library
+The catalogue of query Primitives grows so prose becomes formal calls. The library
 already names many query shapes (`highest … over`, `cards in … where`, `offset_by`); the
-rest are formalized as named, typed stdlib functions defined as data in
-`cardlang/stdlib/`. This is corpus-first: a primitive enters the stdlib because a
-game needs it. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
+rest are formalized as named, typed native functions declared as data in
+`cardlang/builtins/` and dispatched from `runtime/`. This is corpus-first: a
+Primitive is added because a game needs it; the stdlib is the DSL-written layer
+and is where such a function goes only once it is expressible in the language. Unicode operators (`=>`, `union`, `*` for `⇒`, `∪`, `×`) get ASCII
 spellings fixed by the grammar, and the game files are updated to match.
 
 **Grammar-growth guard.** Before adding a production for a new surface verb,
@@ -190,7 +191,7 @@ construct.
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
 | `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
-| `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (stdlib query) |
+| `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Builtin query) |
 | `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
@@ -245,7 +246,7 @@ construct.
 
 - The corpus harness is green on every commit.
 - Two enumerations, two ratchets. The `runtime-primitive` list is a declared,
-  signatured stdlib surface — it may grow, but only with a typed signature, never
+  signatured native surface — it may grow, but only with a typed signature, never
   a bare name. The `language-gap` list (open questions) must not grow silently and
   is driven toward zero — a new gap is admissible only as an explicit, named
   open-questions entry.
@@ -268,7 +269,7 @@ cardlang/
   typecheck.py          # typed object model + exhaustiveness
   ir.py                 # type-annotated AST -> validated IR (JSON)
   diagnostics.py        # span-precise errors (Lark get_context)
-  stdlib/               # library catalogue as data: types, zones, mechanics, queries
+  stdlib/               # the DSL-written layer + kernel tables: types, zones, mechanics, queries
   cli.py                # parse+check a single file; emit IR
 tests/
   fixtures/             # synthetic minimal game + per-construct red/green cases

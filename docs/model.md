@@ -28,7 +28,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
 | **Observation event** | An event emitted automatically by a move or memory operation, projected per observer according to the visibility settings of the zones involved (see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"). Maintained as per-player histories; used to derive information sets. |
-| **Memory operation** | A stdlib-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `transfer`, `muck`, `forget`). See [decisions.md](decisions.md). |
+| **Memory operation** | A native-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `transfer`, `muck`, `forget`). See [decisions.md](decisions.md). |
 | **Resolution** | A deterministic computation over current state, used to drive non-choice moves (e.g., "who won the trick"). |
 | **Scoring component** | A named, parameterizable function producing a ScoreDelta. Batched components compose by summation inside `apply_components:`; triggered components fire on specific events via `triggered_by:` clauses. Bridge introduced this; see [library.md](library.md) "Scoring components" and [decisions.md](decisions.md) "Scoring composition" / "Triggered scoring components". |
 
@@ -180,7 +180,7 @@ phase play {
 
 ### Move types
 
-A move type names a kind of move a player can make. Some are stdlib
+A move type names a kind of move a player can make. Some are kernel move types
 names shared across games (`play_to_trick`, `submit_bid`); a game also
 defines its own with a `move_type` block — an optional `when:` guard
 and an `effect` that carries out the move:
@@ -193,7 +193,7 @@ move_type play_card(c : Card) {
 
 Rules attach to move types via their `constrains:` clause. A game
 references a move type by name in a phase's `legal_moves:` or an
-`offer`; the stdlib move types are shared, so Hearts, Spades, and
+`offer`; the kernel move types are shared, so Hearts, Spades, and
 Pinochle all use `play_to_trick`.
 
 The set of legal move types in a phase is derivable from the phase's active

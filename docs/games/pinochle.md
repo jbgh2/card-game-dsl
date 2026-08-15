@@ -28,12 +28,12 @@ below, settling on a declarer and his bid). Trump declaration is a second,
 one-draw `round offering [declare_trump_suit]`, guarded by a `has_marriage`
 function checked over each of the four suits (no marriage anywhere abandons
 the bid with no decision offered at all). Meld is a forced
-`pinochle_meld_value(p)` stdlib query per player, credited to his team. The
+`pinochle_meld_value(p)` Primitive query per player, credited to his team. The
 twelve strict tricks run on the trick form of `round`, legality narrowed by
 the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade
 below (follow suit and head the trick if able; else trump and over-trump if
 able; else anything). The meld evaluator (`pinochle_meld_value`) is a pure
-stdlib primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
+Primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
 combination model.
 
 ```

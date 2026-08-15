@@ -1,6 +1,6 @@
 // Card Game DSL — surface grammar.
 //
-// Grown corpus-first: every production here exists because a game in the
+// Grown corpus-first: every production here exists because a [[game]] in the
 // corpus needs it. Developed on Earley (reports ambiguity), tightening toward
 // LALR. The expression sublanguage (docs/building.md) is the lower half of
 // this file and is reused everywhere an expression appears.
@@ -83,8 +83,8 @@ game: _GAME_KW NAME "{" game_item* "}"
           | winner
           | loser
 
-// `uses <library>` — a family-library import, the tier between game-local and
-// stdlib (decisions.md "Family libraries"). Unlike every other game clause this
+// `uses <library>` — a family-[[library]] import, the tier between game-local
+// and [[stdlib]] (decisions.md "Family libraries"). Unlike every other game clause this
 // one may repeat: a game uses as many libraries as it draws on, and the line is
 // meant to read like the rulebook sentence it stands in for ("betting proceeds
 // as in standard poker"). Whole-library, never a named-definitions manifest.
@@ -96,10 +96,10 @@ players_spec: INT ".." INT   -> players_range
 
 direction: _DIRECTION_KW ":" NAME
 
-// Content clauses: each names a COMPONENT_SETS entry of its flavor (`cards:`
-// a card deck, `pieces:` a piece set). Exactly one per game — both/neither
-// are parse Owner Guards (parse.py `game()`); a cross-flavor name is a
-// resolve Owner Guard.
+// Content clauses: each names a COMPONENT_SETS entry ([[component-set]]) of its
+// flavor (`cards:` a card deck, `pieces:` a piece set). Exactly one per game —
+// both/neither are parse [[owner-guard]]s (parse.py `game()`); a cross-flavor
+// name is a resolve Owner Guard.
 cards: _CARDS_KW ":" NAME
 pieces: _PIECES_KW ":" NAME
 
@@ -182,7 +182,7 @@ loser: _LOSER_KW ":" expr
 // ----------------------------------------------------------------------------
 
 phase: _PHASE_KW NAME [phase_outcome] [phase_qualifier] "{" phase_item* "}"
-// A phase that can resolve more than one way declares its outcome type
+// A [[phase]] that can resolve more than one way declares its [[outcome]] type
 // here; the enclosing structure pattern-matches on it with `produces:`.
 phase_outcome: "->" _OUTCOME_KW outcome_set
 // One lexeme for iteration everywhere: the phase qualifier matches the
@@ -199,8 +199,8 @@ phase_qualifier: _REPEAT_KW _UNTIL_KW expr -> phase_repeats
            | phase
            | statement
 
-// A mode is a condition the game is in, existing to change which rules are
-// active; being in it IS its behavior, so its body is configuration and
+// A [[mode]] is a condition the game is in, existing to change which [[rule]]s
+// are active; being in it IS its behavior, so its body is configuration and
 // nothing else. That restriction lives here rather than in a resolve
 // diagnostic because the grammar is the earliest layer that can own it: a
 // statement in a mode body is unreachable code, and `legal_moves:` there is
@@ -285,7 +285,7 @@ produce_arm: NAME ["(" NAME ("," NAME)* ")"] "{" statement* "}"
 // value-returning functions and named user operations, which appear in
 // expression position.
 
-// One transfer primitive, used as a statement or (in some arg positions) a value.
+// One [[transfer]], used as a statement or (in some arg positions) a value.
 // The verb is sugar over a single IR node; the amount is an expression and the
 // item noun covers cards and resources. The "in" form lets muck/burn imply
 // their destination.
@@ -370,13 +370,13 @@ as_block: _AS_KW expr "{" statement* "}"
 turns_stmt: _TURNS_KW NAME _FROM_KW expr _OVER_KW expr _UNTIL_KW expr [_AGAIN_KW NAME] "{" statement* "}"
 
 offer: _OFFER_KW _TO_KW expr _ONE_KW _OF_KW "[" NAME ("," NAME)* "]"
-// The trick form of `round`: one trick. The `winner` clause names the winner
-// function that picks the player the trick yields, bound as `winner` for the
-// statements after it. Distinct from the auction form's `outcome` clause below,
-// which names a function producing a tagged `(tag, payloads)` outcome — the two
-// senses the glossary keeps apart (docs/glossary.md, Outcome / Winner).
+// The [[trick]] [[form]] of `round`: one trick. The `winner` clause names the
+// [[winner]] function that picks the player the trick yields, bound as `winner`
+// for the statements after it. Distinct from the auction form's `outcome`
+// clause below, which names a function producing a tagged `(tag, payloads)`
+// [[outcome]] — two senses the glossary keeps apart.
 round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW NAME _WINNER_KW NAME [_TRUMP_KW expr] [_EARLY_KW NAME]   -> round_stmt
-// The auction/betting form of `round`: a continuous ring over an `offering`
+// The auction/betting form of `round`: a continuous ring over an [[offering]]
 // that loops until the termination predicate holds (`until`). The
 // `outcome` clause is optional: an auction supplies one and the function produces
 // the typed outcome when the ring closes; a betting round omits it — each action
@@ -396,7 +396,7 @@ auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // beats the standing play or passes; the trick ends when action returns to the
 // last player who played, or the `until` predicate holds (a player has shed out).
 // The engine is named by `combinations` (the lead-options query) and `follows`
-// (the legal-follows query) — game-local stdlib queries, since the combination
+// (the legal-follows query) — game-local Primitive queries, since the combination
 // rules differ across games. The winning player (the last to play) is bound as
 // `winner` for the surrounding body, which routes the pile and the next lead;
 // there is no winner *function* — the winner is the loop's last player, not a

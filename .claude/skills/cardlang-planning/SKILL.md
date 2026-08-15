@@ -47,7 +47,7 @@ that pass's `Contract` block before planning around it.
 
 Classify exactly as the review skill's Phase 0 will at the other end:
 grammar surface, parse builder, AST, resolve, typecheck, IR, runtime,
-stdlib registry, corpus game, docs, tests/goldens. The classification
+native registry, kernel table, corpus game, docs, tests/goldens. The classification
 decides which gates the plan must SCHEDULE — if the change adds or
 extends surface, an Owner Guard, a diagnostic, a registry, or any closed-domain
 mechanism, the surface-totality-audit fires and Gate 4 applies. It fires

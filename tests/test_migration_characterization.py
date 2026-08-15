@@ -270,7 +270,7 @@ def test_stud_migration_preserves_per_hand_stacks() -> None:
 # climbing trick, the special cards, finishing, and scoring — from a Python
 # monolith onto the kernel. The migration reproduces the monolith's RNG sequence
 # (chooser draws plus two non-chooser draws — the Tichu-call gates and the Dragon
-# routing — reproduced by stdlib primitives), so the per-seed results stay
+# routing — reproduced by Primitives), so the per-seed results stay
 # byte-identical. We pin `scores` + `winner` (not `hands_played`: the monolith has
 # no `scoring` phase so the driver's hand counter reads 0, but the migration adds
 # one — a structural change, not a draw divergence). Team scores accumulate every

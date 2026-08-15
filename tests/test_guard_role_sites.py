@@ -23,7 +23,7 @@ Contract
 --------
 Assumes: `tests/test_failure_taxonomy.py` holds (each class's position is
 pinned). Establishes: every raise site's Author is recorded somewhere a reader
-can find. Illegal after this: adding a bare stdlib `raise` to `cardlang/`
+can find. Illegal after this: adding a bare untyped `raise` to `cardlang/`
 without either giving it a role type or recording it here with a reason.
 
 Completeness ledger (decisions.md "Closed-domain completeness"):

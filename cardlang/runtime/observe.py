@@ -1,6 +1,8 @@
-"""Per-observer observation emission — the projection substrate.
+"""Per-observer [[observation-event]] emission — the [[projection]] substrate.
 
-Every event is a plain, deterministic, human-readable tuple. The event types:
+Every event is a plain, deterministic, human-readable tuple. The event types are
+`EVENT_TYPES` below, which is the closed set and the authority; this is what each
+carries:
 
   ("chose", <rendered value>)             delivered to the actor only, at the
                                           moment of the chooser draw (perfect
@@ -16,9 +18,15 @@ Every event is a plain, deterministic, human-readable tuple. The event types:
                                           projection: a sorted tuple of card
                                           strings (identity), a count
                                           (count_only), or None (trivial)
+  ("reveal", zone_label, <card>)          a `reveal` names one card in place
+                                          (`execute._reveal`). The one event
+                                          that is public by construction:
+                                          delivered to every player whatever
+                                          the zone's declared visibility says
 
-Emission is driven by the zone declarations alone (decisions.md "Knowledge,
-visibility, and the projection model") — no game names its observers.
+Which observer learns what is otherwise driven by the zone declarations alone
+(decisions.md "Knowledge, visibility, and the projection model") — no game names
+its observers.
 """
 
 from __future__ import annotations

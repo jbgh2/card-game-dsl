@@ -1,4 +1,4 @@
-"""Known-value tests for French Tarot's stdlib primitives
+"""Known-value tests for French Tarot's Primitives
 (cardlang/runtime/tarot.py) and the `Card.__str__` glyph fix they depend on.
 
 The playout invariants (test_playout_french_tarot.py) cannot catch a misvalued

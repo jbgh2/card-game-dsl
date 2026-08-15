@@ -1,9 +1,10 @@
-"""Declared reads for game-local runtime primitives.
+"""Declared reads for game-local runtime [[primitive]]s.
 
 A game-local primitive (`cardlang/runtime/<game>.py`, plus the per-game
-auction outcomes in `stdlib.py`) is sanctioned Python for pure value
-computation (library.md "Stdlib functions"; kernel-migration.md). It reads
-live `RuntimeState` by the zone/state-variable name the game file declares —
+auction outcomes in `primitives.py`) is sanctioned Python for pure value
+computation (library.md "Native functions"; kernel-migration.md). It reads
+live `RuntimeState` by the zone / [[state-variable]] name the game file
+declares —
 a coupling the front-end pipeline cannot see: nothing about
 `zones { influence[player] : Hand<player> }` tells resolve or typecheck that
 `coup.py` also spells this name. Undeclared, that coupling surfaces as a
@@ -87,7 +88,7 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     schnapsen trump indicator, and `deep_freeze` would refuse a Zone). Every
     other param is `deep_freeze`d: a copy for a `Card`, a no-op for the
     immutable scalars (`Player`, `Integer`, `Rank`, ...). The registry side is
-    pinned by tests/test_stdlib_boundary.py (every TCollection param probed
+    pinned by tests/test_native_call_boundary.py (every TCollection param probed
     with a Zone, the TAny set pinned, no param zone=True).
 
     It lives here, with `deep_freeze`, rather than with either dispatch half:
@@ -209,7 +210,7 @@ class PrimitiveReads:
 
     `module` is the repo-relative path of the Python module doing the
     reading; `game_file` the `docs/games/` basename whose declarations the
-    names must match. A module serving several games (stdlib.py's auction
+    names must match. A module serving several games (primitives.py's auction
     outcomes) has one row per game."""
 
     module: str
@@ -504,14 +505,14 @@ def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
 
 
 def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
-    """The one game-INDEPENDENT zone read a general stdlib function makes:
+    """The one game-INDEPENDENT zone read a general native function makes:
     `player_holding` scans `hand[player]`, the language-wide magic name
     (decisions.md "Declared parameter domains"). Not registry-keyed — the
     coupling is to the language rule, not to any one game file — but held to
-    the same failure channel: a game that declares no `hand[player]` family
+    the same [[failure-channel]]: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name check only covers games with `Card`-typed move parameters, so this
-    is an Owner Guard, not a Shadow Guard.)
+    is an [[owner-guard]], not a [[shadow-guard]].)
 
     Returns player-keyed instances: `hand` is a `hand[player]` family by the
     magic-name rule, so its keys are seats even though the generic zone store
@@ -524,6 +525,6 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
         raise PrimitiveReadError(
             "player_holding: the game declares no `hand[player]` zone family "
             "— `hand` is the language-wide magic name (decisions.md "
-            '"Declared parameter domains") this stdlib function reads'
+            '"Declared parameter domains") this native function reads'
         )
     return cast("dict[int, Zone]", fam)

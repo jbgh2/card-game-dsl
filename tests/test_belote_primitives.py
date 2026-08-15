@@ -1,4 +1,4 @@
-"""Known-value tests and misuse probes for Belote's stdlib primitives
+"""Known-value tests and misuse probes for Belote's Primitives
 (cardlang/runtime/belote.py) and their registry wiring — the change's
 surface-totality artifacts (the audit's rejection tests and ledger).
 
@@ -174,7 +174,7 @@ def test_best_is_rejects_a_non_class_argument() -> None:
         )
 
 
-# --- misuse probes: the new stdlib names, in the owning layer's channel ---
+# --- misuse probes: the new native names, in the owning layer's channel ---
 
 
 def _expect_rejected(text: str, fragment: str) -> None:

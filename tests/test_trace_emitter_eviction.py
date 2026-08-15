@@ -1,4 +1,4 @@
-"""Stage-1 eviction grid: the trace emitters are out of the stdlib registry.
+"""Stage-1 eviction grid: the trace emitters are out of the native registry.
 
 `coup_note_reveal` and `tichu_hand_summary` were trace emitters for the
 playout harness, not game primitives (docs/design-notes/primitive-sidecars.md
@@ -11,7 +11,7 @@ the proof the grid can fail).
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   the two evicted names are complete non-members of every
-            stdlib-function namespace, of the runtime dispatch and
+            native-function namespace, of the runtime dispatch and
             implementing modules, and of the spec-current corpus/prose
             surface — and the trace facts they emitted derive at the
             harness layer with identical values.
@@ -187,7 +187,7 @@ def test_shadow_wall_still_guards_registered_names() -> None:
     pins that the probe reaches the guard — without it, a probe broken
     earlier in the pipeline (a syntax error also raises DiagnosticError)
     would make the freedom cells pass vacuously."""
-    with pytest.raises(DiagnosticError, match="shadows the stdlib function"):
+    with pytest.raises(DiagnosticError, match="shadows the native function"):
         check_dsl(_shadow_probe("coup_game_summary"), "shadow_control.cardlang")
 
 

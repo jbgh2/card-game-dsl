@@ -14,10 +14,10 @@
 // forced-play flow (docs/kernel-migration.md, WS4) — so the current
 // sub-round's card provenance (who played each `play_pile` card) is carried
 // by two Integer state vars (`seq_bits`/`seq_len`, public information: every
-// player watched the count) and decoded by the `peg_origin_of` stdlib
+// player watched the count) and decoded by the `peg_origin_of` Primitive
 // primitive at each close, which routes the pile into `played[dealer]` /
 // `played[nondealer]`. The combination scorers (fifteens/pairs/runs/flush/
-// nob) and the pegging-count scorers are stdlib primitives, unit-tested
+// nob) and the pegging-count scorers are Primitives, unit-tested
 // against known hands (tests/test_playout_cribbage.py,
 // tests/test_cribbage_primitives.py).
 

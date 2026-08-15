@@ -1,4 +1,4 @@
-"""Standard-library move types, as data.
+"""Standard-library [[move-type]]s, as data.
 
 The named card-movement patterns from library.md "Move types". The resolver
 checks every `constrains:`, `legal_moves:`, and transition move-event

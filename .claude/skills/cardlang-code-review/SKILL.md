@@ -58,11 +58,11 @@ allocates backwards.
    `git diff HEAD` if the working tree is dirty.
 2. Classify which layers it touches: grammar (`.lark`), parse builders, AST
    nodes, resolve, typecheck, IR, runtime (`evaluate`/`execute`/`driver`/
-   `state`), stdlib (`rules.cardlang`, registries), `docs/games/` corpus,
+   `state`), stdlib (`rules.cardlang`) + kernel tables, `docs/games/` corpus,
    docs prose, tests/goldens. The classification selects the conditional
    angles below — do not run angles whose trigger the diff does not match.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
-   grammar surface, a checker Owner Guard or diagnostic, a stdlib registry, or any
+   grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any
    closed-domain mechanism (the `surface-totality-audit` trigger) — including
    a diff that ANSWERS AN EARLIER FINDING on one, which must additionally
    carry that skill's **class ledger** showing the finding was swept as a

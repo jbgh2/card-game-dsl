@@ -169,7 +169,7 @@ does composition of the closed vocabulary always suffice? Stud and Coup
 were both composable.*
 
 **Hanabi — verified, the case the question was waiting for.** Two features
-combine into the first corpus event that is neither a stdlib op nor a
+combine into the first corpus event that is neither a native op nor a
 clean composition: (1) the **inverted-visibility hand** — "Players may not
 see their own hand … The fronts can only be seen by the other players"
 (owner sees *less* than others, the inverse of every current zone); (2)
@@ -183,7 +183,7 @@ proposition). 50-card deck, 5 colours × (1,1,1,2,2,3,3,4,4,5). Source:
 https://www.ultraboardgames.com/hanabi/game-rules.php
 
 **Cabo — verified match, but covered by existing primitives.** Its actions
-map cleanly to stdlib: peek-own, peek-other (`peek`), reveal-on-failed-
+map cleanly to native ops: peek-own, peek-other (`peek`), reveal-on-failed-
 match (`reveal`), and **blind-swap** (transfer with no observation). Blind-
 swap is the one event the model currently handles only *implicitly*; Cabo
 makes it a first-class, deliberate action, which argues for stating "move
