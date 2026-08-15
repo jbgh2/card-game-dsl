@@ -81,7 +81,7 @@ corpus-wide.
 declared spelling.** A corpus game with a bespoke mechanic ships a
 `cardlang/runtime/<game>.py` module of Python (kernel-migration.md's sanctioned "game-local
 stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
-Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` by the
+Tichu's `tichu_next_holder`, …) that reads live `RuntimeState` by the
 zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
 derived from the AST the way `execute.py`/`evaluate.py` read a
 `NameRef.name` off the tree. This transform's own pairing run is what FIRST

@@ -343,7 +343,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
-        state_vars=_fs("out_first", "out_second"),
         zone_families=_fs("hand"),
     ),
     # primitives.py's per-game functions: the auction outcomes and cribbage's
