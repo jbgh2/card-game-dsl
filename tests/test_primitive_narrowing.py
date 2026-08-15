@@ -329,23 +329,14 @@ NARROWED: frozenset[str] = frozenset(
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
         "canasta.py::ROW",
-        "canasta.py::canasta_add_ok",
-        "canasta.py::canasta_black3_ok",
         "canasta.py::canasta_can_start",
         "canasta.py::canasta_can_take_pile",
         "canasta.py::canasta_canasta_bonus",
         "canasta.py::canasta_close_ok",
-        "canasta.py::canasta_discard_ok",
         "canasta.py::canasta_hand_points",
-        "canasta.py::canasta_is_black3",
-        "canasta.py::canasta_is_red3",
         "canasta.py::canasta_meld_points",
         "canasta.py::canasta_must_take_pile",
-        "canasta.py::canasta_pile_rank",
-        "canasta.py::canasta_red3_bonus",
         "canasta.py::canasta_stage_ok",
-        "canasta.py::canasta_top_is_wild",
-        "canasta.py::canasta_top_starts_pile",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
         "coup.py::coup_next_in_game",
@@ -410,16 +401,10 @@ NARROWED: frozenset[str] = frozenset(
         "tichu.py::ROW",
         "tichu.py::TICHU_COMBO_CODEC",
         "tichu.py::tichu_card_points",
-        "tichu.py::tichu_double_victory",
         "tichu.py::tichu_dragon_won",
-        "tichu.py::tichu_first_out",
         "tichu.py::tichu_follows",
         "tichu.py::tichu_lead_options",
-        "tichu.py::tichu_mahjong_holder",
         "tichu.py::tichu_next_holder",
-        "tichu.py::tichu_opponent_team",
-        "tichu.py::tichu_partner",
-        "tichu.py::tichu_players_holding",
     }
 )
 
@@ -438,23 +423,14 @@ MIGRATED: frozenset[str] = frozenset(
         "bigtwo_follows",
         "bigtwo_lead_options",
         "bring_in_seat",
-        "canasta_add_ok",
-        "canasta_black3_ok",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
-        "canasta_discard_ok",
         "canasta_hand_points",
-        "canasta_is_black3",
-        "canasta_is_red3",
         "canasta_meld_points",
         "canasta_must_take_pile",
-        "canasta_pile_rank",
-        "canasta_red3_bonus",
         "canasta_stage_ok",
-        "canasta_top_is_wild",
-        "canasta_top_starts_pile",
         "coup_game_summary",
         "coup_next_in_game",
         "cribbage_crib_value",
@@ -492,16 +468,10 @@ MIGRATED: frozenset[str] = frozenset(
         "tarot_led_suit",
         "tarot_per_opp",
         "tichu_card_points",
-        "tichu_double_victory",
         "tichu_dragon_won",
-        "tichu_first_out",
         "tichu_follows",
         "tichu_lead_options",
-        "tichu_mahjong_holder",
         "tichu_next_holder",
-        "tichu_opponent_team",
-        "tichu_partner",
-        "tichu_players_holding",
     }
 )
 
@@ -787,7 +757,6 @@ def _narrowing() -> Any:
 # pinned`, and a row naming a field that does not exist fails too.
 _FACT_SOURCES: dict[str, str] = {
     "seating": "rs.seating",
-    "teams": "rs.teams",
     "team_of": "rs.team_of",
     "rank_index": "rs.rank_index",
     "round_state": "rs.mech_state[-1] if rs.mech_state else rs.last_round_state",
@@ -802,7 +771,6 @@ _FACT_SOURCES: dict[str, str] = {
 # narrowed is still a consumed fact, not a speculative field.
 _FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
     "seating": ("facts.seating", "ctx.rs.seating"),
-    "teams": ("facts.teams", "ctx.rs.teams"),
     "team_of": ("facts.team_of", "ctx.rs.team_of"),
     "rank_index": ("facts.rank_index", "ctx.rs.rank_index"),
     "round_state": ("facts.round_state", "ctx.rs.mech_state"),
@@ -884,7 +852,6 @@ def test_engine_fact_carries_the_engine_value(field: str) -> None:
     facts = narrowing.engine_facts(rs, actor=1)
     expected: dict[str, Any] = {
         "seating": rs.seating,
-        "teams": reads_mod.deep_freeze(rs.teams),
         "team_of": reads_mod.deep_freeze(rs.team_of),
         "rank_index": reads_mod.deep_freeze(rs.rank_index),
         "round_state": reads_mod.deep_freeze(rs.last_round_state),
@@ -900,8 +867,8 @@ def test_engine_facts_holds_no_live_engine_object_by_identity() -> None:
     reaches the engine's object), yet the walker treats frozen+slots as safe.
     So pin the copy directly — engine_facts freezes every field, so no
     dataclass/mapping fact is the engine's live object. This is the guard that
-    would have caught `seating` being passed by identity. (An immutable tuple
-    of scalars like `teams` may keep identity — safe, nothing to setattr.)"""
+    would have caught `seating` being passed by identity. (A scalar like
+    `actor` may keep identity — safe, nothing to setattr.)"""
     narrowing = _narrowing()
     rs = _live_state()
     facts = narrowing.engine_facts(rs, actor=0)
@@ -1264,8 +1231,8 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     from cardlang.builtins.signatures import CALL_SIGS
     from cardlang.runtime.reads import coerce_args
 
-    card = Card("3", "hearts")  # a red three
-    (coerced,) = coerce_args(CALL_SIGS["canasta_is_red3"], [card])
+    card = Card("3", "hearts")
+    (coerced,) = coerce_args(CALL_SIGS["peg_value"], [card])
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"

@@ -334,7 +334,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
             "pile_frozen", "team_melded", "meld_rank", "taking_pile", "score"
         ),
         zone_families=_fs(
-            "hand", "stage", "red3",
+            "hand", "stage",
             "meldA", "meldK", "meldQ", "meldJ", "meld10", "meld9",
             "meld8", "meld7", "meld6", "meld5", "meld4", "meld3b",
         ),
@@ -343,7 +343,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
-        state_vars=_fs("out_first", "out_second"),
         zone_families=_fs("hand"),
     ),
     # primitives.py's per-game functions: the auction outcomes and cribbage's

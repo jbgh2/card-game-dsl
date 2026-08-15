@@ -9,13 +9,10 @@ state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
 What stays game-local: the combination engine itself (`combinations.py`,
 shared with nothing — Big Two's differs), the two non-chooser RNG sites the
 monolith drew (the call-rate gates and the Dragon's trick going to a random
-opponent — reproduced draw-for-draw at the same sites), team lookups,
-and the card-point table.
+opponent — reproduced draw-for-draw at the same sites), the post-trick
+leader advance, and the card-point table.
 
-The state-reading primitives (`tichu_double_victory`, `tichu_first_out`) read
-the finishing order from phase state through the declared-reads accessors
-(cardlang/runtime/reads.py) — the Stud/Cribbage/Skat precedent for game-local
-primitives over live state. `tichu_dragon_won` reads
+`tichu_dragon_won` reads
 the completed round's standing play from `last_round_state` (the same terminal
 frame the body reads as `state.x`).
 """
@@ -68,41 +65,6 @@ def tichu_follows(
 # --- zone / seating / state reads (pure) ---
 
 
-def tichu_mahjong_holder(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """Who leads the first trick: the Mahjong holder (post-push hands; the
-    full deal guarantees one exists)."""
-    hands = gr.families["hand"]
-    return next(
-        p for p in facts.seating.players
-        if any(c.rank == "Mahjong" for c in hands[p])
-    )
-
-
-def tichu_players_holding(facts: EngineFacts, gr: reads.GameReads) -> int:
-    """How many players still hold cards (the hand ends at <= 1)."""
-    hands = gr.families["hand"]
-    return sum(1 for p in facts.seating.players if hands[p])
-
-
-def tichu_double_victory(facts: EngineFacts, gr: reads.GameReads) -> bool:
-    """Both recorded finishers are teammates (ends the hand early, +200)."""
-    first = gr.state["out_first"]
-    second = gr.state["out_second"]
-    return (
-        first is not None
-        and second is not None
-        and facts.team_of[first] == facts.team_of[second]
-    )
-
-
-def tichu_partner(facts: EngineFacts, gr: reads.GameReads, p: Player) -> Player:
-    """The teammate (partners sit across)."""
-    return next(
-        q for q in facts.seating.players
-        if q != p and facts.team_of[q] == facts.team_of[p]
-    )
-
-
 def tichu_next_holder(
     facts: EngineFacts, gr: reads.GameReads, p: Player
 ) -> Player:
@@ -129,18 +91,6 @@ def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
     return (
         cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
     )
-
-
-def tichu_opponent_team(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
-    """The team `p` does not belong to (two-team game)."""
-    return next(t for t in facts.teams if t != facts.team_of[p])
-
-
-def tichu_first_out(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The first player to shed out, defaulting to player 0 when nobody is
-    recorded (the monolith's fallback; unreachable in a completed hand)."""
-    first = gr.state["out_first"]
-    return 0 if first is None else int(first)
 
 
 def tichu_card_points(facts: EngineFacts, gr: reads.GameReads, c: Card) -> int:

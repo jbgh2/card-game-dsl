@@ -132,14 +132,8 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
-        "tichu_mahjong_holder",  # Tichu: who holds the Mahjong (leads the first trick)
-        "tichu_players_holding",  # Tichu: how many players still hold cards
-        "tichu_double_victory",  # Tichu: are the first two finishers teammates?
-        "tichu_partner",  # Tichu: the teammate (partners sit across)
         "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "tichu_opponent_team",  # Tichu: the team a player does not belong to
-        "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
@@ -178,22 +172,13 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_decl_trump",  # Belote: is the best combination a trump-suit sequence?
         "belote_decl_size",  # Belote: how many cards the declarations comprise (showing bound)
         "belote_decl_slot",  # Belote: is a card the k-th declared card (the showing's reveal predicate)?
-        "canasta_is_red3",  # Canasta: is the card a red three (bonus card)?
-        "canasta_is_black3",  # Canasta: is the card a black three (stop card)?
-        "canasta_top_starts_pile",  # Canasta: may the turned card start the pile?
-        "canasta_top_is_wild",  # Canasta: did the discard just freeze the pile?
-        "canasta_pile_rank",  # Canasta: the pile's top rank (the meld a take feeds)
         "canasta_can_take_pile",  # Canasta: a complete legal pile take exists
         "canasta_must_take_pile",  # Canasta: the no-stock forced take applies
         "canasta_can_start",  # Canasta: a new meld of the rank is completable from hand
         "canasta_stage_ok",  # Canasta: card joins the open attempt, close stays reachable
         "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
-        "canasta_add_ok",  # Canasta: card lays onto the side's standing meld of the rank
-        "canasta_discard_ok",  # Canasta: the discard may end the turn (go-out rule)
-        "canasta_black3_ok",  # Canasta: the go-out black-three meld is legal now
         "canasta_meld_points",  # Canasta: card points of everything the side melded
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
-        "canasta_red3_bonus",  # Canasta: the red-three bonus, sign by melded-or-not
         "canasta_hand_points",  # Canasta: card points left in both partners' hands
     }
 )
@@ -215,8 +200,8 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # This partition is ORTHOGONAL to the Builtin/Primitive split above and does not
 # refine it: it asks which game FLAVORS a call can mean anything in, not whose
 # meaning it carries. Most of ANY_FLAVOR_CALL_FUNCS is game-named but
-# content-blind (`canasta_discard_ok` never reads its card), so it is a
-# Primitive that is nonetheless legal in a piece game.
+# content-blind (`coup_next_in_game` reads only zone emptiness and seating),
+# so it is a Primitive that is nonetheless legal in a piece game.
 # that touch only players/teams/seats/zone counts or ordered-collection POSITION
 # (top_of/bottom_of), never a card's content or a board -- stay legal
 # everywhere. The three sets partition the registry, pinned by
@@ -225,15 +210,13 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # Derived by an audit that read every implementation; membership IS the
 # classification rationale (decisions.md "Closed-domain completeness"). The
 # organizing rule for the boundary: locating an OPAQUE caller-supplied token is
-# generic (`player_holding` matches a card by identity; `canasta_discard_ok`'s
-# card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
+# generic (`player_holding` matches a card by identity); privileging a
+# SPECIFIC rank/suit -- by `.rank`/
 # `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
 # card literal -- is deck-only.
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
-        "canasta_discard_ok",
-        "canasta_red3_bonus",
         "coup_game_summary",
         "coup_next_in_game",
         "error",
@@ -243,12 +226,7 @@ ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
         "player_holding",
         "skat_next_bid",
         "team_of",
-        "tichu_double_victory",
-        "tichu_first_out",
         "tichu_next_holder",
-        "tichu_opponent_team",
-        "tichu_partner",
-        "tichu_players_holding",
         "top_of",
     }
 )
@@ -269,21 +247,14 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_royal_player",
         "belote_trump_height",
         "bring_in_seat",
-        "canasta_add_ok",
-        "canasta_black3_ok",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
         "canasta_hand_points",
-        "canasta_is_black3",
-        "canasta_is_red3",
         "canasta_meld_points",
         "canasta_must_take_pile",
-        "canasta_pile_rank",
         "canasta_stage_ok",
-        "canasta_top_is_wild",
-        "canasta_top_starts_pile",
         "card_value",
         "cribbage_crib_value",
         "cribbage_show_value",
@@ -328,7 +299,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_trump_height",
         "tichu_card_points",
         "tichu_dragon_won",
-        "tichu_mahjong_holder",
     }
 )
 

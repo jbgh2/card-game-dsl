@@ -145,22 +145,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import ROW, skat_matadors
 
             return skat_matadors(*_bind(ctx, ROW), args[0])
-        case "tichu_mahjong_holder":
-            from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
-
-            return tichu_mahjong_holder(*_bind(ctx, ROW))
-        case "tichu_players_holding":
-            from cardlang.runtime.tichu import ROW, tichu_players_holding
-
-            return tichu_players_holding(*_bind(ctx, ROW))
-        case "tichu_double_victory":
-            from cardlang.runtime.tichu import ROW, tichu_double_victory
-
-            return tichu_double_victory(*_bind(ctx, ROW))
-        case "tichu_partner":
-            from cardlang.runtime.tichu import ROW, tichu_partner
-
-            return tichu_partner(*_bind(ctx, ROW), args[0])
         case "tichu_next_holder":
             from cardlang.runtime.tichu import ROW, tichu_next_holder
 
@@ -169,14 +153,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
             return tichu_dragon_won(*_bind(ctx, ROW))
-        case "tichu_opponent_team":
-            from cardlang.runtime.tichu import ROW, tichu_opponent_team
-
-            return tichu_opponent_team(*_bind(ctx, ROW), args[0])
-        case "tichu_first_out":
-            from cardlang.runtime.tichu import ROW, tichu_first_out
-
-            return tichu_first_out(*_bind(ctx, ROW))
         case "tichu_card_points":
             from cardlang.runtime.tichu import ROW as TICHU_ROW
             from cardlang.runtime.tichu import tichu_card_points
@@ -342,26 +318,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.belote import ROW, belote_decl_slot
 
             return belote_decl_slot(*_bind(ctx, ROW), args[0], args[1], args[2])
-        case "canasta_is_red3":
-            from cardlang.runtime.canasta import ROW, canasta_is_red3
-
-            return canasta_is_red3(*_bind(ctx, ROW), args[0])
-        case "canasta_is_black3":
-            from cardlang.runtime.canasta import ROW, canasta_is_black3
-
-            return canasta_is_black3(*_bind(ctx, ROW), args[0])
-        case "canasta_top_starts_pile":
-            from cardlang.runtime.canasta import ROW, canasta_top_starts_pile
-
-            return canasta_top_starts_pile(*_bind(ctx, ROW))
-        case "canasta_top_is_wild":
-            from cardlang.runtime.canasta import ROW, canasta_top_is_wild
-
-            return canasta_top_is_wild(*_bind(ctx, ROW))
-        case "canasta_pile_rank":
-            from cardlang.runtime.canasta import ROW, canasta_pile_rank
-
-            return canasta_pile_rank(*_bind(ctx, ROW))
         case "canasta_can_take_pile":
             from cardlang.runtime.canasta import ROW, canasta_can_take_pile
 
@@ -382,18 +338,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.canasta import ROW, canasta_close_ok
 
             return canasta_close_ok(*_bind(ctx, ROW), args[0])
-        case "canasta_add_ok":
-            from cardlang.runtime.canasta import ROW, canasta_add_ok
-
-            return canasta_add_ok(*_bind(ctx, ROW), args[0], args[1], args[2])
-        case "canasta_discard_ok":
-            from cardlang.runtime.canasta import ROW, canasta_discard_ok
-
-            return canasta_discard_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "canasta_black3_ok":
-            from cardlang.runtime.canasta import ROW, canasta_black3_ok
-
-            return canasta_black3_ok(*_bind(ctx, ROW), args[0])
         case "canasta_meld_points":
             from cardlang.runtime.canasta import ROW, canasta_meld_points
 
@@ -402,10 +346,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
 
             return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
-        case "canasta_red3_bonus":
-            from cardlang.runtime.canasta import ROW, canasta_red3_bonus
-
-            return canasta_red3_bonus(*_bind(ctx, ROW), args[0])
         case "canasta_hand_points":
             from cardlang.runtime.canasta import ROW, canasta_hand_points
 

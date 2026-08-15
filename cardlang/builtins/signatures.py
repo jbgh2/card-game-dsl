@@ -101,14 +101,8 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
     "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
-    "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
-    "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards
-    "tichu_double_victory": Sig((), TBoolean()),  # Tichu: first two finishers teammates?
-    "tichu_partner": Sig((TPlayer(),), TPlayer()),  # Tichu: the teammate
     "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
-    "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
@@ -157,11 +151,6 @@ CALL_SIGS: dict[str, Sig] = {
     "belote_decl_trump": Sig((TPlayer(),), TBoolean()),  # Belote: best combination in trump?
     "belote_decl_size": Sig((TPlayer(),), TInteger()),  # Belote: declared-card count
     "belote_decl_slot": Sig((TPlayer(), TInteger(), TCard()), TBoolean()),  # Belote: k-th declared card?
-    "canasta_is_red3": Sig((TCard(),), TBoolean()),  # Canasta: a red three (bonus card)?
-    "canasta_is_black3": Sig((TCard(),), TBoolean()),  # Canasta: a black three (stop card)?
-    "canasta_top_starts_pile": Sig((), TBoolean()),  # Canasta: turned card may start the pile
-    "canasta_top_is_wild": Sig((), TBoolean()),  # Canasta: the new top froze the pile
-    "canasta_pile_rank": Sig((), TEnum("Rank")),  # Canasta: the pile's top rank
     "canasta_can_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: legal pile take exists
     "canasta_must_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: no-stock forced take
     "canasta_can_start": Sig(
@@ -171,16 +160,8 @@ CALL_SIGS: dict[str, Sig] = {
         (TPlayer(), TCard()), TBoolean()
     ),  # Canasta: card joins the open attempt, close stays reachable
     "canasta_close_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: attempt closes as it stands
-    "canasta_add_ok": Sig(
-        (TPlayer(), TEnum("Rank"), TCard()), TBoolean()
-    ),  # Canasta: card lays onto the standing meld of the rank
-    "canasta_discard_ok": Sig(
-        (TPlayer(), TCard()), TBoolean()
-    ),  # Canasta: the discard may end the turn (go-out rule)
-    "canasta_black3_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: go-out black-three meld legal
     "canasta_meld_points": Sig((TTeam(),), TInteger()),  # Canasta: melded card points
     "canasta_canasta_bonus": Sig((TTeam(),), TInteger()),  # Canasta: canasta bonuses
-    "canasta_red3_bonus": Sig((TTeam(),), TInteger()),  # Canasta: red-three bonus
     "canasta_hand_points": Sig((TTeam(),), TInteger()),  # Canasta: points left in hands
 }
 
