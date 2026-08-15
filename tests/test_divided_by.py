@@ -74,20 +74,27 @@ residual:  (a) `//` cannot be rejected at any layer: it is the comment
            out (characterized below, spec'd in decisions.md "The expression
            register"); the closure options (comment-syntax change, a
            source-text lint pass) are new machinery needing an operator
-           ruling — R2, recorded in the divided-by counsel comment on
-           issue #249 pending that ruling. (b) a literal `0` divisor is
-           caught at play time, not compile time: no const-fold pass exists,
-           and minting one is unruled machinery — R3, same counsel record.
-           (c) pre-existing classes this surface joins but does not own,
-           each named in the framing-check enumeration on issue #249:
-           named-arg call values are never type-walked (`f(x = expr)`),
-           deckcheck's capacity gate skips non-IntLit transfer amounts, and
-           the `+ - *` evaluator arms share the dynamic non-Integer operand
-           hole the new arms guard against — all pre-date this surface,
-           R3/R4, flagged for tracker filing in the PR record. (d)
-           banker's/half-even rounding (tarot_per_opp) is not expressible
-           with these two directions — a domain exclusion, not a gap
-           (#250/#253/#255 own that surface).
+           ruling — R2, issue #335; the executed evidence is the divided-by
+           counsel comment on issue #249, where the ruling record lives.
+           (b) a literal `0` divisor is caught at play time, not compile
+           time: no const-fold pass exists, and minting one is unruled
+           machinery — R2, issue #336. (c) pre-existing classes this
+           surface joins but does not own, each named in the framing-check
+           enumeration comment on issue #249: named-arg call values are
+           never type-walked (`f(x = expr)`) — R3, issue #337; deckcheck's
+           capacity gate skips non-IntLit transfer amounts — R3,
+           issue #338; and the `+ - *` evaluator arms lack the dynamic
+           non-Integer operand guard the division arms carry — R4,
+           issue #339. (d) banker's/half-even rounding (tarot_per_opp) is
+           not expressible with these two directions — a domain exclusion,
+           not a gap (#250/#253/#255 own that surface).
+naming:    `divided by ... rounded up|down` mints no glossary entry: the
+           register's operator forms carry none (`offset_by` lives inside
+           the `direction` concept entry, not as its own), the phrase
+           composes ordinary English with no overload risk, and none of
+           `divided`/`by`/`rounded`/`down`/`up` appears in glossary
+           section 6 or the NAME exclusions (checked fresh in the
+           divided-by counsel on issue #249).
 """
 
 from __future__ import annotations
@@ -344,8 +351,13 @@ def test_choose_adjacency_up_up_to_parses_to_one_reading() -> None:
 
 
 def test_choose_adjacency_single_up_to_is_a_loud_syntax_error() -> None:
-    # `... rounded up to 10`: the direction consumes `up`, bare `to` matches
-    # nothing — a syntax error, never a silent floor-with-ceiling reading.
+    """`... rounded up to 10`: the direction consumes `up`, bare `to` matches
+    nothing — a syntax error, never a silent floor-with-ceiling reading.
+
+    red under: make the rounding direction optional in the term production
+    (`_ROUNDED_KW [_UP_KW]`) — the sentence then parses with the ceiling
+    clause absorbing the lone `up`. Verified by execution: the plant
+    reddens exactly this cell and the missing-direction misuse cell."""
     _rejects(
         _game("for each player q: s[q] := choose integer in 1 .. 4 divided by 2 rounded up to 10"),
         "syntax error",
@@ -401,9 +413,13 @@ def test_predicate_context_hosts_accept() -> None:
 
 
 def test_bare_query_dividend_is_a_loud_syntax_error() -> None:
-    # `number of cards in <zone> divided by ...` without parens: the query is
-    # a complete expr-level alternative, never a term — the sentence is
-    # refused, not silently re-bracketed.
+    """`number of cards in <zone> divided by ...` without parens: the query
+    is a complete expr-level alternative, never a term — the sentence is
+    refused, not silently re-bracketed.
+
+    red under: admit the query forms into the operand chain, e.g. add
+    `| card_query` to `?primary`'s alternatives — the sentence then parses
+    with the query as the dividend."""
     _rejects(
         _game("s[0] := number of cards in hand[0] divided by 2 rounded down"),
         "syntax error",
@@ -536,7 +552,12 @@ def test_double_slash_is_a_comment_the_characterization() -> None:
     by an operator rejection at any layer (executed evidence in the divided-by
     counsel on issue #249: an un-prioritized terminal never wins the resolve,
     a prioritized one steals genuine comments). This pin makes any change to
-    the trap loud; the residual is recorded in the module ledger."""
+    the trap loud; the residual is issue #335, recorded in the module ledger.
+
+    red under: give DIV_OP a prioritized `//` alternative
+    (`DIV_OP.2: "//" | "/" | "%"`) — the operator reading then wins, the
+    builder rejection fires, and the let's value is no longer the bare
+    Subscript this pin asserts."""
     game = parse_text(_game("let x = s[0] // 2"), "mini.cardlang")
 
     def find_lets(node: object) -> list[n.LetStmt]:
@@ -581,6 +602,25 @@ def test_double_slash_is_a_comment_the_characterization() -> None:
     ],
 )
 def test_misuse_is_a_loud_syntax_error(body: str, case_id: str) -> None:
+    """Born green (the sentences are syntax errors before the form exists
+    too); each cell names the grammar edit that would make it parse.
+
+    red under, per cell: missing-rounding-clause / missing-direction /
+    missing-rounded / missing-by — make the corresponding clause optional in
+    the term production (wrap `_ROUNDED_KW`, the direction keyword, or
+    `_BY_KW` in `[...]`); unknown-direction — add a third alternative
+    accepting a bare NAME after `_ROUNDED_KW`; doubled-direction — append
+    `[_DOWN_KW]` after the up-alternative's `_UP_KW`; fused-dividedby /
+    fused-roundedup — drop the anchoring lookahead from `_DIVIDED_KW` /
+    `_ROUNDED_KW` (the keyword-anchoring red-under, keyword_fusion_sweep);
+    rounded-without-divided — add a postfix production
+    `term _ROUNDED_KW _UP_KW`; term-mul-needs-parens — add a term-level
+    `term "*" factor` alternative; no-slash-assign — add `"/="` to
+    `ASSIGN_OP`; doubled-slash-with-space — make div_symbol's right operand
+    optional (`factor DIV_OP [postfix]`). Verified by execution on the
+    optional-direction edit (`_ROUNDED_KW [_UP_KW]`): it reddens exactly the
+    missing-direction cell here plus the single-`up to` adjacency below,
+    with the other eleven cells green."""
     _rejects(_game(body), "syntax error")
 
 

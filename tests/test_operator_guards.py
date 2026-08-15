@@ -34,8 +34,11 @@ covered:   (class, operand-type) cells with an executed probe in this
                           (enum-message), TCard (generic message), TAny
                           (accept, gradual)
              arithmetic  x TInteger (accept), TEnum(Rank) (hint), TEnum(Suit)
-                          (concatenation message), TBoolean (generic
-                          message)
+                          (concatenation message — true of the `+ - *` fork
+                          only; the rounded-division ops read the neutral
+                          no-numeric-value message, pinned by the fork-subset
+                          test below and probed in tests/test_divided_by.py),
+                          TBoolean (generic message)
              logical     x TBoolean (accept), TInteger (reject), TAny
                           (accept, gradual)
              membership  x TCollection-of-matching-element (accept),
@@ -144,6 +147,42 @@ def test_op_classes_is_exactly_infers_binop_registry() -> None:
     binop_src = src[start:end]
     literals = set(re.findall(r'"([^"]+)"', binop_src))
     assert literals == set(OP_CLASSES)
+
+
+def test_concatenation_message_fork_is_the_symbol_arithmetic_subset() -> None:
+    """`_check_arithmetic_operands` forks its enum diagnostic on the ops whose
+    runtime semantics actually string-concatenate — the symbol-spelled subset
+    of ARITHMETIC (`+ - *`). That subset is hand-spelled twice (`infer`'s
+    Integer tuple and the message fork), so this pin derives it from the two
+    registries that define it — OP_CLASSES (class membership) minus
+    OP_SURFACE (the word-spelled ops, which read the neutral
+    no-numeric-value message) — and reconciles the fork against it, plus
+    against `infer`'s scraped literals (whose union the test above already
+    pins to OP_CLASSES). An operator added to one spelling but not the other
+    reads the wrong message flavor; this makes that drift loud instead.
+
+    red under: add "divided_by_rounded_up" to the fork tuple in
+    `_check_arithmetic_operands` (or remove "-" from it)."""
+    from cardlang.typecheck import OP_SURFACE, OpClass, _check_arithmetic_operands
+
+    fork_tuples = re.findall(
+        r"e\.op in \(([^)]*)\)", inspect.getsource(_check_arithmetic_operands)
+    )
+    assert len(fork_tuples) == 1, "exactly one message fork expected"
+    fork_ops = set(re.findall(r'"([^"]+)"', fork_tuples[0]))
+    symbol_arithmetic = {
+        op
+        for op, cls in OP_CLASSES.items()
+        if cls is OpClass.ARITHMETIC and op not in OP_SURFACE
+    }
+    assert fork_ops == symbol_arithmetic
+    # And the same literals appear in `infer`'s BinOp arm (its own tuple),
+    # so the two hand-spellings cannot drift apart silently. Same slice as
+    # the registry test above: quote-pairing is only clean inside the arm.
+    src = inspect.getsource(infer)
+    binop_src = src[src.index("case n.BinOp():") : src.index("case n.Not()")]
+    infer_literals = set(re.findall(r'"([^"]+)"', binop_src))
+    assert fork_ops <= infer_literals
 
 
 def test_an_unclassified_operator_fails_loud_not_silent() -> None:
