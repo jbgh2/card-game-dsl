@@ -80,7 +80,6 @@ CALL_SIGS: dict[str, Sig] = {
     # `holdem_pot_share` — a separate name because a primitive module binds one
     # declared-reads row (issue #232), not because the query differs.
     "holdem_heads_up_pot_share": Sig((TPlayer(),), TInteger()),
-    "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
     # Positional order reads (decisions.md "Position domains and positional
@@ -114,14 +113,7 @@ CALL_SIGS: dict[str, Sig] = {
     "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
     "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
     "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
-    "president_is_top_rank": Sig(
-        (TPlayer(), TCard()), TBoolean()
-    ),  # President: is the card the player's highest rank?
-    "coup_players_in": Sig((), TInteger()),  # Coup: players still holding influence
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
-    "coup_has_char": Sig(
-        (TPlayer(), TOptional(TEnum("Rank"))), TBoolean()
-    ),  # Coup: proof lookup (an unset claim matches no card)
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points

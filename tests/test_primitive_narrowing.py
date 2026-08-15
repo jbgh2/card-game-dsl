@@ -325,11 +325,9 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_royal_player",
         "belote.py::belote_trick_winner",
         "belote.py::belote_trump_height",
-        "bigtwo.py::ROW",
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
-        "bigtwo.py::first_leader_seat",
         "canasta.py::ROW",
         "canasta.py::canasta_add_ok",
         "canasta.py::canasta_black3_ok",
@@ -350,9 +348,7 @@ NARROWED: frozenset[str] = frozenset(
         "canasta.py::canasta_top_starts_pile",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
-        "coup.py::coup_has_char",
         "coup.py::coup_next_in_game",
-        "coup.py::coup_players_in",
         "cribbage.py::ROW",
         "cribbage.py::cribbage_crib_value",
         "cribbage.py::cribbage_show_value",
@@ -390,9 +386,7 @@ NARROWED: frozenset[str] = frozenset(
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
-        "president.py::ROW",
         "president.py::president_follows",
-        "president.py::president_is_top_rank",
         "president.py::president_lead_options",
         "president.py::president_universe",
         "schnapsen.py::ROW",
@@ -442,7 +436,6 @@ MIGRATED: frozenset[str] = frozenset(
         "belote_decl_trump",
         "belote_opp_winning",
         "belote_royal_player",
-        "bigtwo_first_leader",
         "bigtwo_follows",
         "bigtwo_lead_options",
         "bring_in_seat",
@@ -464,9 +457,7 @@ MIGRATED: frozenset[str] = frozenset(
         "canasta_top_is_wild",
         "canasta_top_starts_pile",
         "coup_game_summary",
-        "coup_has_char",
         "coup_next_in_game",
-        "coup_players_in",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -493,7 +484,6 @@ MIGRATED: frozenset[str] = frozenset(
         "pinochle_meld_value",
         "pot_share",
         "president_follows",
-        "president_is_top_rank",
         "president_lead_options",
         "schnapsen_trick_winner",
         "skat_follow_ok",
@@ -1282,7 +1272,7 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     assert card.rank == "3", "mutating the copy reached the engine's Card"
 
     # An immutable scalar (a TPlayer int) is a no-op, not refused.
-    p_sig = CALL_SIGS["president_is_top_rank"]  # [TPlayer, TCard]
+    p_sig = CALL_SIGS["canasta_stage_ok"]  # [TPlayer, TCard]
     assert coerce_args(p_sig, [1, card])[0] == 1
 
 

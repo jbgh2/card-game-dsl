@@ -3,9 +3,8 @@
 The corpus's second climbing game (after Tichu) and the partner instance that —
 together with Tichu — shapes the kernel `climb` construct. Big Two's whole hand
 runs on `round climb` (`docs/games/big-two.cardlang`); this module is the RNG-free
-combination engine plus the three game-local queries the climb round names:
-`bigtwo_lead_options` (lead candidates), `bigtwo_follows` (legal follows), and
-`first_leader_seat` (the 3♦ holder, who leads the first hand).
+combination engine plus the game-local queries the climb round names:
+`bigtwo_lead_options` (lead candidates) and `bigtwo_follows` (legal follows).
 
 The engine has two parts only Big Two has but Tichu does not: suit *always* breaks
 ties (a single 52-card deck, so 7♠ > 7♥), and the five-card group includes flushes
@@ -30,7 +29,7 @@ from typing import Any
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card
 
 ROW = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")
 
@@ -209,13 +208,6 @@ def bigtwo_follows(
     the led play — but the climb round passes them uniformly with the lead
     query."""
     return _legal_follows(hand, current)
-
-
-def first_leader_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The seat holding the 3♦, who leads the first hand of the match."""
-    three = Card("3", "diamonds")
-    hands = gr.families["hand"]
-    return next(p for p in facts.seating.players if three in hands[p])
 
 
 def bigtwo_universe() -> list[Play]:
