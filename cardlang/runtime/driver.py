@@ -1,10 +1,10 @@
 """The game driver: run the phase tree to play a game end to end.
 
-`play_game` sets up the world, runs the top-level phases, and reads the winner.
-`run_phase` handles a phase's state block and its qualifier (`when` guard /
-`repeat until` loop); `run_body` runs the items — modes are configuration, read
-by `phases.compute_active_rules` rather than executed — and threads `let`
-bindings.
+`play_game` sets up the [[world]], runs the top-level phases, and reads the
+[[winner]]. `run_phase` handles a phase's state block and its qualifier (`when`
+guard / `repeat until` loop); `run_body` runs the items — modes are
+configuration, read by `active_rules.compute_active_rules` rather than
+executed — and threads `let` bindings.
 """
 
 from __future__ import annotations
@@ -237,7 +237,8 @@ def _final_card_census(rs: RuntimeState) -> dict[str, int]:
 
 
 class _HandCounter:
-    """Counts scoring phases run, for diagnostics / invariant checks."""
+    """Counts scoring phases run — the [[hand-loop]]'s passes, as `hands_played`
+    reports them — for diagnostics / invariant checks."""
 
     def __init__(self) -> None:
         self.value = 0

@@ -1,13 +1,14 @@
-"""Mechanic runtime: the kernel `round` and the per-game hand engines.
+"""Mechanic runtime: the kernel [[round]] and its three [[form]]s.
 
 `run_decision_round` is the one parameterized per-step decision loop behind every
 kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
 sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
-participant plays a legal card, a winner function picks the winner), `AuctionForm`
-(a continuous ring/priority pass over an offering, threading a bid history, serving
-*both* the auction and betting forms), and `ClimbForm` (one combination-climbing
-trick over game-local engine queries). `build_form` selects the bundle by
-field-presence and `execute.py` dispatches on the returned Outcome union.
+participant plays a legal card, a [[winner]] function picks the winner),
+`AuctionForm` (a continuous ring/priority pass over an [[offering]], threading a
+bid history, serving *both* the auction and betting forms), and `ClimbForm` (one
+combination-climbing trick over game-local engine queries). `build_form` selects
+the bundle by field-presence and `execute.py` dispatches on the returned Outcome
+union.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ Outcome = Player | tuple[str, list[Any]] | None
 
 
 class DecisionForm(Protocol):
-    """The six pluggable slots of one kernel `round` form."""
+    """The six pluggable slots of one kernel `round` [[form]]."""
 
     def init(self, state: RoundState, ctx: Ctx) -> RoundState:
         """Seed the accumulator and cursor into `state`, returning it."""
@@ -112,13 +113,14 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
 
 
 class TrickForm:
-    """The trick form: one turn-order pass from the leader, each participant
+    """The [[trick]] form: one turn-order pass from the leader, each participant
     playing one legal card, until every participant has played (`next_actor` ⇒
     `None`) or an `early` predicate ends the pass; the winner function then picks
-    the winner. Alone among the forms it exposes its `state` to the surrounding
-    body — `init` pushes the accumulator onto `mech_state` (the `state.` pronoun),
-    which `run_decision_round` pops into `last_round_state` once the round closes,
-    so the body can still read `state.trick_terminated_early` afterward."""
+    the winner. Alone among the forms it exposes its [[round-state]] to the
+    surrounding body — `init` pushes the accumulator onto `mech_state` (the
+    `state.` pronoun), which `run_decision_round` pops into `last_round_state`
+    once the round closes, so the body can still read
+    `state.trick_terminated_early` afterward."""
 
     def __init__(self, stmt: n.TrickRound, ctx: Ctx) -> None:
         from cardlang.runtime import primitives
@@ -306,7 +308,7 @@ def concrete_moves(mt: n.MoveTypeDef, actor: Player, ctx: Ctx) -> list[tuple[str
 
 
 class AuctionForm:
-    """The auction/betting form: a continuous ring over an offering, looping
+    """The auction/betting form: a continuous ring over an [[offering]], looping
     until the termination predicate holds.
 
     Each turn the acting player chooses one of the legal *concrete* moves — every
@@ -454,7 +456,7 @@ class ClimbForm:
     player — the trick ends when action returns to the last player who played
     (everyone else passed one full lap, `next_actor` ⇒ `None`), or when the `until`
     predicate holds (a player has shed out, ending the hand mid-trick). The last
-    player to play is the winner, bound as `winner` for the surrounding body,
+    player to play is the [[winner]], bound as `winner` for the surrounding body,
     which routes the pile and sets the next lead. The combination engine is
     game-local, so this depends only on the queries' interface: each returns a list
     of plays, and a play exposes the cards it moves as a `.cards` tuple — plus,

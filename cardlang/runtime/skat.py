@@ -1,15 +1,16 @@
-"""Skat's game-local runtime primitives.
+"""Skat's game-local runtime [[primitive]]s.
 
 The hand runs fully on the kernel (skat.cardlang): the Reizen call-and-response
-is the auction form of `round` over a role-guarded two-participant ring, the
+is the auction [[form]] of `round` over a role-guarded two-participant ring, the
 contract declaration a pair of `offer`s plus a one-draw suit round, the ten
-tricks three single-actor filtered movements per trick, and the scoring plain
+tricks three single-actor filtered [[transfer]]s per trick, and the scoring plain
 statements. What stays game-local: the 62-value bid ladder, the per-contract
 follow-class legality and trick resolution (the four jacks and the trump suit
 are one follow class in Suit and Grand; Null has no trumps and its own rank
 order), matador counting, and the overbid arithmetic (a ceiling the expression
-language lacks). The trick primitive also emits the play/trick_end/trick trace
-events the playout harness recomputes winners from (tests/test_playout_skat.py).
+language lacks). The trick primitive also emits the play/trick_end/trick
+[[trace-event]]s the playout harness recomputes winners from
+(tests/test_playout_skat.py).
 
 The contract-dependent primitives read the declared contract from phase state
 (`is_grand` / `is_null` / `trump_suit`) — the Stud/Cribbage precedent for

@@ -29,7 +29,7 @@ OpenSpiel combo block canonicalizes joint subsets by frozenset — a
 {K spades, K spades} pair would collapse into {K spades}, colliding two
 different actions. The staged per-card encoding uses only card-block ids,
 which duplicate copies share soundly (identical cards are interchangeable).
-The combo-block limitation itself has a loud Owner Guard at
+The combo-block limitation itself has a loud [[owner-guard]] at
 `ActionSpace.for_game` and is recorded in roadmap.md, "Grammar surface
 deferred by the checker".
 

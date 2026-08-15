@@ -1,9 +1,10 @@
-"""Declared reads for game-local runtime primitives.
+"""Declared reads for game-local runtime [[primitive]]s.
 
 A game-local primitive (`cardlang/runtime/<game>.py`, plus the per-game
 auction outcomes in `stdlib.py`) is sanctioned Python for pure value
 computation (library.md "Stdlib functions"; kernel-migration.md). It reads
-live `RuntimeState` by the zone/state-variable name the game file declares —
+live `RuntimeState` by the zone / [[state-variable]] name the game file
+declares —
 a coupling the front-end pipeline cannot see: nothing about
 `zones { influence[player] : Hand<player> }` tells resolve or typecheck that
 `coup.py` also spells this name. Undeclared, that coupling surfaces as a
@@ -508,10 +509,10 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
     `player_holding` scans `hand[player]`, the language-wide magic name
     (decisions.md "Declared parameter domains"). Not registry-keyed — the
     coupling is to the language rule, not to any one game file — but held to
-    the same failure channel: a game that declares no `hand[player]` family
+    the same [[failure-channel]]: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name check only covers games with `Card`-typed move parameters, so this
-    is an Owner Guard, not a Shadow Guard.)
+    is an [[owner-guard]], not a [[shadow-guard]].)
 
     Returns player-keyed instances: `hand` is a `hand[player]` family by the
     magic-name rule, so its keys are seats even though the generic zone store

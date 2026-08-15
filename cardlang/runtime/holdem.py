@@ -2,7 +2,7 @@
 
 The corpus's second side-pot game. Chips are integer state (a `stack` per
 player), not a resource-zone subsystem. The whole hand — blinds, the burn-and-
-deal sequence, the four betting streets on the kernel `round` in priority
+deal sequence, the four betting streets on the kernel [[round]] in priority
 order, and the showdown (reveal, per-entrant pot collection, muck) — runs in
 the DSL (holdem.cardlang); this module holds only the pure functions not
 expressible there:
@@ -47,8 +47,8 @@ def holdem_next_entrant(facts: EngineFacts, gr: reads.GameReads, player: Player)
     positional and must skip such seats. Total by construction at every call
     site: the hand only runs while at least two seats hold chips, so some
     entrant always exists — the exhausted-ring raise below is this class's
-    Owner Guard, and a well-formed hand sequence never reaches it. It is not a
-    Shadow Guard: what keeps it unreachable is holdem.cardlang's own hand
+    [[owner-guard]], and a well-formed hand sequence never reaches it. It is not
+    a [[shadow-guard]]: what keeps it unreachable is holdem.cardlang's own hand
     sequence, not an engine guard it could name, so a firing means the game
     description is at fault."""
     in_hand = gr.state["in_hand"]

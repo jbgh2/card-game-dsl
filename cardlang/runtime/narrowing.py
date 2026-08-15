@@ -1,4 +1,4 @@
-"""The narrow interface a game-local primitive sees.
+"""The narrow interface a game-local [[primitive]] sees.
 
 A primitive is sanctioned Python for pure value computation (library.md
 "Stdlib functions"). Until this module existed, that purity was
@@ -9,8 +9,8 @@ emit), `RuntimeState.set`/`declare` (so it could mutate), and every zone in
 the game (so it could read a hidden holding it never declared). Nothing
 structural said no.
 
-This module is the no. A narrowed primitive receives two frozen bundles of
-plain values and nothing else:
+This module is the no. A narrowed primitive receives the two frozen halves of
+its [[primitive-bundle]], plain values and nothing else:
 
   `EngineFacts`  the engine-structural facts — the seating ring, the
                  team map, the rank strengths, the round accumulator
@@ -52,7 +52,7 @@ from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player, Seating
 
 TraceEvent = tuple[str, Any]
-"""One deferred trace emission: `(event name, payload)`.
+"""One deferred [[trace-event]] emission: `(event name, payload)`.
 
 A few primitives compute a real value AND emit the engine's own
 `play`/`trick`/`trick_end` trace events from a game-local site. Emitting needs

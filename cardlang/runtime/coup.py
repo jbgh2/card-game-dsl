@@ -1,4 +1,4 @@
-"""Coup's game-local runtime primitives — all pure reads and trace emitters.
+"""Coup's game-local runtime [[primitive]]s — all pure reads and trace emitters.
 
 The game runs fully on the kernel at real interactive scope (coup.cardlang):
 the turn's action pick, every challenge, every block (and WHICH character it
@@ -8,7 +8,7 @@ publicly before returning it to the deck. Nothing here draws randomness: what
 stays game-local is the in-game/seat scans and the character lookup (pure
 reads) plus the `coup_game` trace primitive the characterization golden and
 the playout invariants consume; the reveal sequence itself derives at the
-harness layer from observation events (tests/playout_trace.py).
+harness layer from [[observation-event]]s (tests/playout_trace.py).
 """
 
 from __future__ import annotations

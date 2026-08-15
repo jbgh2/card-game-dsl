@@ -1,14 +1,14 @@
-"""Builtins: the generic native functions the language ships.
+"""[[builtins]]: the generic native functions the language ships.
 
 A Builtin's meaning belongs to the language, not to one game — a board step,
-a card's rank strength under the declared ranking, the seat holding a card.
+a card's rank strength under the declared ranking, the [[seat]] holding a card.
 The checker declares them (`cardlang/builtins/functions.py`,
 `cardlang/builtins/signatures.py`); this module implements them.
 
-Its two siblings are deliberately separate words: **Primitives** are sanctioned
-game-local Python (`cardlang/runtime/primitives.py`), and the **Stdlib** is the
-layer written in the language itself (`cardlang/stdlib/`). Builtins shrink as
-functions become expressible and migrate into the Stdlib.
+Its two siblings are deliberately separate words: **[[primitive]]s** are
+sanctioned game-local Python (`cardlang/runtime/primitives.py`), and the
+**[[stdlib]]** is the layer written in the language itself (`cardlang/stdlib/`).
+Builtins shrink as functions become expressible and migrate into the Stdlib.
 
 Contract
 --------
@@ -112,8 +112,8 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     """The instantiated `board:` entry the class-1 movement/region verbs read
-    (the `_lines` twin). Resolve's Owner Guard rejects a board-only call in a
-    boardless game (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it
+    (the `_lines` twin). Resolve's [[owner-guard]] rejects a board-only call in a
+    boardless game (BOARD_ONLY_CALL_FUNCS); this [[shadow-guard]] stands behind it
     in the runtime's own channel, naming the missing `board:`, should such a
     call ever reach here without a board."""
     board = ctx.rs.board

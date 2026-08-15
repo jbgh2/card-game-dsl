@@ -1,8 +1,10 @@
 """Runtime value types: cards, players, and the seating ring.
 
 These are the concrete objects the interpreter manipulates — the live
-counterparts to the DSL's `Card`, `Player`, and `Seating` stdlib types.
-Hearts only needs a standard 52-card deck and a four-player ring.
+counterparts to the DSL's `Card`, `Player`, and `Seating` stdlib types. `Card`
+carries both flavors of [[card-piece]]: a board game's marks and men are `Card`s
+too. `COMPONENT_SETS` below is the registry a game's `cards:`/`pieces:` clause
+selects from: card decks, uniform and not, and the board games' piece sets.
 """
 
 from __future__ import annotations
@@ -51,8 +53,9 @@ class Deck:
 
 @dataclass(frozen=True, slots=True)
 class ComponentSet:
-    """One `cards:`/`pieces:` registry entry. `axes` bind positionally to the
-    `Deck` item slots: axes[0] is the suit slot, axes[1] the rank slot."""
+    """One `cards:`/`pieces:` registry entry — a [[component-set]]. `axes` bind
+    positionally to the `Deck` item slots: axes[0] is the suit slot, axes[1] the
+    rank slot."""
 
     flavor: Flavor
     axes: tuple[str, str]
@@ -246,7 +249,7 @@ class Card:
 
 @dataclass(frozen=True, slots=True)
 class CardSet:
-    """A joint-selection candidate: one subset of a movement's source pool
+    """A joint-selection [[candidate]]: one subset of a [[transfer]]'s source pool
     (`where jointly` — decisions.md "Joint-predicate selection"). Exposes
     `.cards` because that is the runtime's convention for set-valued
     decision candidates (a climb `Play` does the same), which is what the
@@ -265,7 +268,7 @@ def component_set(name: str) -> ComponentSet | None:
 
 
 def _require_component_set(name: str) -> ComponentSet:
-    """The named set, or a loud `NotImplementedError` — resolve's Owner Guard
+    """The named set, or a loud `NotImplementedError` — resolve's [[owner-guard]]
     rejects an unknown/mis-flavored name, so every runtime lookup miss is a
     driver bug, never a designer error. One raise for `build_deck`/
     `component_deck`/`axis_attributes`."""
@@ -407,12 +410,13 @@ GAME_DIRECTIONS: tuple[str, ...] = ("clockwise", "counterclockwise")
 
 @dataclass(frozen=True, slots=True)
 class Seating:
-    """A ring of players with directional navigation.
+    """A ring of players, navigated by turn direction and by seat direction.
 
-    `direction: clockwise` means increasing index is clockwise, so the turn-order
-    ring advances by +1; `counterclockwise` advances by -1. `offset_by left`/
-    `right` are absolute (+1 / -1) in either ring; for four players `across` is
-    the opposite seat.
+    Turn direction is the `direction:` clause: `clockwise` means increasing index
+    is clockwise, so the turn-order ring advances by +1; `counterclockwise`
+    advances by -1. Seat direction is `offset_by left`/`right`, absolute
+    (+1 / -1) in either ring; for four players `across` is the opposite
+    [[seat]].
     """
 
     count: int
@@ -435,8 +439,8 @@ class Seating:
         return self.offset_by(player, "left")
 
     def turn_order_from(self, leader: Player) -> list[Player]:
-        """Players in turn order from `leader`, following the game's direction:
-        +1 per seat clockwise, -1 counterclockwise.
+        """Players in turn order from `leader`, following the game's turn
+        direction: +1 per seat clockwise, -1 counterclockwise.
 
         `leader` is validated here, at the ONE place every `from <leader>`
         clause converges, rather than at each form that builds a ring. The

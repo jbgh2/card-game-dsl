@@ -4,7 +4,7 @@ The whole hand — the crib discards, the starter cut (his heels), pegging
 (fifteens, pairs, runs, 31, go / last card), and the show (fifteens, pairs,
 runs, flush, his nob over non-dealer / dealer / crib in order, stopping the
 instant a player crosses 121) — runs in the DSL (docs/games/cribbage.cardlang)
-as filtered movements and ordinary statement control flow. This module holds
+as filtered [[transfer]]s and ordinary statement control flow. This module holds
 what is not expressible there:
 
 - `value`/`count_fifteens`/`count_pairs`/`run_score`/`flush_score`/
@@ -18,7 +18,7 @@ what is not expressible there:
   order; the declaration is the single source of truth for what "adjacent
   ranks" means.
 - `peg_origin`/`peg_origin_of` — the pegging sub-round's card-provenance
-  decoder. Zones don't retain who moved a card, and no `round` form fits
+  decoder. Zones don't retain who moved a card, and no `round` [[form]] fits
   pegging's per-play scoring plus forced-play flow (docs/kernel-migration.md,
   WS4), so `phase play` tracks provenance itself as two Integer state vars
   (`seq_bits` packs one bit per play, MSB first, 1 = dealer; `seq_len` counts

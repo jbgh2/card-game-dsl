@@ -1,24 +1,24 @@
-"""500's game-local runtime primitives.
+"""500's game-local runtime [[primitive]]s.
 
 The hand runs fully on the kernel (five-hundred.cardlang): the ascending
-auction is the drop-out ring form of `round` (the Pinochle shape), the kitty
-pickup and discard are plain movements, the joker nomination an `offer`, and
-the ten tricks single-actor filtered movements (the Skat/Doppelkopf shape).
+auction is the drop-out ring [[form]] of `round` (the Pinochle shape), the kitty
+pickup and discard are plain [[transfer]]s, the joker nomination an `offer`, and
+the ten tricks single-actor filtered transfers (the Skat/Doppelkopf shape).
 What stays game-local: the 27-rung bid ladder with the misère insertions, the
 per-contract follow/lead legality, and trick resolution — the joker and both
 bowers behave in all respects as members of the trump suit (the Skat
 jacks-as-a-follow-class precedent, plus an effective-suit remap for the left
 bower), and in the no-trump family the joker is suitless (or, once nominated,
 the highest card of its suit). The trick primitive also emits the
-play/trick_end/trick trace events the playout harness recomputes winners from
-(tests/test_playout_five_hundred.py).
+play/trick_end/trick [[trace-event]]s the playout harness recomputes winners
+from (tests/test_playout_five_hundred.py).
 
 The contract-dependent primitives read the declared contract from phase state
 (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` / `declarer`) —
 the Skat/Stud precedent for game-local primitives over live state.
 
 Contract ordinals: every bid is a rung on one strictly-ordered ladder,
-encoded as an integer so the standing bid is one public state variable.
+encoded as an integer so the standing bid is one public [[state-variable]].
 Suit/no-trump bids take 10*((level-6)*5 + strain) with strain ♠1 ♣2 ♦3 ♥4
 NT5 (so 6♠=10 … 10NT=250); misère sits at 105 (above every seven bid, below
 every eight bid) and open misère at 235 (above 10♦, below 10♥). Point values
@@ -77,7 +77,7 @@ def five_hundred_bid_value(rank: int) -> int:
     """The score value of a contract ordinal: the Pagat table (6♠=40, +20 per
     strain, +100 per level, 10NT=520), misère 250, open misère 500. Any other
     integer is no contract — the ladder above is the whole domain, so a stray
-    value is the description's error, so this raise is its Owner Guard."""
+    value is the description's error, so this raise is its [[owner-guard]]."""
     if rank == _MISERE_ORD:
         return 250
     if rank == _OPEN_MISERE_ORD:

@@ -1,6 +1,7 @@
-"""Runtime interpreter for the Card Game DSL (Hearts vertical slice).
+"""Runtime interpreter for the Card Game DSL.
 
-Executes the resolved typed AST to play a game end to end, so a random-playout
-harness can test that the IR is executable. See docs/games/hearts.cardlang for
-the game and docs/decisions.md for the runtime semantics it relies on.
+Executes the resolved typed AST to play a [[game]] end to end, so a
+random-playout harness can test that the [[ir]] is executable. It runs the whole
+corpus (`docs/games/`), not one game; docs/decisions.md holds the runtime
+semantics it relies on.
 """

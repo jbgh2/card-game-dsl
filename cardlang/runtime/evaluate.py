@@ -1,7 +1,7 @@
 """Expression evaluator.
 
 `evaluate(expr, ctx)` walks an `n.Expr` and returns a runtime value. The key
-move is `NameRef` dispatch on the `ref_kind` the resolver assigned — that is
+move is `NameRef` dispatch on the [[ref-kind]] the resolver assigned — that is
 exactly what the deep-resolution pass exists to make possible.
 """
 
@@ -187,7 +187,7 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "bool":
             return e.name == "true"
         case "enum_value":
-            return e.name  # suits/directions are their own string value
+            return e.name  # suits/board directions are their own string value
         case "pronoun":
             return _pronoun(e.name, ctx)
         case "function":

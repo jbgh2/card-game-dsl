@@ -2,12 +2,12 @@
 
 The corpus's first betting game. Chips are integer state (a `stack` per player),
 not a resource-zone subsystem. The whole hand — antes, deal, bring-in post, the
-five betting streets (3rd–7th) on the kernel `round` in priority order, and the
+five betting streets (3rd–7th) on the kernel [[round]] in priority order, and the
 showdown (reveal, per-entrant pot collection, muck) — runs in the DSL
 (seven-card-stud.cardlang); this module holds only the pure functions not
 expressible there:
 
-- `bring_in_seat` / `first_to_act_seat` — the door-card seat selectors (argmin /
+- `bring_in_seat` / `first_to_act_seat` — the door-card [[seat]] selectors (argmin /
   argmax over players), stdlib primitives the betting phase calls;
 - `pot_share` — the showdown side-pot query (argmax over poker-rank tuples per
   layer), the stdlib primitive the showdown's settle statement calls.

@@ -2,12 +2,13 @@
 
 The hand runs fully on the kernel (tichu.cardlang): the Tichu/Grand-Tichu
 calls and the push are plain statements (a `for each player` of one chosen
-3-card movement, then a draw-free giver-major distribution), each climbing
-trick is one `round climb` over the combination engine's queries, and the
+3-card [[transfer]], then a draw-free giver-major distribution), each climbing
+[[trick]] is one `round climb` over the combination engine's queries, and the
 finishing/scoring flow is statement control flow over the round's terminal
 state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
-What stays game-local: the combination engine itself (`combinations.py`,
-shared with nothing — Big Two's differs), the two non-chooser RNG sites the
+What stays game-local: the combination engine itself
+(`tichu_combinations.py`, shared with nothing — Big Two's differs), the two
+non-chooser RNG sites the
 monolith drew (the call-rate gates and the Dragon's trick going to a random
 opponent — reproduced draw-for-draw at the same sites), team lookups,
 and the card-point table.

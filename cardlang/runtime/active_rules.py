@@ -1,4 +1,4 @@
-"""Active-rule computation for a phase, including its modes.
+"""Active-[[rule]] computation for a [[phase]], including its [[mode]]s.
 
 A phase's active rules are its plain `active_rules` entries plus the deltas
 contributed by whichever of its modes currently hold. Hearts' `hearts_not_broken`

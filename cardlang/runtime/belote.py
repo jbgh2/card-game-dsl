@@ -39,8 +39,8 @@ holds only what is not expressible there:
 
 The announcement's public CONTENT rides the declaration move's name and
 Rank parameter (`declare_tierce(K)`, `declare_carre(J)`, …), never a state
-write: a player's information set derives from their observation log plus
-zone projections, and a decision's announce event carries exactly the move
+write: a player's information set derives from their [[observation-log]] plus
+zone [[projection]]s, and a decision's announce event carries exactly the move
 name and parameter — so what was announced must be spelled there (the
 Doppelkopf announcement move types are the precedent; belote.md,
 "Declarations").
@@ -119,7 +119,8 @@ def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
     """The live round accumulator, or the just-completed round's terminal
     state — exactly the `state` pronoun's view (`mech_state[-1]` while a round
     runs, else `last_round_state`). Whether a round is live is game flow, so a
-    premature call is the description's error, so this raise is its Owner Guard."""
+    premature call is the description's error, so this raise is its
+    [[owner-guard]]."""
     state = facts.round_state
     if state is None:
         raise OwnerGuardError(

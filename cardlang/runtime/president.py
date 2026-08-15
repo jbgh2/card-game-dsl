@@ -1,8 +1,9 @@
 """President's combination engine and game-local stdlib queries.
 
 The corpus's third climbing game (after Tichu and Big Two). The whole hand runs
-on `round climb` (`docs/games/president.cardlang`); this module is the RNG-free
-combination engine plus the queries the climb round and the game body name:
+on the climb [[form]] of [[round]] (`docs/games/president.cardlang`); this module
+is the RNG-free combination engine plus the queries the climb round and the game
+body name:
 `president_lead_options` (lead candidates), `president_follows` (legal follows,
 including the transparent-threes variant), and `president_is_top_rank` (the
 between-hands exchange filter: is this card the Scum's highest?). The

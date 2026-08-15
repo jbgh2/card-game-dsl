@@ -1,7 +1,7 @@
-"""Doppelkopf's game-local runtime primitive.
+"""Doppelkopf's game-local runtime [[primitive]].
 
 The hand runs fully on the kernel (doppelkopf.cardlang): hand-rolled tricks
-(four single-actor filtered movements, the Skat shape) with a quiescence-lap
+(four single-actor filtered [[transfer]]s, the Skat shape) with a quiescence-lap
 announcement poll before each play, follow legality and the announcement
 guards in in-DSL functions, and the scoring in plain statements. What stays
 game-local is exactly one query the expression language cannot phrase: the
@@ -67,10 +67,10 @@ def doko_trick_winner(
             f"doko_trick_winner: trick pile holds {len(cards)} cards, expected "
             f"a completed 4-card trick"
         )
-    # Seat attribution relies on the game pairing `turn_order_from` (seating
-    # direction) with the same step its play loop uses (`offset_by left`,
-    # clockwise here). A game combining counterclockwise seating with
-    # offset_by-left play order would silently mislabel the pairs.
+    # Seat attribution relies on the game pairing `turn_order_from` (turn
+    # direction) with the same step its play loop uses (`offset_by left`, a seat
+    # direction, clockwise here). A game combining a counterclockwise turn
+    # direction with offset_by-left play order would silently mislabel the pairs.
     played = list(zip(facts.seating.turn_order_from(leader), cards))
     events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     trumps = [(p, c) for p, c in played if _is_trump(c)]
