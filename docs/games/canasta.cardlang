@@ -129,7 +129,7 @@ game Canasta {
           // Turn up the pile's first card; a wild or red three stacks
           // beneath (freezing the pile) until a start card appears.
           deal 1 cards from deck to pile_top
-          repeat until canasta_top_starts_pile() {
+          repeat until (not canasta_is_wild(top_of(pile_top))) and (not canasta_is_red3(top_of(pile_top))) {
             move all cards from pile_top to pile_rest
             pile_frozen := true
             deal 1 cards from deck to pile_top
@@ -227,7 +227,7 @@ move_type draw_stock {
 move_type take_pile {
   when: canasta_can_take_pile(actor)
   effect {
-    meld_rank := canasta_pile_rank()
+    meld_rank := top_of(pile_top).rank
     taking_pile := true
     move all cards from pile_top to stage[actor]
   }
@@ -337,7 +337,134 @@ move_type end_discard {
   effect {
     move all cards from pile_top to pile_rest
     move chosen one card from hand[actor] where canasta_discard_ok(actor, card) to pile_top
-    if canasta_top_is_wild() { pile_frozen := true }
+    if canasta_is_wild(top_of(pile_top)) { pile_frozen := true }
     turn_done := true
   }
 }
+
+// --- the game's own sentences: card classes, the canasta test, and the
+// window guards that need no joint reasoning. The meld-attempt core (joint
+// meld legality, take justification, initial minimums, go-out safety under
+// composition) stays in cardlang/runtime/canasta.py.
+
+// Jokers and deuces are wild.
+function canasta_is_wild(c : Card) = c.rank is Joker or c.rank is "2"
+
+// A red three: a bonus card, laid out and replaced on sight, never melded.
+function canasta_is_red3(c : Card) =
+  c.rank is "3" and (c.suit is hearts or c.suit is diamonds)
+
+// A black three: a stop card; meldable only as the going-out group.
+function canasta_is_black3(c : Card) =
+  c.rank is "3" and (c.suit is clubs or c.suit is spades)
+
+// Does the side own a canasta (a seven-card meld)? Scanned over every meld
+// pile, the black-three go-out pile included.
+function canasta_has_canasta(u : Team) =
+  (number of cards in meldA[u]) >= 7 or (number of cards in meldK[u]) >= 7
+  or (number of cards in meldQ[u]) >= 7 or (number of cards in meldJ[u]) >= 7
+  or (number of cards in meld10[u]) >= 7 or (number of cards in meld9[u]) >= 7
+  or (number of cards in meld8[u]) >= 7 or (number of cards in meld7[u]) >= 7
+  or (number of cards in meld6[u]) >= 7 or (number of cards in meld5[u]) >= 7
+  or (number of cards in meld4[u]) >= 7 or (number of cards in meld3b[u]) >= 7
+
+// May `p` end the turn by discarding? Any card may go (`c` is deliberately
+// unread — the choice is free); discarding the LAST card is going out,
+// legal only once the side has a canasta.
+function canasta_discard_ok(p : Player, c : Card) =
+  (number of cards in hand[p]) >= 2 or canasta_has_canasta(team_of(p))
+
+// May `p` meld their black threes? Only as part of going out: the side has
+// a canasta, and the hand is three or four black threes plus at most one
+// other card (the final discard).
+function canasta_black3_ok(p : Player) =
+  canasta_has_canasta(team_of(p))
+  and ((number of cards in hand[p] where canasta_is_black3(card)) is 3
+       or (number of cards in hand[p] where canasta_is_black3(card)) is 4)
+  and ((number of cards in hand[p]) is (number of cards in hand[p] where canasta_is_black3(card))
+       or (number of cards in hand[p]) is (number of cards in hand[p] where canasta_is_black3(card)) + 1)
+
+// May `c` be laid onto the side's standing meld of `r`? A natural of the
+// rank always fits; a wild while the pile holds fewer than three wilds.
+// Guarded by go-out safety: the add leaves two cards in hand, or the side
+// with (or completing) a canasta. One arm per meld family — the zone-family
+// flattening's dispatch, exactly as in close_meld / add_to_meld.
+function canasta_add_ok(p : Player, r : Rank, c : Card) =
+  if r is A then
+    meldA[team_of(p)] is not empty
+    and (c.rank is A or (canasta_is_wild(c)
+         and (number of cards in meldA[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meldA[team_of(p)]) + 1 >= 7)
+  elif r is K then
+    meldK[team_of(p)] is not empty
+    and (c.rank is K or (canasta_is_wild(c)
+         and (number of cards in meldK[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meldK[team_of(p)]) + 1 >= 7)
+  elif r is Q then
+    meldQ[team_of(p)] is not empty
+    and (c.rank is Q or (canasta_is_wild(c)
+         and (number of cards in meldQ[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meldQ[team_of(p)]) + 1 >= 7)
+  elif r is J then
+    meldJ[team_of(p)] is not empty
+    and (c.rank is J or (canasta_is_wild(c)
+         and (number of cards in meldJ[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meldJ[team_of(p)]) + 1 >= 7)
+  elif r is "10" then
+    meld10[team_of(p)] is not empty
+    and (c.rank is "10" or (canasta_is_wild(c)
+         and (number of cards in meld10[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld10[team_of(p)]) + 1 >= 7)
+  elif r is "9" then
+    meld9[team_of(p)] is not empty
+    and (c.rank is "9" or (canasta_is_wild(c)
+         and (number of cards in meld9[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld9[team_of(p)]) + 1 >= 7)
+  elif r is "8" then
+    meld8[team_of(p)] is not empty
+    and (c.rank is "8" or (canasta_is_wild(c)
+         and (number of cards in meld8[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld8[team_of(p)]) + 1 >= 7)
+  elif r is "7" then
+    meld7[team_of(p)] is not empty
+    and (c.rank is "7" or (canasta_is_wild(c)
+         and (number of cards in meld7[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld7[team_of(p)]) + 1 >= 7)
+  elif r is "6" then
+    meld6[team_of(p)] is not empty
+    and (c.rank is "6" or (canasta_is_wild(c)
+         and (number of cards in meld6[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld6[team_of(p)]) + 1 >= 7)
+  elif r is "5" then
+    meld5[team_of(p)] is not empty
+    and (c.rank is "5" or (canasta_is_wild(c)
+         and (number of cards in meld5[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld5[team_of(p)]) + 1 >= 7)
+  else
+    // Structurally r is "4" here: the declared partial ranking is the Rank
+    // parameter domain (threes and the wild ranks are excluded by
+    // construction).
+    meld4[team_of(p)] is not empty
+    and (c.rank is "4" or (canasta_is_wild(c)
+         and (number of cards in meld4[team_of(p)] where canasta_is_wild(card)) < 3))
+    and ((number of cards in hand[p]) - 1 >= 2 or canasta_has_canasta(team_of(p))
+         or (number of cards in meld4[team_of(p)]) + 1 >= 7)
+
+// The red-three bonus: 100 each (800 for all four), positive once the side
+// has melded, negative while it has not.
+function canasta_red3_bonus(u : Team) =
+  if team_melded[u]
+  then (if (number of cards in red3[u]) is 4 then 800
+        else 100 * (number of cards in red3[u]))
+  else 0 - (if (number of cards in red3[u]) is 4 then 800
+            else 100 * (number of cards in red3[u]))

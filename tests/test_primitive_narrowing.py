@@ -329,23 +329,14 @@ NARROWED: frozenset[str] = frozenset(
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
         "canasta.py::ROW",
-        "canasta.py::canasta_add_ok",
-        "canasta.py::canasta_black3_ok",
         "canasta.py::canasta_can_start",
         "canasta.py::canasta_can_take_pile",
         "canasta.py::canasta_canasta_bonus",
         "canasta.py::canasta_close_ok",
-        "canasta.py::canasta_discard_ok",
         "canasta.py::canasta_hand_points",
-        "canasta.py::canasta_is_black3",
-        "canasta.py::canasta_is_red3",
         "canasta.py::canasta_meld_points",
         "canasta.py::canasta_must_take_pile",
-        "canasta.py::canasta_pile_rank",
-        "canasta.py::canasta_red3_bonus",
         "canasta.py::canasta_stage_ok",
-        "canasta.py::canasta_top_is_wild",
-        "canasta.py::canasta_top_starts_pile",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
         "coup.py::coup_next_in_game",
@@ -433,23 +424,14 @@ MIGRATED: frozenset[str] = frozenset(
         "bigtwo_follows",
         "bigtwo_lead_options",
         "bring_in_seat",
-        "canasta_add_ok",
-        "canasta_black3_ok",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
-        "canasta_discard_ok",
         "canasta_hand_points",
-        "canasta_is_black3",
-        "canasta_is_red3",
         "canasta_meld_points",
         "canasta_must_take_pile",
-        "canasta_pile_rank",
-        "canasta_red3_bonus",
         "canasta_stage_ok",
-        "canasta_top_is_wild",
-        "canasta_top_starts_pile",
         "coup_game_summary",
         "coup_next_in_game",
         "cribbage_crib_value",
@@ -1250,8 +1232,8 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     from cardlang.builtins.signatures import CALL_SIGS
     from cardlang.runtime.reads import coerce_args
 
-    card = Card("3", "hearts")  # a red three
-    (coerced,) = coerce_args(CALL_SIGS["canasta_is_red3"], [card])
+    card = Card("3", "hearts")
+    (coerced,) = coerce_args(CALL_SIGS["peg_value"], [card])
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"
