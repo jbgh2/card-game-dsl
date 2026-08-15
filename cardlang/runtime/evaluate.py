@@ -187,7 +187,11 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "bool":
             return e.name == "true"
         case "enum_value":
-            return e.name  # suits/board directions are their own string value
+            # Suits, bare ranks and the SEAT directions (`resolve._categories`
+            # keys `enum_value` on `SEAT_DIRECTION_VALUES`) are their own string
+            # value. A BOARD direction never reaches here: it binds as a move
+            # parameter typed `TDir` and arrives as a local.
+            return e.name
         case "pronoun":
             return _pronoun(e.name, ctx)
         case "function":

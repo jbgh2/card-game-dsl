@@ -237,8 +237,10 @@ def _final_card_census(rs: RuntimeState) -> dict[str, int]:
 
 
 class _HandCounter:
-    """Counts scoring phases run — the [[hand-loop]]'s passes, as `hands_played`
-    reports them — for diagnostics / invariant checks."""
+    """Counts executions of phases literally named `scoring`, reported as
+    `hands_played`, for diagnostics / invariant checks. That is a PROXY for the
+    [[hand-loop]]'s passes, not a count of them: a game whose scoring phase is
+    named otherwise reports zero (→ F-6)."""
 
     def __init__(self) -> None:
         self.value = 0
