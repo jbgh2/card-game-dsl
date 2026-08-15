@@ -1809,9 +1809,10 @@ machinery, and two rummy-family games prove the two halves:
   group persists outside its zone.
 - **Typed state is derived from composition, never stored.** Natural vs
   mixed, canasta-completion, wild-count legality are pure functions of the
-  pile's contents, evaluated at every read by game-local primitives (the
-  guards at extension time, the scorers at hand end). Storing group state
-  beside the cards would create a second source of truth.
+  pile's contents, evaluated at every read by the game's own functions and
+  game-local primitives (the guards at extension time, the scorers at hand
+  end). Storing group state beside the cards would create a second source
+  of truth.
 - **Per-group scoring reads each zone as an object.** Canasta's hand
   settlement scores every meld pile by its own composition
   (`canasta_canasta_bonus`); the group *is* the zone.

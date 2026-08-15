@@ -79,9 +79,6 @@ class EngineFacts:
     """The player ring — a frozen value type, so `players`, `turn_order_from`
     and `offset_by` come along without an engine handle."""
 
-    teams: tuple[int, ...]
-    """Team ids; empty for teamless games."""
-
     team_of: Mapping[Player, int]
     """Player -> team id."""
 
@@ -118,7 +115,6 @@ def engine_facts(rs: RuntimeState, actor: Player | None) -> EngineFacts:
     round-state dict frozen is a deep snapshot."""
     raw: dict[str, Any] = {
         "seating": rs.seating,
-        "teams": rs.teams,
         "team_of": rs.team_of,
         "rank_index": rs.rank_index,
         "round_state": rs.mech_state[-1] if rs.mech_state else rs.last_round_state,

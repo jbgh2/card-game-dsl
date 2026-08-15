@@ -882,22 +882,18 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
   to. Emits the play/trick_end/trick traces the playout harness recomputes
   winners from.
 
-Tichu's hand needs twelve game-local primitives plus the two climb queries,
-all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
-`cardlang/runtime/tichu_combinations.py`); the finishing-order readers consume the
-`out_first` / `out_second` phase state:
+Tichu's game-local primitives read `cardlang/runtime/tichu.py` (the
+combination engine itself stays `cardlang/runtime/tichu_combinations.py`);
+the team and finishing lookups are the game's own `function`s and state
+reads in `tichu.cardlang`:
 
 - `tichu_lead_options` / `tichu_follows` — the climb `round`'s queries: every
   combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
   Dog marked `ends_trick`), and the follows that beat the standing play (same
   kind and length and higher, any bomb, the Dragon/Phoenix single answers).
-- `tichu_mahjong_holder() → Player` — leads the first trick (post-push).
-- `tichu_players_holding() → Integer` — non-empty hands (the hand ends ≤ 1).
-- `tichu_double_victory() → Boolean` — the first two finishers are teammates.
-- `tichu_partner(p: Player) → Player`, `tichu_opponent_team(p: Player) →
-  Team`, `tichu_first_out() → Player`, `tichu_next_holder(p: Player) →
-  Player` — team and finishing lookups (`next_holder` is the
-  post-trick leader advance, counterclockwise past empty hands).
+- `tichu_next_holder(p: Player) → Player` — the post-trick leader advance
+  (`p` if still holding, else the next holder counterclockwise past empty
+  hands).
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
   pronoun.
