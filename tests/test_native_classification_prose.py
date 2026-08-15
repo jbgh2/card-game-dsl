@@ -17,8 +17,20 @@ registry:   the names come from `cardlang.builtins.functions` --
 covered:    `test_no_prose_mislabels_a_native_function` over the full walk,
             plus `test_each_adjacency_form_is_matched` -- one row per form,
             each proving the matcher sees that form at all, so a form cannot
-            silently stop matching and leave the sweep looking clean.
+            silently stop matching and leave the sweep looking clean. This
+            module is excluded from its own walk (its `red under:` must spell
+            the wrong labels to be followable), and
+            `test_the_self_exclusion_is_load_bearing` holds that exclusion to
+            exactly one file.
 sampled:    none.
+note:       The first version of this pin passed every local run and FAILED CI.
+            The walk is `git ls-files`, which lists TRACKED files only, and this
+            module was still untracked while it was written -- so it could not
+            see itself, and its own documentation's deliberately-wrong labels
+            were outside the domain until the commit put them in. An empty slice
+            of the domain is not a clean result: `_tracked` now asserts this
+            file IS in the walk before removing it, so the same blindness
+            cannot recur silently.
 residual:   A label at a DISTANCE from the name it governs is out of the
             domain and stays review judgment: `kernel-migration.md` once read
             "Stud-local Primitives ... (like `team_of`)", where the apposition
@@ -87,6 +99,12 @@ _ADJACENCY: tuple[tuple[str, str], ...] = (
 )
 
 
+# This module is inside its own walk, and its `red under:` instruction must
+# SPELL the wrong labels to be followable. Excluding exactly this file is what
+# keeps that documentation readable; the exclusion is held honest below.
+_SELF = pathlib.Path(__file__).resolve()
+
+
 def _tracked() -> list[pathlib.Path]:
     listing = subprocess.run(
         ["git", "ls-files", "-z", "*.py", "*.md", "*.cardlang", "*.lark"],
@@ -94,7 +112,12 @@ def _tracked() -> list[pathlib.Path]:
     ).stdout
     out = [ROOT / n for n in listing.split("\0") if n]
     assert out, "the file walk found nothing -- this check would pass vacuously"
-    return out
+    assert _SELF in out, (
+        "this module is not in the walk, so the walk is not seeing tracked "
+        "files -- exactly how the first version of this pin passed locally "
+        "while blind (see the module docstring's note)"
+    )
+    return [p for p in out if p != _SELF]
 
 
 def _prose(path: pathlib.Path, text: str) -> str:
@@ -222,3 +245,27 @@ def test_a_name_in_neither_registry_is_ignored() -> None:
     red under: drop the registry membership tests from `_mislabels`.
     """
     assert not _mislabels("the Builtin `some_helper` and the Primitive `other_thing`")
+
+
+def test_the_self_exclusion_is_load_bearing() -> None:
+    """This module is excluded from its own walk, and that exclusion must do
+    real work rather than quietly widen into an escape hatch.
+
+    Its `red under:` has to SPELL the wrong labels to be followable, so its
+    prose genuinely contains mislabels. Asserting that proves two things at
+    once: the exclusion is needed, and `_mislabels` works on real prose in a
+    real file rather than only on the probe strings.
+
+    red under: drop the `p != _SELF` filter in `_tracked` -- the sweep then
+        fails on this file's own documentation, which is how CI caught the
+        first version of this pin. That version passed locally only because
+        the module was still UNTRACKED and `git ls-files` lists tracked files
+        only. An empty slice of the domain is not a clean result.
+    """
+    own = _prose(_SELF, _SELF.read_text())
+    assert _mislabels(own), (
+        "this module's prose no longer contains a deliberately wrong label, so "
+        "excluding it from the walk guards nothing -- either restore the "
+        "spelled-out `red under:` examples or drop the exclusion"
+    )
+    assert _SELF not in _tracked(), "the exclusion is not applied"
