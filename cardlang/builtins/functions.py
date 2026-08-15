@@ -120,7 +120,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
-        "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
@@ -143,10 +142,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tichu_opponent_team",  # Tichu: the team a player does not belong to
         "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
         "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
-        "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
-        "coup_players_in",  # Coup: players still holding influence (game ends at 1)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
-        "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
@@ -233,7 +229,7 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # generic (`player_holding` matches a card by identity; `canasta_discard_ok`'s
 # card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
 # `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
-# card literal (`bigtwo_first_leader` builds the 3 of diamonds) -- is deck-only.
+# card literal -- is deck-only.
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
@@ -241,7 +237,6 @@ ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_red3_bonus",
         "coup_game_summary",
         "coup_next_in_game",
-        "coup_players_in",
         "error",
         "five_hundred_bid_level",
         "holdem_next_entrant",
@@ -275,7 +270,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_opp_winning",
         "belote_royal_player",
         "belote_trump_height",
-        "bigtwo_first_leader",
         "bring_in_seat",
         "canasta_add_ok",
         "canasta_black3_ok",
@@ -293,7 +287,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_top_is_wild",
         "canasta_top_starts_pile",
         "card_value",
-        "coup_has_char",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -323,7 +316,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "peg_value",
         "pinochle_meld_value",
         "pot_share",
-        "president_is_top_rank",
         "rank_value",
         "schnapsen_trick_winner",
         "skat_follow_ok",
