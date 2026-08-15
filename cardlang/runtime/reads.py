@@ -78,8 +78,8 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     `deep_freeze`s it: the positional args are the second channel a primitive
     can touch (the bundles are the first), and `cards.clear()` on a live zone
     list would corrupt engine state exactly as a bundle write would.
-    A SCALAR `Card` argument (a `TCard` param — `canasta_stage_ok(p, card)`,
-    `president_is_top_rank(p, c)`) is frozen too: evaluation preserves the
+    A SCALAR `Card` argument (a `TCard` param —
+    `canasta_stage_ok(p, card)`) is frozen too: evaluation preserves the
     engine's `Card` by identity, and a frozen+slots `Card` is still mutable
     via `object.__setattr__`, so an unfrozen scalar card is the same leak as
     an unfrozen collection. The freeze is SIGNATURE-DRIVEN, not blanket: a
@@ -229,7 +229,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/bigtwo.py",
         game_file="big-two.cardlang",
         state_vars=_fs("opened"),
-        zone_families=_fs("hand"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/coup.py",
@@ -256,10 +255,12 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         state_vars=_fs("trump_suit"),
         zone_families=_fs("hand"),
     ),
+    # An empty row, not a missing one: president.py's climb queries are pure
+    # over their arguments, but the climb binder keys the module's bundle
+    # from this row (primitives.climb_row), so the row must exist.
     PrimitiveReads(
         module="cardlang/runtime/president.py",
         game_file="president.cardlang",
-        zone_families=_fs("hand"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/schnapsen.py",

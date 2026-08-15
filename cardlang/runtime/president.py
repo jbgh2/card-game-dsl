@@ -2,11 +2,9 @@
 
 The corpus's third climbing game (after Tichu and Big Two). The whole hand runs
 on the climb [[form]] of [[round]] (`docs/games/president.cardlang`); this module
-is the RNG-free combination engine plus the queries the climb round and the game
-body name:
-`president_lead_options` (lead candidates), `president_follows` (legal follows,
-including the transparent-threes variant), and `president_is_top_rank` (the
-between-hands exchange filter: is this card the Scum's highest?). The
+is the RNG-free combination engine plus the queries the climb round names:
+`president_lead_options` (lead candidates) and `president_follows` (legal
+follows, including the transparent-threes variant). The
 post-trick leader advance is NOT here: the kernel's `round climb` starts its
 ring at the first participant at or after the named leader, so a winner who
 shed out on their winning play needs no game-local fallback.
@@ -41,7 +39,7 @@ from dataclasses import dataclass
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.runtime.values import SUITS, Card
 
 ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")
 
@@ -143,19 +141,3 @@ def president_universe() -> list[Play]:
                     Play("set", size, _STRENGTH[r], tuple(Card(r, s) for s in suits))
                 )
     return out
-
-
-# --- zone / seating / state reads (pure) ---
-
-
-def president_is_top_rank(
-    facts: EngineFacts, gr: reads.GameReads, p: Player, c: Card
-) -> bool:
-    """Is `c` of the highest rank in `p`'s hand (2 high, 3 low)? The
-    between-hands exchange filter: the Scum's give is their single
-    highest-ranked card. Suits are irrelevant in President, so when several
-    cards tie at the top rank any of them is a faithful give — the filtered
-    movement takes the first match in hand order."""
-    strength = facts.rank_index
-    hand = gr.families["hand"][p]
-    return strength[c.rank] == max(strength[x.rank] for x in hand)

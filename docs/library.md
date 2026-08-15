@@ -904,14 +904,12 @@ all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
 - `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
   Phoenix −25 (100 per hand).
 
-Coup's bookkeeping is four game-local primitives in
-`cardlang/runtime/coup.py`, pure reads plus one trace emitter (every window
-response, claim, and target is a chooser decision in the DSL body — see the
-Mechanics entry):
+Coup's bookkeeping stays game-local in `cardlang/runtime/coup.py` (every
+window response, claim, and target is a chooser decision in the DSL body —
+see the Mechanics entry):
 
-- `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
-  `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
-  challenge-proof lookup (pure reads).
+- `coup_next_in_game(p: Player) → Player` — the next in-game seat clockwise
+  (a pure read).
 - `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
   50-coin / 15-card conservation invariants and the finals). The
   reveal-sequence golden derives from observation events at the harness

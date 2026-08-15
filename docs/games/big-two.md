@@ -91,7 +91,7 @@ game BigTwo {
       move all cards to deck
       shuffle deck
       deal 13 cards from deck to each hand
-      leader := (if winner_seat is none then bigtwo_first_leader() else winner_seat)
+      leader := (if winner_seat is none then player_holding(3 of diamonds) else winner_seat)
     }
 
     phase play {

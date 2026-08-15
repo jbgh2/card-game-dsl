@@ -101,8 +101,9 @@ clockwise.
   threes naturally) — what the play *means* is carried by the public trick
   context, exactly as at a real table.
 - **The exchange derives its information sets from the zone projections.**
-  The Scum's give is a draw-free filtered movement (`where
-  president_is_top_rank(scum, card)` — forced by rule, so it is no decision and
+  The Scum's give is a draw-free filtered movement (`where rank_value(card)
+  is scum_top_strength`, against the hoisted highest strength in their hand —
+  forced by rule, so it is no decision and
   consumes no chooser draw); the President's return is a chosen one-card
   movement. Both are hand-to-hand transfers, so each participant sees the
   identity of the card on their own side and every bystander sees a one-card

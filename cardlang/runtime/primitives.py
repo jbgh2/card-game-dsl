@@ -90,10 +90,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             )
 
             return holdem_heads_up_pot_share(*_bind(ctx, ROW), args[0])
-        case "bigtwo_first_leader":
-            from cardlang.runtime.bigtwo import ROW, first_leader_seat
-
-            return first_leader_seat(*_bind(ctx, ROW))
         case "pinochle_meld_value":
             from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
@@ -191,22 +187,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import tichu_card_points
 
             return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
-        case "president_is_top_rank":
-            from cardlang.runtime.president import ROW, president_is_top_rank
-
-            return president_is_top_rank(*_bind(ctx, ROW), args[0], args[1])
-        case "coup_players_in":
-            from cardlang.runtime.coup import ROW, coup_players_in
-
-            return coup_players_in(*_bind(ctx, ROW))
         case "coup_next_in_game":
             from cardlang.runtime.coup import ROW, coup_next_in_game
 
             return coup_next_in_game(*_bind(ctx, ROW), args[0])
-        case "coup_has_char":
-            from cardlang.runtime.coup import ROW, coup_has_char
-
-            return coup_has_char(*_bind(ctx, ROW), args[0], args[1])
         case "coup_game_summary":
             from cardlang.runtime.coup import ROW, coup_game_summary
 
