@@ -131,7 +131,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
-        "skat_effective_loss",  # Skat: the overbid-aware loss base (needs a ceiling)
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
         "tichu_mahjong_holder",  # Tichu: who holds the Mahjong (leads the first trick)
         "tichu_players_holding",  # Tichu: how many players still hold cards
@@ -242,7 +241,6 @@ ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
         "holdem_next_entrant",
         "peg_origin_of",
         "player_holding",
-        "skat_effective_loss",
         "skat_next_bid",
         "team_of",
         "tichu_double_victory",

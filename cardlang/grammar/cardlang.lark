@@ -575,11 +575,29 @@ COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 ?sum: sum "+" term   -> add
     | sum "-" term   -> sub
     | term
+// Rounded division (decisions.md "The expression register"): a word-spelled
+// term-level operator, the offset_by shape, with the rounding direction
+// MANDATORY — there is no bare quotient to misread as exact. Two aliased
+// productions rather than one with `(_UP_KW|_DOWN_KW)`: underscore terminals
+// are filtered from the tree, so a single production would hand the builder
+// identical children for both directions and the direction would be lost.
 ?term: term _OFFSET_BY_KW factor -> offset_by
+     | term _DIVIDED_KW _BY_KW factor _ROUNDED_KW _UP_KW   -> divided_by_rounded_up
+     | term _DIVIDED_KW _BY_KW factor _ROUNDED_KW _DOWN_KW -> divided_by_rounded_down
      | factor
 
+// `/` and `%` are retired spellings, the `==`/`!=` mechanism (comparison
+// above): the lexer owns the tokens so the builder can reject them with the
+// replacement spelling instead of a bare syntax error. `//` is deliberately
+// ABSENT: it introduces a comment (LINE_COMMENT below), so under the dynamic
+// lexer an operator claim on it either never wins the ambiguity resolution or
+// steals genuine comments — `a // b` reads as `a` with the line tail
+// commented out, stated in decisions.md and characterized in
+// tests/test_divided_by.py.
 ?factor: factor "*" postfix -> mul
+       | factor DIV_OP postfix -> div_symbol
        | postfix
+DIV_OP: "/" | "%"
 
 ?postfix: postfix "." NAME                     -> member
         | postfix index_expr                   -> subscript
@@ -716,6 +734,7 @@ _AS_KW: "as" /(?![A-Za-z0-9_-])/
 _AS_EQUALLY_AS_POSSIBLE_KW: "as-equally-as-possible" /(?![A-Za-z0-9_])/
 _BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
 _BOARD_KW: "board" /(?![A-Za-z0-9_])/
+_BY_KW: "by" /(?![A-Za-z0-9_])/
 _CARD_KW: "card" /(?![A-Za-z0-9_])/
 _CARDS_KW: "cards" /(?![A-Za-z0-9_])/
 _CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
@@ -728,6 +747,8 @@ _DEFINE_KW: "define" /(?![A-Za-z0-9_])/
 _DEMANDS_KW: "demands" /(?![A-Za-z0-9_])/
 _DERIVED_KW: "derived" /(?![A-Za-z0-9_])/
 _DIRECTION_KW: "direction" /(?![A-Za-z0-9_])/
+_DIVIDED_KW: "divided" /(?![A-Za-z0-9_])/
+_DOWN_KW: "down" /(?![A-Za-z0-9_])/
 _EACH_KW: "each" /(?![A-Za-z0-9_])/
 _EARLY_KW: "early" /(?![A-Za-z0-9_])/
 _EFFECT_KW: "effect" /(?![A-Za-z0-9_])/
@@ -787,6 +808,7 @@ _REQUIRES_KW: "requires" /(?![A-Za-z0-9_])/
 _REVEAL_KW: "reveal" /(?![A-Za-z0-9_])/
 _ROTATE_KW: "rotate" /(?![A-Za-z0-9_])/
 _ROUND_KW: "round" /(?![A-Za-z0-9_])/
+_ROUNDED_KW: "rounded" /(?![A-Za-z0-9_])/
 _RULE_KW: "rule" /(?![A-Za-z0-9_])/
 _RUN_KW: "run" /(?![A-Za-z0-9_])/
 _SHUFFLE_KW: "shuffle" /(?![A-Za-z0-9_])/

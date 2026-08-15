@@ -1848,7 +1848,11 @@ quantification: `is`, `is not`, `in`, `not`, `and`, `or`, `any`, `all`,
 designer can internalize — and it is Python's line, so the surface stays
 familiar. English forms for assignment were considered and rejected: the
 symbols carry no confusion cost, there is no compact English word for `>=`,
-and the per-line verbosity cost would be the largest in the language. `is`,
+and the per-line verbosity cost would be the largest in the language. One
+carve-out, the `offset_by` precedent: domain arithmetic goes word-spelled
+when the symbol would mislead — rounded division is `divided by … rounded
+up|down` (below), because no symbol spells a division that must name its
+rounding. `is`,
 `not`, and `number` are reserved words — no state variable, zone, function,
 or binder may take one of these names.
 
@@ -1870,6 +1874,20 @@ The right-hand keywords `none` and `empty` are a closed set dispatching to
 the absence and emptiness checks (`led_suit is none`, `hand[p] is not
 empty`); every other operand is ordinary equality. `==`/`!=` are not part of
 the language; the checker rejects them with the replacement spelling.
+
+**Rounded division is `divided by … rounded up|down`** — a `term`-level
+operator (the `offset_by` shape: `working_bid divided by base rounded up`),
+Integer operands and result, with the rounding direction mandatory: there is
+no bare quotient to misread as exact. `rounded down` floors toward negative
+infinity and `rounded up` ceilings toward positive infinity — the English
+words' own directions, whatever the operands' signs — and a zero divisor is
+a typed runtime error. `*` binds tighter on both sides (`2 * bid divided by
+base rounded up` divides the product); multiplying a quotient takes parens
+(`(bid divided by base rounded up) * 2`). `/` and `%` are not part of the
+language; the checker rejects them with the replacement spelling. `//`
+cannot even be rejected: it introduces a comment, so a floor-division habit
+written `a // b` reads as `a` with the rest of the line commented out —
+write the word form.
 
 **Card queries** mirror the player queries ("Player-collection queries"
 below), binding `card` per candidate over a named zone:

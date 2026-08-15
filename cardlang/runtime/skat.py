@@ -18,8 +18,6 @@ game-local primitives over live state.
 
 from __future__ import annotations
 
-import math
-
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts, TraceEvent
@@ -172,11 +170,3 @@ def skat_matadors(facts: EngineFacts, gr: reads.GameReads, p: Player) -> int:
         else:
             break
     return n
-
-
-def skat_effective_loss(game_value: int, bid: int, base: int) -> int:
-    """The loss base: the game value if it covered the bid, else the smallest
-    multiple of the base value that meets the bid (the overbid penalty)."""
-    if game_value >= bid:
-        return game_value
-    return base * math.ceil(bid / base)

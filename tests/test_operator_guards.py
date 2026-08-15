@@ -8,8 +8,9 @@ property:  every operator a `BinOp` node can carry has its operands checked
            arm without a matching `OP_CLASSES` entry fails loud (a test, not
            a silent unwalled pass-through) rather than reaching runtime.
 domain:    the operator registry — `infer`'s BinOp arm, `cardlang/
-           typecheck.py` (13 operators: `== != < > <= >= and or in + - *
-           offset_by`) — classified into 6 operand-shape families
+           typecheck.py` (15 operators: `== != < > <= >= and or in + - *
+           offset_by divided_by_rounded_up divided_by_rounded_down`) —
+           classified into 6 operand-shape families
            (`OP_CLASSES`) — crossed with the operand-type registry
            (`cardlang/types.py`'s closed `Type` union: TInteger, TBoolean,
            TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,SeatDirection},
@@ -153,7 +154,9 @@ def test_an_unclassified_operator_fails_loud_not_silent() -> None:
     for op in OP_CLASSES:
         _op_class(op)  # must not raise
     with pytest.raises(AssertionError, match="OP_CLASSES"):
-        _op_class("%")  # not a real operator; the registry has no entry
+        # `%` is a rejected symbol the parse builder refuses before any BinOp
+        # exists (tests/test_divided_by.py), so no entry can ever be needed.
+        _op_class("%")
 
 
 # =============================================================================

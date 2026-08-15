@@ -199,8 +199,8 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   Schnapsen-style (three single-actor filtered movements over
   `skat_follow_ok` — the trick form's rules-driven candidates are unordered
   where the reference draws hand-ordered legality); scoring is plain
-  statements over the game-local `skat_matadors`/`skat_effective_loss`
-  primitives.
+  statements over the game-local `skat_matadors` primitive, with the
+  overbid arithmetic written as rounded division in the game text.
 
 **Checkpoint (possible new axis) — dissolved.** Skat's call-and-response was
 filed as a language gap, then probed against the unmodified kernel at

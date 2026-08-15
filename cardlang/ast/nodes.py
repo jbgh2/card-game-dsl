@@ -136,9 +136,12 @@ Arg: TypeAlias = "Expr | NamedArg"
 @dataclass(frozen=True, slots=True)
 class BinOp:
     """A binary operator: `or`, `and`, comparisons, membership `in`, `+`,
-    `-`, `*`, `offset_by`. Equality stores the surface spelling — `is` /
-    `is_not` — because `==`/`!=` are not operators in this language; the
-    ordering operators stay symbolic, since there the symbol IS the surface."""
+    `-`, `*`, `offset_by`, and rounded division as `divided_by_rounded_up` /
+    `divided_by_rounded_down` (surface `divided by ... rounded up|down`; the
+    direction is part of the op because it is part of the operation). Equality
+    stores the surface spelling — `is` / `is_not` — because `==`/`!=` are not
+    operators in this language; the ordering operators stay symbolic, since
+    there the symbol IS the surface."""
 
     op: str
     left: Expr

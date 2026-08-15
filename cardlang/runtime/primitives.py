@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from cardlang.runtime import reads, narrowing
+from cardlang.runtime import narrowing, reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
@@ -145,10 +145,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import ROW, skat_matadors
 
             return skat_matadors(*_bind(ctx, ROW), args[0])
-        case "skat_effective_loss":
-            from cardlang.runtime.skat import skat_effective_loss
-
-            return skat_effective_loss(args[0], args[1], args[2])
         case "tichu_mahjong_holder":
             from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
 

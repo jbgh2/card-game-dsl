@@ -100,9 +100,6 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Skat: follow-class legality
     "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
-    "skat_effective_loss": Sig(
-        (TInteger(), TInteger(), TInteger()), TInteger()
-    ),  # Skat: the overbid-aware loss base
     "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
     "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards

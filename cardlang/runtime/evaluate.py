@@ -321,6 +321,29 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left < right
         case "offset_by":
             return ctx.rs.seating.offset_by(left, right)
+        case "divided_by_rounded_up" | "divided_by_rounded_down":
+            # The static checker passes TAny and unwraps `Integer?`, so a
+            # none or a non-Integer can reach here live — one operand class,
+            # one Owner Guard, in the game-author channel (never a bare
+            # Python TypeError/ZeroDivisionError).
+            word = "rounded up" if e.op == "divided_by_rounded_up" else "rounded down"
+            for value in (left, right):
+                if not isinstance(value, int):
+                    raise OwnerGuardError(
+                        f"`divided by ... {word}` expects Integer operands — "
+                        f"got {value!r}; the checker leaves this value's type "
+                        "open, so the read is checked here"
+                    )
+            if right == 0:
+                raise OwnerGuardError(
+                    f"`divided by ... {word}` needs a nonzero divisor — this "
+                    "division's divisor evaluated to 0"
+                )
+            if e.op == "divided_by_rounded_down":
+                return left // right  # Python floors toward negative infinity
+            # Exact integer ceiling toward positive infinity — never through
+            # float (math.ceil loses precision at magnitude).
+            return -((-left) // right)
         case "in":
             return left in elements(right)
         case _:
