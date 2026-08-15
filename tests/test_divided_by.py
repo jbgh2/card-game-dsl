@@ -37,7 +37,10 @@ covered:   the executed parametrizations and probes in this module —
            test_value_grid (16 hand-authored sign/exactness cells x both
            directions through a played game), the zero-divisor and
            dynamic-operand OwnerGuardError cells (literal, computed, at-setup,
-           `Integer? = none`), the host cells (lvalue index, transfer amount
+           `Integer? = none`, and Boolean-through-the-permissive-top — both
+           truth values, both operand positions, a `false` divisor named
+           non-Integer and never zero, since bool subclasses int in the
+           host language), the host cells (lvalue index, transfer amount
            bare and parenthesized, state default, choose pinned-range, choose
            adjacency both spellings, aggregation body, function body,
            predicate contexts), the typecheck rejection cells (collection /
@@ -271,6 +274,48 @@ def test_none_divisor_through_an_optional_is_a_typed_runtime_error() -> None:
         _game("s[0] := 6 divided by m rounded up", extra_state="m : Integer? = none"),
         "Integer",
     )
+
+
+# A live Boolean rides to the evaluator through the permissive top: an if
+# expression whose branches disagree (Boolean vs Integer) has no join, so it
+# types TAny and the static arithmetic guard passes it. Python's bool
+# subclasses int, so an int-only isinstance would let `true` divide silently
+# as 1 and would misdiagnose a `false` divisor as a zero divisor — the guard
+# checks bool ahead of int.
+_BOOL_CELLS: list[tuple[str, str, str]] = [
+    ("true-dividend", "true", "(if s[1] is 0 then {lit} else 1) divided by 2 rounded up"),
+    ("false-dividend", "false", "(if s[1] is 0 then {lit} else 1) divided by 2 rounded down"),
+    ("true-divisor", "true", "6 divided by (if s[1] is 0 then {lit} else 1) rounded up"),
+    ("false-divisor", "false", "6 divided by (if s[1] is 0 then {lit} else 1) rounded down"),
+]
+
+
+@pytest.mark.parametrize(
+    ("case_id", "literal", "shape"),
+    _BOOL_CELLS,
+    ids=[case_id for case_id, _, _ in _BOOL_CELLS],
+)
+def test_boolean_operand_through_the_permissive_top_is_named_non_integer(
+    case_id: str, literal: str, shape: str
+) -> None:
+    """Both truth values, both operand positions: the refusal names a
+    non-Integer operand in the OwnerGuardError channel — and a `false`
+    divisor is never reported as a zero divisor (the misdiagnosis an
+    int-only isinstance produces, since bool subclasses int).
+
+    red under: relax the operand guard in evaluate's divided arms back to
+    a bare `isinstance(value, int)` — the true cells then divide silently
+    as 1 (no error, the raises-assert fails), the false-dividend computes
+    0, and the false-divisor cell flips to the wrong-currency zero-divisor
+    message. Verified by execution: the plant reddens exactly these four
+    cells, every other cell green."""
+    src = _game(f"s[0] := {shape.format(lit=literal)}")
+    game = check_dsl(src, "mini.cardlang")
+    with pytest.raises(OwnerGuardError) as ei:
+        play_game(game, random.Random(0))
+    message = str(ei.value)
+    assert "expects Integer operands" in message, message
+    assert "nonzero divisor" not in message, message
 
 
 # =============================================================================

@@ -325,10 +325,13 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             # The static checker passes TAny and unwraps `Integer?`, so a
             # none or a non-Integer can reach here live — one operand class,
             # one Owner Guard, in the game-author channel (never a bare
-            # Python TypeError/ZeroDivisionError).
+            # Python TypeError/ZeroDivisionError). Booleans are checked
+            # ahead of the int test because Python's bool subclasses int:
+            # unguarded, a `true` would silently divide as 1 and a `false`
+            # divisor would be misdiagnosed as a zero divisor.
             word = "rounded up" if e.op == "divided_by_rounded_up" else "rounded down"
             for value in (left, right):
-                if not isinstance(value, int):
+                if isinstance(value, bool) or not isinstance(value, int):
                     raise OwnerGuardError(
                         f"`divided by ... {word}` expects Integer operands — "
                         f"got {value!r}; the checker leaves this value's type "
