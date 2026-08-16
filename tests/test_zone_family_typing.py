@@ -33,16 +33,20 @@ covered:   both index roles (`player`, `team`) x both accept/reject index-
            subscript in the corpus (movement source/dest/filter, `reveal
            … from`, `let`/aggregation bodies) — each exercised below with an
            executed probe, not by "same code path" assumption.
-sampled:   the cross-product of "every CALL_SIGS function" x "has_ranking"
-           is sampled at one representative gated function (`rank_value`,
-           the only member of `RANKING_GATED_FUNCS` today) x the two
-           predicate contexts actually reachable in the corpus (a `let`
-           aggregation body, a movement filter) — not every predicate
-           position enumerated in `typecheck()`'s "remaining expression
-           positions" block is separately probed for the ranking gate,
-           since the gate lives inside `_check_expr`'s Call handling and
-           every one of those positions is that same recursion's entry
-           point (structural coverage, not per-site duplication).
+sampled:   the predicate-context axis of the call gate is sampled at one
+           representative member (`rank_value`) x the two contexts actually
+           reachable in the corpus (a `let` aggregation body, a movement
+           filter) — not every predicate position enumerated in
+           `typecheck()`'s "remaining expression positions" block is
+           separately probed, since the gate lives inside `_check_expr`'s
+           Call handling and every one of those positions is that same
+           recursion's entry point (structural coverage, not per-site
+           duplication). The MEMBER axis is not sampled: every member of
+           all three ranking-gated registries (`RANKING_GATED_FUNCS`,
+           `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES` — the
+           #256 review round's class sweep; census with the registries in
+           cardlang/typecheck.py) has its own no-ranking/with-ranking cell
+           pair below, plus the load-bearing non-member cells.
 residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            `action.card_count` — named in the grammar comment at
            cardlang/grammar/cardlang.lark:320, used in
@@ -366,6 +370,118 @@ def test_ranking_gate_fires_in_a_movement_filter_too() -> None:
         ),
         "rank_value() reads a card's rank strength from ranking:",
     )
+
+
+# =============================================================================
+# the rank_index-reading class, gated whole (the #256 review round's sweep)
+# =============================================================================
+# `rs.rank_index` is EMPTY in a game with no `ranking:` (driver.py builds it
+# from the optional clause; only `rs.ranks` falls back to deck order), so any
+# native evaluation that indexes it crashes bare at playout unless a static
+# gate holds the door. The sweep's member census — every call form and value
+# callback whose evaluation reads rank_index — and each member's disposition
+# live with the registries in cardlang/typecheck.py; the cells below cross
+# every gated member with {no ranking -> rejected, ranking -> accepted}, plus
+# the load-bearing NON-member cells: tarot_trick_winner ignores rank_index in
+# its body (atout numerals + its own suit table), which is exactly what keeps
+# french-tarot — a no-`ranking:` corpus game with a trick round — legal.
+
+
+def test_rejects_the_pile_winner_call_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("let w = highest_trump_or_led_suit(pile, clubs)", ranking=""),
+        "highest_trump_or_led_suit() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_pile_winner_call_with_a_declared_ranking() -> None:
+    _accepts(_game("let w = highest_trump_or_led_suit(pile, clubs)"))
+
+
+def test_rejects_peg_run_points_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += peg_run_points()", ranking=""),
+        "peg_run_points() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_peg_run_points_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += peg_run_points()"))
+
+
+def test_rejects_cribbage_show_value_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += cribbage_show_value(0)", ranking=""),
+        "cribbage_show_value() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_cribbage_show_value_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += cribbage_show_value(0)"))
+
+
+def test_rejects_cribbage_crib_value_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += cribbage_crib_value()", ranking=""),
+        "cribbage_crib_value() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_cribbage_crib_value_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += cribbage_crib_value()"))
+
+
+def test_rejects_belote_opp_winning_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("if belote_opp_winning() { score[0] += 1 }", ranking=""),
+        "belote_opp_winning() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_belote_opp_winning_with_a_declared_ranking() -> None:
+    _accepts(_game("if belote_opp_winning() { score[0] += 1 }"))
+
+
+_TRICK_ROUND = (
+    "round play_to_trick from 0 over all players source hand into pile\n"
+    "          winner {winner}"
+)
+
+
+def test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="highest_of_led_suit"), ranking=""),
+        "reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_a_ranking_reading_trick_winner_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="highest_of_led_suit")))
+
+
+def test_accepts_the_rank_free_tarot_winner_with_no_declared_ranking() -> None:
+    # The NON-member cell that keeps french-tarot legal: tarot_trick_winner's
+    # body reads atout numerals and its own suit table, never rank_index.
+    _accepts(_game(_TRICK_ROUND.format(winner="tarot_trick_winner"), ranking=""))
+
+
+_CLIMB_ROUND = (
+    "round climb play_combination from 0 over all players\n"
+    "          source hand into pile\n"
+    "          combinations president_lead_options follows president_follows\n"
+    "          until (number of players where hand[player] is not empty) <= 1"
+)
+
+
+def test_rejects_ranking_reading_climb_queries_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_CLIMB_ROUND, ranking=""),
+        "reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_ranking_reading_climb_queries_with_a_declared_ranking() -> None:
+    _accepts(_game(_CLIMB_ROUND))
 
 
 def test_ranking_gate_does_not_touch_other_native_calls() -> None:
