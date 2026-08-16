@@ -54,6 +54,7 @@ game Skat {
 
   cards: skat32
   ranking: ace-ten
+  card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
 
   zones {
     deck             : Deck
@@ -172,7 +173,7 @@ game Skat {
                                        then game_value
                                        else game_value * (working_bid divided by game_value rounded up)) }
       } else {
-        let pts = (sum of card_value(card) over cards in captured[declarer]) + (sum of card_value(card) over cards in skat)
+        let pts = (sum of card_points(card) over cards in captured[declarer]) + (sum of card_points(card) over cards in skat)
         let base = if is_grand then 24
                    elif trump_suit is diamonds then 9
                    elif trump_suit is hearts then 10

@@ -12,6 +12,32 @@
   "max_length": 15000,
   "ranking": [],
   "ranking_convention": null,
+  "card_points": {
+    "kind": "card_points_table",
+    "entries": [
+      {
+        "kind": "card_points_entry",
+        "rank": "K",
+        "value": 9
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "Q",
+        "value": 7
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "C",
+        "value": 5
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "J",
+        "value": 3
+      }
+    ],
+    "else_value": 1
+  },
   "trump": "atouts",
   "teams": [],
   "positions": [],
@@ -1019,15 +1045,34 @@
                           "kind": "binop",
                           "op": "is",
                           "left": {
-                            "kind": "call",
-                            "func": "tarot_card_points",
-                            "args": [
-                              {
-                                "kind": "name",
-                                "name": "card",
-                                "ref": "local"
-                              }
-                            ]
+                            "kind": "if_expr",
+                            "cond": {
+                              "kind": "call",
+                              "func": "is_bout",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "card",
+                                  "ref": "local"
+                                }
+                              ]
+                            },
+                            "then": {
+                              "kind": "int",
+                              "value": 9
+                            },
+                            "elifs": [],
+                            "otherwise": {
+                              "kind": "call",
+                              "func": "card_points",
+                              "args": [
+                                {
+                                  "kind": "name",
+                                  "name": "card",
+                                  "ref": "local"
+                                }
+                              ]
+                            }
                           },
                           "right": {
                             "kind": "int",
@@ -1075,15 +1120,34 @@
                             "kind": "binop",
                             "op": "is",
                             "left": {
-                              "kind": "call",
-                              "func": "tarot_card_points",
-                              "args": [
-                                {
-                                  "kind": "name",
-                                  "name": "card",
-                                  "ref": "local"
-                                }
-                              ]
+                              "kind": "if_expr",
+                              "cond": {
+                                "kind": "call",
+                                "func": "is_bout",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "card",
+                                    "ref": "local"
+                                  }
+                                ]
+                              },
+                              "then": {
+                                "kind": "int",
+                                "value": 9
+                              },
+                              "elifs": [],
+                              "otherwise": {
+                                "kind": "call",
+                                "func": "card_points",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "card",
+                                    "ref": "local"
+                                  }
+                                ]
+                              }
                             },
                             "right": {
                               "kind": "int",

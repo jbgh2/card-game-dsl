@@ -102,7 +102,7 @@ file, the implementation's location stops mattering for safety — so it moves
 next to the game it serves, and the language package
 (`cardlang/stdlib`, `cardlang/runtime`) becomes game-independent. The
 genuinely general names stay in the stdlib: `team_of`, `player_holding`,
-`suit_of`, `rank_value`, `card_value`, `error` (and `best_five_card_hand`,
+`suit_of`, `rank_value`, `card_points`, `error` (and `best_five_card_hand`,
 specified in [library.md](../library.md) but not yet wired) — and
 the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
 `pot_share`) graduate there when a second poker game lands, per the usual

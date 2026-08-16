@@ -28,15 +28,19 @@ _RANK_INDEX = {r: i for i, r in enumerate(RANKS)}
 @dataclass(frozen=True, slots=True)
 class Deck:
     """A named deck: the ranks each suit carries (high to low is set by the
-    game's `ranking:`), the suits, an optional card-point value table for
-    point-trick games (Schnapsen, Pinochle), and how many copies of each card
-    the deck holds (Pinochle doubles a 24-card pack into 48). A non-uniform deck
+    game's `ranking:`), the suits, and how many copies of each card the deck
+    holds (Pinochle doubles a 24-card pack into 48). A non-uniform deck
     (Tarot: suits of 14, a 21-card atout suit, the singleton Excuse) supplies an
-    explicit ``cards`` list instead of the suits×ranks cross product."""
+    explicit ``cards`` list instead of the suits×ranks cross product.
+
+    A deck carries COMPOSITION only — no card-point table: card points are a
+    scoring fact of the game, declared by its `card_points { }` clause
+    (decisions.md "Scoring composition"), so one deck serves games that price
+    it differently. The one-source rule is structural: this class cannot
+    represent a deck-side point table at all."""
 
     suits: tuple[str, ...]
     ranks: tuple[str, ...]
-    values: dict[str, int]  # rank -> card points; empty when the game scores otherwise
     copies: int = 1
     cards: tuple[tuple[str, str], ...] = ()  # explicit (rank, suit) list for non-uniform decks
 
@@ -117,76 +121,62 @@ def _canasta108() -> tuple[tuple[str, str], ...]:
 
 
 COMPONENT_SETS: dict[str, ComponentSet] = {
-    "standard52": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=RANKS, values={})),
-    # 20-card Ace-Ten deck: J Q K 10 A in four suits, A 10 K Q J high to low.
+    "standard52": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=RANKS)),
+    # 20-card Ace-Ten deck: J Q K 10 A in four suits, A 10 K Q J high to low
+    # (Schnapsen's card points live in its game file's `card_points { }`).
     "schnapsen20": ComponentSet(
         "card",
         ("suit", "rank"),
-        Deck(
-            suits=SUITS,
-            ranks=("J", "Q", "K", "10", "A"),
-            values={"J": 2, "Q": 3, "K": 4, "10": 10, "A": 11},
-        ),
+        Deck(suits=SUITS, ranks=("J", "Q", "K", "10", "A")),
     ),
-    # 48-card Pinochle pack: two copies of A 10 K Q J 9 per suit. Counters
-    # (A, 10, K) are worth 10 trick points each; the rest score 0.
+    # 48-card Pinochle pack: two copies of A 10 K Q J 9 per suit (the
+    # counter values live in pinochle.cardlang's `card_points { }`).
     "pinochle48": ComponentSet(
         "card",
         ("suit", "rank"),
-        Deck(
-            suits=SUITS,
-            ranks=("A", "10", "K", "Q", "J", "9"),
-            values={"A": 10, "10": 10, "K": 10, "Q": 0, "J": 0, "9": 0},
-            copies=2,
-        ),
+        Deck(suits=SUITS, ranks=("A", "10", "K", "Q", "J", "9"), copies=2),
     ),
     # 48-card Doppelkopf pack: the Pinochle composition (two copies of
-    # A 10 K Q J 9 per suit) under Ace-Ten values (240 card points total).
+    # A 10 K Q J 9 per suit); doppelkopf.cardlang's `card_points { }` prices
+    # it Ace-Ten (240 card points total).
     "doppelkopf48": ComponentSet(
         "card",
         ("suit", "rank"),
-        Deck(
-            suits=SUITS,
-            ranks=("A", "10", "K", "Q", "J", "9"),
-            values={"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0},
-            copies=2,
-        ),
+        Deck(suits=SUITS, ranks=("A", "10", "K", "Q", "J", "9"), copies=2),
     ),
-    # 32-card Skat pack: A 10 K Q J 9 8 7 per suit (Ace-Ten values, 120 total).
+    # 32-card Skat pack: A 10 K Q J 9 8 7 per suit; skat.cardlang's
+    # `card_points { }` prices it Ace-Ten (120 card points total).
     "skat32": ComponentSet(
         "card",
         ("suit", "rank"),
-        Deck(
-            suits=SUITS,
-            ranks=("A", "10", "K", "Q", "J", "9", "8", "7"),
-            values={"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0, "8": 0, "7": 0},
-        ),
+        Deck(suits=SUITS, ranks=("A", "10", "K", "Q", "J", "9", "8", "7")),
     ),
-    # 78-card Tarot pack (non-uniform). Card values vary by rank AND suit, so the
-    # value table is left empty and the Tarot mechanic computes points itself.
-    "tarot78": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), values={}, cards=_tarot78())),
+    # 78-card Tarot pack (non-uniform). Card points vary by rank AND suit (the
+    # petit), so french-tarot.cardlang composes its `card_points { }` table
+    # with an inline bout layer at the call sites.
+    "tarot78": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_tarot78())),
     # 56-card Tichu pack: standard 52 plus Mahjong, Dog, Phoenix, Dragon.
-    "tichu56": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), values={}, cards=_tichu56())),
+    "tichu56": ComponentSet("card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_tichu56())),
     # 43-card Australian 500 pack (non-uniform): A..5 black, A..4 red, one joker.
     "five_hundred43": ComponentSet(
-        "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), values={}, cards=_five_hundred43())
+        "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_five_hundred43())
     ),
-    # 108-card Canasta pack: two standard 52s plus four jokers. No `values`
-    # table: Canasta's card points are a scoring fact of the game, held in
-    # its game-local primitive (cardlang/runtime/canasta.py), not a deck
-    # property — the deck is also used with other point tables in principle.
+    # 108-card Canasta pack: two standard 52s plus four jokers. Canasta's
+    # card points are a scoring fact of the game — canasta.cardlang's
+    # `card_points { }` — not a deck property: the deck is also used with
+    # other point tables in principle.
     "canasta108": ComponentSet(
-        "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), values={}, cards=_canasta108())
+        "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_canasta108())
     ),
     # 3-card Kuhn deck: J Q K in one suit, one copy each — the whole pack of the
     # OpenSpiel poker anchor. One suit because Kuhn has no notion of suit at all.
     "kuhn3": ComponentSet(
-        "card", ("suit", "rank"), Deck(suits=("spades",), ranks=("J", "Q", "K"), values={})
+        "card", ("suit", "rank"), Deck(suits=("spades",), ranks=("J", "Q", "K"))
     ),
     # 6-card Leduc deck: the Kuhn ranks in two suits, so a pair with the public
     # card is possible — the whole point of Leduc over Kuhn.
     "leduc6": ComponentSet(
-        "card", ("suit", "rank"), Deck(suits=("spades", "hearts"), ranks=("J", "Q", "K"), values={})
+        "card", ("suit", "rank"), Deck(suits=("spades", "hearts"), ranks=("J", "Q", "K"))
     ),
     # 15-card Coup deck: five characters (the "rank") under one suit, three each.
     "coup15": ComponentSet(
@@ -195,14 +185,13 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
         Deck(
             suits=("court",),
             ranks=("Duke", "Assassin", "Captain", "Ambassador", "Contessa"),
-            values={},
             copies=3,
         ),
     ),
     "xo_marks": ComponentSet(
         "piece",
         ("side", "kind"),
-        Deck(suits=(), ranks=(), values={}, cards=(("mark", "x"),) * 5 + (("mark", "o"),) * 4),
+        Deck(suits=(), ranks=(), cards=(("mark", "x"),) * 5 + (("mark", "o"),) * 4),
     ),
     # 32 breakthrough men: sixteen a side, one kind, distinguished only by side.
     "breakthrough_men": ComponentSet(
@@ -211,7 +200,6 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
         Deck(
             suits=(),
             ranks=(),
-            values={},
             cards=(("man", "light"),) * 16 + (("man", "dark"),) * 16,
         ),
     ),
@@ -271,7 +259,7 @@ def _require_component_set(name: str) -> ComponentSet:
     """The named set, or a loud `NotImplementedError` — resolve's [[owner-guard]]
     rejects an unknown/mis-flavored name, so every runtime lookup miss is a
     driver bug, never a designer error. One raise for `build_deck`/
-    `component_deck`/`axis_attributes`."""
+    `axis_attributes`."""
     cs = component_set(name)
     if cs is None:
         raise NotImplementedError(
@@ -279,13 +267,6 @@ def _require_component_set(name: str) -> ComponentSet:
             f"known component sets: {', '.join(sorted(COMPONENT_SETS))}"
         )
     return cs
-
-
-def component_deck(name: str) -> Deck:
-    """The `Deck` backing a named component set. `DECKS[name]` for a card set,
-    generalized so a piece game reaches the same payload — the driver reads a
-    set's card-point table through this instead of `DECKS`."""
-    return _require_component_set(name).deck
 
 
 def axis_attributes(name: str) -> dict[str, str]:

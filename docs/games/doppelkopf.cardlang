@@ -1,8 +1,9 @@
 // Doppelkopf — formalized DSL (parser/checker/runtime target).
 //
 // Companion to doppelkopf.md. Four players, 48-card doppelkopf48 deck (two
-// copies of A 10 K Q J 9 per suit; values A=11 10=10 K=4 Q=3 J=2 9=0, 240
-// card points). One round of deals (four hands, each player deals once);
+// copies of A 10 K Q J 9 per suit; the `card_points` table prices it
+// A=11 10=10 K=4 Q=3 J=2 9=0, 240 card points). One round of deals (four
+// hands, each player deals once);
 // normal games only — the DDV-aligned base without the Vorbehalt round
 // (no marriage, poverty, or bid solos; a silent solo — both ♣Q dealt to one
 // player — arises naturally from the ♣Q partition and is scored as a normal
@@ -48,6 +49,7 @@ game Doppelkopf {
 
   cards: doppelkopf48
   ranking: ace-ten
+  card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0 }
 
   zones {
     deck             : Deck
@@ -239,7 +241,7 @@ game Doppelkopf {
 
       // --- Scoring. All 48 cards are played, so re_known[] is the complete
       // partition and every deferred bonus event can be team-resolved.
-      let pts[p] = sum of card_value(card) over cards in captured[p]
+      let pts[p] = sum of card_points(card) over cards in captured[p]
       for each player p:
         if re_known[p] {
           re_pts += pts[p]

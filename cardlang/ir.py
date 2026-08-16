@@ -63,6 +63,14 @@ def emit(game: n.Game) -> IRDict:
         # The source form: the convention keyword when one was written, else
         # None. `ranking` above is always the operative (expanded) order.
         "ranking_convention": game.ranking_convention,
+        # Keyed ONLY when the game declares a `card_points { }` clause — the
+        # `content_flavor` precedent, so clause-less games' IR goldens stay
+        # byte-stable.
+        **(
+            {"card_points": _card_points_table(game.card_points)}
+            if game.card_points is not None
+            else {}
+        ),
         "trump": game.trump,
         "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
@@ -99,6 +107,17 @@ def to_json(game: n.Game) -> str:
 
 def _players(p: n.PlayersSpec) -> IRDict:
     return {"kind": "players", "low": p.low, "high": p.high}
+
+
+def _card_points_table(t: n.CardPointsTable) -> IRDict:
+    return {
+        "kind": "card_points_table",
+        "entries": [
+            {"kind": "card_points_entry", "rank": e.rank, "value": e.value}
+            for e in t.entries
+        ],
+        "else_value": t.else_value,
+    }
 
 
 def _position(p: n.PositionDecl) -> IRDict:

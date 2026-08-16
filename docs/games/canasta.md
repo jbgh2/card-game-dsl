@@ -149,7 +149,8 @@ After four deals, the side with the higher cumulative score wins.
   (`meldA[team] … meld4[team]`, plus the black-three group and the
   red-three row). A meld's typed state — natural vs mixed, canasta or not —
   is derived from its composition at every read (the game's own `function`s
-  for the go-out and add guards, pure primitives for the scoring); growth
+  for the go-out and add guards and the meld-point sum; the canasta-bonus
+  primitive for the per-pile object bonus); growth
   is ordinary card movement by either partner; hand-end scoring reads each
   pile as an object. This is the flattening that settles
   first-class meld groups (decisions.md "Meld groups: flattened zone

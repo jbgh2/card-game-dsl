@@ -104,7 +104,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
-        "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "card_points",  # a card's points under the game's `card_points { }` table
         "top_of",  # the top card of an ordered zone/collection (the sequence end)
         "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
     }
@@ -126,7 +126,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
-        "tarot_card_points",  # French Tarot: a card's doubled card-point value
         "schnapsen_trick_winner",  # Schnapsen: the two-card trick's winner (leader led first)
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
@@ -135,16 +134,13 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
         "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
         "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
-        "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
         "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
         "cribbage_crib_value",  # Cribbage: the dealer's crib show score
-        "gin_card_points",  # Gin: deadwood value of a card (A=1, pips, faces 10)
         "gin_deadwood",  # Gin: optimal-partition deadwood of a hand
         "gin_can_knock",  # Gin: some discard leaves a <= 10 arrangement
         "gin_knock_ok",  # Gin: knock legality after a specific discard
@@ -152,8 +148,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_arrange_ok",  # Gin: valid meld AND the rest still arranges to <= 10
         "gin_can_declare",  # Gin: some declarable meld exists (knocker)
         "gin_can_declare_free",  # Gin: some valid meld exists (defender)
-        "gin_flat_points",  # Gin: a hand counted as all-deadwood
-        "gin_shown_points",  # Gin: shown_deadwood[p]'s point count
         "gin_lay_ok_a",  # Gin: card extends the knocker's meld A
         "gin_lay_ok_b",  # Gin: card extends the knocker's meld B
         "gin_lay_ok_c",  # Gin: card extends the knocker's meld C
@@ -178,9 +172,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_can_start",  # Canasta: a new meld of the rank is completable from hand
         "canasta_stage_ok",  # Canasta: card joins the open attempt, close stays reachable
         "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
-        "canasta_meld_points",  # Canasta: card points of everything the side melded
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
-        "canasta_hand_points",  # Canasta: card points left in both partners' hands
     }
 )
 
@@ -213,7 +205,7 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # organizing rule for the boundary: locating an OPAQUE caller-supplied token is
 # generic (`player_holding` matches a card by identity); privileging a
 # SPECIFIC rank/suit -- by `.rank`/
-# `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
+# `.suit`, `rs.rank_index`, `rs.card_points`, a point table, or an internal
 # card literal -- is deck-only.
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
@@ -252,11 +244,9 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
-        "canasta_hand_points",
-        "canasta_meld_points",
         "canasta_must_take_pile",
         "canasta_stage_ok",
-        "card_value",
+        "card_points",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -270,20 +260,16 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_can_declare",
         "gin_can_declare_free",
         "gin_can_knock",
-        "gin_card_points",
         "gin_deadwood",
-        "gin_flat_points",
         "gin_knock_ok",
         "gin_lay_ok_a",
         "gin_lay_ok_b",
         "gin_lay_ok_c",
-        "gin_shown_points",
         "gin_valid_meld",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
         "peg_pair_points",
         "peg_run_points",
-        "peg_value",
         "pinochle_meld_value",
         "pot_share",
         "rank_value",
@@ -293,12 +279,10 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_trick_winner",
         "strain_index",
         "suit_of",
-        "tarot_card_points",
         "tarot_excuse_player",
         "tarot_led_suit",
         "tarot_per_opp",
         "tarot_trump_height",
-        "tichu_card_points",
         "tichu_dragon_won",
     }
 )

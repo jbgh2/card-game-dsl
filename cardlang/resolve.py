@@ -417,6 +417,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.CardLiteral, "rank"): "deck_rank",
     (n.CardLiteral, "suit"): "deck_suit",
     (n.Game, "ranking"): "deck_rank",
+    (n.CardPointsEntry, "rank"): "deck_rank",
     (n.Game, "trump"): "deck_suit",
     (n.Game, "direction"): "enum_value",
     (n.RotateStmt, "values"): "enum_value",
@@ -1873,6 +1874,7 @@ def resolve(game: n.Game) -> n.Game:
     _resolve_direction(game, bag)
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
+    _resolve_card_points(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
@@ -2052,6 +2054,7 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
             | n.OutcomeCase() | n.StructField() | n.DerivedField()
             | n.ZoneDecl() | n.TypeRef() | n.TypeArg()
+            | n.CardPointsTable() | n.CardPointsEntry()
             | n.StateBlock() | n.StateDecl() | n.PositionDecl() | n.BoardDecl()
             | n.Phase() | n.PhaseQualifier() | n.BeforeEach() | n.AfterEach()
             | n.ActiveRules() | n.LegalMoves() | n.Mode() | n.TransitionTo() | n.MoveEvent()
@@ -3901,6 +3904,12 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"a card-play notion; drop the clause",
             game.span,
         )
+    if game.card_points is not None:
+        bag.error(
+            f"{kind} -- `card_points` prices a deck's cards by rank, which a "
+            f"piece set has no notion of; drop the clause",
+            game.card_points.span or game.span,
+        )
 
 
 def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
@@ -4034,6 +4043,40 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
                 f"'{game.deck}' (known ranks: {', '.join(sorted(known))})"
                 + hint,
                 game.span,
+            )
+
+
+def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
+    """`card_points { }` keys must name real ranks of the declared deck, each
+    at most once — `_resolve_ranking`'s two Owner Guards, applied to the
+    table's key position. Unchecked, a typo (`ace` for `A`) would price the
+    intended rank 0 (or the else value) forever, at runtime, with no
+    diagnostic anywhere — the accepted-but-ignored class; and a duplicate key
+    would silently last-win in the driver's materialized dict. Coverage is
+    NOT required: the table may legitimately be sparse (Tichu prices five
+    ranks; the rest read 0), exactly as `ranking:` may be partial. The else
+    row needs no key check — `else` is the grammar's own keyword, excluded
+    from the key terminal."""
+    if game.card_points is None or not _deck_known(game.deck):
+        return
+    if game.content_flavor != "card":
+        return  # `_reject_card_content_clauses` already named the kind
+    known = rank_names(game.deck)
+    seen: set[str] = set()
+    for entry in game.card_points.entries:
+        if entry.rank in seen:
+            bag.error(
+                f"card_points repeats rank '{entry.rank}' — each rank may "
+                f"appear at most once (a duplicate would silently keep only "
+                f"the last value)",
+                entry.span or game.span,
+            )
+        seen.add(entry.rank)
+        if entry.rank not in known:
+            bag.error(
+                f"card_points names unknown rank '{entry.rank}' — not a rank "
+                f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
+                entry.span or game.span,
             )
 
 
@@ -5079,6 +5122,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     f"{content_kind_clause(game.content_flavor, game.deck)} -- "
                     f"`{nd.func}` reads a card's suit/rank/points, which a piece "
                     f"set has none of",
+                    nd.span,
+                )
+            case n.Call() if nd.func == "card_points" and game.card_points is None:
+                # The table has ONE source, the game's own clause (the deck
+                # registry carries no point table), so a clause-less call has
+                # nothing to read: without this guard it would silently price
+                # every card 0 — accepted-but-ignored wearing a green check.
+                # The `_check_board_call` mechanism, keyed on the clause. The
+                # piece-game cell never reaches here: `card_points` is
+                # DECK_ONLY, so the flavor arm above already rejected it.
+                bag.error(
+                    "`card_points(card)` reads the game's card-point table, "
+                    "but this game declares no `card_points { }` clause",
                     nd.span,
                 )
             case n.Call() if nd.func in BOARD_ONLY_CALL_FUNCS:

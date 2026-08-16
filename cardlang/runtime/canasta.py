@@ -5,10 +5,6 @@ window, the frozen pile, the initial-meld minimums, and the per-team hand
 scoring — runs in the DSL (docs/games/canasta.cardlang). This module holds
 what is not expressible there:
 
-- `POINTS` — the Canasta card-point table (Joker 50, deuces and aces 20,
-  K..8 = 10, 7..4 and threes 5). The deck's `card_value()` table is empty
-  for canasta108 (a scoring fact of the game, not a deck property — the
-  Gin/Cribbage precedent exactly).
 - the **meld-attempt core** (`_Attempt` / `_close_legal` / `_completable`) —
   the joint legality of a meld under composition (>= 2 naturals, <= 3
   wilds, size >= 3), the frozen/unfrozen pile-take justification, the
@@ -22,6 +18,12 @@ what is not expressible there:
   hands, the stage zones, the pile, the per-rank team meld zones, and the
   `pile_frozen` / `team_melded` / `meld_rank` / `taking_pile` / `score`
   state vars.
+
+The point SUMS live in the game file: canasta.cardlang declares the table as
+its `card_points { }` clause, sums the meld piles through its own
+`canasta_meld_points` function, and counts the partners' hands in a
+per-player loop. `POINTS` below survives only as the meld-attempt core's
+internal weights (the initial-meld minimum prices staged cards and wilds).
 
 Why no joint selection (`where jointly`): canasta108 holds duplicate
 identical cards (two copies of every standard card, four jokers), and the
@@ -51,10 +53,15 @@ from cardlang.runtime.values import Card, Player
 # contract; the accessors below are the only sanctioned way to touch state.
 ROW = reads.row("cardlang/runtime/canasta.py", "canasta.cardlang")
 
-# The Canasta card-point table. Red threes never carry card points (they are
-# bonus objects, swept out of hands on sight); the "3" row is the BLACK
-# threes' 5 points (cards-left-in-hand counts, and the go-out black-three
-# meld).
+# The meld-attempt core's card weights (the initial-meld minimum prices
+# staged cards and wilds) — a second copy of the fact canasta.cardlang
+# declares as its `card_points { }` clause and sums itself at scoring. The
+# two must agree or the minimum and the scored sums diverge; pinned by
+# tests/test_card_points.py::
+# test_canasta_meld_core_table_matches_the_declared_clause. Red threes never
+# carry card points (they are bonus objects, swept out of hands on sight);
+# the "3" row is the BLACK threes' 5 points (cards-left-in-hand counts, and
+# the go-out black-three meld).
 POINTS: dict[str, int] = {
     "Joker": 50, "2": 20, "A": 20,
     "K": 10, "Q": 10, "J": 10, "10": 10, "9": 10, "8": 10,
@@ -413,26 +420,7 @@ def canasta_close_ok(facts: EngineFacts, gr: reads.GameReads, p: Player) -> bool
 # --- scoring -----------------------------------------------------------------
 
 
-def canasta_meld_points(facts: EngineFacts, gr: reads.GameReads, team: int) -> int:
-    """The card points of everything the side melded (canastas included; red
-    threes are bonus objects, never meld)."""
-    return sum(
-        card_points(c) for _, cards in _meld_zones(gr, team) for c in cards
-    )
-
-
 def canasta_canasta_bonus(facts: EngineFacts, gr: reads.GameReads, team: int) -> int:
     """The canasta bonuses: 500 per natural canasta, 300 per mixed — each
     meld pile scored as an object, by its own composition."""
     return sum(canasta_bonus_for(cards) for _, cards in _meld_zones(gr, team))
-
-
-def canasta_hand_points(facts: EngineFacts, gr: reads.GameReads, team: int) -> int:
-    """The card points still held in both partners' hands at the end of the
-    hand — subtracted from the side's score."""
-    return sum(
-        card_points(c)
-        for p, t in facts.team_of.items()
-        if t == team
-        for c in _hand(gr, p)
-    )

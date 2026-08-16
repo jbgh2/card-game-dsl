@@ -101,6 +101,15 @@ class _Ranking:
 
 
 @dataclass(frozen=True, slots=True)
+class _CardPointsElse:
+    """The `else:` row of a `card_points { }` block, distinguished from the
+    rank rows so the table callback can lift it into
+    `CardPointsTable.else_value`."""
+
+    value: int
+
+
+@dataclass(frozen=True, slots=True)
 class _Trump:
     suit: str
     span: Span
@@ -317,6 +326,61 @@ class _Builder(Transformer[Token, n.Game]):
 
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
+
+    # --- the card-point table (`card_points { }`) ---
+
+    def card_points_key(self, meta: Meta, c: list[Token]) -> str:
+        return str(c[0])
+
+    def cp_value(self, meta: Meta, c: list[Token]) -> int:
+        return int(c[0])
+
+    def cp_neg_value(self, meta: Meta, c: list[Token]) -> int:
+        return -int(c[0])
+
+    def card_points_entry(self, meta: Meta, c: list[object]) -> n.CardPointsEntry:
+        assert isinstance(c[0], str) and isinstance(c[1], int)
+        return n.CardPointsEntry(rank=c[0], value=c[1], span=self._span(meta))
+
+    def card_points_else(self, meta: Meta, c: list[object]) -> _CardPointsElse:
+        assert isinstance(c[0], int)
+        return _CardPointsElse(c[0])
+
+    def card_points_table(self, meta: Meta, c: list[object]) -> n.CardPointsTable:
+        # Children: the rank rows, then the optional else row (None when
+        # absent — the grammar's `[card_points_else]` placeholder).
+        entries = tuple(x for x in c if isinstance(x, n.CardPointsEntry))
+        else_rows = [x for x in c if isinstance(x, _CardPointsElse)]
+        return n.CardPointsTable(
+            entries=entries,
+            else_value=else_rows[0].value if else_rows else None,
+            span=self._span(meta),
+        )
+
+    def card_points_colon_reject(self, meta: Meta, c: list[object]) -> None:
+        # A retired shape, not a clause: the block clauses take no colon, and
+        # the colon habit is the most plausible wrong sentence (every scalar
+        # clause a designer has met takes one). The `==`/`!=` mechanism: the
+        # grammar owns the shape so the rejection can name the fix.
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`card_points` is a block clause and takes no colon — write "
+                "`card_points { A: 1 ... }`",
+                self._span(meta),
+            )
+        )
+
+    def card_values_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`card_values` is not a clause — the card-point table is "
+                "declared `card_points { A: 1 ... }`, and the Builtin reading "
+                "it is `card_points(card)`",
+                self._span(meta),
+            )
+        )
 
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
         return _Trump(str(c[0]), span=self._span(meta))
@@ -1294,6 +1358,7 @@ class _Builder(Transformer[Token, n.Game]):
         direction: str | None = None
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
+        card_points: n.CardPointsTable | None = None
         trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -1351,6 +1416,9 @@ class _Builder(Transformer[Token, n.Game]):
                 once("ranking:", item.span)
                 ranking = item.ranks
                 ranking_convention = item.convention
+            elif isinstance(item, n.CardPointsTable):
+                once("card_points { }", item.span, merge_hint=True)
+                card_points = item
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
@@ -1438,6 +1506,7 @@ class _Builder(Transformer[Token, n.Game]):
             direction=direction,
             ranking=ranking,
             ranking_convention=ranking_convention,
+            card_points=card_points,
             trump=trump,
             teams=teams,
             positions=positions,

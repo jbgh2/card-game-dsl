@@ -77,8 +77,13 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             raise IllegalMove(args[0] if args else "illegal move")
         case "rank_value":
             return ctx.rs.rank_index[args[0].rank]
-        case "card_value":
-            return ctx.rs.card_values.get(args[0].rank, 0)
+        case "card_points":
+            # Total by construction: the driver materialized the declared
+            # `card_points { }` table over every deck rank (unlisted ranks at
+            # the else value, or 0), and resolve's clause-required guard
+            # refuses the call in a game with no table — so a plain subscript,
+            # never a defaulted get that would re-derive either fact.
+            return ctx.rs.card_points[args[0].rank]
         case "top_of":
             return _end_card(args[0], "top_of", -1)
         case "bottom_of":

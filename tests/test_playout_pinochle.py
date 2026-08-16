@@ -23,10 +23,10 @@ PINOCHLE = Path(__file__).parent.parent / "docs" / "games" / "pinochle.cardlang"
 # pinochle48 strength, low to high: 9 J Q K 10 A.
 RANK = {r: i for i, r in enumerate(("9", "J", "Q", "K", "10", "A"))}
 
-# pinochle48's card-point table (A/10/K = 10; Q/J/9 = 0) — the same table
-# `card_value(c)` reads at runtime (cardlang/runtime/values.py DECKS["pinochle48"]).
-# Duplicated here (not imported) so the recompute below is independent of the
-# migrated code it checks.
+# Pinochle's card-point table (A/10/K = 10; Q/J/9 = 0) — the same table
+# `card_points(c)` reads at runtime (pinochle.cardlang's `card_points { }`
+# clause). Duplicated here (not parsed out of the game file) so the recompute
+# below is an independent oracle for the code it checks.
 COUNTER_VALUE = {"A": 10, "10": 10, "K": 10}
 
 

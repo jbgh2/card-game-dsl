@@ -324,9 +324,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/gin.py",
         game_file="gin-rummy.cardlang",
-        zone_families=_fs(
-            "hand", "taken", "shown_deadwood", "meldA", "meldB", "meldC"
-        ),
+        zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/canasta.py",

@@ -70,9 +70,17 @@ game Canasta {
   cards: canasta108
   // The meldable natural ranks, strongest first — a deliberately partial
   // ranking: it is the Rank iteration/parameter domain (threes and the wild
-  // ranks are excluded by construction). Canasta has no trick ranking; card
-  // POINT values are scoring facts in cardlang/runtime/canasta.py.
+  // ranks are excluded by construction). Canasta has no trick ranking.
   ranking: A K Q J 10 9 8 7 6 5 4
+  // Card points: jokers 50, deuces and aces 20, K..8 ten, 7..4 and threes 5.
+  // Rank-keyed like every card fact: the "3" row is what a black three counts
+  // (red threes are bonus objects, swept out of hands on sight, so the row
+  // never prices one in play).
+  card_points {
+    Joker: 50  2: 20  A: 20
+    K: 10  Q: 10  J: 10  10: 10  9: 10  8: 10
+    7: 5  6: 5  5: 5  4: 5  3: 5
+  }
 
   zones {
     deck           : Deck                  // the face-down stock
@@ -195,12 +203,12 @@ game Canasta {
 
         // --- Hand settlement: melded card points, canasta bonuses (each
         // meld pile scored as an object, by its own composition), red-three
-        // bonuses (sign by whether the side melded), the going-out 100,
-        // minus the card points still held in both partners' hands.
+        // bonuses (sign by whether the side melded), the going-out 100;
+        // then each player's remaining hand counts against their side.
         phase scoring {
           for each team u: score[u] += canasta_meld_points(u) + canasta_canasta_bonus(u)
                                        + canasta_red3_bonus(u) + 100 * went_out[u]
-                                       - canasta_hand_points(u)
+          for each player p: score[team_of(p)] -= sum of card_points(card) over cards in hand[p]
           deals_played += 1
           dealer := dealer offset_by left
         }
@@ -357,6 +365,17 @@ function canasta_is_red3(c : Card) =
 // A black three: a stop card; meldable only as the going-out group.
 function canasta_is_black3(c : Card) =
   c.rank is "3" and (c.suit is clubs or c.suit is spades)
+
+// The card points of everything the side melded (canastas included; red
+// threes are bonus objects, never meld) — summed over every meld pile, the
+// black-three go-out pile included.
+function canasta_meld_points(u : Team) =
+  (sum of card_points(card) over cards in meldA[u]) + (sum of card_points(card) over cards in meldK[u])
+  + (sum of card_points(card) over cards in meldQ[u]) + (sum of card_points(card) over cards in meldJ[u])
+  + (sum of card_points(card) over cards in meld10[u]) + (sum of card_points(card) over cards in meld9[u])
+  + (sum of card_points(card) over cards in meld8[u]) + (sum of card_points(card) over cards in meld7[u])
+  + (sum of card_points(card) over cards in meld6[u]) + (sum of card_points(card) over cards in meld5[u])
+  + (sum of card_points(card) over cards in meld4[u]) + (sum of card_points(card) over cards in meld3b[u])
 
 // Does the side own a canasta (a seven-card meld)? Scanned over every meld
 // pile, the black-three go-out pile included.

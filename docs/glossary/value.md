@@ -1,11 +1,11 @@
 ---
 term: value
-definition: card points (`Deck.values`) · enum value · RHS/initializer · literal payload
+definition: card points (the `card_points { }` clause — see its entry) · enum value · RHS/initializer · literal payload
 layer: kernel
 status: reserved
 reserved: true
 home:
-see: []
+see: ["card-points"]
 retired_spellings: []
 findings: []
 ---

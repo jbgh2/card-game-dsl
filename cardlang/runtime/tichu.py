@@ -21,7 +21,7 @@ frame the body reads as `state.x`).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows, _points
+from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
@@ -92,12 +92,6 @@ def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:
     return (
         cur is not None and len(cur.cards) == 1 and cur.cards[0].rank == "Dragon"
     )
-
-
-def tichu_card_points(facts: EngineFacts, gr: reads.GameReads, c: Card) -> int:
-    """The card-point table (K and 10 score 10, 5 scores 5, Dragon +25,
-    Phoenix -25; 100 points per hand)."""
-    return _points(c)
 
 
 # ---------------------------------------------------------------------------

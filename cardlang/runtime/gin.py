@@ -5,10 +5,6 @@ the showdown's declared arrangements (joint selections), the layoffs, and the
 knock/gin/undercut scoring — runs in the DSL (docs/games/gin-rummy.cardlang).
 This module holds what is not expressible there:
 
-- `card_points` — A=1, pips, face=10. The `card_value()` deck table is empty
-  for standard52 (`cardlang/runtime/values.py`), and `cards:` has no syntax
-  for a per-game point table, so the points are a [[primitive]] — Cribbage's
-  `peg_value` precedent exactly.
 - `valid_meld` — a set (3-4 of a rank) or a run (3+ consecutive, same suit,
   ace low). The joint validity of a card GROUP; per-card filters cannot say
   it, which is what the `where jointly` surface exists for.
@@ -23,8 +19,12 @@ This module holds what is not expressible there:
   the climb-engine codec pattern): pure card-set <-> index functions the
   OpenSpiel action space sizes its combo block by.
 - ctx-adapters (`gin_deadwood`, `gin_knock_ok`, `gin_arrange_ok`,
-  `gin_can_declare`, `gin_flat_points`, `gin_lay_ok_*`) reading hands, meld
-  zones, and the `knocker` state var.
+  `gin_can_declare`, `gin_lay_ok_*`) reading hands and meld zones.
+
+The point COUNTS live in the game file: gin-rummy.cardlang declares the
+table as its `card_points { }` clause and sums `card_points(card)` over the
+shown zones itself. `_POINTS` below survives only as the deadwood
+optimizer's internal weights.
 
 Every adapter is a pure function of the game state it reads — no hidden
 state, no RNG (decisions.md kernel doctrine: meaning never state).
@@ -43,6 +43,11 @@ from cardlang.runtime.values import Card, Player
 # accessors below are the only sanctioned way to touch state by name.
 ROW = reads.row("cardlang/runtime/gin.py", "gin-rummy.cardlang")
 
+# The deadwood optimizer's card weights — a second copy of the fact
+# gin-rummy.cardlang declares as its `card_points { }` clause (the optimizer
+# runs inside the primitive bundle, which carries no engine table). The two
+# must agree or knock legality and the clause-summed scores diverge; pinned by
+# tests/test_card_points.py::test_gin_deadwood_table_matches_the_declared_clause.
 _POINTS = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8,
            "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10}
 # Run order: ace LOW, always (A-2-3 melds; Q-K-A does not).
@@ -259,18 +264,6 @@ def gin_can_declare_free(facts: EngineFacts, gr: reads.GameReads, player: Player
     rule-legal). The no-implicit-actions pairing for `declare_meld_d`."""
     hand = _hand(gr, player)
     return any(valid_meld([hand[i] for i in meld]) for meld in _candidate_melds(hand))
-
-
-def gin_flat_points(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
-    """The hand counted as all-deadwood — the `finish_arranging` guard (the
-    undeclared remainder IS the shown deadwood) and the scoring counts."""
-    return flat_points(_hand(gr, player))
-
-
-def gin_shown_points(facts: EngineFacts, gr: reads.GameReads, player: Player) -> int:
-    """The point count of `shown_deadwood[player]` — the scoring read after
-    both arrangements (and any layoffs) are on the table."""
-    return flat_points(list(gr.families["shown_deadwood"][player]))
 
 
 def _extends_meld(card: Card, meld: list[Card]) -> bool:

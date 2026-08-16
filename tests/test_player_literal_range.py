@@ -415,7 +415,7 @@ _PLAYER_BUILDERS: dict[str, Callable[[int], str]] = {
 # team id -> builder(team) : the parallel TEAM axis (2-team game, teams 0 and 1).
 _TEAM_BUILDERS: dict[str, Callable[[int], str]] = {
     "team_keyed_index": lambda k: _team_game(body=f"    won[{k}] := 1\n"),
-    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_meld_points({k})\n"),
+    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_canasta_bonus({k})\n"),
 }
 
 # The single knob for the staged red->green flip: a position here is still
@@ -504,7 +504,7 @@ def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
 
 _TEAMLESS_TEAM_LITERAL = {
     "team_state_default": lambda: _teamless_game(extra_state="owner : Team = 0"),
-    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_meld_points(0)\n"),
+    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_canasta_bonus(0)\n"),
 }
 
 

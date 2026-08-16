@@ -46,6 +46,7 @@ game Pinochle {
 
   cards: pinochle48
   ranking: ace-ten            // 10 sits between K and A
+  card_points { A: 10  10: 10  K: 10  Q: 0  J: 0  9: 0 }
 
   zones {
     deck           : Deck
@@ -117,12 +118,12 @@ game Pinochle {
         for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
 
         // Twelve strict tricks: high bidder leads; A/10/K score 10 each and
-        // the last trick 10 (card_value reads the pinochle48 deck table).
+        // the last trick 10 (card_points reads the game's declared table).
         leader := high_bidder
         repeat until (all players where hand[player] is empty) {
           round play_to_trick from leader over all players source hand into trick_pile
                 winner highest_trump_or_led_suit trump trump_suit
-          trick_score[team_of(winner)] += sum of card_value(card) over cards in trick_pile
+          trick_score[team_of(winner)] += sum of card_points(card) over cards in trick_pile
           move all cards from trick_pile to captured[team_of(winner)]
           leader := winner
         }

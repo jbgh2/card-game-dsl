@@ -424,10 +424,15 @@ def test_choose_computed_hi_still_demands_a_static_ceiling() -> None:
 def test_aggregation_body_host() -> None:
     # Binder-scoped host: the aggregated expression divides per card; the
     # mandatory empty-set default sits outside the division (below `or`).
+    # The shell gains a `card_points { }` clause for the Builtin the body
+    # calls (the clause-required guard, tests/test_card_points.py).
     src = _game(
         "deal 2 cards from deck to hand[0]\n"
-        "    s[0] := highest card_value(card) divided by 2 rounded up "
+        "    s[0] := highest card_points(card) divided by 2 rounded up "
         "over cards in hand[0] or 0"
+    ).replace(
+        "ranking: A K Q J 10 9 8 7 6 5 4 3 2",
+        "ranking: A K Q J 10 9 8 7 6 5 4 3 2\n  card_points { A: 11  K: 4 }",
     )
     game = check_dsl(src, "mini.cardlang")
     assert play_game(game, random.Random(0)).scores[0] >= 0
