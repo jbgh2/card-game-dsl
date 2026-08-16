@@ -308,11 +308,15 @@ early ("according to Foster").
 Counsel from either persona speaks two altitudes. The counsel proper is
 precise and cited — the record and the implementer's currency. It closes
 with **the brief**: the same verdict, the strongest case against it and
-its cost, and the operator's decision, in plain words, written last so
+its cost, and the operator's decision, in plain words, generated last so
 that it condenses the analysis and never steers it. The brief is the
 operator's currency — read in a burst, between other work — and counsel
-without one is not finished, at the table or in the record. The exact
-shape is the charters' contract; this file names only the obligation.
+without one is not finished, at the table or in the record. It is the
+third member of a house class: the tracker's Summary against its Detail
+and the PR description against its diff already give the decider impact
+currency and the implementer mechanism; counsel was the last artifact
+that gave the decider only the execution-grade text. The exact shape is
+the charters' contract; this file names only the obligation.
 
 ## The physical layer
 

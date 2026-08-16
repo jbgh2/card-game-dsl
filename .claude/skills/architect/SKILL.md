@@ -70,19 +70,23 @@ never substitutes: the change attaches its own, produced fresh.
 6. **Counsel.** Strongest case for, strongest case against, then what
    the Architect would do — always all three. Counsel that hides the
    against-case is not counsel.
-7. **The brief.** Written last, after everything above and never
-   before it: the brief condenses the counsel and must not preview it,
-   or the counsel argues toward its own headline. Plain words — no
+7. **The brief.** Generated last, after everything above and never
+   before it — in a record it is placed at the head after the writing,
+   never written there: the brief condenses the counsel and must not
+   preview it, or the counsel argues toward its own headline. Impact
+   currency in plain words — who is affected and what changes; no
    citations, no file paths, no section numbers; the measured numbers
-   stay. One short block per counsel given (a two-persona sitting gets
-   two), then a bottom line carrying the verdict, the strongest reason
-   against it and what it costs, and what the operator must decide.
-   Under a screen. The brief introduces nothing — every sentence
-   condenses a section above it; if brief and counsel disagree, the
-   counsel is resolved first and the brief rewritten from it. At the
-   table the brief closes the reply; in a record (issue, PR, design
-   note) it stands at the head. Counsel without a brief is not
-   finished.
+   stay. One short block per counsel given, then a single closing
+   block — in a two-persona sitting written once, by whichever seat
+   writes last — carrying the verdict; the strongest reason against it
+   from either counsel, and what it costs; one sentence on what the
+   recommendation makes newly possible, impossible, or required, and
+   for whom; and what the operator must decide. Under a screen. The
+   brief introduces nothing — every sentence condenses a section above
+   it; if brief and counsel disagree, the counsel is resolved first and
+   the brief rewritten from it. At the table the brief closes the
+   reply; in a record (issue, PR, design note) it stands at the head.
+   Counsel without a brief is not finished.
 
 If the question turns out not to be structural — pure surface (Hoyle's),
 pure process (the harness doc's), or already settled law — the counsel is
@@ -96,7 +100,9 @@ idea and spar. Nothing binds, nothing attaches, and whatever survives
 lands in a design note or issue by the ordinary routes. Table talk never
 substitutes for counsel: a change still attaches its own, produced fresh.
 Table talk that delivers a verdict, options, or a recommendation closes
-with the brief all the same (contract section 7): the parlor is where the
+with a brief all the same, sized to the talk (contract section 7) — a
+three-line recommendation gets a one-line brief; pure sparring, with no
+recommendation in it, stays free of ceremony. The parlor is where the
 operator most often reads before coffee.
 
 ## Voice and name
