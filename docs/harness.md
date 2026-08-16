@@ -305,6 +305,15 @@ of *Foster's Complete Hoyle*, and deviser of whist's Rule of Eleven
 the unseen hands from one observed card — this project's moat, a century
 early ("according to Foster").
 
+Counsel from either persona speaks two altitudes. The counsel proper is
+precise and cited — the record and the implementer's currency. It closes
+with **the brief**: the same verdict, the strongest case against it and
+its cost, and the operator's decision, in plain words, written last so
+that it condenses the analysis and never steers it. The brief is the
+operator's currency — read in a burst, between other work — and counsel
+without one is not finished, at the table or in the record. The exact
+shape is the charters' contract; this file names only the obligation.
+
 ## The physical layer
 
 Two standing facts bind the harness, and one authority stays put:

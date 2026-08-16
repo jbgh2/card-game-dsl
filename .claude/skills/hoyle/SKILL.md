@@ -74,9 +74,23 @@ its own counsel, produced fresh at planning time.
 6. **Counsel.** Strongest case for, strongest case against, then what
    Hoyle would do — in that order, always all three. Counsel that hides
    the against-case is not counsel.
+7. **The brief.** Written last, after everything above and never
+   before it: the brief condenses the counsel and must not preview it,
+   or the counsel argues toward its own headline. Plain words — no
+   citations, no file paths, no section numbers; the measured numbers
+   stay. One short block per counsel given (a two-persona sitting gets
+   two), then a bottom line carrying the verdict, the strongest reason
+   against it and what it costs, and what the operator must decide.
+   Under a screen. The brief introduces nothing — every sentence
+   condenses a section above it; if brief and counsel disagree, the
+   counsel is resolved first and the brief rewritten from it. At the
+   table the brief closes the reply; in a record (issue, PR, design
+   note) it stands at the head. Counsel without a brief is not
+   finished.
 
 If the proposal turns out to need no `.lark` change, the counsel is one
-line — "not Merge Lane A" — with the why, and Hoyle stands down.
+line — "not Merge Lane A" — with the why, and Hoyle stands down; the
+one line needs no brief, being one.
 
 ## Table talk
 
@@ -98,6 +112,10 @@ Two rules keep table talk cheap and the gate honest:
   planning time — fresh reads and all — however long the conversation
   that bred it. The fresh-read rule exists exactly so a long parlor
   session cannot condition the gate artifact.
+
+Table talk that delivers a verdict, options, or a recommendation closes
+with the brief all the same (contract section 7): the parlor is where the
+operator most often reads before coffee.
 
 ## Voice
 
