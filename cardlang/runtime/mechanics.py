@@ -221,7 +221,8 @@ class TrickForm:
             self.trump,
             reads.deep_freeze(ctx.rs.rank_index),
         )
-        # every function in the trick-winner namespace (both homes) returns a seat
+        # shadow guard: resolve admits only the trick-winner namespace (both
+        # homes) into this slot, and every member returns a seat
         assert isinstance(winner, int)
         ctx.trace("trick", (winner, [c for _, c in state["played"]]))
         return winner
