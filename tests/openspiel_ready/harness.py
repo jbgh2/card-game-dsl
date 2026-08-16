@@ -200,15 +200,33 @@ class GameSpec:
     # "any": no public card/rank observation (a pure betting vocabulary).
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
-    # The fully public zones whose Arrival Record a consumer reads in this
-    # game — `PRIMITIVE_READS.arrival_zones` for the primitive consumers
-    # (doppelkopf, skat, five-hundred), plus the pile a
-    # `highest_trump_or_led_suit(zone, …)` call names (schnapsen, which has
-    # no registry row to derive from). The provenance soundness proof
-    # certifies each against every observer's own stream; an empty tuple
-    # records a vacuous cell rather than silently passing (most games
-    # consume no provenance today — the query surface is issue #253's).
+    # The fully public zones whose Arrival Record a CALL-FORM consumer reads
+    # in this game — the pile a `highest_trump_or_led_suit(zone, …)` call
+    # names (schnapsen), which no registry can see. This is deliberately
+    # HALF the proof's domain: the primitive half is derived inside the
+    # provenance proof from `PRIMITIVE_READS.arrival_zones` (the rows whose
+    # game_file is this spec's), so a future consumer declaring
+    # `arrival_zones` joins the soundness proof automatically rather than
+    # depending on someone also editing its game's spec here. A game with
+    # neither half records a vacuous cell rather than silently passing
+    # (most games consume no provenance today — the query surface is issue
+    # #253's).
     provenance_zones: tuple[str, ...] = ()
+
+    @property
+    def all_provenance_zones(self) -> tuple[str, ...]:
+        """The proof's whole domain: the hand-listed call-form half plus the
+        registry-derived primitive half — reconciliation by derivation, so
+        the two sources cannot drift apart silently."""
+        from cardlang.runtime.reads import PRIMITIVE_READS
+
+        derived = {
+            zone
+            for row in PRIMITIVE_READS
+            if row.game_file == self.filename
+            for zone in row.arrival_zones
+        }
+        return tuple(sorted(set(self.provenance_zones) | derived))
 
     # Where the provenance walk starts. The proof walks 40 greedy nodes from
     # here and REFUSES a run that compared zero record entries, so a game
@@ -739,7 +757,8 @@ class ReadinessProofs:
         first play (executed 2026-08-15; see the change's completeness
         ledger in tests/test_arrival_record.py)."""
         spec = self.spec
-        if not spec.provenance_zones:
+        zones = spec.all_provenance_zones  # hand-listed call-form half + registry-derived half
+        if not zones:
             record(spec.short_name, "provenance", seed=seed, zones=0, vacuous=True)
             return
         from .partition import derive_arrivals
@@ -755,7 +774,7 @@ class ReadinessProofs:
         entries_compared = 0
         nodes = 0
         while isinstance(r, DecisionNode) and nodes < 40:
-            for zone_label in spec.provenance_zones:
+            for zone_label in zones:
                 zone = r.rs.zones.single(zone_label)
                 engine = [(a.actor, str(a.card)) for a in zone.arrivals]
                 entries_compared += len(engine)
@@ -775,14 +794,14 @@ class ReadinessProofs:
             nodes += 1
         assert entries_compared > 0, (
             f"{spec.short_name}: the greedy line never put a card in "
-            f"{spec.provenance_zones} within {nodes} steps — the certificate "
+            f"{zones} within {nodes} steps — the certificate "
             f"was vacuous; deepen the walk"
         )
         record(
             spec.short_name,
             "provenance",
             seed=seed,
-            zones=len(spec.provenance_zones),
+            zones=len(zones),
             nodes=nodes,
             entries_compared=entries_compared,
             vacuous=False,

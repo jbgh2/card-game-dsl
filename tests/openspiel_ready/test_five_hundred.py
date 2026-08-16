@@ -35,7 +35,7 @@ class TestReadiness(ReadinessProofs):
         "cardlang_five_hundred",
         "five-hundred.cardlang",
         adapter_terminal_steps=400,  # greedy line measured 55 steps
-        provenance_zones=("trick_pile",),  # five_hundred_trick_winner reads the record
+        # provenance zones derive from PRIMITIVE_READS.arrival_zones (500's row)
     )
 
 

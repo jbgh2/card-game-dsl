@@ -21,8 +21,16 @@ registry:   `Zone` (cardlang/runtime/state.py) owns the record and its
             docs/games/*.cardlang (the same glob the playout suites walk).
 covered:    (a) the invariant walk: per game x manifest-head seed, every
             zone's record-vs-cards multiset equality at every decision
-            node, plus actor/src well-formedness (actor is a seat or None,
-            never a defaulted 0-for-None; src is a Zone Address or None);
+            node, plus actor/src well-formedness (actor is a seat or None;
+            src is a Zone Address or None). The walk cannot discriminate
+            seat 0 from a DEFAULTED 0 — that property is carried by
+            construction (`require_actor` binds the chooser's seat on
+            every chosen path, and non-chosen paths record
+            `ctx.current_player`, which IS None when unbound) and
+            discriminated observably on consumed zones by the provenance
+            soundness rows (a wrong or defaulted actor disagrees with
+            every observer's derivation — the executed reddening's exact
+            shape);
             (b) value-purity: the record contains Card values equal to the
             zone's cards — no id(), no copy index (the copy-swap pins in
             tests/openspiel_ready/ carry the executed reddening for this);
@@ -56,7 +64,17 @@ residual:   `arrival_zones` for zone FAMILIES — no consumer in this change
             where a manifest pause sits past a hand boundary (the pauses
             are hand-1 depths for most games); the shuffle kind is covered
             at every pause by construction — both recorded per game in the
-            wash pin's coverage row, honest rather than claimed.
+            wash pin's coverage row, honest rather than claimed. The
+            `highest_trump_or_led_suit` call form carries NO
+            completed-trick count guard — unlike the retired per-game
+            winners, whose `recorded_plays(expected)` count came from each
+            game's own trick structure, a generic pile winner has no
+            expected count to assert, so a designer hand-rolling a trick
+            and calling it mid-trick gets a plausible winner-so-far,
+            silently. Deliberately not built this round (no corpus witness
+            names the right guard shape — an expected-count argument is a
+            surface decision); the work is issue #350, and THIS LEDGER
+            ROW owns the record of the gap until it lands.
 
 misuse probes: tests/rejections/arrival_winner_old_arity.{cardlang,expected}
             (the pre-#256 leader-argument spelling — rejected at typecheck

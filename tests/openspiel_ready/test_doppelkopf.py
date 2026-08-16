@@ -37,7 +37,7 @@ class TestReadiness(ReadinessProofs):
         "cardlang_doppelkopf",
         "doppelkopf.cardlang",
         conformance_steps=120,
-        provenance_zones=("trick_pile",),  # doko_trick_winner reads the record
+        # provenance zones derive from PRIMITIVE_READS.arrival_zones (doko's row)
     )
 
 

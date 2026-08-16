@@ -9,9 +9,15 @@ representational impossibility: equal copies produce equal `Arrival`
 entries, so there is no exchange to perform. This module makes that
 impossibility EXECUTABLE rather than argued: two independent replays of the
 same (game, seed, history) build entirely distinct `Card` objects, so any
-per-object identity in the record (an `id(card)` key, a copy index, an
-`is`-matched drop) diverges between the runs — while a pure value record
-serializes byte-identically.
+RUN-VARYING per-object identity in the record — an `id(card)` key, anything
+allocation-derived — diverges between the runs, while a pure value record
+serializes byte-identically. The pin's exact property is invariance under
+rebuilding every object: a DETERMINISTIC per-copy tag (a build-order index
+stamped identically each run) would replay identically and is outside this
+pin's reach — no such carrier exists in the values-only engine (`Card` and
+`Arrival` carry no field to hold one, and `deep_freeze` refuses new
+shapes), so the guard for that hypothetical is the value types themselves,
+not this comparison.
 
 The game axis is DERIVED from the component registry, never hand-listed:
 every registered game whose deck holds two or more equal (rank, suit)

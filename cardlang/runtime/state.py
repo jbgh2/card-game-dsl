@@ -75,12 +75,16 @@ class ChooserAbort(Exception):
 
 @dataclass(frozen=True, slots=True)
 class Arrival:
-    """One entry of a zone's [[arrival-record]]: the deciding [[actor]] (`None`
-    when no seat decided — an engine deal, a gather, test construction), the
+    """One entry of a zone's [[arrival-record]]: the deciding [[actor]], the
     card VALUE, and the source [[zone-address]] (`None` for out-of-game
-    seeding). Values only, deliberately: two duplicate-pack copies produce
-    EQUAL entries, so the record cannot express a distinction no observer
-    could draw (issue #256's no-leak invariance, by construction)."""
+    seeding). The actor is the chooser's seat for a chosen selection, else
+    whatever seat the movement ran under (`ctx.current_player`) — `None`
+    when none is bound, which is every engine deal and every corpus gather
+    today (they run in phase bodies); a gather or dealt movement inside an
+    `as` block or a move effect records that bound seat. Values only,
+    deliberately: two duplicate-pack copies produce EQUAL entries, so the
+    record cannot express a distinction no observer could draw (issue
+    #256's no-leak invariance, by construction)."""
 
     actor: Player | None
     card: Card

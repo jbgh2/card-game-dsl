@@ -21,7 +21,7 @@ class TestReadiness(ReadinessProofs):
         "cardlang_skat",
         "skat.cardlang",
         conformance_steps=120,
-        provenance_zones=("trick_pile",),  # skat_trick_winner reads the record
+        # provenance zones derive from PRIMITIVE_READS.arrival_zones (skat's row)
         provenance_depth=126,  # the greedy line first plays to the trick at 127
 
         conformance_verbs_unreached=(

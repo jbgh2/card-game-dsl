@@ -45,8 +45,22 @@ sampled:   the predicate-context axis of the call gate is sampled at one
            all three ranking-gated registries (`RANKING_GATED_FUNCS`,
            `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES` — the
            #256 review round's class sweep; census with the registries in
-           cardlang/typecheck.py) has its own no-ranking/with-ranking cell
-           pair below, plus the load-bearing non-member cells.
+           cardlang/typecheck.py) has its own no-ranking REJECT cell
+           pinning that member's own diagnostic text — per member and per
+           POSITION (`highest_trump_or_led_suit` has both a call-form and a
+           winner-slot cell; each climb member is isolated with a
+           non-member engine in the other slot, because the diagnostic
+           channel renders the first error and a both-members cell would
+           survive either member's removal) — plus a with-ranking accept
+           cell per game shape and
+           the load-bearing non-member cells. Born red 2026-08-15 before
+           the gates existed: 7 failed (DID NOT RAISE), 32 passed. The
+           per-member completion's own proof is executed mutation, not
+           inspection: removing `belote_trick_winner` from
+           RANKING_GATED_WINNERS originally left all 39 module tests green
+           (the reviewer's finding); with the per-member cells it reds
+           `test_rejects_the_belote_winner_slot_with_no_declared_ranking`
+           (executed: plant, red, revert, re-green).
 residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            `action.card_count` — named in the grammar comment at
            cardlang/grammar/cardlang.lark:320, used in
@@ -451,12 +465,37 @@ _TRICK_ROUND = (
 def test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking() -> None:
     _rejects(
         _game(_TRICK_ROUND.format(winner="highest_of_led_suit"), ranking=""),
-        "reads a card's rank strength from ranking:",
+        "round winner highest_of_led_suit reads a card's rank strength from ranking:",
     )
 
 
 def test_accepts_a_ranking_reading_trick_winner_with_a_declared_ranking() -> None:
     _accepts(_game(_TRICK_ROUND.format(winner="highest_of_led_suit")))
+
+
+def test_rejects_the_belote_winner_slot_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="belote_trick_winner"), ranking=""),
+        "round winner belote_trick_winner reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_belote_winner_slot_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="belote_trick_winner")))
+
+
+def test_rejects_the_trump_winner_slot_with_no_declared_ranking() -> None:
+    # The same NAME as the gated call form, in its OTHER position: the
+    # winner-slot member is consulted from RANKING_GATED_WINNERS at the round
+    # check, not from the Call gate, so each position needs its own cell.
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit"), ranking=""),
+        "round winner highest_trump_or_led_suit reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_trump_winner_slot_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit")))
 
 
 def test_accepts_the_rank_free_tarot_winner_with_no_declared_ranking() -> None:
@@ -473,10 +512,33 @@ _CLIMB_ROUND = (
 )
 
 
-def test_rejects_ranking_reading_climb_queries_with_no_declared_ranking() -> None:
+def _climb_round(combos: str, follows: str) -> str:
+    return (
+        f"round climb play_combination from 0 over all players\n"
+        f"          source hand into pile\n"
+        f"          combinations {combos} follows {follows}\n"
+        f"          until (number of players where hand[player] is not empty) <= 1"
+    )
+
+
+def test_rejects_the_lead_climb_query_with_no_declared_ranking() -> None:
+    # One cell per MEMBER, each isolating its member with a NON-member in
+    # the other slot — a single both-members cell would stay green if either
+    # member alone left the registry (the F3 class, climb face), because the
+    # diagnostic channel renders the FIRST error and the surviving member's
+    # message would keep the substring matching. The cross-engine pairing is
+    # statically legal (the two slots validate against separate name sets)
+    # and these cells never run.
     _rejects(
-        _game(_CLIMB_ROUND, ranking=""),
-        "reads a card's rank strength from ranking:",
+        _game(_climb_round("president_lead_options", "bigtwo_follows"), ranking=""),
+        "climb query president_lead_options reads a card's rank strength from ranking:",
+    )
+
+
+def test_rejects_the_follows_climb_query_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_climb_round("bigtwo_lead_options", "president_follows"), ranking=""),
+        "climb query president_follows reads a card's rank strength from ranking:",
     )
 
 
