@@ -4153,6 +4153,10 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.Quantifier: ("body",),
     n.Comprehension: ("where", "body"),
     n.CardQuery: ("where",),
+    # A PlayerQuery's binder scopes to its `where` only; the ring search's
+    # `start` seat is evaluated in the enclosing scope (the same split as
+    # every source field absent from this table), so `player` in a start
+    # slot means an OUTER binder or nothing.
     n.PlayerQuery: ("where",),
     # A DomainQuery's binder scopes to its `where` only; the `in` source is
     # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose

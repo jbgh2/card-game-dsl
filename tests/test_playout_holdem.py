@@ -19,9 +19,11 @@ broken game still conserves chips, still terminates, and still looks legal:
 - that the big blind gets its option on a limped pot
   (`test_big_blind_gets_its_option_after_a_limped_pot`).
 
-The seat-ring skip those three compose with is pinned directly by
-`test_next_entrant_*`. Side-pot *misallocation* is likewise invisible to
-conservation and is pinned by known-value tests in tests/test_holdem_settle.py.
+The seat-ring skip those three compose with is the language's own ring
+search, pinned by the lap grid in tests/test_first_player_from.py (the four
+arrangements this module's retired unit tests asserted transfer there 1:1).
+Side-pot *misallocation* is likewise invisible to conservation and is pinned
+by known-value tests in tests/test_holdem_settle.py.
 
 The hook for the state-reading tests is the chooser: phase state is unwound by
 the time a decision surfaces to a caller (`DecisionNode.rs` carries only game-level
@@ -39,10 +41,6 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.holdem import holdem_next_entrant
-from cardlang.runtime.reads import GameReads
-from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import Seating
 
 HOLDEM = Path(__file__).parent.parent / "docs" / "games" / "holdem.cardlang"
 
@@ -233,10 +231,12 @@ def test_button_alternates_strictly_heads_up() -> None:
     heads-up the small blind — on two hands of every three. The game still
     conserves chips and still terminates; it just charges one survivor unfairly.
 
-    red under: restoring `dealer := dealer offset_by left` to `before_each` and
-    `button := holdem_next_entrant(dealer)` in the play phase — verified by
-    hand, which produced the button sequence [1,2,1,1,2,1,...] and failed this
-    module's alternation assertion, then reverted.
+    red under: replacing the play phase's live-ring advance with the physical
+    rotation mapped forward — `dealer := dealer offset_by left` then
+    `button := the first player from dealer where in_hand[player]` — verified
+    by hand against the rewritten game file, which produced the repeating
+    button pattern and failed this module's alternation assertion, then
+    reverted.
     """
     per_hand: dict[int, tuple[int, int]] = {}  # hand index -> (button, live count)
 
@@ -422,37 +422,3 @@ def test_a_street_opening_two_handed_lifts_the_raise_cap() -> None:
         "no street ever ran with the cap lifted — either the per-street "
         "assignment is gone, or two-handed streets stopped being reached"
     )
-
-
-# --- the seat-ring skip -----------------------------------------------------
-
-
-def _facts(count: int) -> EngineFacts:
-    return EngineFacts(
-        seating=Seating(count),
-        team_of={},
-        rank_index={},
-        round_state=None,
-        last_round_state=None,
-        actor=None,
-    )
-
-
-def _reads(in_hand: dict[int, bool]) -> GameReads:
-    return GameReads(state={"in_hand": in_hand}, families={}, singles={})
-
-
-def test_next_entrant_returns_the_seat_itself_when_it_entered() -> None:
-    gr = _reads({0: True, 1: True, 2: True})
-    assert holdem_next_entrant(_facts(3), gr, 1) == 1
-
-
-def test_next_entrant_skips_a_busted_seat() -> None:
-    gr = _reads({0: True, 1: False, 2: True})
-    assert holdem_next_entrant(_facts(3), gr, 1) == 2
-
-
-def test_next_entrant_wraps_around_the_ring() -> None:
-    gr = _reads({0: True, 1: False, 2: False})
-    assert holdem_next_entrant(_facts(3), gr, 1) == 0
-    assert holdem_next_entrant(_facts(3), gr, 2) == 0

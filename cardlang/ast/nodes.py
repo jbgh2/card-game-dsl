@@ -335,11 +335,21 @@ class PlayerQuery:
 
     - `players where <pred>`           -> the set of matching players (`set`)
     - `the player where <pred>`        -> the unique matching player (`pick`)
+    - `the first player from <seat> where <pred>` -> the first satisfying
+      seat of one inclusive lap from the start seat, in the game's
+      `direction:` (`first_from`; an exhausted lap errors)
     - `number of players where <pred>` -> how many match (`count`)
+
+    `start` is populated exactly for `first_from` (the `CardQuery.where`
+    optional-per-kind shape) and is evaluated OUTSIDE the binder scope, like
+    a comprehension's source: it is deliberately absent from resolve's
+    `_BINDER_SCOPE_FIELDS` entry, and typecheck's binder arm scopes `where`
+    only.
     """
 
-    kind: str  # "set" | "pick" | "count"
+    kind: str  # "set" | "pick" | "first_from" | "count"
     where: Expr
+    start: Expr | None = None
     span: Span | None = None
 
 

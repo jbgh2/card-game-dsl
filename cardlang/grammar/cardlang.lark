@@ -523,9 +523,17 @@ if_impossible: _IF_IMPOSSIBLE_KW ":" expr
 // sit at the top of the expression grammar so the `where <pred>` body extends
 // as far right as possible (one canonical parse). The predicate is evaluated
 // per player with `player` bound to the candidate.
-player_query: _PLAYERS_KW _WHERE_KW expr                   -> players_where
-            | _THE_KW _PLAYER_KW _WHERE_KW expr            -> the_player_where
-            | _NUMBER_KW _OF_KW _PLAYERS_KW _WHERE_KW expr -> number_players_where
+//
+// The ring search (`the first player from <seat> where <pred>`) scans one
+// inclusive lap of the seat ring from the named start, in the game's
+// `direction:`. Its from-slot sits at `sum` level — below the query forms —
+// so a query can never absorb the outer `where` (`from players where P`
+// reads `players` as a bare NAME); the start expression is evaluated
+// OUTSIDE the binder scope, like a comprehension's source.
+player_query: _PLAYERS_KW _WHERE_KW expr                          -> players_where
+            | _THE_KW _PLAYER_KW _WHERE_KW expr                   -> the_player_where
+            | _THE_KW _FIRST_KW _PLAYER_KW _FROM_KW sum _WHERE_KW expr -> the_first_player_from_where
+            | _NUMBER_KW _OF_KW _PLAYERS_KW _WHERE_KW expr        -> number_players_where
 
 // Queries over a card zone, the card mirror of the player queries: the
 // predicate is evaluated per card with `card` bound to the candidate. The
@@ -808,6 +816,7 @@ _EFFECT_KW: "effect" /(?![A-Za-z0-9_])/
 _ELIF_KW: "elif" /(?![A-Za-z0-9_])/
 _ELSE_KW: "else" /(?![A-Za-z0-9_])/
 _EXEMPTS_KW: "exempts" /(?![A-Za-z0-9_])/
+_FIRST_KW: "first" /(?![A-Za-z0-9_])/
 _FOLLOWS_KW: "follows" /(?![A-Za-z0-9_])/
 _FOR_KW: "for" /(?![A-Za-z0-9_])/
 _FROM_KW: "from" /(?![A-Za-z0-9_])/

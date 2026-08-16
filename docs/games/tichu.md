@@ -192,7 +192,12 @@ game Tichu {
           }
           leader := winner
         }
-        leader := tichu_next_holder(leader)
+        // The lead passes to the winner if they still hold cards, else
+        // onward round the ring; when the last trick emptied every hand
+        // the loop is about to exit and there is no leader to find.
+        if any player where hand[player] is not empty {
+          leader := the first player from leader where hand[player] is not empty
+        }
       }
 
       // --- Scoring: double victory is a flat +200 (no card points); otherwise

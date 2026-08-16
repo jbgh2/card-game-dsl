@@ -751,12 +751,6 @@ mid-playout.
   Hold'em), returns the best 5-card poker hand as a `HandRank`
   value. A Builtin because every poker variant needs it; the
   implementation is standard and not game-specific.
-- `next_active_player(p) → Player` — returns the next player
-  clockwise from `p` who is not folded and not all-in. A general
-  helper; Stud's betting ring no longer needs it — the kernel
-  `round`'s per-turn participant filter (`over players where not
-  folded[player] and stack[player] > 0 …`) advances the ring and
-  skips folded/all-in seats without a draw.
 - `player_holding(card) → Player` — returns the player whose hand
   contains the named card. Asking for a card in nobody's hand is a
   game-logic error and fails loudly at the call (every corpus use runs
@@ -898,22 +892,20 @@ reads in `tichu.cardlang`:
   combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
   Dog marked `ends_trick`), and the follows that beat the standing play (same
   kind and length and higher, any bomb, the Dragon/Phoenix single answers).
-- `tichu_next_holder(p: Player) → Player` — the post-trick leader advance
-  (`p` if still holding, else the next holder counterclockwise past empty
-  hands).
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
   pronoun.
 
 (The per-card points — K/10 = 10, 5 = 5, Dragon +25, Phoenix −25, 100 per
-hand — are the game's own `card_points { }` clause.)
+hand — are the game's own `card_points { }` clause, and the post-trick
+leader advance is the ring search, `the first player from leader where
+hand[player] is not empty`.)
 
 Coup's bookkeeping stays game-local in `cardlang/runtime/coup.py` (every
 window response, claim, and target is a chooser decision in the DSL body —
-see the Mechanics entry):
+see the Mechanics entry; the next-in-game seat scan is the ring search,
+decisions.md "Player-collection queries"):
 
-- `coup_next_in_game(p: Player) → Player` — the next in-game seat clockwise
-  (a pure read).
 - `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
   50-coin / 15-card conservation invariants and the finals). The
   reveal-sequence golden derives from observation events at the harness
