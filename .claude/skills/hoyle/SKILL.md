@@ -85,7 +85,8 @@ its own counsel, produced fresh at planning time.
    writes last — carrying the verdict; the strongest reason against it
    from either counsel, and what it costs; one sentence on what the
    recommendation makes newly possible, impossible, or required, and
-   for whom; and what the operator must decide. Under a screen. The
+   for whom, and whether information sets move; and what the operator
+   must decide. Under a screen. The
    brief introduces nothing — every sentence condenses a section above
    it; if brief and counsel disagree, the counsel is resolved first and
    the brief rewritten from it. At the table the brief closes the
