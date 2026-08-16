@@ -337,7 +337,6 @@ NARROWED: frozenset[str] = frozenset(
         "canasta.py::canasta_stage_ok",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
-        "coup.py::coup_next_in_game",
         "cribbage.py::ROW",
         "cribbage.py::cribbage_crib_value",
         "cribbage.py::cribbage_show_value",
@@ -365,7 +364,6 @@ NARROWED: frozenset[str] = frozenset(
         "gin.py::gin_lay_ok_c",
         "gin.py::gin_valid_meld",
         "holdem.py::ROW",
-        "holdem.py::holdem_next_entrant",
         "holdem.py::holdem_pot_share",
         "holdem_heads_up.py::ROW",
         "holdem_heads_up.py::holdem_heads_up_pot_share",
@@ -396,7 +394,6 @@ NARROWED: frozenset[str] = frozenset(
         "tichu.py::tichu_dragon_won",
         "tichu.py::tichu_follows",
         "tichu.py::tichu_lead_options",
-        "tichu.py::tichu_next_holder",
     }
 )
 
@@ -422,7 +419,6 @@ MIGRATED: frozenset[str] = frozenset(
         "canasta_must_take_pile",
         "canasta_stage_ok",
         "coup_game_summary",
-        "coup_next_in_game",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -441,7 +437,6 @@ MIGRATED: frozenset[str] = frozenset(
         "gin_lay_ok_c",
         "gin_valid_meld",
         "holdem_heads_up_pot_share",
-        "holdem_next_entrant",
         "holdem_pot_share",
         "peg_origin_of",
         "pinochle_meld_value",
@@ -458,7 +453,6 @@ MIGRATED: frozenset[str] = frozenset(
         "tichu_dragon_won",
         "tichu_follows",
         "tichu_lead_options",
-        "tichu_next_holder",
     }
 )
 

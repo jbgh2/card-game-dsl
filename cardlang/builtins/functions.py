@@ -118,7 +118,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
-        "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
@@ -132,9 +131,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
-        "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "coup_next_in_game",  # Coup: the next in-game player clockwise
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
@@ -193,7 +190,7 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # This partition is ORTHOGONAL to the Builtin/Primitive split above and does not
 # refine it: it asks which game FLAVORS a call can mean anything in, not whose
 # meaning it carries. Most of ANY_FLAVOR_CALL_FUNCS is game-named but
-# content-blind (`coup_next_in_game` reads only zone emptiness and seating),
+# content-blind (`skat_next_bid` reads only the standing bid, never a card),
 # so it is a Primitive that is nonetheless legal in a piece game.
 # that touch only players/teams/seats/zone counts or ordered-collection POSITION
 # (top_of/bottom_of), never a card's content or a board -- stay legal
@@ -211,15 +208,12 @@ ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
         "coup_game_summary",
-        "coup_next_in_game",
         "error",
         "five_hundred_bid_level",
-        "holdem_next_entrant",
         "peg_origin_of",
         "player_holding",
         "skat_next_bid",
         "team_of",
-        "tichu_next_holder",
         "top_of",
     }
 )

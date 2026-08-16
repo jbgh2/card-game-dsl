@@ -5,37 +5,20 @@ the turn's action pick, every challenge, every block (and WHICH character it
 claims), and every action target are player decisions — `offer`s and declared
 Player move parameters — and a proven challenge `reveal`s the shown card
 publicly before returning it to the deck. Nothing here draws randomness: what
-stays game-local is the next-in-game seat scan (a pure read) plus the
-`coup_game` trace primitive the characterization golden and the playout
-invariants consume; the reveal sequence itself derives at the harness layer
-from [[observation-event]]s (tests/playout_trace.py).
+stays game-local is the `coup_game` trace primitive the characterization
+golden and the playout invariants consume (the #142 residual); the
+next-in-game seat scan is the language's own ring search
+(`the first player from ... offset_by left where ...`), and the reveal
+sequence derives at the harness layer from [[observation-event]]s
+(tests/playout_trace.py).
 """
 
 from __future__ import annotations
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts, TraceEvent
-from cardlang.runtime.values import Player
 
 ROW = reads.row("cardlang/runtime/coup.py", "coup.cardlang")
-
-
-def _in_game(gr: reads.GameReads, p: Player) -> bool:
-    return bool(
-        gr.state["alive"][p]
-        and gr.families["influence"][p]
-    )
-
-
-def coup_next_in_game(
-    facts: EngineFacts, gr: reads.GameReads, p: Player
-) -> Player:
-    """The next in-game player clockwise after `p` (p itself when alone)."""
-    npl = len(facts.seating.players)
-    return next(
-        (q % npl for q in (p + 1 + i for i in range(npl)) if _in_game(gr, q % npl)),
-        p,
-    )
 
 
 def coup_game_summary(

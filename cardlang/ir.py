@@ -618,7 +618,12 @@ def _expr(e: n.Expr) -> IRDict:
                 dq["source"] = _expr(e.source)
             return dq
         case n.PlayerQuery():
-            return {"kind": "player_query", "query": e.kind, "where": _expr(e.where)}
+            pq: IRDict = {"kind": "player_query", "query": e.kind, "where": _expr(e.where)}
+            # Emitted only for the ring search (`first_from`), keeping the
+            # other kinds' key set minimal (the DomainQuery `source` shape).
+            if e.start is not None:
+                pq["start"] = _expr(e.start)
+            return pq
         case n.CardQuery():
             cq: IRDict = {
                 "kind": "card_query",

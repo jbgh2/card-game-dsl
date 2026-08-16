@@ -70,11 +70,7 @@ CALL_SIGS: dict[str, Sig] = {
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
     "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
-    # Hold'em: the seat-ring skip past busted seats (button/blind resolution) and
-    # the showdown side-pot share. `holdem_next_entrant` reads only `in_hand` and
-    # the seating ring — no card content — which is why it classifies GENERIC
-    # where `holdem_pot_share`, which ranks cards, is deck-only.
-    "holdem_next_entrant": Sig((TPlayer(),), TPlayer()),
+    # Hold'em: the showdown side-pot share (ranks cards, so deck-only).
     "holdem_pot_share": Sig((TPlayer(),), TInteger()),
     # Heads-up Hold'em's showdown share. Same shape and same maths as
     # `holdem_pot_share` — a separate name because a primitive module binds one
@@ -100,9 +96,7 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
     "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
-    "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points

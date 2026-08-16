@@ -669,8 +669,10 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
                     return TCollection(TPlayer())
                 case "count":
                     return TInteger()
-                case _:  # "pick"
+                case "pick" | "first_from":
                     return TPlayer()
+                case _:
+                    raise AssertionError(f"unknown player-query kind '{e.kind}'")
         case n.CardQuery():
             match e.kind:
                 case "set":
@@ -1250,7 +1252,7 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
         case n.Choose():
             return [e.lo, e.hi]
         case n.PlayerQuery():
-            return [e.where]
+            return [e.start, e.where] if e.start is not None else [e.where]
         case n.CardQuery():
             return [e.source, e.where] if e.where is not None else [e.source]
         case n.DomainQuery():
@@ -2077,6 +2079,19 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_bool(e.body, scoped, bag, f"'{e.kind} {e.role}' quantifier body")
         return
     if isinstance(e, n.PlayerQuery):
+        if e.start is not None:
+            # The ring search's start seat evaluates in the ENCLOSING scope
+            # (the comprehension-source split; nodes.PlayerQuery docstring),
+            # routed through the operand choke point so the literal seat
+            # range check applies here as at every other Player position.
+            _check_expr(e.start, env, bag)
+            st = infer(e.start, env)
+            _check_operand(
+                e.start, st, TPlayer(), env, bag,
+                f"`the first player from` names the start seat — expected a "
+                f"Player, got {_type_name(st)}",
+                e.span,
+            )
         scoped = env.with_local("player", TPlayer())
         _check_expr(e.where, scoped, bag)
         _check_bool(e.where, scoped, bag, "player-query predicate")

@@ -7,11 +7,12 @@ calls and the push are plain statements (a `for each player` of one chosen
 finishing/scoring flow is statement control flow over the round's terminal
 state (`state.lead_ended_trick`, `state.shed_first` / `state.shed_second`).
 What stays game-local: the combination engine itself
-(`tichu_combinations.py`, shared with nothing — Big Two's differs), the two
+(`tichu_combinations.py`, shared with nothing — Big Two's differs) and the two
 non-chooser RNG sites the
 monolith drew (the call-rate gates and the Dragon's trick going to a random
-opponent — reproduced draw-for-draw at the same sites), the post-trick
-leader advance, and the card-point table.
+opponent — reproduced draw-for-draw at the same sites). The card-point table
+is the game's `card_points { }` clause and the post-trick leader advance is
+the language's own ring search.
 
 `tichu_dragon_won` reads
 the completed round's standing play from `last_round_state` (the same terminal
@@ -21,10 +22,10 @@ frame the body reads as `state.x`).
 from __future__ import annotations
 
 from cardlang.runtime import reads
-from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows
 from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows
+from cardlang.runtime.values import Card
 
 ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
@@ -60,26 +61,7 @@ def tichu_follows(
     return _legal_follows(hand, current)
 
 
-# --- the two non-chooser RNG sites (the monolith's, draw-for-draw) ---
-
-
-# --- zone / seating / state reads (pure) ---
-
-
-def tichu_next_holder(
-    facts: EngineFacts, gr: reads.GameReads, p: Player
-) -> Player:
-    """`p` if they still hold cards, else the next holder counterclockwise —
-    the monolith's post-trick leader advance. Returns `p` unchanged when
-    everyone is out (the hand is over; the value is never read)."""
-    hands = gr.families["hand"]
-    players = list(facts.seating.players)
-    if not any(hands[q] for q in players):
-        return p
-    q = p
-    while not hands[q]:
-        q = (q - 1) % len(players)
-    return q
+# --- round-state reads (pure) ---
 
 
 def tichu_dragon_won(facts: EngineFacts, gr: reads.GameReads) -> bool:

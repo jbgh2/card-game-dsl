@@ -339,10 +339,13 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         ),
         single_zones=_fs("pile_top", "pile_rest"),
     ),
+    # Tichu's surviving primitives take the hand as an argument or read the
+    # round's terminal frame through EngineFacts — the row binds the module
+    # to its game with no declared zone/state reads (the leader advance,
+    # this module's one `hand` reader, retired onto the ring search).
     PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
-        zone_families=_fs("hand"),
     ),
     # primitives.py's per-game functions: the auction outcomes and cribbage's
     # pegging-scorer call sites. One row per game served.

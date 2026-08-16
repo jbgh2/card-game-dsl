@@ -75,7 +75,7 @@ game Coup {
       if alive[turn] and influence[turn] is not empty {
         offer to turn one of [income, foreign_aid, tax, steal, exchange, coup, assassinate]
       }
-      turn := coup_next_in_game(turn)
+      turn := the first player from turn offset_by left where alive[player] and influence[player] is not empty
     }
 
     let summary = coup_game_summary()
@@ -94,7 +94,7 @@ procedure challenge_window(claimant : Player) {
   window_open := true
   responder := claimant
   repeat until not window_open {
-    responder := coup_next_in_game(responder)
+    responder := the first player from responder offset_by left where alive[player] and influence[player] is not empty
     if responder is claimant { window_open := false }
     if window_open {
       offer to responder one of [challenge, allow]
@@ -199,7 +199,7 @@ move_type foreign_aid {
     window_open := true
     responder := actor
     repeat until not window_open {
-      responder := coup_next_in_game(responder)
+      responder := the first player from responder offset_by left where alive[player] and influence[player] is not empty
       if responder is actor { window_open := false }
       if window_open {
         offer to responder one of [block_claiming_duke, allow]

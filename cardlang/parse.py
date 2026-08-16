@@ -1193,6 +1193,18 @@ class _Builder(Transformer[Token, n.Game]):
     def the_player_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
         return n.PlayerQuery(kind="pick", where=_as_expr(c[0]), span=self._span(meta))
 
+    def the_first_player_from_where(
+        self, meta: Meta, c: list[object]
+    ) -> n.PlayerQuery:
+        # c: [start (sum-level), where]. The ring search: one inclusive lap
+        # from `start` in the game's direction (nodes.PlayerQuery docstring).
+        return n.PlayerQuery(
+            kind="first_from",
+            where=_as_expr(c[1]),
+            start=_as_expr(c[0]),
+            span=self._span(meta),
+        )
+
     def number_players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
         return n.PlayerQuery(kind="count", where=_as_expr(c[0]), span=self._span(meta))
 

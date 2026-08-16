@@ -399,6 +399,28 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
 
 
 def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
+    if e.kind == "first_from":
+        # The ring search: one inclusive lap from the start seat in the
+        # game's direction — `Seating.turn_order_from`, the same ring every
+        # `from <leader>` clause walks, whose membership check is the Owner
+        # Guard for a non-seat start value. The start expression evaluates in
+        # the enclosing scope (no `player` overlay); the scan short-circuits
+        # like the card-query `any`/`all` (predicates are side-effect-free).
+        assert e.start is not None, "parse builds first_from with a start"
+        start = evaluate(e.start, ctx)
+        lap = ctx.rs.seating.turn_order_from(start)
+        for seat in lap:
+            if evaluate(e.where, ctx.with_local("player", seat)):
+                return seat
+        # A runtime DATA condition, not a compiler invariant — the
+        # `the player where` precedent: the game author's premise (some
+        # seat in one lap satisfies) failed, and they hear it in the
+        # runtime's failure channel.
+        raise OwnerGuardError(
+            f"`the first player from … where …` matched no player: no seat "
+            f"in the {len(lap)}-seat lap from seat {start} satisfies the "
+            f"predicate"
+        )
     matches = [
         p
         for p in ctx.rs.seating.players

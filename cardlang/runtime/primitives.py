@@ -75,10 +75,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import ROW, pot_share
 
             return pot_share(*_bind(ctx, ROW), args[0])
-        case "holdem_next_entrant":
-            from cardlang.runtime.holdem import ROW, holdem_next_entrant
-
-            return holdem_next_entrant(*_bind(ctx, ROW), args[0])
         case "holdem_pot_share":
             from cardlang.runtime.holdem import ROW, holdem_pot_share
 
@@ -142,18 +138,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import ROW, skat_matadors
 
             return skat_matadors(*_bind(ctx, ROW), args[0])
-        case "tichu_next_holder":
-            from cardlang.runtime.tichu import ROW, tichu_next_holder
-
-            return tichu_next_holder(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
             return tichu_dragon_won(*_bind(ctx, ROW))
-        case "coup_next_in_game":
-            from cardlang.runtime.coup import ROW, coup_next_in_game
-
-            return coup_next_in_game(*_bind(ctx, ROW), args[0])
         case "coup_game_summary":
             from cardlang.runtime.coup import ROW, coup_game_summary
 
