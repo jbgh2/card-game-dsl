@@ -65,7 +65,7 @@ per-PR by preference. Two rules compose the table:
 | Runtime (`evaluate` / `execute` / `driver` / `state`, the OpenSpiel adapter) | `cardlang/runtime/**`, `cardlang/openspiel/**` | B |
 | Stdlib (`rules.cardlang`, registries, builtins) | `cardlang/stdlib/**`, `cardlang/builtins/**` | B |
 | `docs/games/` corpus and family libraries — DSL-only edits, zero engine diff | `docs/games/**`, `docs/libraries/**` | C |
-| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | `docs/*.md`, `CLAUDE.md` | B |
+| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md` and the `docs/glossary/` entries it is generated from, CLAUDE.md) | `docs/*.md`, `docs/glossary/**`, `CLAUDE.md` | B |
 | Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `superpowers/`) | `docs/design-notes/**`, `docs/open-questions/**`, `docs/research/**`, `docs/plans/**`, `docs/superpowers/**` | C |
 | Tests / goldens — coverage-only additions, no behavior change claimed | `tests/**` | C |
 | Tests / goldens — anything else (golden regeneration, proof-harness changes) | `tests/**` | B |
