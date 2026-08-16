@@ -221,7 +221,7 @@ def test_the_baseline_beats_random_on_chips() -> None:
 
 
 def test_the_baseline_wins_more_hands_than_random() -> None:
-    """The weaker instrument, kept because it is the headline metric the brief
+    """The weaker instrument, kept because it is the headline metric the design brief
     asks for and it must at least point the right way. It is WEAK here by
     construction: forced blinds decide a large share of hands before anyone
     acts, so a real edge shows up as a few points of win rate and as a large

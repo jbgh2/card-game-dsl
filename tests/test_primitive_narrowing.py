@@ -3,7 +3,7 @@
 status:     stage 2 COMPLETE — every module in `_GAME_MODULES` is free of every
             engine handle, so the crossed grid is green with nothing
             excused. Stage 3 (`primitives { }`) narrows the bundles from
-            module- to primitive-granularity; residual (2) is its brief.
+            module- to primitive-granularity; residual (2) is its execution brief.
 
 property:   a game-local primitive sees VALUES, never an engine handle. Its
             implementation names no `Ctx` and no `RuntimeState`; everything

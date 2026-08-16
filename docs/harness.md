@@ -65,7 +65,7 @@ per-PR by preference. Two rules compose the table:
 | Runtime (`evaluate` / `execute` / `driver` / `state`, the OpenSpiel adapter) | `cardlang/runtime/**`, `cardlang/openspiel/**` | B |
 | Stdlib (`rules.cardlang`, registries, builtins) | `cardlang/stdlib/**`, `cardlang/builtins/**` | B |
 | `docs/games/` corpus and family libraries — DSL-only edits, zero engine diff | `docs/games/**`, `docs/libraries/**` | C |
-| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | `docs/*.md`, `CLAUDE.md` | B |
+| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md` and the `docs/glossary/` entries it is generated from, CLAUDE.md) | `docs/*.md`, `docs/glossary/**`, `CLAUDE.md` | B |
 | Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `superpowers/`) | `docs/design-notes/**`, `docs/open-questions/**`, `docs/research/**`, `docs/plans/**`, `docs/superpowers/**` | C |
 | Tests / goldens — coverage-only additions, no behavior change claimed | `tests/**` | C |
 | Tests / goldens — anything else (golden regeneration, proof-harness changes) | `tests/**` | B |
@@ -304,6 +304,22 @@ of *Foster's Complete Hoyle*, and deviser of whist's Rule of Eleven
 (independently with E.M.F. Benecke): a formula that derives facts about
 the unseen hands from one observed card — this project's moat, a century
 early ("according to Foster").
+
+Counsel from either persona speaks two altitudes. The counsel proper is
+precise and cited — the record and the implementer's currency. It closes
+with **the Headnote** — after the law reporter's: written after the
+judgment and from it, at the head of the report, no part of the law —
+the same verdict, the strongest case against it and its cost, and the
+operator's decision, in plain words, with the facts each seat's charter
+says must survive. Written last, so it condenses the analysis and never
+steers it; where the two disagree the counsel governs. The Headnote is
+the operator's currency — read in a burst, between other work — and
+counsel without one is not finished, at the table or in the record. It
+is the third member of a house class: the tracker's Summary against its
+Detail and the PR description against its diff already give the decider
+impact currency and the implementer mechanism; counsel was the last
+artifact that gave the decider only the execution-grade text. The exact
+shape is the charters' contract; this file names only the obligation.
 
 ## The physical layer
 
