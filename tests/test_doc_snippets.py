@@ -216,15 +216,20 @@ _SHARED_STATE = """\
 """
 
 
-def _game(body: str, *, top_level: str = "") -> str:
+def _game(body: str, *, top_level: str = "", ranking: str = "") -> str:
     """A minimal plausible game: the shared zones/state plus `body` (typically
-    one or more `phase` declarations) as the remaining game items."""
+    one or more `phase` declarations) as the remaining game items. `ranking`
+    is supplied by the wrappers whose fragments play tricks with a
+    ranking-reading winner (the wrapper's job is to provide what a fragment
+    legitimately omits); every other shell stays ranking-free so fragments
+    that carry their own game lines cannot collide with a duplicate."""
     return f"""
 {top_level}
 game Skeleton {{
   players: 4
   max_length: 1000
   cards: standard52
+  {ranking}
   zones {{
 {_SHARED_ZONES}
   }}
@@ -252,13 +257,16 @@ def _wrap_first_trick_phase(frag: str) -> str:
         "rule MustLeadAceOfSpadesOnFirstPlay "
         "{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }"
     )
-    return _game(f"{frag}\n  winner: highest score", top_level=rule)
+    return _game(
+        f"{frag}\n  winner: highest score", top_level=rule, ranking="ranking: aces high"
+    )
 
 
 def _wrap_play_phase(frag: str) -> str:
     # References only native names (play_to_trick, highest_of_led_suit,
     # on_play_off_led_suit) and shared-skeleton state (leader, eliminated).
-    return _game(f"{frag}\n  winner: highest score")
+    # highest_of_led_suit is ranking-gated, so this shell supplies ranking:.
+    return _game(f"{frag}\n  winner: highest score", ranking="ranking: aces high")
 
 
 def _wrap_before_each(frag: str) -> str:

@@ -96,6 +96,7 @@ game Mini {{
   players: 4
   max_length: 1000
   cards: standard52
+  ranking: aces high
   zones {{ deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }}
   state {{ score[player] : Integer = 0  leader : Player? = none }}
   phase play {{
@@ -322,6 +323,7 @@ game Mini {
   players: 4
   max_length: 1000
   cards: standard52
+  ranking: aces high
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
   state { score[player] : Integer = 0  leader : Player? = none }
   phase phasea {
