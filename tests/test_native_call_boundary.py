@@ -191,12 +191,33 @@ def test_polymorphic_param_set_is_pinned() -> None:
     class: their adapters dispatch on the runtime shape themselves, so the
     boundary must pass their arguments raw.  A new TAny-param function must
     decide its shape handling here and gets a probe like suit_of's."""
-    assert _polymorphic_param_funcs() == {"suit_of"}, (
+    assert _polymorphic_param_funcs() == {"suit_of", "highest_trump_or_led_suit"}, (
         "a native function with a TAny (polymorphic) param joined the "
         "boundary — its adapter sees raw shapes (no coercion); add a "
         "zone-argument probe for it beside test_polymorphic_suit_of_"
         "still_sees_the_zone"
     )
+
+
+def test_polymorphic_trick_winner_still_sees_the_zone() -> None:
+    """`highest_trump_or_led_suit` declares TAny for its zone argument
+    because the runtime needs the Zone HANDLE — the Arrival Record rides the
+    zone, and a coerced element list would strip it (issue #256). The probe:
+    the dealer plays a chosen heart into the public discard; the winner over
+    that one recorded play is the dealer, which only computes if the adapter
+    received the zone with its record intact."""
+    game = check_dsl(
+        _game(
+            "  phase p {\n"
+            "    move all cards to deck\n"
+            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    if highest_trump_or_led_suit(discard, clubs) is dealer { score[dealer] += 1 }\n"
+            "  }"
+        ),
+        "probe.cardlang",
+    )
+    result = play_game(game, rng=random.Random(0))
+    assert result.scores == {0: 1, 1: 0}
 
 
 def test_polymorphic_suit_of_still_sees_the_zone() -> None:
