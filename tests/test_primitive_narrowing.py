@@ -162,7 +162,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_WINNERS,
+    TRICK_WINNER_NAMES,
 )
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
@@ -271,7 +271,7 @@ def _impls_in(path: Path) -> list[Impl]:
 
 _ALL_REGISTERED: frozenset[str] = (
     CALL_FUNCS
-    | PRIMITIVE_TRICK_WINNERS
+    | TRICK_WINNER_NAMES
     | PRIMITIVE_AUCTION_OUTCOMES
     | PRIMITIVE_EARLY_PREDICATES
     | PRIMITIVE_CLIMB_LEADS
@@ -372,8 +372,6 @@ NARROWED: frozenset[str] = frozenset(
         "president.py::president_follows",
         "president.py::president_lead_options",
         "president.py::president_universe",
-        "schnapsen.py::ROW",
-        "schnapsen.py::schnapsen_trick_winner",
         "skat.py::ROW",
         "skat.py::skat_follow_ok",
         "skat.py::skat_matadors",
@@ -443,7 +441,6 @@ MIGRATED: frozenset[str] = frozenset(
         "pot_share",
         "president_follows",
         "president_lead_options",
-        "schnapsen_trick_winner",
         "skat_follow_ok",
         "skat_matadors",
         "skat_trick_winner",
@@ -461,7 +458,6 @@ MIGRATED: frozenset[str] = frozenset(
 # emission travels back as data and the dispatch layer performs it.
 EMITS_TRACE: frozenset[str] = frozenset(
     {
-        "schnapsen_trick_winner",
         "doko_trick_winner",
         "skat_trick_winner",
         "five_hundred_trick_winner",
@@ -798,7 +794,7 @@ def test_every_engine_fact_has_a_consumer() -> None:
 def _live_state() -> RuntimeState:
     decls = (
         n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),
-        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="Pile")),
+        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
     )
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     rs.push_frame()
@@ -904,12 +900,13 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     a narrowing rather than a rename of `Ctx`."""
     rs = _live_state()
     row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
+        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
     )
     bundle = reads_mod.game_reads(rs, row)
     assert frozenset(bundle.singles) == row.single_zones
     assert frozenset(bundle.families) == row.zone_families
     assert frozenset(bundle.state) == row.state_vars
+    assert frozenset(bundle.arrivals) == row.arrival_zones
     assert "hand" not in bundle.families, (
         "the bundle exposed a zone the row does not declare — the binder is "
         "handing over more than the declaration bounds"
@@ -922,7 +919,7 @@ def test_game_reads_cards_are_immutable() -> None:
     rs = _live_state()
     rs.zones.single("trick_pile").cards.append(Card("7", "hearts"))
     row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
+        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
     )
     bundle = reads_mod.game_reads(rs, row)
     assert isinstance(bundle.singles["trick_pile"], tuple)

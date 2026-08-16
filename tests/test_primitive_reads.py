@@ -181,9 +181,12 @@ def test_registry_row_agrees_with_game_declarations(row: PrimitiveReads) -> None
 @dataclass
 class ScanResult:
     raw_hits: list[str] = field(default_factory=list)
-    # accessor-call literals: "state" / "family" / "instance" / "single"
+    # accessor-call literals: "state" / "family" / "instance" / "single" /
+    # "arrival" (the Arrival Record facet of a declared single zone)
     reads: dict[str, set[str]] = field(
-        default_factory=lambda: {"state": set(), "family": set(), "instance": set(), "single": set()}
+        default_factory=lambda: {
+            "state": set(), "family": set(), "instance": set(), "single": set(), "arrival": set(),
+        }
     )
     rows: set[tuple[str, str]] = field(default_factory=set)
     problems: list[str] = field(default_factory=list)
@@ -196,6 +199,7 @@ _BUNDLE_KINDS: dict[str, str] = {
     "state": "state",
     "families": "family",
     "singles": "single",
+    "arrivals": "arrival",
 }
 
 # The bundle parameter's mandated name. The scan keys on it, because these
@@ -295,6 +299,13 @@ def _scan_source(source: str, where: str) -> ScanResult:
             idx = node.slice
             if isinstance(idx, ast.Constant) and isinstance(idx.value, str):
                 result.reads[kind].add(idx.value)
+                if kind == "arrival":
+                    # The Arrival Record is a FACET of a declared single-zone
+                    # read (reads.PrimitiveReads.arrival_zones requires the
+                    # subset), so reading the record IS reading the zone —
+                    # counted for both kinds, which is what lets a facet-only
+                    # reader (doko) keep its single_zones declaration honest.
+                    result.reads["single"].add(idx.value)
             else:
                 result.problems.append(
                     f"{where}:{node.lineno}: {node.value.attr}[...] whose key "
@@ -316,15 +327,18 @@ def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tu
     state: set[str] = set()
     families: set[str] = set()
     singles: set[str] = set()
+    arrivals: set[str] = set()
     for r in rows:
         state |= r.state_vars
         families |= r.zone_families
         singles |= r.single_zones
+        arrivals |= r.arrival_zones
     return (
         {
             "state": frozenset(state),
             "family": frozenset(families),
             "single": frozenset(singles),
+            "arrival": frozenset(arrivals),
         },
         {(r.module, r.game_file) for r in rows},
     )
@@ -352,6 +366,7 @@ def test_module_source_agrees_with_registry(path: Path) -> None:
         # `instance` reads a keyed member of a family: one declaration kind.
         "family": frozenset(scan.reads["family"] | scan.reads["instance"]),
         "single": frozenset(scan.reads["single"]),
+        "arrival": frozenset(scan.reads["arrival"]),
     }
     assert scanned == expected, (
         f"{module_key}: accessor-call literals disagree with PRIMITIVE_READS "

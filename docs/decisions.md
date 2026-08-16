@@ -2322,6 +2322,40 @@ observation stream. What stays reduced is named per game in its file
 (Tichu's Mahjong wish and bomb variants, and the like), as scope, not as
 hidden randomness.
 
+### The Arrival Record
+
+The kernel performs every movement, and it retains what it performed: each
+zone carries an **Arrival Record** — per card now in the zone, the deciding
+actor (`None` when no seat decided), the card value, and the source zone
+address, in arrival order (`state.Zone`). "Who played this card" is two
+facts, deliberately: the deciding actor and the source zone's owner coincide
+everywhere in the corpus today, and the one known case that splits them —
+Bridge's dummy — is the "Delegated play" section's unwired design, which the
+two-fact record already has room for. Consumers read the record in place of
+re-deriving attribution: a trick winner's pairing of seat against card is a
+read, never a zip of seat order against pile contents, and participation is
+nothing to declare — it derives from who acted, so a contract's dead seat is
+stated exactly once, in the movement structure the game file already has.
+
+The record is engine truth, mediated exactly as zone contents are: it enters
+no observation event and no information state, and any surface that reads it
+per-observer is bounded to zones whose type projects identity to every
+observer (`GameReads.arrival_zones`, refused loud otherwise; the
+`highest_trump_or_led_suit` call form guards the same predicate) — a
+concealed zone's provenance is not derivable from any observer's stream, so
+nothing may range over it, legality contexts included. Per-observer
+provenance is therefore **derived from the observation stream, never stored
+and then stripped**: a fact about an observed play persists exactly as long
+as observation entails it, and washing is an invariance rather than an
+operation — the record stores values only, so observationally equivalent
+duplicate copies produce equal entries and every projection is invariant
+under permuting them. The readiness proofs carry the executable form: the
+provenance soundness rows (the engine record equals what every observer's
+own log derives, per consumed zone), the wash pin (hidden-stock permutation
+moves no information state), and the copy-purity pin (two replays of one
+world serialize the record identically, so no per-object identity can hide
+in it).
+
 ## Position domains and positional zones
 
 Solitaire layouts (and any game whose rules address *places* — columns,

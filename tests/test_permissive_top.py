@@ -914,15 +914,19 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # types.py (2)
 #   `unify`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# builtins/signatures.py (11)
+# builtins/signatures.py (12)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument,
-#   `error()`'s return (it diverges, so it must type in any context), the
-#   trick-winner and auction-outcome callbacks whose real type the `Sig` model
-#   cannot express, and the `ChipStack` resource zone's element.
+#   `highest_trump_or_led_suit`'s zone argument (the same polymorphic shape —
+#   the runtime needs the Zone handle so the Arrival Record rides along,
+#   issue #256; probed in tests/test_native_call_boundary.py beside
+#   suit_of's), `error()`'s return (it diverges, so it must type in any
+#   context), the trick-winner and auction-outcome callbacks whose real type
+#   the `Sig` model cannot express, and the `ChipStack` resource zone's
+#   element.
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 16,
     "types.py": 2,
-    "builtins/signatures.py": 11,
+    "builtins/signatures.py": 12,
 }
 
 

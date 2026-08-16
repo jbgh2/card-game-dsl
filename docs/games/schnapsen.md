@@ -46,8 +46,9 @@ state-dependent Card domain ([decisions.md](../decisions.md) "Declared
 parameter domains"). The follower answers with a filtered chosen movement
 over the in-file `follow_ok` cascade (strict follow-and-head once the talon is
 closed or exhausted), and the trick, claim-at-66, and paired talon draws are
-plain statements around the game-local `schnapsen_trick_winner` Primitive
-primitive. The hand resolves three ways and produces a typed outcome —
+plain statements around the engine-core `highest_trump_or_led_suit` call,
+which reads the trick pile's Arrival Record — the game carries no game-local
+Python. The hand resolves three ways and produces a typed outcome —
 `claimed`, `talon_closed`, or `open_play` — which the `play` phase declares
 and the `scoring` phase settles with a `produces:` block (see
 [decisions.md](../decisions.md) "Typed phase outcomes").
@@ -143,7 +144,7 @@ game Schnapsen {
           }
         }
 
-        let w = schnapsen_trick_winner(leader, trump_suit)
+        let w = highest_trump_or_led_suit(trick_pile, trump_suit)
         points_taken[w] += sum of card_points(card) over cards in trick_pile
         tricks_won[w] += 1
         if pending[w] > 0 {

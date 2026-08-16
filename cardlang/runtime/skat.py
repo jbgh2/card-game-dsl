@@ -19,7 +19,7 @@ game-local primitives over live state.
 
 from __future__ import annotations
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, winners
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
@@ -131,23 +131,19 @@ def skat_follow_ok(
 
 
 def skat_trick_winner(
-    facts: EngineFacts, gr: reads.GameReads, leader: Player
+    facts: EngineFacts, gr: reads.GameReads
 ) -> tuple[Player, tuple[TraceEvent, ...]]:
-    """The completed three-card trick's winner (`trick_pile` holds the cards
-    in seat order from the leader): the highest trump if any was played, else
-    the highest card of the led suit — under Null, no trumps and the natural
-    rank order. Emits the play/trick_end/trick traces the playout harness
-    recomputes winners from."""
+    """The completed three-card trick's winner: the highest trump if any was
+    played, else the highest card of the led suit — under Null, no trumps
+    and the natural rank order. Who played each card is the kernel's Arrival
+    Record (`gr.arrivals`, issue #256), in play order. Emits the
+    play/trick_end/trick traces the playout harness recomputes winners
+    from."""
     game_type, trump_suit = _contract(gr)
-    cards = gr.singles["trick_pile"]
-    if len(cards) != 3:
-        # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, so this raise is its Owner Guard.
-        raise OwnerGuardError(
-            f"skat_trick_winner: trick pile holds {len(cards)} cards, expected "
-            f"a completed 3-card trick"
-        )
-    played = list(zip(facts.seating.turn_order_from(leader), cards))
+    played = winners.recorded_plays(
+        gr.arrivals["trick_pile"], "skat_trick_winner", 3
+    )
+    cards = [c for _, c in played]
     events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     winner = _trick_winner(played, cards[0].suit, game_type, trump_suit)
     events.append(("trick_end", {"game_type": game_type, "trump": trump_suit}))

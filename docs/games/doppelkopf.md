@@ -125,8 +125,9 @@ are trumps). Every queen and jack is a trump, so plain suits have no Q or J.
   between any two card plays — a foreign decision inside the trick, which
   the trick form of `round` cannot host. The one game-local runtime
   primitive is `doko_trick_winner` (ordered first-of-equals comparison over
-  the trump class); follow legality, the window gate, and all bookkeeping
-  are in-DSL functions.
+  the trump class, the plays read off the trick pile's Arrival Record —
+  who played each card is the kernel's fact, never seat arithmetic); follow
+  legality, the window gate, and all bookkeeping are in-DSL functions.
 - **Deferred bonus events** (Fox, Charlie, the last trick's winner) are
   recorded as `Player?` slots during play — public facts about public
   plays — and team-resolved at scoring, when the partition is complete.

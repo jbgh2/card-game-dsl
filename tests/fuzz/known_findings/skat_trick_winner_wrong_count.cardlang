@@ -130,7 +130,7 @@ game Skat {
         let third  = second offset_by left
         as leader { move chosen one card from hand[leader] to trick_pile }
         as third  { move chosen one card from hand[third] where skat_follow_ok(third, card) to trick_pile }
-        let w = skat_trick_winner(leader)
+        let w = skat_trick_winner()
         if w is declarer { declarer_tricks += 1 }
         move all cards from trick_pile to captured[w]
         leader := w

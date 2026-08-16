@@ -106,7 +106,7 @@ game Schnapsen {
           }
         }
 
-        let w = schnapsen_trick_winner(leader, trump_suit)
+        let w = highest_trump_or_led_suit(trick_pile, trump_suit)
         points_taken[w] += sum of card_points(card) over cards in trick_pile
         tricks_won[w] += 1
         if pending[w] > 0 {

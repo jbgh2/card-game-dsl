@@ -283,7 +283,7 @@ from lark import Tree
 from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
-from cardlang.builtins.functions import CALL_FUNCS, PRIMITIVE_VALUE_NAMES
+from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
@@ -729,14 +729,14 @@ def test_two_libraries_may_not_define_the_same_name(
 #             TARGET = every namespace a bare name can resolve against, read off
 #               `resolve._classify`'s precedence chain — state / zone / deck value
 #               (suit|rank|direction) / the `function` bucket, which is
-#               `PRIMITIVE_VALUE_NAMES`, NOT the game's own functions (those resolve
+#               `VALUE_NAMES`, NOT the game's own functions (those resolve
 #               as `Call`s, never bare) — plus the def kinds and position domains
 #               that own a name without going through `_classify`.
 # registry:   `_INJECT` is derived from `{"state"} | _LIBRARY_DEF_KINDS`. The
 #               TARGET buckets are pinned two ways: `_game_bindings` is checked to
 #               cover every value bucket `_categories` exposes
 #               (`test_game_bindings_covers_every_resolvable_value_bucket` — the
-#               pin that would have caught the `function`=PRIMITIVE_VALUE_NAMES hole
+#               pin that would have caught the `function`=VALUE_NAMES hole
 #               by construction), and the grid's `_TARGET_NAME` is checked against
 #               those buckets plus def kinds and positions
 #               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
@@ -821,7 +821,7 @@ game G {{
 # TARGET axis: namespace -> the NAME to collide on. Most reuse one spelling;
 # the deck-value and primitive-value targets must use a real member of the bucket
 # they probe, so the name is drawn from the registry, not invented.
-_PRIMITIVE_VALUE_NAME = min(PRIMITIVE_VALUE_NAMES)
+_VALUE_NAME = min(VALUE_NAMES)
 _TARGET_NAME: dict[str, str] = {
     "state": "collide",
     "zone": "collide",
@@ -835,7 +835,7 @@ _TARGET_NAME: dict[str, str] = {
     "suit": "hearts",
     "rank": "Q",  # standard52 ranks are single glyphs (2..10, J, Q, K, A)
     "direction": "left",
-    "native_value": _PRIMITIVE_VALUE_NAME,  # `_classify`'s `function` bucket
+    "native_value": _VALUE_NAME,  # `_classify`'s `function` bucket
 }
 
 
@@ -873,10 +873,10 @@ def test_game_bindings_covers_every_resolvable_value_bucket() -> None:
     resolves for a game must appear in `_game_bindings`, so a value bucket added
     to `_categories` (a new deck-derived namespace, another kernel table wired
     into `functions`) cannot slip past the shadow guard uncovered. This is the
-    check that would have caught the `functions`-bucket = `PRIMITIVE_VALUE_NAMES`
+    check that would have caught the `functions`-bucket = `VALUE_NAMES`
     hole by construction, rather than by an audit noticing a hand-list lied.
 
-    red under: delete the `PRIMITIVE_VALUE_NAMES` loop from `_game_bindings` (drops
+    red under: delete the `VALUE_NAMES` loop from `_game_bindings` (drops
     the native-value bucket), or a deck-value loop (drops ranks/suits)."""
     from cardlang.resolve import _categories, _game_bindings
 

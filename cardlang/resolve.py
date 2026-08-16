@@ -74,8 +74,8 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_WINNERS,
-    PRIMITIVE_VALUE_NAMES,
+    TRICK_WINNER_NAMES,
+    VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
@@ -825,7 +825,7 @@ def _game_bindings(game: n.Game) -> dict[str, tuple[str, Span | None]]:
     # precedence, added last, so a real game binding keeps the reported noun.
     # `test_game_bindings_covers_every_resolvable_value_bucket` pins this against
     # `_categories` so a value bucket added there cannot slip past uncovered.
-    for value_fn in PRIMITIVE_VALUE_NAMES:
+    for value_fn in VALUE_NAMES:
         bindings.setdefault(value_fn, ("standard-library value", None))
     return bindings
 
@@ -1273,7 +1273,7 @@ def _library_reach(library: n.Library) -> _LibraryReach:
         # blind — which is the shape of the defect the slot registry exists for.
         zones=frozenset(r.name for r in library.requires if is_zone_contract(r)),
         enums=SEAT_DIRECTION_VALUES,
-        functions=PRIMITIVE_VALUE_NAMES,
+        functions=VALUE_NAMES,
         ranks=frozenset(),
         suits=frozenset(),
     )
@@ -3661,7 +3661,7 @@ def _categories(game: n.Game) -> _Categories:
         state_vars=frozenset(state_vars),
         zones=frozenset(z.name for z in game.zones),
         enums=enum_values(game.deck) if _component_known(game.deck) else SEAT_DIRECTION_VALUES,
-        functions=PRIMITIVE_VALUE_NAMES,
+        functions=VALUE_NAMES,
         # Card-literal validation asks "does this card EXIST in the deck",
         # so ranks derive from the deck like `suits` below — never from
         # `ranking:`, which is an ORDERING (optional, and legitimately
@@ -5570,7 +5570,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
-                if nd.winner_fn not in PRIMITIVE_TRICK_WINNERS:
+                if nd.winner_fn not in TRICK_WINNER_NAMES:
                     bag.error(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",

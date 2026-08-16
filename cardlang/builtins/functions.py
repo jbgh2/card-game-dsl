@@ -15,8 +15,8 @@ Nothing here is the **[[stdlib]]**, which is the layer written in the language
 
 from __future__ import annotations
 
-# Primitive value callbacks referenced by bare name (a `round`'s `winner` or
-# `outcome` callback). The two round forms yield different things and are validated
+# Value callbacks referenced by bare name (a `round`'s `winner` or `outcome`
+# callback). The two round forms yield different things and are validated
 # against separate namespaces (a trick winner function named on an auction round, or
 # vice versa, is rejected at resolve time, not left to crash the dispatcher at
 # runtime):
@@ -24,14 +24,30 @@ from __future__ import annotations
 # - a *trick* winner function : (played, led_suit, trump, rank_index) -> Player
 # - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
 #   phase's typed outcome.
+#
+# A name has ONE home, and the home is its CLASSIFICATION — generic
+# (Builtin) or game-local (Primitive) — never its syntactic position: the
+# registry's own first line draws the Builtin/Primitive split by genericity,
+# and the two standard trick comparisons are the language's, not any game's
+# (Bridge, Hearts, Spades, Oh Hell, and the Getaway/Schnapsen forms all name
+# them). They were filed under PRIMITIVE_TRICK_WINNERS from before the split
+# was drawn; the `highest_trump_or_led_suit` CALL form (issue #256) is what
+# forced the finer cut, because one name would otherwise have sat in both
+# halves. Both sets validate the winner slot through their union below.
+BUILTIN_TRICK_WINNERS: frozenset[str] = frozenset(
+    {
+        "highest_of_led_suit",  # the standard no-trump trick winner
+        "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+    }
+)
 PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
     {
-        "highest_of_led_suit",
-        "highest_trump_or_led_suit",  # trick winner with a trump suit in play
         "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
         "belote_trick_winner",  # Belote: highest trump under the J-9 trump order, else led suit
     }
 )
+# The winner slot's namespace: what a `round … winner <name>` may name.
+TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
 PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
@@ -39,14 +55,18 @@ PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
         "tarot_auction_outcome",  # French Tarot four-level bid -> taken | thrown_in
     }
 )
-# The union is the bare-name function namespace (for NameRef classification) and
-# the surface the signature tables must cover.
-PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCTION_OUTCOMES
+# The union is the bare-name function namespace (for NameRef classification)
+# and the surface the signature tables must cover — every slot callback of
+# EITHER home, which is why it carries neither home's prefix (it was
+# `PRIMITIVE_VALUE_NAMES` while every member was a Primitive; a Builtin
+# member under that prefix would mislabel by name — the CALL_FUNCS pattern,
+# the neutral union of the two homes' call sets, is the precedent).
+VALUE_NAMES: frozenset[str] = TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # the callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the winner/outcome namespaces.
-# Slot-only, deliberately outside PRIMITIVE_VALUE_NAMES: an early predicate is
+# Slot-only, deliberately outside VALUE_NAMES: an early predicate is
 # unreachable as a bare NameRef and rejected in a `winner` slot, even though
 # the runtime dispatches both through `value_function`. Sharing the dispatcher
 # is an implementation detail of the runtime, not a shared namespace.
@@ -107,6 +127,12 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "card_points",  # a card's points under the game's `card_points { }` table
         "top_of",  # the top card of an ordered zone/collection (the sequence end)
         "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
+        # The standard trump-game trick winner, callable over a fully public
+        # pile's Arrival Record (issue #256) — the SAME Builtin winner the
+        # trick form's `winner` clause names bare (BUILTIN_TRICK_WINNERS
+        # above), in its second position: one name, one home, two syntactic
+        # positions, each resolved against its own namespace.
+        "highest_trump_or_led_suit",
     }
 )
 
@@ -125,7 +151,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
-        "schnapsen_trick_winner",  # Schnapsen: the two-card trick's winner (leader led first)
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
@@ -260,6 +285,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_b",
         "gin_lay_ok_c",
         "gin_valid_meld",
+        "highest_trump_or_led_suit",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
         "peg_pair_points",
@@ -267,7 +293,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "pinochle_meld_value",
         "pot_share",
         "rank_value",
-        "schnapsen_trick_winner",
         "skat_follow_ok",
         "skat_matadors",
         "skat_trick_winner",

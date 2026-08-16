@@ -18,7 +18,7 @@ from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import observe, active_rules, reads, rules, narrowing
+from cardlang.runtime import active_rules, narrowing, observe, reads, rules
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
@@ -191,7 +191,9 @@ class TrickForm:
 
     def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
         ctx.rs.zones.instance(self.source_family, actor).remove(choice)
-        ctx.rs.zones.single(self.play_zone).add(choice)
+        ctx.rs.zones.single(self.play_zone).add(
+            choice, actor, (self.source_family, actor)
+        )
         observe.movement(ctx, (self.source_family, actor), (self.play_zone, None), [choice])
         state["played"].append((actor, choice))
         ctx.trace("play", (actor, choice))
@@ -219,7 +221,8 @@ class TrickForm:
             self.trump,
             reads.deep_freeze(ctx.rs.rank_index),
         )
-        # every function in the Primitive trick-winner registry returns a seat
+        # shadow guard: resolve admits only the trick-winner namespace (both
+        # homes) into this slot, and every member returns a seat
         assert isinstance(winner, int)
         ctx.trace("trick", (winner, [c for _, c in state["played"]]))
         return winner
@@ -582,7 +585,7 @@ class ClimbForm:
         play = choice
         for c in play.cards:
             self.hands[actor].remove(c)
-        self.pile.add_all(play.cards)
+        self.pile.add_all(play.cards, actor, (self.source_name, actor))
         observe.movement(ctx, (self.source_name, actor), (self.pile_name, None), play.cards)
         state["current"], state["last"] = play, actor
         state["idx"] += 1

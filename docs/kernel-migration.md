@@ -29,11 +29,15 @@ The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
 Primitives the DSL calls: Stud's poker evaluator, seat selectors, and
 `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
 per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
-and provenance decoder; Schnapsen's two-card trick resolution; Skat's bid
+and provenance decoder; Skat's bid
 ladder, follow-class legality, trick winner, matador count, and overbid
 arithmetic; Tichu's climb queries over the shared `combinations.py` engine,
 team/finishing lookups, and the OpenSpiel combo codec; Coup's
-in-game scans and trace emitters.
+in-game scans and trace emitters. Schnapsen carries no module at all: its
+trick resolution is the `highest_trump_or_led_suit` call form over the
+kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
+visibility, and the projection model" — The Arrival Record), and the playout
+harness derives its trick facts from observation events.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
 Primitive registries; every `tests/test_playout_*.py` green with
@@ -418,8 +422,9 @@ components"), which the runtime has so far folded inline (issue #115).
   outside any trick `round`); marriages score 20/40 into a `pending` counter
   flushed on the declarer's first trick win; the `claimed | talon_closed |
   open_play` outcome `produce`s from the phase body. The two-card trick
-  resolution re-homed as the game-local `schnapsen_trick_winner` Primitive
-  primitive (the `pot_share`/`pinochle_meld_value` shape).
+  resolves through the engine-core `highest_trump_or_led_suit` call form over
+  `trick_pile`'s Arrival Record — no game-local Python anywhere (issue #256
+  retired the attribution shell; the game file states everything).
 - **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
   declaration, meld, and the twelve strict tricks) landed on the kernel via
   Workstream 1 (above) before this workstream reached it. Meld stayed a

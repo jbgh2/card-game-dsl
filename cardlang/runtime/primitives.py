@@ -31,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from cardlang.runtime import narrowing, reads
+from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
@@ -106,14 +106,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "schnapsen_trick_winner":
-            from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
-
-            winner, events = schnapsen_trick_winner(
-                *narrowing.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
-            )
-            _emit(ctx, events)
-            return winner
         case "skat_next_bid":
             from cardlang.runtime.skat import skat_next_bid
 
@@ -125,13 +117,13 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "skat_trick_winner":
             from cardlang.runtime.skat import ROW, skat_trick_winner
 
-            winner, events = skat_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = skat_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "doko_trick_winner":
             from cardlang.runtime.doko import ROW, doko_trick_winner
 
-            winner, events = doko_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = doko_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "skat_matadors":
@@ -239,7 +231,7 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "five_hundred_trick_winner":
             from cardlang.runtime.five_hundred import ROW, five_hundred_trick_winner
 
-            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "belote_trump_height":
@@ -315,9 +307,13 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-# An outcome function picks the trick winner from the plays, the led suit, the
-# trump suit (None when no trump), and the game's rank-strength map.
-RankIndex = dict[str, int]
+# The two Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
+# `runtime/winners.py` — both dispatch halves consume them and may not import
+# each other. `value_function` below is the ONE winner-slot dispatcher and
+# keys both homes' winners (the Builtin pair through winners.py, the
+# game-local pair through their modules); its file is the dispatcher's home,
+# not a classification of what it keys (tests/test_native_dispatch_split.py).
+RankIndex = winners.RankIndex
 OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)
 EarlyTermFn = Callable[[Card, str], bool]
@@ -326,9 +322,9 @@ EarlyTermFn = Callable[[Card, str], bool]
 def value_function(name: str) -> Callable[..., Any]:
     match name:
         case "highest_of_led_suit":
-            return highest_of_led_suit
+            return winners.highest_of_led_suit
         case "highest_trump_or_led_suit":
-            return highest_trump_or_led_suit
+            return winners.highest_trump_or_led_suit
         case "on_play_off_led_suit":
             return on_play_off_led_suit
         case "tarot_trick_winner":
@@ -472,31 +468,6 @@ def climb_codec_function(name: str) -> Any | None:
             return TICHU_COMBO_CODEC
         case _:
             return None
-
-
-def highest_of_led_suit(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: RankIndex,
-) -> Player:
-    """The player who played the highest-ranked card of the led suit."""
-    of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
-    return max(of_suit, key=lambda pc: rank_index[pc[1].rank])[0]
-
-
-def highest_trump_or_led_suit(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: RankIndex,
-) -> Player:
-    """The highest trump if any trump was played, else the highest card of the
-    led suit (the standard trick winner for a trump game)."""
-    trumps = [(p, c) for (p, c) in played if c.suit == trump]
-    if trumps:
-        return max(trumps, key=lambda pc: rank_index[pc[1].rank])[0]
-    return highest_of_led_suit(played, led_suit, trump, rank_index)
 
 
 def on_play_off_led_suit(card: Card, led_suit: str) -> bool:

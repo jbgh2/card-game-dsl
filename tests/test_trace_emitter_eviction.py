@@ -82,7 +82,8 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
-    PRIMITIVE_VALUE_NAMES,
+    TRICK_WINNER_NAMES,
+    VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
@@ -99,12 +100,13 @@ EVICTED: tuple[tuple[str, str], ...] = (
 )
 _NAMES = [name for name, _ in EVICTED]
 
-# The six namespaces the evicted names never belonged to: the domain's
+# The seven namespaces the evicted names never belonged to: the domain's
 # boundary, pinned so "which namespace held them" stays a checked fact.
 OTHER_NAMESPACES: dict[str, frozenset[str]] = {
     "PRIMITIVE_TRICK_WINNERS": PRIMITIVE_TRICK_WINNERS,
+    "TRICK_WINNER_NAMES": TRICK_WINNER_NAMES,
     "PRIMITIVE_AUCTION_OUTCOMES": PRIMITIVE_AUCTION_OUTCOMES,
-    "PRIMITIVE_VALUE_NAMES": PRIMITIVE_VALUE_NAMES,
+    "VALUE_NAMES": VALUE_NAMES,
     "PRIMITIVE_EARLY_PREDICATES": PRIMITIVE_EARLY_PREDICATES,
     "PRIMITIVE_CLIMB_LEADS": PRIMITIVE_CLIMB_LEADS,
     "PRIMITIVE_CLIMB_FOLLOWS": PRIMITIVE_CLIMB_FOLLOWS,

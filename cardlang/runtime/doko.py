@@ -17,8 +17,7 @@ recomputes winners from (tests/test_playout_doppelkopf.py).
 
 from __future__ import annotations
 
-from cardlang.runtime import reads
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime import reads, winners
 from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
@@ -52,26 +51,17 @@ def _trump_strength(c: Card) -> int:
 
 
 def doko_trick_winner(
-    facts: EngineFacts, gr: reads.GameReads, leader: Player
+    facts: EngineFacts, gr: reads.GameReads
 ) -> tuple[Player, tuple[TraceEvent, ...]]:
-    """The completed four-card trick's winner (`trick_pile` holds the cards
-    in seat order from the leader): the strongest trump if any was played,
-    else the strongest card of the led suit — strictly-greater comparison,
-    so of two identical cards the first played wins (the double-pack rule).
+    """The completed four-card trick's winner: the strongest trump if any
+    was played, else the strongest card of the led suit — strictly-greater
+    comparison, so of two identical cards the first played wins (the
+    double-pack rule). Who played each card is the kernel's Arrival Record
+    (`gr.arrivals`, issue #256), in play order — attribution is read, never
+    re-derived from seat arithmetic.
     """
-    cards = gr.singles["trick_pile"]
-    if len(cards) != 4:
-        # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, so this raise is its Owner Guard.
-        raise OwnerGuardError(
-            f"doko_trick_winner: trick pile holds {len(cards)} cards, expected "
-            f"a completed 4-card trick"
-        )
-    # Seat attribution relies on the game pairing `turn_order_from` (turn
-    # direction) with the same step its play loop uses (`offset_by left`, a seat
-    # direction, clockwise here). A game combining a counterclockwise turn
-    # direction with offset_by-left play order would silently mislabel the pairs.
-    played = list(zip(facts.seating.turn_order_from(leader), cards))
+    played = winners.recorded_plays(gr.arrivals["trick_pile"], "doko_trick_winner", 4)
+    cards = [c for _, c in played]
     events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     trumps = [(p, c) for p, c in played if _is_trump(c)]
     if trumps:

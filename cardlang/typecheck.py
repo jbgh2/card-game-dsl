@@ -148,15 +148,55 @@ def item_field_table(game: Game) -> dict[str, Type]:
 # tests/test_zone_family_typing.py, which records it).
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
-# native functions whose result depends on a declared `ranking:` (they index
-# `ctx.rs.rank_index`, empty when the game declares none — runtime/builtins.py
-# `rank_value` requires every rank it is asked for to be present in that
-# index, and has nothing to fall back on). resolve.py already
-# gates a bare `Rank` move-parameter domain on the same `has_ranking`
-# condition (`_check_move_params`); this is the analogous compile-time gate
-# for a *call*. A registry, not an `if`, so the next ranking-dependent
-# function joins a set instead of a new branch.
-RANKING_GATED_FUNCS: frozenset[str] = frozenset({"rank_value"})
+# Native evaluations whose result depends on a declared `ranking:` — they
+# index `rs.rank_index`, which is EMPTY when the game declares none (only
+# `rs.ranks` falls back to deck order), so an ungated member is the
+# accepted-then-crashes-bare class: a clean check, then a raw KeyError at
+# playout. resolve.py already gates a bare `Rank` move-parameter domain on
+# the same `has_ranking` condition (`_check_move_params`); these are the
+# analogous compile-time gates for the three positions a member can be
+# named from. Registries, not `if`s, so the next ranking-dependent function
+# joins a set instead of a new branch.
+#
+# The member census (the #256 review round's class sweep — every call form
+# and value callback whose evaluation reads rank_index, disposition per
+# member; verified against bodies, not docstrings):
+#   call forms, gated below: rank_value (builtins.py), the
+#     highest_trump_or_led_suit call form (builtins.py, the Arrival Record
+#     winner), peg_run_points / cribbage_show_value / cribbage_crib_value
+#     (cribbage.py show/run scoring orders), belote_opp_winning (belote.py,
+#     recomputes the live winner under the declared order).
+#   winner callbacks, gated via RANKING_GATED_WINNERS at the trick round's
+#     `winner` slot: highest_of_led_suit, highest_trump_or_led_suit
+#     (winners.py), belote_trick_winner (belote.py). NON-member:
+#     tarot_trick_winner — its body ranks atouts by their numerals and
+#     plain suits by its own table, never rank_index, which is what keeps
+#     french-tarot (a no-`ranking:` corpus game with trick rounds) legal.
+#   climb queries, gated via RANKING_GATED_CLIMB_QUERIES at the climb
+#     round's `combinations`/`follows` slots: president_lead_options,
+#     president_follows (president.py reads facts.rank_index). NON-members:
+#     the bigtwo_* and tichu_* engines, which carry their own orders.
+#   NON-members elsewhere: peg_pair_points (rank equality only),
+#     on_play_off_led_suit (suit only), every auction outcome, and the
+#     skat/doko/five_hundred winners (game-local strength tables). The Rank
+#     move-parameter domain is resolve's gate; `card_points` is gated by its
+#     own clause-required guard.
+RANKING_GATED_FUNCS: frozenset[str] = frozenset(
+    {
+        "rank_value",
+        "highest_trump_or_led_suit",
+        "peg_run_points",
+        "cribbage_show_value",
+        "cribbage_crib_value",
+        "belote_opp_winning",
+    }
+)
+RANKING_GATED_WINNERS: frozenset[str] = frozenset(
+    {"highest_of_led_suit", "highest_trump_or_led_suit", "belote_trick_winner"}
+)
+RANKING_GATED_CLIMB_QUERIES: frozenset[str] = frozenset(
+    {"president_lead_options", "president_follows"}
+)
 
 
 def type_from_name(
@@ -2037,6 +2077,37 @@ def _check_round_actors(
     )
 
 
+def _check_round_ranking(
+    stmt: n.TrickRound | n.AuctionRound | n.ClimbRound,
+    env: TypeEnv,
+    bag: DiagnosticBag,
+) -> None:
+    """The ranking demand of a round's NAMED callbacks — the slot twin of the
+    `RANKING_GATED_FUNCS` call gate (same condition, same message shape). A
+    winner or climb query that indexes `rank_index` is named bare in its
+    slot, never called, so the Call-site gate cannot see it; without this, a
+    no-`ranking:` game naming one checks clean and crashes bare at the first
+    trick's resolution. The auction form names no ranking-reading callback
+    (its outcomes read the bid history), so it contributes no members —
+    included in the signature because the dispatch calls this for every
+    round form and a future member would join a set, not a new branch."""
+    demanded: list[str] = []
+    if isinstance(stmt, n.TrickRound) and stmt.winner_fn in RANKING_GATED_WINNERS:
+        demanded.append(f"round winner {stmt.winner_fn}")
+    if isinstance(stmt, n.ClimbRound):
+        for q in (stmt.combos_fn, stmt.follows_fn):
+            if q in RANKING_GATED_CLIMB_QUERIES:
+                demanded.append(f"climb query {q}")
+    if demanded and not env.has_ranking:
+        for name in demanded:
+            bag.error(
+                f"{name} reads a card's rank strength from ranking:, "
+                f"but the game declares no ranking: — declare one, or use a "
+                f"game-specific rank function",
+                stmt.span,
+            )
+
+
 def _check_participants(
     node: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str, span: Span | None
 ) -> None:
@@ -2581,11 +2652,13 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
             _check_bool(stmt.until, env, bag, "repeat-until condition")
         case n.TrickRound():
             _check_round_actors(stmt, env, bag)
+            _check_round_ranking(stmt, env, bag)
         case n.AuctionRound() | n.ClimbRound():
             # `until` is mandatory on exactly the two forms that loop, so it is
             # checked without asking whether it is there — which is the split's
             # point: the form that has no termination predicate cannot reach here.
             _check_round_actors(stmt, env, bag)
+            _check_round_ranking(stmt, env, bag)
             _check_bool(stmt.until, env, bag, "round `until` condition")
         case n.Transfer():
             _check_transfer(stmt, env, bag)

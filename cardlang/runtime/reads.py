@@ -57,7 +57,8 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from cardlang.runtime.state import RuntimeState, Zone, elements
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, Player
+from cardlang.stdlib.zones import identity_to_all
 from cardlang.types import TAny, TCollection
 
 # Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
@@ -211,13 +212,25 @@ class PrimitiveReads:
     `module` is the repo-relative path of the Python module doing the
     reading; `game_file` the `docs/games/` basename whose declarations the
     names must match. A module serving several games (primitives.py's auction
-    outcomes) has one row per game."""
+    outcomes) has one row per game.
+
+    `arrival_zones` declares which of the row's single zones the module also
+    reads the [[arrival-record]] of — the (deciding actor, card) pairs the
+    kernel retains per movement (issue #256). Bounded twice at bind time,
+    loud on both: a name must be in the row's own `single_zones`, and the
+    zone's declared type must project identity to EVERY observer
+    (`stdlib.zones.identity_to_all`) — provenance of a concealed zone is not
+    derivable from any observer's stream, so no primitive may range over it,
+    legality context or otherwise. Zone FAMILIES are deliberately absent:
+    no consumer reads a family's record, and the query surface over the
+    recorded facts is issue #253's set of decisions."""
 
     module: str
     game_file: str
     state_vars: frozenset[str] = field(default=frozenset())
     zone_families: frozenset[str] = field(default=frozenset())
     single_zones: frozenset[str] = field(default=frozenset())
+    arrival_zones: frozenset[str] = field(default=frozenset())
 
 
 def _fs(*names: str) -> frozenset[str]:
@@ -248,6 +261,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/doko.py",
         game_file="doppelkopf.cardlang",
         single_zones=_fs("trick_pile"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/pinochle.py",
@@ -263,16 +277,12 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="president.cardlang",
     ),
     PrimitiveReads(
-        module="cardlang/runtime/schnapsen.py",
-        game_file="schnapsen.cardlang",
-        single_zones=_fs("trick_pile"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/skat.py",
         game_file="skat.cardlang",
         state_vars=_fs("is_null", "is_grand", "trump_suit"),
         zone_families=_fs("hand"),
         single_zones=_fs("trick_pile", "skat"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/stud.py",
@@ -306,14 +316,15 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("captured", "discard"),
         single_zones=_fs("trick_pile", "chien"),
     ),
+    # `declarer` left this row with the dead-seat derivation it fed
+    # (issue #256): participation now derives from the Arrival Record.
     PrimitiveReads(
         module="cardlang/runtime/five_hundred.py",
         game_file="five-hundred.cardlang",
-        state_vars=_fs(
-            "trump_suit", "is_misere", "is_open_misere", "joker_suit", "declarer"
-        ),
+        state_vars=_fs("trump_suit", "is_misere", "is_open_misere", "joker_suit"),
         zone_families=_fs("hand", "exposed"),
         single_zones=_fs("trick_pile"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/belote.py",
@@ -472,11 +483,43 @@ class GameReads:
     indexed state variable's `{player: value}` dict, not anything nested
     inside them. That is the narrowing: what used to be a convention enforced
     by review ("primitives are pure reads") is now a property of what the
-    value can express."""
+    value can express.
+
+    `arrivals` carries, per declared `arrival_zones` name, the zone's
+    Arrival Record as (deciding actor, card) pairs in arrival order — the
+    kernel-retained attribution the trick winners consume in place of
+    zipping seat order against pile contents (issue #256)."""
 
     state: Mapping[str, Any]
     families: Mapping[str, Mapping[int, tuple[Card, ...]]]
     singles: Mapping[str, tuple[Card, ...]]
+    arrivals: Mapping[str, tuple[tuple[Player | None, Card], ...]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+
+def _arrival_pairs(
+    rs: RuntimeState, r: PrimitiveReads, name: str
+) -> list[tuple[Player | None, Card]]:
+    """One declared arrival-zone read, validated at bind time (the
+    decision-context rule — see `PrimitiveReads.arrival_zones`)."""
+    if name not in r.single_zones:
+        raise PrimitiveReadError(
+            f"{r.module} (serving {r.game_file}) declares arrival_zones "
+            f"{name!r} outside its own single_zones {sorted(r.single_zones)} — "
+            f"the Arrival Record is a facet of a declared single-zone read, "
+            f"never a separate channel"
+        )
+    ztype = rs.zones.zone_type.get(name)
+    if ztype is None or not identity_to_all(ztype):
+        raise PrimitiveReadError(
+            f"{r.module} (serving {r.game_file}) declares arrival_zones "
+            f"{name!r}, whose type {ztype!r} does not project identity to "
+            f"every observer (cardlang/stdlib/zones.py ZONE_PROJECTIONS) — a "
+            f"concealed zone's provenance is not derivable from any "
+            f"observer's stream, so no primitive may range over it"
+        )
+    return [(a.actor, a.card) for a in single(rs, r, name).arrivals]
 
 
 def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
@@ -501,6 +544,9 @@ def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
         ),
         singles=deep_freeze(
             {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+        ),
+        arrivals=deep_freeze(
+            {n: _arrival_pairs(rs, r, n) for n in sorted(r.arrival_zones)}
         ),
     )
 
