@@ -1,6 +1,9 @@
 """Playtest statistics over random rollouts of a registered cardlang game —
 the designer-feedback seed (SP1 spec, "Design-tool alignment"): run N games,
-report length, branching, returns spread, and per-seat outcomes."""
+report length, branching, returns spread, and a best-finish count per [[seat]] —
+one credit per rollout, so a tie credits the lowest-numbered tied seat alone and
+a game whose seats can share a top return reads as more seat-biased than it is
+(issue #353)."""
 
 from __future__ import annotations
 

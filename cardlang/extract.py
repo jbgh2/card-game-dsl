@@ -1,4 +1,4 @@
-"""Pull DSL out of Markdown fenced code blocks.
+"""Pull DSL out of Markdown fenced code [[block]]s.
 
 Game files in ``docs/games/`` are Markdown: prose plus one or more fenced
 code blocks holding the DSL. This is the only stage that knows about
@@ -71,7 +71,7 @@ def extract_single_block(markdown: str, source_name: str) -> FencedBlock:
     """Return the one fenced block, erroring if there is not exactly one.
 
     A game file is a single DSL unit; multiple or missing blocks are a
-    structural problem the harness should surface loudly rather than guess at.
+    structural problem the caller should surface loudly rather than guess at.
     """
     blocks = extract_blocks(markdown, source_name)
     if len(blocks) == 1:
