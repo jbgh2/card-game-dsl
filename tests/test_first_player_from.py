@@ -97,12 +97,18 @@ residual:  (a) a runtime `bool` reaching the start slot through a gradual
            divided-by framing enumeration on issue #249; this grid pins the
            fence and the seat-as-count semantics that fall out today,
            adding reach, not cause.
-           (c) `and`/`or` operand types are unchecked (infer returns
-           Boolean unconditionally), so `where P or dealer` typechecks with
-           the disjunction as the predicate — the or-cell pins the
-           SEMANTICS; the operand-type hole is the operator-guards module's
-           standing class, R3, reachable through every Boolean position,
-           not newly caused here. (d) reject-with-replacement productions
+           (c) concrete non-Boolean operands in an `or`/`and` predicate ARE
+           rejected by the operator guards — executed during review
+           response: `where mark[player] or seat` and `... or s[0]` both
+           fail with "'or' expects Boolean operands, got Player/Integer"
+           (the framing enumeration's folded claim of an unchecked operand
+           conflated infer's unconditionally-Boolean RESULT type with the
+           check side, and execution disproves it). The true residue is the
+           TAny-gradual pass-through — a gradual operand in a disjunct
+           checks green and decides truthiness at play — the standing
+           gradual class whose owner is tests/test_operator_guards.py's
+           ledger; the or-cell here pins the SEMANTICS (the disjunction is
+           the predicate, never a default). (d) reject-with-replacement productions
            for `the next player after ...` and a trailing direction word
            were weighed and declined — never-in-the-language spellings get
            loud syntax errors (pinned below), and minting rejection surface
@@ -116,13 +122,29 @@ naming:    `the first player from ... where ...` mints no glossary entry:
            RESERVED_VALUE_NAMES is hand-listed so `first` stays declarable
            (pinned by the names-stay-names cells below).
 red-first: authored before the implementation; the red run is recorded in
-           the PR. Born-green pins and their reddening mutations:
+           the PR. Born-green pins carry per-pin reddening mutations
+           (executed = plant, red, revert, green was run; documented = the
+           mutation is named here per the divided-by precedent):
            test_kind_axis_is_pinned_by_grammar — red under: rename the
-           `the_first_player_from_where` alias in the grammar;
-           the misuse family (no-from / no-where / no-the / doubled-where)
-           — red under: make `_FROM_KW sum` optional in the new production
-           (executed once against the implemented grammar and reverted; the
-           no-from cell parses under that mutation and the pin fails).
+           `the_first_player_from_where` alias (EXECUTED);
+           misuse no_from — red under: `[_FROM_KW sum]` optional in the
+           production (EXECUTED: exactly the no_from cell reddens);
+           misuse no_where — red under: `[_WHERE_KW expr]` optional
+           (EXECUTED: exactly the no_where cell reddens, 1 failed 5
+           passed);
+           misuse no_the — red under: `[_THE_KW]` optional in the
+           production (documented);
+           misuse doubled_where — red under: the where clause made
+           repeatable, `(_WHERE_KW expr)+` (documented);
+           misuse next_after_spelling — red under: adding a
+           `_THE_KW <next> _PLAYER_KW <after> sum _WHERE_KW expr`
+           production with anchored next/after terminals (documented);
+           misuse trailing_direction_word — red under: an optional
+           trailing NAME after the predicate in the production
+           (documented);
+           the two discriminating lap cells carry their executed plants at
+           the cell (composed_exclusive_start_is_final: lap truncation;
+           test_chained_offset_by_start: offset no-op).
 """
 
 from __future__ import annotations
@@ -268,9 +290,16 @@ LAP_CELLS: list[tuple[str, str, tuple[int, ...], int, str, int]] = [
     ("at_start_inclusive", "2", (2, 0), 4, "clockwise", 2),
     ("mid_lap_skip", "1", (3,), 4, "clockwise", 3),
     ("wrap_to_last", "2", (1,), 4, "clockwise", 1),
-    # coup's composed exclusive scan: the start seat is the lap's FINAL
-    # candidate (seat := 2; from 2 offset_by left = 3; lap 3,0,1,2).
-    ("composed_exclusive_start_is_final", "seat offset_by left", (2,), 4, "clockwise", 2),
+    # coup's composed exclusive scan: the UN-OFFSET seat is the lap's FINAL
+    # candidate (seat holds its default 0; from 0 offset_by left = 1; lap
+    # 1,2,3,0), and marking ONLY that final candidate makes the cell
+    # discriminate lap completeness: a lap short of its final element
+    # exhausts here instead of answering 0.
+    # red under: truncating `Seating.turn_order_from` to `range(self.count
+    # - 1)` — executed: this cell fails with the exhaustion error, alongside
+    # wrap_to_last and ccw_exclusive_composes_with_right (the same full-lap
+    # face, inclusive and counterclockwise sides); reverted, green.
+    ("composed_exclusive_start_is_final", "seat offset_by left", (0,), 4, "clockwise", 0),
     ("direction_clockwise", "0", (1, 3), 4, "clockwise", 1),
     ("direction_counterclockwise", "0", (1, 3), 4, "counterclockwise", 3),
     ("direction_omitted_defaults_clockwise", "0", (1, 3), 4, "", 1),
@@ -385,8 +414,14 @@ def test_exhaustion_in_a_state_default_fires_at_setup() -> None:
 
 
 def test_chained_offset_by_start() -> None:
-    # seat = 0; left twice = seat 2; lap 2,3,0,1.
-    assert _found_seat("seat offset_by left offset_by left", (2,)) == 2
+    # seat = 0; left twice = seat 2; lap 2,3,0,1. Marking {1, 2} makes the
+    # arrangement discriminate the CHAIN: the full chain answers 2, while a
+    # dropped link (start 1: lap 1,2,3,0) or no offset at all (start 0)
+    # answers 1.
+    # red under: a no-op `left` in `Seating.offset_by` (`"left": 0`) —
+    # executed: this cell answers 1 and fails (with the other offset-borne
+    # cells guarding the same delta); reverted, green.
+    assert _found_seat("seat offset_by left offset_by left", (1, 2)) == 2
 
 
 def test_arithmetic_integer_start_in_range() -> None:
