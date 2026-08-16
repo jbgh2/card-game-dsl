@@ -2448,10 +2448,10 @@ game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
 `piece`/`pieces` noun is rejected in a card game. The guarded surfaces
 are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
-field access, the card-query and aggregation forms, the `ranking:` and
-`trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
-`Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
-native calls, and card literals. Each rejection sits at the layer that
+field access, the card-query and aggregation forms, the `ranking:`,
+`trump:`, and `card_points { }` clauses, the `suit`/`rank` quantifier and
+iteration roles, the `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains,
+the deck-reading native calls, and card literals. Each rejection sits at the layer that
 owns the operand-kind class (the typechecker), naming the kind rather
 than parsing the construct and silently giving it card meaning — the
 "accepted-but-ignored" failure this guard exists to prevent.
@@ -2793,18 +2793,54 @@ game's `ScoreDelta` carries whatever fields the game's scoring
 mechanics need (one integer, two channels, a list of pots, etc.);
 no shared `ScoreStructure` type.
 
-**Per-card point values are inline expressions or per-game
-helpers.** Hearts scores `if card.suit is hearts then 1 elif
-card is Q of spades then 13 else 0` inline; Pinochle scores
-`if card.rank in [A, 10, K] then 10 else 0` inline; Tichu mixes
-specials and ranks. A declarative rank-keyed `counters: { ... }`
-block on the card definition was considered but only cleanly
-handles the Pinochle shape — Hearts' suit-plus-special-card and
-Tichu's special-card-plus-rank scoring both need richer
-expressions. Inline conditionals scale to all three. Lift to a
-per-game helper function when a table is large enough to repay
-the indirection (the cribbage show-scoring components are an
-example).
+**Per-card points: a rank-keyed table is the `card_points { }`
+clause; everything richer stays an inline expression or a
+per-game helper.** A game whose card points are a function of
+rank declares them as a block clause beside `cards:`, rows in
+`ranking:`'s key position (a NAME or a bare INT), values static
+signed integer literals, with one optional trailing `else:` row
+for the everything-else value:
+
+```text
+card_points {
+  A: 1
+  2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
+  J: 10  Q: 10  K: 10
+}
+```
+
+Rows are whitespace-separated like every block clause; the empty
+block is a syntax error (at least one rank row); a duplicate rank
+key and a key that is not a rank of the declared deck are resolve
+errors naming the deck. Unlisted ranks read the `else:` value, or
+0 with no else row (Tichu's sparse table prices five ranks; the
+rest read 0). Negative rows are ordinary (`Phoenix: -25`). The
+`card_points(card)` Builtin reads the declared table, and calling
+it in a game that declares no clause is a resolve error — the
+table has ONE source, the game's own clause: the deck registry
+carries composition only, never points (`values.Deck`), so one
+deck serves games that price it differently, and a piece game is
+refused the clause outright (the noun/content agreement guard,
+"Component sets: cards and pieces").
+
+The clause deliberately carries no more than the rank-keyed
+table. Card points that vary by more than rank stay inline or in
+a per-game `function`, composed OVER the clause where a table
+carries part of the fact: Hearts scores `if card.suit is hearts
+then 1 elif card is Q of spades then 13 else 0` inline; French
+Tarot declares `card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }`
+and wraps its bouts inline (`if is_bout(card) then 9 else
+card_points(card)` — a rank-keyed table cannot carry the petit,
+whose rank "1" is worth 9 in the atouts and 1 in the plain
+suits); Belote's trump-dependent pricing is a per-game function
+with no table at all. A declarative rank-keyed `counters: { ... }`
+block on the CARD definition was considered and stays rejected —
+it re-attaches a scoring fact to the component, and only cleanly
+handles the pure-rank shape; the game-level clause carries that
+shape, and inline conditionals scale to the rest. Lift to a
+per-game helper function when the composition is large enough to
+repay the indirection (Canasta's twelve-pile meld sum,
+`canasta_meld_points`, is an example).
 
 ## Triggered scoring components
 

@@ -324,11 +324,12 @@ match) and so must trump if able, a quirk the split preserves precisely.
   121-point cutoff one scoring component at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
-  count) and decoded by the `peg_origin_of` Primitive query. Six game-local Primitive
-  primitives (see "Native functions") — `peg_value`, `peg_pair_points`,
-  `peg_run_points`, `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value`
-  — hold the pegging-count and show scorers, in the same game-local shape as
-  Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
+  count) and decoded by the `peg_origin_of` Primitive query. The per-card
+  pegging value is the game's own `card_points { }` clause; five game-local
+  Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
+  `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
+  pegging-count and show scorers, in the same game-local shape as Stud's
+  `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
   shared `scoring_component` subsystem lands corpus-first.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
@@ -674,9 +675,10 @@ conventions:
   ```
   Used by breakthrough.
 
-Each entry captures a set's *composition* only. Card-point values,
-ranking for play, follow-suit semantics, and trump status are all
-per-game declarations on a deck; a piece set carries none of them.
+Each entry captures a set's *composition* only. Card points
+(`card_points { }`), ranking for play (`ranking:`), follow-suit
+semantics, and trump status (`trump:`) are all per-game declarations
+on a deck; a piece set carries none of them.
 
 ## Built-in boards
 
@@ -770,12 +772,17 @@ mid-playout.
   game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
   the highest card of a suit played so far in the trick.
-- `card_value(card: Card) → Integer` — the card's deck-declared card-point
-  value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
-  nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum of card_value(card) over cards in trick_pile`), Schnapsen
-  (`card_points[w] += sum of card_value(card) over cards in trick_pile`), and Skat
-  (the declarer's points: a `sum of … over cards in captured[declarer]` plus the skat).
+- `card_points(card: Card) → Integer` — the card's points under the game's
+  own `card_points { }` clause (decisions.md "Scoring composition"): listed
+  ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.
+  General-purpose for any point-counting game; calling it in a game that
+  declares no clause is a resolve error (the table has one source). Used by
+  Pinochle (`trick_score[...] += sum of card_points(card) over cards in
+  trick_pile`), Schnapsen (`points_taken[w] += sum of card_points(card) over
+  cards in trick_pile`), Skat (the declarer's points: a `sum of … over cards
+  in captured[declarer]` plus the skat), Gin (deadwood counts), Cribbage (the
+  pegging count), Tichu (captured piles), French Tarot (composed with its
+  inline bout layer), and Canasta (meld and hand sums).
 - `top_of(zone) → Card` / `bottom_of(zone) → Card` — the card at an ordered
   collection's two ends (top = the sequence end, the most recent arrival;
   bottom = the front — decisions.md "Position domains and positional zones",
@@ -803,13 +810,11 @@ mid-playout.
   `lines`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
-are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
+are five game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
 (like Stud's `pot_share`) until the shared `scoring_component` subsystem lands
-corpus-first:
+corpus-first (the per-card pegging value is the game's own `card_points { }`
+clause, distinct from its *ranking*, which orders cards for comparisons):
 
-- `peg_value(card: Card) → Integer` — the card's pegging/fifteens pip value:
-  A=1, 2..10 = face value, J/Q/K = 10. Distinct from a card's *ranking* (which
-  orders cards for trick-taking comparisons).
 - `peg_pair_points() → Integer` — pair points (2/6/12 for a two/three/four-of-a-
   kind streak) at the tail of the live `play_pile` count.
 - `peg_run_points() → Integer` — run points (the length of the longest run of
@@ -899,8 +904,9 @@ reads in `tichu.cardlang`:
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
   pronoun.
-- `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
-  Phoenix −25 (100 per hand).
+
+(The per-card points — K/10 = 10, 5 = 5, Dragon +25, Phoenix −25, 100 per
+hand — are the game's own `card_points { }` clause.)
 
 Coup's bookkeeping stays game-local in `cardlang/runtime/coup.py` (every
 window response, claim, and target is a chooser decision in the DSL body —
@@ -913,16 +919,16 @@ see the Mechanics entry):
   reveal-sequence golden derives from observation events at the harness
   layer instead (tests/playout_trace.py).
 
-French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
-suit, an effective led suit that isn't the kernel's own, and a settlement the
-`ranking:`/`card_value` general machinery can't express — see
-[decisions.md](decisions.md) "Deck declaration") needs six game-local
-primitives, all reading `cardlang/runtime/tarot.py`:
+French Tarot's non-uniform 78-card deck (an effective led suit that isn't
+the kernel's own, and a settlement the `ranking:`/`card_points` general
+machinery can't express — see [decisions.md](decisions.md) "Deck
+declaration") needs five game-local primitives, all reading
+`cardlang/runtime/tarot.py`. The per-card points are the game's own
+`card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }` composed with its inline
+bout layer (`if is_bout(card) then 9 else card_points(card)` — doubled
+integer units, the 78 cards summing to 182; a rank-keyed table cannot carry
+the petit, whose rank "1" is 9 in atouts and 1 in the plain suits):
 
-- `tarot_card_points(card: Card) → Integer` — the doubled card-point value
-  (printed value × 2, so all integers; the 78 cards sum to 182). K/Q/Cavalier/J
-  score 9/7/5/3 in a plain suit; a bout (the Excuse, the 1 of atouts, the 21)
-  scores 9; every other card scores 1.
 - `tarot_trump_height(card: Card) → Integer` — an atout's rank as an int
   (1..21) for the over-trump comparison; 0 for a non-atout.
 - `tarot_led_suit() → Suit` — the effective led suit of the live trick: the

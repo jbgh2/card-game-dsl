@@ -15,8 +15,8 @@ wins" and Schweinchen/Genscher house variants are excluded).
 ## The pack
 
 Two copies each of A 10 K Q J 9 in all four suits (the Pinochle
-composition), with the Skat card values: A=11, 10=10, K=4, Q=3, J=2, 9=0 —
-240 card points in play.
+composition), with the Skat card points — the game's `card_points` table:
+A=11, 10=10, K=4, Q=3, J=2, 9=0 — 240 card points in play.
 
 **Trumps (26 cards), high to low:**
 ♥10 ♥10 · ♣Q ♣Q ♠Q ♠Q ♥Q ♥Q ♦Q ♦Q · ♣J ♣J ♠J ♠J ♥J ♥J ♦J ♦J ·

@@ -44,7 +44,7 @@ from cardlang.runtime.five_hundred import (
     lead_ok,
     trick_winner,
 )
-from cardlang.runtime.values import DECKS, Card, build_deck
+from cardlang.runtime.values import Card, build_deck
 
 JOKER = Card("Joker", "joker")
 
@@ -71,7 +71,8 @@ def test_five_hundred43_composition() -> None:
     # The black suits stop at 5; the red suits carry the 4; no 3s or 2s.
     assert not any(c.rank in ("3", "2") for c in cards)
     assert {c.suit for c in cards if c.rank == "4"} == {"diamonds", "hearts"}
-    assert DECKS["five_hundred43"].values == {}  # no card-point values
+    # No card-point assertion: a Deck carries composition only — the class
+    # cannot represent a point table at all (500 declares no `card_points`).
 
 
 # --- the bid ladder (exhaustive over the 27 rungs) ---------------------------

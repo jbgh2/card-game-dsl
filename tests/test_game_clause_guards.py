@@ -39,10 +39,16 @@ domain:     the `?game_item` alternatives of the `game` production, times
             `zones { }`. Its fix is at the absorbed end — the keyword is
             refused as a struct-literal type name — so its domain is a
             SHAPE, not a registry membership: every keyword opening a
-            `kw "{" <entry>* "}"` block whose entry begins with NAME,
-            wherever in the grammar it is reachable from. Reading the domain
+            whitespace-run brace block (`<entry>*` or `<entry>+` with an
+            optional tail) whose entry has the field-init shape — an
+            identifier-shaped head, then `":"` — wherever in the grammar it
+            is reachable from (`card_points_table`'s entry head is a RULE
+            over an identifier-shaped terminal, the case that widened the
+            recognizer from its original literal-NAME-and-star-only form).
+            Reading the domain
             off `?game_item`/`?library_item` instead was wrong twice — those
-            are a coincidental superset (2 of 21 keywords are load-bearing)
+            are a coincidental superset (few of their keywords are
+            load-bearing)
             and a coincidental non-superset (a brace clause reachable as a
             `?phase_item` or `?top_item` is outside them, and `derived` was
             in fact missing). The axis is crossed with {absorbed-as-a-
@@ -278,6 +284,7 @@ _CLAUSE_TEXT: dict[str, str] = {
     "pieces": "pieces: xo_marks",
     "board": "board: grid(3, 3)",
     "ranking": "ranking: K Q J",
+    "card_points_table": "card_points { A: 1 }",
     "trump": "trump: hearts",
     "teams": "teams: [[0, 2], [1, 3]]",
     "max_length": "max_length: 10",
@@ -319,40 +326,90 @@ def _struct_type_excluded() -> set[str]:
     return _terminal_excluded("STRUCT_TYPE_NAME")
 
 
+def _head_is_name_shaped(symbol: str, depth: int = 0) -> bool:
+    """Whether an entry's HEAD symbol can lex as identifier text — half of
+    what makes the entry match `field_init` (`NAME ":" expr`). True for
+    `NAME` itself, for an identifier-shaped terminal (its definition carries
+    the identifier class — CARD_POINTS_KEY's shape), and for a rule whose
+    alternatives reach one of those (card_points_key -> CARD_POINTS_KEY).
+    The chase is bounded and only ever runs on a head that already sits
+    before a `":"` (the shape check in `_absorbable_clause_keywords`), so an
+    alternation over whole statement forms is never chased."""
+    assert depth < 4, f"head-symbol chase too deep at {symbol!r} — widen the scrape"
+    if symbol == "NAME":
+        return True
+    if re.fullmatch(r"[A-Z0-9_]+", symbol):  # a terminal reference
+        match = re.search(rf"^{symbol}:\s*(.+)$", GRAMMAR, re.MULTILINE)
+        return match is not None and "[a-zA-Z_][a-zA-Z0-9_]*" in match.group(1)
+    match = re.search(
+        rf"^\??{symbol}:\s*(\w+)((?:\s*\|\s*\w+)*)", GRAMMAR, re.MULTILINE
+    )
+    if match is None:
+        return False
+    heads = [match.group(1), *re.findall(r"\|\s*(\w+)", match.group(2))]
+    return any(_head_is_name_shaped(h, depth + 1) for h in heads)
+
+
 def _absorbable_clause_keywords() -> set[str]:
     """The TRUE domain of the struct-literal exclusion: every keyword opening a
-    `kw "{" <entry>* "}"` block whose ENTRY production begins with `NAME`, since
-    those are exactly the clauses whose text can match a struct literal's
-    `NAME "{" NAME ":" expr … "}"`.
+    `kw "{" <entry>* "}"` or `kw "{" <entry>+ [<tail>] "}"` block whose ENTRY
+    production has the field-init shape — an identifier-shaped head followed
+    by `":"` — since those are exactly the clauses whose text can match a
+    struct literal's `NAME "{" NAME ":" expr … "}"`. A statement-bodied block
+    (`before_each`, a move `effect`) has no head-colon entry and can never
+    spell a field, so it is outside the domain by shape, not by listing.
 
     Derived from the block productions themselves rather than from the clause
     registries. `?game_item`/`?library_item` are a coincidental superset — of
-    their 21 keywords only two are load-bearing — and, worse, a coincidental
+    their keywords only a few are load-bearing — and, worse, a coincidental
     NON-superset: a brace clause reachable as a `?phase_item` or a `?top_item`
     would sit outside them entirely, so a pin over the registries can go green
     while a new clause is silently absorbed.
 
-    One stated assumption: the scrape reads the `<entry>*` form only, not
-    `<entry> ("," <entry>)*`. Every brace clause in the grammar uses the star
-    form today (checked by `test_every_brace_clause_uses_the_star_form` below),
-    and a comma-form clause would be MORE absorbable, not less, since
+    One stated assumption: the scrape reads whitespace-separated entry runs
+    (`*` or `+`, with one optional trailing element), not
+    `<entry> ("," <entry>)*`. Every brace clause in the grammar uses those
+    forms today (checked by `test_every_brace_clause_is_a_form_the_scrape_reads`
+    below), and a comma-form clause would be MORE absorbable, not less, since
     `struct_lit`'s own field list is comma-separated."""
     required = set()
     for keyword, entry in re.findall(
-        rf'^\w+:\s*{KEYWORD_REF}\s*"\{{"\s*(\w+)\*\s*"\}}"', GRAMMAR, re.MULTILINE
+        rf'^\w+:\s*{KEYWORD_REF}\s*"\{{"\s*(\w+)[*+]\s*(?:\[\w+\]\s*)?"\}}"',
+        GRAMMAR,
+        re.MULTILINE,
     ):
-        if re.search(rf"^{entry}:\s*NAME\b", GRAMMAR, re.MULTILINE):
+        # The field-init shape: `<head> [optional] ":" ...` — the head may be
+        # the literal NAME or a rule/terminal that lexes identifier text.
+        shape = re.search(
+            rf'^\??{entry}:\s*(\w+)\s*(?:\[\w+\]\s*)?":"', GRAMMAR, re.MULTILINE
+        )
+        if shape is not None and _head_is_name_shaped(shape.group(1)):
             required.add(_keyword_word(keyword))
     assert required, "scrape found no brace-clause productions at all"
     return required
 
 
-def test_every_brace_clause_uses_the_star_form() -> None:
+def test_the_absorbable_scrape_sees_the_entry_plus_form() -> None:
+    """The widened recognizer's own pin: `card_points_table` is an entry-plus
+    block (`card_points_entry+ [card_points_else]`) whose entry head is a
+    RULE over an identifier-shaped terminal, not the literal `NAME` — the
+    shape the original star-and-NAME-only scrape was blind to. It must be in
+    the derived domain, or the TRUE-domain pin below is green while the
+    belt-and-braces pin does the real work.
+
+    red under: revert `_absorbable_clause_keywords`'s quantifier to `\\*`-only
+    (or `_entry_head_is_name_shaped` to a literal-NAME check) — this cell
+    reddens while every registry-derived pin stays green. Verified by
+    execution on the quantifier revert."""
+    assert "card_points" in _absorbable_clause_keywords()
+
+
+def test_every_brace_clause_is_a_form_the_scrape_reads() -> None:
     """The assumption `_absorbable_clause_keywords`'s scrape rests on. A brace
-    clause written `kw "{" <entry> ("," <entry>)* "}"` would be invisible to that
-    scrape and MORE absorbable than the star form, since `struct_lit`'s own field
-    list is comma-separated — so the tripwire has to be here rather than in a
-    comment nobody re-checks.
+    clause written `kw "{" <entry> ("," <entry>)* "}"` would be invisible to
+    that scrape and MORE absorbable than the whitespace forms, since
+    `struct_lit`'s own field list is comma-separated — so the tripwire has to
+    be here rather than in a comment nobody re-checks.
 
     red under: rewrite any `kw "{" X* "}"` production in the comma form."""
     comma_form = re.findall(
@@ -473,6 +530,7 @@ SINGLE_VALUED: dict[str, str] = {
     "pieces": "pieces:",
     "board": "board:",
     "ranking": "ranking:",
+    "card_points_table": "card_points { }",
     "trump": "trump:",
     "teams": "teams:",
     "max_length": "max_length:",
@@ -506,6 +564,7 @@ BASE = "\n".join(BASE_LINES) + "\n"
 # time, before resolve, so these only need to be grammatical.
 _EXTRA_CLAUSE: dict[str, str] = {
     "positions": "  positions { column : 1..3 }",
+    "card_points_table": "  card_points { A: 1 }",
     # BASE carries `cards:`, so this probe doubles as the pieces-duplicated-
     # beside-cards cell: `once()` raises before the mutual-exclusion guard.
     "pieces": "  pieces: xo_marks",

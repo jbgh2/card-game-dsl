@@ -278,7 +278,9 @@ class RuntimeState:
         self.teams: tuple[int, ...] = ()  # team ids (empty for teamless games)
         self.team_of: dict[Player, int] = {}  # player -> their team id
         self.rank_index: dict[str, int] = {}  # rank -> strength (higher = stronger)
-        self.card_values: dict[str, int] = {}  # rank -> card points (point-trick games)
+        # rank -> card points, materialized over the deck's ranks from the
+        # game's `card_points { }` clause; empty for a game declaring none.
+        self.card_points: dict[str, int] = {}
         self.suits: tuple[str, ...] = ()  # the deck's actual card suits (move-param domains)
         self.ranks: tuple[str, ...] = ()  # rank iteration order: ranking: if declared, else deck order
         # Declared position domains, name -> ordered members (decisions.md

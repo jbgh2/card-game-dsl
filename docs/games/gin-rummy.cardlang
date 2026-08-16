@@ -53,9 +53,15 @@ game GinRummy {
 
   cards: standard52
   // Ace low everywhere (A-2-3 is a run; Q-K-A is not). Highest-to-lowest per
-  // the `ranking:` convention; gin reads points from `gin_card_points`, not
-  // rank order, so this ranking only fixes the Rank iteration domain.
+  // the `ranking:` convention; gin reads points from its `card_points` table,
+  // not rank order, so this ranking only fixes the Rank iteration domain.
   ranking: K Q J 10 9 8 7 6 5 4 3 2 A
+  // Deadwood pricing: A=1, pips at face, courts 10.
+  card_points {
+    A: 1
+    2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
+    J: 10  Q: 10  K: 10
+  }
 
   zones {
     deck                   : Deck                  // the stock
@@ -138,8 +144,8 @@ game GinRummy {
             offer to defender one of [declare_meld_d, lay_off_a, lay_off_b,
                                       lay_off_c, finish_defense]
           }
-          let k_count = gin_shown_points(knocker)
-          let d_count = gin_shown_points(defender)
+          let k_count = sum of card_points(card) over cards in shown_deadwood[knocker]
+          let d_count = sum of card_points(card) over cards in shown_deadwood[defender]
           if went_gin {
             match_score[knocker] += 20 + d_count
             hands_won[knocker] += 1
@@ -266,7 +272,8 @@ move_type declare_meld {
 // the close is only offered while that remainder is knock-legal — which the
 // declare guard keeps reachable on every path.
 move_type finish_arranging {
-  when: gin_flat_points(actor) <= 10
+  when: (sum of card_points(card) over cards in hand[actor])
+          + (sum of card_points(card) over cards in taken[actor]) <= 10
   effect {
     move all cards from hand[actor] to shown_deadwood[actor]
     arranging := false

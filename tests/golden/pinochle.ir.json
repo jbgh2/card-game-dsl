@@ -19,6 +19,42 @@
     "9"
   ],
   "ranking_convention": "ace-ten",
+  "card_points": {
+    "kind": "card_points_table",
+    "entries": [
+      {
+        "kind": "card_points_entry",
+        "rank": "A",
+        "value": 10
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "10",
+        "value": 10
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "K",
+        "value": 10
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "Q",
+        "value": 0
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "J",
+        "value": 0
+      },
+      {
+        "kind": "card_points_entry",
+        "rank": "9",
+        "value": 0
+      }
+    ],
+    "else_value": null
+  },
   "trump": null,
   "teams": [
     [
@@ -831,7 +867,7 @@
                         "binder": "card",
                         "body": {
                           "kind": "call",
-                          "func": "card_value",
+                          "func": "card_points",
                           "args": [
                             {
                               "kind": "name",

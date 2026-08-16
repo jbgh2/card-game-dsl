@@ -112,7 +112,11 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "enclosing `repeat until` never reaches its exit condition and "
             "hits the runtime's own `max_length` (1500) iteration backstop "
             "after only 2 real decisions — a well-typed program whose "
-            "non-termination only execution can observe."
+            "non-termination only execution can observe. The live-corpus "
+            "key drifted when the card_points clause landed (issue #249): "
+            "seed 2 now deletes a `repeat until ... {` opener and the "
+            "mutant is rejected at parse, so this finding is carried by its "
+            "frozen fixture alone (no EXCUSED row)."
         ),
     ),
     Finding(
@@ -162,6 +166,31 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "outlives both players' 13-card hands, and the 14th round's "
             "`move chosen 1 card from hand[player] to bid[player]` is "
             "asked to choose from an empty hand at decision 27."
+        ),
+    ),
+    Finding(
+        slug="skat_follow_ok_nothing_led",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="IndexError",
+        message_substring="tuple index out of range",
+        note=(
+            "docs/games/skat.cardlang, `delete_line` seed 2 after the "
+            "card_points clause landed (issue #249): the clause insertion "
+            "shifted the file, so the same seed now deletes the LEADER's "
+            "play `as leader { move chosen one card from hand[leader] to "
+            "trick_pile }` (line 132 at discovery time) instead of the "
+            "second player's follow. The second player's follow filter then "
+            "runs with an empty trick pile, and `skat_follow_ok` "
+            "(cardlang/runtime/skat.py, `led = gr.singles[\"trick_pile\"]"
+            "[0]`) crashes on the empty read — a bare IndexError in the "
+            "engine channel, where a follow question with nothing led is a "
+            "game-description error that wants a typed OwnerGuardError "
+            "naming the author (the guard-vocabulary triage this ledger "
+            "records but does not fix). The prior finding at this (file, "
+            "operator, seed) key, `skat_trick_winner_wrong_count`, remains "
+            "below: its frozen fixture still reproduces; only the live-"
+            "corpus key moved here."
         ),
     ),
     Finding(

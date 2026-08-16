@@ -73,6 +73,7 @@ game: _GAME_KW NAME "{" game_item* "}"
           | pieces
           | board
           | ranking
+          | card_points_table
           | trump
           | teams
           | max_length
@@ -121,6 +122,33 @@ max_length: _MAX_LENGTH_KW ":" INT
 // derivation, so this arm is unambiguous), anchored like _AS_KW below.
 ranking: _RANKING_KW ":" (RANK_CONV | card_rank+)
 RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
+
+// The game's card-point table (decisions.md "Scoring composition"): a block
+// clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
+// static signed integer literals, one optional trailing `else:` row for the
+// everything-else value (unlisted ranks read 0 with no else row — the
+// `card_points(card)` Builtin's contract). Entry-plus: the empty block is a
+// syntax error, like the struct literal's at-least-one-field rule. Rows are
+// whitespace-separated like every block clause (`zones`, `state`,
+// `positions`) — never comma-separated. The key is its own terminal
+// (CARD_POINTS_KEY below): `else` must be excluded there or `else: 1` derives
+// both as a rank row and as the else row — a real Earley ambiguity, the
+// `q_any_player`-vs-`q_any_domain` class. The value is deliberately NOT
+// `expr`: a static table is the contract (the `up to N` literal discipline),
+// and an expression slot would also make adjacent rows ambiguous
+// (`A: 1 10: 10` — the `1 10` would need a reading). The two aliased
+// alternatives are reject-with-replacement spellings (the `==`/`!=`
+// mechanism): the colon habit and the pre-rename `card_values` name each get
+// a builder rejection naming the one block spelling instead of a bare syntax
+// error.
+card_points_table: _CARD_POINTS_KW "{" card_points_entry+ [card_points_else] "}"
+                 | _CARD_POINTS_KW ":" "{" card_points_entry* [card_points_else] "}"   -> card_points_colon_reject
+                 | _CARD_VALUES_KW [":"] "{" card_points_entry* [card_points_else] "}" -> card_values_reject
+card_points_entry: card_points_key ":" card_points_value
+card_points_else: _ELSE_KW ":" card_points_value
+card_points_key: CARD_POINTS_KEY | INT
+card_points_value: INT       -> cp_value
+                 | "-" INT   -> cp_neg_value
 
 // The suit (or rank-set) that beats all others in a trick. A single game-level
 // declaration the trump-aware outcome functions read; absent for no-trump games.
@@ -651,7 +679,13 @@ list_lit: "[" expr ("," expr)* "]"
 //      belt-and-braces, not as the completeness argument.
 struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
-STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+//
+// `card_values` — a retired spelling, not a clause — is excluded too: its
+// reject production only guards the game_item position, and without the
+// exclusion an empty expression slot absorbs `card_values { A: 1 }` as a
+// struct literal (the wrong spelling vanishing at parse, resurfacing as a
+// wrong-currency unknown-type at resolve). Same absorbable shape, same fix.
+STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank _OF_KW NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
@@ -664,7 +698,18 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+
+// The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
+// or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base
+// reserved-word exclusions for parity with CARD_RANK_NAME, plus `else` — the
+// else row's keyword, which would otherwise also derive as a rank key (a real
+// Earley ambiguity; see `card_points_table`). Whole-word: `elsex: 1` stays a
+// NAME key and fails as an unknown rank. The clause-keyword exclusions
+// CARD_RANK_NAME carries are deliberately absent: the table is brace-bounded,
+// so a following clause can never be absorbed into it the way `card_rank+`
+// absorbs one.
+CARD_POINTS_KEY: /(?!(?:else|always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 all_players: _ALL_KW _PLAYERS_KW
 call: NAME "(" [arg_list] ")"
@@ -736,6 +781,14 @@ _BEFORE_EACH_KW: "before_each" /(?![A-Za-z0-9_])/
 _BOARD_KW: "board" /(?![A-Za-z0-9_])/
 _BY_KW: "by" /(?![A-Za-z0-9_])/
 _CARD_KW: "card" /(?![A-Za-z0-9_])/
+// The clause keyword and the `card_points(card)` Builtin share one spelling
+// deliberately (one name for one concept); the dynamic lexer disambiguates by
+// position, the `cards` precedent — so no NAME exclusion, anchoring only.
+_CARD_POINTS_KW: "card_points" /(?![A-Za-z0-9_])/
+// A retired spelling: exists only for the reject-with-replacement alternative
+// of `card_points_table` (never a clause), so the wrong name gets a diagnostic
+// naming the fix instead of a bare syntax error.
+_CARD_VALUES_KW: "card_values" /(?![A-Za-z0-9_])/
 _CARDS_KW: "cards" /(?![A-Za-z0-9_])/
 _CHOOSE_KW: "choose" /(?![A-Za-z0-9_])/
 _CHOSEN_KW: "chosen" /(?![A-Za-z0-9_])/

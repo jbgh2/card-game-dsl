@@ -68,6 +68,7 @@ these entries own the names.
 | [Builtins](glossary/builtins.md) | Generic native functions the language ships: declared in `cardlang/builtins/` (`BUILTIN_*`), implemented in `runtime/builtins.py`. Distinct from the **stdlib** (written in the language — functions migrate builtins→stdlib as expressibility grows) and from **Primitives** (game-local). | `runtime/builtins.py` |
 | [Candidate](glossary/candidate.md) | One concrete legal option at a decision point: a `(move type, bound parameter)` pair or a card/subset. The thing rules filter and the encoding numbers. Prefer over "option"/"legal move"/"concrete move" (→ F-19). | `mechanics.py` |
 | [Card / Piece](glossary/card-piece.md) | The individuated content of zones; a card is the deck specialization of a piece (`model.md`). Runtime represents both as `Card` (→ F-16). | `values.Card` |
+| [Card Points](glossary/card-points.md) | The per-rank points a game assigns its cards, declared by the game's `card_points { }` clause (rank-keyed rows, optional `else:` row; unlisted ranks read 0) and read by the `card_points(card)` Builtin and the driver's card-point census. One source — a deck carries composition only, never points. Never bare "value(s)" (reserved). | `n.CardPointsTable` |
 | [Chooser](glossary/chooser.md) | The decision seam: the callable that resolves a player choice. A **decision point** is one call site of it in the interpreter (currently 7, unnamed — → F-20) — the *static* concept; the *dynamic* occurrence (a game state where a seat must choose) is a decision node, one of the [[game-tree-node-kinds]]. | `state.Chooser` |
 | [Component Set](glossary/component-set.md) | The pack a game selects with `cards:`/`pieces:` — either flavor. A **deck** is specifically the card-flavored component set. `Game.deck` currently holds either (→ F-16). | `values.ComponentSet` |
 | [Context](glossary/context.md) | `Ctx`: the immutable evaluation context threaded through the interpreter (actor, locals, pronoun bindings, chooser, tracer). | `state.py` |
@@ -179,4 +180,4 @@ These carry several meanings each; always qualify them. The ones that also name 
 | [Rule](glossary/rule.md) | game rule (`RuleDef`) · grammar rule (production) · never "checking principle" |
 | [state](glossary/state.md) | state variable · round state · world (`rs`) · info-state string · `state { }` block |
 | [type](glossary/type.md) | struct type · zone type · move type (not a type) · the checker's `Type` |
-| [value](glossary/value.md) | card points (`Deck.values`) · enum value · RHS/initializer · literal payload |
+| [value](glossary/value.md) | card points (the `card_points { }` clause — see its entry) · enum value · RHS/initializer · literal payload |

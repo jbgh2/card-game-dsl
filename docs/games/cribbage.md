@@ -43,7 +43,13 @@ game Cribbage {
   max_length: 1500
 
   cards: standard52
-  ranking: aces low               // runs read adjacency from this order (A-2-3, no wraparound); J/Q/K worth 10 for pegging via value()
+  ranking: aces low               // runs read adjacency from this order (A-2-3, no wraparound)
+  // Pegging / fifteens pricing: A=1, pips at face, courts 10.
+  card_points {
+    A: 1
+    2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
+    J: 10  Q: 10  K: 10
+  }
 
   zones {
     deck           : Deck
@@ -98,11 +104,11 @@ game Cribbage {
           if hand[active] is empty {
             active := the player where player is not active
           } else {
-            if any card in hand[active] where total + peg_value(card) <= 31 {
-              move chosen one card from hand[active] where total + peg_value(card) <= 31 to play_pile
+            if any card in hand[active] where total + card_points(card) <= 31 {
+              move chosen one card from hand[active] where total + card_points(card) <= 31 to play_pile
               seq_bits := seq_bits * 2 + (if active is dealer then 1 else 0)
               seq_len := seq_len + 1
-              total := sum of peg_value(card) over cards in play_pile
+              total := sum of card_points(card) over cards in play_pile
               last_played := active
               gos := 0
               if total is 15 or total is 31 { score[active] += 2 }

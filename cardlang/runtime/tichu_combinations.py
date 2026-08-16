@@ -27,18 +27,6 @@ def _rv(c: Card) -> float | None:
     return _RANKVAL.get(c.rank)  # None for Phoenix / Dog
 
 
-def _points(c: Card) -> int:
-    if c.rank == "Dragon":
-        return 25
-    if c.rank == "Phoenix":
-        return -25
-    if c.rank in ("K", "10"):
-        return 10
-    if c.rank == "5":
-        return 5
-    return 0
-
-
 @dataclass(frozen=True, slots=True)
 class Play:
     kind: str       # single|pair|triple|fullhouse|straight|pairseq|bomb|dog

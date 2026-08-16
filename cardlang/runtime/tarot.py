@@ -9,9 +9,8 @@ cascade), and the bouts-conditional threshold scoring all
 run in the DSL (docs/games/french-tarot.cardlang). This module holds only what
 is not expressible there:
 
-- `tarot_card_points` / `tarot_trump_height` — per-card pure queries (the
-  doubled card-point value; the trump rank strength for the over-trump
-  comparison).
+- `tarot_trump_height` — a per-card pure query (the trump rank strength for
+  the over-trump comparison).
 - `tarot_led_suit` — the effective led suit over the live `trick_pile` (the
   first non-Excuse card's suit, or "excuse" if only the Excuse has been played
   so far) — distinct from the kernel's own `state.led_suit` (the literal first
@@ -29,7 +28,14 @@ is not expressible there:
   rounding).
 
 Card points are kept in *doubled* integer units (the printed half-points
-doubled; the 78 cards sum to 182).
+doubled; the 78 cards sum to 182). The game file declares the rank-keyed part
+of that table as its `card_points { }` clause and composes it with the bout
+layer inline (`if is_bout(card) then 9 else card_points(card)` — a rank-keyed
+table cannot carry the petit, whose rank "1" is worth 9 in atouts and 1 in
+the plain suits); `tarot_card_points` below survives as `tarot_per_opp`'s
+internal helper only, and must agree with that composition — pinned by
+tests/test_card_points.py::
+test_tarot_settlement_table_matches_the_clause_through_the_bout_layer.
 """
 
 from __future__ import annotations

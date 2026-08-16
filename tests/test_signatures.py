@@ -20,7 +20,7 @@ covered:    names (set equality both ways, every tabled registry),
             plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
-            rank_value, card_value, error, peg_pair/run_points) get
+            rank_value, card_points, error, peg_pair/run_points) get
             arity-only coverage: there is no annotation to introspect, and
             the expression is its own statement of the types. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
@@ -373,7 +373,7 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
         for name, fact in facts.items()
         if fact.helper is None or not callable(fact.helper)
     )
-    assert inline == ["card_value", "error", "rank_value", "team_of"], (
+    assert inline == ["card_points", "error", "rank_value", "team_of"], (
         f"arms with no introspectable helper: {inline} — if the dispatch shape "
         "changed, teach _call_dispatch_facts the new shape rather than letting "
         "the annotation check silently skip these"

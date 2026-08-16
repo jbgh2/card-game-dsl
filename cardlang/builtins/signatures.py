@@ -81,7 +81,7 @@ CALL_SIGS: dict[str, Sig] = {
     # declared-reads row (issue #232), not because the query differs.
     "holdem_heads_up_pot_share": Sig((TPlayer(),), TInteger()),
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
-    "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
+    "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`
     # Positional order reads (decisions.md "Position domains and positional
     # zones", sequence orientation): top = the sequence end (most recent
     # arrival), bottom = the front. Loud runtime error on an empty collection.
@@ -92,7 +92,6 @@ CALL_SIGS: dict[str, Sig] = {
     "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
     "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
     "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
-    "tarot_card_points": Sig((TCard(),), TInteger()),  # French Tarot: doubled card-point value
     "schnapsen_trick_winner": Sig(
         (TPlayer(), TOptional(TEnum("Suit"))), TPlayer()
     ),  # Schnapsen: the completed two-card trick's winner
@@ -103,16 +102,13 @@ CALL_SIGS: dict[str, Sig] = {
     "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
     "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
-    "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
     "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
     "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
     "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
-    "gin_card_points": Sig((TCard(),), TInteger()),  # Gin: A=1, pips, face=10
     "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand
     "gin_can_knock": Sig((TPlayer(),), TBoolean()),  # Gin: some discard leaves <= 10 (the announce guard)
     "gin_knock_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Gin: knock legality after this discard
@@ -126,8 +122,6 @@ CALL_SIGS: dict[str, Sig] = {
     "gin_can_declare_free": Sig(
         (TPlayer(),), TBoolean()
     ),  # Gin: some valid meld exists (defender — no knock budget)
-    "gin_flat_points": Sig((TPlayer(),), TInteger()),  # Gin: the hand counted as all-deadwood
-    "gin_shown_points": Sig((TPlayer(),), TInteger()),  # Gin: shown_deadwood[p]'s point count
     "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
     "gin_lay_ok_b": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld B
     "gin_lay_ok_c": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld C
@@ -160,9 +154,7 @@ CALL_SIGS: dict[str, Sig] = {
         (TPlayer(), TCard()), TBoolean()
     ),  # Canasta: card joins the open attempt, close stays reachable
     "canasta_close_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: attempt closes as it stands
-    "canasta_meld_points": Sig((TTeam(),), TInteger()),  # Canasta: melded card points
     "canasta_canasta_bonus": Sig((TTeam(),), TInteger()),  # Canasta: canasta bonuses
-    "canasta_hand_points": Sig((TTeam(),), TInteger()),  # Canasta: points left in hands
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

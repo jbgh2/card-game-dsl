@@ -779,6 +779,33 @@ class ZoneDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class CardPointsEntry:
+    """One row of the `card_points { }` table: `<rank>: <value>` — the rank in
+    `ranking:`'s key position, the value a static signed integer literal
+    (decisions.md "Scoring composition"). Held as a tuple of rows rather than
+    a dict (nodes carry no mutable containers), which also lets resolve point
+    a duplicate-key diagnostic at the offending row's own span."""
+
+    rank: str
+    value: int
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CardPointsTable:
+    """The `card_points { }` clause: the game's card-point table (decisions.md
+    "Scoring composition"). `else_value` is the optional trailing `else:`
+    row's everything-else value; with no else row, unlisted ranks read 0 —
+    the `card_points(card)` Builtin's contract. The driver materializes the
+    table over the deck's ranks at load (`driver.declared_card_points`), so
+    the Builtin and the card-point census read one total table."""
+
+    entries: tuple[CardPointsEntry, ...]
+    else_value: int | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PositionDecl:
     """One entry of the `positions { }` block: a declared per-game position
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
@@ -1254,6 +1281,11 @@ class Game:
     # is always the operative strength order and this field only records the
     # source form (for `ir.emit`).
     ranking_convention: str | None = None
+    # The `card_points { }` clause, or None for a game declaring no card
+    # points. The ONE source of the game's card-point table (the deck registry
+    # carries none): the driver loads `rs.card_points` from it, and resolve's
+    # clause-required guard refuses a `card_points(card)` call without it.
+    card_points: CardPointsTable | None = None
     trump: str | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
@@ -1315,6 +1347,8 @@ Node = (
     | DerivedField
     | TypeDef
     | ZoneDecl
+    | CardPointsEntry
+    | CardPointsTable
     | TypeRef
     | TypeArg
     | StateBlock

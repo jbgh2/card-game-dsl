@@ -165,10 +165,10 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # are reconciled against `ZONE_INDEX_ROLES` by
 # tests/test_openspiel_returns_keying.py.
 _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
-    "ir.py": ["player", "player", "rank", "suit"],
+    "ir.py": ["player", "player", "rank", "rank", "suit"],
     "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
-    "resolve.py": ["player", "player", "rank", "suit"],
+    "resolve.py": ["player", "player", "rank", "rank", "suit"],
     "runtime/evaluate.py": ["player"],
     "runtime/skat.py": ["suit", "suit"],
     "runtime/state.py": ["rank", "rank", "suit", "suit"],

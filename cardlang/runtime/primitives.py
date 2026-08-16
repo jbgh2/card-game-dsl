@@ -110,10 +110,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "tarot_card_points":
-            from cardlang.runtime.tarot import tarot_card_points
-
-            return tarot_card_points(args[0])
         case "schnapsen_trick_winner":
             from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
 
@@ -154,11 +150,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
             return tichu_dragon_won(*_bind(ctx, ROW))
-        case "tichu_card_points":
-            from cardlang.runtime.tichu import ROW as TICHU_ROW
-            from cardlang.runtime.tichu import tichu_card_points
-
-            return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
         case "coup_next_in_game":
             from cardlang.runtime.coup import ROW, coup_next_in_game
 
@@ -169,10 +160,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             total, events = coup_game_summary(*_bind(ctx, ROW))
             _emit(ctx, events)
             return total
-        case "peg_value":
-            from cardlang.runtime.cribbage import value
-
-            return value(args[0])
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
@@ -201,10 +188,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import ROW, cribbage_crib_value
 
             return cribbage_crib_value(*_bind(ctx, ROW))
-        case "gin_card_points":
-            from cardlang.runtime.gin import card_points
-
-            return card_points(args[0])
         case "gin_deadwood":
             from cardlang.runtime.gin import ROW, gin_deadwood
 
@@ -233,14 +216,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_can_declare_free
 
             return gin_can_declare_free(*_bind(ctx, ROW), args[0])
-        case "gin_flat_points":
-            from cardlang.runtime.gin import ROW, gin_flat_points
-
-            return gin_flat_points(*_bind(ctx, ROW), args[0])
-        case "gin_shown_points":
-            from cardlang.runtime.gin import ROW, gin_shown_points
-
-            return gin_shown_points(*_bind(ctx, ROW), args[0])
         case "gin_lay_ok_a":
             from cardlang.runtime.gin import ROW, gin_lay_ok_a
 
@@ -339,18 +314,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.canasta import ROW, canasta_close_ok
 
             return canasta_close_ok(*_bind(ctx, ROW), args[0])
-        case "canasta_meld_points":
-            from cardlang.runtime.canasta import ROW, canasta_meld_points
-
-            return canasta_meld_points(*_bind(ctx, ROW), args[0])
         case "canasta_canasta_bonus":
             from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
 
             return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
-        case "canasta_hand_points":
-            from cardlang.runtime.canasta import ROW, canasta_hand_points
-
-            return canasta_hand_points(*_bind(ctx, ROW), args[0])
         case _:
             raise AssertionError(
                 f"unknown native function '{name}' — neither a Builtin "
