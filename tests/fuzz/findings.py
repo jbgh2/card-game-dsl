@@ -112,7 +112,11 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "enclosing `repeat until` never reaches its exit condition and "
             "hits the runtime's own `max_length` (1500) iteration backstop "
             "after only 2 real decisions — a well-typed program whose "
-            "non-termination only execution can observe."
+            "non-termination only execution can observe. The live-corpus "
+            "key drifted when the card_points clause landed (issue #249): "
+            "seed 2 now deletes a `repeat until ... {` opener and the "
+            "mutant is rejected at parse, so this finding is carried by its "
+            "frozen fixture alone (no EXCUSED row)."
         ),
     ),
     Finding(

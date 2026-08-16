@@ -679,7 +679,13 @@ list_lit: "[" expr ("," expr)* "]"
 //      belt-and-braces, not as the completeness argument.
 struct_lit: STRUCT_TYPE_NAME "{" field_init ("," field_init)* "}"
 field_init: NAME ":" expr
-STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+//
+// `card_values` — a retired spelling, not a clause — is excluded too: its
+// reject production only guards the game_item position, and without the
+// exclusion an empty expression slot absorbs `card_values { A: 1 }` as a
+// struct literal (the wrong spelling vanishing at parse, resurfacing as a
+// wrong-currency unknown-type at resolve). Same absorbable shape, same fix.
+STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank _OF_KW NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
@@ -692,7 +698,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base

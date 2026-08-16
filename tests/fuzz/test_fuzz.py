@@ -112,7 +112,12 @@ MUTATION_SEEDS: tuple[int, ...] = tuple(
 # correctly excused rather than reported as a spurious new finding.
 EXCUSED: dict[tuple[str, str, int], str] = {
     ("klondike.cardlang", "delete_line", 0): "klondike_flip_from_empty_stack",
-    ("cribbage.cardlang", "delete_line", 2): "cribbage_repeat_until_nonterminate",
+    # `cribbage_repeat_until_nonterminate` has NO live-corpus key anymore: the
+    # card_points clause (issue #249) shifted cribbage.cardlang, and the seed-2
+    # deletion now removes a `repeat until ... {` opener — the mutant is
+    # REJECTED at parse (unbalanced braces), so the old excuse would excuse
+    # nothing (the vacuously-green class). The finding itself stays in the
+    # ledger under its frozen fixture, which still reproduces it.
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",

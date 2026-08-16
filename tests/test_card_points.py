@@ -28,7 +28,13 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            grammatically inexpressible in a library, a phase, or at top
            level) x consumers (the renamed Builtin through a played game; the
            census total; the four surviving Python point tables) x the rename
-           axis (`card_points` resolves, `card_value` does not).
+           axis (`card_points` resolves, `card_value` does not) x the
+           wrong-spelling POSITION axis (the game_item position, canonical
+           and ranking-adjacent, where the reject alternatives teach the
+           block spelling; and the absorber positions — an empty expression
+           slot, an ordinary expression slot — where `card_values` is
+           refused at parse via its STRUCT_TYPE_NAME exclusion instead of
+           being read as a struct literal).
 registry:  the clause axis derives from the grammar's `?game_item`
            alternation and the `card_points_table` production (scraped from
            cardlang.lark by test_clause_axes_are_pinned below); the key
@@ -47,8 +53,12 @@ covered:   the executed parametrizations and probes in this module —
            rank naming the deck, convention-word key, `elsex` whole-word
            key, the piece-game rejection, the clause-less call, the
            call-less clause accepted), the parse cells (colon and
-           `card_values` reject-with-replacement, the duplicate-clause
-           wall), the misuse syntax probes, the host cells (Team-param
+           `card_values` reject-with-replacement in the canonical and
+           ranking-adjacent game_item positions, the duplicate-clause wall,
+           and the absorber positions — both wrong spellings after an empty
+           `loser:`, `card_values` in an expression slot — each a
+           parse-layer refusal, executed red-under on the exclusion
+           revert), the misuse syntax probes, the host cells (Team-param
            function summing over a team zone family; the library / phase /
            top-level impossibilities), the IR cells (conditional key), and
            the four migration agreement pins (gin, cribbage, canasta
@@ -347,6 +357,77 @@ def test_card_values_rejects_naming_card_points(spelling: str) -> None:
 def test_duplicate_clause_hits_the_one_clause_wall() -> None:
     src = _game("card_points { A: 1 }\n  card_points { K: 10 }")
     _rejects(src, "one `card_points { }` block")
+
+
+# The wrong spellings across every position the block shape reaches — the
+# misuse class is positional, not one probe (the game_item cells above are
+# the canonical position; these are the absorbers). `card_values` is excluded
+# from STRUCT_TYPE_NAME exactly as the real clause keyword is, so no position
+# can read the wrong spelling as a struct literal: parity with the clause
+# itself, whose absorption cells the derived sweeps in
+# tests/test_game_clause_guards.py own.
+
+
+def test_card_values_after_an_empty_expression_slot_is_refused_at_parse() -> None:
+    """`loser:` left empty, `card_values { A: 1 }` beneath it: without the
+    STRUCT_TYPE_NAME exclusion the block is absorbed as a struct literal —
+    the wrong spelling VANISHES at parse and resurfaces as a wrong-currency
+    `unknown type 'card_values'` at resolve. The exclusion makes it a
+    parse-layer refusal, the same standard the real clause's absorption cell
+    holds (test_no_clause_is_absorbed_by_an_empty_expression_slot)."""
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n  max_length: 10\n"
+        "  zones { deck : Deck }\n  state { s[player] : Integer = 0 }\n"
+        "  loser:\n  card_values { A: 1 }\n}"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    message = str(ei.value)
+    assert "syntax error" in message, message
+
+
+def test_card_values_in_an_expression_slot_is_refused_at_parse() -> None:
+    """`let x = card_values { A: 1 }`: an ordinary expression slot must not
+    read the wrong spelling as an unknown-type struct literal either — the
+    same exclusion closes every expression position at once."""
+    _rejects(_game("", body="let x = card_values { A: 1 }"), "syntax error")
+
+
+def test_card_values_after_a_ranking_enumeration_still_teaches() -> None:
+    """The wrong spelling below a `ranking:` enumeration: `card_values` is a
+    legal rank NAME, but the rank reading dies at the `{`, so the only
+    completing parse is the reject alternative — the teaching rejection
+    fires, never a silent absorption into the enumeration.
+
+    red under: delete the `card_values_reject` alternative from
+    `card_points_table` in cardlang.lark — this cell and the two canonical
+    card_values probes then fail with a bare syntax error in place of the
+    teaching message."""
+    src = _game("card_values { A: 1 }").replace("ranking: aces low", "ranking: A K Q")
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    assert "card_points" in str(ei.value), str(ei.value)
+
+
+def test_colon_form_after_an_empty_expression_slot_is_refused_at_parse() -> None:
+    """`loser:` left empty, `card_points: { A: 1 }` beneath it: the keyword
+    is already STRUCT_TYPE_NAME-excluded, so no struct reading exists; the
+    bare-NAME reading (`loser: card_points`) dies at the `:` — a parse-layer
+    refusal, never an absorbed clause.
+
+    red under: delete `card_points` from STRUCT_TYPE_NAME's exclusion list —
+    the struct reading then completes and this cell fails at resolve's
+    unknown-type currency instead (the same edit reddens the derived
+    exclusion pins in tests/test_game_clause_guards.py)."""
+    src = (
+        "game G {\n  players: 2\n  cards: standard52\n  max_length: 10\n"
+        "  zones { deck : Deck }\n  state { s[player] : Integer = 0 }\n"
+        "  loser:\n  card_points: { A: 1 }\n}"
+    )
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(src, "mini.cardlang")
+    message = str(ei.value)
+    assert "syntax error" in message, message
 
 
 # =============================================================================
