@@ -192,7 +192,7 @@ construct.
 | shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
 | `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Builtin query) |
-| `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function |
+| `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function (Builtin winner) |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
 | `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |

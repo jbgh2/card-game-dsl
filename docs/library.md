@@ -249,12 +249,18 @@ match) and so must trump if able, a quirk the split preserves precisely.
 
 ## Winner functions
 
-- `highest_of_led_suit` — no-trump winner
-- `TrumpedHighestOfLedSuit(trump_suit)` — with-trump winner
-- `tarot_trick_winner` — French Tarot: highest atout, else highest of the
-  effective led suit (`tarot_led_suit()`); the Excuse never wins
-- `belote_trick_winner` — Belote: highest trump under the J-9 trump order,
-  else highest of the led suit under the ace-ten ranking
+The trick form's `winner` slot names one of these bare. Two homes share the
+slot (a name's home is its classification, never its syntactic position):
+
+- `highest_of_led_suit` — the Builtin no-trump winner
+- `highest_trump_or_led_suit` — the Builtin with-trump winner (the round's
+  `trump` clause, else the game's declared trump); the same Builtin is also
+  callable over a public pile's Arrival Record (see "Native functions")
+- `tarot_trick_winner` — the Primitive for French Tarot: highest atout, else
+  highest of the effective led suit (`tarot_led_suit()`); the Excuse never
+  wins
+- `belote_trick_winner` — the Primitive for Belote: highest trump under the
+  J-9 trump order, else highest of the led suit under the ace-ten ranking
 
 ## Mechanics
 

@@ -35,10 +35,11 @@ def test_round_winner_fn_rejected_as_early_predicate() -> None:
 def test_early_predicate_rejected_as_winner_fn() -> None:
     """The converse direction: an early predicate ((card, led_suit) -> Boolean)
     is not a valid trick winner function. Both directions of the partition are guarded,
-    which is why the `early` set sits deliberately outside PRIMITIVE_VALUE_NAMES
+    which is why the `early` set sits deliberately outside VALUE_NAMES
     even though the runtime dispatches both through `value_function`.
 
-    red under: add `on_play_off_led_suit` to PRIMITIVE_TRICK_WINNERS
+    red under: add `on_play_off_led_suit` to BUILTIN_TRICK_WINNERS (or the
+    Primitive set)
     (cardlang/builtins/functions.py) — the tempting but wrong resolution of the
     early/winner asymmetry, which would also make it a legal bare NameRef.
     """

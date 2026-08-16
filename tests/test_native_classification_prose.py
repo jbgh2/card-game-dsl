@@ -9,11 +9,21 @@ domain:     every (label, name) pair in tracked `.py`/`.md`/`.cardlang`/`.lark`
             prose where the label is ADJACENT to the name in one of the forms
             in `_ADJACENCY` -- crossed against every name in the native
             registries.
-registry:   the names come from `cardlang.builtins.functions` --
-            `BUILTIN_CALL_FUNCS` against the union of the five `PRIMITIVE_*`
-            sets -- so a name added to, moved between, or retired from a
-            registry arrives here without anyone editing a fixture. The file
-            walk is `git ls-files`; the adjacency forms are `_ADJACENCY`.
+registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
+            union of every module-level frozenset named `BUILTIN_*` against
+            the union of every one named `PRIMITIVE_*`, scraped from the
+            module namespace (`_home_sets`) rather than hand-listed -- so a
+            name added to, moved between, or retired from a registry, and a
+            whole NEW registry of either home, arrive here without anyone
+            editing this fixture. Home is CLASSIFICATION, not syntactic
+            position: `BUILTIN_TRICK_WINNERS` (slot callbacks) counts toward
+            the Builtin universe exactly as `BUILTIN_CALL_FUNCS` does. The
+            derived unions (`CALL_FUNCS`, `TRICK_WINNER_NAMES`,
+            `VALUE_NAMES`) carry neither prefix, so they cannot double-count
+            a name into a home; the flavor/board partitions
+            (`DECK_ONLY_*`, `ANY_FLAVOR_*`, `BOARD_ONLY_*`) are orthogonal
+            classifications and carry neither prefix either. The file walk
+            is `git ls-files`; the adjacency forms are `_ADJACENCY`.
 covered:    `test_no_prose_mislabels_a_native_function` over the full walk,
             plus `test_each_adjacency_form_is_matched` -- one row per form,
             each proving the matcher sees that form at all, so a form cannot
@@ -67,15 +77,42 @@ from cardlang.builtins import functions as F
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-BUILTIN_NAMES: frozenset[str] = F.BUILTIN_CALL_FUNCS
-PRIMITIVE_NAMES: frozenset[str] = frozenset().union(
-    F.PRIMITIVE_CALL_FUNCS,
-    F.PRIMITIVE_TRICK_WINNERS,
-    F.PRIMITIVE_AUCTION_OUTCOMES,
-    F.PRIMITIVE_EARLY_PREDICATES,
-    F.PRIMITIVE_CLIMB_LEADS,
-    F.PRIMITIVE_CLIMB_FOLLOWS,
-)
+def _home_sets(prefix: str) -> dict[str, frozenset[str]]:
+    """Every module-level frozenset in `cardlang.builtins.functions` whose
+    name starts with `prefix` -- the home's registries, derived from the
+    module namespace so a new `BUILTIN_*` / `PRIMITIVE_*` set joins this pin
+    without editing it. Frozensets only: the prefix is the home marker, the
+    type keeps a stray non-registry name (a prefixed helper) out."""
+    return {
+        name: value
+        for name, value in vars(F).items()
+        if name.startswith(prefix) and isinstance(value, frozenset)
+    }
+
+
+_BUILTIN_SETS = _home_sets("BUILTIN_")
+_PRIMITIVE_SETS = _home_sets("PRIMITIVE_")
+BUILTIN_NAMES: frozenset[str] = frozenset().union(*_BUILTIN_SETS.values())
+PRIMITIVE_NAMES: frozenset[str] = frozenset().union(*_PRIMITIVE_SETS.values())
+
+
+def test_the_derived_universe_holds_every_home_registry() -> None:
+    """The derivation's own vacuity guard: it must find the registries this
+    module was written against (a scrape that quietly matched nothing would
+    make the disjointness gate below pass on empty sets). Named sets are the
+    FLOOR, never the ceiling -- a new set joins by prefix.
+
+    red under: change `_home_sets`' prefix test to `endswith`.
+    """
+    assert {"BUILTIN_CALL_FUNCS", "BUILTIN_TRICK_WINNERS"} <= set(_BUILTIN_SETS)
+    assert {
+        "PRIMITIVE_CALL_FUNCS",
+        "PRIMITIVE_TRICK_WINNERS",
+        "PRIMITIVE_AUCTION_OUTCOMES",
+        "PRIMITIVE_EARLY_PREDICATES",
+        "PRIMITIVE_CLIMB_LEADS",
+        "PRIMITIVE_CLIMB_FOLLOWS",
+    } <= set(_PRIMITIVE_SETS)
 
 # The adjacency forms. Each binds ONE label to ONE immediately-neighbouring
 # backticked name; a name reached across a comma, a list, or another
@@ -170,8 +207,13 @@ def _mislabels(text: str) -> list[tuple[str, str, str]]:
 def test_the_two_registries_are_disjoint_and_non_empty() -> None:
     """The classification only means something if a name has ONE home. This is
     the premise every row below rests on, so it fails first and by itself.
+    Home is classification, not syntactic position: a slot callback that is
+    also a call form (`highest_trump_or_led_suit`) lives in ONE home's sets
+    at both positions.
 
-    red under: add any `BUILTIN_CALL_FUNCS` member to `PRIMITIVE_CALL_FUNCS`.
+    red under: add any `BUILTIN_CALL_FUNCS` member to `PRIMITIVE_CALL_FUNCS`;
+    or put `highest_of_led_suit` back into `PRIMITIVE_TRICK_WINNERS` (its
+    pre-#256-ruling filing) -- executed 2026-08-16, the overlap names it.
     """
     assert BUILTIN_NAMES and PRIMITIVE_NAMES
     overlap = BUILTIN_NAMES & PRIMITIVE_NAMES

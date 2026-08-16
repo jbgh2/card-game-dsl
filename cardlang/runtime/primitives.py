@@ -307,9 +307,12 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-# The two engine-core winner comparisons live in `runtime/winners.py` (both
-# dispatch halves consume them and may not import each other); this module
-# keeps dispatching them by name for the trick form's `winner` clause.
+# The two Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
+# `runtime/winners.py` — both dispatch halves consume them and may not import
+# each other. `value_function` below is the ONE winner-slot dispatcher and
+# keys both homes' winners (the Builtin pair through winners.py, the
+# game-local pair through their modules); its file is the dispatcher's home,
+# not a classification of what it keys (tests/test_native_dispatch_split.py).
 RankIndex = winners.RankIndex
 OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)

@@ -162,7 +162,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_WINNERS,
+    TRICK_WINNER_NAMES,
 )
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
@@ -271,7 +271,7 @@ def _impls_in(path: Path) -> list[Impl]:
 
 _ALL_REGISTERED: frozenset[str] = (
     CALL_FUNCS
-    | PRIMITIVE_TRICK_WINNERS
+    | TRICK_WINNER_NAMES
     | PRIMITIVE_AUCTION_OUTCOMES
     | PRIMITIVE_EARLY_PREDICATES
     | PRIMITIVE_CLIMB_LEADS
