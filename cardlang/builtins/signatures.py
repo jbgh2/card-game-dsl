@@ -88,14 +88,19 @@ CALL_SIGS: dict[str, Sig] = {
     "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
     "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
     "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
-    "schnapsen_trick_winner": Sig(
-        (TPlayer(), TOptional(TEnum("Suit"))), TPlayer()
-    ),  # Schnapsen: the completed two-card trick's winner
+    # The standard trump-game trick winner over a fully public pile's Arrival
+    # Record (issue #256). The zone argument is polymorphic like `suit_of`'s
+    # (TAny: the runtime needs the Zone handle, not coerced elements — the
+    # record rides the zone); the trump is a suit or none.
+    "highest_trump_or_led_suit": Sig((TAny(), TOptional(TEnum("Suit"))), TPlayer()),
     "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
     "skat_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Skat: follow-class legality
-    "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
+    # The three trick winners read the trick pile's Arrival Record (issue
+    # #256): attribution is the kernel's, so no argument remains — the old
+    # `leader` parameter existed only for the retired seat-order zip.
+    "skat_trick_winner": Sig((), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
-    "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
+    "doko_trick_winner": Sig((), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
@@ -126,7 +131,7 @@ CALL_SIGS: dict[str, Sig] = {
     "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
     "five_hundred_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: follow legality
     "five_hundred_lead_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: lead legality
-    "five_hundred_trick_winner": Sig((TPlayer(),), TPlayer()),  # 500: the trick's winner
+    "five_hundred_trick_winner": Sig((), TPlayer()),  # 500: the trick's winner
     "belote_trump_height": Sig((TCard(),), TInteger()),  # Belote: trump-suit rank strength
     "belote_opp_winning": Sig((), TBoolean()),  # Belote: live trick's winner is an opponent?
     "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q

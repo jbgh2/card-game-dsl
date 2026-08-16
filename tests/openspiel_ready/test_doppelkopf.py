@@ -33,7 +33,12 @@ _ANNOUNCE_NAMES = (
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_doppelkopf", "doppelkopf.cardlang", conformance_steps=120)
+    spec = GameSpec(
+        "cardlang_doppelkopf",
+        "doppelkopf.cardlang",
+        conformance_steps=120,
+        provenance_zones=("trick_pile",),  # doko_trick_winner reads the record
+    )
 
 
 def _encode(space: object, name: str) -> int:

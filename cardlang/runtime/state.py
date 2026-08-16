@@ -73,24 +73,88 @@ class ChooserAbort(Exception):
         self.rs: RuntimeState | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Arrival:
+    """One entry of a zone's [[arrival-record]]: the deciding [[actor]] (`None`
+    when no seat decided — an engine deal, a gather, test construction), the
+    card VALUE, and the source [[zone-address]] (`None` for out-of-game
+    seeding). Values only, deliberately: two duplicate-pack copies produce
+    EQUAL entries, so the record cannot express a distinction no observer
+    could draw (issue #256's no-leak invariance, by construction)."""
+
+    actor: Player | None
+    card: Card
+    src: tuple[str, Player | str | None] | None
+
+
 class Zone:
-    """An ordered, mutable collection of cards."""
+    """An ordered, mutable collection of cards, carrying its Arrival Record.
+
+    The record retains, per card now in the zone, who moved it in and from
+    where — the fact the kernel performs every movement with and used to
+    discard (issue #256; decisions.md "Knowledge, visibility, and the
+    projection model", the arrival-record paragraph). Maintenance is total
+    over this class's own mutators: arrivals enter with `add`/`add_all`,
+    leave with `remove`/`take_all`/`take_top` (oldest equal-valued entry
+    first — value-matching IS the observational equivalence of duplicate
+    copies), so multiset(record cards) == multiset(cards) at every statement
+    boundary (the walker in tests/test_arrival_record.py is the executable
+    census). Direct `cards` surgery bypasses the record and is sanctioned
+    only where it preserves the multiset (shuffle's in-place permutation;
+    the proof harness's mutate-and-restore probes)."""
 
     def __init__(self, cards: Iterable[Card] = ()) -> None:
         self.cards: list[Card] = list(cards)
+        self.arrivals: list[Arrival] = [
+            Arrival(None, c, None) for c in self.cards
+        ]
 
-    def add(self, card: Card) -> None:
+    def add(
+        self,
+        card: Card,
+        actor: Player | None = None,
+        src: tuple[str, Player | str | None] | None = None,
+    ) -> None:
         self.cards.append(card)
+        self.arrivals.append(Arrival(actor, card, src))
 
-    def add_all(self, cards: Iterable[Card]) -> None:
-        self.cards.extend(cards)
+    def add_all(
+        self,
+        cards: Iterable[Card],
+        actor: Player | None = None,
+        src: tuple[str, Player | str | None] | None = None,
+    ) -> None:
+        for card in cards:
+            self.add(card, actor, src)
+
+    def _drop_arrival(self, card: Card) -> None:
+        # The oldest equal-valued entry leaves with its card. A card with no
+        # matching entry is left to the walker (tests/test_arrival_record.py),
+        # which reports the divergence at the next decision boundary — closer
+        # to the missed maintenance site than a raise here could name.
+        for i, a in enumerate(self.arrivals):
+            if a.card == card:
+                del self.arrivals[i]
+                return
 
     def remove(self, card: Card) -> None:
         self.cards.remove(card)
+        self._drop_arrival(card)
 
     def take_all(self) -> list[Card]:
         taken = self.cards
         self.cards = []
+        self.arrivals = []
+        return taken
+
+    def take_top(self, count: int) -> list[Card]:
+        """The top `count` cards, off the front — the dealt-N departure,
+        routed through the class so the record stays maintained (the
+        `del cards[:count]` surgery this replaces bypassed it)."""
+        taken = self.cards[:count]
+        del self.cards[:count]
+        for card in taken:
+            self._drop_arrival(card)
         return taken
 
     @property
@@ -181,6 +245,21 @@ class ZoneStore:
                     ),
                 )
                 self.families[decl.name] = {k: Zone() for k in keys}
+        # The reverse index `locate` answers from. Built once: the store's
+        # zone set is fixed at construction (families key by their index
+        # domain's static members), so id-keying cannot go stale. Movements
+        # locate their source unconditionally for the Arrival Record, which
+        # is why this is a map rather than the linear scan it replaced.
+        self._addr: dict[int, tuple[str, Player | str | None]] = {
+            id(z): (name, None) for name, z in self.singles.items()
+        }
+        self._addr.update(
+            {
+                id(z): (name, key)
+                for name, family in self.families.items()
+                for key, z in family.items()
+            }
+        )
 
     def is_family(self, name: str) -> bool:
         return name in self.families
@@ -232,15 +311,12 @@ class ZoneStore:
 
     def locate(self, zone: Zone) -> tuple[str, Player | str | None]:
         """The (name, instance-key) of a zone object — the reverse lookup the
-        observation emitter needs when a movement holds only the Zone value."""
-        for name, z in self.singles.items():
-            if z is zone:
-                return name, None
-        for name, family in self.families.items():
-            for key, z in family.items():
-                if z is zone:
-                    return name, key
-        raise KeyError("zone object is not in this store")
+        observation emitter and the Arrival Record need when a movement holds
+        only the Zone value. O(1) via the construction-time reverse index."""
+        addr = self._addr.get(id(zone))
+        if addr is None:
+            raise KeyError("zone object is not in this store")
+        return addr
 
 
 class RuntimeState:

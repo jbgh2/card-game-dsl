@@ -107,6 +107,11 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "card_points",  # a card's points under the game's `card_points { }` table
         "top_of",  # the top card of an ordered zone/collection (the sequence end)
         "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
+        # The standard trump-game trick winner, callable over a fully public
+        # pile's Arrival Record (issue #256) — the SAME winner concept the
+        # trick form's `winner` clause names bare (PRIMITIVE_TRICK_WINNERS
+        # above): one name, two syntactic positions, resolved disjointly.
+        "highest_trump_or_led_suit",
     }
 )
 
@@ -125,7 +130,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
-        "schnapsen_trick_winner",  # Schnapsen: the two-card trick's winner (leader led first)
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
@@ -260,6 +264,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_b",
         "gin_lay_ok_c",
         "gin_valid_meld",
+        "highest_trump_or_led_suit",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
         "peg_pair_points",
@@ -267,7 +272,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "pinochle_meld_value",
         "pot_share",
         "rank_value",
-        "schnapsen_trick_winner",
         "skat_follow_ok",
         "skat_matadors",
         "skat_trick_winner",

@@ -343,8 +343,9 @@ match) and so must trump if able, a quirk the split preserves precisely.
   follower's answer is a filtered chosen transfer over the in-file `follow_ok`
   cascade (strict follow-and-head once the talon is closed or exhausted,
   anything while open), and the trick, claim-at-66, and paired talon draws are
-  plain statements around the game-local `schnapsen_trick_winner` primitive
-  (see "Native functions"), with three `produce` sites for the typed
+  plain statements around the engine-core `highest_trump_or_led_suit` call
+  (see "Native functions" — the winner reads the trick pile's Arrival
+  Record), with three `produce` sites for the typed
   `claimed | talon_closed | open_play` outcome.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
   sequential auction `round`s over role-guarded two-participant rings (the
@@ -783,6 +784,16 @@ mid-playout.
   sequence orientation). A loud runtime error on an empty collection: guard
   the read (`Z is not empty`). Used throughout Klondike and FreeCell (build
   targets, foundation progression, the moving run's split rank).
+- `highest_trump_or_led_suit(zone, trump: Suit?) → Player` — the standard
+  trump-game trick winner, computed over the zone's Arrival Record
+  (decisions.md "Knowledge, visibility, and the projection model" — The
+  Arrival Record): the plays are the recorded (actor, card) arrivals in play
+  order, the led suit is the first arrival's, the strengths the game's
+  `ranking:`. The same winner concept the trick form's `winner` clause names
+  bare, made callable for a hand-rolled trick (Schnapsen). Loud runtime
+  errors on a zone whose type is not identity-to-every-observer (a concealed
+  pile's provenance is no observer's to compute a winner from), an empty
+  pile, or a pile holding any card no seat played (an engine deal).
 - `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
   cells: every run of `k` consecutive cells along a row, a column, or either
   diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)
@@ -821,15 +832,10 @@ clause, distinct from its *ranking*, which orders cards for comparisons):
 - `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
   all five cards, unlike the four-card hand flush).
 
-Schnapsen's two-card trick resolution is one game-local primitive reading
-`cardlang/runtime/schnapsen.py`, in the same shape as `pot_share` and
-`pinochle_meld_value`:
-
-- `schnapsen_trick_winner(leader: Player, trump: Suit?) → Player` — the
-  completed trick's winner from the two-card `trick_pile` (the leader played
-  first; highest trump, else highest of the led suit — no over-trump
-  obligation). Also emits the play/trick_end/trick trace events the playout
-  harness audits winners against.
+Schnapsen carries no game-local primitive: its two-card trick resolves
+through the engine-core `highest_trump_or_led_suit` call (above) over the
+trick pile's Arrival Record, and the playout harness derives its trick facts
+from observation events.
 
 Skat's contract machinery is five game-local primitives reading
 `cardlang/runtime/skat.py`; the contract-dependent ones read the declared
@@ -841,10 +847,10 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
 - `skat_follow_ok(p: Player, c: Card) → Boolean` — follow-class legality
   against the led card (`trick_pile[0]`): the four jacks and the trump suit
   are one class in Suit and Grand; Null has plain suits and no trumps.
-- `skat_trick_winner(leader: Player) → Player` — the completed three-card
-  trick's winner (highest trump, else highest of the led suit; Null's own
-  rank order). Emits the play/trick_end/trick traces the playout harness
-  recomputes winners from.
+- `skat_trick_winner() → Player` — the completed three-card trick's winner
+  (highest trump, else highest of the led suit; Null's own rank order), the
+  plays read off the trick pile's Arrival Record. Emits the
+  play/trick_end/trick traces the playout harness recomputes winners from.
 - `skat_matadors(p: Player) → Integer` — the with/without run from the club
   Jack down the trump order, over `p`'s hand plus the skat. (The overbid
   rule's loss base — the smallest multiple of the base covering the bid —
@@ -853,8 +859,8 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
 
 500's contract machinery is six game-local primitives reading
 `cardlang/runtime/five_hundred.py`; the play-legality ones read the declared
-contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
-`declarer`) from phase state:
+contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit`)
+from phase state:
 
 - `five_hundred_next_bid(standing: Integer, strain: Suit?) → Integer` — the
   cheapest rung in the strain that beats the standing contract ordinal on
@@ -876,12 +882,12 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
   un-nominated joker may not be led in the no-trump family before the
   holder's last card (the modelled form of the lead-nomination rule —
   [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset (modelling notes)").
-- `five_hundred_trick_winner(leader: Player) → Player` — the completed
-  trick's winner (three cards in a misère — the declarer's partner sits
-  out — else four): highest trump (joker > bowers > A..), else highest of
-  the led class; an un-nominated joker wins any no-trump trick it is played
-  to. Emits the play/trick_end/trick traces the playout harness recomputes
-  winners from.
+- `five_hundred_trick_winner() → Player` — the completed trick's winner
+  (three cards in a misère — three seats play — else four), the plays and
+  the participation both read off the trick pile's Arrival Record: highest
+  trump (joker > bowers > A..), else highest of the led class; an
+  un-nominated joker wins any no-trump trick it is played to. Emits the
+  play/trick_end/trick traces the playout harness recomputes winners from.
 
 Tichu's game-local primitives read `cardlang/runtime/tichu.py` (the
 combination engine itself stays `cardlang/runtime/tichu_combinations.py`);

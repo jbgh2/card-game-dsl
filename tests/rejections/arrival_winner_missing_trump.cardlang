@@ -1,0 +1,21 @@
+// Guard: typecheck's call-arity check over CALL_SIGS. The
+// `highest_trump_or_led_suit` call form takes the pile AND the trump
+// (`Suit?` — pass `none` for a plain no-trump game); dropping the trump is
+// the plausible shortening and is rejected rather than silently defaulted.
+game ArrivalWinnerMissingTrump {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    let w = highest_trump_or_led_suit(trick_pile)
+    score[w] += 1
+  }
+  winner: highest score
+}

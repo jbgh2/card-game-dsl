@@ -30,11 +30,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.boards import BoardEntry
+from cardlang.stdlib.zones import identity_to_all
 
 
 class _NotABuiltin:
@@ -88,6 +89,8 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _end_card(args[0], "top_of", -1)
         case "bottom_of":
             return _end_card(args[0], "bottom_of", 0)
+        case "highest_trump_or_led_suit":
+            return _pile_trick_winner(args[0], args[1], ctx)
         case _:
             return NOT_A_BUILTIN
 
@@ -213,6 +216,59 @@ def _suit_of(value: Any) -> str:
             f"suit_of expects a card or a zone, got {type(value).__name__}"
         )
     return value.suit
+
+
+def _pile_trick_winner(value: Any, trump: str | None, ctx: Ctx) -> Player:
+    """`highest_trump_or_led_suit(zone, trump)` — the standard trump-game
+    trick winner over a public pile's [[arrival-record]]: the pairs are the
+    kernel-recorded (deciding actor, card) arrivals in play order, the led
+    suit is the first arrival's, the strengths the game's `ranking:` (issue
+    #256; the same comparison the trick form's `winner` clause names, made
+    callable for hand-rolled tricks — Schnapsen's).
+
+    Three guards, all in the runtime's channel because every one is
+    user-reachable: the argument must be a zone (`TAny`, the `suit_of`
+    precedent); its type must project identity to EVERY observer — a
+    concealed pile's provenance is not derivable from any observer's stream,
+    so naming its winner would compute from facts no player could know; and
+    the pile must hold plays — non-empty, every arrival carrying a deciding
+    actor (a pile fed by deals has no winner to name)."""
+    from cardlang.runtime.state import Zone
+
+    if not isinstance(value, Zone):
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit expects a zone, got {type(value).__name__} — "
+            f"this value is not a zone"
+        )
+    name, key = ctx.rs.zones.locate(value)
+    label = name if key is None else f"{name}[{key}]"
+    ztype = ctx.rs.zones.zone_type[name]
+    if not identity_to_all(ztype):
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit over '{label}' ({ztype}): the zone "
+            f"type does not project identity to every observer, so its "
+            f"provenance is not derivable from any observer's stream — a "
+            f"winner may only be named over a fully public pile"
+        )
+    if not value.cards:
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit over '{label}': the pile is empty — "
+            f"no plays to name a winner from; guard the read "
+            f"(`{label} is not empty`)"
+        )
+    played: list[tuple[Player, Card]] = []
+    for a in value.arrivals:
+        if a.actor is None:
+            raise OwnerGuardError(
+                f"highest_trump_or_led_suit over '{label}': {a.card} arrived "
+                f"with no deciding actor (an engine deal, not a play) — a "
+                f"winner is named among players, so every card in the pile "
+                f"must have been played by one"
+            )
+        played.append((a.actor, a.card))
+    return winners.highest_trump_or_led_suit(
+        played, played[0][1].suit, trump, ctx.rs.rank_index
+    )
 
 
 def _end_card(cards: Any, fn: str, end: int) -> Card:

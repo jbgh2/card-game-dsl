@@ -227,7 +227,7 @@ game Doppelkopf {
         }
 
         // --- Trick end: first-of-equals winner over the trump class.
-        let w = doko_trick_winner(leader)
+        let w = doko_trick_winner()
         tricks_won[w] += 1
         if fox1_victim is not none and fox1_winner is none { fox1_winner := w }
         if fox2_victim is not none and fox2_winner is none { fox2_winner := w }

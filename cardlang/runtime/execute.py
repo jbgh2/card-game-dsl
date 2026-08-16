@@ -132,13 +132,26 @@ def run_body(stmts: tuple[n.Stmt, ...], ctx: Ctx) -> None:
 # --- movement ---
 
 
-def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
+def _deposit(
+    ctx: Ctx,
+    dest: Zone,
+    cards: list[Card],
+    actor: Player | None = None,
+    src: tuple[str, Player | str | None] | None = None,
+) -> None:
     """The one choke point every destination append (movement, gather, deal,
     simultaneous pass) routes through, so a finite-capacity zone type can
     never be silently overfilled. The zone-type registry (cardlang/stdlib/
     zones.py ZONE_CAPACITY) owns which types are bounded; this is the Owner
     Guard for overfill, and it does not replace a game's own guards
-    (`cells[slot] is empty`)."""
+    (`cells[slot] is empty`).
+
+    `actor`/`src` are the Arrival Record's two facts (issue #256): the
+    deciding actor — the chooser's seat for a chosen selection, else the
+    bound acting seat, else None; NEVER a defaulted 0 — and the source Zone
+    Address. The round forms append through `Zone.add`/`add_all` directly
+    (their own capacity story predates this choke point) and pass the same
+    two facts there."""
     name, key = ctx.rs.zones.locate(dest)
     label = name if key is None else f"{name}[{key}]"
     ztype = ctx.rs.zones.zone_type[name]
@@ -150,7 +163,7 @@ def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
             f"{held} — the move would overfill it; guard the move "
             f"(`{label} is empty`)"
         )
-    dest.add_all(cards)
+    dest.add_all(cards, actor, src)
 
 
 def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -173,13 +186,19 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
         if stmt.distribution == "as_equally_as_possible":
             _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
+            src_addr = ctx.rs.zones.locate(source)
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
-                _deposit(ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards)
+                # A chosen to-each selection is decided by its receiving
+                # player (the chooser draw in `_select` is theirs); a dealt
+                # or random one has no per-card decider — the bound acting
+                # seat, if any, is the movement's actor.
+                actor = player if stmt.selection_mode == "chosen" else ctx.current_player
+                _deposit(
+                    ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards, actor, src_addr
+                )
                 if ctx.observer is not None:
-                    observe.movement(
-                        ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
-                    )
+                    observe.movement(ctx, src_addr, (stmt.dest.name, player), cards)
     else:
         assert stmt.dest is not None  # typecheck rejects the dest-less `in <zone>` form
         dest = evaluate(stmt.dest, ctx)
@@ -194,11 +213,16 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
-        _deposit(ctx, dest, selected)
+        src_addr = ctx.rs.zones.locate(source)
+        # The record's actor is the DECIDER, never `player`'s 0-for-None
+        # default: the chooser's seat for a chosen selection, else the bound
+        # acting seat (a move effect's actor), else None (an engine deal).
+        record_actor = (
+            player if stmt.selection_mode == "chosen" else ctx.current_player
+        )
+        _deposit(ctx, dest, selected, record_actor, src_addr)
         if ctx.observer is not None:
-            observe.movement(
-                ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
-            )
+            observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selected)
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
     """A movement/reveal `where` filter as a candidate predicate: an ordinary
@@ -218,11 +242,18 @@ def _deal_round_robin(
     gives the single-destination and non-round-robin `to each` forms."""
     players = list(ctx.rs.seating.players)
     dealt: dict[Player, list[Card]] = {p: [] for p in players}
+    src_addr = ctx.rs.zones.locate(source)
     if stmt.where is None:
         i = 0
         while source.cards:
-            card = source.cards.pop(0)
-            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
+            card = source.take_top(1)[0]
+            _deposit(
+                ctx,
+                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
+                [card],
+                ctx.current_player,
+                src_addr,
+            )
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
@@ -230,12 +261,17 @@ def _deal_round_robin(
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
-            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
+            _deposit(
+                ctx,
+                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
+                [card],
+                ctx.current_player,
+                src_addr,
+            )
             dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
-        src = ctx.rs.zones.locate(source)
         for p in players:
-            observe.movement(ctx, src, (dest_family, p), dealt[p])
+            observe.movement(ctx, src_addr, (dest_family, p), dealt[p])
 
 
 def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -268,7 +304,7 @@ def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
             taken = zone.take_all()
             if ctx.observer is not None:
                 observe.movement(ctx, loc, zones.locate(dest), taken)
-            _deposit(ctx, dest, taken)
+            _deposit(ctx, dest, taken, ctx.current_player, loc)
 
 
 def _check_count(count: int, mode: str | None) -> int:
@@ -329,9 +365,7 @@ def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Ca
         raise OwnerGuardError(
             f"cannot deal {count} cards from a source holding {len(source.cards)}"
         )
-    taken = source.cards[:count]  # deal off the top
-    del source.cards[:count]
-    return taken
+    return source.take_top(count)  # deal off the top
 
 
 # Joint selection enumerates subsets of the source; beyond this pool size the
@@ -816,13 +850,12 @@ def _apply_pass(
             f"simultaneous-pass destination is not a zone (got {type(dest).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
+    src_addr = ctx.rs.zones.locate(source)
     for card in selections[player]:
         source.remove(card)
-        _deposit(ctx, dest, [card])
+        _deposit(ctx, dest, [card], player, src_addr)
     if ctx.observer is not None:
-        observe.movement(
-            ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selections[player]
-        )
+        observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selections[player])
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:

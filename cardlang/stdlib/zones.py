@@ -77,6 +77,18 @@ def zone_projection(zone_type: str, is_owner: bool) -> str:
     return vis.owner if is_owner else vis.others
 
 
+def identity_to_all(zone_type: str) -> bool:
+    """Whether this library type projects full card identity to EVERY
+    observer (owner and others both `identity`) — the class whose Arrival
+    Record is derivable from every observer's own observation stream, and
+    therefore the only class any provenance surface may range over (issue
+    #256's decision-context rule; the consumers are `GameReads.arrivals` and
+    the `highest_trump_or_led_suit` call form). Raises KeyError for an
+    unknown type, like `zone_projection`."""
+    vis = ZONE_PROJECTIONS[zone_type]
+    return vis.owner == "identity" and vis.others == "identity"
+
+
 # library type name -> the maximum cards a zone of this type may ever hold, or
 # None for unbounded. Enforced as a runtime Owner Guard in the movement
 # executor (cardlang/runtime/execute.py) — a class of overfill the registry

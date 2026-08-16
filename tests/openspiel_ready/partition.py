@@ -287,6 +287,47 @@ def check_visible_facts(
     return failures, counts
 
 
+def derive_arrivals(
+    rs: RuntimeState, obs_log: list[tuple[Any, ...]], zone_label: str
+) -> list[tuple[int | None, str]]:
+    """The (deciding actor, card) sequence one observer can derive for a
+    fully public zone from THEIR OWN observation stream — the soundness half
+    of issue #256's no-leak criterion: per-observer provenance is derived,
+    never stored-then-stripped, so the engine's Arrival Record for a
+    consumed zone must equal what every observer's log entails.
+
+    The derivation replays the log's `move` events: an arrival into the zone
+    appends each card of the (identity) destination view, attributed to the
+    source label's owner seat when the source is a player-indexed family
+    (`hand[2]` -> 2 — how any observer attributes a play today, actor and
+    source-owner coinciding corpus-wide; decisions.md "Delegated play" holds
+    the unwired divergence design); a departure removes its cards by value.
+    A multi-card arrival appends in the view's (sorted) order — exact for
+    the single-card plays the consumers read, and a LOUD mismatch rather
+    than a silent one if a future consumer's pile ever takes batches whose
+    internal order matters."""
+    state: list[tuple[int | None, str]] = []
+    for event in obs_log:
+        if event[0] != "move":
+            continue
+        _, src, src_view, dst, dst_view = event
+        if dst == zone_label and isinstance(dst_view, tuple):
+            actor: int | None = None
+            if isinstance(src, str) and src.endswith("]"):
+                fam, key = src[:-1].split("[", 1)
+                if rs.zones.zone_index.get(fam) == "player":
+                    actor = int(key)
+            for card_str in dst_view:
+                state.append((actor, card_str))
+        elif src == zone_label and isinstance(src_view, tuple):
+            for card_str in src_view:
+                for i, (_a, cs) in enumerate(state):
+                    if cs == card_str:
+                        del state[i]
+                        break
+    return state
+
+
 def format_failures(game: str, observer: int, failures: list[FactFailure]) -> str:
     lines = [f"{game}: P{observer}'s information state fails {len(failures)} fact check(s):"]
     lines += [

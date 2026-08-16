@@ -200,6 +200,23 @@ class GameSpec:
     # "any": no public card/rank observation (a pure betting vocabulary).
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
+    # The fully public zones whose Arrival Record a consumer reads in this
+    # game — `PRIMITIVE_READS.arrival_zones` for the primitive consumers
+    # (doppelkopf, skat, five-hundred), plus the pile a
+    # `highest_trump_or_led_suit(zone, …)` call names (schnapsen, which has
+    # no registry row to derive from). The provenance soundness proof
+    # certifies each against every observer's own stream; an empty tuple
+    # records a vacuous cell rather than silently passing (most games
+    # consume no provenance today — the query surface is issue #253's).
+    provenance_zones: tuple[str, ...] = ()
+
+    # Where the provenance walk starts. The proof walks 40 greedy nodes from
+    # here and REFUSES a run that compared zero record entries, so a game
+    # whose line reaches its first play late must say so: Skat's greedy line
+    # climbs the whole Reizen ladder and first plays to the trick at step
+    # 127 on every manifest seed (measured 2026-08-15).
+    provenance_depth: int = 0
+
     # Total greedy (legal[0]) steps within which this game's line reaches
     # TerminalNode — measured across EVERY seed in `SWAP_SEEDS`, with headroom.
     # Across the whole manifest because line length varies with the deal, and
@@ -701,6 +718,123 @@ class ReadinessProofs:
             reseeded=True,
             stocks_reversed=len(stocks),
             vacuous_stock=(len(stocks) == 0),
+        )
+
+    @pytest.mark.parametrize("seed", manifest())
+    def test_provenance_is_derivable_from_every_observers_stream(
+        self, seed: int
+    ) -> None:
+        """The soundness rows of issue #256's no-leak criterion: for every
+        zone a consumer reads the Arrival Record of (`spec.provenance_zones`),
+        the engine's (deciding actor, card) sequence equals what EVERY
+        observer derives from their own observation log — so the record adds
+        nothing beyond what observation entails, which is the executable
+        form of "per-observer provenance is derived, never
+        stored-then-stripped". Games with no provenance consumer record a
+        vacuous cell honestly.
+
+        red under: mis-attribute one recorded arrival (e.g. shift
+        `record_actor` by one seat at execute._movement's single-destination
+        site) — every observer's derivation disagrees with the record at the
+        first play (executed 2026-08-15; see the change's completeness
+        ledger in tests/test_arrival_record.py)."""
+        spec = self.spec
+        if not spec.provenance_zones:
+            record(spec.short_name, "provenance", seed=seed, zones=0, vacuous=True)
+            return
+        from .partition import derive_arrivals
+
+        # Walk the greedy line and certify at EVERY node, counting record
+        # entries actually compared: one pause can legitimately catch the
+        # pile empty (doppelkopf's opening announcement lap), and an
+        # empty-vs-empty comparison certifies nothing — the count below is
+        # the proof's own vacuity guard. The walk starts at the spec's
+        # provenance_depth (Skat's first play sits past its whole auction).
+        history, r0 = _advance(spec.path, seed, spec.provenance_depth)
+        r: DecisionNode | Any = r0
+        entries_compared = 0
+        nodes = 0
+        while isinstance(r, DecisionNode) and nodes < 40:
+            for zone_label in spec.provenance_zones:
+                zone = r.rs.zones.single(zone_label)
+                engine = [(a.actor, str(a.card)) for a in zone.arrivals]
+                entries_compared += len(engine)
+                for observer in range(len(r.obs_logs)):
+                    derived = derive_arrivals(
+                        r.rs, r.obs_logs[observer], zone_label
+                    )
+                    assert derived == engine, (
+                        f"{spec.short_name}: step {nodes}: P{observer}'s "
+                        f"stream derives {derived} for '{zone_label}' but "
+                        f"the engine record holds {engine} — the record "
+                        f"exposes provenance observation does not entail "
+                        f"(or the emission lost a fact)"
+                    )
+            history.append(r.legal[0])
+            r = run(spec.path, seed, tuple(history))
+            nodes += 1
+        assert entries_compared > 0, (
+            f"{spec.short_name}: the greedy line never put a card in "
+            f"{spec.provenance_zones} within {nodes} steps — the certificate "
+            f"was vacuous; deepen the walk"
+        )
+        record(
+            spec.short_name,
+            "provenance",
+            seed=seed,
+            zones=len(spec.provenance_zones),
+            nodes=nodes,
+            entries_compared=entries_compared,
+            vacuous=False,
+        )
+
+    @pytest.mark.parametrize("seed", manifest())
+    def test_wash_hidden_stock_order_is_not_provenance(self, seed: int) -> None:
+        """The wash pin (issue #256): washing is an invariance, not an
+        operation. At a paused world — the standing residue of every mixing
+        event replayed so far (the initial shuffle always; inter-hand
+        face-down gathers where the depth crosses a hand) — permute every
+        all-hidden stock by a rotation (a DIFFERENT permutation from the
+        rng proof's reversal, so the two pins cannot share a blind spot) and
+        assert every observer's information state is byte-identical. Legal
+        actions are covered by composition, stated here because the direct
+        form is not executable: the replay hook fires after the first
+        decider's candidates are computed (driver.py's staleness contract),
+        so a pause's legal set cannot be recomputed post-mutation — but the
+        swap proof's legal-action agreement certifies legal actions are a
+        function of the information state, and this pin certifies the
+        information state is invariant, so the legal-action set is too.
+
+        red under: append the deck's raw card order to the information
+        state (infostate.py) — the rotation moves every observer's state
+        (executed 2026-08-15; see tests/test_arrival_record.py's ledger)."""
+        spec = self.spec
+        _, pause = _advance(spec.path, seed, spec.depth)
+        players = range(len(pause.obs_logs))
+        before = {
+            q: information_state(q, pause.rs, pause.obs_logs[q]) for q in players
+        }
+        rotated: list[str] = []
+        for name, key, zone in zone_instances(pause.rs):
+            if all_hidden(pause.rs, name) and len(zone.cards) >= 2:
+                zone.cards[:] = zone.cards[1:] + zone.cards[:1]
+                rotated.append(name if key is None else f"{name}[{key}]")
+        for q in players:
+            after = information_state(q, pause.rs, pause.obs_logs[q])
+            assert after == before[q], (
+                f"{spec.short_name}: P{q}'s information state moved under a "
+                f"hidden-stock rotation (rotated {rotated}) — provenance or "
+                f"order is leaking through a projection\n"
+                f"witness: {first_divergence(before[q], after)}"
+            )
+        record(
+            spec.short_name,
+            "wash",
+            seed=seed,
+            depth=spec.depth,
+            stocks_rotated=len(rotated),
+            vacuous_stock=(len(rotated) == 0),
+            legal_by_composition=True,
         )
 
     @pytest.mark.parametrize("seed", manifest())
