@@ -1,10 +1,10 @@
 """The Tichu combination engine (shared, RNG-free).
 
-The enumeration of the combinations a hand can form (singles, pairs, triples, full
-houses, straights, consecutive pairs, four-of-a-kind bombs), the legal follows over
-a standing play, and the card-point table. Extracted from the Tichu monolith so the
-kernel migration can call them as Primitives — ported *verbatim* so the
-candidate-list order matches the monolith's chooser draws exactly.
+The enumeration of the combinations a hand zone can form (singles, pairs, triples,
+full houses, straights, consecutive pairs, four-of-a-kind bombs), the legal follows
+over a standing play, and the card-point table. Extracted from the Tichu monolith so
+the kernel migration can call them as [[primitive]]s — ported *verbatim* so the
+[[candidate]]-list order matches the monolith's [[chooser]] draws exactly.
 
 Scope reductions (random play; see docs/kernel-migration.md, Workstream 5,
 and issue #140): the Phoenix is a wildcard in

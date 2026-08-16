@@ -1,6 +1,7 @@
 """Playtest statistics over random rollouts of a registered cardlang game —
 the designer-feedback seed (SP1 spec, "Design-tool alignment"): run N games,
-report length, branching, returns spread, and per-seat outcomes."""
+report length, branching, returns spread, and how often each [[seat]] finishes
+best."""
 
 from __future__ import annotations
 

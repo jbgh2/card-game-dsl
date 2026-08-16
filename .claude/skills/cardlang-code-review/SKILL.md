@@ -188,12 +188,16 @@ dominant cause of misses.
   change claims semantic neutrality (byte-identical trace goldens are the
   proof; regenerated IR goldens need a stated reason). Exact-score tests pin
   `PYTHONHASHSEED`.
-- **H. Spec-lockstep sweeper** *(docs or surface changes)*. The corpus
+- **H. Spec-lockstep sweeper** *(docs, surface, or naming changes)*. The corpus
   (`docs/games/`) and every doc table/example use the current register —
   where cheap, parse doc examples rather than eyeballing them. The docs that
   describe a changed surface (decisions.md, library.md, and roadmap.md,
   "Grammar surface deferred by the checker") moved in the same change, and a newly deferred cell got its
   tracker record. No history voice in `docs/` (maintaining.md rule 1).
+  **New nouns have entries**: a concept the change names for the first time
+  carries its `docs/glossary/` entry in the same change, and a rename or a
+  retirement updates the entry and its `retired_spellings` (CLAUDE.md
+  operating rule 7). A name with no entry is class 8.
 - **I. Info-set / observation checker** *(movement, visibility,
   decision-site, or adapter changes)*. The change emits per-observer
   observations through declared zone projections; no decision runs outside
