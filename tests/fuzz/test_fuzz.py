@@ -116,7 +116,13 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
-    ("skat.cardlang", "delete_line", 2): "skat_trick_winner_wrong_count",
+    # The card_points clause (issue #249) shifted skat.cardlang, so this key's
+    # deletion moved from the second player's follow to the leader's play:
+    # the crash it now reproduces is `skat_follow_ok_nothing_led`. The prior
+    # finding at this key, `skat_trick_winner_wrong_count`, stays in the
+    # ledger under its frozen fixture (the replay half still reproduces it);
+    # only the live-corpus key moved.
+    ("skat.cardlang", "delete_line", 2): "skat_follow_ok_nothing_led",
 }
 
 
