@@ -95,7 +95,7 @@ matchups:
   # N=200 on all three LLM matchups, equal so they stay comparable.
   #
   # Sized from MEASURED cost and measured variance, not from the N>=20 floor in
-  # the brief. `--estimate 5` put the cheap model at $0.005/game and the mid one
+  # the design brief. `--estimate 5` put the cheap model at $0.005/game and the mid one
   # at roughly $0.015, so 3 x 200 games is about $5 — the $20 cap was never the
   # binding constraint here, and stopping at 20 would have bought a win rate with
   # a +/-22-point interval, which cannot separate any two players.

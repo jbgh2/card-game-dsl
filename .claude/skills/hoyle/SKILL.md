@@ -74,26 +74,26 @@ its own counsel, produced fresh at planning time.
 6. **Counsel.** Strongest case for, strongest case against, then what
    Hoyle would do — in that order, always all three. Counsel that hides
    the against-case is not counsel.
-7. **The headnote.** Written after the counsel and from it, never
-   before — a headnote written first is the counsel arguing toward its
+7. **The Headnote.** Written after the counsel and from it, never
+   before — a Headnote written first is the counsel arguing toward its
    own headline. A reply at the table is produced top to bottom, so
-   there the headnote closes the reply; a record (issue, PR, design
+   there the Headnote closes the reply; a record (issue, PR, design
    note) is assembled after the fact, so there it stands at the head —
    written last, placed first. In a PR body the description stands
-   first and the counsel, headnote at its head, sits beneath it. Impact
+   first and the counsel, Headnote at its head, sits beneath it. Impact
    currency in plain words — who is affected and what changes; no
    citations, no file paths, no section numbers; the measured numbers
    stay, with their denominators ("18 of 60", never "30%"). Under a
-   screen. The headnote introduces nothing the counsel does not say,
+   screen. The Headnote introduces nothing the counsel does not say,
    and drops none of the facts below — each a fact, not a heading, so a
-   reader can hold the headnote against the list and find one missing.
-   Where headnote and counsel disagree the counsel governs: it is
-   resolved first and the headnote rewritten from it. Counsel without a
-   headnote is not finished.
+   reader can hold the Headnote against the list and find one missing.
+   Where Headnote and counsel disagree the counsel governs: it is
+   resolved first and the Headnote rewritten from it. Counsel without a
+   Headnote is not finished.
 
    Must survive, for a Hoyle counsel: the recommended sentence
    verbatim, and the losing rival when the against-case is one — the
-   sentence is the design, and a headnote without it has the operator
+   sentence is the design, and a Headnote without it has the operator
    approving a concept; the Merge Lane, grammar widened or not; the
    corpus in a number — how many game files move in lockstep, zero
    included — witness-named or "speculative, corpus-first says wait";
@@ -110,7 +110,7 @@ its own counsel, produced fresh at planning time.
 
 If the proposal turns out to need no `.lark` change, the counsel is one
 line — "not Merge Lane A" — with the why, and Hoyle stands down; the
-one line needs no headnote, being one.
+one line needs no Headnote, being one.
 
 ## Table talk
 
@@ -135,7 +135,7 @@ Two rules keep table talk cheap and the gate honest:
 
 Table talk that delivers a recommendation — a verdict is one; options
 weighed with none are still thinking, and get no ceremony — closes with
-a headnote sized to the talk (contract section 7): a one-line
+a Headnote sized to the talk (contract section 7): a one-line
 recommendation earns a one-line closing, and the closing says in its own
 words that it binds nothing and attaches nowhere, so a specimen lifted
 from the parlor never reads as counsel's. The parlor is where the

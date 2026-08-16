@@ -70,22 +70,22 @@ never substitutes: the change attaches its own, produced fresh.
 6. **Counsel.** Strongest case for, strongest case against, then what
    the Architect would do — always all three. Counsel that hides the
    against-case is not counsel.
-7. **The headnote.** Written after the counsel and from it, never
-   before — a headnote written first is the counsel arguing toward its
+7. **The Headnote.** Written after the counsel and from it, never
+   before — a Headnote written first is the counsel arguing toward its
    own headline. A reply at the table is produced top to bottom, so
-   there the headnote closes the reply; a record (issue, PR, design
+   there the Headnote closes the reply; a record (issue, PR, design
    note) is assembled after the fact, so there it stands at the head —
    written last, placed first. In a PR body the description stands
-   first and the counsel, headnote at its head, sits beneath it. Impact
+   first and the counsel, Headnote at its head, sits beneath it. Impact
    currency in plain words — who is affected and what changes; no
    citations, no file paths, no section numbers; the measured numbers
    stay, with their denominators ("18 of 60", never "30%"). Under a
-   screen. The headnote introduces nothing the counsel does not say,
+   screen. The Headnote introduces nothing the counsel does not say,
    and drops none of the facts below — each a fact, not a heading, so a
-   reader can hold the headnote against the list and find one missing.
-   Where headnote and counsel disagree the counsel governs: it is
-   resolved first and the headnote rewritten from it. Counsel without a
-   headnote is not finished.
+   reader can hold the Headnote against the list and find one missing.
+   Where Headnote and counsel disagree the counsel governs: it is
+   resolved first and the Headnote rewritten from it. Counsel without a
+   Headnote is not finished.
 
    Must survive, for an Architect counsel: the decision as narrowed;
    the settled law that binds, in plain words; the option recommended
@@ -107,7 +107,7 @@ never substitutes: the change attaches its own, produced fresh.
 If the question turns out not to be structural — pure surface (Hoyle's),
 pure process (the harness doc's), or already settled law — the counsel is
 one line saying whose it is, and the Architect stands down; the one line
-needs no headnote, being one.
+needs no Headnote, being one.
 
 ## Table talk
 
@@ -117,7 +117,7 @@ lands in a design note or issue by the ordinary routes. Table talk never
 substitutes for counsel: a change still attaches its own, produced fresh.
 Table talk that delivers a recommendation — a verdict is one; options
 weighed with none are still thinking, and get no ceremony — closes with
-a headnote sized to the talk (contract section 7): a one-line
+a Headnote sized to the talk (contract section 7): a one-line
 recommendation earns a one-line closing, and the closing says in its own
 words that it binds nothing and attaches nowhere, so a specimen lifted
 from the parlor never reads as counsel's. The parlor is where the

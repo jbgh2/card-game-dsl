@@ -1,7 +1,7 @@
 # Undertow — design notes
 
 Second original design of this project (experiment, not corpus — the first,
-Green Lane, lives in `../green-lane/`). The brief changed between the two:
+Green Lane, lives in `../green-lane/`). The design brief changed between the two:
 Green Lane was built small so the solver could hold all of it; Undertow is
 built the other way — **few rules, huge emergent state space** — in the
 spirit of a "3½ rules" family game that a table can learn in one breath but

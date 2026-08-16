@@ -1,7 +1,7 @@
 # 500 vs Belote as the next corpus game — a decision brief
 
-*Dated record. This brief argues about a roadmap line as it stood when the
-brief was written, so its quotations stay verbatim. That line has since moved
+*Dated record. This decision brief argues about a roadmap line as it stood when the
+decision brief was written, so its quotations stay verbatim. That line has since moved
 to the tracker — the ordering it belonged to is now
 [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143), and both games
 are in the corpus. Read the roadmap citations below as historical.*
@@ -13,7 +13,7 @@ A decision-grade comparison of the two candidates
 awaiting a phase outcome observed *unequally*) and
 [structural-infoset-proofs](../open-questions/structural-infoset-proofs.md)
 (Tier 2, high impact, *actually blocked* — its constructive world generator
-awaits a *compound hidden-function probe*). This brief informs a human
+awaits a *compound hidden-function probe*). This decision brief informs a human
 decision; it does not make it, and it does not touch
 [_candidates.md](../games/_candidates.md) or any settled doc.
 
@@ -374,7 +374,7 @@ two. Three independent tiebreakers, each supported above:
   lead-time nomination against led-suit history, no-suit follow legality) is
   the effective-suit problem in a second costume, and misère's three-handed
   play adds a mid-contract sat-out face-down hand the readiness proofs must
-  cover — both raise 500's cost beyond the first draft of this brief, and
+  cover — both raise 500's cost beyond the first draft of this decision brief, and
   neither serves either advertised unblock. The recommendation is unchanged;
   these corrections only widen Belote's margin.
 
