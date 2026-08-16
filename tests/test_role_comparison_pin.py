@@ -158,8 +158,12 @@ def _coincident_role_literals(root: pathlib.Path = _PACKAGE) -> dict[str, list[s
 # `deck_rank`/`deck_suit` precisely so the value half stays out of this band.
 # resolve's `player` is the unresolved-NAME hint (`player` is bound only inside
 # a player query) -- the word the author typed, not a role the pass dispatches
-# on. `runtime/values.py` holds the card flavor's AXIS spellings, reserved
-# against a piece set claiming them, plus the deck's own rank and suit names.
+# on. `runtime/evaluate.py`'s pair are the player-query family's fixed BINDER
+# name used as a locals-environment key (`with_local("player", ...)`) at the
+# eager kinds' scan and at the ring search's lap -- an environment key, never
+# a role dispatch. `runtime/values.py` holds the card flavor's AXIS spellings,
+# reserved against a piece set claiming them, plus the deck's own rank and
+# suit names.
 # `openspiel/replay.py`'s pair is `_RETURNS_KEYED_ROLES`, the NAMES that
 # module's diagnostic lists; the dispatch beside it is over `Role`, and the two
 # are reconciled against `ZONE_INDEX_ROLES` by
@@ -169,7 +173,7 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "openspiel/replay.py": ["player", "team"],
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
     "resolve.py": ["player", "player", "rank", "rank", "suit"],
-    "runtime/evaluate.py": ["player"],
+    "runtime/evaluate.py": ["player", "player"],
     "runtime/skat.py": ["suit", "suit"],
     "runtime/state.py": ["rank", "rank", "suit", "suit"],
     "runtime/values.py": ["rank"] * 14 + ["suit"] * 14,
