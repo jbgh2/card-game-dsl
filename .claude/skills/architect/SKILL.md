@@ -92,8 +92,11 @@ never substitutes: the change attaches its own, produced fresh.
    and the one rejected; one sentence on what the recommendation makes
    newly impossible or newly required, and for whom; the info-set
    verdict in one clause — do not move, derive via ..., or debt
-   recorded. Then the bottom line: the verdict, the strongest reason
-   against it and its cost, and what the operator must decide.
+   recorded; and the precedent standing — established citation,
+   unverified lead, or no book precedent at all — so a lead never reads
+   as law by compression. Then the bottom line: the verdict, the
+   strongest reason against it and its cost, and what the operator must
+   decide.
 
    In a two-persona sitting each seat's block carries its own
    must-survive facts; the bottom line is written once, by whichever
