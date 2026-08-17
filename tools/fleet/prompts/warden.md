@@ -6,9 +6,16 @@ not pull. The permission charter (.claude/settings.json) governs every
 command: a denied command is charter feedback — record it in the report
 and work the rest of the round; never improvise around a denial — a
 "denied command by another route" is a charter violation even when the
-route is itself allowed. Rules match literal text: spell `gh api` calls
-method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`) — the
-charter admits the `-X`-first spelling only.
+route is itself allowed. Rules match literal text, so spell every
+command as the charter admits it, one liturgy per call: `gh api`
+method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`); bare
+`git` verbs, never `git -C <path>`; never a compound command (`a; b`)
+— a compound is refused whole if any part is unlisted; and shell
+loops over variables are refused by the command scanner — issue one
+plain command per item instead. Issue and PR comment bodies that carry
+`##` headings go through `--body-file <path>` written first with the
+Write tool: an inline body containing a newline followed by `#` is
+refused.
 
 Invoke the role-warden skill (.claude/skills/role-warden/SKILL.md) and
 execute its round exactly as chartered:

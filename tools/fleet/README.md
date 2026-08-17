@@ -56,3 +56,10 @@ launchctl kickstart gui/$(id -u)/com.cardlang.warden
   (`projects["…/cardlang-fleet"].hasTrustDialogAccepted` in
   ~/.claude.json), or the charter's allowlist is ignored and every
   liturgy is denied.
+- The charter must carry a write permit scoped to the clone
+  (`Edit(//…/cardlang-fleet/**)`, `Write(//…/cardlang-fleet/**)`): a
+  headless round with no permit for the Edit and Write tools falls
+  through to the default-ask and is refused with nobody present — it
+  can Lease, read, and run tools, and cannot change a byte (issue #361,
+  the first launchd-fired Dispatcher round). Bash rules do not cover
+  the file tools; the permit is a separate line.
