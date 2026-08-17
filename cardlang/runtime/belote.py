@@ -111,7 +111,16 @@ def belote_trick_winner(
     ace-ten `rank_index` — read through `rank_strength`, the runtime Owner
     Guard for a rank outside a partial `ranking:`, naming `reader` (the
     DSL-visible function: this winner, or `belote_opp_winning` recomputing
-    the live winner through it)."""
+    the live winner through it).
+
+    `reader` keeps a default where its cribbage siblings do not: the kernel
+    calls every registered trick winner through one uniform four-argument
+    signature (`primitives.value_function` hands back the bare function), so
+    the kernel path cannot pass a fifth. The default is therefore this
+    function's OWN name, and a rename that left the literal behind would
+    mislabel the diagnostic silently — pinned against `__name__` by
+    tests/test_belote_primitives.py, which is what a required parameter would
+    otherwise have bought."""
     trumps = [(p, c) for p, c in played if c.suit == trump]
     if trumps:
         return max(trumps, key=lambda pc: _TRUMP_HEIGHT[pc[1].rank])[0]

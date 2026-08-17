@@ -44,11 +44,11 @@ def _c(spec: str) -> Card:
 
 def test_show_scorer_known_hands() -> None:
     # The perfect 29: J + three fives matching the starter's suit on the J.
-    assert show_score([_c("5C"), _c("5D"), _c("5S"), _c("JH")], _c("5H"), False, _ORDER) == 29
+    assert show_score([_c("5C"), _c("5D"), _c("5S"), _c("JH")], _c("5H"), False, _ORDER, "cribbage_show_value") == 29
     # Run of five plus two fifteens (7+8, 4+5+6).
-    assert show_score([_c("4C"), _c("5D"), _c("6S"), _c("7H")], _c("8C"), False, _ORDER) == 9
+    assert show_score([_c("4C"), _c("5D"), _c("6S"), _c("7H")], _c("8C"), False, _ORDER, "cribbage_show_value") == 9
     # Double run of three (4 5 5 6) + pair + two fifteens.
-    assert run_score([_c("4C"), _c("5D"), _c("5S"), _c("6H"), _c("9C")], _ORDER) == 6
+    assert run_score([_c("4C"), _c("5D"), _c("5S"), _c("6H"), _c("9C")], _ORDER, "cribbage_show_value") == 6
     # Fifteens: K + 5 = 15.
     assert count_fifteens([_c("KC"), _c("5D")]) == 2
     # Flush: four of a suit scores 4 in hand, 5 with matching starter, 5-only in crib.

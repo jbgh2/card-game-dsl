@@ -69,9 +69,7 @@ def count_pairs(cards: list[Card]) -> int:
     return 2 * sum(1 for a, b in combinations(cards, 2) if a.rank == b.rank)
 
 
-def run_score(
-    cards: list[Card], order: Mapping[str, int], reader: str = "cribbage_show_value"
-) -> int:
+def run_score(cards: list[Card], order: Mapping[str, int], reader: str) -> int:
     """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
     contains at most one run). `order` is the game's declared rank order —
     `ctx.rs.rank_index` from cribbage.cardlang's `ranking: aces low` — under
@@ -119,7 +117,7 @@ def show_score(
     starter: Card,
     is_crib: bool,
     order: Mapping[str, int],
-    reader: str = "cribbage_show_value",
+    reader: str,
 ) -> int:
     five = [*hand4, starter]
     return (
