@@ -15,14 +15,14 @@ game CellCountInCollection {
     reserve[player] : PlayerPile<player>
   }
   state {
-    done : Boolean = false
+    done : Boolean = false  score[player] : Integer = 0
   }
   phase play {
     turns t from 0 over all players until done {
       offer to t one of [place]
     }
   }
-  winner: highest done
+  winner: highest score
 }
 
 move_type place(at : cell) {

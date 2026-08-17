@@ -49,7 +49,12 @@ covered:    the grid below — `winner_axes.cells()` x {accepted, rejected},
             asserts WHICH layer answers (the pre-existing state-declaration
             guard for a non-indexable role, this module's new guard
             otherwise), so a cell that starts being rejected by the wrong
-            wall is a failure rather than a pass.
+            wall is a failure rather than a pass. Plus three misuse probes,
+            which vary the GAME the grid holds constant rather than the
+            declaration: a target naming a zone, a target declared inside a
+            phase (both refused by the name guards, with
+            `_check_winner_target` silent), and a `team`-indexed target in a
+            game declaring no `teams:`.
 sampled:    the struct-type cell runs ONE struct shape (`Pair`), not a
             sub-axis of field shapes: a struct is unrankable whatever it
             holds, so the field list cannot vary the property under guard.
@@ -59,6 +64,18 @@ sampled:    the struct-type cell runs ONE struct shape (`Pair`), not a
             declaration.
 residual:   cells on this surface that this ledger does NOT close, each
             with its guard and its record:
+            - the index axis is derived from `Role`, but `state_decl`'s
+              grammar admits ANY name in the `[ ]` slot, including a
+              declared position domain (`probe[column]`). That is the state
+              DECLARATION guard's class, not this one's, and it is executed
+              at tests/rejections/positions_state_indexed_by_position.cardlang
+              — so the cell is guarded and proven, just not by a row of this
+              grid. R4, this ledger owns the record.
+            - the accepted `team` row ranks a team-keyed score, and the
+              result path then reports a team index through a field typed as
+              a player (issue #154); guard: none — the checker accepts the
+              declaration, which is correct, and the defect is downstream in
+              `GameResult`/`returns_for`.
             - a game declaring BOTH `winner:` and `loser:` accepts and then
               silently discards the loser clause (issue #247); guard: none
               today, which is what that issue is.
@@ -171,3 +188,67 @@ def test_winner_target_cell(index: str | None, written: str, default: str) -> No
         assert "not an indexable role" in message, message
     else:
         assert "`winner:`" in message, message
+
+
+# --- misuse probes: the sentences the grid's fixed game context cannot reach --
+#
+# The grid varies the target DECLARATION against a game that is otherwise
+# held constant — four seats, teams declared, a `state { }` block present.
+# Three plausible wrong sentences vary the game instead, and each must still
+# be refused by a named wall rather than reaching a playout.
+
+
+def test_a_winner_target_naming_a_zone_is_refused_by_the_name_guard() -> None:
+    """`winner: highest hand` — a zone, not a state variable.
+
+    The grammar's `winner:` takes a bare NAME, so nothing syntactic stops an
+    author naming the zone they think of as their score pile. A zone is not a
+    state variable, so the refusal is `_validate_refs`' `n.Winner()` arm — the
+    Owner Guard for whether the name names a state variable at ALL — and
+    `_check_winner_target` stays silent, which is what its `decl is None`
+    early return is for.
+    """
+    source = game_source("player", "Integer", "0").replace(
+        "winner: highest probe", "winner: highest hand"
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "winner_target.cardlang")
+    message = exc.value.diagnostic.message
+    assert "winner references unknown variable 'hand'" in message, message
+
+
+def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
+    """`winner: highest probe` on `probe[team]` where the game declares no
+    `teams:`.
+
+    The grid's `team` row is accepted, but every one of its games declares
+    `teams:`. Drop that clause and the target indexes a role the game has no
+    members for — the silent-answer shape of issue #300. It must be refused
+    at check time by a named wall, never ranked over an empty team map.
+    """
+    source = game_source("team", "Integer", "0").replace(
+        "  teams: [[0, 2], [1, 3]]\n", ""
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "winner_target.cardlang")
+    message = exc.value.diagnostic.message
+    assert "team" in message, message
+
+
+def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard() -> None:
+    """A `winner:` naming a phase-local declaration.
+
+    The second half of `_check_state_scope`'s class, and the other reason
+    `_check_winner_target` returns early rather than speaking: the author has
+    already been told the name is not visible at game level, and a second
+    diagnostic about its declaration would bury that one.
+    """
+    source = game_source("player", "Integer", "0").replace(
+        "  phase setup { deal 3 cards from deck to each hand }\n",
+        "  phase setup { state { tally[player] : Integer = 0 }\n"
+        "                deal 3 cards from deck to each hand }\n",
+    ).replace("winner: highest probe", "winner: highest tally")
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(source, "winner_target.cardlang")
+    message = exc.value.diagnostic.message
+    assert "tally" in message, message
