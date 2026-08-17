@@ -2,14 +2,18 @@
 # tools/fleet/war-room.sh -- "The war-room": generator for the operator's
 # pull-based pulse page over the Standing Role fleet (docs/harness.md,
 # "Standing Roles"; issue #279). Derives live fleet state -- role runs and the
-# occupancy lock in the fleet clone, live Leases, open PRs, the Ready Front,
-# the latest fleet reports on issue #274 -- and writes ONE self-contained
-# static HTML file (default /Users/benh/Projects/cardlang-fleet/war-room/
-# index.html; -o PATH overrides).
+# occupancy lock in the fleet clone, the running round's own progress, live
+# Leases, open PRs, the Ready Front, the latest fleet reports on issue #274 --
+# and writes ONE self-contained static HTML file (default
+# /Users/benh/Projects/cardlang-fleet/war-room/index.html; -o PATH overrides).
 # Failure discipline: a section whose derivation fails renders IN PLACE with a
 # red FAILED banner and the error text (never silently empty, never dropped),
 # the page is always written, and the script exits 1; exit 0 means every
 # section derived.
+# `--derive <name> ARG...` prints one derived string and exits, without
+# touching the page: the seam tests/test_war_room_progress.py drives, so the
+# per-round progress line and the run-log line are provable against synthetic
+# inputs rather than against whatever the fleet happens to be doing.
 
 set -euo pipefail
 
@@ -25,13 +29,30 @@ LOCK_HOLDER="$FLEET_CLONE/.role-lock/holder"
 REPORTS_ISSUE="274"
 READY_FRONT_TIMEOUT=90
 
+# Where the headless engine writes its transcript live: one directory per
+# working copy under ~/.claude/projects, named by replacing every
+# non-alphanumeric byte of the path with a dash. Derived from FLEET_CLONE
+# rather than spelled out, so the two cannot drift if the clone moves.
+# ${HOME:-} deliberately: an environment without HOME must cost the page one
+# named "not derivable" line, not the whole build via set -u.
+TRANSCRIPTS="${HOME:-}/.claude/projects/$(printf '%s' "$FLEET_CLONE" | sed 's/[^A-Za-z0-9]/-/g')"
+
+# One line of progress must stay one line: a command with a heredoc in it is
+# a page-wide wall of text otherwise. A run log's last line gets a far longer
+# budget -- it is the only thing the Runs table says about a run.
+PROGRESS_TEXT_LIMIT=200
+LOG_LINE_LIMIT=400
+
 # Resolve everything from the script's own location so the generator works
 # from any cwd (and from the serve wrapper).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 READY_FRONT="$SCRIPT_DIR/../ready-front.sh"
 
+USAGE="usage: war-room.sh [-o PATH] | war-room.sh --derive <progress-line HOLDER ROOT | last-log-line PATH>"
 OUT="$FLEET_CLONE/war-room/index.html"
+DERIVE=0
+DERIVE_ARGV=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -o)
@@ -39,16 +60,144 @@ while [ $# -gt 0 ]; do
       OUT="$2"
       shift 2
       ;;
+    --derive)
+      [ $# -ge 2 ] || { echo "war-room.sh: --derive requires a derivation name ($USAGE)" >&2; exit 2; }
+      DERIVE=1
+      shift
+      DERIVE_ARGV=("$@")
+      break
+      ;;
     -h|--help)
-      echo "usage: war-room.sh [-o PATH]" >&2
+      echo "$USAGE" >&2
       exit 0
       ;;
     *)
-      echo "war-room.sh: unknown argument: $1 (usage: war-room.sh [-o PATH])" >&2
+      echo "war-room.sh: unknown argument: $1 ($USAGE)" >&2
       exit 2
       ;;
   esac
 done
+
+# The single escape helper. EVERY piece of derived text (log lines, PR titles,
+# report bodies, ready-front output, error text) passes through here before it
+# is inserted into HTML: none of it is trusted markup. Order matters: & first,
+# then < then > then the double quote, so entities are not double-escaped.
+html_escape() {
+  sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
+esc() { printf '%s' "$1" | html_escape; }
+
+# ------------------------------------------------------- derived: what a round
+# is doing. `RUN IN FLIGHT` says the door is shut; on its own it says nothing
+# about the round, whose log stays empty until it ends. The engine writes its
+# transcript live, so the progress is derivable -- and because a derived line
+# reads as authoritative, every way this can fail to name the round's work
+# names ITSELF instead. There is no blank outcome and no guess.
+
+# $1 = the fixed reason (kept literal: tests/test_war_room_progress.py scrapes
+# this call's first argument to pin the reason vocabulary), $2 = free detail.
+not_derivable() {
+  if [ -n "${2:-}" ]; then
+    printf 'progress: not derivable (%s: %s)' "$1" "$2"
+  else
+    printf 'progress: not derivable (%s)' "$1"
+  fi
+}
+
+# progress_line HOLDER-FILE TRANSCRIPT-ROOT -- one line, always, exit 0 always.
+progress_line() {
+  local holder="$1" root="$2"
+  local since_raw since_epoch listing newest newest_mtime newest_path
+  local raw jq_rc steps work clock
+
+  [ -r "$holder" ] || { not_derivable "lock holder unreadable" "$holder"; return 0; }
+  since_raw="$(sed -n 's/.*[[:space:]]since[[:space:]]\([^[:space:]][^[:space:]]*\).*/\1/p' "$holder" 2>/dev/null | head -1)" || since_raw=""
+  since_epoch="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$since_raw" '+%s' 2>/dev/null)" || since_epoch=""
+  [ -n "$since_epoch" ] || { not_derivable "lock holder carries no start time" "$holder"; return 0; }
+
+  [ -d "$root" ] || { not_derivable "no transcript directory" "$root"; return 0; }
+  listing="$(find "$root" -maxdepth 1 -name '*.jsonl' -exec stat -f '%m|%N' {} + 2>/dev/null)" || listing=""
+  [ -n "$listing" ] || { not_derivable "no transcript files" "$root"; return 0; }
+  # awk, not `sort -rn | head -1`: head closing the pipe early can leave sort
+  # killed by SIGPIPE, which pipefail would report as a failed derivation.
+  newest="$(printf '%s\n' "$listing" | awk -F'|' 'NF && $1 + 0 >= m { m = $1 + 0; line = $0 } END { print line }')"
+  newest_mtime="${newest%%|*}"
+  newest_path="${newest#*|}"
+
+  # The round's transcript is necessarily written after the lock was taken.
+  # An older newest file means the newest session belongs to somebody else --
+  # the operator working in the clone -- and showing it would be a confident
+  # wrong answer, which is worse than the silence this replaces.
+  [ "$newest_mtime" -ge "$since_epoch" ] || { not_derivable "newest transcript predates the lock" "$newest_path"; return 0; }
+
+  # "A" per assistant step, "T<work>" per tool call within it. The transcript
+  # is appended to WHILE this reads it, so a truncated final line is normal
+  # traffic, not a failure: jq exits nonzero having already emitted every
+  # record it did parse, and that prefix is what the line is built from.
+  jq_rc=0
+  raw="$(jq -r '
+    select(.type == "assistant")
+    | ( "A",
+        ( .message.content[]? | select(.type == "tool_use")
+          | "T" + ( ( [ .input.description?, .input.command?, .input.file_path?, .name? ]
+                      | map(select(type == "string" and . != "")) | .[0] // "(unnamed tool call)" )
+                    | gsub("[[:space:]]+"; " ") ) ) )' "$newest_path" 2>/dev/null)" || jq_rc=$?
+  if [ -z "$raw" ]; then
+    if [ "$jq_rc" -ne 0 ]; then
+      not_derivable "transcript unparsable" "$newest_path"
+    else
+      not_derivable "no assistant step yet" "$newest_path"
+    fi
+    return 0
+  fi
+
+  steps="$(printf '%s\n' "$raw" | awk '/^A$/ { n++ } END { print n + 0 }')"
+  work="$(printf '%s\n' "$raw" | awk '/^T/ { last = substr($0, 2) } END { print last }')"
+  [ -n "$work" ] || { not_derivable "no tool call yet" "$newest_path"; return 0; }
+  if [ "${#work}" -gt "$PROGRESS_TEXT_LIMIT" ]; then
+    work="$(printf '%s' "$work" | cut -c"1-$PROGRESS_TEXT_LIMIT") ..."
+  fi
+  clock="$(date -u -r "$newest_mtime" '+%H:%MZ' 2>/dev/null)" || clock="?"
+  printf 'currently: %s (step %s, %s)' "$work" "$steps" "${clock:-?}"
+}
+
+# log_last_line PATH -- a run log's last non-empty line, bounded and, when it
+# is bounded, SAYING so. A silently cut line reads as a complete statement:
+# the witness is a benign startup warning cut mid-sentence into what looked
+# like a denial (issue #366).
+log_last_line() {
+  local line
+  line="$(awk 'NF { l = $0 } END { print l }' "$1" 2>&1)" || line="(unreadable)"
+  if [ "${#line}" -gt "$LOG_LINE_LIMIT" ]; then
+    line="$(printf '%s' "$line" | cut -c"1-$LOG_LINE_LIMIT") ..."
+  fi
+  printf '%s' "$line"
+}
+
+# The page inserts these two, and only these two, so the seam below renders
+# exactly what the page renders -- escaping included.
+progress_line_html() { progress_line "$1" "$2" | html_escape; }
+log_last_line_html() { log_last_line "$1" | html_escape; }
+
+if [ "$DERIVE" -eq 1 ]; then
+  case "${DERIVE_ARGV[0]}" in
+    progress-line)
+      [ "${#DERIVE_ARGV[@]}" -eq 3 ] || { echo "war-room.sh: --derive progress-line requires HOLDER and ROOT" >&2; exit 2; }
+      progress_line_html "${DERIVE_ARGV[1]}" "${DERIVE_ARGV[2]}"
+      ;;
+    last-log-line)
+      [ "${#DERIVE_ARGV[@]}" -eq 2 ] || { echo "war-room.sh: --derive last-log-line requires PATH" >&2; exit 2; }
+      log_last_line_html "${DERIVE_ARGV[1]}"
+      ;;
+    *)
+      echo "war-room.sh: unknown derivation: ${DERIVE_ARGV[0]} ($USAGE)" >&2
+      exit 2
+      ;;
+  esac
+  echo
+  exit 0
+fi
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/war-room.XXXXXX")"
 OUT_TMP=""
@@ -66,16 +215,6 @@ OUT_TMP="${OUT}.tmp.$$"
 
 FAIL_COUNT=0
 US=$'\x1f'
-
-# The single escape helper. EVERY piece of derived text (log lines, PR titles,
-# report bodies, ready-front output, error text) passes through here before it
-# is inserted into HTML: none of it is trusted markup. Order matters: & first,
-# then < then > then the double quote, so entities are not double-escaped.
-html_escape() {
-  sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
-}
-
-esc() { printf '%s' "$1" | html_escape; }
 
 emit() { printf '%s\n' "$1" >> "$OUT_TMP"; }
 
@@ -143,7 +282,11 @@ pre { background:var(--prebg); border:1px solid var(--line); padding:6px 8px;
           padding:4px 8px; margin:4px 0; }
 pre.err { border-color:var(--fail); }
 .inflight { background:var(--hotbg); color:var(--hot); border:1px solid var(--hot);
-            font-weight:700; padding:6px 8px; margin:0 0 8px; white-space:pre-wrap; }
+            font-weight:700; padding:6px 8px; margin:0; white-space:pre-wrap; }
+.progress { background:var(--hotbg); color:var(--hot); border:1px solid var(--hot);
+            border-top:0; padding:4px 8px; margin:0 0 8px; white-space:pre-wrap;
+            word-break:break-word;
+            font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
 .subhead { color:var(--muted); font-size:11px; margin:6px 0 2px; }
 .report { margin:0 0 10px; }
 </style>
@@ -184,6 +327,7 @@ if [ -e "$LOCK_HOLDER" ]; then
   lock_holder_text="$(cat "$LOCK_HOLDER" 2>&1)"
   set -e
   emit "<div class=\"inflight\">RUN IN FLIGHT: $(esc "$lock_holder_text")</div>"
+  emit "<div class=\"progress\">$(progress_line_html "$LOCK_HOLDER" "$TRANSCRIPTS")</div>"
 fi
 if [ ! -d "$LOGS_DIR" ]; then
   emit_failed "logs directory missing: $LOGS_DIR" ""
@@ -209,8 +353,7 @@ else
     while IFS='|' read -r r_mtime r_size r_path; do
       [ -n "$r_path" ] || continue
       r_when="$(date -u -r "$r_mtime" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '?')"
-      r_last="$(awk 'NF { l = $0 } END { print l }' "$r_path" 2>&1 | cut -c1-160)" || r_last="(unreadable)"
-      emit "<tr><td>$(esc "$(basename "$r_path")")</td><td>$(esc "$r_when")</td><td>$(esc "$r_size")</td><td class=\"mono\">$(esc "$r_last")</td></tr>"
+      emit "<tr><td>$(esc "$(basename "$r_path")")</td><td>$(esc "$r_when")</td><td>$(esc "$r_size")</td><td class=\"mono\">$(log_last_line_html "$r_path")</td></tr>"
     done < "$TMP/runs.top"
     emit '</table>'
     if [ "$runs_total" -gt 15 ]; then
