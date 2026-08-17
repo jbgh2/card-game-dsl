@@ -1123,7 +1123,13 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # guarantee it never was. (The unreachable namespaces are `rule`, `game`,
 # `library`, `component_set`, `board_family`, `zone_type` and `zone_type_arg`,
 # each because its clause — `active_rules:`, `zones { }`, `cards:`, `board:`,
-# `uses` — is a GAME clause the library grammar has no production for.)
+# `uses` — is a GAME clause the library grammar has no production for. One
+# SLOT of a swept namespace is unreachable the same way and is recorded here
+# rather than as a row, since its namespace is swept and a row would read as
+# "not swept": `deck_suit` is swept for the card literal's suit, which a
+# library can write, and vacuous for `(n.Game, "trump")` — `trump:` is a game
+# clause with no library production, so no library ever names a suit there;
+# the value's Owner Guard is `_resolve_trump`, over the game.)
 #
 # Three shapes of reason, and they are not interchangeable. CLOSED: the
 # namespace is the same for a library as for a game, so no importing game can

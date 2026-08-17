@@ -92,22 +92,24 @@ sampled:    the round clause's type axis (`_TRUMP_SPELLINGS`) is a spelling
             lookup site's channel.
 residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             five_hundred43 -- a singleton pseudo-suit as the trump class.
-            Accepted: it IS a suit of the deck, the same domain the `Suit`
-            type and the `Suit?` move-parameter domain range over, and the
-            winner reads it faithfully. Whether a pseudo-suit may be a trump
-            is a design decision with no witness (the framing check's C6);
-            the grid captures the current behaviour (accept), the guard is
-            the deck-membership check itself, and the record is the change's
-            report, which puts the ruling to the operator (an issue follows
-            the ruling if it is "refuse") -- R3, a designer meets it only by
-            naming a pseudo-suit on purpose. (2) A Primitive winner named
-            in a game whose deck its OWN order table cannot rank
-            (`belote_trick_winner`'s `_TRUMP_HEIGHT[...]` on a non-skat32
-            trump, `tarot_trick_winner`'s `int(rank)` on a non-numeral led
-            card) dies on a bare KeyError/ValueError -- a game-LOCAL order
-            table, not the declared ranking, so outside this class; both
-            retire with their Primitives under issue #250 (PRs 4-5), which
-            is the record.
+            ACCEPTED, as DESIGNED surface, not as a deferral: a pseudo-suit
+            is a suit by the deck's own declaration (`deck_suits`, the same
+            domain the `Suit` type and the `Suit?` move-parameter domain
+            range over), so a singleton trump class is the designer's to
+            write -- 500's joker-beats-all at no-trumps is the shape a
+            designer might reach for before issue #250's construct lands --
+            and the checker does not second-guess a suit name the deck
+            declares. The winner reads it faithfully. Not work: this ledger
+            OWNS the record (no issue), and the accept cells of
+            `test_game_trump_value` over every deck's `deck_suits` are its
+            executed pin.
+            (2) A Primitive winner named in a game whose deck its OWN
+            order table cannot rank (`belote_trick_winner`'s
+            `_TRUMP_HEIGHT[...]` on a non-skat32 trump,
+            `tarot_trick_winner`'s `int(rank)` on a non-numeral led card)
+            dies on a bare KeyError/ValueError -- a game-LOCAL order table,
+            not the declared ranking, so outside this class. Guard: the
+            crash is loud (never silent-wrong); record: issue #364.
             (3) A static guard for the rank-to-order class was weighed and
             not built: refusing a partial `ranking:` breaks a pinned
             feature (test_ranking_guard.py, Canasta), and refusing
@@ -117,6 +119,20 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             reach the read -- so the runtime Owner Guard is the honest
             layer; the strict xfail that recorded the gap in
             tests/test_ranking_guard.py is retired in the same change.
+            (4) `trump: 5` / `trump: "spades"` die in the grammar's channel
+            as a bare "No terminal matches" (the clause is `trump: NAME`;
+            an INT/String token is refused before resolve) -- loud, wrong
+            voice; and the `.lark` comment on the production still says
+            "(or rank-set)". Both are `.lark` edits, Merge Lane A; record:
+            issue #250, whose PR 1 is the grammar change under Hoyle's
+            counsel. The grid's rank cell uses a NAME-shaped rank for
+            exactly this reason.
+            (5) The library leak-sweep's `deck_suit` namespace is vacuous
+            for the `(n.Game, "trump")` slot: `trump:` is a game clause
+            with no library production. Recorded as a decision in
+            resolve.py's `_LIBRARY_UNSWEPT` header comment (a swept
+            namespace cannot carry an "unswept" row); the value's Owner
+            Guard is `_resolve_trump`, over the game.
 
 Framing check: RAN (a fresh-context subagent given the definition sources
 only -- grammar, AST, registries, runtime bodies -- with no plan or diff).
