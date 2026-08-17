@@ -6,9 +6,18 @@ not pull. The permission charter (.claude/settings.json) governs every
 command: a denied command is charter feedback — record it in the report
 and work the rest of the round; never improvise around a denial — a
 "denied command by another route" is a charter violation even when the
-route is itself allowed. Rules match literal text: spell `gh api` calls
-method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`) — the
-charter admits the `-X`-first spelling only. The
+route is itself allowed. Rules match literal text, so spell every
+command as the charter admits it, one liturgy per call: `gh api`
+method-first (`gh api -X GET|POST|PATCH|DELETE repos/...`); `git`
+verb-first from inside the directory it acts on — `cd` into the
+worktree in its own call, then bare `git diff` / `git log`; never
+`git -C <path>`; never a compound preflight (`a; b; c`) — a compound
+is refused whole if any part is unlisted. Issue and PR bodies go
+through `--body-file <path>` written first with the Write tool: an
+inline body containing a newline followed by `#` is refused, which
+would ban every `##` heading. Rebase is not available to a fleet round
+(force-push is denied by design): a Lease branch behind main takes a
+merge of `origin/main`, never a rebase. The
 operator is not watching: proceed through the whole round without
 waiting for input; park anything that needs a human and continue.
 
@@ -66,7 +75,10 @@ chartered:
   branch); otherwise post the gate's evidence block as a PR comment and
   leave the PR for the operator.
 - Never: Lane A work, editing #143 or doctrine, spending money, working
-  blocked issues, merging past the gate.
+  blocked issues, merging past the gate — and never a write to the
+  fleet's own executables, charter, or CI (`tools/**`, `.claude/**`,
+  `.github/**`): those writes are denied by design, so an item whose
+  fix lives there is parked for an attended session, not attempted.
 - Produce the full report: taken, produced (PR numbers), merged (with
   gate evidence), parked (with questions), bounced, skipped (with
   reasons), and every DENIED command — count everything.
