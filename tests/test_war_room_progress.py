@@ -142,12 +142,20 @@ def _derive(*args: str) -> _Run:
 
 # ------------------------------------------------------------ the reason registry
 
-_REASON_CALL = re.compile(r'not_derivable "([^"$]+)"')
+# A CALL to `not_derivable` with a literal first argument: not a comment
+# mentioning one, and not some other helper whose name merely ends the same
+# way. A scrape wider than the class it names is this repo's own recurring
+# defect, so the precision below is an executed claim, not an assumption.
+_REASON_CALL = re.compile(r'(?m)^(?!\s*#).*(?<![\w-])not_derivable "([^"$]+)"')
+
+
+def _reasons_in(text: str) -> frozenset[str]:
+    return frozenset(_REASON_CALL.findall(text))
 
 
 def _reasons_the_script_can_emit() -> frozenset[str]:
     """The reason vocabulary, read off the script rather than restated here."""
-    return frozenset(_REASON_CALL.findall(_SCRIPT.read_text()))
+    return _reasons_in(_SCRIPT.read_text())
 
 
 # ------------------------------------------------------------- transcript records
@@ -355,6 +363,18 @@ def test_every_reason_the_script_can_emit_has_a_cell() -> None:
     assert in_grid == in_script
 
 
+def test_the_reason_scrape_sees_calls_and_only_calls() -> None:
+    """It must find a real call in every shape the script writes one, and must
+    not find a mention. A vocabulary pin reading its own comments would agree
+    with itself forever."""
+    assert _reasons_in(
+        '  not_derivable "at the start of a line"\n'
+        '  [ -r "$x" ] || { not_derivable "after a brace" "$x"; return 0; }\n'
+        '# not_derivable "a comment, not a call"\n'
+        '  x_not_derivable "another helper entirely"\n'
+    ) == frozenset({"at the start of a line", "after a brace"})
+
+
 # ------------------------------------------------ the Runs table's last-line render
 
 _LOG_GRID: tuple[tuple[str, str, str], ...] = (
@@ -418,11 +438,18 @@ def test_the_page_still_inserts_what_it_derives(site: str, opener: str, helper: 
 
 
 def test_the_insertion_pin_reddens_when_the_call_is_dropped() -> None:
-    """Run the plant, do not merely state it: drop each call, watch the pin fail."""
+    """Run the plant, do not merely state it: drop each call, watch the pin fail.
+
+    The absence must be an absence the pin could have seen -- so the mutated
+    block is asserted to still BE the block, or a scrape that silently found
+    nothing would read as a passing reddening proof."""
     text = _SCRIPT.read_text()
     for site, opener, helper in _INSERTIONS:
         mutated = "\n".join(line for line in text.splitlines() if helper not in line)
-        assert helper not in _block(mutated, opener), f"the {site} pin cannot see its own loss"
+        block = _block(mutated, opener)
+        assert opener in block, f"the {site} mutation lost the block itself"
+        assert len(block.splitlines()) > 1, f"the {site} block collapsed to its opener"
+        assert helper not in block, f"the {site} pin cannot see its own loss"
 
 
 # ------------------------------------------------------------------ misuse probes
@@ -440,3 +467,26 @@ def test_a_derivation_missing_its_arguments_is_refused() -> None:
     run = _derive("progress-line")
     assert run.returncode == 2
     assert "progress-line" in run.err
+
+
+def test_a_derivation_carrying_extra_arguments_is_refused() -> None:
+    """Arity is exact. A trailing flag must not be swallowed by the seam."""
+    run = _derive("last-log-line", "/nonexistent/log", "-o", "/nonexistent/page.html")
+    assert run.returncode == 2
+    assert "last-log-line" in run.err
+
+
+def test_an_output_path_alongside_a_derivation_is_refused() -> None:
+    """`-o` before `--derive` parses, then means nothing -- so it is refused.
+
+    Accepted-but-ignored is the class the seam exists to prove against; the
+    seam does not get to carry it."""
+    proc = subprocess.run(
+        [str(_SCRIPT), "-o", "/nonexistent/page.html", "--derive", "progress-line", "/h", "/r"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(_REPO),
+    )
+    assert proc.returncode == 2
+    assert "-o" in proc.stderr

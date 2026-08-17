@@ -51,6 +51,7 @@ READY_FRONT="$SCRIPT_DIR/../ready-front.sh"
 
 USAGE="usage: war-room.sh [-o PATH] | war-room.sh --derive <progress-line HOLDER ROOT | last-log-line PATH>"
 OUT="$FLEET_CLONE/war-room/index.html"
+OUT_GIVEN=0
 DERIVE=0
 DERIVE_ARGV=()
 while [ $# -gt 0 ]; do
@@ -58,6 +59,7 @@ while [ $# -gt 0 ]; do
     -o)
       [ $# -ge 2 ] || { echo "war-room.sh: -o requires a path" >&2; exit 2; }
       OUT="$2"
+      OUT_GIVEN=1
       shift 2
       ;;
     --derive)
@@ -181,6 +183,10 @@ progress_line_html() { progress_line "$1" "$2" | html_escape; }
 log_last_line_html() { log_last_line "$1" | html_escape; }
 
 if [ "$DERIVE" -eq 1 ]; then
+  # --derive prints one string and writes no page, so an -o alongside it would
+  # be accepted and ignored. Refuse instead: the seam that exists to prove
+  # totality does not get to carry the defect class it proves against.
+  [ "$OUT_GIVEN" -eq 0 ] || { echo "war-room.sh: --derive writes no page, so -o has no meaning with it" >&2; exit 2; }
   case "${DERIVE_ARGV[0]}" in
     progress-line)
       [ "${#DERIVE_ARGV[@]}" -eq 3 ] || { echo "war-room.sh: --derive progress-line requires HOLDER and ROOT" >&2; exit 2; }
