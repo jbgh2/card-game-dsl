@@ -118,10 +118,10 @@ from collections.abc import Callable
 import pytest
 
 from cardlang.builtins.functions import (
+    ANY_FLAVOR_CALL_FUNCS,
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
-    ANY_FLAVOR_CALL_FUNCS,
 )
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import CARD_AXIS_ROLES, PARAM_DOMAIN_ORDER, role_of
@@ -146,14 +146,21 @@ CARD_KIND = content_kind_clause("card", "standard52")
 # game) default empty; `filt` defaults to a valid same-axis compare.
 
 
-def card_game(*, clause: str = "", filt: str = "card.suit is hearts", body: str = "", top: str = "") -> str:
+def card_game(
+    *,
+    clause: str = "",
+    filt: str = "card.suit is hearts",
+    body: str = "",
+    top: str = "",
+    zones: str = "",
+) -> str:
     return (
         "game G {\n"
         "  players: 2\n"
         "  cards: standard52\n"
         "  max_length: 60\n"
         f"{clause}"
-        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        f"  zones {{ deck : Deck  hand[player] : Hand<player>{zones} }}\n"
         "  state { score[player] : Integer = 0  n : Integer = 0 }\n"
         "  phase play {\n"
         f"    move all cards from deck where {filt} to hand[0]\n"
@@ -376,7 +383,20 @@ def test_trump_rejected_in_piece_game() -> None:
 
 
 def test_trump_accepted_in_card_game() -> None:
-    _accept(card_game(clause="  trump: hearts\n"))
+    # Legal in its flavor -- and READ: a game-level `trump:` no trick round
+    # inherits is refused as dead (resolve `_resolve_trump`,
+    # tests/test_trump_slot_class.py), so the card cell carries the round
+    # that consumes it; the flavor guard is what this cell is about.
+    _accept(
+        card_game(
+            clause="  ranking: aces high\n  trump: hearts\n",
+            zones="  pile : TrickPile",
+            body=(
+                "    round play_to_trick from 0 over all players source hand "
+                "into pile winner highest_trump_or_led_suit\n"
+            ),
+        )
+    )
 
 
 # --- quantifier / for-each roles -------------------------------------------

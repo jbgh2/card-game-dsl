@@ -22,6 +22,8 @@ from __future__ import annotations
 # runtime):
 #
 # - a *trick* winner function : (played, led_suit, trump, rank_index) -> Player
+#   (a uniform contract; which members READ `trump` is `TRUMP_READING_WINNERS`
+#   below, and which read `rank_index` is typecheck's `RANKING_GATED_WINNERS`)
 # - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
 #   phase's typed outcome.
 #
@@ -48,6 +50,21 @@ PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
 )
 # The winner slot's namespace: what a `round … winner <name>` may name.
 TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
+# The winners whose BODY reads the `trump` argument of the winner contract
+# above. The other half accepts the argument and ignores it (a no-trump
+# winner, and Tarot's, whose atouts are its own suit), so a `trump` clause
+# on one of those -- the round's own, or the game-level `trump:` it would
+# inherit -- would be accepted and silently dropped: resolve refuses both
+# shapes against this set (the winner-slot arm of `_validate_refs`, and
+# `_resolve_trump`'s dead-clause guard). Classification by body, not name:
+# tests/test_trump_slot_class.py executes every registered winner on one
+# pile with and without a trump and reconciles this set against the answer,
+# so a winner filed on the wrong side fails there. A new winner not listed
+# here is treated as trump-blind -- its trump clause is REFUSED, loudly,
+# rather than admitted on trust.
+TRUMP_READING_WINNERS: frozenset[str] = frozenset(
+    {"highest_trump_or_led_suit", "belote_trick_winner"}
+)
 PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass

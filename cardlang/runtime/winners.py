@@ -18,12 +18,14 @@ Illegal after: nothing — pure functions, no state.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, Player, rank_strength
 
 # An outcome function picks the trick winner from the plays, the led suit,
 # the trump suit (None when no trump), and the game's rank-strength map.
-RankIndex = dict[str, int]
+RankIndex = Mapping[str, int]
 
 
 def recorded_plays(
@@ -54,15 +56,31 @@ def recorded_plays(
     return played
 
 
+def _strongest(
+    candidates: list[tuple[Player, Card]], rank_index: RankIndex, reader: str
+) -> Player:
+    """The first-played candidate of greatest declared strength (`max` keeps
+    the first maximal element, so equals resolve to the earlier play).
+    Strength reads go through `rank_strength`, the runtime Owner Guard for a
+    rank outside a partial `ranking:` — naming `reader`, the DSL-visible
+    winner, so the message says which read failed."""
+    return max(
+        candidates, key=lambda pc: rank_strength(rank_index, pc[1].rank, reader)
+    )[0]
+
+
 def highest_of_led_suit(
     played: list[tuple[Player, Card]],
     led_suit: str,
     trump: str | None,
     rank_index: RankIndex,
 ) -> Player:
-    """The player who played the highest-ranked card of the led suit."""
+    """The player who played the highest-ranked card of the led suit. Reads no
+    trump: the argument is the winner contract's, accepted and unused — which
+    is why resolve refuses a `trump` clause on this winner
+    (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py)."""
     of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
-    return max(of_suit, key=lambda pc: rank_index[pc[1].rank])[0]
+    return _strongest(of_suit, rank_index, "highest_of_led_suit")
 
 
 def highest_trump_or_led_suit(
@@ -75,5 +93,6 @@ def highest_trump_or_led_suit(
     led suit (the standard trick winner for a trump game)."""
     trumps = [(p, c) for (p, c) in played if c.suit == trump]
     if trumps:
-        return max(trumps, key=lambda pc: rank_index[pc[1].rank])[0]
-    return highest_of_led_suit(played, led_suit, trump, rank_index)
+        return _strongest(trumps, rank_index, "highest_trump_or_led_suit")
+    of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
+    return _strongest(of_suit, rank_index, "highest_trump_or_led_suit")

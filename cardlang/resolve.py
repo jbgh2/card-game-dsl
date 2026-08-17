@@ -49,7 +49,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer.
+              rather than in the type layer. And a named trump nobody
+              reads: a game-level ``trump:`` that is not a suit of the deck
+              or that no trick round inherits, and a round ``trump`` clause
+              on a winner whose body reads no trump
+              (``_resolve_trump``, the winner-slot arm of
+              ``_validate_refs``; the partition is
+              ``TRUMP_READING_WINNERS``). The round clause's TYPE (``Suit?``)
+              is typecheck's (``_check_round_trump``); its presence against
+              its winner is settled here, with the winner namespace.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -75,6 +83,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
     TRICK_WINNER_NAMES,
+    TRUMP_READING_WINNERS,
     VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
@@ -602,6 +611,88 @@ def slot_strings(node: object, field_name: str) -> tuple[str, ...]:
     return ()
 
 
+# The DEFINITION containers: a statement body reached by NAME, never by
+# containment. Every other statement holder (`if`, `repeat until`, `turns`,
+# `as`, a `produces:` arm, the loop hooks) sits inside a phase body, so
+# walking the phases reaches it; these three are top-level lists on `n.Game`
+# and their bodies run only where something names them.
+#
+# The value is (the `n.Game` field holding them, the reference namespace that
+# names one). Authored, and pinned complete against the AST-derived container
+# set by `tests/test_trump_slot_class.py::test_every_name_reached_container_
+# is_classified` — a new statement-holding definition form fails there rather
+# than silently defaulting to "always reachable", which is the shape of the
+# defect this table exists to end.
+_DEFINITION_CONTAINERS: dict[type, tuple[str, str]] = {
+    n.DefineDef: ("defines", "define"),
+    n.MoveTypeDef: ("move_types", "move_type"),
+    n.ProcedureDef: ("procedures", "procedure"),
+}
+
+# Runtime refusal (decisions.md "Closed-domain completeness"): each namespace
+# above must be one the reference registry actually issues, or the lookup below
+# silently matches nothing and every container reads as unreachable.
+_UNKNOWN_CONTAINER_NAMESPACES = {
+    ns for _, ns in _DEFINITION_CONTAINERS.values()
+} - set(_REFERENCE_SLOTS.values())
+if _UNKNOWN_CONTAINER_NAMESPACES:
+    raise AssertionError(
+        f"_DEFINITION_CONTAINERS names namespaces no reference slot issues: "
+        f"{sorted(_UNKNOWN_CONTAINER_NAMESPACES)}"
+    )
+
+
+def _reachable_definitions(game: n.Game) -> dict[tuple[str, str], object]:
+    """Every definition container reachable from a phase body, keyed by
+    (namespace, name).
+
+    A fixpoint, not one pass: a define invoked from a reachable move-type
+    effect is reachable, and so is a move type offered from inside a reachable
+    define body. Which slots NAME a container is read off `slot_namespace`
+    rather than matched by node kind, so a future invoking construct added to
+    `_REFERENCE_SLOTS` reaches this sweep without editing it.
+
+    NOT a Shadow of `_reaches`: that walks the function-to-function call graph
+    for recursion detection (name to name, one namespace). This walks name to
+    CONTAINER across three namespaces, and answers a different question — does
+    this body run at all. It also does not close issue #242, which is about
+    what STATE a callable body may read; this establishes only which bodies
+    run, which #242's conservative rule would need but is not."""
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)}
+        for field, ns in _DEFINITION_CONTAINERS.values()
+    }
+    reached: dict[tuple[str, str], object] = {}
+    frontier: list[object] = list(game.phases)
+    while frontier:
+        for node in _walk(frontier.pop()):
+            for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+                namespace = slot_namespace(node, field_name)
+                if namespace is None:
+                    continue
+                pool = pools.get(namespace)
+                if pool is None:
+                    continue
+                for name in slot_strings(node, field_name):
+                    key = (namespace, name)
+                    target = pool.get(name)
+                    if target is None or key in reached:
+                        continue
+                    reached[key] = target
+                    frontier.append(target)
+    return reached
+
+
+def _reachable_nodes(game: n.Game) -> Iterator[object]:
+    """Every AST node the game can actually reach: the phase bodies, plus the
+    definition bodies something reachable names. The counterpart of `_walk` for
+    a guard whose question is "does this RUN", not "is this written"."""
+    for phase in game.phases:
+        yield from _walk(phase)
+    for container in _reachable_definitions(game).values():
+        yield from _walk(container)
+
+
 @dataclass(frozen=True)
 class _StateClaims:
     """The outcome of resolving who claims which state name across a game and
@@ -1114,7 +1205,13 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
 # guarantee it never was. (The unreachable namespaces are `rule`, `game`,
 # `library`, `component_set`, `board_family`, `zone_type` and `zone_type_arg`,
 # each because its clause — `active_rules:`, `zones { }`, `cards:`, `board:`,
-# `uses` — is a GAME clause the library grammar has no production for.)
+# `uses` — is a GAME clause the library grammar has no production for. One
+# SLOT of a swept namespace is unreachable the same way and is recorded here
+# rather than as a row, since its namespace is swept and a row would read as
+# "not swept": `deck_suit` is swept for the card literal's suit, which a
+# library can write, and vacuous for `(n.Game, "trump")` — `trump:` is a game
+# clause with no library production, so no library ever names a suit there;
+# the value's Owner Guard is `_resolve_trump`, over the game.)
 #
 # Three shapes of reason, and they are not interchangeable. CLOSED: the
 # namespace is the same for a library as for a game, so no importing game can
@@ -1875,6 +1972,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _resolve_card_points(game, bag)
+    _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
@@ -2500,6 +2598,10 @@ _GAME_LEVEL_OWNED_BY_ANOTHER_GUARD = frozenset(
 # lexical scope. 112 callable bodies across 15 corpus games legitimately read
 # phase-scoped state, so no conservative rule is available and this is a
 # recorded residual, not a guarantee (issue #242).
+#
+# `_reachable_definitions` answers WHICH of these bodies run, which is the
+# half of #242 a conservative rule would need — but not #242 itself, which
+# asks which phase's state a body that runs may read. The gap stands.
 #
 # `types` is deliberately NOT here. A `derived { }` body has the same shape —
 # evaluated lazily at member access, so it too has no single lexical phase —
@@ -3992,11 +4094,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     `tests/test_action_space_multiparam.py`'s subset-ranking regression
     (`test_rank_domain_sourced_from_game_ranking_not_deck`) pins a partial
     `ranking:` as a deliberate, supported feature — it narrows the `Rank`
-    move-parameter domain to fewer than the deck's ranks. A card whose rank
-    falls outside a partial ranking still crashes `rank_value`'s
-    `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
-    accepted residual, guarded only by that runtime KeyError, not by this
-    check; the ledger is tests/test_ranking_guard.py."""
+    move-parameter domain to fewer than the deck's ranks. Which cards reach
+    a rank-strength read is a fact of zone contents, decidable only at play
+    time, so a card whose rank falls outside a partial ranking is the
+    RUNTIME's Owner Guard (`runtime/values.py`, `rank_strength`, the one
+    lookup every `rank_index` consumer routes through), never this
+    check's; the ledgers are tests/test_ranking_guard.py and
+    tests/test_trump_slot_class.py."""
     if game.ranking_convention is not None:
         # Convention arm: `_expand_ranking` built the tuple from the deck's
         # own ranks filtered through a registry template — unique and
@@ -4078,6 +4182,136 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
+
+
+def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
+    """`trump: NAME` names a suit of the declared deck, and some trick round
+    reads it — the two Owner Guards of the game-level trump slot.
+
+    Membership: the slot is grammatically a bare NAME (`trump: bogus`, a
+    rank, a suit of some other deck all parse), and the runtime compares the
+    string against card suits — an unknown value matched nothing and the game
+    silently played no-trumps (Surface totality: accepted-with-different-
+    semantics). Same two-source rule as `_resolve_ranking` and the card
+    literal's suit: the value derives from the deck (`suit_names`), so a
+    deck's pseudo-suits (tarot78's `excuse`, five_hundred43's `joker`) are
+    members — they are the deck's suits, the same domain `Suit` types over.
+    `none` is a NAME too, and used to parse as the STRING "none": refused
+    with the omission that means no trump, rather than accepted for the
+    coincidence that no suit is spelled "none".
+
+    Consumption: `game.trump` reaches the runtime as the trick form's default
+    trump — the trump of a round that names a trump-reading winner and
+    supplies no `trump` clause of its own (`runtime/mechanics.py`,
+    `TrickForm`). That round is not its only reader: the form also publishes
+    the value as `state["trump"]` (mechanics.py), which the game-local
+    Primitives `belote_opp_winning` and `belote_royal_player` read back. Both
+    of those sit BEHIND a trick round, so a clause some round inherits is
+    live for them too — but a blind-winner game whose only reader is such a
+    Primitive would be refused here, which is over-reach in the safe
+    direction and recorded as a residual in the grid's ledger (issue #250,
+    retiring when PR 4 migrates Belote).
+
+    A `trump:` no round reads — the game runs no trick round; every round's
+    winner ignores its trump (`TRUMP_READING_WINNERS`' complement); every
+    reading round overrides with its own clause — is accepted-but-ignored,
+    the class this repo ranks worst, and is refused naming what would read
+    it. French Tarot's `trump: atouts` beside `winner tarot_trick_winner`
+    was the corpus instance.
+
+    Consumption counts the rounds the game RUNS, not the rounds its text
+    holds: a `round` is a `statement`, and the three definition forms hold
+    `statement*`, so a reading round inside a `define` no `produces:` names
+    (or a `move_type` no `offer` names) made a provably inert clause look
+    consumed. `_reachable_nodes` is the Owner of that question. Its sibling
+    guards need no such filter and are not shadowing one: the membership
+    check above is over `game.trump`, a game clause sitting in no container
+    at all, and the round-clause guards (`_validate_refs`' winner-slot arm,
+    typecheck's `_check_round_trump`) validate a clause WHERE IT IS WRITTEN —
+    a dead container's clause is checked too, which over-reports in the safe
+    direction and can never miss.
+
+    A round whose winner is not a trick winner at
+    all is `_validate_refs`'s diagnostic; the dead-clause question is not
+    asked over a game with one, so it never reports on top of that error.
+    A piece game's `trump:` is `_reject_card_content_clauses`'s, and an
+    unknown deck is `_resolve_component_set`'s (the value has no domain to
+    check against, so this returns, as `_resolve_ranking` does)."""
+    if game.trump is None or game.content_flavor != "card" or not _deck_known(game.deck):
+        return
+    if game.trump == "none":
+        bag.error(
+            "trump: none — no trump is the ABSENT clause: drop `trump: none` "
+            "(a round that turns a trump per hand writes `trump <expr>` on the "
+            "round, where `none` means no trump)",
+            game.span,
+        )
+        return
+    known = suit_names(game.deck)
+    if game.trump not in known:
+        bag.error(
+            f"trump: names unknown suit '{game.trump}' — not a suit of deck "
+            f"'{game.deck}' (known suits: {', '.join(sorted(known))})",
+            game.span,
+        )
+        return
+    rounds = [nd for nd in _reachable_nodes(game) if isinstance(nd, n.TrickRound)]
+    if any(r.winner_fn not in TRICK_WINNER_NAMES for r in rounds):
+        return
+    if any(r.trump is None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
+        return
+    readers = ", ".join(sorted(TRUMP_READING_WINNERS))
+    # A round that WOULD have inherited the clause but sits in a body nothing
+    # invokes: without this the author is told "the game runs no trick round"
+    # while looking straight at one, which is a misleading message rather than
+    # merely a missing one.
+    reached = _reachable_definitions(game)
+    stranded = sorted(
+        {
+            namespace
+            for cls, (field, namespace) in _DEFINITION_CONTAINERS.items()
+            for d in getattr(game, field)
+            if (namespace, d.name) not in reached
+            and any(
+                isinstance(x, n.TrickRound)
+                and x.trump is None
+                and x.winner_fn in TRUMP_READING_WINNERS
+                for x in _walk(d)
+            )
+        }
+    )
+    parts: list[str] = []
+    if rounds:
+        blind = sorted({r.winner_fn for r in rounds if r.winner_fn not in TRUMP_READING_WINNERS})
+        if blind:
+            parts.append(
+                f"a trick round names a winner that reads no trump ({', '.join(blind)})"
+            )
+        if any(r.trump is not None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
+            parts.append(
+                "every trick round whose winner reads a trump supplies its "
+                "own `trump` clause"
+            )
+    elif not stranded:
+        parts.append(
+            "the game runs no trick round (a hand-rolled trick passes its "
+            "trump to `highest_trump_or_led_suit(pile, trump)` itself)"
+        )
+    if stranded:
+        parts.append(
+            f"a trick round that would read it sits in a definition nothing "
+            f"reaches ({', '.join(stranded)}) — a `define` body runs only where "
+            f"a `produces:` names it, a `move_type` effect only where an "
+            f"`offer` names it"
+        )
+    why = "; ".join(parts)
+    bag.error(
+        f"trump: {game.trump} is read by no trick round — {why}. The game-level "
+        f"`trump:` is the default trump of a `round … winner` whose winner "
+        f"reads a trump ({readers}) and that writes no `trump` clause of its "
+        f"own; drop the clause, or route it to such a round",
+        game.span,
+    )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
@@ -5574,6 +5808,21 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
+                        nd.span,
+                    )
+                elif nd.trump is not None and nd.winner_fn not in TRUMP_READING_WINNERS:
+                    # The winner contract carries a `trump` argument for every
+                    # member, but only TRUMP_READING_WINNERS' bodies read it:
+                    # on the others the round's `trump` clause was evaluated,
+                    # traced, passed, and dropped — accepted-but-ignored
+                    # (decisions.md "Surface totality"). Same arm as the
+                    # `play_to_trick` guard below: a round-configuration
+                    # clause its own slot cannot use.
+                    readers = ", ".join(sorted(TRUMP_READING_WINNERS))
+                    bag.error(
+                        f"round `trump` clause on winner {nd.winner_fn}, which "
+                        f"reads no trump — the clause would be silently ignored; "
+                        f"drop it, or name a winner that reads a trump ({readers})",
                         nd.span,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:
