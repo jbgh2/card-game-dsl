@@ -24,9 +24,9 @@ def _diags(
         "  players: 4\n  max_length: 50\n  cards: standard52\n"
         f"{ranking}"
         f"  {zones}\n"
-        "  state { done : Integer = 0 }\n"
+        "  state { done : Integer = 0  score[player] : Integer = 0 }\n"
         f"  phase play {{ {offer_or_round} done := 1 }}\n"
-        "  winner: highest done\n}\n"
+        "  winner: highest score\n}\n"
         f"{move_src}\n"
     )
     # `check_source` dispatches on a real path on disk (single arg, reads the

@@ -1497,9 +1497,10 @@ game Host {
   state {
     declared_thing   : Integer = 0
     undeclared_thing : Integer = 0
+    score[player]    : Integer = 0
   }
   phase play { }
-  winner: highest declared_thing
+  winner: highest score
 }
 function undeclared_helper() = 1
 """
@@ -1934,7 +1935,7 @@ game SlotHost {
   }
   positions { column : 1..7 }
   phase play { run game_proc() }
-  winner: highest declared_thing
+  winner: highest keyed
 }
 type GameType = { x : Integer }
 define game_define -> { a | b } { produce a }
@@ -2293,7 +2294,7 @@ game Writer {
   max_length: 100
   zones { deck : Deck }
   state {
-    score    : Integer   = 0
+    score[player] : Integer   = 0
     req_int  : Integer   = 0
     req_dir  : SeatDirection = left
     req_flag : Boolean   = false
@@ -2380,7 +2381,7 @@ game Host {{
   cards: kuhn3
   max_length: 100
   zones {{ deck : Deck }}
-  state {{ score : Integer = 0 }}
+  state {{ score[player] : Integer = 0 }}
   phase outer {{
     phase play {{
 {body}
@@ -2522,7 +2523,7 @@ game Claimer {
   max_length: 100
   zones { deck : Deck }
   state {
-    score : Integer = 0
+    score[player] : Integer = 0
 DECL  }
   phase play { }
   winner: highest score

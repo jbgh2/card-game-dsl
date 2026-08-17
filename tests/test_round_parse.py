@@ -8,14 +8,14 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile  captured[player] : PlayerPile<player> }
-  state { leader : Player? = none  trump_suit : Suit? = none }
+  state { leader : Player? = none  trump_suit : Suit? = none  score[player] : Integer = 0 }
   phase play {
     active_rules: [MustFollowSuit]
     legal_moves: [play_to_trick]
     round play_to_trick from leader over all players source hand into trick_pile winner highest_trump_or_led_suit trump trump_suit
     leader := winner
   }
-  winner: highest leader
+  winner: highest score
 }
 """
 

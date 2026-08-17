@@ -102,13 +102,13 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
-  state { leader : Player? = none }
+  state { leader : Player? = none  score[player] : Integer = 0 }
   phase play {
     leader := 0
     round play_to_trick from leader over all players source hand into trick_pile
           winner bridge_auction_outcome
   }
-  winner: highest leader
+  winner: highest score
 }
 """
 
@@ -119,12 +119,12 @@ game G {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { passes : Integer = 0 }
+  state { passes : Integer = 0  score[player] : Integer = 0 }
   phase bid {
     round offering [pass] from 0 over all players until (passes >= 2)
           outcome highest_trump_or_led_suit
   }
-  winner: highest passes
+  winner: highest score
 }
 move_type pass { effect { passes += 1 } }
 """
@@ -149,12 +149,12 @@ game G {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { passes : Integer = 0 }
+  state { passes : Integer = 0  score[player] : Integer = 0 }
   phase bid {
     round offering [pass] from 0 over all players until 1
           outcome bridge_auction_outcome
   }
-  winner: highest passes
+  winner: highest score
 }
 move_type pass { effect { passes += 1 } }
 """
@@ -228,12 +228,12 @@ game G {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { passes : Integer = 0 }
+  state { passes : Integer = 0  score[player] : Integer = 0 }
   phase bid {
     round offering [never] from 0 over all players until (passes >= 99)
           outcome bridge_auction_outcome
   }
-  winner: highest passes
+  winner: highest score
 }
 move_type never { when: false  effect { passes += 1 } }
 """
@@ -253,9 +253,9 @@ game G {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { picked[player] : Suit? = none }
+  state { picked[player] : Suit? = none  score[player] : Integer = 0 }
   phase play { for each player p: offer to p one of [pick] }
-  winner: highest picked
+  winner: highest score
 }
 move_type pick(strain : Suit?) { effect { picked[actor] := strain } }
 """

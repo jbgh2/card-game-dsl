@@ -2953,18 +2953,23 @@ def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     declaration's properties decide whether the result path works at all, and
     neither was checked:
 
-    * UNINDEXED. `driver` builds the result with `dict(rs.get(target))`, so a
-      scalar target dies with a bare `TypeError: 'int' object is not
-      iterable` (issue #153) -- and in a game with a `repeat until` phase it
-      dies earlier still, at the per-hand trace, so which Python error the
-      author meets depends on whether their game loops.
+    * UNINDEXED. `driver` builds the result with
+      `dict(rs.get(game.winner.state_var))`, so a scalar target dies with a
+      bare `TypeError: 'int' object is not iterable` (issue #153) -- and in a
+      game with a `repeat until` phase it dies earlier still, at the per-hand
+      trace, so which Python error the author meets depends on whether their
+      game loops.
     * UNRANKABLE TYPE. Nothing anywhere read it. The crashing cells are the
       mild ones; the dangerous cells are the silent ones (`_RANKABLE_TYPES`).
 
-    Reported only when the target IS a game-level declaration: the two
-    existing name Owner Guards have already spoken otherwise, and a second
-    diagnostic about a name the author has just been told does not exist
-    would bury the one that matters.
+    Reported only when the target IS a game-level declaration. `game.state`
+    being absent, and the name resolving to nothing or to a phase-local
+    declaration, are all `_check_state_scope`'s to report -- it is the Owner
+    Guard for whether a `winner:` name names a game-level state variable at
+    all. Speaking here too would add a second diagnostic about a name the
+    author has just been told does not exist, burying the one that matters.
+
+    The grid is tests/test_winner_target.py.
     """
     if game.winner is None or game.state is None:
         return

@@ -189,7 +189,7 @@ game MoveVerbs {
     square[cell]    : Cell<cell>
     reserve[player] : PlayerPile<player>
   }
-  state { done : Boolean = false }
+  state { done : Boolean = false  score[player] : Integer = 0 }
   phase setup {
     move all pieces from box where piece.side is x to reserve[0]
     move all pieces from box to reserve[1]
@@ -199,7 +199,7 @@ game MoveVerbs {
       offer to t one of [step, stop]
     }
   }
-  winner: highest done
+  winner: highest score
 }
 move_type step(from : cell, along : dir) {
   when: has_step(from, along, actor) and is_diagonal(along)
@@ -239,13 +239,13 @@ game NoBoard {
   max_length: 30
   pieces: xo_marks
   zones { box : Deck  pile[player] : PlayerPile<player> }
-  state { done : Boolean = false }
+  state { done : Boolean = false  score[player] : Integer = 0 }
   phase play {
     turns t from 0 over all players until done {
       offer to t one of [stop]
     }
   }
-  winner: highest done
+  winner: highest score
 }
 move_type stop { effect { done := true } }
 """
@@ -285,13 +285,13 @@ def _boardless_game(body: str) -> str:
         "    box             : Deck\n"
         "    pile[player]    : PlayerPile<player>\n"
         "  }\n"
-        "  state { n : Integer = 0  done : Boolean = false }\n"
+        "  state { n : Integer = 0  done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase play {\n"
         "    turns t from 0 over all players until done {\n"
         "      offer to t one of [foo, stop]\n"
         "    }\n"
         "  }\n"
-        "  winner: highest n\n"
+        "  winner: highest score\n"
         "}\n"
         "move_type foo {\n"
         "  effect {\n"
@@ -318,7 +318,7 @@ def _board_game(*, guard: str = "square[from] is empty", body: str = "") -> str:
         "    square[cell]    : Cell<cell>\n"
         "    reserve[player] : PlayerPile<player>\n"
         "  }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase setup {\n"
         "    move all pieces from box where piece.side is x to reserve[0]\n"
         "    move all pieces from box to reserve[1]\n"
@@ -328,7 +328,7 @@ def _board_game(*, guard: str = "square[from] is empty", body: str = "") -> str:
         "      offer to t one of [step, stop]\n"
         "    }\n"
         "  }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
         "move_type step(from : cell, along : dir) {\n"
         f"  when: {guard}\n"
@@ -516,7 +516,7 @@ def _grid_game(players_line: str, setup_extra: str = "") -> str:
         "    square[cell]    : Cell<cell>\n"
         "    reserve[player] : PlayerPile<player>\n"
         "  }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase setup {\n"
         "    move all pieces from box where piece.side is x to reserve[0]\n"
         "    move all pieces from box to reserve[1]\n"
@@ -524,7 +524,7 @@ def _grid_game(players_line: str, setup_extra: str = "") -> str:
         "  }\n"
         "  phase play { turns t from 0 over all players until done "
         "{ offer to t one of [stop] } }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
         "move_type stop { effect { done := true } }\n"
     )
@@ -578,14 +578,14 @@ def test_player_free_board_verb_in_a_non_two_player_game_is_accepted(body: str) 
         "  board: grid(8, 8)\n"
         "  pieces: xo_marks\n"
         "  zones { box : Deck  square[cell] : Cell<cell>  reserve[player] : PlayerPile<player> }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase setup {\n"
         "    move all pieces from box where piece.side is x to reserve[0]\n"
         "    move all pieces from box to reserve[1]\n"
         "  }\n"
         "  phase play { turns t from 0 over all players until done "
         "{ offer to t one of [step, stop] } }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
         "move_type step(from : cell, along : dir) {\n"
         f"{body}"

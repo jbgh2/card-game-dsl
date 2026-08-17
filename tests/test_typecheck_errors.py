@@ -444,13 +444,13 @@ def _board_member_probe(move: str) -> str:
         "  board: grid(3, 3)\n"
         "  pieces: xo_marks\n"
         "  zones { box : Deck  square[cell] : Cell<cell>  reserve[player] : PlayerPile<player> }\n"
-        "  state { n : Integer = 0 }\n"
+        "  state { n : Integer = 0  score[player] : Integer = 0 }\n"
         "  phase setup {\n"
         "    move all pieces from box where piece.side is x to reserve[0]\n"
         "    move all pieces from box to reserve[1]\n"
         "  }\n"
         "  phase play { turns t from 0 over all players until (n is 1) { offer to t one of [m] } }\n"
-        "  winner: highest n\n"
+        "  winner: highest score\n"
         "}\n"
         + move
     )

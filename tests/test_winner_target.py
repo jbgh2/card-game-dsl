@@ -6,7 +6,7 @@ nothing about the DECLARATION it lands on, and two of that declaration's
 properties decide whether the whole result path works:
 
   * **indexed or not.** `driver` builds the result with
-    `dict(rs.get(target))`, so a scalar target dies with a bare
+    `dict(rs.get(game.winner.state_var))`, so a scalar target dies with a bare
     `TypeError: 'int' object is not iterable` — a Python error, not a
     diagnostic (issue #153). In a game with a `repeat until` phase it dies
     EARLIER, at the per-hand trace (`driver.py`'s `hand_end`), so which
