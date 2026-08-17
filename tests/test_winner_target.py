@@ -223,8 +223,16 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
 
     The grid's `team` row is accepted, but every one of its games declares
     `teams:`. Drop that clause and the target indexes a role the game has no
-    members for — the silent-answer shape of issue #300. It must be refused
-    at check time by a named wall, never ranked over an empty team map.
+    members for — the silent-answer shape of issue #300, which would rank
+    over an empty team map.
+
+    The wall that answers is the state DECLARATION guard (`_validate_refs`'
+    `n.StateDecl()` team-without-`teams:` arm), NOT this module's guard: the
+    declaration is wrong wherever it is read from, so refusing it at the
+    `winner:` clause would name the wrong clause. Asserting that guard's own
+    wording is what keeps the cell from starting to pass for a different
+    reason — every candidate wall here has the word "team" in its message,
+    so a bare substring check would be vacuous.
     """
     source = game_source("team", "Integer", "0").replace(
         "  teams: [[0, 2], [1, 3]]\n", ""
@@ -232,7 +240,7 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "winner_target.cardlang")
     message = exc.value.diagnostic.message
-    assert "team" in message, message
+    assert "is indexed by 'team' but the game declares no `teams:`" in message, message
 
 
 def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard() -> None:
