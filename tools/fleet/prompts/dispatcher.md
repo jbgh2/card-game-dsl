@@ -24,6 +24,15 @@ waiting for input; park anything that needs a human and continue.
 GUARD: if .claude/skills/role-dispatcher/SKILL.md does not exist here,
 report exactly that and stop; do not improvise a charter.
 
+Sub-agents ARE available to you (the Agent tool works headless in this
+clone — verified by probe): every gate that specifies a fresh sub-agent
+— the surface-totality audit's framing check, the code review's finder
+fan-out — runs it as specified, model opus. The in-context form is the
+weaker one those skills exist to escape, and it is permitted only after
+a spawn has actually been DENIED: record the exact denial, run the gate
+in-context, and say in the PR body and the report that the gate ran
+weaker and why. Believing a spawn would fail is not a denial.
+
 Then invoke the role-dispatcher skill and execute its round exactly as
 chartered:
 
