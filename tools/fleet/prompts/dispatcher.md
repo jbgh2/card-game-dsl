@@ -75,7 +75,10 @@ chartered:
   branch); otherwise post the gate's evidence block as a PR comment and
   leave the PR for the operator.
 - Never: Lane A work, editing #143 or doctrine, spending money, working
-  blocked issues, merging past the gate.
+  blocked issues, merging past the gate — and never a write to the
+  fleet's own executables, charter, or CI (`tools/**`, `.claude/**`,
+  `.github/**`): those writes are denied by design, so an item whose
+  fix lives there is parked for an attended session, not attempted.
 - Produce the full report: taken, produced (PR numbers), merged (with
   gate evidence), parked (with questions), bounced, skipped (with
   reasons), and every DENIED command — count everything.
