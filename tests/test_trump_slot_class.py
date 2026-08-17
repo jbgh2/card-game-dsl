@@ -272,8 +272,10 @@ red under -- executed, each edit reddening exactly its own cells:
 
 from __future__ import annotations
 
+import ast
 import inspect
 import random
+import textwrap
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
 
@@ -325,32 +327,56 @@ def test_the_body_partition_is_a_witness_on_this_pile() -> None:
 
 
 def references_trump_parameter(winner: str) -> bool:
-    """Whether the winner's body mentions its `trump` parameter at all -- a
-    STATIC superset of "reads its trump". A body that never names the
+    """Whether the winner's body READS its `trump` parameter -- a STATIC
+    superset of "its answer depends on trump". Decided on the parsed body
+    (a `Name` load of the parameter), not on the substring, so a comment or
+    a docstring cannot over-include a winner. A body that never loads the
     parameter provably cannot read it, so this cannot miss a reader; it can
-    only over-include one that takes the argument and ignores it."""
+    over-include only a reader whose read is on a path some input never
+    reaches -- which is exactly the case the equality below refuses to let
+    the one-pile witness hide."""
     fn = primitives.value_function(winner)
     assert "trump" in inspect.signature(fn).parameters, f"{winner}: no trump parameter"
-    body = inspect.getsource(fn)
-    body = body[body.index(")") :]  # past the parameter list, so the body alone
-    return "trump" in body
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    (func,) = (node for node in tree.body if isinstance(node, ast.FunctionDef))
+    return any(
+        isinstance(node, ast.Name) and node.id == "trump" and isinstance(node.ctx, ast.Load)
+        for stmt in func.body
+        for node in ast.walk(stmt)
+    )
 
 
 def test_trump_reading_registry_matches_the_bodies() -> None:
     """The registry the guards read is reconciled against the executed
     bodies -- red under moving any winner across the partition.
 
-    Two oracles must agree, because the executed one is narrow: `reads_trump`
-    runs ONE pile, so it can only ever over-classify a winner as blind (a
-    reader whose answer happens not to move on this pile). The static scan is
-    the superset that cannot miss, so the executed readers must be contained
-    in it -- SUBSET, not equality: a winner that takes `trump` and ignores it
-    is legitimately static-only, and demanding equality would tempt a fudge."""
+    Two oracles must AGREE, not merely nest. The executed one is narrow:
+    `reads_trump` runs ONE pile, so it can only ever over-classify a winner
+    as blind (a reader whose read sits on a path this pile never takes).
+    The static scan is the superset that cannot miss. Were the check only
+    `executed <= static`, such a reader would sit in `static` alone, the
+    registry would be blessed without it, and the resolver would then refuse
+    a VALID `trump` clause on that winner as ignored -- the false-refusal
+    twin of the accepted-but-ignored cell this grid closes. So the two sets
+    must be equal, and a divergence is answered by a second witness pile
+    that reaches the read (or, for a winner that provably reads its trump
+    only to ignore it, a per-member disposition recorded here) -- never by
+    weakening this assertion. Red under (executed): make `reads_trump`
+    return False for belote's winner AND drop belote from the registry --
+    the shape a future author produces when the one pile misses a read --
+    so `registry == executed` still holds and belote sits in `static`
+    alone: this fires with `static-only=['belote_trick_winner']`, where the
+    subset form stayed green. (A single-site plant on `_PILE` cannot witness
+    it: it trips the no-trump control or the registry pin first.)"""
     assert F.TRUMP_READING_WINNERS <= F.TRICK_WINNER_NAMES
     executed = {w for w in WINNERS if reads_trump(w)}
     assert F.TRUMP_READING_WINNERS == executed
     static = {w for w in WINNERS if references_trump_parameter(w)}
-    assert executed <= static, sorted(executed - static)
+    assert static == executed, (
+        "the static and executed trump-reader oracles disagree -- extend the "
+        f"executed witness, do not weaken this pin: static-only={sorted(static - executed)} "
+        f"executed-only={sorted(executed - static)}"
+    )
 
 
 # --- fixtures ----------------------------------------------------------------
