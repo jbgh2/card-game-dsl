@@ -51,7 +51,9 @@ property:   (1) a named trump value is a suit of the deck, typed `Suit?`,
             reader — never a bare KeyError.
 domain:     trump-slot: {game clause, round clause, call form, state.trump}
             x TRICK_WINNER_NAMES x expression type x consumption shape
-            (inherit / override / none) x every card deck's suit domain;
+            (inherit / override / none) x every card deck's suit domain
+            x -- for the game clause's consumption arm -- every name-reached
+            statement CONTAINER x {reachable, unreachable};
             rank-to-order: every rank_index consumer x an unranked rank
             reaching its lookup.
 registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
@@ -64,11 +66,25 @@ registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
             #256 census), each crossed with an authored DRIVER (a member
             with no driver fails, `test_every_ranking_reader_has_a_driver`);
             the round clause's type axis is `_TRUMP_SPELLINGS`, authored
-            (see `sampled`).
+            (see `sampled`); containers -- DERIVED from the AST by
+            `_name_reached_containers` (a statement-holding dataclass that
+            appears as a field type on `n.Game`), reconciled against BOTH
+            `_CONTAINER_FIXTURES` and resolve's `_DEFINITION_CONTAINERS` by
+            `test_every_name_reached_container_is_classified`, and each
+            container paired with its reference namespace so a future
+            invoking construct added to `_REFERENCE_SLOTS` reaches the sweep
+            without editing it.
 covered:    `test_game_trump_value` (every deck x every suit of the deck +
             three non-suit shapes), `test_game_trump_consumption`
             (TRICK_WINNER_NAMES x {inherit, override} squared, plus no
-            round), `test_round_trump_clause` (TRICK_WINNER_NAMES x
+            round), `test_dead_clause_counts_reachable_rounds` (every
+            name-reached container x {reachable, unreachable} x {a reading
+            winner, a blind one}) with `test_every_name_reached_container_
+            is_classified` pinning the container axis complete,
+            `test_unreached_reader_message_names_its_container` and
+            `test_a_reachable_definition_keeps_its_trump` (the
+            over-reach complement), `test_round_trump_clause`
+            (TRICK_WINNER_NAMES x
             `_TRUMP_SPELLINGS`), `test_call_form_trump_argument`
             (`_TRUMP_SPELLINGS`), `test_state_trump_is_unpublished`,
             `test_unranked_rank_reaches_the_typed_channel` (every
@@ -110,6 +126,13 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             dies on a bare KeyError/ValueError -- a game-LOCAL order table,
             not the declared ranking, so outside this class. Guard: the
             crash is loud (never silent-wrong); record: issue #364.
+            The same issue holds a sibling this grid reaches through
+            `_drive_belote_opp_winning`: `belote.py`'s `_round_state` guards
+            only `round_state is None`, so under a climb or auction round it
+            finds a round state with no `"trump"` key and yields a bare
+            KeyError rather than its typed voice. Pre-existing, same class
+            (a game-local Primitive called outside its home dies bare), same
+            record: issue #364.
             (3) A static guard for the rank-to-order class was weighed and
             not built: refusing a partial `ranking:` breaks a pinned
             feature (test_ranking_guard.py, Canasta), and refusing
@@ -127,7 +150,42 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             issue #250, whose PR 1 is the grammar change under Hoyle's
             counsel. The grid's rank cell uses a NAME-shaped rank for
             exactly this reason.
-            (5) The library leak-sweep's `deck_suit` namespace is vacuous
+            (5) The consumption guard's reader model is the TRICK FORM's
+            inheritance, but `rs.trump` is not read only there: the form
+            publishes `state["trump"]` (runtime/mechanics.py), which the
+            game-local Primitives `belote_opp_winning` and
+            `belote_royal_player` (runtime/belote.py) read back, and
+            `TRUMP_READING_WINNERS` cannot see them. Both sit BEHIND a trick
+            round, so every corpus shape stays correct; the residual is a
+            game whose ONLY reader is such a Primitive under a blind winner
+            -- a FALSE REFUSAL, over-reach in the safe direction, never a
+            miss. Not corpus-shaped: reaching it needs a never-read
+            `trump_suit` state variable to satisfy Belote's sidecar row.
+            Retires when issue #250 PR 4 migrates Belote; record: issue #250.
+            (6) The reachability filter is the CONSUMPTION guard's alone.
+            Its three siblings need none and are not shadowing one: the
+            membership guard reads `game.trump`, a game clause in no
+            container at all, and the round-clause guards (`_validate_refs`'
+            winner-slot arm, typecheck's `_check_round_trump`) validate a
+            clause WHERE IT IS WRITTEN, so a dead container's clause is
+            checked too -- over-reporting in the safe direction, and unable
+            to miss. Stated because the asymmetry otherwise reads as an
+            oversight someone would "fix". Not work; this ledger owns it.
+            (7) french-tarot's `trick_end` trace payload moves `"atouts"` to
+            `null` with no trace golden. No info-set consequence: the trace
+            channel (runtime/state.py, the tracer callback) is HARNESS-only
+            and distinct from `observe` (the per-observer projection the
+            adapter reads), so nothing a player can see changed. Not work;
+            this ledger owns the record.
+            (8) `belote_trick_winner`'s `reader` keeps a default where its
+            cribbage siblings (`run_score`, `show_score`) were made
+            required: the kernel calls every registered trick winner through
+            one uniform four-argument signature, so the kernel path cannot
+            pass a fifth. What a required parameter buys (drift reddens) is
+            bought instead by pinning the default against the function's own
+            `__name__` (tests/test_belote_primitives.py). Not work; the
+            pin owns the record.
+            (9) The library leak-sweep's `deck_suit` namespace is vacuous
             for the `(n.Game, "trump")` slot: `trump:` is a game clause
             with no library production. Recorded as a decision in
             resolve.py's `_LIBRARY_UNSWEPT` header comment (a swept
@@ -150,6 +208,19 @@ suits)") -- the precedent the game clause now follows; `trump: 5` /
 where `trump: NAME` wants a name -- loud, and its message quality is a
 `.lark` matter, out of this change's lane).
 
+Born red, the reachability cells (authored against the head that had the
+consumption guard but counted rounds by OCCURRENCE): `4 failed, 12 passed
+in 0.36s` -- `test_every_name_reached_container_is_classified` (no
+`_DEFINITION_CONTAINERS` yet), the two unreachable-container reject cells
+(`DefineDef`/`MoveTypeDef` x unreachable x a reading winner), and
+`test_unreached_reader_message_names_its_container`. The blind-winner
+container cells were born GREEN and are pins, not new coverage: an
+unreachable BLIND round would not read the clause even if reached, so the
+refusal is unchanged and only the absence of the container needle is new.
+The four `ProcedureDef` cells were likewise born green against a
+PRE-EXISTING Owner Guard (a procedure may hold no `round` at all, either
+arm); their reddening mutation is deleting that guard, not this change's.
+
 Born red (before the guards existed): `150 failed, 95 passed in 4.22s` --
 the game-clause value rejects, every dead-trump reject, every blind-winner
 round clause, every non-`Suit?` round clause, the registry reconciliation,
@@ -158,6 +229,19 @@ the typed channel); the 95 green were the accept cells and the
 already-gated call-form / `state.trump` / piece cells.
 
 red under -- executed, each edit reddening exactly its own cells:
+  - the consumption guard's `_reachable_nodes(game)` put back to
+    `_walk(game)` (the occurrence count this change replaced): 3 -- the two
+    unreachable-container reject cells and the container-message cell.
+  - `_reachable_definitions`' frontier seeded `[]` instead of
+    `list(game.phases)`, so no container is ever reached: 3 -- the two
+    REACHABLE-container accept cells and
+    `test_a_reachable_definition_keeps_its_trump`. This is the born-green
+    complement's reddening mutation: reverting the filter leaves them green
+    (they are accept cells), so only inverting reachability can prove they
+    are not vacuous.
+  - the `ProcedureDef` row dropped from `_DEFINITION_CONTAINERS`: 1 --
+    `test_every_name_reached_container_is_classified`, the deleting
+    direction, so the table cannot shrink out from under the AST.
   - `_resolve_trump`'s membership guard skipped: 36 `test_game_trump_value`
     reject cells (12 decks x {bogus, a rank, a foreign suit}); the `none`
     and accept cells stay green.
@@ -188,6 +272,7 @@ red under -- executed, each edit reddening exactly its own cells:
 
 from __future__ import annotations
 
+import inspect
 import random
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
@@ -239,11 +324,33 @@ def test_the_body_partition_is_a_witness_on_this_pile() -> None:
     assert moved and moved != set(WINNERS), moved
 
 
+def references_trump_parameter(winner: str) -> bool:
+    """Whether the winner's body mentions its `trump` parameter at all -- a
+    STATIC superset of "reads its trump". A body that never names the
+    parameter provably cannot read it, so this cannot miss a reader; it can
+    only over-include one that takes the argument and ignores it."""
+    fn = primitives.value_function(winner)
+    assert "trump" in inspect.signature(fn).parameters, f"{winner}: no trump parameter"
+    body = inspect.getsource(fn)
+    body = body[body.index(")") :]  # past the parameter list, so the body alone
+    return "trump" in body
+
+
 def test_trump_reading_registry_matches_the_bodies() -> None:
     """The registry the guards read is reconciled against the executed
-    bodies -- red under moving any winner across the partition."""
+    bodies -- red under moving any winner across the partition.
+
+    Two oracles must agree, because the executed one is narrow: `reads_trump`
+    runs ONE pile, so it can only ever over-classify a winner as blind (a
+    reader whose answer happens not to move on this pile). The static scan is
+    the superset that cannot miss, so the executed readers must be contained
+    in it -- SUBSET, not equality: a winner that takes `trump` and ignores it
+    is legitimately static-only, and demanding equality would tempt a fudge."""
     assert F.TRUMP_READING_WINNERS <= F.TRICK_WINNER_NAMES
-    assert F.TRUMP_READING_WINNERS == {w for w in WINNERS if reads_trump(w)}
+    executed = {w for w in WINNERS if reads_trump(w)}
+    assert F.TRUMP_READING_WINNERS == executed
+    static = {w for w in WINNERS if references_trump_parameter(w)}
+    assert executed <= static, sorted(executed - static)
 
 
 # --- fixtures ----------------------------------------------------------------
@@ -442,6 +549,172 @@ def test_dead_trump_message_names_the_readers() -> None:
     for w in sorted(F.TRUMP_READING_WINNERS):
         assert w in text, text
     assert "runs no trick round" in text, text
+
+
+# --- (a) the game clause: consumption is REACHABILITY, not occurrence -------
+#
+# The consumption guard asks whether some round READS the clause, so it must
+# count the rounds the game RUNS. A `round` is a `statement`, and three
+# definition forms hold `statement*` -- so a reading round written inside a
+# body nothing invokes made a dead `trump:` look consumed. The container axis
+# is DERIVED here (not authored): a statement-holding AST container is reached
+# by NAME exactly when it is a top-level definition list on `n.Game`; every
+# other statement holder sits inside a phase body, where containment reaches
+# it. `_CONTAINER_FIXTURES` then supplies the DSL text per container, and
+# `test_every_name_reached_container_is_classified` fails if the AST grows a
+# container neither table classifies.
+
+_UNREACHED = "sits in a definition nothing reaches"
+_PROC_WALL = "contains a `round`"
+
+
+def _stmt_holding_containers() -> set[type]:
+    """Every AST dataclass with a `tuple[Stmt, ...]` field -- the containers a
+    `round` can be written inside."""
+    import dataclasses
+
+    from cardlang.ast import nodes as ast_nodes
+
+    out: set[type] = set()
+    for name in dir(ast_nodes):
+        obj = getattr(ast_nodes, name)
+        if not (isinstance(obj, type) and dataclasses.is_dataclass(obj)):
+            continue
+        for f in dataclasses.fields(obj):
+            if "Stmt" in str(f.type) and "tuple" in str(f.type):
+                out.add(obj)
+    return out
+
+
+def _name_reached_containers() -> set[type]:
+    """The statement holders reached by NAME: those appearing as a field type
+    on `n.Game`, i.e. a top-level definition list. The complement is reached by
+    containment from a phase body, which `_walk` already covers."""
+    import dataclasses
+    import typing
+
+    from cardlang.ast import nodes as ast_nodes
+
+    hints = typing.get_type_hints(ast_nodes.Game)
+    out: set[type] = set()
+    for cls in _stmt_holding_containers():
+        for f in dataclasses.fields(ast_nodes.Game):
+            stack: list[object] = [hints.get(f.name)]
+            while stack:
+                cur = stack.pop()
+                if cur is cls:
+                    out.add(cls)
+                    stack = []
+                    break
+                stack.extend(typing.get_args(cur) or ())
+    return out
+
+
+# DSL text per name-reached container: how to write a body holding a round,
+# and how to make that body reachable. Authored -- pinned complete against the
+# derived container set by the test below.
+_CONTAINER_FIXTURES: dict[str, tuple[str, str]] = {
+    # container class name -> (definition template holding {round}, invocation)
+    "DefineDef": ("define d -> {{ ok }} {{ {round}\n  produce ok }}",
+                  "d produces:\n      ok { won[1] += 1 }"),
+    "MoveTypeDef": ("move_type m {{ effect {{ {round} }} }}",
+                    "offer to 0 one of [m]"),
+    "ProcedureDef": ("procedure p() {{ {round} }}", "run p()"),
+}
+
+
+def test_every_name_reached_container_is_classified() -> None:
+    """The container class is DERIVED from the AST; both the grid's fixture
+    table and resolve's reachability table must classify every member. A new
+    statement-holding definition form fails here rather than silently
+    rejoining the blind spot the reachability filter exists to end."""
+    from cardlang.resolve import _DEFINITION_CONTAINERS
+
+    derived = {c.__name__ for c in _name_reached_containers()}
+    assert derived == set(_CONTAINER_FIXTURES), derived
+    assert derived == {c.__name__ for c in _DEFINITION_CONTAINERS}, derived
+
+
+def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str, ...]]]:
+    """(container, reachable, winner, needles, forbidden) -- every name-reached
+    container x {reachable, unreachable} x {a trump-reading winner, a blind
+    one}. The container holds the game's ONLY trick round, so the clause is
+    consumed exactly when that round is both reachable and reading.
+
+    A procedure is refused either way by a pre-existing Owner Guard (a
+    procedure may not hold a `round` at all), so its four cells PIN that wall
+    rather than adding coverage."""
+    reading = min(F.TRUMP_READING_WINNERS)
+    blind = min(F.TRICK_WINNER_NAMES - F.TRUMP_READING_WINNERS)
+    cells = []
+    for container in sorted(_CONTAINER_FIXTURES):
+        for reachable in (True, False):
+            for winner in (reading, blind):
+                if container == "ProcedureDef":
+                    needles: tuple[str, ...] = (_PROC_WALL,)
+                    forbidden: tuple[str, ...] = ()
+                elif reachable and reads_trump(winner):
+                    needles, forbidden = (), ()  # the clause is consumed
+                elif reads_trump(winner):  # unreachable, would have read it
+                    needles, forbidden = (_DEAD, _UNREACHED), ()
+                else:  # blind: it would not read the clause even if reached
+                    needles, forbidden = (_DEAD,), (_UNREACHED,)
+                cells.append((container, reachable, winner, needles, forbidden))
+    return cells
+
+
+def _container_source(container: str, reachable: bool, winner: str) -> str:
+    template, invocation = _CONTAINER_FIXTURES[container]
+    defs = template.format(round=_ROUND.format(winner=winner, trump=""))
+    body = invocation if reachable else "won[1] += 1"
+    return _source(clause="trump: spades", body=body) + "\n" + defs
+
+
+@pytest.mark.parametrize(
+    ("container", "reachable", "winner", "needles", "forbidden"),
+    _container_cells(),
+    ids=[
+        f"{c}-{'reachable' if r else 'unreachable'}-{w}"
+        for c, r, w, _, _ in _container_cells()
+    ],
+)
+def test_dead_clause_counts_reachable_rounds(
+    container: str,
+    reachable: bool,
+    winner: str,
+    needles: tuple[str, ...],
+    forbidden: tuple[str, ...],
+) -> None:
+    src = _container_source(container, reachable, winner)
+    _expect(src, *needles)
+    if forbidden:
+        text = _diagnostics(src)
+        assert text is not None
+        for needle in forbidden:
+            assert needle not in text, f"unexpected {needle!r} in:\n{text}"
+
+
+def test_unreached_reader_message_names_its_container() -> None:
+    """A reading round inside a body nothing invokes must not be told "the
+    game runs no trick round" while the author looks straight at one: the
+    refusal names the container kind and what would reach it."""
+    for container, name in (("DefineDef", "define"), ("MoveTypeDef", "move_type")):
+        reading = min(F.TRUMP_READING_WINNERS)
+        text = _diagnostics(_container_source(container, False, reading))
+        assert text is not None
+        assert _UNREACHED in text, text
+        assert name in text, text
+
+
+def test_a_reachable_definition_keeps_its_trump(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The complement, so the filter cannot over-reach: a reading round in an
+    INVOKED define / an OFFERED move type consumes the clause and the game
+    checks clean. Born green -- its reddening mutation is seeding the
+    reachability frontier with the definition lists inverted (making a
+    reachable container read as unreachable)."""
+    for container in ("DefineDef", "MoveTypeDef"):
+        reading = min(F.TRUMP_READING_WINNERS)
+        _expect(_container_source(container, True, reading))
 
 
 # --- (b) the round clause ---------------------------------------------------
