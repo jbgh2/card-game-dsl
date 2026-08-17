@@ -207,6 +207,12 @@ def test_a_winner_target_naming_a_zone_is_refused_by_the_name_guard() -> None:
     Owner Guard for whether the name names a state variable at ALL — and
     `_check_winner_target` stays silent, which is what its `decl is None`
     early return is for.
+
+    Born green — the wall predates this guard — so: red under: change
+    `_validate_refs`' `case n.Winner() if nd.state_var not in cats.state_vars`
+    guard to `if False`. The game is then refused by the phase-scope guard
+    with a message about a phase-declared variable, which is the wrong
+    account of a zone name.
     """
     source = game_source("player", "Integer", "0").replace(
         "winner: highest probe", "winner: highest hand"
@@ -233,6 +239,11 @@ def test_a_team_indexed_target_in_a_teamless_game_is_refused() -> None:
     wording is what keeps the cell from starting to pass for a different
     reason — every candidate wall here has the word "team" in its message,
     so a bare substring check would be vacuous.
+
+    Born green — the wall predates this guard — so: red under: add `and
+    False` to `_validate_refs`' `n.StateDecl()` team-without-`teams:` arm.
+    The game is then ACCEPTED outright (`DID NOT RAISE`), which is the
+    silent shape this probe exists to keep refused.
     """
     source = game_source("team", "Integer", "0").replace(
         "  teams: [[0, 2], [1, 3]]\n", ""
@@ -250,6 +261,11 @@ def test_a_target_declared_inside_a_phase_is_refused_by_the_scope_guard() -> Non
     `_check_winner_target` returns early rather than speaking: the author has
     already been told the name is not visible at game level, and a second
     diagnostic about its declaration would bury that one.
+
+    Born green — the wall predates this guard — so: red under: change
+    `_check_state_scope`'s `if game.winner is not None and
+    game.winner.state_var not in top:` to `if False:`. The game is then
+    ACCEPTED outright (`DID NOT RAISE`).
     """
     source = game_source("player", "Integer", "0").replace(
         "  phase setup { deal 3 cards from deck to each hand }\n",
