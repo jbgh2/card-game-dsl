@@ -114,7 +114,10 @@ progress_line() {
   local raw jq_rc steps work clock
 
   [ -r "$holder" ] || { not_derivable "lock holder unreadable" "$holder"; return 0; }
-  since_raw="$(sed -n 's/.*[[:space:]]since[[:space:]]\([^[:space:]][^[:space:]]*\).*/\1/p' "$holder" 2>/dev/null | head -1)" || since_raw=""
+  # `;q` rather than `| head -1`: run-role.sh writes the record on line one,
+  # and the pipe would carry the same SIGPIPE-under-pipefail hazard avoided
+  # below.
+  since_raw="$(sed -n 's/.*[[:space:]]since[[:space:]]\([^[:space:]][^[:space:]]*\).*/\1/p;q' "$holder" 2>/dev/null)" || since_raw=""
   since_epoch="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$since_raw" '+%s' 2>/dev/null)" || since_epoch=""
   [ -n "$since_epoch" ] || { not_derivable "lock holder carries no start time" "$holder"; return 0; }
 
@@ -123,7 +126,11 @@ progress_line() {
   [ -n "$listing" ] || { not_derivable "no transcript files" "$root"; return 0; }
   # awk, not `sort -rn | head -1`: head closing the pipe early can leave sort
   # killed by SIGPIPE, which pipefail would report as a failed derivation.
-  newest="$(printf '%s\n' "$listing" | awk -F'|' 'NF && $1 + 0 >= m { m = $1 + 0; line = $0 } END { print line }')"
+  # Only numeric mtimes: the comparison below is arithmetic, and a `[ x -ge n ]`
+  # on a malformed listing would kill the whole page build under set -e -- the
+  # one thing this generator promises never to do.
+  newest="$(printf '%s\n' "$listing" | awk -F'|' '$1 ~ /^[0-9]+$/ && $1 + 0 >= m { m = $1 + 0; line = $0 } END { print line }')"
+  [ -n "$newest" ] || { not_derivable "no transcript files" "$root"; return 0; }
   newest_mtime="${newest%%|*}"
   newest_path="${newest#*|}"
 
