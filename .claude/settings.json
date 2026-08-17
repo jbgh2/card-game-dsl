@@ -45,7 +45,9 @@
       "Bash(bash -n:*)",
       "Bash(mypy:*)",
       "Bash(pytest:*)",
-      "Bash(./tools/verify.sh:*)"
+      "Bash(./tools/verify.sh:*)",
+      "Edit(//Users/benh/Projects/cardlang-fleet/**)",
+      "Write(//Users/benh/Projects/cardlang-fleet/**)"
     ],
     "deny": [
       "Bash(git push --force:*)",
