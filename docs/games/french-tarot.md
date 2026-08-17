@@ -69,7 +69,6 @@ game FrenchTarot {
   // cannot carry the petit, whose rank "1" is 4.5 in atouts and half a
   // point in the plain suits: `if is_bout(card) then 9 else card_points(card)`.
   card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }
-  trump: atouts
 
   zones {
     deck             : Deck

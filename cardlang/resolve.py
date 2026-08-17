@@ -49,7 +49,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer.
+              rather than in the type layer. And a named trump nobody
+              reads: a game-level ``trump:`` that is not a suit of the deck
+              or that no trick round inherits, and a round ``trump`` clause
+              on a winner whose body reads no trump
+              (``_resolve_trump``, the winner-slot arm of
+              ``_validate_refs``; the partition is
+              ``TRUMP_READING_WINNERS``). The round clause's TYPE (``Suit?``)
+              is typecheck's (``_check_round_trump``); its presence against
+              its winner is settled here, with the winner namespace.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -75,6 +83,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
     TRICK_WINNER_NAMES,
+    TRUMP_READING_WINNERS,
     VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
@@ -1875,6 +1884,7 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _resolve_card_points(game, bag)
+    _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
@@ -3992,11 +4002,13 @@ def _resolve_ranking(game: n.Game, bag: DiagnosticBag) -> None:
     `tests/test_action_space_multiparam.py`'s subset-ranking regression
     (`test_rank_domain_sourced_from_game_ranking_not_deck`) pins a partial
     `ranking:` as a deliberate, supported feature — it narrows the `Rank`
-    move-parameter domain to fewer than the deck's ranks. A card whose rank
-    falls outside a partial ranking still crashes `rank_value`'s
-    `ctx.rs.rank_index[...]` lookup at runtime instead of erroring here — an
-    accepted residual, guarded only by that runtime KeyError, not by this
-    check; the ledger is tests/test_ranking_guard.py."""
+    move-parameter domain to fewer than the deck's ranks. Which cards reach
+    a rank-strength read is a fact of zone contents, decidable only at play
+    time, so a card whose rank falls outside a partial ranking is the
+    RUNTIME's Owner Guard (`runtime/values.py`, `rank_strength`, the one
+    lookup every `rank_index` consumer routes through), never this
+    check's; the ledgers are tests/test_ranking_guard.py and
+    tests/test_trump_slot_class.py."""
     if game.ranking_convention is not None:
         # Convention arm: `_expand_ranking` built the tuple from the deck's
         # own ranks filtered through a registry template — unique and
@@ -4078,6 +4090,87 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
                 f"of deck '{game.deck}' (known ranks: {', '.join(sorted(known))})",
                 entry.span or game.span,
             )
+
+
+def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
+    """`trump: NAME` names a suit of the declared deck, and some trick round
+    reads it — the two Owner Guards of the game-level trump slot.
+
+    Membership: the slot is grammatically a bare NAME (`trump: bogus`, a
+    rank, a suit of some other deck all parse), and the runtime compares the
+    string against card suits — an unknown value matched nothing and the game
+    silently played no-trumps (Surface totality: accepted-with-different-
+    semantics). Same two-source rule as `_resolve_ranking` and the card
+    literal's suit: the value derives from the deck (`suit_names`), so a
+    deck's pseudo-suits (tarot78's `excuse`, five_hundred43's `joker`) are
+    members — they are the deck's suits, the same domain `Suit` types over.
+    `none` is a NAME too, and used to parse as the STRING "none": refused
+    with the omission that means no trump, rather than accepted for the
+    coincidence that no suit is spelled "none".
+
+    Consumption: the only reader of `rs.trump` is the trick form, as the
+    default of a round that names a trump-reading winner and supplies no
+    `trump` clause of its own (`runtime/mechanics.py`, `TrickForm`). A
+    `trump:` no round reads — the game runs no trick round; every round's
+    winner ignores its trump (`TRUMP_READING_WINNERS`' complement); every
+    reading round overrides with its own clause — is accepted-but-ignored,
+    the class this repo ranks worst, and is refused naming what would read
+    it. French Tarot's `trump: atouts` beside `winner tarot_trick_winner`
+    was the corpus instance. A round whose winner is not a trick winner at
+    all is `_validate_refs`'s diagnostic; the dead-clause question is not
+    asked over a game with one, so it never reports on top of that error.
+    A piece game's `trump:` is `_reject_card_content_clauses`'s, and an
+    unknown deck is `_resolve_component_set`'s (the value has no domain to
+    check against, so this returns, as `_resolve_ranking` does)."""
+    if game.trump is None or game.content_flavor != "card" or not _deck_known(game.deck):
+        return
+    if game.trump == "none":
+        bag.error(
+            "trump: none — no trump is the ABSENT clause: drop `trump: none` "
+            "(a round that turns a trump per hand writes `trump <expr>` on the "
+            "round, where `none` means no trump)",
+            game.span,
+        )
+        return
+    known = suit_names(game.deck)
+    if game.trump not in known:
+        bag.error(
+            f"trump: names unknown suit '{game.trump}' — not a suit of deck "
+            f"'{game.deck}' (known suits: {', '.join(sorted(known))})",
+            game.span,
+        )
+        return
+    rounds = [nd for nd in _walk(game) if isinstance(nd, n.TrickRound)]
+    if any(r.winner_fn not in TRICK_WINNER_NAMES for r in rounds):
+        return
+    if any(r.trump is None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
+        return
+    readers = ", ".join(sorted(TRUMP_READING_WINNERS))
+    if not rounds:
+        why = (
+            "the game runs no trick round (a hand-rolled trick passes its "
+            "trump to `highest_trump_or_led_suit(pile, trump)` itself)"
+        )
+    else:
+        parts = []
+        blind = sorted({r.winner_fn for r in rounds if r.winner_fn not in TRUMP_READING_WINNERS})
+        if blind:
+            parts.append(
+                f"a trick round names a winner that reads no trump ({', '.join(blind)})"
+            )
+        if any(r.trump is not None and r.winner_fn in TRUMP_READING_WINNERS for r in rounds):
+            parts.append(
+                "every trick round whose winner reads a trump supplies its "
+                "own `trump` clause"
+            )
+        why = "; ".join(parts)
+    bag.error(
+        f"trump: {game.trump} is read by no trick round — {why}. The game-level "
+        f"`trump:` is the default trump of a `round … winner` whose winner "
+        f"reads a trump ({readers}) and that writes no `trump` clause of its "
+        f"own; drop the clause, or route it to such a round",
+        game.span,
+    )
 
 
 def _classify(name: str, cats: _Categories) -> str | None:
@@ -5574,6 +5667,21 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
+                        nd.span,
+                    )
+                elif nd.trump is not None and nd.winner_fn not in TRUMP_READING_WINNERS:
+                    # The winner contract carries a `trump` argument for every
+                    # member, but only TRUMP_READING_WINNERS' bodies read it:
+                    # on the others the round's `trump` clause was evaluated,
+                    # traced, passed, and dropped — accepted-but-ignored
+                    # (decisions.md "Surface totality"). Same arm as the
+                    # `play_to_trick` guard below: a round-configuration
+                    # clause its own slot cannot use.
+                    readers = ", ".join(sorted(TRUMP_READING_WINNERS))
+                    bag.error(
+                        f"round `trump` clause on winner {nd.winner_fn}, which "
+                        f"reads no trump — the clause would be silently ignored; "
+                        f"drop it, or name a winner that reads a trump ({readers})",
                         nd.span,
                     )
                 if nd.move_type not in LIBRARY_MOVE_TYPES:

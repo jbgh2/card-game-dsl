@@ -33,7 +33,7 @@ from typing import Any
 from cardlang.runtime import reads, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
-from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.runtime.values import SUITS, Card, Player, rank_strength
 from cardlang.stdlib.boards import BoardEntry
 from cardlang.stdlib.zones import identity_to_all
 
@@ -77,7 +77,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "error":
             raise IllegalMove(args[0] if args else "illegal move")
         case "rank_value":
-            return ctx.rs.rank_index[args[0].rank]
+            # `rank_strength` is the Owner Guard for a rank outside a partial
+            # `ranking:` (a runtime fact -- which cards reach the read); the
+            # no-`ranking:` case is typecheck's RANKING_GATED_FUNCS gate.
+            return rank_strength(ctx.rs.rank_index, args[0].rank, "rank_value")
         case "card_points":
             # Total by construction: the driver materialized the declared
             # `card_points { }` table over every deck rank (unlisted ranks at
