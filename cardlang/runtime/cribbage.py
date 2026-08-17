@@ -1,13 +1,13 @@
-"""Cribbage's runtime support (pure stdlib primitives).
+"""Cribbage's runtime support (pure Primitives).
 
 The whole hand — the crib discards, the starter cut (his heels), pegging
 (fifteens, pairs, runs, 31, go / last card), and the show (fifteens, pairs,
 runs, flush, his nob over non-dealer / dealer / crib in order, stopping the
 instant a player crosses 121) — runs in the DSL (docs/games/cribbage.cardlang)
-as filtered movements and ordinary statement control flow. This module holds
+as filtered [[transfer]]s and ordinary statement control flow. This module holds
 what is not expressible there:
 
-- `value`/`count_fifteens`/`count_pairs`/`run_score`/`flush_score`/
+- `count_fifteens`/`count_pairs`/`run_score`/`flush_score`/
   `nob_score`/`show_score` — the show's combination scorers, and
   `peg_pair_points`/`peg_run_points` — the pegging-count scorers. Module-level
   so they can be unit-tested against known cribbage hands (the strongest
@@ -16,9 +16,11 @@ what is not expressible there:
   ctx adapters pass `rs.rank_index`, built by the driver from the game's
   `ranking: aces low` — so this module holds NO private copy of the rank
   order; the declaration is the single source of truth for what "adjacent
-  ranks" means.
+  ranks" means. (The pegging COUNT values are the game file's own
+  `card_points { }` clause; `_VALUE` below survives only as the show
+  scorers' internal weights.)
 - `peg_origin`/`peg_origin_of` — the pegging sub-round's card-provenance
-  decoder. Zones don't retain who moved a card, and no `round` form fits
+  decoder. Zones don't retain who moved a card, and no `round` [[form]] fits
   pegging's per-play scoring plus forced-play flow (docs/kernel-migration.md,
   WS4), so `phase play` tracks provenance itself as two Integer state vars
   (`seq_bits` packs one bit per play, MSB first, 1 = dealer; `seq_len` counts
@@ -35,18 +37,18 @@ from collections.abc import Mapping
 from itertools import combinations
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")
 
+# The show scorers' card weights (fifteens sum to 15 over these) — a second
+# copy of the fact cribbage.cardlang declares as its `card_points { }` clause
+# and reads at the pegging sites. The two must agree or the show and the
+# pegging count diverge; pinned by tests/test_card_points.py::
+# test_cribbage_show_table_matches_the_declared_clause.
 _VALUE = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
           "10": 10, "J": 10, "Q": 10, "K": 10}
-
-
-def value(c: Card) -> int:
-    """Pegging / fifteens value: A=1, face cards 10, otherwise pips."""
-    return _VALUE[c.rank]
 
 
 # --- the show ---

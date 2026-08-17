@@ -2,16 +2,15 @@
 
 The corpus's second side-pot game. Chips are integer state (a `stack` per
 player), not a resource-zone subsystem. The whole hand — blinds, the burn-and-
-deal sequence, the four betting streets on the kernel `round` in priority
+deal sequence, the four betting streets on the kernel [[round]] in priority
 order, and the showdown (reveal, per-entrant pot collection, muck) — runs in
-the DSL (holdem.cardlang); this module holds only the pure functions not
-expressible there:
+the DSL (holdem.cardlang), and the seat-ring skip that resolves the button and
+the blinds past busted seats is the language's own ring search
+(`the first player from ... offset_by left where in_hand[player]`). This
+module holds only the one pure function not expressible there:
 
-- `holdem_next_entrant` — the seat-ring skip that resolves the button and the
-  blinds past players who busted out (the DSL has no "next seat satisfying a
-  predicate"; `coup_next_in_game` and `tichu_next_holder` are the same shape);
 - `holdem_pot_share` — the showdown side-pot query (argmax over poker-rank
-  tuples per commitment layer), the stdlib primitive the showdown's settle
+  tuples per commitment layer), the Primitive the showdown's settle
   statement calls.
 
 The hand evaluator is family-wide and lives in `cardlang/runtime/poker.py`,
@@ -28,37 +27,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from cardlang.runtime import reads
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.poker import side_pot_payouts
-from cardlang.runtime.sidecar import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/holdem.py", "holdem.cardlang")
 
 # The blinds (2/5), street limits (5/5/10/10) and raise cap (4) live in
-# holdem.cardlang; this module keeps only the ring skip and the pot-share query.
-
-
-def holdem_next_entrant(facts: EngineFacts, gr: reads.GameReads, player: Player) -> Player:
-    """`player` if it entered this hand, else the next entrant clockwise.
-
-    The dealer button rotates unconditionally each hand, so it can land on a
-    seat that busted out; the blinds and every street's opening seat are
-    positional and must skip such seats. Total by construction at every call
-    site: the hand only runs while at least two seats hold chips, so some
-    entrant always exists — the exhausted-ring raise below is this class's
-    Owner Guard, and a well-formed hand sequence never reaches it. It is not a
-    Shadow Guard: what keeps it unreachable is holdem.cardlang's own hand
-    sequence, not an engine guard it could name, so a firing means the game
-    description is at fault."""
-    in_hand = gr.state["in_hand"]
-    for seat in facts.seating.turn_order_from(player):
-        if in_hand[seat]:
-            return seat
-    raise OwnerGuardError(
-        f"holdem_next_entrant({player}): no seat entered this hand — the hand "
-        f"sequence runs only while at least two seats hold chips"
-    )
+# holdem.cardlang; this module keeps only the pot-share query.
 
 
 def showdown_hands(

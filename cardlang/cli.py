@@ -1,4 +1,4 @@
-"""Command-line entry point: parse + check a single game file, optionally emit IR.
+"""Command-line entry point: parse + check a single game file, optionally emit [[ir]].
 
     cardlang docs/games/hearts.md            # check only; silent on success
     cardlang docs/games/hearts.md --emit-ir  # check, then print the IR JSON

@@ -1,7 +1,7 @@
-"""Choosers: how a player decision is resolved at a decision point.
+"""[[chooser]]s: how a player decision is resolved at a decision point.
 
 For random playout, a player picks `n` cards uniformly at random from the legal
-candidates. The same interface is where a real policy (or OpenSpiel's
+[[candidate]]s. The same interface is where a real policy (or OpenSpiel's
 action-driven control) would plug in later.
 """
 

@@ -16,7 +16,7 @@ pins don't apply. If it earns a place, it goes through
 - **Small enough to solve**: a mini variant must be exactly solvable with
   vanilla CFR through the adapter, so "is it interesting?" gets a ground-truth
   answer (exploitability ≈ 0, interior action probabilities).
-- **Pure-DSL**: no new grammar surface, no new stdlib primitives, no Python.
+- **Pure-DSL**: no new grammar surface, no new Primitives, no Python.
   Every construct used is already exercised by the corpus.
 
 The last goal held for the game's design and was then overtaken by its

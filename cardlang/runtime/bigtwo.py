@@ -1,11 +1,11 @@
-"""The Big Two combination engine and its climbing-form stdlib queries.
+"""The Big Two combination engine and its climbing-form Primitive queries.
 
 The corpus's second climbing game (after Tichu) and the partner instance that —
 together with Tichu — shapes the kernel `climb` construct. Big Two's whole hand
-runs on `round climb` (`docs/games/big-two.cardlang`); this module is the RNG-free
-combination engine plus the three game-local queries the climb round names:
-`bigtwo_lead_options` (lead candidates), `bigtwo_follows` (legal follows), and
-`first_leader_seat` (the 3♦ holder, who leads the first hand).
+runs on the climb [[form]] of [[round]] (`docs/games/big-two.cardlang`); this
+module is the RNG-free combination engine plus the game-local queries the
+climb round names:
+`bigtwo_lead_options` (lead candidates) and `bigtwo_follows` (legal follows).
 
 The engine has two parts only Big Two has but Tichu does not: suit *always* breaks
 ties (a single 52-card deck, so 7♠ > 7♥), and the five-card group includes flushes
@@ -13,7 +13,8 @@ and quads-plus-kicker. Two rank orders coexist: 2 is the highest rank for
 singles/pairs/triples/quads/full-houses (and a flush's top card), while straights
 and straight flushes run in *natural* order (A high in 10-J-Q-K-A, low in the
 A-2-3-4-5 wheel; no wrap-around). It is kept game-local beside Tichu's
-`combinations.py` (the engines differ) until a third instance justifies merging.
+`tichu_combinations.py` (the engines differ) until a third instance justifies
+merging.
 
 Scope reductions (random play; see docs/games/big-two.md): pairs/triples are
 offered as the single strongest representative per rank (highest suits), and each
@@ -29,8 +30,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardlang.runtime import reads
-from cardlang.runtime.sidecar import EngineFacts
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.narrowing import EngineFacts
+from cardlang.runtime.values import Card
 
 ROW = reads.row("cardlang/runtime/bigtwo.py", "big-two.cardlang")
 
@@ -176,7 +177,7 @@ def _legal_follows(hand: list[Card], led: Play) -> list[Play]:
 
 
 # ---------------------------------------------------------------------------
-# The climbing-form stdlib queries (named on `round climb` in big-two.cardlang)
+# The climbing-form Primitive queries (named on `round climb` in big-two.cardlang)
 # ---------------------------------------------------------------------------
 
 
@@ -209,13 +210,6 @@ def bigtwo_follows(
     the led play — but the climb round passes them uniformly with the lead
     query."""
     return _legal_follows(hand, current)
-
-
-def first_leader_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The seat holding the 3♦, who leads the first hand of the match."""
-    three = Card("3", "diamonds")
-    hands = gr.families["hand"]
-    return next(p for p in facts.seating.players if three in hands[p])
 
 
 def bigtwo_universe() -> list[Play]:

@@ -6,9 +6,10 @@ consumer dispatches with structural ``match`` ending in
 without handling it everywhere a type error rather than a silent gap
 (docs/building.md, "Typed-AST discipline").
 
-This covers the Hearts construct set: the game header and its blocks, phases,
-the statement forms, rules, and the expression sublanguage. It grows one
-construct at a time as more of the corpus is formalized.
+The construct set is the whole corpus's: the [[game]] header and its blocks,
+[[phase]]s and [[mode]]s, the statement forms including the [[round]] forms and
+`turns`, [[rule]]s, boards and positions, and the expression sublanguage. It
+grows one construct at a time as the corpus forces one (`docs/games/`).
 """
 
 from __future__ import annotations
@@ -26,11 +27,13 @@ from cardlang.types import Flavor
 
 @dataclass(frozen=True, slots=True)
 class NameRef:
-    """A bare identifier. ``ref_kind`` is filled by the resolver, classifying
-    the name as one of: ``local`` (a binder/let), ``state_var``, ``zone``,
-    ``enum_value``, ``function``, ``null`` (the absence literal `none`), or a
-    ``pronoun`` (``resolve._PRONOUNS`` — the context namespaces, `actor` among
-    them). ``None`` until resolved."""
+    """A bare identifier. Its [[ref-kind]] is filled by the resolver,
+    classifying the name as one of: ``local`` (a [[binder]]/let), ``state_var``,
+    ``zone``, ``enum_value``, ``function``, ``bool`` (`true`/`false`), ``null``
+    (the absence literal `none`), or a [[pronoun]] (``resolve._PRONOUNS`` — the
+    context namespaces, `actor` among them). ``None`` until resolved; the eight
+    are what `runtime/evaluate.py` dispatches over, so this list is that
+    dispatch's domain and not a sample of it."""
 
     name: str
     span: Span | None = None
@@ -136,8 +139,12 @@ Arg: TypeAlias = "Expr | NamedArg"
 @dataclass(frozen=True, slots=True)
 class BinOp:
     """A binary operator: `or`, `and`, comparisons, membership `in`, `+`,
-    `-`, `*`, `offset_by`. Equality keeps the internal op tokens `==`/`!=`
-    (built by the surface `is` / `is not`)."""
+    `-`, `*`, `offset_by`, and rounded division as `divided_by_rounded_up` /
+    `divided_by_rounded_down` (surface `divided by ... rounded up|down`; the
+    direction is part of the op because it is part of the operation). Equality
+    stores the surface spelling — `is` / `is_not` — because `==`/`!=` are not
+    operators in this language; the ordering operators stay symbolic, since
+    there the symbol IS the surface."""
 
     op: str
     left: Expr
@@ -193,11 +200,11 @@ class Comprehension:
     `filter` narrows the elements before `body` is aggregated; `default` is
     the order aggregators' empty-set value, mandatory in their grammar."""
 
-    agg: str  # sum | max | min
+    agg: str  # sum | highest | lowest — the surface spellings
     source: Expr
     binder: str
     body: Expr
-    filter: Expr | None = None
+    where: Expr | None = None
     default: Expr | None = None
     span: Span | None = None
 
@@ -215,7 +222,7 @@ class CardQuery:
 
     kind: str  # "set" | "count" | "any" | "all"
     source: Expr
-    pred: Expr | None  # None only for the bare `count` (zone size)
+    where: Expr | None  # None only for the bare `count` (zone size)
     span: Span | None = None
 
 
@@ -247,7 +254,7 @@ class DomainQuery:
     binder: str  # the singular noun: binder name + (bare) domain to enumerate
     spelled: str  # the noun as written (for the plural diagnostic)
     source: Expr | None  # None for bare forms; the iterated collection for `in`
-    pred: Expr
+    where: Expr
     span: Span | None = None
 
 
@@ -328,11 +335,21 @@ class PlayerQuery:
 
     - `players where <pred>`           -> the set of matching players (`set`)
     - `the player where <pred>`        -> the unique matching player (`pick`)
+    - `the first player from <seat> where <pred>` -> the first satisfying
+      seat of one inclusive lap from the start seat, in the game's
+      `direction:` (`first_from`; an exhausted lap errors)
     - `number of players where <pred>` -> how many match (`count`)
+
+    `start` is populated exactly for `first_from` (the `CardQuery.where`
+    optional-per-kind shape) and is evaluated OUTSIDE the binder scope, like
+    a comprehension's source: it is deliberately absent from resolve's
+    `_BINDER_SCOPE_FIELDS` entry, and typecheck's binder arm scopes `where`
+    only.
     """
 
-    kind: str  # "set" | "pick" | "count"
-    pred: Expr
+    kind: str  # "set" | "pick" | "first_from" | "count"
+    where: Expr
+    start: Expr | None = None
     span: Span | None = None
 
 
@@ -386,7 +403,7 @@ class Transfer:
     dest: Expr | None
     dest_each: bool
     distribution: str | None = None  # "as_equally_as_possible" for a round-robin deal
-    filter: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
+    where: Expr | None = None  # a `where <lambda>` predicate narrowing the source pool
     # `where jointly <pred>`: the filter binds `cards` (the candidate SET) and
     # the selection is over the source's satisfying subsets — one decision,
     # not per-card filtering (decisions.md "Joint-predicate selection").
@@ -403,8 +420,8 @@ class EpistemicOp:
     candidate); `shuffle` never sets it."""
 
     op: str
-    target: Expr
-    filter: Expr | None = None
+    zone: Expr
+    where: Expr | None = None
     span: Span | None = None
 
 
@@ -414,7 +431,7 @@ class RotateStmt:
 
     `target` is a `NameRef` for the same reason `AssignStmt.target` is: `rotate` writes
     persistent state, so it is a write target and must be classified like one. `values`
-    stays a tuple of strings — those are deck/stdlib enum values validated against a
+    stays a tuple of strings — those are deck/kernel enum values validated against a
     registry, and they are not scope participants (nothing can shadow them into meaning
     something else)."""
 
@@ -446,7 +463,7 @@ class ForEach:
 class RepeatUntil:
     """`repeat until <cond> { <stmt>* }`."""
 
-    cond: Expr
+    until: Expr
     body: tuple[Stmt, ...]
     span: Span | None = None
 
@@ -488,7 +505,7 @@ class Turns:
     binder: str
     leader: Expr
     participants: Expr
-    termination: Expr
+    until: Expr
     again: str | None
     body: tuple[Stmt, ...]
     span: Span | None = None
@@ -568,7 +585,7 @@ class ContinueTo:
     """`continue to <phase>` — in a `produces:` arm, resume the phase sequence at
     a named later sibling phase, skipping any phases between."""
 
-    target: str
+    phase: str
     span: Span | None = None
 
 
@@ -626,7 +643,7 @@ class AuctionRound:
 
     A continuous ring over a heterogeneous offering (bids/passes/bets), looping
     until the termination predicate holds. No card source/into zones — these
-    moves do not move cards (decisions.md "Interactive decisions": the same
+    moves do not move cards (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the same
     kernel round along the offering/termination axes).
 
     `outcome_fn` is the one genuinely optional clause here, and it is what makes
@@ -642,7 +659,7 @@ class AuctionRound:
     offering: tuple[str, ...]
     leader: Expr
     participants: Expr
-    termination: Expr
+    until: Expr
     # The order axis: None / "ring" walks the ring (the pointer advances each
     # turn); "priority" re-scans from the leader each turn and offers the first
     # still-pending participant (betting, response windows).
@@ -672,7 +689,7 @@ class ClimbRound:
     play_zone: str
     combos_fn: str
     follows_fn: str
-    termination: Expr
+    until: Expr
     span: Span | None = None
 
 
@@ -772,6 +789,33 @@ class ZoneDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class CardPointsEntry:
+    """One row of the `card_points { }` table: `<rank>: <value>` — the rank in
+    `ranking:`'s key position, the value a static signed integer literal
+    (decisions.md "Scoring composition"). Held as a tuple of rows rather than
+    a dict (nodes carry no mutable containers), which also lets resolve point
+    a duplicate-key diagnostic at the offending row's own span."""
+
+    rank: str
+    value: int
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CardPointsTable:
+    """The `card_points { }` clause: the game's card-point table (decisions.md
+    "Scoring composition"). `else_value` is the optional trailing `else:`
+    row's everything-else value; with no else row, unlisted ranks read 0 —
+    the `card_points(card)` Builtin's contract. The driver materializes the
+    table over the deck's ranks at load (`driver.declared_card_points`), so
+    the Builtin and the card-point census read one total table."""
+
+    entries: tuple[CardPointsEntry, ...]
+    else_value: int | None = None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PositionDecl:
     """One entry of the `positions { }` block: a declared per-game position
     domain `<name> : <lo>..<hi>` (decisions.md "Position domains and
@@ -843,7 +887,7 @@ class RuleRef:
     ``game.rules`` under this reference's name."""
 
     name: str
-    op: str  # "plain" | "add" | "remove" | "override"
+    delta: str  # "plain" | "add" | "remove" | "override"
     args: tuple[Expr, ...] = ()
     span: Span | None = None
 
@@ -871,7 +915,7 @@ class MoveEvent:
 
 @dataclass(frozen=True, slots=True)
 class TransitionTo:
-    target: str
+    mode: str
     event: MoveEvent
     span: Span | None = None
 
@@ -915,7 +959,7 @@ class AfterEach:
 class PhaseQualifier:
     """`repeat until <expr>` or `when <expr>` on a phase header."""
 
-    kind: str  # "repeats" | "when"
+    kind: str  # "repeat_until" | "when"
     expr: Expr
     span: Span | None = None
 
@@ -1057,7 +1101,7 @@ class ProcedureDef:
 
 @dataclass(frozen=True, slots=True)
 class OutcomeCase:
-    """One case of a outcome outcome: a tag with zero or more typed payloads."""
+    """One case of an outcome: a tag with zero or more typed payloads."""
 
     tag: str
     payload_types: tuple[str, ...]
@@ -1118,7 +1162,34 @@ class PlayersSpec:
 
     @property
     def is_range(self) -> bool:
+        """Whether the count was WRITTEN as a range — a syntactic fact.
+
+        Not the question most callers want: `players: 4..4` is written as a
+        range and denotes exactly four seats. Ask `varies` for the semantic
+        question, or this one only when the surface spelling is the subject.
+        """
         return self.high is not None
+
+    @property
+    def varies(self) -> bool:
+        """Whether the seat COUNT actually varies between instantiations.
+
+        The property every consumer that reasons about seats wants: a
+        degenerate range (`players: 4..4`) is a fixed four-seat game, and
+        refusing it as variable states something false about the source.
+        """
+        return self.high is not None and self.high != self.low
+
+    @property
+    def is_well_formed(self) -> bool:
+        """Whether the bounds make sense at all (at least one seat, and an
+        upper bound that does not precede the lower).
+
+        The condition `typecheck` reports on. Read it — never re-derive it —
+        wherever an earlier pass must not build a second, worse diagnostic on
+        top of a malformed declaration.
+        """
+        return self.low >= 1 and (self.high is None or self.high >= self.low)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1126,7 +1197,7 @@ class Winner:
     """`winner: lowest/highest <target>`."""
 
     rank_dir: str
-    target: str
+    state_var: str
     span: Span | None = None
 
 
@@ -1220,6 +1291,11 @@ class Game:
     # is always the operative strength order and this field only records the
     # source form (for `ir.emit`).
     ranking_convention: str | None = None
+    # The `card_points { }` clause, or None for a game declaring no card
+    # points. The ONE source of the game's card-point table (the deck registry
+    # carries none): the driver loads `rs.card_points` from it, and resolve's
+    # clause-required guard refuses a `card_points(card)` call without it.
+    card_points: CardPointsTable | None = None
     trump: str | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
@@ -1281,6 +1357,8 @@ Node = (
     | DerivedField
     | TypeDef
     | ZoneDecl
+    | CardPointsEntry
+    | CardPointsTable
     | TypeRef
     | TypeArg
     | StateBlock

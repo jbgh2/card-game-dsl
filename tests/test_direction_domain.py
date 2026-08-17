@@ -6,30 +6,30 @@ members are the three seat-relative forward directions (`ahead`, `ahead_left`,
 a SEPARATE per-game source (`cardlang/board_domains.py::directions_of`), NOT a
 `PositionDecl` in `game.positions` (decisions.md "Boards and cells", rung-2
 movement). Keeping it out of `game.positions` is load-bearing: the zone-index
-wall (`_resolve_zone`), the quantifier wall (`_check_domain_query`) and the
-for-each wall (`_ITERATION_ROLES`) all admit only `game.positions`/known roles,
+guard (`_resolve_zone`), the quantifier guard (`_check_domain_query`) and the
+for-each guard (`_ITERATION_ROLES`) all admit only `game.positions`/known roles,
 so `zone[dir]`, `any dir where`, `for each dir` are rejected FOR FREE by the
-existing walls -- no new exclusion wall. `dir` rides ONLY the move-parameter
+existing guards -- no new exclusion guard. `dir` rides ONLY the move-parameter
 enumeration (a new `DomainSources.directions` sibling of `positions`) plus IR
 and the OpenSpiel encoding. Direction values type as the new `TDir`; a member
 name is NOT expression-nameable (no direction literals -- `ahead` stays an
 unknown name, the cell-literal twin).
 
 This module is the grid for Task 1. Its axes derive from registries and the
-language's value-position surface, never from a wall's own coverage:
+language's value-position surface, never from a guard's own coverage:
 
   * GRID 1 -- the `Type`-consumer sweep (the centerpiece). The `Type` union has
     NO `assert_never` (it is handled by permissive isinstance-chains: `unify`,
-    `assignable`, `subscriptable`, `_type_name`, the operand walls), so a
-    brand-new value type risks falling through EVERY type wall SILENTLY (the
-    permissive-top defect class, [[permissive-top-split]]). The axis is the
+    `assignable`, `subscriptable`, `_type_name`, the operand guards), so a
+    brand-new value type risks falling through EVERY type guard SILENTLY (the
+    permissive-top defect class, [[permissive-top]]). The axis is the
     grep-confirmed set of every function that consumes a `Type` -- the SAME
     surface `tests/test_board_clause.py` sweeps for `TCell` -- re-proven for a
     `dir` value. `TDir` is structurally identical to `TCell` (there is no
     `isinstance(_, TCell)` / `is_cell` anywhere in the front end -- both ride
     only the generic chains), so every consumer's reject branch
     (`unify -> None`, `assignable -> False`, `subscriptable -> False`, the
-    operand walls' `else`) fires for `dir` by construction; each cell below
+    operand guards' `else`) fires for `dir` by construction; each cell below
     PROVES it, so no permissive accept survives.
   * GRID 2 -- the use-position of the NAME `dir`: the one accepting slot (move
     parameter) against every rejecting slot (zone index, bare/collection
@@ -48,7 +48,7 @@ property:   a `board:` game mints the `dir` domain (the three seat-relative
             either accepted or rejected with a diagnostic, never silently
             ignored; the name `dir` is admitted ONLY at a move parameter and
             rejected at every other use-position by the existing
-            positions/roles walls; a member name is not expression-nameable.
+            positions/roles guards; a member name is not expression-nameable.
 domain:     {TDir value positions} x {accept | reject}   (GRID 1)
             UNION {use-positions of the name `dir`} x {accept | reject}  (GRID 2)
             UNION {minting / collision cases} x {accept | reject}        (GRID 3)
@@ -63,7 +63,7 @@ registry:   cardlang/board_domains.py (`directions_of`, `DIRECTION_DOMAIN`);
 covered:    GRID 1 -- each cell a run probe below --
               move parameter `pick(along : dir)`     -> accept (TDir, 3 vocab)
               let binder `let d = along`             -> accept (TDir)
-              equality dir-vs-dir `along is along2`  -> accept (unify)
+              equality dir-vs-dir `along is along2`  -> accept (join)
               equality dir-vs-cell `at is along`     -> reject (typecheck)
               equality dir-vs-int  `along is 3`      -> reject (typecheck)
               ordering `along < along2`              -> reject (typecheck)
@@ -116,10 +116,10 @@ residual:   * `role_static_members` (cardlang/domains.py) grows NO `dir` branch:
               `dir` is not a `for each` role (`_ITERATION_ROLES` excludes it, so
               `for each dir` is rejected at resolve -- proven below), so the
               function can never be asked for `"dir"` at runtime. Its existing
-              `AssertionError` ("unknown role") is the live backstop; a `dir`
+              `AssertionError` ("unknown role") is the live Shadow Guard; a `dir`
               branch there would be dead code (a vacuously-green cell). Reddening
               mutation: were `dir` ever added to `_ITERATION_ROLES`, the
-              `for_each_dir_is_rejected` cell below flips and the backstop would
+              `for_each_dir_is_rejected` cell below flips and the Shadow Guard would
               fire -- the loud signal to wire the branch honestly.
             * a member name (`ahead`) as an expression stays an unknown-name
               diagnostic (no direction literals); witness for direction
@@ -391,7 +391,7 @@ def test_subscripting_a_dir_is_rejected() -> None:
 
 def test_dir_as_a_zone_index_is_rejected() -> None:
     # `square[along]` -- the cell-keyed family rejects a direction key (the
-    # subscript-key check: `assignable(TDir, TCell)` is False), so `dir` cannot
+    # subscript-key check: `coercible(TDir, TCell)` is False), so `dir` cannot
     # index a zone even though nothing declares that exclusion for `dir`.
     assert "keyed by Cell" in _reject(_pick_guard("square[along] is empty"))
 
@@ -405,7 +405,7 @@ def test_dir_as_an_assign_store_key_is_rejected() -> None:
 
 
 def test_dir_membership_is_rejected() -> None:
-    # `along in reserve[actor]` -- the collection holds cards, and `unify(TDir,
+    # `along in reserve[actor]` -- the collection holds cards, and `join(TDir,
     # TCard)` is None, so the membership can never be true.
     assert "never true" in _reject(_pick_guard("along in reserve[actor]"))
 
@@ -440,19 +440,19 @@ def test_dir_variant_payload_is_rejected() -> None:
     )
 
 
-# --- GRID 2: use-position of the name `dir` (rejected slots, free walls) -------
+# --- GRID 2: use-position of the name `dir` (rejected slots, free guards) -------
 
 
 def test_dir_as_a_zone_index_role_is_rejected() -> None:
     # `sq[dir] : Cell<dir>` -- `dir` is not a `game.positions` name, so the
-    # zone-index wall (`_resolve_zone`) rejects it with no new exclusion.
+    # zone-index guard (`_resolve_zone`) rejects it with no new exclusion.
     assert "unknown index role 'dir'" in _reject(
         direction_game(square="    square[cell] : Cell<cell>\n    sq[dir] : Cell<dir>\n")
     )
 
 
 def test_bare_quantifier_over_dir_is_rejected() -> None:
-    # `any dir where ...` -- the quantifier wall validates against
+    # `any dir where ...` -- the quantifier guard validates against
     # `game.positions`, which excludes `dir`, so it rejects for free.
     assert "unknown position domain 'dir'" in _reject(
         _pick_guard("any dir where not done")
@@ -470,7 +470,7 @@ def test_collection_quantifier_over_dir_is_rejected() -> None:
 def test_for_each_dir_is_rejected() -> None:
     # `for each dir d:` -- `dir` is not in `_ITERATION_ROLES`, so it rejects for
     # free. (Reddening pin for the `role_static_members` residual: were `dir`
-    # added to `_ITERATION_ROLES`, this cell would flip and the runtime backstop
+    # added to `_ITERATION_ROLES`, this cell would flip and the runtime Shadow Guard
     # would fire.)
     assert "unknown `for each` role 'dir'" in _reject(
         _pick_effect("for each dir d: done := true")
@@ -510,7 +510,7 @@ def test_dir_collides_with_a_declared_position_name() -> None:
 
 def test_dir_collides_with_a_declared_type_name() -> None:
     # `type dir = { … }` in a board game: the board mints `dir`, and direction
-    # lookup precedes struct lookup, so without this wall `along : dir` reads
+    # lookup precedes struct lookup, so without this guard `along : dir` reads
     # the minted domain while `dir` elsewhere denotes the struct -- one spelling,
     # two meanings. The `cell` mint already rejected this via the reserved set
     # (which includes declared type names); `dir` gets the same second check.
@@ -520,7 +520,7 @@ def test_dir_collides_with_a_declared_type_name() -> None:
 
 def test_boardless_dir_parameter_is_unsupported() -> None:
     # A boardless game has no `dir` source, so a `dir` move parameter is an
-    # unsupported parameter domain (the standing `_check_move_params` wall).
+    # unsupported parameter domain (the standing `_check_move_params` guard).
     src = (
         "game Boardless {\n"
         "  players: 2\n"

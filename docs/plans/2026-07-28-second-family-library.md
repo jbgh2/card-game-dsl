@@ -85,7 +85,7 @@ Two spikes against HEAD, before any change:
    > … declare the type in the library, or keep this definition in the game
 
    The silent misread is closed. What survives is a misdirecting fix: `Hand` is
-   a stdlib zone type and cannot be "declared in the library". The tracker lags
+   a kernel zone type and cannot be "declared in the library". The tracker lags
    the tree; #176 gets this on the record either way.
 
 2. **The two walls contradict each other.** A library body naming a zone

@@ -165,7 +165,7 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - **[verified]** `Ctx.active_rules` reads as context-wide; it is populated only by
   the trick form (`compute_active_rules`'s sole call site is mechanics.py:131) —
   everywhere else the pronoun sees the default `()`.
-- **[verified]** `runtime/combinations.py` is the *Tichu* combination engine
+- **[verified]** `runtime/tichu_combinations.py` is the *Tichu* combination engine
   (its only importer is tichu.py); Big Two and President carry duplicate private
   copies (bigtwo.py:68, president.py:61). Three structural `Play` classes satisfy an
   unwritten protocol consumed via `getattr(play, "ends_trick", False)`
@@ -173,11 +173,11 @@ is (rank, suit) — opposite orders connected only by prose (values.py:53 vs :38
 - **[verified]** resolve's `_KNOWN_ROLES = ZONE_INDEX_ROLES` (resolve.py:120) makes
   the diagnostic at :2994 report `unknown index role 'suit'` for a role the system
   knows perfectly well — it is known but not zone-indexable.
-- `runtime/phases.py` runs no phases (active-rule computation only; the phase runner
-  is in driver.py). `runtime/sidecar.py` is the interim narrowing, not the sidecar
+- `runtime/active_rules.py` runs no phases (active-rule computation only; the phase runner
+  is in driver.py). `runtime/narrowing.py` is the interim narrowing, not the sidecar
   design it is named for (reads.py:22). `chooser.py` holds one function; the chooser
   machinery lives in driver.py:128-166.
-- `types.unify` is a join/LUB, not unification; `assignable` is a coercion check
+- `types.join` was `unify`, which named a mechanism (type variables, substitution) it never had; `coercible` was `assignable`, which promised a directed subtype relation its callers use symmetrically
   used symmetrically by its own callers (typecheck.py:1524), not a subtype relation.
 - `DecisionForm.next_actor` reads as a query but mutates the cursor — calling it
   twice skips a player (mechanics.py:154, 372, 539). `AuctionForm.init` clears
@@ -222,7 +222,7 @@ code. The strongest cases, each currently expressed as repeated prose or a raw t
   in for it.
 
 **F-21 ·** The check vocabulary itself sprawls (wall / gate / sweep / backstop / pin /
-twin / mirror / copy / sibling, with no defined distinctions); the glossary §5 fixes
+twin / mirror / copy / sibling, with no defined distinctions); the glossary's check vocabulary fixes
 meanings for six and retires the rest.
 
 **F-22 ·** `_resolve_*` vs `_check_*` in resolve.py are interchangeable —
@@ -244,7 +244,7 @@ vocabulary; compile-vs-runtime). The glossary fixes one sense.
   spelling still open) — settled spec; nothing here reopens them.
 - **Interop word divergence** (`action`, `player`, `state` meaning OpenSpiel's things
   inside `cardlang/openspiel/`) — correct anti-corruption-layer behavior per
-  `domain-map.md`, recorded as an explicit translation table in the glossary §4.
+  `domain-map.md`, recorded as an explicit translation table in the glossary's OpenSpiel-boundary section.
 - Tracked issues touching naming: #112 (quantifier productions hardcoded), #123
   (`TZone`/`TMap` promotion — would resolve the `TCollection` facet flags), #139
   (combo-block deferrals), #153/#154 (winner/scores keying), #97 (corpus not in

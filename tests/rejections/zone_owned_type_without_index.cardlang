@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_zone`. An owned zone type has no index to key its
+// Guard: resolve.py `_resolve_zone`. An owned zone type has no index to key its
 // owner by. The runtime keys a family solely by its index, so an owner
 // argument with no index is unkeyed — accepted and then ignored. An owned zone
 // must be indexed by its owner.

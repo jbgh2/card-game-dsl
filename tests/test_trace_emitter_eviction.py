@@ -1,4 +1,4 @@
-"""Stage-1 eviction grid: the trace emitters are out of the stdlib registry.
+"""Stage-1 eviction grid: the trace emitters are out of the native registry.
 
 `coup_note_reveal` and `tichu_hand_summary` were trace emitters for the
 playout harness, not game primitives (docs/design-notes/primitive-sidecars.md
@@ -11,7 +11,7 @@ the proof the grid can fail).
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   the two evicted names are complete non-members of every
-            stdlib-function namespace, of the runtime dispatch and
+            native-function namespace, of the runtime dispatch and
             implementing modules, and of the spec-current corpus/prose
             surface — and the trace facts they emitted derive at the
             harness layer with identical values.
@@ -20,7 +20,7 @@ domain:     evicted name {coup_note_reveal, tichu_hand_summary} x
             framing sweep of the whole cardlang/ package (the audit's
             Step 1): the seven name registries in builtins/functions.py,
             CALL_SIGS, the runtime dispatch arms, the implementing module
-            namespaces, resolve's unknown-call and shadow walls, the
+            namespaces, resolve's unknown-call and shadow guards, the
             PRIMITIVE_READS inventory, plus the lockstep docs surface
             (docs/games/*.{cardlang,md}, docs/library.md).
 registry:   cardlang/builtins/functions.py (all seven name-sets, imported
@@ -49,7 +49,7 @@ residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
             stays registered this stage: its `coup_game` payload
             recomputes conservation totals from engine state, not from
             movement views, so its harness reproduction is its own design
-            step. Wall: the staged plan (primitive-sidecars.md §5);
+            step. Guard: the staged plan (primitive-sidecars.md §5);
             record: issue #142. The prose scan deliberately covers only
             the spec-current surface — design notes legitimately name the
             evicted names when describing this very migration.
@@ -82,7 +82,8 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
-    PRIMITIVE_VALUE_NAMES,
+    TRICK_WINNER_NAMES,
+    VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
@@ -99,12 +100,13 @@ EVICTED: tuple[tuple[str, str], ...] = (
 )
 _NAMES = [name for name, _ in EVICTED]
 
-# The six namespaces the evicted names never belonged to: the domain's
+# The seven namespaces the evicted names never belonged to: the domain's
 # boundary, pinned so "which namespace held them" stays a checked fact.
 OTHER_NAMESPACES: dict[str, frozenset[str]] = {
     "PRIMITIVE_TRICK_WINNERS": PRIMITIVE_TRICK_WINNERS,
+    "TRICK_WINNER_NAMES": TRICK_WINNER_NAMES,
     "PRIMITIVE_AUCTION_OUTCOMES": PRIMITIVE_AUCTION_OUTCOMES,
-    "PRIMITIVE_VALUE_NAMES": PRIMITIVE_VALUE_NAMES,
+    "VALUE_NAMES": VALUE_NAMES,
     "PRIMITIVE_EARLY_PREDICATES": PRIMITIVE_EARLY_PREDICATES,
     "PRIMITIVE_CLIMB_LEADS": PRIMITIVE_CLIMB_LEADS,
     "PRIMITIVE_CLIMB_FOLLOWS": PRIMITIVE_CLIMB_FOLLOWS,
@@ -152,7 +154,7 @@ def test_prose_has_no_reference(name: str) -> None:
 
 def _shadow_probe(name: str) -> str:
     """A game defining (and calling) its own function under an evicted name.
-    While the name was registered, resolve's shadow wall rejected the
+    While the name was registered, resolve's shadow guard rejected the
     definition; after the eviction the name is an ordinary user-function
     name — the strongest witness that it fully left the namespace."""
     return f"""
@@ -183,11 +185,11 @@ def test_name_is_free_for_user_functions(name: str) -> None:
 
 def test_shadow_wall_still_guards_registered_names() -> None:
     """The control row for the freedom cells: the same probe shape under a
-    still-registered name must die on the SHADOW wall's own message. This
-    pins that the probe reaches the wall — without it, a probe broken
+    still-registered name must die on the SHADOW guard's own message. This
+    pins that the probe reaches the guard — without it, a probe broken
     earlier in the pipeline (a syntax error also raises DiagnosticError)
     would make the freedom cells pass vacuously."""
-    with pytest.raises(DiagnosticError, match="shadows the stdlib function"):
+    with pytest.raises(DiagnosticError, match="shadows the native function"):
         check_dsl(_shadow_probe("coup_game_summary"), "shadow_control.cardlang")
 
 

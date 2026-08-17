@@ -62,8 +62,8 @@ residual:   none for the keying itself -- every game that REACHES `returns_for`
             (`winner: highest pot`, no index) never reaches this function at all
             -- it type-checks, then `driver` dies building the score dict
             (`dict(rs.get(target))` on an int) with a bare `TypeError`, the
-            wrong currency for a checked game. Run and confirmed while writing
-            this. That is a missing checker wall on the `winner:` target, not a
+            wrong channel for a checked game. Run and confirmed while writing
+            this. That is a missing checker guard on the `winner:` target, not a
             returns-mapping hole.
 """
 from __future__ import annotations
@@ -231,7 +231,7 @@ def test_an_unhandled_index_role_raises_rather_than_defaulting() -> None:
     game = check_dsl(_team_game(players=2, teams="[[1], [0]]"), "x.cardlang")
     assert game.state is not None and game.winner is not None
     decls = tuple(
-        dataclasses.replace(d, index="column") if d.name == game.winner.target else d
+        dataclasses.replace(d, index="column") if d.name == game.winner.state_var else d
         for d in game.state.decls
     )
     planted = dataclasses.replace(

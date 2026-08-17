@@ -1,4 +1,4 @@
-// Wall: typecheck's zone-family subscript-key check. A movement direction
+// Guard: typecheck's zone-family subscript-key check. A movement direction
 // (`along : dir`, TDir) cannot index a cell-keyed zone family (`square`,
 // keyed by TCell): `assignable(TDir, TCell)` is False, so `square[along]`
 // rejects rather than falling through permissively. `dir` gets this exclusion

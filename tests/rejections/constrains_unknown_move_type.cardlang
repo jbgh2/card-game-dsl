@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_rule` constrains check. `nonesuch_move` names
+// Guard: resolve.py's `_resolve_rule` constrains check. `nonesuch_move` names
 // no library move type (cardlang/stdlib LIBRARY_MOVE_TYPES), so the rule's
 // `constrains:` target is rejected before the rule is ever instantiated.
 game ConstrainsUnknownMoveType {

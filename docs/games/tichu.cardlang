@@ -48,6 +48,9 @@ game Tichu {
   max_length: 20000
 
   cards: tichu56
+  // The sparse point table: K and 10 score 10, 5 scores 5, the Dragon 25,
+  // the Phoenix -25; every other card 0 (100 points per hand).
+  card_points { 5: 5  10: 10  K: 10  Dragon: 25  Phoenix: -25 }
 
   zones {
     deck           : Deck
@@ -111,13 +114,13 @@ game Tichu {
       }
 
       // The Mahjong holder (post-push) leads the first trick.
-      leader := tichu_mahjong_holder()
+      leader := player_holding(Mahjong of special)
 
       // Climbing tricks until at most one player holds cards, or the first two
       // finishers are teammates (double victory ends the hand early). A Tichu
       // trick never ends early on a shed (`until false`) — the others must
       // still beat or pass; the DOG ends it via the engine's `ends_trick`.
-      repeat until tichu_players_holding() <= 1 or tichu_double_victory() {
+      repeat until (number of players where hand[player] is not empty) <= 1 or tichu_double_victory() {
         // Small tichu before each trick (the poll cannot interleave with the
         // plays inside the climb round; see the header note).
         if tichu_window_open() {
@@ -135,7 +138,7 @@ game Tichu {
           // records no shed on this path (its finishing order skips a player
           // who sheds by playing the Dog), so shed processing is skipped too.
           move all cards from trick_pile to discard
-          leader := tichu_partner(winner)
+          leader := the player where player is not winner and team_of(player) is team_of(winner)
         } else {
           // Fold this trick's sheds (play order) into the finishing order.
           if state.shed_first is not none {
@@ -159,7 +162,12 @@ game Tichu {
           }
           leader := winner
         }
-        leader := tichu_next_holder(leader)
+        // The lead passes to the winner if they still hold cards, else
+        // onward round the ring; when the last trick emptied every hand
+        // the loop is about to exit and there is no leader to find.
+        if any player where hand[player] is not empty {
+          leader := the first player from leader where hand[player] is not empty
+        }
       }
 
       // --- Scoring: double victory is a flat +200 (no card points); otherwise
@@ -167,14 +175,14 @@ game Tichu {
       // captured tricks to the first player out, then each team scores its
       // captured card points (100 in play every hand).
       if tichu_double_victory() {
-        score[team_of(tichu_first_out())] += 200
+        score[team_of(out_first)] += 200
       } else {
         if (any player where hand[player] is not empty) {
           let last = the player where hand[player] is not empty
           move all cards from hand[last] to captured[tichu_opponent_team(last)]
-          move all cards from captured[team_of(last)] to captured[team_of(tichu_first_out())]
+          move all cards from captured[team_of(last)] to captured[team_of(out_first)]
         }
-        for each team t: score[t] += (sum of tichu_card_points(card) over cards in captured[t])
+        for each team t: score[t] += (sum of card_points(card) over cards in captured[t])
       }
       // Tichu / Grand Tichu settle against going out first.
       for each player p:
@@ -233,3 +241,11 @@ move_type dragon_to_right {
 // full 14-card hand is exactly "unplayed", since only plays shrink it).
 function tichu_window_open() =
   any player where called[player] is 0 and (not push_done or (number of cards in hand[player]) is 14)
+
+// Double victory: both recorded finishers are teammates (ends the hand
+// early; a flat +200 with no card points).
+function tichu_double_victory() =
+  out_first is not none and out_second is not none and team_of(out_first) is team_of(out_second)
+
+// The team a player does not belong to (two-team game).
+function tichu_opponent_team(p : Player) = if team_of(p) is 0 then 1 else 0

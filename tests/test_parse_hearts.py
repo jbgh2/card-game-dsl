@@ -39,7 +39,7 @@ def test_header_blocks() -> None:
     assert [z.name for z in g.zones] == ["deck", "hand", "trick_pile", "captured"]
     assert g.state is not None and g.state.decls[0].name == "cumulative_score"
     assert g.winner is not None
-    assert (g.winner.rank_dir, g.winner.target) == ("lowest", "cumulative_score")
+    assert (g.winner.rank_dir, g.winner.state_var) == ("lowest", "cumulative_score")
     # The file defines only the Hearts-specific rules; MustFollowSuit and
     # NoLeadingSuitUntilBroken(hearts) splice in from the standard library at
     # resolve time (see test_demands_two_forms).
@@ -52,7 +52,7 @@ def test_header_blocks() -> None:
 def test_phase_tree_and_qualifier() -> None:
     g = _game()
     hand_seq = _phase(g, "hand_sequence")
-    assert hand_seq.qualifier is not None and hand_seq.qualifier.kind == "repeats"
+    assert hand_seq.qualifier is not None and hand_seq.qualifier.kind == "repeat_until"
     nested = [i.name for i in hand_seq.items if isinstance(i, n.Phase)]
     assert nested == ["passing", "first_trick", "play", "scoring"]
     # setup is now a before_each lifecycle hook, not a sub-phase.
@@ -66,11 +66,11 @@ def test_transition_predicate_binds_action() -> None:
         i for i in play.items if isinstance(i, n.Mode) and i.name == "hearts_not_broken"
     )
     trans = next(iter(not_broken.transitions))
-    assert trans.target == "hearts_broken"
+    assert trans.mode == "hearts_broken"
     assert trans.event.move_type == "play_to_trick"
     # where action.card.suit == hearts  ->  BinOp(==, Member(Member(action,card),suit), hearts)
     pred = trans.event.where
-    assert isinstance(pred, n.BinOp) and pred.op == "=="
+    assert isinstance(pred, n.BinOp) and pred.op == "is"
     assert isinstance(pred.left, n.Member) and pred.left.field == "suit"
     assert isinstance(pred.left.obj, n.Member) and pred.left.obj.field == "card"
     assert isinstance(pred.left.obj.obj, n.NameRef) and pred.left.obj.obj.name == "action"

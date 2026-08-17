@@ -1,4 +1,4 @@
-// Wall: resolve.py `_check_duplicate_names` (the position namespace
+// Guard: resolve.py `_check_duplicate_names` (the position namespace
 // joins every other declaration namespace's uniqueness sweep).
 game PositionsDuplicateName {
   players: 1

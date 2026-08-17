@@ -17,7 +17,7 @@ initial triage round before it earns its keep.
 ## The oracle
 
 Every input either passes the front-end pipeline or fails as a located
-`DiagnosticError`; **any other exception is a finding** — the wrong-currency
+`DiagnosticError`; **any other exception is a finding** — the wrong-channel
 defect class (decisions.md "Closed-domain completeness"; severity 5 in the
 review skill's order). Inputs that pass the pipeline are additionally run
 through a bounded random playout asserting the runtime-net invariants
@@ -29,7 +29,7 @@ generator covers the ones nobody did. The corpus exercises a sliver of the
 grammar's sentence space — decisions.md says exactly this about corpus-first
 coverage — and this harness is the standing sweep for the two loudness
 defect classes: raw-exception escapes, and accepted sentences that crash
-downstream instead of being rejected at the wall that owns them.
+downstream instead of being rejected at the Owner Guard that owns them.
 
 ## Shape
 
@@ -39,8 +39,8 @@ A `tests/fuzz/` package, built in two stages.
 mutations of `docs/games/*.cardlang` — delete a clause or line, duplicate a
 declaration, swap adjacent tokens, rename one occurrence of an identifier,
 truncate a block — each mutant fed to `pipeline.check_dsl` under the oracle.
-This stage alone should surface wrong-currency findings; each is triaged
-wall/backstop/missing-wall per the write-time triage before it is fixed.
+This stage alone should surface wrong-channel findings; each is triaged
+Owner Guard / Shadow Guard / missing Owner Guard per the write-time triage before it is fixed.
 
 **Stage 2 — grammar-directed generation**: a sentence generator walking
 `cardlang/grammar/cardlang.lark` directly — depth-bounded rule expansion with

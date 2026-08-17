@@ -115,6 +115,6 @@ def test_arm_bodies_parse_continue_to_and_skip_to_next_hand() -> None:
     arms = {a.tag: a.body for a in produces.arms}
     assert len(arms["made"]) == 1
     assert isinstance(arms["made"][0], n.ContinueTo)
-    assert arms["made"][0].target == "play"
+    assert arms["made"][0].phase == "play"
     assert len(arms["all_pass"]) == 1
     assert isinstance(arms["all_pass"][0], n.SkipToNextHand)

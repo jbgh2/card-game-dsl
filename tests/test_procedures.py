@@ -43,15 +43,15 @@ procedures", "Surface totality", "Closed-domain completeness").
                     phase outcome (see residual).
                 C — exhaustive: all 10 sequence sites and both single-statement
                     slots are exercised; the slots are probed at body length 1
-                    (splices) and >1 (walled).
-                Hygiene — closed BY CONSTRUCTION, not by walls, and each former
+                    (splices) and >1 (guarded).
+                Hygiene — closed BY CONSTRUCTION, not by guards, and each former
                     defect is pinned as a behaviour: an argument is evaluated once
                     in the caller's context (so one written decision stays one
                     decision; an unused parameter still evaluates its argument; an
                     argument is not re-read after the body mutates it; an argument
                     naming the actor survives an actor-rebinding body), and the body
                     runs in a block (so its bindings do not leak into the caller).
-                    The single remaining wall — a body binder shadowing a PARAMETER
+                    The single remaining guard — a body binder shadowing a PARAMETER
                     name, which classification cannot disambiguate — is tested.
                 Downstream — `game.procedures` empty after the pipeline; no
                     `RunStmt` in the IR; a body's `offer` is not double-counted in
@@ -69,17 +69,17 @@ procedures", "Surface totality", "Closed-domain completeness").
                 has a tracker record under issue #134:
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
-                    zone: `influence[victim]`). Wall: unsupported-domain error.
+                    zone: `influence[victim]`). Guard: unsupported-domain error.
                   - Every other domain (Suit, Card, Boolean, String, Team,
                     Direction, and the optional form of each bar `Rank?`). Same
-                    wall. `Rank?` rather than `Rank` is what the corpus forces:
+                    guard. `Rank?` rather than `Rank` is what the corpus forces:
                     there is no flow narrowing, so a bare `Rank` parameter would
                     reject `block_claim` at the very sites that must pass it.
                     `Integer` LEFT this list when poker_betting's `open_street`
                     forced it — the set grows one forcing game at a time, which
                     is the deferral working rather than a hole closing.
                   - a `round` in a body. It binds its own `outcome`, which the
-                    body's pronoun wall cannot yet tell from the caller's.
+                    body's pronoun guard cannot yet tell from the caller's.
                   - a `produces:` over a PHASE OUTCOME in a body. Its consumer must be
                     an earlier-executed sibling of the producing phase, and must be the
                     only one — both are facts about where the statement sits, which a
@@ -104,7 +104,7 @@ procedures", "Surface totality", "Closed-domain completeness").
                   deck-capacity and the OpenSpiel action space, both run AFTER
                   expansion and see the real tree, so neither joins the class.
                   Not on the list, and impossible by construction rather than
-                  walled: argument capture, actor capture, and a body binding
+                  guarded: argument capture, actor capture, and a body binding
                   leaking into the caller — arguments are evaluated once, by
                   value, in the caller's context, and the body runs in a block
                   (decisions.md "Named procedures").
@@ -267,11 +267,11 @@ _SAMPLE_ARG = {"Player": "0", "Rank": "A", "Rank?": "A", "Integer": "1"}
 )
 def test_every_declarable_type_name_as_a_parameter(type_name: str) -> None:
     """The closed-domain sweep, derived from the registry that defines the universe
-    of declarable type names — NOT from the domains the wall happens to handle.
+    of declarable type names — NOT from the domains the guard happens to handle.
     `payload_type` makes every name generically optional-able, so the domain is
     KNOWN_TYPE_NAMES x {plain, optional}: 18 cells, of which exactly four are
     supported. A new entry in KNOWN_TYPE_NAMES lands here as a failure until it is
-    classified as supported or walled."""
+    classified as supported or guarded."""
     procs = f"procedure f(p : {type_name}) {{ score[0] += 1 }}"
     if type_name in _PROCEDURE_PARAM_DOMAINS:
         check(f"    run f({_SAMPLE_ARG[type_name]})", procs)  # accepted
@@ -311,7 +311,7 @@ def test_an_unknown_parameter_type_is_rejected() -> None:
 
 def test_zone_parameters_are_the_recorded_deferral() -> None:
     """procedures.md proposed Player + Zone; the corpus forced only Player. The
-    deferral is a wall, not silence."""
+    deferral is a guard, not silence."""
     assert "Zone" not in _PROCEDURE_PARAM_DOMAINS
     rejects(
         "    run f(0)",
@@ -337,7 +337,7 @@ _BODY_REJECTED = {
     "RunStmt",
     # All three round forms, matching `resolve._WINNER_BINDING_STMTS`. Only
     # the trick and climb forms bind a `winner`, which is the reason the
-    # wall gives — see issue #290; the wall itself rejects all three.
+    # guard gives — see issue #290; the guard itself rejects all three.
     "TrickRound",
     "AuctionRound",
     "ClimbRound",
@@ -350,13 +350,13 @@ _BODY_SYNTHETIC = {"Block"}
 
 def test_stmt_union_is_fully_classified() -> None:
     """The static pin that makes Axis B exhaustive rather than a sample: every
-    statement kind is accepted in a body, walled out of one, or synthetic (not
+    statement kind is accepted in a body, guarded out of one, or synthetic (not
     writable at all). A new `Stmt` member fails here until someone decides which.
 
     The three-way split matters. `Block` is a real `Stmt` the runtime and the IR must
     handle, but it is unreachable from source — folding it into "accepted" would
     claim a body-content cell that no test could ever exercise, and folding it into
-    "rejected" would claim a wall that can never fire. Both are the vacuous-ledger
+    "rejected" would claim a guard that can never fire. Both are the vacuous-ledger
     trap this file exists to avoid."""
     union = {t.__name__ for t in typing.get_args(n.Stmt)}
     assert _BODY_ACCEPTED | _BODY_REJECTED | _BODY_SYNTHETIC == union
@@ -457,7 +457,7 @@ def test_body_may_not_skip_to_next_hand() -> None:
 
 def test_body_may_not_hold_a_round() -> None:
     """A `round` binds its own `outcome` for the statements after it. The body's
-    pronoun wall cannot yet tell that round-local binding from the caller's
+    pronoun guard cannot yet tell that round-local binding from the caller's
     call-site `outcome`, so the form is rejected WHOLE rather than accepted with
     its winner unroutable — a `round` you may run but whose result you may not read
     is the accepted-but-ignored class."""
@@ -493,7 +493,7 @@ def test_every_accepted_body_statement_kind_is_exercised() -> None:
     proves the two sets partition the union; this proves the accepted set is really
     accepted. Without it the 11 "accepted" rows were a whitelist read off the
     implementation, with only 7 of them ever executed — the pattern the audit skill
-    names explicitly (a domain measured against the wall that implements it)."""
+    names explicitly (a domain measured against the guard that implements it)."""
     game = check(
         body="    run window(0)",
         procs="""
@@ -570,7 +570,7 @@ def test_run_expands_in_a_move_type_effect() -> None:
 def test_any_procedure_fits_a_for_each_slot() -> None:
     """`for each <role> <b>: <stmt>` holds ONE statement, not a braced block. That
     does not constrain what can be run there, because an expansion IS one statement
-    — a block. A procedure of any length fits, with no special case and no wall."""
+    — a block. A procedure of any length fits, with no special case and no guard."""
     game = check(
         "    for each player q: run bump(q)",
         "procedure bump(who : Player) { score[who] += 1  score[who] += 2 }",
@@ -586,7 +586,7 @@ def test_a_run_may_not_be_an_each_simultaneously_body() -> None:
     player's selection against the state BEFORE the block and apply them together
     (that is what makes a Hearts pass atomic — nobody sees a passed card before
     choosing their own), and a snapshot is only defined for a chosen movement. The
-    executor asserts that; without this wall nothing would check it, so any other
+    executor asserts that; without this guard nothing would check it, so any other
     body would compile and die on a bare assert. An expansion is a block, never a
     bare movement, so `run` makes that reachable from a program that looks entirely
     reasonable: `each player simultaneously: run pass_card(player)`.
@@ -614,11 +614,11 @@ _SIMULTANEOUS_BODIES = [
 
 @pytest.mark.parametrize("body,why", _SIMULTANEOUS_BODIES)
 def test_each_simultaneously_body_shapes(body: str, why: str | None) -> None:
-    """The wall is the FORM's, not the procedure's: `each player simultaneously:
+    """The guard is the FORM's, not the procedure's: `each player simultaneously:
     score[player] += 1` was equally broken, and equally accepted, long before `run`
     existed — it just died on a bare assert instead of getting a diagnostic.
 
-    The keyword-amount rows are why this table exists. The first version of this wall
+    The keyword-amount rows are why this table exists. The first version of this guard
     was hand-written against the FIRST of the executor's five requirements
     (`isinstance(Transfer) and mode == "chosen"`), so `move chosen one card …` sailed
     through the checker and hit the assert anyway. The requirement now lives in ONE
@@ -657,11 +657,11 @@ def test_a_run_in_a_single_statement_slot_still_runs_the_whole_body() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Hygiene — by construction, not by wall
+# Hygiene — by construction, not by guard
 #
 # Arguments are bound by VALUE, once, in the caller's context, and the body runs
 # in a block. Between them those two facts close a class of silent-wrong-answer
-# defects that a by-name splice has and that no set of walls covers cleanly. Each
+# defects that a by-name splice has and that no set of guards covers cleanly. Each
 # test below is a defect that WAS reachable and is now impossible.
 # ---------------------------------------------------------------------------
 
@@ -744,7 +744,7 @@ def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None
     real and still live for inline text (decisions.md "Single-actor decisions:
     the `as` block", which gives the first-class binder that forecloses it).
 
-    A procedure is immune, and not because of a wall: the argument is evaluated in
+    A procedure is immune, and not because of a guard: the argument is evaluated in
     the CALLER's context, before the loop exists, so `run mark(actor)` passes the
     move's actor and the loop cannot shadow it. Coup depends on this at four
     sites."""
@@ -763,7 +763,7 @@ def test_an_argument_naming_the_actor_survives_an_actor_rebinding_body() -> None
 
 
 def test_a_body_binder_may_not_shadow_a_parameter_name() -> None:
-    """The one hygiene wall expansion cannot replace. A body binder sharing a
+    """The one hygiene guard expansion cannot replace. A body binder sharing a
     PARAMETER's name is ambiguous at classification time — both are `local` — so
     substitution cannot tell them apart. Rejected outright."""
     rejects(
@@ -837,7 +837,7 @@ def test_wrong_argument_type_is_rejected() -> None:
 
 def test_a_run_argument_is_typed_through_a_let() -> None:
     """Without typed lets, `let z = hearts` would launder the argument to
-    `TAny` and the `run`-site check would pass it — the same wall that had
+    `TAny` and the `run`-site check would pass it — the same guard that had
     just rejected the inline spelling. Lets are typed at declaration, so the
     two spellings agree."""
     rejects(
@@ -890,8 +890,8 @@ def test_a_produces_over_a_phase_outcome_is_rejected_in_a_body() -> None:
     Inline, both rules are enforced and both shapes are correctly rejected. Inside a
     procedure they were accepted and then died on a bare assert at play time: run the
     consumer before its producer, or run it twice, and the outcome is missing or
-    already popped. Same class as the `round` wall above (a construct whose validity
-    depends on position, which a splice moves) — I wrote that wall and classified
+    already popped. Same class as the `round` guard above (a construct whose validity
+    depends on position, which a splice moves) — I wrote that guard and classified
     `Produces` as plainly accepted, which was the miss."""
     src = """
 game G {
@@ -924,12 +924,12 @@ procedure consume() {
 
 
 # ---------------------------------------------------------------------------
-# Write targets — the last name-bearing field with no wall
+# Write targets — the last name-bearing field with no guard
 # ---------------------------------------------------------------------------
 
 
 def test_a_write_target_must_classify_as_a_state_variable() -> None:
-    """One rule in place of three bespoke walls — one of which nobody had written.
+    """One rule in place of three bespoke guards — one of which nobody had written.
 
     `:=` / `+=` / `rotate` write persistent state, and that is the only thing they can
     write. Since `AssignStmt.target` is now a `NameRef`, it is classified like every
@@ -941,7 +941,7 @@ def test_a_write_target_must_classify_as_a_state_variable() -> None:
 
     - the TYPO reached the runtime as a bare `KeyError`, because `AssignStmt.name` was
       a bare `str` that no name check in resolve ever walked — it was the only
-      name-bearing field in the AST with no wall at all;
+      name-bearing field in the AST with no guard at all;
     - a binder SHADOWING a state variable made one name mean two things: a read of `x`
       found the binder while `x := 1` wrote the state variable, silently. Classifying
       the target makes that impossible rather than merely detected — the target

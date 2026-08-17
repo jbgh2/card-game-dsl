@@ -3,7 +3,7 @@
     property:   `state.<field>` names a round form's PUBLISHED state — a closed,
                 typed set — and nothing else. A form's private working memory is
                 unreachable from the DSL, an unpublished name is a compile error,
-                and a published name carries a real type (so the existing walls
+                and a published name carries a real type (so the existing guards
                 work through it).
 
     domain:     Two sides that must agree.
@@ -33,9 +33,9 @@
                 every key written partitions into published + internal. A form that
                 starts writing a new key fails until it is classified.
                 Typing — the five published fields each assert their declared type,
-                and `test_a_typed_member_reaches_the_enum_wall` pins the
+                and `test_a_typed_member_reaches_the_enum_guard` pins the
                 consequence: `TAny` used to be contagious, and the enum-comparison
-                wall was dark behind it.
+                guard was dark behind it.
 
     sampled:    The corpus is the witness that the published set is the RIGHT one:
                 every `state.` reference in docs/games/*.cardlang and
@@ -49,7 +49,7 @@
                 checker validates against the UNION of the forms' published sets
                 and cannot prove that the round actually running publishes the
                 field read. `state.shed_first` inside a trick phase type-checks.
-                Wall: the runtime now fails loudly rather than returning a stale or
+                Guard: the runtime now fails loudly rather than returning a stale or
                 foreign frame (the AuctionForm `last_round_state` clear, pinned by
                 `test_auction_does_not_leave_a_stale_trick_frame`). The design seam
                 is open-questions/round-state-in-information-states.md, which
@@ -115,7 +115,7 @@ def test_a_published_field_is_accepted() -> None:
 
 
 def test_rejects_a_misspelled_field() -> None:
-    """Without the wall a misspelled field is a check-time silence: it reaches
+    """Without the guard a misspelled field is a check-time silence: it reaches
     the runtime with no span, and only if the line happens to execute."""
     rejects("state.lead_suit is none", "a round publishes no `lead_suit`")
 
@@ -135,12 +135,12 @@ def test_rejects_every_internal_field(field: str) -> None:
     private ring cursor. It type-checked, it ran to completion, and it silently
     changed the game (in Hearts it moved the winner from player 2 to player 0). A
     typo at least crashed; a leak did not. A round's working memory was part of the
-    language's surface by accident, and this is the wall that takes it back."""
+    language's surface by accident, and this is the guard that takes it back."""
     rejects(f"state.{field} is none", f"a round publishes no `{field}`")
 
 
 def test_the_error_names_the_published_set() -> None:
-    """A wall that only says 'no' teaches nothing; this one lists what IS nameable."""
+    """A guard that only says 'no' teaches nothing; this one lists what IS nameable."""
     with pytest.raises(DiagnosticError) as excinfo:
         check("state.idx is none")
     message = str(excinfo.value)
@@ -168,10 +168,10 @@ def test_published_fields_carry_their_declared_types() -> None:
     assert AUCTION_PUBLISHED == {}
 
 
-def test_a_typed_member_reaches_the_enum_wall() -> None:
+def test_a_typed_member_reaches_the_enum_guard() -> None:
     """Without a declared type, `state.led_suit` would infer `TAny`, and `TAny` is
-    contagious: comparing it to anything would slip past the enum-comparison wall.
-    Because it is `Suit?`, that wall reaches through it."""
+    contagious: comparing it to anything would slip past the enum-comparison guard.
+    Because it is `Suit?`, that guard reaches through it."""
     rejects("state.led_suit is 10", "comparing Suit with Integer can never be equal")
 
 
@@ -308,7 +308,7 @@ def test_outcome_hook_leaves_the_frame_stack_alone() -> None:
 
 
 def test_auction_does_not_leave_a_stale_trick_frame() -> None:
-    """The frame axis, walled as far as it can be. Without this, a `state.` read
+    """The frame axis, guarded as far as it can be. Without this, a `state.` read
     during or after an auction would find `mech_state` empty, fall through to the
     fallback, and silently return the state of whatever trick ran LAST — a live
     frame from a different form. The auction clears it, so the read fails loudly

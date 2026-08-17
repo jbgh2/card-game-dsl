@@ -1,15 +1,16 @@
-"""Primitives: the sanctioned game-local Python.
+"""[[primitive]]s: the sanctioned game-local Python.
 
 A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
-are the **facts** (`sidecar.EngineFacts`) and its declared **reads**
-(`reads.GameReads`); the pair is the Primitive's bundle. The arms below are the
-dispatch seam, and their count is the elimination metric: it trends to zero as
-`design-notes/primitive-inventory.md`'s constructs land in the language.
+are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
+(`reads.GameReads`); the pair is the [[primitive-bundle]]. The arms below are
+the dispatch seam, and their count is the elimination metric: it trends to zero
+as `design-notes/primitive-inventory.md`'s constructs land in the language.
 
-Its two siblings are deliberately separate words: **Builtins** are the generic
-native functions the language ships (`cardlang/runtime/builtins.py`), and the
-**Stdlib** is the layer written in the language itself (`cardlang/stdlib/`).
+Its two siblings are deliberately separate words: **[[builtins]]** are the
+generic native functions the language ships (`cardlang/runtime/builtins.py`),
+and the **[[stdlib]]** is the layer written in the language itself
+(`cardlang/stdlib/`).
 
 Contract
 --------
@@ -30,7 +31,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import narrowing, reads, winners
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
@@ -46,15 +47,15 @@ _TAROT_R = reads.row("cardlang/runtime/primitives.py", "french-tarot.cardlang")
 
 def _bind(
     ctx: Ctx, row: reads.PrimitiveReads
-) -> tuple[sidecar.EngineFacts, reads.GameReads]:
+) -> tuple[narrowing.EngineFacts, reads.GameReads]:
     """The two value bundles for one narrowed primitive call."""
-    return sidecar.bind(ctx.rs, ctx.current_player, row)
+    return narrowing.bind(ctx.rs, ctx.current_player, row)
 
 
-def _emit(ctx: Ctx, events: tuple[sidecar.TraceEvent, ...]) -> None:
+def _emit(ctx: Ctx, events: tuple[narrowing.TraceEvent, ...]) -> None:
     """Perform a narrowed primitive's deferred trace emissions. A game module
     holds no tracer, so the events travel back as data and are emitted here,
-    in the order the primitive returned them (cardlang/runtime/sidecar.py)."""
+    in the order the primitive returned them (cardlang/runtime/narrowing.py)."""
     for event, payload in events:
         ctx.trace(event, payload)
 
@@ -74,10 +75,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.stud import ROW, pot_share
 
             return pot_share(*_bind(ctx, ROW), args[0])
-        case "holdem_next_entrant":
-            from cardlang.runtime.holdem import ROW, holdem_next_entrant
-
-            return holdem_next_entrant(*_bind(ctx, ROW), args[0])
         case "holdem_pot_share":
             from cardlang.runtime.holdem import ROW, holdem_pot_share
 
@@ -89,10 +86,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             )
 
             return holdem_heads_up_pot_share(*_bind(ctx, ROW), args[0])
-        case "bigtwo_first_leader":
-            from cardlang.runtime.bigtwo import ROW, first_leader_seat
-
-            return first_leader_seat(*_bind(ctx, ROW))
         case "pinochle_meld_value":
             from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
@@ -113,18 +106,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "tarot_card_points":
-            from cardlang.runtime.tarot import tarot_card_points
-
-            return tarot_card_points(args[0])
-        case "schnapsen_trick_winner":
-            from cardlang.runtime.schnapsen import ROW, schnapsen_trick_winner
-
-            winner, events = schnapsen_trick_winner(
-                *sidecar.bind(ctx.rs, ctx.current_player, ROW), args[0], args[1]
-            )
-            _emit(ctx, events)
-            return winner
         case "skat_next_bid":
             from cardlang.runtime.skat import skat_next_bid
 
@@ -136,86 +117,29 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "skat_trick_winner":
             from cardlang.runtime.skat import ROW, skat_trick_winner
 
-            winner, events = skat_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = skat_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "doko_trick_winner":
             from cardlang.runtime.doko import ROW, doko_trick_winner
 
-            winner, events = doko_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = doko_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "skat_matadors":
             from cardlang.runtime.skat import ROW, skat_matadors
 
             return skat_matadors(*_bind(ctx, ROW), args[0])
-        case "skat_effective_loss":
-            from cardlang.runtime.skat import skat_effective_loss
-
-            return skat_effective_loss(args[0], args[1], args[2])
-        case "tichu_mahjong_holder":
-            from cardlang.runtime.tichu import ROW, tichu_mahjong_holder
-
-            return tichu_mahjong_holder(*_bind(ctx, ROW))
-        case "tichu_players_holding":
-            from cardlang.runtime.tichu import ROW, tichu_players_holding
-
-            return tichu_players_holding(*_bind(ctx, ROW))
-        case "tichu_double_victory":
-            from cardlang.runtime.tichu import ROW, tichu_double_victory
-
-            return tichu_double_victory(*_bind(ctx, ROW))
-        case "tichu_partner":
-            from cardlang.runtime.tichu import ROW, tichu_partner
-
-            return tichu_partner(*_bind(ctx, ROW), args[0])
-        case "tichu_next_holder":
-            from cardlang.runtime.tichu import ROW, tichu_next_holder
-
-            return tichu_next_holder(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
             return tichu_dragon_won(*_bind(ctx, ROW))
-        case "tichu_opponent_team":
-            from cardlang.runtime.tichu import ROW, tichu_opponent_team
-
-            return tichu_opponent_team(*_bind(ctx, ROW), args[0])
-        case "tichu_first_out":
-            from cardlang.runtime.tichu import ROW, tichu_first_out
-
-            return tichu_first_out(*_bind(ctx, ROW))
-        case "tichu_card_points":
-            from cardlang.runtime.tichu import ROW as TICHU_ROW
-            from cardlang.runtime.tichu import tichu_card_points
-
-            return tichu_card_points(*_bind(ctx, TICHU_ROW), args[0])
-        case "president_is_top_rank":
-            from cardlang.runtime.president import ROW, president_is_top_rank
-
-            return president_is_top_rank(*_bind(ctx, ROW), args[0], args[1])
-        case "coup_players_in":
-            from cardlang.runtime.coup import ROW, coup_players_in
-
-            return coup_players_in(*_bind(ctx, ROW))
-        case "coup_next_in_game":
-            from cardlang.runtime.coup import ROW, coup_next_in_game
-
-            return coup_next_in_game(*_bind(ctx, ROW), args[0])
-        case "coup_has_char":
-            from cardlang.runtime.coup import ROW, coup_has_char
-
-            return coup_has_char(*_bind(ctx, ROW), args[0], args[1])
         case "coup_game_summary":
             from cardlang.runtime.coup import ROW, coup_game_summary
 
             total, events = coup_game_summary(*_bind(ctx, ROW))
             _emit(ctx, events)
             return total
-        case "peg_value":
-            from cardlang.runtime.cribbage import value
-
-            return value(args[0])
         case "peg_pair_points":
             from cardlang.runtime.cribbage import peg_pair_points
 
@@ -244,10 +168,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import ROW, cribbage_crib_value
 
             return cribbage_crib_value(*_bind(ctx, ROW))
-        case "gin_card_points":
-            from cardlang.runtime.gin import card_points
-
-            return card_points(args[0])
         case "gin_deadwood":
             from cardlang.runtime.gin import ROW, gin_deadwood
 
@@ -276,14 +196,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_can_declare_free
 
             return gin_can_declare_free(*_bind(ctx, ROW), args[0])
-        case "gin_flat_points":
-            from cardlang.runtime.gin import ROW, gin_flat_points
-
-            return gin_flat_points(*_bind(ctx, ROW), args[0])
-        case "gin_shown_points":
-            from cardlang.runtime.gin import ROW, gin_shown_points
-
-            return gin_shown_points(*_bind(ctx, ROW), args[0])
         case "gin_lay_ok_a":
             from cardlang.runtime.gin import ROW, gin_lay_ok_a
 
@@ -319,7 +231,7 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         case "five_hundred_trick_winner":
             from cardlang.runtime.five_hundred import ROW, five_hundred_trick_winner
 
-            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW), args[0])
+            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
         case "belote_trump_height":
@@ -362,26 +274,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.belote import ROW, belote_decl_slot
 
             return belote_decl_slot(*_bind(ctx, ROW), args[0], args[1], args[2])
-        case "canasta_is_red3":
-            from cardlang.runtime.canasta import ROW, canasta_is_red3
-
-            return canasta_is_red3(*_bind(ctx, ROW), args[0])
-        case "canasta_is_black3":
-            from cardlang.runtime.canasta import ROW, canasta_is_black3
-
-            return canasta_is_black3(*_bind(ctx, ROW), args[0])
-        case "canasta_top_starts_pile":
-            from cardlang.runtime.canasta import ROW, canasta_top_starts_pile
-
-            return canasta_top_starts_pile(*_bind(ctx, ROW))
-        case "canasta_top_is_wild":
-            from cardlang.runtime.canasta import ROW, canasta_top_is_wild
-
-            return canasta_top_is_wild(*_bind(ctx, ROW))
-        case "canasta_pile_rank":
-            from cardlang.runtime.canasta import ROW, canasta_pile_rank
-
-            return canasta_pile_rank(*_bind(ctx, ROW))
         case "canasta_can_take_pile":
             from cardlang.runtime.canasta import ROW, canasta_can_take_pile
 
@@ -402,34 +294,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.canasta import ROW, canasta_close_ok
 
             return canasta_close_ok(*_bind(ctx, ROW), args[0])
-        case "canasta_add_ok":
-            from cardlang.runtime.canasta import ROW, canasta_add_ok
-
-            return canasta_add_ok(*_bind(ctx, ROW), args[0], args[1], args[2])
-        case "canasta_discard_ok":
-            from cardlang.runtime.canasta import ROW, canasta_discard_ok
-
-            return canasta_discard_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "canasta_black3_ok":
-            from cardlang.runtime.canasta import ROW, canasta_black3_ok
-
-            return canasta_black3_ok(*_bind(ctx, ROW), args[0])
-        case "canasta_meld_points":
-            from cardlang.runtime.canasta import ROW, canasta_meld_points
-
-            return canasta_meld_points(*_bind(ctx, ROW), args[0])
         case "canasta_canasta_bonus":
             from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
 
             return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
-        case "canasta_red3_bonus":
-            from cardlang.runtime.canasta import ROW, canasta_red3_bonus
-
-            return canasta_red3_bonus(*_bind(ctx, ROW), args[0])
-        case "canasta_hand_points":
-            from cardlang.runtime.canasta import ROW, canasta_hand_points
-
-            return canasta_hand_points(*_bind(ctx, ROW), args[0])
         case _:
             raise AssertionError(
                 f"unknown native function '{name}' — neither a Builtin "
@@ -439,9 +307,13 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-# An outcome function picks the trick winner from the plays, the led suit, the
-# trump suit (None when no trump), and the game's rank-strength map.
-RankIndex = dict[str, int]
+# The two Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
+# `runtime/winners.py` — both dispatch halves consume them and may not import
+# each other. `value_function` below is the ONE winner-slot dispatcher and
+# keys both homes' winners (the Builtin pair through winners.py, the
+# game-local pair through their modules); its file is the dispatcher's home,
+# not a classification of what it keys (tests/test_native_dispatch_split.py).
+RankIndex = winners.RankIndex
 OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)
 EarlyTermFn = Callable[[Card, str], bool]
@@ -450,9 +322,9 @@ EarlyTermFn = Callable[[Card, str], bool]
 def value_function(name: str) -> Callable[..., Any]:
     match name:
         case "highest_of_led_suit":
-            return highest_of_led_suit
+            return winners.highest_of_led_suit
         case "highest_trump_or_led_suit":
-            return highest_trump_or_led_suit
+            return winners.highest_trump_or_led_suit
         case "on_play_off_led_suit":
             return on_play_off_led_suit
         case "tarot_trick_winner":
@@ -475,9 +347,9 @@ def value_function(name: str) -> Callable[..., Any]:
 # game-local, so these dispatch to per-game modules.
 
 
-ClimbLeadFn = Callable[[sidecar.EngineFacts, reads.GameReads, list[Card]], list[Any]]
+ClimbLeadFn = Callable[[narrowing.EngineFacts, reads.GameReads, list[Card]], list[Any]]
 ClimbFollowFn = Callable[
-    [sidecar.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
+    [narrowing.EngineFacts, reads.GameReads, list[Card], Any], list[Any]
 ]
 
 
@@ -569,7 +441,7 @@ def joint_codec_function(name: str) -> Any | None:
     (`climb_codec_function` below) one construct over: pure card-set <->
     action-index functions (`size` / `encode_cards` / `decode` / `kind_of`)
     over the predicate's satisfying-subset universe. Keyed corpus-first; a
-    joint predicate with no registered codec meets a loud Owner Guard at
+    joint predicate with no registered codec meets a loud [[owner-guard]] at
     `ActionSpace.for_game`, never silently absent from the action space."""
     match name:
         case "gin_arrange_ok" | "gin_valid_meld":
@@ -596,31 +468,6 @@ def climb_codec_function(name: str) -> Any | None:
             return TICHU_COMBO_CODEC
         case _:
             return None
-
-
-def highest_of_led_suit(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: RankIndex,
-) -> Player:
-    """The player who played the highest-ranked card of the led suit."""
-    of_suit = [(p, c) for (p, c) in played if c.suit == led_suit]
-    return max(of_suit, key=lambda pc: rank_index[pc[1].rank])[0]
-
-
-def highest_trump_or_led_suit(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: RankIndex,
-) -> Player:
-    """The highest trump if any trump was played, else the highest card of the
-    led suit (the standard trick winner for a trump game)."""
-    trumps = [(p, c) for (p, c) in played if c.suit == trump]
-    if trumps:
-        return max(trumps, key=lambda pc: rank_index[pc[1].rank])[0]
-    return highest_of_led_suit(played, led_suit, trump, rank_index)
 
 
 def on_play_off_led_suit(card: Card, led_suit: str) -> bool:

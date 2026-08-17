@@ -1,4 +1,4 @@
-// Wall: parse.py's `game()` builder. `cards:` and `pieces:` both select the
+// Guard: parse.py's `game()` builder. `cards:` and `pieces:` both select the
 // game's one component set (`Game.deck`); a game declaring both would need
 // two, which no game has witnessed — rejected at parse, pointing at the
 // clause that appears second.

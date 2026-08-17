@@ -1,5 +1,5 @@
 """The zone-index-role registry (`domains.ZONE_INDEX_ROLES`) and its three
-consumer walls: zone index (`hand[<role>]`), zone owner (`Hand<role>`), and
+consumer guards: zone index (`hand[<role>]`), zone owner (`Hand<role>`), and
 state-variable index (`state { x[<role>] }`).
 
 The defect class this closes: a hand-written `_KNOWN_ROLES = {"player",
@@ -14,11 +14,11 @@ team), and all six sites read the table —
 the proof-harness site matters doubly, since an oracle with a private copy of
 the rule proves the corpus against the copy, not the rule.
 
-Without the state-index wall, `state { x[suit] : Integer = 0 }` would check
+Without the state-index guard, `state { x[suit] : Integer = 0 }` would check
 clean and the runtime would key it BY PLAYERS — the declared index accepted
 and ignored, the repo's worst defect class.
 
-The owner-agreement wall is a separate axis. A validity check ("is the owner a
+The owner-agreement guard is a separate axis. A validity check ("is the owner a
 known role?") is not an agreement check ("does the owner match the index?"):
 without it, `hand[player] : Hand<team>` would check clean because `team` is a
 valid role — but the runtime keys the family by the INDEX (`zone_observer_key`
@@ -54,7 +54,7 @@ sampled:    the owner==index rule is uniform over domains, so the unequal case
             is probed by representative pairs per category (role/role,
             position/position, position/role, role/position), not every pair
 residual:   value-domain-indexed state (`x[rank]` as a per-rank tally) —
-            walled here, recorded in
+            guarded here, recorded in
             roadmap.md, "Grammar surface deferred by the checker"
 """
 
@@ -89,7 +89,7 @@ def test_the_registry_is_the_zone_key_of_column() -> None:
     )
     # And today that is the two seat-anchored stores. A third indexable role
     # enters by adding `zone_key_of` to its row — which simultaneously feeds
-    # resolve's wall, typecheck's key typing, both runtime key sets, and the
+    # resolve's guard, typecheck's key typing, both runtime key sets, and the
     # ownership projection. If this set changed on purpose, update the corpus
     # claims in this file's ledger.
     assert ZONE_INDEX_ROLES == frozenset({Role.PLAYER, Role.TEAM})
@@ -144,7 +144,7 @@ def test_an_owned_zone_type_must_be_indexed() -> None:
 
 @pytest.mark.parametrize("role", _NON_INDEX_ROLES)
 def test_a_state_variable_may_not_be_indexed_by_a_value_domain(role: str) -> None:
-    # The wall this file exists for: before it, `state { x[suit] }` checked
+    # The guard this file exists for: before it, `state { x[suit] }` checked
     # clean and ran as a per-PLAYER store (the driver's key-set dispatch
     # defaulted every non-team role to seats).
     with pytest.raises(DiagnosticError) as exc:
@@ -165,7 +165,7 @@ def test_every_indexable_role_is_accepted_at_all_three_sites(role: str) -> None:
 
 def test_team_indexing_needs_teams() -> None:
     # A team-indexed store in a game with no `teams:` has an EMPTY key
-    # set — without these walls it would declare fine, hold nothing, and fail
+    # set — without these guards it would declare fine, hold nothing, and fail
     # far away on the first write. Both declaration sites are rejected at the
     # cause.
     src_zone = _game("won[team] : TeamPile<team>", "").replace(

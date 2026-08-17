@@ -28,12 +28,12 @@ below, settling on a declarer and his bid). Trump declaration is a second,
 one-draw `round offering [declare_trump_suit]`, guarded by a `has_marriage`
 function checked over each of the four suits (no marriage anywhere abandons
 the bid with no decision offered at all). Meld is a forced
-`pinochle_meld_value(p)` stdlib query per player, credited to his team. The
+`pinochle_meld_value(p)` Primitive query per player, credited to his team. The
 twelve strict tricks run on the trick form of `round`, legality narrowed by
 the MustFollowSuit/MustHeadTrick/MustTrumpIfVoid/MustOverTrump rule cascade
 below (follow suit and head the trick if able; else trump and over-trump if
 able; else anything). The meld evaluator (`pinochle_meld_value`) is a pure
-stdlib primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
+Primitive (`cardlang/runtime/pinochle.py`) — not yet the shared
 combination model.
 
 ```
@@ -46,6 +46,7 @@ game Pinochle {
 
   cards: pinochle48
   ranking: ace-ten            // 10 sits between K and A
+  card_points { A: 10  10: 10  K: 10  Q: 0  J: 0  9: 0 }
 
   zones {
     deck           : Deck
@@ -117,12 +118,12 @@ game Pinochle {
         for each player p: meld_score[team_of(p)] += pinochle_meld_value(p)
 
         // Twelve strict tricks: high bidder leads; A/10/K score 10 each and
-        // the last trick 10 (card_value reads the pinochle48 deck table).
+        // the last trick 10 (card_points reads the game's declared table).
         leader := high_bidder
         repeat until (all players where hand[player] is empty) {
           round play_to_trick from leader over all players source hand into trick_pile
                 winner highest_trump_or_led_suit trump trump_suit
-          trick_score[team_of(winner)] += sum of card_value(card) over cards in trick_pile
+          trick_score[team_of(winner)] += sum of card_points(card) over cards in trick_pile
           move all cards from trick_pile to captured[team_of(winner)]
           leader := winner
         }

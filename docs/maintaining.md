@@ -62,7 +62,7 @@ does it just document the journey? If the latter, cut it.
 concept, one spelling per concept. Prose in these docs — and comments,
 docstrings, diagnostics, and issues — uses the glossary's term, in full
 and in Title Case (the usage rules in its preamble). A word in its
-reserved table (§6) never appears unqualified. When a change needs a
+reserved-words table never appears unqualified. When a change needs a
 word the glossary lacks, mint the entry in the same change; when a
 change renames or retires a spelling, the glossary entry updates in the
 same change. Where current code diverges from the glossary,
@@ -159,7 +159,7 @@ keep the DSL in lockstep with the language:
   not-yet-implemented surface rather than the current one.
 
 A bare fence (no tag) or an unrecognized tag fails the test loudly, naming
-the doc file and line — that wall is what keeps a future edit from adding
+the doc file and line — that Owner Guard is what keeps a future edit from adding
 an unclassified block by accident. `cardlang.extract.extract_blocks` itself
 ignores the info string (it always did — Markdown parsing stays the only
 thing that module knows about), so tagging every block does not change how

@@ -1,7 +1,7 @@
 # Undertow — probe report
 
 What the pipeline says about [DESIGN.md](DESIGN.md)'s 3½-rule trick-taker.
-The brief inverted Green Lane's: a state space too large to solve
+The design brief inverted Green Lane's: a state space too large to solve
 (~5.4 × 10²⁸ deals before a card is played), chosen on purpose, with the
 evaluation downgraded from *prove* to *probe*. `PYTHONHASHSEED=0`; adapter
 registration samples 2048 deal seeds; scripts in `analyze_undertow.py`.

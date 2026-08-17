@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_validate_refs` StateDecl arm (KNOWN_TYPE_NAMES). A
+// Guard: resolve.py's `_validate_refs` StateDecl arm (KNOWN_TYPE_NAMES). A
 // board-minted position domain (`cell`) is an index/parameter domain, never a
 // declarable state TYPE -- position-typed state stays rejected. The board is
 // otherwise valid (it mints `cell`); only `foo : cell` is the defect.

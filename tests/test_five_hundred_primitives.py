@@ -1,4 +1,4 @@
-"""Known-value tests for 500's stdlib primitives
+"""Known-value tests for 500's Primitives
 (cardlang/runtime/five_hundred.py), following the gin/cribbage pattern: the
 pure decision cores — the bid ladder, follow/lead legality, the trick winner
 — are proven against positions whose answers are known by construction,
@@ -26,9 +26,9 @@ sampled:    full-game reachability of each contract family via the playout
             open-misère line (tests/openspiel_ready/test_five_hundred.py)
 residual:   the lead-time joker nomination Pagat allows when leading an
             un-nominated joker (modelled as "not before the holder's last
-            card" — the wall is `lead_ok` returning False, loud as an empty
+            card" — the guard is `lead_ok` returning False, loud as an empty
             candidate set never arises and the restriction is documented in
-            five-hundred.md "Chosen ruleset"; recorded in issue #106)
+            five-hundred.md "Chosen ruleset (modelling notes)"; recorded in issue #106)
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from cardlang.runtime.five_hundred import (
     lead_ok,
     trick_winner,
 )
-from cardlang.runtime.values import DECKS, Card, build_deck
+from cardlang.runtime.values import Card, build_deck
 
 JOKER = Card("Joker", "joker")
 
@@ -71,7 +71,8 @@ def test_five_hundred43_composition() -> None:
     # The black suits stop at 5; the red suits carry the 4; no 3s or 2s.
     assert not any(c.rank in ("3", "2") for c in cards)
     assert {c.suit for c in cards if c.rank == "4"} == {"diamonds", "hearts"}
-    assert DECKS["five_hundred43"].values == {}  # no card-point values
+    # No card-point assertion: a Deck carries composition only — the class
+    # cannot represent a point table at all (500 declares no `card_points`).
 
 
 # --- the bid ladder (exhaustive over the 27 rungs) ---------------------------

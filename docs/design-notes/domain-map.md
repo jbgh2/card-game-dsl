@@ -60,7 +60,7 @@ flowchart LR
 
 | Domain | In plain terms | Registry / anchor |
 |---|---|---|
-| **Description** (core) | The language: text → checked program | grammar productions; AST unions; diagnostics; the totality walls |
+| **Description** (core) | The language: text → checked program | grammar productions; AST unions; diagnostics; the totality Owner Guards |
 | **Table** | Where physical things are | zone types + `ZONE_PROJECTIONS`; `DECKS` |
 | **Decision** (core) | Who may do what, when | move types + guards; declared parameter domains; `ActionSpace` |
 | **Observation** (core, the moat) | Who knows what — derived from declared visibility, never authored per game | event vocabulary; projection lattice; per-observer logs; `information_state` |
@@ -92,8 +92,8 @@ contract itself. Do not "fix" their location.
 | Description | `grammar/`, `parse.py`, `ast/nodes.py`, `resolve.py`, `typecheck.py`, `ir.py` | Surface-totality matrices (movement grid, rejection tests); closed AST unions under `mypy --strict` with `assert_never` dispatches; declared-type-name and named-arg rejections |
 | Table | `runtime/values.py`, `runtime/state.py`, `stdlib/zones.py` | `ZONE_PROBES` ↔ `ZONE_PROJECTIONS` pin + probe-time refusal; deck registries derived from `DECKS` (suits) or drift-pinned (sizes); emission-rule raise in `view_of` |
 | Decision | `domains.py`, `runtime/mechanics.py`, `runtime/chooser.py`, `runtime/execute.py` (offer), `openspiel/encoding.py` | The quantifiable-domain registry (`domains.py`) is the one table behind both namespaces — the `for each`/quantifier role nouns and the capitalised move-parameter spellings: resolve's `_ITERATION_ROLES`/`_FIXED_DOMAINS`, typecheck's binder typing, the runtime's `role_members`/`enumerate_domain`, and `execute._for_each`'s actorhood are all derived columns, pinned by the domain × form matrix (tests/test_domain_registry.py); registry→dispatcher pins (`CALL_FUNCS`, the round-callback and climb-query name sets); encoder ends in loud errors |
-| Observation | `runtime/observe.py`, `openspiel/infostate.py` | `EVENT_TYPES` vocabulary + corpus-sweep pin; renderer shape walls (undeclared value shapes refuse); the partition proof battery |
-| Control | `runtime/driver.py`, `runtime/phases.py` | Central decision counting vs `max_length` (one wrapper, every chooser site); round-form surface under Description's totality |
+| Observation | `runtime/observe.py`, `openspiel/infostate.py` | `EVENT_TYPES` vocabulary + corpus-sweep pin; renderer shape Owner Guards (undeclared value shapes refuse); the partition proof battery |
+| Control | `runtime/driver.py`, `runtime/active_rules.py` | Central decision counting vs `max_length` (one wrapper, every chooser site); round-form surface under Description's totality |
 | Valuation | `openspiel/replay.py` (`returns_for`), driver winner handling | Bounded by the `winner:` grammar surface; per-game playout + conservation tests |
 | Chance | seeded in `runtime/driver.py`, carried as `rs.rng` | The seed/rng non-observability pin; replay purity (chooser makes no rng calls) |
 | Interop | `cardlang/openspiel/` (`game.py`, `replay.py`, `encoding.py`, `report.py`) | Per-game conformance; adapter-agreement proof (doubles as per-game determinism) |
@@ -118,7 +118,7 @@ completeness.
 | Rules as values | Description | Selectable rule sets at runtime (axis 3); effect composition (CCGs) stays the horizon beyond it (axis 4) |
 
 Every future domain arrives under the closed-domain-completeness bar: with
-its defining registry, its static pins, and its walls on day one —
+its defining registry, its static pins, and its Owner Guards on day one —
 topology's adjacency relations, pose's verb set, and the tensorizer's
 feature schema are all closed domains from birth.
 
@@ -128,12 +128,12 @@ Where corpus growth actually lands, and the signal that says stop and
 design rather than accrete:
 
 - **Card games** mostly grow registries inside existing domains (decks,
-  stdlib primitives, round axes) — the drilled, pinned path. The first
+  Primitives, round axes) — the drilled, pinned path. The first
   genuinely new pressure: observer-dependent phase outcomes (500's open
   misère, Belote's declarations —
   [knowledge-events](../open-questions/knowledge-events.md)).
 - **Position explosion** (Table): a game file hand-enumerating cells
-  (`square_a1 …`) is the nullary-explosion wall again — boards need
+  (`square_a1 …`) is the nullary-explosion Owner Guard again — boards need
   position-indexed zones and an adjacency relation *derived* from a board
   declaration, never hand-written per game.
 - **Connectivity escape hatch** (Description): a game-local Python

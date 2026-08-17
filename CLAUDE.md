@@ -34,7 +34,7 @@ legal-action agreement, the per-visible-fact soundness matrix, a seed/rng
 non-observability pin, adapter agreement, perfect recall; per-game caveats
 and rationale live in the proof modules themselves). No per-game
 observation rules, no Python escape-hatch mechanic (the `instantiate`
-construct is deleted), no per-game branch outside the stdlib primitive
+construct is deleted), no per-game branch outside the Primitive
 registries. **The evolving honesty line is tracked in two named places,
 not here:** `docs/kernel-migration.md` (workstream status and remaining
 scope reductions) and `docs/open-questions/structural-infoset-proofs.md`
@@ -127,7 +127,7 @@ docs/
 - **"How do phases / rules / move types fit together?"** → `docs/model.md`
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
-- **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table (§6) lists the words never to use unqualified. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
+- **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the generated index, one line per term; the entries themselves are one file per term in `docs/glossary/`, so read the index for the whole vocabulary and open an entry only when that term is the thing in question. The naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table lists the words never to use unqualified, and each term has its own entry under `docs/glossary/`. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
@@ -189,8 +189,7 @@ quoting local evidence, run the checks as written. In particular:
   exit code. CI is the authority.
 
 **These two checks are regression gates, not completeness gates.** A change
-that adds or extends grammar surface, a checker Owner Guard or diagnostic, a stdlib
-registry, or any closed-domain mechanism — **including a change answering a
+that adds or extends grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any closed-domain mechanism — **including a change answering a
 review finding on one**, where the finding is a sample of a class and never
 the spec for the fix — additionally passes the
 **surface-totality audit** — run the `surface-totality-audit` skill
@@ -199,7 +198,7 @@ and "Closed-domain completeness". Its artifacts are mandatory in the change:
 the **grid** (the crossed coverage domain as an executable parametrized
 test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
-wrong sentences, each proven loud in the right layer's currency), and the
+wrong sentences, each proven loud in the right layer's failure channel), and the
 **completeness ledger** (judgment columns in the grid module's docstring —
 `covered` IS the grid; no residual cell without both a guard and a record —
 a tracker issue cited as `issue #N`, or the ledger row alone for an R4
@@ -253,7 +252,7 @@ gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
   --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
 ```
 
-An issue's title and Summary speak impact currency; its Detail speaks
+An issue's title and Summary speak impact; its Detail speaks
 mechanism. The title states what a designer or the engine experiences, not
 where the fix goes ("a team typo plays to completion", not
 "validate teams at resolve time"). The Summary answers, in a few
@@ -333,7 +332,7 @@ violating them silently corrupts the spec.
 7. **Names come from the glossary.** `docs/glossary.md` owns what every concept
    is called and what every name may mean — in docs, comments, docstrings,
    diagnostics, and issues alike. Use its terms in full and in Title Case; never
-   use a reserved word (glossary §6) unqualified. A change that needs a word the
+   use a reserved word (see the glossary's reserved-words table) unqualified. A change that needs a word the
    glossary lacks mints the entry in the same change; a change that renames or
    retires a spelling updates the entry in the same change.
 

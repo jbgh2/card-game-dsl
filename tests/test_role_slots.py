@@ -5,14 +5,14 @@ quantifiable domain -- `for each <role>`, `hand[<index>]`, `Hand<owner>`.
 The domain registry (`cardlang/domains.py`) closes the ROLE half of what may
 sit there; a game's `positions { }` block and a `board:` clause open the
 other half. Neither half is visible in the field's annotation, which is
-`str`, so every wall over these slots is written by hand at the consuming
-pass -- and a slot whose wall was never written accepts whatever it is given.
+`str`, so every guard over these slots is written by hand at the consuming
+pass -- and a slot whose guard was never written accepts whatever it is given.
 
 That is the shape this grid measures. It is the sibling of the role TYPE
 (`domains.Role`), which governs how a role is CONSULTED once classified;
 this one governs what a role slot ACCEPTS in the first place. Neither
-implies the other: a slot can be walled and then consulted by ad-hoc logic,
-or consulted correctly and never walled at all -- and the second is what the
+implies the other: a slot can be guarded and then consulted by ad-hoc logic,
+or consulted correctly and never guarded at all -- and the second is what the
 `RequireDecl.index` row was, accepting any name a library cared to write
 while every consumer downstream handled roles impeccably.
 
@@ -47,11 +47,11 @@ covered:    the full cross product, executed by
             test would make its own row vacuous -- the cell would then prove
             "an undeclared name is refused", which is the `unknown` row.
 sampled:    none -- every cell is executed.
-residual:   ONE. The grid commands ACCEPT/REJECT/INEXPRESSIBLE, not WHICH wall
+residual:   ONE. The grid commands ACCEPT/REJECT/INEXPRESSIBLE, not WHICH guard
             reports: at the zone-owner slot the template holds index and owner
             equal (what a designer writes), so for a non-indexable value the
-            INDEX wall reports first and the owner wall is not the one
-            measured. The owner wall is separately executed against a fixed
+            INDEX guard reports first and the owner guard is not the one
+            measured. The owner guard is separately executed against a fixed
             `player` index by
             `tests/test_zone_index_roles.py::test_a_zone_type_may_not_be_owned_
             by_a_value_domain`. R4 -- auditor-only, and it guards no
@@ -93,7 +93,7 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = getattr(
 # `binder` slots are deliberately NOT here: `LetStmt.index` is a lexical
 # BINDER, not a domain name (`let x[i] = …` builds a per-player map whatever
 # `i` is called), and the registry classifies it that way. Its role-noun
-# confusion is a different wall, covered by
+# confusion is a different guard, covered by
 # `tests/test_zone_index_roles.py::test_an_indexed_let_may_not_borrow_a_value_
 # domain_noun`.
 _ROLE_NAMESPACES = frozenset({"role", "index_domain", "zone_type_arg"})
@@ -208,7 +208,7 @@ def _base_for(value: str) -> _Base:
 # template is legal for at least one value, so a cell varies ONLY the role.
 # Bodies never mention the role's own binder: `each team simultaneously:
 # … hand[player] …` refuses for the unbound `player`, which would score the
-# role wall's cell on a different wall entirely.
+# role guard's cell on a different guard entirely.
 
 
 def _run_for_each(value: str, _mp: pytest.MonkeyPatch) -> None:
@@ -248,7 +248,7 @@ def _run_state_index(value: str, _mp: pytest.MonkeyPatch) -> None:
 
 def _run_type_arg(value: str, _mp: pytest.MonkeyPatch) -> None:
     # Index and owner held EQUAL -- what a designer writes, and what the
-    # agreement wall demands. See the ledger's residual row.
+    # agreement guard demands. See the ledger's residual row.
     base = _base_for(value)
     check_dsl(base(zones=f"h2[{value}] : PlayerPile<{value}>"), "probe.cardlang")
 
@@ -258,9 +258,9 @@ def _run_require_index(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
 
     The GAME always declares the LEGAL `q[player]`, never a copy of the value
     under test. That asymmetry is the whole point of this row: with the game
-    declaring the same bad index, its own state-index wall refuses first and
+    declaring the same bad index, its own state-index guard refuses first and
     the cell goes green having proved nothing about the library's slot. The
-    grid must not let one wall stand in for another it is measuring."""
+    grid must not let one guard stand in for another it is measuring."""
     library = parse_library(
         f"""library probe_lib {{
   requires {{ q[{value}] : Integer }}
@@ -307,7 +307,7 @@ _TEMPLATES: dict[str, Callable[[str, pytest.MonkeyPatch], None]] = {
 # splits are not uniform across the grid and each is a decision:
 #
 #  - `for each` iterates every registry row plus a board's NAMED-member
-#    position domain; an integer `positions { }` domain stays walled (#111).
+#    position domain; an integer `positions { }` domain stays guarded (#111).
 #  - a quantifier's four spellings are GRAMMAR productions, so a fifth noun
 #    builds a `DomainQuery` -- inexpressible as a `Quantifier`.
 #  - `each … simultaneously` is seat-only, and only the seat that IS an actor.
@@ -456,7 +456,7 @@ def test_a_role_slot_admits_exactly_its_declared_domains(
         # so this row deviates from a pinned convention and must say so out
         # loud: a malformed index is wrong in the library's own text and no
         # game can answer it. The `team` cell is excluded because it is a
-        # genuine CONTRACT mismatch, which keeps the game's currency.
+        # genuine CONTRACT mismatch, which keeps the game's author.
         assert "probe_lib.cardlang:" in str(exc.value), (
             f"{slot} x {value}: refused in the wrong file — a malformed "
             f"requirement index is the library's defect:\n    {exc.value}"

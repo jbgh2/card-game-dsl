@@ -51,7 +51,7 @@ task 8 prints.
 
 ## Gate 1 — Owners
 
-- **`cardlang/runtime/sidecar.py`, Contract.** Establishes "a game module
+- **`cardlang/runtime/narrowing.py`, Contract.** Establishes "a game module
   receives values only — no engine handle crosses the boundary, so purity is
   structural". The memo does not weaken this: a cache hit returns the same
   frozen bundle a rebuild would.

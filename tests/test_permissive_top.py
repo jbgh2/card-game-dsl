@@ -5,7 +5,7 @@ either side is `TAny`, and ~20 sites in `typecheck.py` short-circuit their
 check on it. A value typed `TAny` therefore satisfies EVERY constraint —
 correct for a genuine top type, catastrophic for a value the checker merely
 failed to look up, because the miss then silently exempts everything below it
-from every type wall. Those two meanings used to share one type, and the
+from every type guard. Those two meanings used to share one type, and the
 second was a standing source of this repo's worst defect class
 (accepted-but-ignored): two PR-review findings in one cycle were the same
 shape (a move parameter whose position domain was not threaded into the binder
@@ -19,30 +19,30 @@ failed lookup".
 Completeness ledger
 -------------------
 property:   a name/registry lookup whose domain is closed never degrades to
-            the permissive top — it raises, in compiler currency (an
-            `AssertionError` naming the wall or builder that guarantees it),
+            the permissive top — it raises, in compiler channel (an
+            `AssertionError` naming the guard or builder that guarantees it),
             so an incomplete environment surfaces as a crash at the miss
             rather than as a silently-passing type check.
 domain:     every top-construction site in `cardlang/` (27 today, counted by
             `_count_top_constructions` under any spelling of the type's name),
             partitioned into: lookup-miss producers (raise), declared-type-name
-            positions (walled at resolve), and audited top.
+            positions (guarded at resolve), and audited top.
 registry:   the five role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
             `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
             `NameRef.ref_kind` vs `_name_type`'s arms; `OP_CLASSES` vs
-            `infer`'s BinOp arm (pinned in tests/test_operator_walls.py).
+            `infer`'s BinOp arm (pinned in tests/test_operator_guards.py).
 covered:    the registry-closure pins below (each proves the corresponding
             raise is unreachable for a well-formed program, so the raise is a
-            wall over a closed domain rather than a live failure mode); the
+            guard over a closed domain rather than a live failure mode); the
             three NAME-taking registry lookups, exercised directly as one
             class (`test_every_name_taking_registry_lookup_raises_on_an_
             unknown_role`) — the other two of the former five now take a
             `domains.Role`, so their miss branches are unreachable BY TYPE
             and the residue is the every-Role-has-a-row pin beside them
             (`test_every_role_carries_a_row`); the three
-            declared-type-name walls, as rendered-diagnostic goldens in
+            declared-type-name guards, as rendered-diagnostic goldens in
             tests/rejections/unknown_type_{function_param,move_param,
             variant_payload}.cardlang; and the position x name-source grid in
             tests/test_type_name_positions.py, which crosses all NINE
@@ -73,17 +73,17 @@ sampled:    the audited-top set is a COUNT per module, not an enumeration of
 residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             falls to `TAny` (`if c then 1 else hearts` types as the top and goes
             permissive). A distinct population from the lookup misses this
-            module closes — wall recorded in issue #116.
+            module closes — guard recorded in issue #116.
             (2) `max`/`min` comprehensions type as the top though `_check_agg_body`
             already forces an Integer body — a precision loss, not a miss;
             recorded in issue #116 alongside (1).
             (3) CLOSED. A forward struct reference no longer reaches
             `type_from_name`'s fallback: declared field types resolve through
             the same merged registry map as derived bodies, so declaration
-            ORDER no longer decides a field's type or which walls fire
+            ORDER no longer decides a field's type or which guards fire
             (`test_a_forward_struct_reference_types_the_same_in_either_order`).
             The positions that reached the fallback with an INVALID name are
-            walled at resolve, and a declared POSITION domain is admitted
+            guarded at resolve, and a declared POSITION domain is admitted
             rather than called unknown.
             (4) none for the struct/function registries. They are mutually
             dependent in both directions and at arbitrary depth, so
@@ -94,7 +94,7 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             green suite did not: unequal `TStruct`s for one nominal type
             (`expects R, got R`, now closed by nominal struct comparison in
             `types.assignable`/`unify`), and a derived field frozen at the top
-            when its type flowed through a function return (a LOST WALL --
+            when its type flowed through a function return (a LOST GUARD --
             `score[p] := s.flag` accepted a Boolean into an Integer state
             variable). Both are pinned below. Corpus exposure is zero: no game
             declares a struct, which is exactly why the suite was silent.
@@ -146,8 +146,8 @@ from cardlang.types import (
     TInteger,
     TOptional,
     TStruct,
-    assignable,
-    unify,
+    coercible,
+    join,
 )
 
 CARDLANG_ROOT = Path(typecheck.__file__).parent
@@ -170,12 +170,12 @@ game G {{
 
 
 # =============================================================================
-# Registry closure — why each raise is a wall over a closed domain
+# Registry closure — why each raise is a guard over a closed domain
 # =============================================================================
 
 
 def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
-    """`role_type` raises for a role outside `BY_ID`. That is only a WALL (as
+    """`role_type` raises for a role outside `BY_ID`. That is only a GUARD (as
     opposed to a live crash) because every surface that produces a role draws
     from a set `BY_ID` covers: the parser's four hard-coded quantifier
     spellings, and the four role sets resolve validates against."""
@@ -199,7 +199,7 @@ def test_every_role_set_is_a_subset_of_the_domain_registry() -> None:
 
 def test_every_name_taking_registry_lookup_raises_on_an_unknown_role() -> None:
     """The registry lookups that still take a NAME answer a divergence the same
-    way: in compiler currency, never by defaulting.
+    way: in compiler channel, never by defaulting.
 
     Only three still can. `role_type`, `binds_actor` and `role_members` take a
     `domains.Role`, so an unknown role is unwritable at every call site and
@@ -207,7 +207,7 @@ def test_every_name_taking_registry_lookup_raises_on_an_unknown_role() -> None:
     type, with `test_every_role_carries_a_row` below as the one residue. The
     three here take a name because their domain genuinely is open (the registry
     plus the calling game's declared position domains), so classifying the name
-    is part of their answer and the raise is the wall over what is left.
+    is part of their answer and the raise is the guard over what is left.
 
     `binds_actor` is why the contract is "raise", not "return a default": it
     alone used to answer `False`, which is not an absence but a CLAIM — "this
@@ -281,17 +281,17 @@ def test_the_nominal_struct_rule_reaches_through_every_wrapper(
     unrelated = TStruct(name="S", fields={"a": TInteger()}, derived=frozenset())
 
     if relation == "unify":
-        assert unify(wrap(stale), wrap(settled)) is not None, (
+        assert join(wrap(stale), wrap(settled)) is not None, (
             "two snapshots of one nominal type must unify; None sends an "
             "IfExpr over them to the permissive top"
         )
-        assert unify(wrap(stale), wrap(unrelated)) is None, (
+        assert join(wrap(stale), wrap(unrelated)) is None, (
             "different names are different types — the rule must not buy "
             "compatibility with permissiveness"
         )
     else:
-        assert assignable(wrap(stale), wrap(settled))
-        assert not assignable(wrap(stale), wrap(unrelated))
+        assert coercible(wrap(stale), wrap(settled))
+        assert not coercible(wrap(stale), wrap(unrelated))
 
 
 def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
@@ -316,9 +316,9 @@ def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
     )
 
 
-def test_call_signature_registry_covers_every_stdlib_call_function() -> None:
+def test_call_signature_registry_covers_every_native_call_function() -> None:
     """`infer`'s Call arm raises when a call has no signature; resolve rejects
-    a call to an unknown name, so the two stdlib registries must agree."""
+    a call to an unknown name, so the two native registries must agree."""
     assert set(CALL_FUNCS) == set(CALL_SIGS)
 
 
@@ -379,7 +379,7 @@ def test_unknown_role_raises_rather_than_typing_as_top() -> None:
 
 def test_unbound_binder_raises_rather_than_typing_as_top() -> None:
     """The headline case: a binder the statement walk failed to thread. This
-    used to type as the top, so every wall below the binder passed silently."""
+    used to type as the top, so every guard below the binder passed silently."""
     with pytest.raises(AssertionError) as ei:
         infer(n.NameRef("p", ref_kind="local"), TypeEnv())
     assert "absent from `TypeEnv.locals`" in str(ei.value)
@@ -437,7 +437,7 @@ def test_unbound_zone_family_subscript_raises() -> None:
 
 
 # =============================================================================
-# The declared-type-name walls (resolve) — the reachable holes, now closed
+# The declared-type-name guards (resolve) — the reachable holes, now closed
 # =============================================================================
 
 
@@ -480,7 +480,7 @@ def test_user_type_as_move_parameter_is_rejected() -> None:
     """A DECLARED struct is a known type, but not an enumerable move-parameter
     domain — and `_param_type` builds move params without the struct registry,
     so admitting one would type it as the top. The domain gate covers it like any other
-    non-enumerable spelling, so there is no second wall to keep in step."""
+    non-enumerable spelling, so there is no second guard to keep in step."""
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(
             _game(
@@ -493,8 +493,8 @@ def test_user_type_as_move_parameter_is_rejected() -> None:
 
 
 def test_position_domain_stays_legal_as_a_move_parameter() -> None:
-    """The move-param wall must not reject the position domains `_param_type`
-    genuinely types (as Integer) — the wall mirrors the builder exactly."""
+    """The move-param guard must not reject the position domains `_param_type`
+    genuinely types (as Integer) — the guard mirrors the builder exactly."""
     src = """
 game G {
   players: 1
@@ -579,10 +579,10 @@ def test_a_derived_field_reached_through_a_function_keeps_its_real_type() -> Non
     A function's RETURN type can depend on a derived field, which can depend on
     another function's return type. A FIXED pass count froze the outermost
     derived field at the permissive top, silently exempting every expression
-    that read it from every wall — this module's own defect class, reintroduced
+    that read it from every guard — this module's own defect class, reintroduced
     by the fix for a different bug in the same area, and caught only by an
     adversarial probe. Both halves are pinned: the case that regressed (through
-    a DERIVED field) and the control proving the wall is real (through a
+    a DERIVED field) and the control proving the guard is real (through a
     DECLARED one). Both are Integer, so both must reject the Suit."""
 
     def game_of(fn_body: str) -> str:
@@ -612,7 +612,7 @@ def test_a_derived_field_reached_through_a_function_keeps_its_real_type() -> Non
         "turn",  # a state variable
         "deck",  # a zone
         "actor",  # a pronoun
-        "rank_value(2 of clubs)",  # a stdlib call
+        "rank_value(2 of clubs)",  # a native call
         "x + 1",  # the struct's own declared field
     ],
 )
@@ -694,7 +694,7 @@ def test_a_nested_struct_field_is_typed_whatever_the_declaration_order(
 def test_a_recursive_struct_path_stays_typed_at_any_depth(hops: int) -> None:
     """A struct's field map holds a SNAPSHOT of each struct-typed field, and a
     recursive type has no finite unrolled form — every embedded copy is one
-    round staler than the last. Reading snapshots therefore made the wall decay
+    round staler than the last. Reading snapshots therefore made the guard decay
     with traversal depth: `r.copy.flag` and `r.copy.copy.flag` were checked,
     `r.copy.copy.copy.flag` typed as the permissive top and a Boolean became
     assignable to an Integer.
@@ -798,7 +798,7 @@ def test_env_from_game_fills_in_the_procedure_signatures() -> None:
 
     This one failed SILENTLY rather than loudly, which makes it the worse
     shape. The `run`-site check guarded with `if sig is not None`, so an env
-    without procedure signatures skipped the arity and argument-type wall
+    without procedure signatures skipped the arity and argument-type guard
     instead of failing — and that site is the ONLY place a procedure's
     parameter annotations bite at all (after expansion the call site is gone).
     The guard is now a raise, on the same reasoning as every other lookup here:
@@ -854,15 +854,15 @@ def test_a_derived_field_reached_through_a_function_is_assignment_checked() -> N
 
 
 def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
-    """Declaration ORDER does not decide a field's type, or its walls.
+    """Declaration ORDER does not decide a field's type, or its guards.
 
     `struct_registry` resolves declared field types through the same merged map
     as derived bodies, so a container declared ABOVE its member types to that
     member rather than to the permissive top. Resolved against a partial map,
     the two orders would disagree: the forward order would accept an Integer
-    where a struct is expected, which is a silent wall outage for every field
+    where a struct is expected, which is a silent guard outage for every field
     typed by a later declaration — and it would falsify this section's
-    invariant that a name the wall admits is never one the builder still maps
+    invariant that a name the guard admits is never one the builder still maps
     to the top.
 
     red under: in `struct_registry`, resolve declared field types against the
@@ -896,7 +896,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #     residual 3); pronoun member access (deferred shape); a non-`actor`
 #     pronoun; a bare function NAME in value position; a procedure `Sig.ret`
 #     (a procedure is a statement — the field is never read).
-#   gradual propagation, downstream of a wall that already fired — 6:
+#   gradual propagation, downstream of a guard that already fired — 6:
 #     a subscript of a non-collection (`subscriptable`), a comprehension
 #     element off a bad source (`_check_card_source`), an unknown struct field
 #     and an unknown item/Card field (both rejected in `_check_expr`), and the
@@ -914,15 +914,19 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # types.py (2)
 #   `unify`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# builtins/signatures.py (11)
+# builtins/signatures.py (12)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument,
-#   `error()`'s return (it diverges, so it must type in any context), the
-#   trick-winner and auction-outcome callbacks whose real type the `Sig` model
-#   cannot express, and the `ChipStack` resource zone's element.
+#   `highest_trump_or_led_suit`'s zone argument (the same polymorphic shape —
+#   the runtime needs the Zone handle so the Arrival Record rides along,
+#   issue #256; probed in tests/test_native_call_boundary.py beside
+#   suit_of's), `error()`'s return (it diverges, so it must type in any
+#   context), the trick-winner and auction-outcome callbacks whose real type
+#   the `Sig` model cannot express, and the `ChipStack` resource zone's
+#   element.
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 16,
     "types.py": 2,
-    "builtins/signatures.py": 11,
+    "builtins/signatures.py": 12,
 }
 
 
@@ -1010,9 +1014,9 @@ def test_the_audited_top_still_flows_where_it_is_legitimate() -> None:
     )
     assert infer(n.NameRef("loose", ref_kind="local"), env) == TAny()
     # and a chip-stack-shaped collection still unifies with a card collection
-    from cardlang.types import unify
+    from cardlang.types import join
 
-    assert unify(TCollection(TAny()), TCollection(TCard())) is not None
+    assert join(TCollection(TAny()), TCollection(TCard())) is not None
 
 
 def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
@@ -1061,15 +1065,15 @@ def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
 
     # Refused by construction, with no arm naming it.
     assert subscriptable(unknown) is False
-    assert assignable(unknown, TInteger()) is False
-    assert assignable(TInteger(), unknown) is False
-    assert unify(unknown, TInteger()) is None
-    assert unify(TInteger(), unknown) is None
+    assert coercible(unknown, TInteger()) is False
+    assert coercible(TInteger(), unknown) is False
+    assert join(unknown, TInteger()) is None
+    assert join(TInteger(), unknown) is None
 
     # ...while the same-type cases equality already covers still answer, so
     # failing closed is conservative rather than wrong.
-    assert assignable(unknown, unknown) is True
-    assert unify(unknown, unknown) == unknown
+    assert coercible(unknown, unknown) is True
+    assert join(unknown, unknown) == unknown
 
     # And rendering degrades gracefully: a diagnostic naming an unfamiliar type
     # still reads, rather than crashing the checker mid-report.

@@ -31,7 +31,7 @@ covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
             pair against an equal tree — the same object once `_check` is
             memoized — and pass for free. The zones axis covers
             every game: a gather visits zones in canonical sorted-name order
-            (`execute.py::_gather`; decisions.md "Loop lifecycle"), the
+            (`execute.py::_gather`; decisions.md "Loop lifecycle: `before_each` and `after_each`"), the
             canonicalization that retired this suite's original gather-order
             finding and its per-game exclusion.
 sampled:    seeds and decision depth only (CI budget) — pairing.py.
@@ -70,7 +70,7 @@ REJECTION_CASES = sorted(p.stem for p in REJECTIONS_DIR.glob("*.cardlang"))
 _PARSE_LEVEL_CASES = frozenset(
     {
         "syntax_error",
-        # The game-skeleton walls in parse.py's `game()`/`start()` builders
+        # The game-skeleton guards in parse.py's `game()`/`start()` builders
         # (missing/duplicated single-valued clauses, content-clause mutual
         # exclusion, game-count errors) — rejected before any tree exists to
         # reorder.
@@ -85,7 +85,7 @@ _PARSE_LEVEL_CASES = frozenset(
         "two_game_blocks",
         # The collection-quantifier register has no `number of <noun> in
         # <expr> where ...` production -- a raw grammar dead end, not a
-        # resolve wall (issue #111).
+        # resolve guard (issue #111).
         "cell_count_in_collection_not_admitted",
         # `?mode_item` admits `active_rules` and `transition_to` only, so a
         # `legal_moves:` in a mode body never reaches a tree. This case moved
@@ -123,7 +123,7 @@ def test_reorder_actually_changes_every_game(path: Path) -> None:
     "vacuously green" in decisions.md's sense, and invisible in a green run.
     Today the corpus minimum is 3 zones, so this holds with room; it is pinned
     because the pairing harness's docstring claims the transformed side ALWAYS
-    takes a fresh key, and "always" is a wall or it is nothing."""
+    takes a fresh key, and "always" is a guard or it is nothing."""
     game = pairing.parse_corpus_game(path)
     assert reorder_declarations(game) != game, (
         f"{path.name}: reorder is the identity on this game — its pairing case "

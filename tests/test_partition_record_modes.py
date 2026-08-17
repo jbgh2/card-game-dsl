@@ -144,7 +144,7 @@ def test_subdirectory_conftest_hooks_lose_the_record_under_xdist(
     (the collecting process loads the conftest) and a bare parallel run
     LOSES it (the controller never loads it, so worker payloads go unread).
     A failure here means the controller started loading subdirectory
-    conftests — revisit the hooks' placement, the wall may be removable."""
+    conftests — revisit the hooks' placement, the guard may be removable."""
     sub = pytester.mkpydir("sub")
     (sub / "conftest.py").write_text(_HOOKS_CONFTEST.format(repo_root=_REPO_ROOT))
     (sub / "test_sub_mod.py").write_text(_MODULE_B.format(repo_root=_REPO_ROOT))
@@ -161,6 +161,6 @@ def test_subdirectory_conftest_hooks_lose_the_record_under_xdist(
     assert not any(_SECTION_HEADER in ln for ln in parallel.outlines), (
         "a bare parallel run PRINTED the record from subdirectory-conftest "
         "hooks — the xdist controller has started loading subdirectory "
-        "conftests, so the placement wall in tests/conftest.py may be "
+        "conftests, so the placement guard in tests/conftest.py may be "
         "removable; re-read its module docstring before acting"
     )

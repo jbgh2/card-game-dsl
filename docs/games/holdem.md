@@ -44,14 +44,15 @@ and the showdown as plain statements — a contested hand reveals the contenders
 hole cards, each entrant collects its side-pot share via `holdem_pot_share(p)`,
 and the hands leave play to the muck.
 
-Two stdlib primitives, both pure reads. `holdem_pot_share` is the side-pot query
+One Primitive, a pure read. `holdem_pot_share` is the side-pot query
 (the committed-total layering, odd chip to the first winner in seat order,
-uncalled remainder to the best contender). `holdem_next_entrant` is the seat-ring
-skip — the same shape as Coup's `coup_next_in_game` — and both the button's own
-rotation and the blinds go through it. Stepping the button along the LIVE ring
-rather than rotating it through every physical seat is what keeps the rotation
-strict: map dead seats forward instead and, heads-up, one survivor takes the
-button on two hands of every three. The poker evaluator behind the settlement is
+uncalled remainder to the best contender). The seat-ring skip is the language's
+own ring search — `the first player from <seat> offset_by left where
+in_hand[player]` (decisions.md "Player-collection queries") — and both the
+button's own rotation and the blinds go through it. Stepping the button along
+the LIVE ring rather than rotating it through every physical seat is what keeps
+the rotation strict: map dead seats forward instead and, heads-up, one survivor
+takes the button on two hands of every three. The poker evaluator behind the settlement is
 shared with Seven-Card Stud (`cardlang/runtime/poker.py`) and unit-tested: which
 cards a player has available is a property of the game, how five of them compare
 is not.
@@ -144,7 +145,7 @@ game Holdem {
       // Step the button along the LIVE ring: rotating through every physical
       // seat and mapping dead ones forward would give the same survivor the
       // button on two heads-up hands of every three.
-      dealer := holdem_next_entrant(dealer offset_by left)
+      dealer := the first player from dealer offset_by left where in_hand[player]
       button := dealer
 
       // Heads-up reverses the blinds: the button posts the small blind. Taking
@@ -152,8 +153,8 @@ game Holdem {
       // cases, so only the small blind needs the conditional.
       let small_blind = if (number of players where in_hand[player]) is 2
                           then button
-                          else holdem_next_entrant(button offset_by left)
-      big_blind := holdem_next_entrant(small_blind offset_by left)
+                          else the first player from button offset_by left where in_hand[player]
+      big_blind := the first player from small_blind offset_by left where in_hand[player]
 
       // The blinds post AFTER the street is opened, so opening does not clear
       // them; the big blind stands as the street's opening bet.
@@ -176,7 +177,7 @@ game Holdem {
          and ((number of players where can_act(player)) > 1
               or (number of players where can_act(player) and owes(player)) > 0) {
         round offering [check, bet, call, fold, raise]
-              from holdem_next_entrant(big_blind offset_by left)
+              from the first player from big_blind offset_by left where in_hand[player]
               over players where pending(player)
               order priority
               until (number of players where pending(player)) is 0
@@ -185,7 +186,7 @@ game Holdem {
       }
       // ... flop / turn / river: three flat `if (contenders > 1) { ... }` blocks — a
       // burn + the street's cards to `board`, then `run open_street(5 / 10 / 10)` and
-      // the same betting round `from holdem_next_entrant(button offset_by left)`. The
+      // the same betting round `from the first player from button offset_by left where in_hand[player]`. The
       // contender count is monotonic, so the flat guards short-circuit exactly as
       // nesting would (see holdem.cardlang).
 

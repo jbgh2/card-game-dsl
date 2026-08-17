@@ -1,4 +1,4 @@
-"""T2 (+T3): the corpus-mutation sweep (grammar-fuzzing.md, "Stage 1").
+"""T2 (+T3): the corpus-mutation sweep (grammar-fuzzing.md, "Stage 1 — corpus mutation").
 
 Every `(corpus game, operator, seed)` triple in the fixed CI grid below
 produces one mutant (`mutate.mutate_text`), which is run through the T1
@@ -8,7 +8,7 @@ nothing: `"rejected"` (a `DiagnosticError` — the pipeline did its job),
 `"terminated"`, and `"cutoff"` (the playout ran clean, whether or not it
 reached a natural end within the step budget — see `oracle.py`,
 "Termination"). Two outcomes are findings: an oracle `"crash"`
-(wrong-currency) or a playout `"crash"` (accepted-then-crashes-at-playout).
+(wrong-channel) or a playout `"crash"` (accepted-then-crashes-at-playout).
 
 A finding at an `EXCUSED` triple is expected — it is already shrunk,
 classified, and pinned in `findings.KNOWN_FINDINGS` — and does not fail this
@@ -38,7 +38,7 @@ is Earley rather than LALR and parse cost scales with source size.
 `CARDLANG_FUZZ_SEEDS` overrides the list
 (comma-separated) for a deeper but still-bounded run; `FUZZ_BUDGET_SECONDS`
 (seconds) turns on `test_fuzz_open_ended_local`, a single unparametrized
-test that keeps sweeping increasing seeds until the wall-clock budget is
+test that keeps sweeping increasing seeds until the guard-clock budget is
 spent — the plan's env-var knob for local/scheduled use.
 
 Ledger (decisions.md "Closed-domain completeness")
@@ -77,7 +77,7 @@ residual:   grammar-DIRECTED generation (the plan's T4, walking
             are not implemented — every finding above was shrunk by hand
             (`oracle.py`'s "Residual"). `duplicate_declaration` and
             `swap_adjacent_tokens` found nothing in the discovery sweep;
-            that is evidence those walls hold against THESE five seeds on
+            that is evidence those guards hold against THESE five seeds on
             THIS corpus, not a completeness claim about the operators
             themselves — a wider `CARDLANG_FUZZ_SEEDS` or `FUZZ_BUDGET_SECONDS`
             run may surface more.
@@ -112,11 +112,22 @@ MUTATION_SEEDS: tuple[int, ...] = tuple(
 # correctly excused rather than reported as a spurious new finding.
 EXCUSED: dict[tuple[str, str, int], str] = {
     ("klondike.cardlang", "delete_line", 0): "klondike_flip_from_empty_stack",
-    ("cribbage.cardlang", "delete_line", 2): "cribbage_repeat_until_nonterminate",
+    # `cribbage_repeat_until_nonterminate` has NO live-corpus key anymore: the
+    # card_points clause (issue #249) shifted cribbage.cardlang, and the seed-2
+    # deletion now removes a `repeat until ... {` opener — the mutant is
+    # REJECTED at parse (unbalanced braces), so the old excuse would excuse
+    # nothing (the vacuously-green class). The finding itself stays in the
+    # ledger under its frozen fixture, which still reproduces it.
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
-    ("skat.cardlang", "delete_line", 2): "skat_trick_winner_wrong_count",
+    # The card_points clause (issue #249) shifted skat.cardlang, so this key's
+    # deletion moved from the second player's follow to the leader's play:
+    # the crash it now reproduces is `skat_follow_ok_nothing_led`. The prior
+    # finding at this key, `skat_trick_winner_wrong_count`, stays in the
+    # ledger under its frozen fixture (the replay half still reproduces it);
+    # only the live-corpus key moved.
+    ("skat.cardlang", "delete_line", 2): "skat_follow_ok_nothing_led",
 }
 
 
@@ -127,7 +138,7 @@ def _new_finding_message(
         f"NEW fuzz finding at {game_path.name} / {operator} / seed={seed} "
         f"({stage}): {outcome.summary()}\n"
         "This is not a regression to fix here — shrink it by hand, classify "
-        "it (wrong-currency-crash / accepted-then-crashes-at-playout), and "
+        "it (wrong-channel-crash / accepted-then-crashes-at-playout), and "
         "record it in tests/fuzz/findings.py's KNOWN_FINDINGS (see that "
         "module's docstring for the ledger format and the feed-forward "
         "rule) plus add it to this module's EXCUSED table."
@@ -136,7 +147,7 @@ def _new_finding_message(
 
 def _finding_by_slug(slug: str) -> Finding:
     # `test_excused_table_targets_known_findings` pins that every EXCUSED
-    # slug resolves; this lookup is its backstop at use time.
+    # slug resolves; this lookup is its Shadow Guard at use time.
     matches = [f for f in KNOWN_FINDINGS if f.slug == slug]
     assert matches, f"EXCUSED names unknown finding {slug!r}"
     return matches[0]
@@ -331,7 +342,7 @@ def test_excused_table_targets_known_findings() -> None:
 def test_fuzz_open_ended_local() -> None:
     """The plan's env-var knob (grammar-fuzzing.md, "CI is deterministic"):
     with `FUZZ_BUDGET_SECONDS` set, sweep increasing seeds across the whole
-    corpus x operator grid until the wall-clock budget runs out. Skipped by
+    corpus x operator grid until the guard-clock budget runs out. Skipped by
     default — this is the local/scheduled mode, not part of ordinary CI."""
     budget = os.environ.get("FUZZ_BUDGET_SECONDS")
     if not budget:

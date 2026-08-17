@@ -1,4 +1,4 @@
-"""Belote's runtime support (pure stdlib primitives).
+"""Belote's runtime support (pure Primitives).
 
 The whole hand — the two-round take/name trump-making over the turned card,
 the eight tricks under the follow/trump/over-trump obligation cascade (the
@@ -9,11 +9,11 @@ contract scoring all run in the DSL (docs/games/belote.cardlang). This module
 holds only what is not expressible there:
 
 - `belote_trump_height` — a rank's strength within the trump suit
-  (J > 9 > A > 10 > K > Q > 8 > 7), the over-trump comparison's currency.
+  (J > 9 > A > 10 > K > Q > 8 > 7), the ordering the over-trump comparison uses.
   A pure rank map: the caller's demand filters on `card.suit is trump_suit`,
   so this needs no suit knowledge (the Tarot `tarot_trump_height` shape).
   Suit-contextual orders are explicitly outside the `ranking:` declaration's
-  scope (decisions.md, "The `ranking:` declaration"), so the trump reorder
+  scope (decisions.md, "The `ranking:` declaration: enumeration or convention"), so the trump reorder
   lives here while the plain-suit order stays `ranking: ace-ten`.
 - `belote_trick_winner` — the trick round's `outcome` function: highest trump
   under the trump order if any trump was played, else highest of the led suit
@@ -39,8 +39,8 @@ holds only what is not expressible there:
 
 The announcement's public CONTENT rides the declaration move's name and
 Rank parameter (`declare_tierce(K)`, `declare_carre(J)`, …), never a state
-write: a player's information set derives from their observation log plus
-zone projections, and a decision's announce event carries exactly the move
+write: a player's information set derives from their [[observation-log]] plus
+zone [[projection]]s, and a decision's announce event carries exactly the move
 name and parameter — so what was announced must be spelled there (the
 Doppelkopf announcement move types are the precedent; belote.md,
 "Declarations").
@@ -52,7 +52,7 @@ descending runs of the REMAINING cards in the natural A K Q J 10 9 8 7
 order, each run at its greatest declarable length (5+ → quinte on the top
 five, 4 → quarte, 3 → tierce), the strongest by (class, height, trump).
 Announcing is scoped to that one best combination per player (belote.md,
-"Scope and departures").
+"Scope and departures from the reference").
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ from collections.abc import Mapping
 
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
 ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
@@ -119,7 +119,8 @@ def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
     """The live round accumulator, or the just-completed round's terminal
     state — exactly the `state` pronoun's view (`mech_state[-1]` while a round
     runs, else `last_round_state`). Whether a round is live is game flow, so a
-    premature call is the description's error, so this raise is its Owner Guard."""
+    premature call is the description's error, so this raise is its
+    [[owner-guard]]."""
     state = facts.round_state
     if state is None:
         raise OwnerGuardError(

@@ -30,7 +30,7 @@ How the DSL says it (decisions.md "Boards and cells"): `board: grid(3, 3)`
 mints a position domain named `cell` whose nine members are the grid squares,
 and `square[cell] : Cell<cell>` is the nine-instance family of one-card holding
 zones, one per square (a `Cell` has capacity one, so a placement onto an
-occupied square would hit the capacity wall — the `when: square[at] is empty`
+occupied square would hit the capacity Owner Guard — the `when: square[at] is empty`
 guard keeps that from arising). `pieces: xo_marks` selects the nine-mark
 component set — the piece flavor of the same content model that backs a card
 deck — with a `side` axis (`x` / `o`) in place of a suit. Placement is ordinary

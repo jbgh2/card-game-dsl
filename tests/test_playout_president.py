@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.president import (
     _STRENGTH,
@@ -48,7 +48,7 @@ def _hand(*specs: str) -> list[Card]:
     return [Card(r, _SUIT[s]) for r, s in (spec.split("@") for spec in specs)]
 
 
-def _ctx() -> tuple[sidecar.EngineFacts, reads.GameReads]:
+def _ctx() -> tuple[narrowing.EngineFacts, reads.GameReads]:
     """The value bundles a president query receives, built exactly as the
     engine builds them — rank_index from the driver's formula over the game's
     declared `ranking:`, which is the strength table live play uses."""
@@ -60,7 +60,7 @@ def _ctx() -> tuple[sidecar.EngineFacts, reads.GameReads]:
     )
     rs = RuntimeState(Seating(5), ZoneStore(decls, tuple(range(5))), random.Random(0))
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    return sidecar.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, ROW)
 
 
 def test_module_strength_table_matches_the_declared_ranking() -> None:

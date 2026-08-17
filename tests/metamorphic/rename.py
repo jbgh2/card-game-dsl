@@ -11,7 +11,7 @@ Why a blind textual rename of every matching `NameRef` is sound here, pre-
 resolve, with no scope information available yet: `resolve._classify`
 (`cardlang/resolve.py`) resolves a bare name against ONE flat, ordered set of
 namespaces — locals, then state vars, then zones, then enum values, then
-pronouns, then stdlib functions — and only ZONES and STATE VARIABLES are
+pronouns, then native functions — and only ZONES and STATE VARIABLES are
 declared here (rule/move-type/procedure/function/define/type names live in
 their own dedicated syntactic slots — `constrains:`, `active_rules:`,
 `x.field`, `transition_to:` — never reachable as a bare `NameRef`; see
@@ -80,8 +80,8 @@ corpus-wide.
 **Game-local runtime primitives are written against ONE game's specific
 declared spelling.** A corpus game with a bespoke mechanic ships a
 `cardlang/runtime/<game>.py` module of Python (kernel-migration.md's sanctioned "game-local
-stdlib primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
-Tichu's `tichu_mahjong_holder`, …) that reads live `RuntimeState` by the
+Primitive" pattern — Stud's `pot_share`, Skat's `skat_matadors`,
+Cribbage's `peg_origin_of`, …) that reads live `RuntimeState` by the
 zone/state-variable name ITS AUTHOR gave it — a Python string literal, never
 derived from the AST the way `execute.py`/`evaluate.py` read a
 `NameRef.name` off the tree. This transform's own pairing run is what FIRST
@@ -232,7 +232,7 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
     assert not overlap, (
         f"zone and state-variable namespaces share {sorted(overlap)} — T2's "
         "single flat rename map cannot tell which declaration a NameRef of "
-        "that spelling denotes without resolving scope; this backstop has "
+        "that spelling denotes without resolving scope; this Shadow Guard has "
         "not fired against the current corpus (rename.py's module docstring)"
     )
     domain = zone_names | state_names
@@ -287,9 +287,9 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         # `winner: lowest/highest <target>` names its score state variable as
         # a bare string too (the grammar production has no room for a general
         # expression here), not a `NameRef`.
-        new = name_map.get(node.target)
+        new = name_map.get(node.state_var)
         if new is not None:
-            node = replace(node, target=new)
+            node = replace(node, state_var=new)
     elif isinstance(node, n.Turns):
         # `turns … again <var>` names its go-again state variable as a bare
         # string (the grammar takes a NAME there) — the `Winner.target`

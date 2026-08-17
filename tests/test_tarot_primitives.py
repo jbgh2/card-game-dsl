@@ -1,4 +1,4 @@
-"""Known-value tests for French Tarot's stdlib primitives
+"""Known-value tests for French Tarot's Primitives
 (cardlang/runtime/tarot.py) and the `Card.__str__` glyph fix they depend on.
 
 The playout invariants (test_playout_french_tarot.py) cannot catch a misvalued
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.tarot import (
     ROW,
@@ -73,7 +73,7 @@ def test_trump_height_is_zero_for_non_atouts() -> None:
 # captured, discard; trick_pile, chien), so every fixture declares all of it —
 # a partial fixture is indistinguishable from the game file and the module
 # having drifted apart, which is exactly what the registry refuses.
-_Bundles = tuple[sidecar.EngineFacts, reads.GameReads]
+_Bundles = tuple[narrowing.EngineFacts, reads.GameReads]
 
 
 def _tarot_rs() -> RuntimeState:
@@ -102,7 +102,7 @@ def _tarot_rs() -> RuntimeState:
 def _pile_ctx(cards: list[Card]) -> _Bundles:
     rs = _tarot_rs()
     rs.zones.single("trick_pile").add_all(cards)
-    return sidecar.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, ROW)
 
 
 def test_led_suit_is_the_first_non_excuse_card() -> None:
@@ -160,7 +160,7 @@ def _excuse_ctx(played: list[tuple[int, Card]], live_round: bool) -> _Bundles:
         rs.mech_state.append(state)
     else:
         rs.last_round_state = state
-    return sidecar.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, ROW)
 
 
 def test_excuse_player_found_via_last_round_state() -> None:
@@ -198,7 +198,7 @@ def _scoring_ctx(
     rs.zones.instance("captured", taker).add_all(captured_taker)
     if discard_taker is not None:
         rs.zones.instance("discard", taker).add_all(discard_taker)
-    return sidecar.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, ROW)
 
 
 def test_per_opp_at_petite_threshold_with_three_bouts() -> None:

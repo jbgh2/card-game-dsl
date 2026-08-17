@@ -1,4 +1,4 @@
-// Wall: typecheck.py's `_check_bool` on an `if` condition. `total` is a bare
+// Guard: typecheck.py's `_check_bool` on an `if` condition. `total` is a bare
 // Integer state variable, not a Boolean, so it cannot head a condition.
 game NonBooleanIfCondition {
   players: 2

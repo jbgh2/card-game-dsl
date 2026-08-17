@@ -32,8 +32,8 @@ design. The data point is named in each file.
   when found: reads resolved binders before state variables while writes went to
   state regardless (one name, two things); the round's frame was a second store
   under the same spelling, through which a form's private working memory was
-  reachable; and substitution could only see half the names. Each is now walled —
-  but the walls are around the *consequences*, and the thing producing them is
+  reachable; and substitution could only see half the names. Each is now guarded —
+  but the Owner Guards are around the *consequences*, and the thing producing them is
   unchanged. The question is whether cross-namespace shadowing should be legal at
   all, and whether the surface should say which namespace a name is in. Blocked on
   a game that genuinely *wants* to shadow; none of the 18 does, and every shadow

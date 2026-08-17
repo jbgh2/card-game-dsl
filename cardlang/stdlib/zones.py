@@ -1,4 +1,4 @@
-"""Standard-library zone types, as data.
+"""Standard-library [[zone]] types, as data.
 
 The library zone aliases from library.md, recorded as a table the resolver
 checks references against. ``takes_owner`` records whether the type is
@@ -37,7 +37,7 @@ LIBRARY_ZONE_TYPES: dict[str, bool] = {
 
 @dataclass(frozen=True)
 class ZoneVisibility:
-    """Per-observer projection of a zone's contents (decisions.md "Knowledge,
+    """Per-observer [[projection]] of a zone's contents (decisions.md "Knowledge,
     visibility, and the projection model"). `owner` applies to the observer the
     zone's index names (the owning player, or a member of the owning team);
     `others` to everyone else. Unowned zones use the same projection for both."""
@@ -75,6 +75,18 @@ def zone_projection(zone_type: str, is_owner: bool) -> str:
     projected, and silently guessing would leak information."""
     vis = ZONE_PROJECTIONS[zone_type]
     return vis.owner if is_owner else vis.others
+
+
+def identity_to_all(zone_type: str) -> bool:
+    """Whether this library type projects full card identity to EVERY
+    observer (owner and others both `identity`) — the class whose Arrival
+    Record is derivable from every observer's own observation stream, and
+    therefore the only class any provenance surface may range over (issue
+    #256's decision-context rule; the consumers are `GameReads.arrivals` and
+    the `highest_trump_or_led_suit` call form). Raises KeyError for an
+    unknown type, like `zone_projection`."""
+    vis = ZONE_PROJECTIONS[zone_type]
+    return vis.owner == "identity" and vis.others == "identity"
 
 
 # library type name -> the maximum cards a zone of this type may ever hold, or

@@ -1,4 +1,4 @@
-// Wall: parse.py's `start()` builder. A second `game { }` block used to be
+// Guard: parse.py's `start()` builder. A second `game { }` block used to be
 // silently discarded (the first won); a cardlang source is one game.
 game First {
   players: 2

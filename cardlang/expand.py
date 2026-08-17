@@ -5,7 +5,7 @@ Every `run NAME(args)` is replaced, in place, by the named procedure's body; the
 exists, so the IR, the runtime, and the OpenSpiel adapter never learn that
 procedures are a thing — they see the statements. That is the safety argument for
 the construct (decisions.md "Named procedures"): because the body IS the inline
-statements, the observation events it emits, and therefore the information sets
+statements, the [[observation-event]]s it emits, and therefore the information sets
 derived from them, are exactly what inline text would have emitted. A procedure
 cannot open an info-set gap because it does not exist at the layer where
 observations are emitted.
@@ -78,7 +78,7 @@ enumerated rather than trusted:
   arm at all makes the gate blind to every deal inside a body (undercount), and the
   old `if true { … }` encoding made it treat the body as skippable (overcount, and a
   program accepted inline but rejected as a `run`).
-- `runtime/phases.py`, `runtime/driver.py` — dispatch on PHASE ITEMS (`ActiveRules`,
+- `runtime/active_rules.py`, `runtime/driver.py` — dispatch on PHASE ITEMS (`ActiveRules`,
   `Phase`), never on statement kinds. A `Block` is a `Stmt` and cannot appear there.
 - `runtime/execute.py::_pass_selection` — asserts its body is a chosen movement. A
   `Block` cannot reach it: resolve now rejects any other body for `each <role>

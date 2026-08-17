@@ -1,14 +1,14 @@
-"""Builtins: the generic native functions the language ships.
+"""[[builtins]]: the generic native functions the language ships.
 
 A Builtin's meaning belongs to the language, not to one game — a board step,
-a card's rank strength under the declared ranking, the seat holding a card.
+a card's rank strength under the declared ranking, the [[seat]] holding a card.
 The checker declares them (`cardlang/builtins/functions.py`,
 `cardlang/builtins/signatures.py`); this module implements them.
 
-Its two siblings are deliberately separate words: **Primitives** are sanctioned
-game-local Python (`cardlang/runtime/primitives.py`), and the **Stdlib** is the
-layer written in the language itself (`cardlang/stdlib/`). Builtins shrink as
-functions become expressible and migrate into the Stdlib.
+Its two siblings are deliberately separate words: **[[primitive]]s** are
+sanctioned game-local Python (`cardlang/runtime/primitives.py`), and the
+**[[stdlib]]** is the layer written in the language itself (`cardlang/stdlib/`).
+Builtins shrink as functions become expressible and migrate into the Stdlib.
 
 Contract
 --------
@@ -30,11 +30,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
 from cardlang.runtime.values import SUITS, Card, Player
 from cardlang.stdlib.boards import BoardEntry
+from cardlang.stdlib.zones import identity_to_all
 
 
 class _NotABuiltin:
@@ -77,12 +78,19 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             raise IllegalMove(args[0] if args else "illegal move")
         case "rank_value":
             return ctx.rs.rank_index[args[0].rank]
-        case "card_value":
-            return ctx.rs.card_values.get(args[0].rank, 0)
+        case "card_points":
+            # Total by construction: the driver materialized the declared
+            # `card_points { }` table over every deck rank (unlisted ranks at
+            # the else value, or 0), and resolve's clause-required guard
+            # refuses the call in a game with no table — so a plain subscript,
+            # never a defaulted get that would re-derive either fact.
+            return ctx.rs.card_points[args[0].rank]
         case "top_of":
             return _end_card(args[0], "top_of", -1)
         case "bottom_of":
             return _end_card(args[0], "bottom_of", 0)
+        case "highest_trump_or_led_suit":
+            return _pile_trick_winner(args[0], args[1], ctx)
         case _:
             return NOT_A_BUILTIN
 
@@ -96,7 +104,7 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     if board is None:
         # Resolve's Owner Guard rejects `lines()` in a boardless game
         # (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it in the
-        # runtime's own currency, should the call ever reach here without a
+        # runtime's own channel, should the call ever reach here without a
         # board.
         raise ShadowGuardError(
             "resolve._check_board_call",
@@ -106,15 +114,15 @@ def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
     # at the call site); a non-literal `k` (no rung-1 witness) is only knowable
     # at runtime. `lines` raises `OwnerGuardError` for both, so there is
     # nothing to convert here — the bound's Owner Guard already speaks the
-    # runtime's typed currency and names the game author.
+    # runtime's typed channel and names the game author.
     return board.lines(k)
 
 
 def _board_of(ctx: Ctx, fn: str) -> BoardEntry:
     """The instantiated `board:` entry the class-1 movement/region verbs read
-    (the `_lines` twin). Resolve's Owner Guard rejects a board-only call in a
-    boardless game (BOARD_ONLY_CALL_FUNCS); this Shadow Guard stands behind it
-    in the runtime's own currency, naming the missing `board:`, should such a
+    (the `_lines` twin). Resolve's [[owner-guard]] rejects a board-only call in a
+    boardless game (BOARD_ONLY_CALL_FUNCS); this [[shadow-guard]] stands behind it
+    in the runtime's own channel, naming the missing `board:`, should such a
     call ever reach here without a board."""
     board = ctx.rs.board
     if board is None:
@@ -208,6 +216,59 @@ def _suit_of(value: Any) -> str:
             f"suit_of expects a card or a zone, got {type(value).__name__}"
         )
     return value.suit
+
+
+def _pile_trick_winner(value: Any, trump: str | None, ctx: Ctx) -> Player:
+    """`highest_trump_or_led_suit(zone, trump)` — the standard trump-game
+    trick winner over a public pile's [[arrival-record]]: the pairs are the
+    kernel-recorded (deciding actor, card) arrivals in play order, the led
+    suit is the first arrival's, the strengths the game's `ranking:` (issue
+    #256; the same comparison the trick form's `winner` clause names, made
+    callable for hand-rolled tricks — Schnapsen's).
+
+    Three guards, all in the runtime's channel because every one is
+    user-reachable: the argument must be a zone (`TAny`, the `suit_of`
+    precedent); its type must project identity to EVERY observer — a
+    concealed pile's provenance is not derivable from any observer's stream,
+    so naming its winner would compute from facts no player could know; and
+    the pile must hold plays — non-empty, every arrival carrying a deciding
+    actor (a pile fed by deals has no winner to name)."""
+    from cardlang.runtime.state import Zone
+
+    if not isinstance(value, Zone):
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit expects a zone, got {type(value).__name__} — "
+            f"this value is not a zone"
+        )
+    name, key = ctx.rs.zones.locate(value)
+    label = name if key is None else f"{name}[{key}]"
+    ztype = ctx.rs.zones.zone_type[name]
+    if not identity_to_all(ztype):
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit over '{label}' ({ztype}): the zone "
+            f"type does not project identity to every observer, so its "
+            f"provenance is not derivable from any observer's stream — a "
+            f"winner may only be named over a fully public pile"
+        )
+    if not value.cards:
+        raise OwnerGuardError(
+            f"highest_trump_or_led_suit over '{label}': the pile is empty — "
+            f"no plays to name a winner from; guard the read "
+            f"(`{label} is not empty`)"
+        )
+    played: list[tuple[Player, Card]] = []
+    for a in value.arrivals:
+        if a.actor is None:
+            raise OwnerGuardError(
+                f"highest_trump_or_led_suit over '{label}': {a.card} arrived "
+                f"with no deciding actor (an engine deal, not a play) — a "
+                f"winner is named among players, so every card in the pile "
+                f"must have been played by one"
+            )
+        played.append((a.actor, a.card))
+    return winners.highest_trump_or_led_suit(
+        played, played[0][1].suit, trump, ctx.rs.rank_index
+    )
 
 
 def _end_card(cards: Any, fn: str, end: int) -> Card:

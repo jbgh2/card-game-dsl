@@ -1,4 +1,4 @@
-// Wall: resolve.py `_resolve_zone`. No observer IS a column, so a
+// Guard: resolve.py `_resolve_zone`. No observer IS a column, so a
 // zone type with distinct owner/others projections (Hand) on a
 // position index would leave its owner projection silently
 // unreachable — visibility-level accepted-but-ignored.

@@ -72,8 +72,7 @@ Key design notes:
 
 - **The combination engine is named, not built in.** `combinations` names a
   lead-options query (every combination a hand may lead) and `follows` a
-  legal-follows query (those that beat the standing play). They are **game-local
-  stdlib** ([decisions.md](decisions.md) "The climbing form of `round`"): Big Two's
+  legal-follows query (those that beat the standing play). They are **game-local Primitive** ([decisions.md](decisions.md) "The climbing form of `round`"): Big Two's
   and Tichu's combination rules genuinely differ (suit tie-breaks, flushes and
   quads, cross-type five-card beating vs. bombs and special cards), so the engines
   stay per-game until a third instance. The construct depends only on their
@@ -201,7 +200,7 @@ Game-local rules that recur as *names* but not as bodies:
   `rank_value` within the trump suit vs `tarot_trump_height()`)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
-  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption");
+  the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption (`exempts:`)");
   see below.
 - `MustFollowEffectiveSuit` — French Tarot's follow rule (see
   `MustFollowSuit` above)
@@ -240,7 +239,7 @@ with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowEffectiveSuit`'s demand reads the stdlib `tarot_led_suit()` (the first
+`MustFollowEffectiveSuit`'s demand reads the Primitive `tarot_led_suit()` (the first
 non-Excuse card played, or "excuse" if only the Excuse has been played so
 far) rather than the kernel's own `state.led_suit` (the literal first card,
 "excuse" included) — the split that reproduces the reference rule exactly:
@@ -250,12 +249,18 @@ match) and so must trump if able, a quirk the split preserves precisely.
 
 ## Winner functions
 
-- `highest_of_led_suit` — no-trump winner
-- `TrumpedHighestOfLedSuit(trump_suit)` — with-trump winner
-- `tarot_trick_winner` — French Tarot: highest atout, else highest of the
-  effective led suit (`tarot_led_suit()`); the Excuse never wins
-- `belote_trick_winner` — Belote: highest trump under the J-9 trump order,
-  else highest of the led suit under the ace-ten ranking
+The trick form's `winner` slot names one of these bare. Two homes share the
+slot (a name's home is its classification, never its syntactic position):
+
+- `highest_of_led_suit` — the Builtin no-trump winner
+- `highest_trump_or_led_suit` — the Builtin with-trump winner (the round's
+  `trump` clause, else the game's declared trump); the same Builtin is also
+  callable over a public pile's Arrival Record (see "Native functions")
+- `tarot_trick_winner` — the Primitive for French Tarot: highest atout, else
+  highest of the effective led suit (`tarot_led_suit()`); the Excuse never
+  wins
+- `belote_trick_winner` — the Primitive for Belote: highest trump under the
+  J-9 trump order, else highest of the led suit under the ace-ten ranking
 
 ## Mechanics
 
@@ -267,7 +272,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 - **Pinochle's strict-trick play** is the ordinary trick `round` with no new
   construct: legality narrows through the `active_rules:` cascade documented
   under "Rules" above. Meld settles in a plain statement around the
-  `pinochle_meld_value(player)` stdlib query (see "Stdlib functions") — a pure
+  `pinochle_meld_value(player)` Primitive query (see "Native functions") — a pure
   read of the live hand and the declared trump; `meld_score[team_of(p)] +=
   pinochle_meld_value(p)` is what credits it to the team. Not yet the shared
   combination model floated for Workstream 3 — game-local until a second
@@ -307,8 +312,8 @@ match) and so must trump if able, a quirk the split preserves precisely.
   `bet_by`/`acted`/`committed`) is ordinary phase state; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
-  seats come from the `bring_in_seat()` / `first_to_act_seat()` stdlib selectors.
-  The showdown settles in plain statements around the `pot_share(player)` stdlib
+  seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
+  The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
   (committed-total levels, ties split with the odd chip to the first winner in
   seat order, uncalled remainder to the best contender), a pure read of the
@@ -325,11 +330,12 @@ match) and so must trump if able, a quirk the split preserves precisely.
   121-point cutoff one scoring component at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
-  count) and decoded by the `peg_origin_of` stdlib query. Six game-local stdlib
-  primitives (see "Stdlib functions") — `peg_value`, `peg_pair_points`,
-  `peg_run_points`, `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value`
-  — hold the pegging-count and show scorers, in the same game-local shape as
-  Stud's `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
+  count) and decoded by the `peg_origin_of` Primitive query. The per-card
+  pegging value is the game's own `card_points { }` clause; five game-local
+  Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
+  `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
+  pegging-count and show scorers, in the same game-local shape as Stud's
+  `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
   shared `scoring_component` subsystem lands corpus-first.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
@@ -343,8 +349,9 @@ match) and so must trump if able, a quirk the split preserves precisely.
   follower's answer is a filtered chosen transfer over the in-file `follow_ok`
   cascade (strict follow-and-head once the talon is closed or exhausted,
   anything while open), and the trick, claim-at-66, and paired talon draws are
-  plain statements around the game-local `schnapsen_trick_winner` primitive
-  (see "Stdlib functions"), with three `produce` sites for the typed
+  plain statements around the engine-core `highest_trump_or_led_suit` call
+  (see "Native functions" — the winner reads the trick pile's Arrival
+  Record), with three `produce` sites for the typed
   `claimed | talon_closed | open_play` outcome.
 - **Skat's hand** runs on the kernel with no mechanic: the Reizen is two
   sequential auction `round`s over role-guarded two-participant rings (the
@@ -394,7 +401,7 @@ match) and so must trump if able, a quirk the split preserves precisely.
 > **Status: proposed, not yet built.** No game runs a `scoring_component` /
 > `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
 > decompositions below are the intended design; the corpus scores through
-> game-local statements and stdlib primitives (see the Mechanics section above and
+> game-local statements and Primitives (see the Mechanics section above and
 > `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
 > when the subsystem is built.
 
@@ -425,8 +432,10 @@ more scoring-heavy games (Bridge variants, Pinochle's full meld
 scoring). Skat added another scoring shape (game_value computed from
 base × multiplier with matadors, hand, schneider, schwarz inputs)
 but kept the per-game-helper pattern — the multiplier arithmetic is plain
-statements in the game file over the `skat_matadors` /
-`skat_effective_loss` primitives rather than a generalized abstraction.
+statements in the game file over the `skat_matadors` primitive rather
+than a generalized abstraction, with the overbid rule's
+smallest-covering-multiple written as rounded division
+(`divided by … rounded up`) in the game text.
 
 ## Phase types
 
@@ -442,7 +451,7 @@ and library (named compositions of primitives). Full design background
 in [decisions.md](decisions.md) "Typed object model" and "Knowledge,
 visibility, and the projection model".
 
-### Stdlib types (built into the language)
+### Built-in types
 
 - `Card` — individuated object: `{ suit, rank, attributes, optional facing }`.
 - `Resource<Type>` — fungible quantity of the named type. Declared by
@@ -454,7 +463,7 @@ visibility, and the projection model".
 - `Seating` — derived from `players` + `teams`. The surface
   operator is `offset_by` (`dealer offset_by left` — seat arithmetic in
   the game's declared direction); team lookup is the
-  `team_of(player)` stdlib function. An English replacement for
+  `team_of(player)` native function. An English replacement for
   `offset_by` — the clunkiest-reading operator in the language — is a
   decided direction whose spelling is still open
   ([design-notes/lexical-cleanup.md](design-notes/lexical-cleanup.md) §7).
@@ -478,7 +487,7 @@ visibility, and the projection model".
 
 ### Library zone types
 
-The closed set of stdlib zone types, each shown with the per-observer
+The closed set of kernel zone types, each shown with the per-observer
 projection it encodes. The `Zone<Contents> { composition: ... }`
 notation is the model, not a surface a game writes — a game selects a
 named type in its `zones {}` block (see [decisions.md](decisions.md),
@@ -562,7 +571,7 @@ statement; trick routing is ordinary body transfers after a `round` returns.
 - `move` — the generic relocation (`move all cards from X to Y`). The
   destination-only form `move all cards to <zone>` is a **gather**: it collects
   every card from all other zones into that zone (per-hand cleanup; see
-  [decisions.md](decisions.md) "Loop lifecycle")
+  [decisions.md](decisions.md) "Loop lifecycle: `before_each` and `after_each`")
 - `burn` / `muck` — relocate to the burn / muck pile (destination implied by the verb); mucked cards land in a trivial-projection zone, prior observations persisting
 - `draw` — take from a pile into a hand
 
@@ -605,14 +614,14 @@ is the first game to exercise the full vocabulary in non-trivial ways.
 Resource-using games (Catan and similar, when they enter scope) use
 the `transfer` verb as their primary one.
 
-## Stdlib component sets
+## Built-in component sets
 
 The component sets a game can name — the individuated content of its
 zones (see [decisions.md](decisions.md), "Component sets: cards and
 pieces"). A game names one directly in its `cards:` line (a card deck)
 or `pieces:` line (a piece set) and does not compose or extend it in the
 surface; each entry below shows the set's content, which lives in the
-stdlib registry. A **deck** is the card-flavored set, its two axes named
+kernel `COMPONENT_SETS` registry. A **deck** is the card-flavored set, its two axes named
 `suit` and `rank` (see also [decisions.md](decisions.md), "Deck
 declaration"); these are the card entries:
 
@@ -673,11 +682,12 @@ conventions:
   ```
   Used by breakthrough.
 
-Each entry captures a set's *composition* only. Card-point values,
-ranking for play, follow-suit semantics, and trump status are all
-per-game declarations on a deck; a piece set carries none of them.
+Each entry captures a set's *composition* only. Card points
+(`card_points { }`), ranking for play (`ranking:`), follow-suit
+semantics, and trump status (`trump:`) are all per-game declarations
+on a deck; a piece set carries none of them.
 
-## Stdlib boards
+## Built-in boards
 
 The spatial boards a game can name in its `board:` line (see
 [decisions.md](decisions.md), "Boards and cells"). A game names a
@@ -705,7 +715,7 @@ A board mints two named-member domains: the position domain `cell`
 move-parameter domain `dir` (its directions). See
 [decisions.md](decisions.md), "Boards and cells".
 
-## Stdlib state
+## Built-in state
 
 Game state variables provided by the language with conventional
 defaults. A game opts in by referencing the name; if no reference,
@@ -719,7 +729,7 @@ the variable is not allocated.
   in multi-player clockwise games (Spades, Pinochle, Bridge, Stud,
   Cribbage), `dealer := other player` in two-player games
   (Schnapsen, Cribbage). Hearts and Getaway don't reference
-  `dealer` and pay no cost for the stdlib slot.
+  `dealer` and pay no cost for the state slot.
 
 - **Turn-order start.** The initial position of turn order is
   runtime-supplied, the same way `initial_dealer` is. Dealing games
@@ -731,7 +741,7 @@ the variable is not allocated.
   game") is the runtime's concern, not the rules engine's. A dedicated
   first-player syntax is deferred — see issue #120.
 
-## Stdlib functions
+## Native functions
 
 Standard helpers available across games. A function below (or a game-local
 primitive in the same shape) that reads live zones or state does so by the
@@ -746,14 +756,8 @@ mid-playout.
 - `best_five_card_hand(cards: Set<Card>) → HandRank` — given a set of
   cards (typically 7 for Stud, 5 for draw poker, 2+5 community for
   Hold'em), returns the best 5-card poker hand as a `HandRank`
-  value. Stdlib because every poker variant needs it; the
+  value. A Builtin because every poker variant needs it; the
   implementation is standard and not game-specific.
-- `next_active_player(p) → Player` — returns the next player
-  clockwise from `p` who is not folded and not all-in. A general
-  helper; Stud's betting ring no longer needs it — the kernel
-  `round`'s per-turn participant filter (`over players where not
-  folded[player] and stack[player] > 0 …`) advances the ring and
-  skips folded/all-in seats without a draw.
 - `player_holding(card) → Player` — returns the player whose hand
   contains the named card. Asking for a card in nobody's hand is a
   game-logic error and fails loudly at the call (every corpus use runs
@@ -769,18 +773,33 @@ mid-playout.
   game's `ranking:` declaration (higher = stronger; `rs.rank_index`), deck-
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
   the highest card of a suit played so far in the trick.
-- `card_value(card: Card) → Integer` — the card's deck-declared card-point
-  value (the `values` table on the `cards:` deck; 0 for ranks the deck scores
-  nothing for), general-purpose for any point-trick game. Used by Pinochle
-  (`trick_score[...] += sum of card_value(card) over cards in trick_pile`), Schnapsen
-  (`card_points[w] += sum of card_value(card) over cards in trick_pile`), and Skat
-  (the declarer's points: a `sum of … over cards in captured[declarer]` plus the skat).
+- `card_points(card: Card) → Integer` — the card's points under the game's
+  own `card_points { }` clause (decisions.md "Scoring composition"): listed
+  ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.
+  General-purpose for any point-counting game; calling it in a game that
+  declares no clause is a resolve error (the table has one source). Used by
+  Pinochle (`trick_score[...] += sum of card_points(card) over cards in
+  trick_pile`), Schnapsen (`points_taken[w] += sum of card_points(card) over
+  cards in trick_pile`), Skat (the declarer's points: a `sum of … over cards
+  in captured[declarer]` plus the skat), Gin (deadwood counts), Cribbage (the
+  pegging count), Tichu (captured piles), French Tarot (composed with its
+  inline bout layer), and Canasta (meld and hand sums).
 - `top_of(zone) → Card` / `bottom_of(zone) → Card` — the card at an ordered
   collection's two ends (top = the sequence end, the most recent arrival;
   bottom = the front — decisions.md "Position domains and positional zones",
   sequence orientation). A loud runtime error on an empty collection: guard
   the read (`Z is not empty`). Used throughout Klondike and FreeCell (build
   targets, foundation progression, the moving run's split rank).
+- `highest_trump_or_led_suit(zone, trump: Suit?) → Player` — the standard
+  trump-game trick winner, computed over the zone's Arrival Record
+  (decisions.md "Knowledge, visibility, and the projection model" — The
+  Arrival Record): the plays are the recorded (actor, card) arrivals in play
+  order, the led suit is the first arrival's, the strengths the game's
+  `ranking:`. The same winner concept the trick form's `winner` clause names
+  bare, made callable for a hand-rolled trick (Schnapsen). Loud runtime
+  errors on a zone whose type is not identity-to-every-observer (a concealed
+  pile's provenance is no observer's to compute a winner from), an empty
+  pile, or a pile holding any card no seat played (an engine deal).
 - `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
   cells: every run of `k` consecutive cells along a row, a column, or either
   diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)
@@ -802,13 +821,11 @@ mid-playout.
   `lines`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
-are six game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
+are five game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
 (like Stud's `pot_share`) until the shared `scoring_component` subsystem lands
-corpus-first:
+corpus-first (the per-card pegging value is the game's own `card_points { }`
+clause, distinct from its *ranking*, which orders cards for comparisons):
 
-- `peg_value(card: Card) → Integer` — the card's pegging/fifteens pip value:
-  A=1, 2..10 = face value, J/Q/K = 10. Distinct from a card's *ranking* (which
-  orders cards for trick-taking comparisons).
 - `peg_pair_points() → Integer` — pair points (2/6/12 for a two/three/four-of-a-
   kind streak) at the tail of the live `play_pile` count.
 - `peg_run_points() → Integer` — run points (the length of the longest run of
@@ -821,15 +838,10 @@ corpus-first:
 - `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
   all five cards, unlike the four-card hand flush).
 
-Schnapsen's two-card trick resolution is one game-local primitive reading
-`cardlang/runtime/schnapsen.py`, in the same shape as `pot_share` and
-`pinochle_meld_value`:
-
-- `schnapsen_trick_winner(leader: Player, trump: Suit?) → Player` — the
-  completed trick's winner from the two-card `trick_pile` (the leader played
-  first; highest trump, else highest of the led suit — no over-trump
-  obligation). Also emits the play/trick_end/trick trace events the playout
-  harness audits winners against.
+Schnapsen carries no game-local primitive: its two-card trick resolves
+through the engine-core `highest_trump_or_led_suit` call (above) over the
+trick pile's Arrival Record, and the playout harness derives its trick facts
+from observation events.
 
 Skat's contract machinery is five game-local primitives reading
 `cardlang/runtime/skat.py`; the contract-dependent ones read the declared
@@ -841,20 +853,20 @@ contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
 - `skat_follow_ok(p: Player, c: Card) → Boolean` — follow-class legality
   against the led card (`trick_pile[0]`): the four jacks and the trump suit
   are one class in Suit and Grand; Null has plain suits and no trumps.
-- `skat_trick_winner(leader: Player) → Player` — the completed three-card
-  trick's winner (highest trump, else highest of the led suit; Null's own
-  rank order). Emits the play/trick_end/trick traces the playout harness
-  recomputes winners from.
+- `skat_trick_winner() → Player` — the completed three-card trick's winner
+  (highest trump, else highest of the led suit; Null's own rank order), the
+  plays read off the trick pile's Arrival Record. Emits the
+  play/trick_end/trick traces the playout harness recomputes winners from.
 - `skat_matadors(p: Player) → Integer` — the with/without run from the club
-  Jack down the trump order, over `p`'s hand plus the skat.
-- `skat_effective_loss(game_value: Integer, bid: Integer, base: Integer) →
-  Integer` — the loss base under the overbid rule (the smallest multiple of
-  the base covering the bid; a ceiling the expression language lacks).
+  Jack down the trump order, over `p`'s hand plus the skat. (The overbid
+  rule's loss base — the smallest multiple of the base covering the bid —
+  is not a primitive: the game text writes it as
+  `base * (working_bid divided by base rounded up)`.)
 
 500's contract machinery is six game-local primitives reading
 `cardlang/runtime/five_hundred.py`; the play-legality ones read the declared
-contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
-`declarer`) from phase state:
+contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit`)
+from phase state:
 
 - `five_hundred_next_bid(standing: Integer, strain: Suit?) → Integer` — the
   cheapest rung in the strain that beats the standing contract ordinal on
@@ -875,59 +887,52 @@ contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` /
 - `five_hundred_lead_ok(p: Player, c: Card) → Boolean` — lead legality: an
   un-nominated joker may not be led in the no-trump family before the
   holder's last card (the modelled form of the lead-nomination rule —
-  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset").
-- `five_hundred_trick_winner(leader: Player) → Player` — the completed
-  trick's winner (three cards in a misère — the declarer's partner sits
-  out — else four): highest trump (joker > bowers > A..), else highest of
-  the led class; an un-nominated joker wins any no-trump trick it is played
-  to. Emits the play/trick_end/trick traces the playout harness recomputes
-  winners from.
+  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset (modelling notes)").
+- `five_hundred_trick_winner() → Player` — the completed trick's winner
+  (three cards in a misère — three seats play — else four), the plays and
+  the participation both read off the trick pile's Arrival Record: highest
+  trump (joker > bowers > A..), else highest of the led class; an
+  un-nominated joker wins any no-trump trick it is played to. Emits the
+  play/trick_end/trick traces the playout harness recomputes winners from.
 
-Tichu's hand needs twelve game-local primitives plus the two climb queries,
-all reading `cardlang/runtime/tichu.py` (the combination engine itself stays
-`cardlang/runtime/combinations.py`); the finishing-order readers consume the
-`out_first` / `out_second` phase state:
+Tichu's game-local primitives read `cardlang/runtime/tichu.py` (the
+combination engine itself stays `cardlang/runtime/tichu_combinations.py`);
+the team and finishing lookups are the game's own `function`s and state
+reads in `tichu.cardlang`:
 
 - `tichu_lead_options` / `tichu_follows` — the climb `round`'s queries: every
   combination a hand can lead (plus the Dragon/Phoenix/Dog lead singles, the
   Dog marked `ends_trick`), and the follows that beat the standing play (same
   kind and length and higher, any bomb, the Dragon/Phoenix single answers).
-- `tichu_mahjong_holder() → Player` — leads the first trick (post-push).
-- `tichu_players_holding() → Integer` — non-empty hands (the hand ends ≤ 1).
-- `tichu_double_victory() → Boolean` — the first two finishers are teammates.
-- `tichu_partner(p: Player) → Player`, `tichu_opponent_team(p: Player) →
-  Team`, `tichu_first_out() → Player`, `tichu_next_holder(p: Player) →
-  Player` — team and finishing lookups (`next_holder` is the
-  post-trick leader advance, counterclockwise past empty hands).
 - `tichu_dragon_won() → Boolean` — the completed trick's standing play was
   the lone Dragon, read off the round's terminal state like the `state`
   pronoun.
-- `tichu_card_points(c: Card) → Integer` — K/10 = 10, 5 = 5, Dragon +25,
-  Phoenix −25 (100 per hand).
 
-Coup's bookkeeping is four game-local primitives in
-`cardlang/runtime/coup.py`, pure reads plus one trace emitter (every window
-response, claim, and target is a chooser decision in the DSL body — see the
-Mechanics entry):
+(The per-card points — K/10 = 10, 5 = 5, Dragon +25, Phoenix −25, 100 per
+hand — are the game's own `card_points { }` clause, and the post-trick
+leader advance is the ring search, `the first player from leader where
+hand[player] is not empty`.)
 
-- `coup_players_in() → Integer`, `coup_next_in_game(p: Player) → Player`,
-  `coup_has_char(p: Player, r: String) → Boolean` — in-game scans and the
-  challenge-proof lookup (pure reads).
+Coup's bookkeeping stays game-local in `cardlang/runtime/coup.py` (every
+window response, claim, and target is a chooser decision in the DSL body —
+see the Mechanics entry; the next-in-game seat scan is the ring search,
+decisions.md "Player-collection queries"):
+
 - `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
   50-coin / 15-card conservation invariants and the finals). The
   reveal-sequence golden derives from observation events at the harness
   layer instead (tests/playout_trace.py).
 
-French Tarot's non-uniform 78-card deck (suit×rank card points that vary by
-suit, an effective led suit that isn't the kernel's own, and a settlement the
-`ranking:`/`card_value` general machinery can't express — see
-[decisions.md](decisions.md) "Deck declaration") needs six game-local
-primitives, all reading `cardlang/runtime/tarot.py`:
+French Tarot's non-uniform 78-card deck (an effective led suit that isn't
+the kernel's own, and a settlement the `ranking:`/`card_points` general
+machinery can't express — see [decisions.md](decisions.md) "Deck
+declaration") needs five game-local primitives, all reading
+`cardlang/runtime/tarot.py`. The per-card points are the game's own
+`card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }` composed with its inline
+bout layer (`if is_bout(card) then 9 else card_points(card)` — doubled
+integer units, the 78 cards summing to 182; a rank-keyed table cannot carry
+the petit, whose rank "1" is 9 in atouts and 1 in the plain suits):
 
-- `tarot_card_points(card: Card) → Integer` — the doubled card-point value
-  (printed value × 2, so all integers; the 78 cards sum to 182). K/Q/Cavalier/J
-  score 9/7/5/3 in a plain suit; a bout (the Excuse, the 1 of atouts, the 21)
-  scores 9; every other card scores 1.
 - `tarot_trump_height(card: Card) → Integer` — an atout's rank as an int
   (1..21) for the over-trump comparison; 0 for a non-atout.
 - `tarot_led_suit() → Suit` — the effective led suit of the live trick: the
@@ -955,7 +960,7 @@ and its declaration combinations need ten game-local primitives, all reading
 `cardlang/runtime/belote.py`:
 
 - `belote_trump_height(card: Card) → Integer` — a rank's strength within
-  the trump suit (1..8), the over-trump comparison's currency (the demand
+  the trump suit (1..8), the ordering the over-trump comparison uses (the demand
   filters on `card.suit is trump_suit` itself).
 - `belote_trick_winner` — a **winner function** (named on `round …
   winner belote_trick_winner`): highest trump under the J-9 trump order if

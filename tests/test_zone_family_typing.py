@@ -1,9 +1,9 @@
 """The type foundations under `Subscript`, `Member` and `Call`, where a
-mistyped receiver silently disarms every wall downstream of it.
+mistyped receiver silently disarms every guard downstream of it.
 
 Four areas, one section below each: a zone-family subscript types as the
 family's content (not as a single Card, which would degrade an aggregation
-source to `TAny` and take every wall in the body dark with it); the Card
+source to `TAny` and take every guard in the body dark with it); the Card
 field pair lives in one `CARD_FIELDS` registry rather than at two sites that
 can drift; `action.card.*` and the bare `actor` pronoun are typed from
 `ACTION_FIELDS` rather than left as `TAny` and silently `False`; and
@@ -33,16 +33,34 @@ covered:   both index roles (`player`, `team`) x both accept/reject index-
            subscript in the corpus (movement source/dest/filter, `reveal
            … from`, `let`/aggregation bodies) — each exercised below with an
            executed probe, not by "same code path" assumption.
-sampled:   the cross-product of "every CALL_SIGS function" x "has_ranking"
-           is sampled at one representative gated function (`rank_value`,
-           the only member of `RANKING_GATED_FUNCS` today) x the two
-           predicate contexts actually reachable in the corpus (a `let`
-           aggregation body, a movement filter) — not every predicate
-           position enumerated in `typecheck()`'s "remaining expression
-           positions" block is separately probed for the ranking gate,
-           since the gate lives inside `_check_expr`'s Call handling and
-           every one of those positions is that same recursion's entry
-           point (structural coverage, not per-site duplication).
+sampled:   the predicate-context axis of the call gate is sampled at one
+           representative member (`rank_value`) x the two contexts actually
+           reachable in the corpus (a `let` aggregation body, a movement
+           filter) — not every predicate position enumerated in
+           `typecheck()`'s "remaining expression positions" block is
+           separately probed, since the gate lives inside `_check_expr`'s
+           Call handling and every one of those positions is that same
+           recursion's entry point (structural coverage, not per-site
+           duplication). The MEMBER axis is not sampled: every member of
+           all three ranking-gated registries (`RANKING_GATED_FUNCS`,
+           `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES` — the
+           #256 review round's class sweep; census with the registries in
+           cardlang/typecheck.py) has its own no-ranking REJECT cell
+           pinning that member's own diagnostic text — per member and per
+           POSITION (`highest_trump_or_led_suit` has both a call-form and a
+           winner-slot cell; each climb member is isolated with a
+           non-member engine in the other slot, because the diagnostic
+           channel renders the first error and a both-members cell would
+           survive either member's removal) — plus a with-ranking accept
+           cell per game shape and
+           the load-bearing non-member cells. Born red 2026-08-15 before
+           the gates existed: 7 failed (DID NOT RAISE), 32 passed. The
+           per-member completion's own proof is executed mutation, not
+           inspection: removing `belote_trick_winner` from
+           RANKING_GATED_WINNERS originally left all 39 module tests green
+           (the reviewer's finding); with the per-member cells it reds
+           `test_rejects_the_belote_winner_slot_with_no_declared_ranking`
+           (executed: plant, red, revert, re-green).
 residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            `action.card_count` — named in the grammar comment at
            cardlang/grammar/cardlang.lark:320, used in
@@ -133,15 +151,15 @@ def _rejects(src: str, needle: str) -> None:
 def test_aggregation_over_a_zone_family_binds_card_not_any() -> None:
     # Without the subscript typing this would pass too (a TAny source is
     # permissive), but for the wrong reason — proven by the next test, which
-    # shows the wall firing *inside* the same shape.
+    # shows the guard firing *inside* the same shape.
     _accepts(_game("let probe = sum of rank_value(card) over cards in hand[0]"))
 
 
-def test_aggregation_body_over_a_zone_family_is_walled() -> None:
+def test_aggregation_body_over_a_zone_family_is_guarded() -> None:
     # Without this, `hand[0]` would infer as a single Card, so the
     # comprehension source would not be a TCollection, so `card` would bind
     # TAny inside the body and a bad field would silently pass. With the
-    # subscript typing, `card : Card` and the Card-field wall fires.
+    # subscript typing, `card : Card` and the Card-field guard fires.
     _rejects(
         _game(
             "let probe = sum of rank_value(card) over cards in hand[0] "
@@ -156,11 +174,11 @@ def test_aggregation_body_over_a_zone_family_is_walled() -> None:
 
 def test_card_membership_in_a_zone_family_is_accepted() -> None:
     # Without this, `hand[0]` would infer as Card, so the `in` right-hand-side
-    # wall would reject this with "must be a collection... got Card".
+    # guard would reject this with "must be a collection... got Card".
     _accepts(_game("let probe = (Q of spades) in hand[0]"))
 
 
-# --- the new dot-access wall (a zone family is a collection, not a Card) ---
+# --- the new dot-access guard (a zone family is a collection, not a Card) ---
 
 
 def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
@@ -168,7 +186,7 @@ def test_rejects_dot_access_on_a_zone_family_subscript() -> None:
     # clean as `Rank` and only fail at play time, where a field read is served
     # only for the value shapes that HAVE fields and a zone is not one of them.
     # With the subscript typing, `hand[0] : Collection<Card>` and the
-    # collection-has-no-fields wall catches it statically.
+    # collection-has-no-fields guard catches it statically.
     _rejects(_game("let probe = hand[0].rank"), "a collection has no fields")
 
 
@@ -235,7 +253,7 @@ def test_team_family_subscript_by_an_integer_literal() -> None:
 
 def test_rejects_a_player_index_on_a_team_family() -> None:
     # The wrong-role cross-check: a Player-typed value doesn't stand for a
-    # Team identity (`assignable(TPlayer, TTeam)` is False — only Integer
+    # Team identity (`coercible(TPlayer, TTeam)` is False — only Integer
     # coerces to either), so this is a genuinely wrong sentence, not a
     # narrower case of the accepted Integer-literal shape above.
     _rejects(
@@ -268,7 +286,7 @@ def test_unknown_card_field_message_lists_both_registry_fields() -> None:
 # =============================================================================
 
 
-def test_action_card_suit_flows_through_to_the_enum_wall() -> None:
+def test_action_card_suit_flows_through_to_the_enum_guard() -> None:
     # Without this typing, `action` would be TAny, so `action.card` and
     # `action.card.suit` would both be TAny too, and `action.card.suit is 3`
     # would typecheck clean — silently False at runtime (hearts.md/spades.md's
@@ -317,7 +335,7 @@ def test_bare_actor_pronoun_types_as_player() -> None:
     )
 
 
-def test_actor_dot_access_is_rejected_by_the_object_model_wall() -> None:
+def test_actor_dot_access_is_rejected_by_the_object_model_guard() -> None:
     # Without this typing `actor` would be TAny (permissive); it is Player,
     # and Player is in the closed dot-form-rejection set (decisions.md "Typed
     # object model") — `actor.foo` must reject the same way `p.foo` already
@@ -368,8 +386,168 @@ def test_ranking_gate_fires_in_a_movement_filter_too() -> None:
     )
 
 
-def test_ranking_gate_does_not_touch_other_stdlib_calls() -> None:
-    # A no-ranking game (Coup's shape) still calls other stdlib functions
+# =============================================================================
+# the rank_index-reading class, gated whole (the #256 review round's sweep)
+# =============================================================================
+# `rs.rank_index` is EMPTY in a game with no `ranking:` (driver.py builds it
+# from the optional clause; only `rs.ranks` falls back to deck order), so any
+# native evaluation that indexes it crashes bare at playout unless a static
+# gate holds the door. The sweep's member census — every call form and value
+# callback whose evaluation reads rank_index — and each member's disposition
+# live with the registries in cardlang/typecheck.py; the cells below cross
+# every gated member with {no ranking -> rejected, ranking -> accepted}, plus
+# the load-bearing NON-member cells: tarot_trick_winner ignores rank_index in
+# its body (atout numerals + its own suit table), which is exactly what keeps
+# french-tarot — a no-`ranking:` corpus game with a trick round — legal.
+
+
+def test_rejects_the_pile_winner_call_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("let w = highest_trump_or_led_suit(pile, clubs)", ranking=""),
+        "highest_trump_or_led_suit() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_pile_winner_call_with_a_declared_ranking() -> None:
+    _accepts(_game("let w = highest_trump_or_led_suit(pile, clubs)"))
+
+
+def test_rejects_peg_run_points_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += peg_run_points()", ranking=""),
+        "peg_run_points() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_peg_run_points_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += peg_run_points()"))
+
+
+def test_rejects_cribbage_show_value_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += cribbage_show_value(0)", ranking=""),
+        "cribbage_show_value() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_cribbage_show_value_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += cribbage_show_value(0)"))
+
+
+def test_rejects_cribbage_crib_value_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("score[0] += cribbage_crib_value()", ranking=""),
+        "cribbage_crib_value() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_cribbage_crib_value_with_a_declared_ranking() -> None:
+    _accepts(_game("score[0] += cribbage_crib_value()"))
+
+
+def test_rejects_belote_opp_winning_with_no_declared_ranking() -> None:
+    _rejects(
+        _game("if belote_opp_winning() { score[0] += 1 }", ranking=""),
+        "belote_opp_winning() reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_belote_opp_winning_with_a_declared_ranking() -> None:
+    _accepts(_game("if belote_opp_winning() { score[0] += 1 }"))
+
+
+_TRICK_ROUND = (
+    "round play_to_trick from 0 over all players source hand into pile\n"
+    "          winner {winner}"
+)
+
+
+def test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="highest_of_led_suit"), ranking=""),
+        "round winner highest_of_led_suit reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_a_ranking_reading_trick_winner_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="highest_of_led_suit")))
+
+
+def test_rejects_the_belote_winner_slot_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="belote_trick_winner"), ranking=""),
+        "round winner belote_trick_winner reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_belote_winner_slot_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="belote_trick_winner")))
+
+
+def test_rejects_the_trump_winner_slot_with_no_declared_ranking() -> None:
+    # The same NAME as the gated call form, in its OTHER position: the
+    # winner-slot member is consulted from RANKING_GATED_WINNERS at the round
+    # check, not from the Call gate, so each position needs its own cell.
+    _rejects(
+        _game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit"), ranking=""),
+        "round winner highest_trump_or_led_suit reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_the_trump_winner_slot_with_a_declared_ranking() -> None:
+    _accepts(_game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit")))
+
+
+def test_accepts_the_rank_free_tarot_winner_with_no_declared_ranking() -> None:
+    # The NON-member cell that keeps french-tarot legal: tarot_trick_winner's
+    # body reads atout numerals and its own suit table, never rank_index.
+    _accepts(_game(_TRICK_ROUND.format(winner="tarot_trick_winner"), ranking=""))
+
+
+_CLIMB_ROUND = (
+    "round climb play_combination from 0 over all players\n"
+    "          source hand into pile\n"
+    "          combinations president_lead_options follows president_follows\n"
+    "          until (number of players where hand[player] is not empty) <= 1"
+)
+
+
+def _climb_round(combos: str, follows: str) -> str:
+    return (
+        f"round climb play_combination from 0 over all players\n"
+        f"          source hand into pile\n"
+        f"          combinations {combos} follows {follows}\n"
+        f"          until (number of players where hand[player] is not empty) <= 1"
+    )
+
+
+def test_rejects_the_lead_climb_query_with_no_declared_ranking() -> None:
+    # One cell per MEMBER, each isolating its member with a NON-member in
+    # the other slot — a single both-members cell would stay green if either
+    # member alone left the registry (the F3 class, climb face), because the
+    # diagnostic channel renders the FIRST error and the surviving member's
+    # message would keep the substring matching. The cross-engine pairing is
+    # statically legal (the two slots validate against separate name sets)
+    # and these cells never run.
+    _rejects(
+        _game(_climb_round("president_lead_options", "bigtwo_follows"), ranking=""),
+        "climb query president_lead_options reads a card's rank strength from ranking:",
+    )
+
+
+def test_rejects_the_follows_climb_query_with_no_declared_ranking() -> None:
+    _rejects(
+        _game(_climb_round("bigtwo_lead_options", "president_follows"), ranking=""),
+        "climb query president_follows reads a card's rank strength from ranking:",
+    )
+
+
+def test_accepts_ranking_reading_climb_queries_with_a_declared_ranking() -> None:
+    _accepts(_game(_CLIMB_ROUND))
+
+
+def test_ranking_gate_does_not_touch_other_native_calls() -> None:
+    # A no-ranking game (Coup's shape) still calls other native functions
     # freely — only the registered ranking-dependent ones are gated.
     _accepts(
         _game(

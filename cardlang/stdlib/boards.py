@@ -1,8 +1,9 @@
 """BOARDS registry: board families as closed static data, in the DECKS style
 (cardlang/runtime/values.py). A game selects a board by family name and
 integer arguments (docs/design-notes/board-topology.md S2.1); this module
-turns that selection into a BoardEntry -- cells and their lines -- never by
-hand-enumerating cells per game. Only the grid family is registered at rung
+turns that selection into a BoardEntry -- the cells of the `cell`
+[[position-domain]] and their lines -- never by hand-enumerating cells per
+game. Only the grid family is registered at rung
 1; relations, regions, frames, and jump triples are later rungs' additions
 (issue #124), not fields of BoardEntry today.
 """
@@ -131,7 +132,7 @@ class BoardEntry:
     def neighbor(self, cell: str, direction: str, player: int) -> str | None:
         """The cell one step along `direction` in `player`'s frame, or None off
         the board's edge -- the registry-internal PARTIAL lookup (a later task's
-        stdlib verb wraps it total-with-backstop; a guard's `has_step` gates
+        stdlib verb wraps it total-with-Shadow-Guard; a guard's `has_step` gates
         it). Generated from cell coords + the actor-resolved offset, never a
         literal per-cell table."""
         width, height = self._grid_args()
@@ -144,7 +145,7 @@ class BoardEntry:
 
     def has_step(self, cell: str, direction: str, player: int) -> bool:
         """Whether the step along `direction` stays on the board -- the guard
-        predicate that gates the total stdlib `neighbor`. Delegates to
+        predicate that gates the total Builtin `neighbor`. Delegates to
         `neighbor`, so the two agree by construction."""
         return self.neighbor(cell, direction, player) is not None
 

@@ -1,8 +1,9 @@
 """Statement executor.
 
 `execute(stmt, ctx)` runs one statement, mutating `ctx.rs`. A statement may
-introduce a binding for the rest of its body (a `let`), so `execute` returns
-the (possibly extended) context the caller threads into subsequent statements.
+introduce a [[binder]] for the rest of its body (a `let`), so `execute` returns
+the (possibly extended) [[context]] the caller threads into subsequent
+statements.
 """
 
 from __future__ import annotations
@@ -99,7 +100,7 @@ def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
             _produces(stmt, ctx)
             return ctx
         case n.ContinueTo():
-            raise _ContinueTo(stmt.target)
+            raise _ContinueTo(stmt.phase)
         case n.SkipToNextHand():
             raise _SkipHand()
         case n.Block():
@@ -131,13 +132,26 @@ def run_body(stmts: tuple[n.Stmt, ...], ctx: Ctx) -> None:
 # --- movement ---
 
 
-def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
+def _deposit(
+    ctx: Ctx,
+    dest: Zone,
+    cards: list[Card],
+    actor: Player | None = None,
+    src: tuple[str, Player | str | None] | None = None,
+) -> None:
     """The one choke point every destination append (movement, gather, deal,
     simultaneous pass) routes through, so a finite-capacity zone type can
     never be silently overfilled. The zone-type registry (cardlang/stdlib/
     zones.py ZONE_CAPACITY) owns which types are bounded; this is the Owner
     Guard for overfill, and it does not replace a game's own guards
-    (`cells[slot] is empty`)."""
+    (`cells[slot] is empty`).
+
+    `actor`/`src` are the Arrival Record's two facts (issue #256): the
+    deciding actor — the chooser's seat for a chosen selection, else the
+    bound acting seat, else None; NEVER a defaulted 0 — and the source Zone
+    Address. The round forms append through `Zone.add`/`add_all` directly
+    (their own capacity story predates this choke point) and pass the same
+    two facts there."""
     name, key = ctx.rs.zones.locate(dest)
     label = name if key is None else f"{name}[{key}]"
     ztype = ctx.rs.zones.zone_type[name]
@@ -149,7 +163,7 @@ def _deposit(ctx: Ctx, dest: Zone, cards: list[Card]) -> None:
             f"{held} — the move would overfill it; guard the move "
             f"(`{label} is empty`)"
         )
-    dest.add_all(cards)
+    dest.add_all(cards, actor, src)
 
 
 def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -172,13 +186,19 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
         if stmt.distribution == "as_equally_as_possible":
             _deal_round_robin(source, stmt.dest.name, ctx, stmt)
         else:
+            src_addr = ctx.rs.zones.locate(source)
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
-                _deposit(ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards)
+                # A chosen to-each selection is decided by its receiving
+                # player (the chooser draw in `_select` is theirs); a dealt
+                # or random one has no per-card decider — the bound acting
+                # seat, if any, is the movement's actor.
+                actor = player if stmt.selection_mode == "chosen" else ctx.current_player
+                _deposit(
+                    ctx, ctx.rs.zones.instance(stmt.dest.name, player), cards, actor, src_addr
+                )
                 if ctx.observer is not None:
-                    observe.movement(
-                        ctx, ctx.rs.zones.locate(source), (stmt.dest.name, player), cards
-                    )
+                    observe.movement(ctx, src_addr, (stmt.dest.name, player), cards)
     else:
         assert stmt.dest is not None  # typecheck rejects the dest-less `in <zone>` form
         dest = evaluate(stmt.dest, ctx)
@@ -193,11 +213,16 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
             else ctx.current_player or 0
         )
         selected = _select(source, stmt, ctx, player)
-        _deposit(ctx, dest, selected)
+        src_addr = ctx.rs.zones.locate(source)
+        # The record's actor is the DECIDER, never `player`'s 0-for-None
+        # default: the chooser's seat for a chosen selection, else the bound
+        # acting seat (a move effect's actor), else None (an engine deal).
+        record_actor = (
+            player if stmt.selection_mode == "chosen" else ctx.current_player
+        )
+        _deposit(ctx, dest, selected, record_actor, src_addr)
         if ctx.observer is not None:
-            observe.movement(
-                ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selected
-            )
+            observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selected)
 
 def _card_pred(filter_expr: n.Expr, ctx: Ctx) -> Callable[[Card], bool]:
     """A movement/reveal `where` filter as a candidate predicate: an ordinary
@@ -217,24 +242,36 @@ def _deal_round_robin(
     gives the single-destination and non-round-robin `to each` forms."""
     players = list(ctx.rs.seating.players)
     dealt: dict[Player, list[Card]] = {p: [] for p in players}
-    if stmt.filter is None:
+    src_addr = ctx.rs.zones.locate(source)
+    if stmt.where is None:
         i = 0
         while source.cards:
-            card = source.cards.pop(0)
-            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
+            card = source.take_top(1)[0]
+            _deposit(
+                ctx,
+                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
+                [card],
+                ctx.current_player,
+                src_addr,
+            )
             dealt[players[i % len(players)]].append(card)
             i += 1
     else:
-        pred = _card_pred(stmt.filter, ctx)
+        pred = _card_pred(stmt.where, ctx)
         pool = [c for c in source.cards if pred(c)]
         for i, card in enumerate(pool):
             source.remove(card)
-            _deposit(ctx, ctx.rs.zones.instance(dest_family, players[i % len(players)]), [card])
+            _deposit(
+                ctx,
+                ctx.rs.zones.instance(dest_family, players[i % len(players)]),
+                [card],
+                ctx.current_player,
+                src_addr,
+            )
             dealt[players[i % len(players)]].append(card)
     if ctx.observer is not None:
-        src = ctx.rs.zones.locate(source)
         for p in players:
-            observe.movement(ctx, src, (dest_family, p), dealt[p])
+            observe.movement(ctx, src_addr, (dest_family, p), dealt[p])
 
 
 def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
@@ -267,11 +304,11 @@ def _gather(stmt: n.Transfer, ctx: Ctx) -> None:
             taken = zone.take_all()
             if ctx.observer is not None:
                 observe.movement(ctx, loc, zones.locate(dest), taken)
-            _deposit(ctx, dest, taken)
+            _deposit(ctx, dest, taken, ctx.current_player, loc)
 
 
 def _check_count(count: int, mode: str | None) -> int:
-    """The amount-expression domain Owner Guard: an amount is runtime data (a
+    """The amount-expression domain [[owner-guard]]: an amount is runtime data (a
     computed expression can go negative at a ring's edge), and Python's
     negative slice would SILENTLY move len+count cards — the worst class.
     Negative is never meaningful; zero under `chosen` is a vacuous decision
@@ -300,7 +337,7 @@ def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Ca
     # refactor that could shift an RNG draw and move an unrelated score golden.
     if stmt.joint:
         return _select_joint(source, stmt, ctx, player)
-    if stmt.filter is not None:
+    if stmt.where is not None:
         return _select_filtered(source, stmt, ctx, player)
     amount = stmt.amount
     if amount == "all":
@@ -328,9 +365,7 @@ def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Ca
         raise OwnerGuardError(
             f"cannot deal {count} cards from a source holding {len(source.cards)}"
         )
-    taken = source.cards[:count]  # deal off the top
-    del source.cards[:count]
-    return taken
+    return source.take_top(count)  # deal off the top
 
 
 # Joint selection enumerates subsets of the source; beyond this pool size the
@@ -373,13 +408,13 @@ def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> l
         assert not isinstance(amount, str)
         k = _check_count(int(evaluate(amount, ctx)), stmt.selection_mode)
         sizes = range(k, k + 1)
-    assert stmt.filter is not None  # grammar: `jointly` IS a where-clause form
+    assert stmt.where is not None  # grammar: `jointly` IS a where-clause form
     noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
         for size in sizes
         for subset in itertools.combinations(pool, size)
-        if bool(evaluate(stmt.filter, ctx.with_local(noun, list(subset))))
+        if bool(evaluate(stmt.where, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:
         # No implicit skip (decisions.md "No implicit actions"): a decision
@@ -405,8 +440,8 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.filter is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
-    pred = _card_pred(stmt.filter, ctx)
+    assert stmt.where is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
+    pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
     if amount == "all":
@@ -443,7 +478,7 @@ def _select_filtered(
 
 
 def _epistemic(stmt: n.EpistemicOp, ctx: Ctx) -> None:
-    zone = evaluate(stmt.target, ctx)
+    zone = evaluate(stmt.zone, ctx)
     if not isinstance(zone, Zone):
         raise OwnerGuardError(
             f"'{stmt.op}' target is not a zone (got {type(zone).__name__}) — "
@@ -461,8 +496,8 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
     # movement. It is public: every player's log gets it, regardless of the
     # zone's declared visibility (unlike `observe.movement`, which projects
     # per observer through the zone type).
-    if stmt.filter is not None:
-        pred = _card_pred(stmt.filter, ctx)
+    if stmt.where is not None:
+        pred = _card_pred(stmt.where, ctx)
         matches = [c for c in zone.cards if pred(c)]
     else:
         matches = list(zone.cards)
@@ -482,7 +517,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
 def _rotate(stmt: n.RotateStmt, ctx: Ctx) -> None:
     # Advance the variable to the next value in the cycle. Loop state persists
     # across iterations and `before_each` rotates each hand, so the cycle
-    # advances hand to hand (see decisions.md "Loop lifecycle").
+    # advances hand to hand (see decisions.md "Loop lifecycle: `before_each` and `after_each`").
     current = ctx.rs.get(stmt.target.name)
     values = list(stmt.values)
     idx = values.index(current) if current in values else -1
@@ -585,7 +620,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     the previous player again when the `again` state var read true at the
     boundary (the form CONSUMES the flag: it resets to false on read, so a
     stale write can never silently monopolize the loop — only a write
-    during the turn keeps the turn), else the next seat in GAME direction
+    during the turn keeps the turn), else the next seat in TURN direction
     (`Seating.clockwise`, the same axis the round forms rotate on); skip
     seats failing the participants predicate (re-evaluated per pick, so
     elimination falls out); bind the binder and the acting player and run
@@ -601,7 +636,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
     step = 1 if ctx.rs.seating.clockwise else -1
     current: Player | None = None
     guard = 0
-    while not bool(evaluate(stmt.termination, ctx)):
+    while not bool(evaluate(stmt.until, ctx)):
         # The same non-termination Owner Guard as `_repeat_until` (one loop
         # class, one guard): a body that makes no decisions is invisible to
         # the max_length DECISION counter, so the turn count itself is
@@ -642,7 +677,7 @@ def _turns(stmt: n.Turns, ctx: Ctx) -> None:
 
 
 def _next_seats(order: tuple[Player, ...], frm: Player, step: int) -> list[Player]:
-    """One full lap starting after `frm`, stepping in game direction
+    """One full lap starting after `frm`, stepping in turn direction
     (`step` = +1 clockwise, -1 counterclockwise — `Seating`'s convention)."""
     i = order.index(frm)
     return [order[(i + step * k) % len(order)] for k in range(1, len(order) + 1)]
@@ -743,7 +778,7 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
     # For Hearts' pass, the per-player bodies are independent transfers, and a
     # player's source hand isn't read by another's body, so sequential
     # execution with the chooser reading current hands is equivalent (see
-    # decisions.md "Simultaneous moves").
+    # decisions.md "Simultaneous moves and atomic effect").
     # This executor IMPLEMENTS only the player row (it iterates seats and
     # rebinds `acting_as`), so it pins the registry's whole simultaneous column
     # to that fact: widening SIMULTANEOUS_ROLES in the domain table without
@@ -815,18 +850,17 @@ def _apply_pass(
             f"simultaneous-pass destination is not a zone (got {type(dest).__name__}) — "
             f"the checker leaves this value's type open, so it is checked here"
         )
+    src_addr = ctx.rs.zones.locate(source)
     for card in selections[player]:
         source.remove(card)
-        _deposit(ctx, dest, [card])
+        _deposit(ctx, dest, [card], player, src_addr)
     if ctx.observer is not None:
-        observe.movement(
-            ctx, ctx.rs.zones.locate(source), ctx.rs.zones.locate(dest), selections[player]
-        )
+        observe.movement(ctx, src_addr, ctx.rs.zones.locate(dest), selections[player])
 
 
 def _repeat_until(stmt: n.RepeatUntil, ctx: Ctx) -> None:
     guard = 0
-    while not evaluate(stmt.cond, ctx):
+    while not evaluate(stmt.until, ctx):
         run_body(stmt.body, ctx)
         guard += 1
         if guard > ctx.rs.max_length:

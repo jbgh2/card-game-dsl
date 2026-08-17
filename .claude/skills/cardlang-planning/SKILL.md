@@ -31,6 +31,12 @@ locate it:
   Merge Lane A change, or a design that would create one, consults at
   planning time and attaches the counsel block to the change before the
   operator rules (docs/harness.md, "The Language Owner")
+- engine-structural -> the Architect (`.claude/skills/architect`): pass
+  architecture and Contract blocks, the type system, IR and runtime
+  shape, diagnostics machinery, testing strategy, the observability
+  model — consulted at planning time, counsel attached to the change
+  (docs/harness.md, "The Architect"); a change with both faces takes
+  both counsels
 
 A plan that contradicts an owner is wrong before it starts; a plan that
 re-derives one is losing information — the planning-stage form of
@@ -41,7 +47,7 @@ that pass's `Contract` block before planning around it.
 
 Classify exactly as the review skill's Phase 0 will at the other end:
 grammar surface, parse builder, AST, resolve, typecheck, IR, runtime,
-stdlib registry, corpus game, docs, tests/goldens. The classification
+native registry, kernel table, corpus game, docs, tests/goldens. The classification
 decides which gates the plan must SCHEDULE — if the change adds or
 extends surface, an Owner Guard, a diagnostic, a registry, or any closed-domain
 mechanism, the surface-totality-audit fires and Gate 4 applies. It fires

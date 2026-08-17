@@ -25,7 +25,7 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
                 `resolve.py` require for `Card`-typed move parameters. Out
                 of T2's domain by the spec's own words, not a defect.
             (3) `excluded_coupled` — per-game names a game-local primitive
-                module reads (the sanctioned "game-local stdlib primitive"
+                module reads (the sanctioned "game-local Primitive"
                 pattern, kernel-migration.md), DERIVED from the declared-
                 reads registry (`PRIMITIVE_READS`,
                 cardlang/runtime/reads.py) — the class this transform first

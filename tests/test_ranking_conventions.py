@@ -29,7 +29,7 @@ registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             _FRENCH_EXPANSIONS / _NON_FRENCH_DECKS below (the two-way pin
             idiom).
 covered:    all 28 French cells (7 decks x 4 conventions, frozen expected
-            tuples); all 20 non-French cells (5 decks x 4 conventions, wall
+            tuples); all 20 non-French cells (5 decks x 4 conventions, guard
             probed through real source per deck and per convention); the
             unknown-deck degrade; registry↔grammar reconciliation in both
             directions; the reserved-spelling pin; the 14 corpus migration
@@ -40,15 +40,15 @@ sampled:    the "did you mean" hint is probed on four representative
             key — the hint is advisory text on an already-loud diagnostic.
 residual:   partial-enumeration runtime KeyError (`rank_value` on a rank
             outside a partial `ranking:`) is the standing recorded residual
-            (the ledger in tests/test_ranking_wall.py) and is
+            (the ledger in tests/test_ranking_guard.py) and is
             unreachable from a convention, which is always a full
             permutation of its deck by construction. (A duplicated
-            `ranking:` clause — convention or enumeration — is walled at
+            `ranking:` clause — convention or enumeration — is guarded at
             parse by the game-clause `once` sweep,
-            tests/test_game_clause_walls.py, so it is that ledger's cell,
+            tests/test_game_clause_guards.py, so it is that ledger's cell,
             not a residual here.)
 
-Rendered-diagnostic goldens for the walls live in `tests/rejections/`
+Rendered-diagnostic goldens for the guards live in `tests/rejections/`
 (ranking_unknown_convention, ranking_convention_non_french_deck,
 ranking_mixed_convention_and_ranks).
 """
@@ -163,7 +163,7 @@ def test_every_deck_convention_cell_is_classified() -> None:
     for deck in DECKS:
         assert deck in _DECK_GAME, f"no probe vehicle for deck {deck!r}"
         if deck in _NON_FRENCH_DECKS:
-            # Its 12 wall cells are exercised by
+            # Its 12 guard cells are exercised by
             # test_non_french_cell_rejects_through_real_source.
             continue
         for conv in RANKING_CONVENTIONS:
@@ -185,7 +185,7 @@ def test_french_cell_expands_to_frozen_tuple(deck: str, conv: str) -> None:
 @pytest.mark.parametrize("deck", sorted(_NON_FRENCH_DECKS))
 @pytest.mark.parametrize("conv", sorted(RANKING_CONVENTIONS))
 def test_non_french_cell_rejects_through_real_source(deck: str, conv: str) -> None:
-    """Every non-French wall cell, through the full pipeline: the diagnostic
+    """Every non-French guard cell, through the full pipeline: the diagnostic
     names the convention and says to enumerate instead."""
     with pytest.raises(DiagnosticError) as exc:
         resolve(parse_text(_probe_source(deck, f"ranking: {conv}"), "probe.cardlang"))

@@ -1,4 +1,4 @@
-"""Known-value tests for Cribbage's stdlib primitives
+"""Known-value tests for Cribbage's Primitives
 (cardlang/runtime/cribbage.py), following the test_tarot_primitives.py /
 test_pinochle_meld.py precedent for a migrated game's pure-primitive module.
 
@@ -19,7 +19,7 @@ import random
 import pytest
 
 from cardlang.ast import nodes as n
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.cribbage import (
     ROW,
     cribbage_crib_value,
@@ -86,7 +86,7 @@ def _aces_low_index() -> dict[str, int]:
     return {r: len(order) - 1 - i for i, r in enumerate(order)}
 
 
-_Bundles = tuple[sidecar.EngineFacts, reads.GameReads]
+_Bundles = tuple[narrowing.EngineFacts, reads.GameReads]
 
 
 def _peg_rs(
@@ -105,7 +105,7 @@ def _peg_rs(
 def _peg_ctx(
     play_pile: list[Card], seq_bits: int, seq_len: int, dealer: int = 1
 ) -> _Bundles:
-    return sidecar.bind(_peg_rs(play_pile, seq_bits, seq_len, dealer), None, ROW)
+    return narrowing.bind(_peg_rs(play_pile, seq_bits, seq_len, dealer), None, ROW)
 
 
 def test_peg_origin_of_reads_the_pile_position() -> None:
@@ -135,7 +135,7 @@ def test_peg_origin_of_routing_round_trip() -> None:
     # Bound ONCE, against the intact pile — which is what the DSL's two split
     # movements do, and what the bundle now makes structural: the snapshot
     # cannot shift under the reads as the pile drains below.
-    ctx = sidecar.bind(rs, None, ROW)
+    ctx = narrowing.bind(rs, None, ROW)
     play_pile = rs.zones.single("play_pile")
     # The DSL's close routing: filter the dealer's cards first (predicate over
     # the intact pile), then take the unfiltered remainder — reproduced here
@@ -158,7 +158,7 @@ def test_peg_origin_of_requires_reading_before_the_pile_drains() -> None:
     rs = _peg_rs([c0, c1], seq_bits=0b01, seq_len=2, dealer=1)
     rs.zones.single("play_pile").remove(c0)
     with pytest.raises(ValueError):
-        peg_origin_of(*sidecar.bind(rs, None, ROW), c0)
+        peg_origin_of(*narrowing.bind(rs, None, ROW), c0)
 
 
 def _show_ctx(
@@ -177,7 +177,7 @@ def _show_ctx(
     rs.zones.instance("played", 1).add_all(played1)
     rs.zones.single("crib").add_all(crib)
     rs.zones.single("starter").add(starter)
-    return sidecar.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, ROW)
 
 
 def test_cribbage_show_value_reads_the_players_pegged_hand() -> None:

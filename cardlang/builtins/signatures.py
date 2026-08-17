@@ -1,13 +1,13 @@
-"""Type signatures for the stdlib functions and value-callbacks.
+"""Type signatures for the native functions and value-callbacks.
 
 Companion to :mod:`cardlang.builtins.functions` (which holds the *names*); these
 tables hold the *types*, consumed by the type checker. The keys reconcile with
-the name sets (asserted in tests), keeping "stdlib is data" single-sourced.
+the name sets (asserted in tests), keeping "the native surface is data" single-sourced.
 
 Looseness is deliberate where the corpus forces it: `suit_of` accepts a card or a
-single-card zone, so its argument is `TAny`; outcome value-callbacks return
-`TAny`; the `Resource` zone (`ChipStack`) holds `TAny`. These track the deferred
-parts of the typed object model.
+single-card zone, so its argument is the [[permissive-top]] `TAny`; outcome
+value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
+These track the deferred parts of the typed object model.
 """
 
 from __future__ import annotations
@@ -70,19 +70,14 @@ CALL_SIGS: dict[str, Sig] = {
     "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
     "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
     "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
-    # Hold'em: the seat-ring skip past busted seats (button/blind resolution) and
-    # the showdown side-pot share. `holdem_next_entrant` reads only `in_hand` and
-    # the seating ring — no card content — which is why it classifies GENERIC
-    # where `holdem_pot_share`, which ranks cards, is deck-only.
-    "holdem_next_entrant": Sig((TPlayer(),), TPlayer()),
+    # Hold'em: the showdown side-pot share (ranks cards, so deck-only).
     "holdem_pot_share": Sig((TPlayer(),), TInteger()),
     # Heads-up Hold'em's showdown share. Same shape and same maths as
     # `holdem_pot_share` — a separate name because a primitive module binds one
     # declared-reads row (issue #232), not because the query differs.
     "holdem_heads_up_pot_share": Sig((TPlayer(),), TInteger()),
-    "bigtwo_first_leader": Sig((), TPlayer()),  # Big Two: the 3♦ holder (leads hand 1)
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
-    "card_value": Sig((TCard(),), TInteger()),  # a card's deck-declared card-point value
+    "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`
     # Positional order reads (decisions.md "Position domains and positional
     # zones", sequence orientation): top = the sequence end (most recent
     # arrival), bottom = the front. Loud runtime error on an empty collection.
@@ -93,43 +88,26 @@ CALL_SIGS: dict[str, Sig] = {
     "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
     "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
     "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
-    "tarot_card_points": Sig((TCard(),), TInteger()),  # French Tarot: doubled card-point value
-    "schnapsen_trick_winner": Sig(
-        (TPlayer(), TOptional(TEnum("Suit"))), TPlayer()
-    ),  # Schnapsen: the completed two-card trick's winner
+    # The standard trump-game trick winner over a fully public pile's Arrival
+    # Record (issue #256). The zone argument is polymorphic like `suit_of`'s
+    # (TAny: the runtime needs the Zone handle, not coerced elements — the
+    # record rides the zone); the trump is a suit or none.
+    "highest_trump_or_led_suit": Sig((TAny(), TOptional(TEnum("Suit"))), TPlayer()),
     "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
     "skat_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Skat: follow-class legality
-    "skat_trick_winner": Sig((TPlayer(),), TPlayer()),  # Skat: the three-card trick's winner
+    # The three trick winners read the trick pile's Arrival Record (issue
+    # #256): attribution is the kernel's, so no argument remains — the old
+    # `leader` parameter existed only for the retired seat-order zip.
+    "skat_trick_winner": Sig((), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
-    "skat_effective_loss": Sig(
-        (TInteger(), TInteger(), TInteger()), TInteger()
-    ),  # Skat: the overbid-aware loss base
-    "doko_trick_winner": Sig((TPlayer(),), TPlayer()),  # Doppelkopf: the trick's winner
-    "tichu_mahjong_holder": Sig((), TPlayer()),  # Tichu: leads the first trick
-    "tichu_players_holding": Sig((), TInteger()),  # Tichu: players still holding cards
-    "tichu_double_victory": Sig((), TBoolean()),  # Tichu: first two finishers teammates?
-    "tichu_partner": Sig((TPlayer(),), TPlayer()),  # Tichu: the teammate
-    "tichu_next_holder": Sig((TPlayer(),), TPlayer()),  # Tichu: next holder ccw (or arg)
+    "doko_trick_winner": Sig((), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "tichu_opponent_team": Sig((TPlayer(),), TTeam()),  # Tichu: the other team
-    "tichu_first_out": Sig((), TPlayer()),  # Tichu: the first finisher (default 0)
-    "tichu_card_points": Sig((TCard(),), TInteger()),  # Tichu: the card-point table
-    "president_is_top_rank": Sig(
-        (TPlayer(), TCard()), TBoolean()
-    ),  # President: is the card the player's highest rank?
-    "coup_players_in": Sig((), TInteger()),  # Coup: players still holding influence
-    "coup_next_in_game": Sig((TPlayer(),), TPlayer()),  # Coup: next in-game clockwise
-    "coup_has_char": Sig(
-        (TPlayer(), TOptional(TEnum("Rank"))), TBoolean()
-    ),  # Coup: proof lookup (an unset claim matches no card)
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
-    "peg_value": Sig((TCard(),), TInteger()),  # Cribbage: pegging/fifteens value
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
     "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
     "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
     "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
-    "gin_card_points": Sig((TCard(),), TInteger()),  # Gin: A=1, pips, face=10
     "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand
     "gin_can_knock": Sig((TPlayer(),), TBoolean()),  # Gin: some discard leaves <= 10 (the announce guard)
     "gin_knock_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Gin: knock legality after this discard
@@ -143,8 +121,6 @@ CALL_SIGS: dict[str, Sig] = {
     "gin_can_declare_free": Sig(
         (TPlayer(),), TBoolean()
     ),  # Gin: some valid meld exists (defender — no knock budget)
-    "gin_flat_points": Sig((TPlayer(),), TInteger()),  # Gin: the hand counted as all-deadwood
-    "gin_shown_points": Sig((TPlayer(),), TInteger()),  # Gin: shown_deadwood[p]'s point count
     "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
     "gin_lay_ok_b": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld B
     "gin_lay_ok_c": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld C
@@ -155,7 +131,7 @@ CALL_SIGS: dict[str, Sig] = {
     "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
     "five_hundred_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: follow legality
     "five_hundred_lead_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: lead legality
-    "five_hundred_trick_winner": Sig((TPlayer(),), TPlayer()),  # 500: the trick's winner
+    "five_hundred_trick_winner": Sig((), TPlayer()),  # 500: the trick's winner
     "belote_trump_height": Sig((TCard(),), TInteger()),  # Belote: trump-suit rank strength
     "belote_opp_winning": Sig((), TBoolean()),  # Belote: live trick's winner is an opponent?
     "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q
@@ -168,11 +144,6 @@ CALL_SIGS: dict[str, Sig] = {
     "belote_decl_trump": Sig((TPlayer(),), TBoolean()),  # Belote: best combination in trump?
     "belote_decl_size": Sig((TPlayer(),), TInteger()),  # Belote: declared-card count
     "belote_decl_slot": Sig((TPlayer(), TInteger(), TCard()), TBoolean()),  # Belote: k-th declared card?
-    "canasta_is_red3": Sig((TCard(),), TBoolean()),  # Canasta: a red three (bonus card)?
-    "canasta_is_black3": Sig((TCard(),), TBoolean()),  # Canasta: a black three (stop card)?
-    "canasta_top_starts_pile": Sig((), TBoolean()),  # Canasta: turned card may start the pile
-    "canasta_top_is_wild": Sig((), TBoolean()),  # Canasta: the new top froze the pile
-    "canasta_pile_rank": Sig((), TEnum("Rank")),  # Canasta: the pile's top rank
     "canasta_can_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: legal pile take exists
     "canasta_must_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: no-stock forced take
     "canasta_can_start": Sig(
@@ -182,17 +153,7 @@ CALL_SIGS: dict[str, Sig] = {
         (TPlayer(), TCard()), TBoolean()
     ),  # Canasta: card joins the open attempt, close stays reachable
     "canasta_close_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: attempt closes as it stands
-    "canasta_add_ok": Sig(
-        (TPlayer(), TEnum("Rank"), TCard()), TBoolean()
-    ),  # Canasta: card lays onto the standing meld of the rank
-    "canasta_discard_ok": Sig(
-        (TPlayer(), TCard()), TBoolean()
-    ),  # Canasta: the discard may end the turn (go-out rule)
-    "canasta_black3_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: go-out black-three meld legal
-    "canasta_meld_points": Sig((TTeam(),), TInteger()),  # Canasta: melded card points
     "canasta_canasta_bonus": Sig((TTeam(),), TInteger()),  # Canasta: canasta bonuses
-    "canasta_red3_bonus": Sig((TTeam(),), TInteger()),  # Canasta: red-three bonus
-    "canasta_hand_points": Sig((TTeam(),), TInteger()),  # Canasta: points left in hands
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

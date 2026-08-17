@@ -153,7 +153,7 @@ game FiveHundred {
           } else {
             as a3 { move chosen one card from hand[a3] where five_hundred_follow_ok(a3, card) to trick_pile }
           }
-          let w = five_hundred_trick_winner(leader)
+          let w = five_hundred_trick_winner()
           move all cards from trick_pile to captured[team_of(w)]
           if w is declarer { declarer_tricks += 1 }
           tricks_played += 1
@@ -172,7 +172,7 @@ game FiveHundred {
           as s2 { move chosen one card from hand[s2] where five_hundred_follow_ok(s2, card) to trick_pile }
           as s3 { move chosen one card from hand[s3] where five_hundred_follow_ok(s3, card) to trick_pile }
           as s4 { move chosen one card from hand[s4] where five_hundred_follow_ok(s4, card) to trick_pile }
-          let w = five_hundred_trick_winner(leader)
+          let w = five_hundred_trick_winner()
           move all cards from trick_pile to captured[team_of(w)]
           team_tricks[team_of(w)] += 1
           tricks_played += 1

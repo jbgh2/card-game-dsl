@@ -29,7 +29,7 @@ covered:    (a) registry↔game-file: every row's every name against the
             (c) runtime refusal: the accessor behavior matrix — unknown
             row / undeclared name / declared-and-present / declared-but-
             missing — exercised for every accessor, plus the magic-hand
-            backstop;
+            Shadow Guard;
             (d) misuse probes for each defect the pins exist to catch
             (game-side rename, stale row, undeclared read, raw-access
             bypass per forbidden pattern, non-literal name, kind
@@ -46,7 +46,7 @@ residual:   kernel round-state keys (`state["played"]`, `st.get("current")`
             not game-declared names — a game author cannot rename them, so
             they are outside this property's domain (reads.py's docstring
             says so); the exempted engine-core modules read names off the
-            AST, where resolve's walls own the class (each exemption row
+            AST, where resolve's guards own the class (each exemption row
             names that rationale and fails if the file stops tripping the
             scan).
 """
@@ -74,15 +74,15 @@ RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
 
 # Engine-core modules where raw name-keyed access is sound: they read names
 # off the parsed tree (`NameRef.name`, movement endpoints, …), where resolve's
-# walls own the name↔declaration agreement — the coupling this registry
+# guards own the name↔declaration agreement — the coupling this registry
 # declares does not exist there. reads.py is the accessor implementation:
 # the one place that touches the raw API on the primitives' behalf.
 # `test_raw_access_is_confined_to_the_exemptions` pins the list non-stale
 # (an exempted file that stops using raw access must leave this table).
 _EXEMPT_RAW_ACCESS: dict[str, str] = {
-    "driver.py": "engine core — names come from the AST, resolve-walled",
-    "evaluate.py": "engine core — names come from the AST, resolve-walled",
-    "execute.py": "engine core — names come from the AST, resolve-walled",
+    "driver.py": "engine core — names come from the AST, resolve-guarded",
+    "evaluate.py": "engine core — names come from the AST, resolve-guarded",
+    "execute.py": "engine core — names come from the AST, resolve-guarded",
     "mechanics.py": "engine core — names from the AST plus the magic `hand`"
     " (decisions.md \"Declared parameter domains\")",
     "rules.py": "engine core — the magic `hand` read of `legal_cards`"
@@ -181,9 +181,12 @@ def test_registry_row_agrees_with_game_declarations(row: PrimitiveReads) -> None
 @dataclass
 class ScanResult:
     raw_hits: list[str] = field(default_factory=list)
-    # accessor-call literals: "state" / "family" / "instance" / "single"
+    # accessor-call literals: "state" / "family" / "instance" / "single" /
+    # "arrival" (the Arrival Record facet of a declared single zone)
     reads: dict[str, set[str]] = field(
-        default_factory=lambda: {"state": set(), "family": set(), "instance": set(), "single": set()}
+        default_factory=lambda: {
+            "state": set(), "family": set(), "instance": set(), "single": set(), "arrival": set(),
+        }
     )
     rows: set[tuple[str, str]] = field(default_factory=set)
     problems: list[str] = field(default_factory=list)
@@ -196,6 +199,7 @@ _BUNDLE_KINDS: dict[str, str] = {
     "state": "state",
     "families": "family",
     "singles": "single",
+    "arrivals": "arrival",
 }
 
 # The bundle parameter's mandated name. The scan keys on it, because these
@@ -295,6 +299,13 @@ def _scan_source(source: str, where: str) -> ScanResult:
             idx = node.slice
             if isinstance(idx, ast.Constant) and isinstance(idx.value, str):
                 result.reads[kind].add(idx.value)
+                if kind == "arrival":
+                    # The Arrival Record is a FACET of a declared single-zone
+                    # read (reads.PrimitiveReads.arrival_zones requires the
+                    # subset), so reading the record IS reading the zone —
+                    # counted for both kinds, which is what lets a facet-only
+                    # reader (doko) keep its single_zones declaration honest.
+                    result.reads["single"].add(idx.value)
             else:
                 result.problems.append(
                     f"{where}:{node.lineno}: {node.value.attr}[...] whose key "
@@ -316,15 +327,18 @@ def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tu
     state: set[str] = set()
     families: set[str] = set()
     singles: set[str] = set()
+    arrivals: set[str] = set()
     for r in rows:
         state |= r.state_vars
         families |= r.zone_families
         singles |= r.single_zones
+        arrivals |= r.arrival_zones
     return (
         {
             "state": frozenset(state),
             "family": frozenset(families),
             "single": frozenset(singles),
+            "arrival": frozenset(arrivals),
         },
         {(r.module, r.game_file) for r in rows},
     )
@@ -352,6 +366,7 @@ def test_module_source_agrees_with_registry(path: Path) -> None:
         # `instance` reads a keyed member of a family: one declaration kind.
         "family": frozenset(scan.reads["family"] | scan.reads["instance"]),
         "single": frozenset(scan.reads["single"]),
+        "arrival": frozenset(scan.reads["arrival"]),
     }
     assert scanned == expected, (
         f"{module_key}: accessor-call literals disagree with PRIMITIVE_READS "
@@ -401,7 +416,7 @@ def test_bundle_parameter_is_named_consistently(path: Path) -> None:
 
 
 def test_probe_off_convention_bundle_name_is_refused_loud() -> None:
-    """The misuse probe for the wall above: naming the bundle anything else
+    """The misuse probe for the guard above: naming the bundle anything else
     fails loudly rather than quietly dropping that function's reads."""
     problems = _bundle_param_problems(
         "def f(facts, bundle: reads.GameReads) -> int:\n"
@@ -410,7 +425,7 @@ def test_probe_off_convention_bundle_name_is_refused_loud() -> None:
     )
     assert problems and "must be 'gr'" in problems[0]
     # and the reads of an off-convention bundle are indeed invisible to the
-    # scan — which is exactly why the wall above has to exist.
+    # scan — which is exactly why the guard above has to exist.
     scan = _scan_source(
         'def f(facts, bundle):\n    return bundle.state["x"]\n', "probe.py"
     )
@@ -497,7 +512,7 @@ def test_declared_and_present_reads_pass_through() -> None:
 
 
 def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
-    """The rename reproducer's runtime backstop: rename `influence` in
+    """The rename reproducer's runtime Shadow Guard: rename `influence` in
     coup.cardlang and (were the static pins somehow skipped) the playout
     fails as a PrimitiveReadError naming the registry and the game file —
     never the bare KeyError the metamorphic suite first surfaced."""
@@ -518,7 +533,7 @@ def test_instance_key_miss_fails_typed() -> None:
         reads.instance(rs, _COUP_ROW, "influence", 7)
 
 
-def test_magic_hand_backstop() -> None:
+def test_magic_hand_guard() -> None:
     rs = _bare_state()
     with pytest.raises(PrimitiveReadError, match="Declared parameter domains"):
         reads.magic_hand(rs)
@@ -530,7 +545,7 @@ def test_magic_hand_backstop() -> None:
 # --- misuse probes (the adversarial pass) -----------------------------------
 #
 # One probe per defect the pins exist to catch. Each proves the failure is
-# LOUD and lands in the right layer's currency (a test assertion here; a
+# LOUD and lands in the right layer's channel (a test assertion here; a
 # PrimitiveReadError at runtime) — never a silently-narrowed rename domain or
 # a KeyError three phases later.
 

@@ -2,15 +2,15 @@
 
 The corpus's first betting game. Chips are integer state (a `stack` per player),
 not a resource-zone subsystem. The whole hand — antes, deal, bring-in post, the
-five betting streets (3rd–7th) on the kernel `round` in priority order, and the
+five betting streets (3rd–7th) on the kernel [[round]] in priority order, and the
 showdown (reveal, per-entrant pot collection, muck) — runs in the DSL
 (seven-card-stud.cardlang); this module holds only the pure functions not
 expressible there:
 
-- `bring_in_seat` / `first_to_act_seat` — the door-card seat selectors (argmin /
-  argmax over players), stdlib primitives the betting phase calls;
+- `bring_in_seat` / `first_to_act_seat` — the door-card [[seat]] selectors (argmin /
+  argmax over players), Primitives the betting phase calls;
 - `pot_share` — the showdown side-pot query (argmax over poker-rank tuples per
-  layer), the stdlib primitive the showdown's settle statement calls.
+  layer), the Primitive the showdown's settle statement calls.
 
 The hand evaluator itself is family-wide and lives in `cardlang/runtime/poker.py`,
 shared with Hold'em: which cards a player has available is a property of the
@@ -30,7 +30,7 @@ from collections.abc import Mapping, Sequence
 
 from cardlang.runtime import reads
 from cardlang.runtime.poker import RANK_VALUE, side_pot_payouts
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
@@ -42,7 +42,7 @@ ROW = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
 _SUIT_ORDER = {"clubs": 0, "diamonds": 1, "hearts": 2, "spades": 3}
 
 
-# --- seat selectors (Stud-local stdlib primitives, called from the DSL) -------
+# --- seat selectors (Stud-local Primitives, called from the DSL) -------
 #
 # The bring-in (lowest door card) and the first-to-act on 4th-7th street (highest
 # visible upcards) are argmin/argmax over players keyed on card ranks/suits —

@@ -144,7 +144,7 @@ def test_is_not_prefixed_identifier_parses_as_equality_not_negation() -> None:
     assert isinstance(stmt, n.LetStmt)
     value = stmt.value
     assert isinstance(value, n.BinOp)
-    assert value.op == "=="
+    assert value.op == "is"
     assert isinstance(value.right, n.NameRef) and value.right.name == "not_ready"
 
 

@@ -5,7 +5,7 @@
 READS the acting player — so inside that body `p` and `actor` are two names for
 one value. `if p is not actor { … }` therefore has a body that never runs, and
 `if p is actor { A } else { B }` has a dead `else`. Both typecheck: the operands
-are both `Player`, so no type wall can see it, and no runtime check can fire on
+are both `Player`, so no type guard can see it, and no runtime check can fire on
 a branch that is never taken. It is a *statically decidable* degeneracy that was
 silently accepted — "an operand comparing as always-false", named as a defect in
 decisions.md "Surface totality", reached here through a shadowed binder rather
@@ -29,7 +29,7 @@ property:   an equality comparison whose two operands are NAMES that lexically
             accepted cells are executed (`play_game`), never merely resolved,
             since "resolves clean" is exactly the assertion that hid this
             defect.
-domain:     THREE axes, each read off its own registry rather than off the wall.
+domain:     THREE axes, each read off its own registry rather than off the guard.
 
             (1) The ALIAS-SOURCE axis: the `n.Stmt` union, every member
             classified as introducing an actor alias or not
@@ -51,7 +51,7 @@ domain:     THREE axes, each read off its own registry rather than off the wall.
 
             (2) The OPERATOR axis: the equality operators, derived from
             `typecheck.OP_CLASSES` (`OpClass.EQUALITY`) — the same registry
-            the type layer's own always-false wall dispatches through — crossed
+            the type layer's own always-false guard dispatches through — crossed
             with operand ORDER, so `actor is p` cannot pass while `p is actor`
             fails. Stopping at the equality class is a decision the registry's
             OTHER classes were checked against, not an unexamined narrowing:
@@ -67,8 +67,8 @@ domain:     THREE axes, each read off its own registry rather than off the wall.
             and so preserves the alias, under a binder that SHADOWS the alias
             name (a query binder, a `let` rebinding it, a `let`'s index), or
             above it entirely (the hoisted-let idiom). This axis holds the
-            false positives a naive "`actor` under `for each player`" wall
-            would produce — every entry in it was written because the wall got
+            false positives a naive "`actor` under `for each player`" guard
+            would produce — every entry in it was written because the guard got
             that cell wrong, or would have.
 registry:   `n.Stmt` (alias sources); `typecheck.OP_CLASSES` (operators);
             `domains.binds_actor` / `domains.SIMULTANEOUS_ROLES` (which roles
@@ -84,10 +84,10 @@ covered:    the two parametrized grids below — `test_provably_equal_operands_
             pronoun behaviour pin, and the misuse probes: a role no registry
             row defines must still reach the author as its OWN located
             diagnostic rather than as this sweep's registry lookup raising in
-            compiler currency (`test_a_role_no_row_defines_still_gets_its_own_
+            compiler channel (`test_a_role_no_row_defines_still_gets_its_own_
             diagnostic` — the metamorphic reorder suite found that one, on a
             `for each column c` this grid had no cell for), and the procedure
-            pronoun wall that bounds the residual below.
+            pronoun guard that bounds the residual below.
 sampled:    one fixture game (2 players, `standard52`, a hand and a bid zone),
             with every cell spliced into one `as 0 { … }` block so an acting
             player exists at the top of every cell. A cell whose answer could
@@ -109,7 +109,7 @@ residual:   an alias created by `expand`, not by the source: `run f(p, actor)`
             call (`team_of(p) is team_of(actor)`) is outside the property
             above, which quantifies over NAMES; and a merely redundant read
             (`hand[actor]` where `hand[p]` would do) is accepted by design —
-            it is redundant, not wrong, and this is a totality wall, not a
+            it is redundant, not wrong, and this is a totality guard, not a
             lint.
 """
 
@@ -136,7 +136,10 @@ from cardlang.typecheck import OP_CLASSES, OpClass
 # internal `==`/`!=` (cardlang.lark, "Equality is the word `is` / `is not`"), so
 # a grid over source text needs the map. Pinned complete against the registry
 # below, rather than hand-listed here and trusted.
-_EQUALITY_SURFACE: dict[str, str] = {"==": "is", "!=": "is not"}
+# Internal op -> surface spelling. Nearly an identity since B-1 made the
+# stored op the surface word; `is_not` still differs, because an identifier
+# cannot hold the space that `is not` is written with.
+_EQUALITY_SURFACE: dict[str, str] = {"is": "is", "is_not": "is not"}
 
 EQUALITY_OPS: tuple[str, ...] = tuple(
     sorted(op for op, cls in OP_CLASSES.items() if cls is OpClass.EQUALITY)
@@ -156,7 +159,7 @@ def test_the_operator_axis_is_the_equality_class_of_the_registry() -> None:
     "op", sorted(op for op, cls in OP_CLASSES.items() if cls is OpClass.ORDERING)
 )
 def test_ordering_two_players_is_already_a_type_error(op: str) -> None:
-    """Why the wall stops at the equality class, stated as a check rather than
+    """Why the guard stops at the equality class, stated as a check rather than
     left as an unexamined narrowing. An ORDERING comparison of two names that
     both denote the acting player would be just as statically determined (`p <
     actor` always false) — but ordering does not accept `Player` operands at
@@ -165,7 +168,7 @@ def test_ordering_two_players_is_already_a_type_error(op: str) -> None:
     the right, so its operands are never two names for one player.
 
     If Player ever becomes orderable this goes red, which is the signal to
-    widen `_check_alias_operands` past `("==", "!=")`.
+    widen `_check_alias_operands` past `("is", "is_not")`.
 
     red under: add `TPlayer` to the operand types
     `typecheck._check_ordering_operands` admits."""
@@ -220,7 +223,7 @@ _NO_ALIAS_KINDS: frozenset[str] = frozenset(
 
 def test_every_statement_kind_is_classified_on_the_alias_axis() -> None:
     """The alias-source axis IS the `Stmt` union, not a list of the constructs
-    that happened to motivate the wall. `each … simultaneously` and the
+    that happened to motivate the guard. `each … simultaneously` and the
     transitive `let` are in the grid because this test put them there.
 
     red under: delete `"Turns"` from `_ALIAS_SOURCE_KINDS`."""
@@ -311,7 +314,7 @@ def _game(body: str = "hits[0] += 0", effect: str = "hits[target] += 1") -> str:
     LITERAL, so it introduces no alias of its own and the cell's own construct
     is the only alias source. `effect` splices into a move type's effect — the
     OTHER root shape, where the acting player arrives from the call site rather
-    than from anything lexically above, and where the corpus idiom this wall
+    than from anything lexically above, and where the corpus idiom this guard
     must not break actually lives (docs/games/tic-tac-toe.cardlang)."""
     return f"""
 game G {{
@@ -458,7 +461,7 @@ _REFUSED_SITES: dict[str, tuple[str, str, str, str]] = {
 @pytest.mark.parametrize("op", EQUALITY_OPS)
 @pytest.mark.parametrize("swap", [False, True], ids=["alias_left", "alias_right"])
 def test_provably_equal_operands_are_refused(site: str, op: str, swap: bool) -> None:
-    """The wall. Every construct that makes the acting player reachable under
+    """The guard. Every construct that makes the acting player reachable under
     two names, crossed with both equality operators and both operand orders."""
     slot, template, left, right = _REFUSED_SITES[site]
     if swap:
@@ -488,7 +491,7 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
         "w",
     ),
     # An inner `as` rebinds the actor to something else, so the outer binder
-    # stops aliasing. The false positive a naive wall would produce.
+    # stops aliasing. The false positive a naive guard would produce.
     "inner_as_block_un_aliases": (
         "body",
         "for each player p: as taker {{ if {cmp} {{ hits[p] += 1 }} }}",
@@ -504,7 +507,7 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
     ),
     # A state variable is mutable, so `taker` is not PROVABLY the actor even
     # directly under `as taker` — a body write makes it differ. Conservative by
-    # decision: the wall refuses only what it can prove.
+    # decision: the guard refuses only what it can prove.
     "as_a_mutable_state_var": (
         "body",
         "as taker {{ if {cmp} {{ hits[taker] += 1 }} }}",
@@ -560,7 +563,7 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
     # predicate `player` is the query's own binder, not the simultaneous
     # block's seat (docs/games/schnapsen.cardlang writes this comparison).
     # Shadowing falls out of `_introduced_binders`, so this cell is what
-    # proves the wall reads that registry rather than matching on the name.
+    # proves the guard reads that registry rather than matching on the name.
     "inner_binder_shadows_the_alias": (
         "body",
         ("each player simultaneously: move chosen 1 card from hand[player] "
@@ -576,7 +579,7 @@ _ACCEPTED_SITES: dict[str, tuple[str, str, str, str]] = {
 @pytest.mark.parametrize("swap", [False, True], ids=["alias_left", "alias_right"])
 def test_contingent_comparisons_are_accepted_and_play(site: str, op: str, swap: bool) -> None:
     """The other half of the property. A comparison whose operands can differ
-    at runtime survives the wall — and is PLAYED, because a cell that only
+    at runtime survives the guard — and is PLAYED, because a cell that only
     resolved would pass on exactly the defect this file exists to close."""
     slot, template, left, right = _ACCEPTED_SITES[site]
     if swap:
@@ -587,7 +590,7 @@ def test_contingent_comparisons_are_accepted_and_play(site: str, op: str, swap: 
 
 def test_the_grid_commands_both_outcomes() -> None:
     """A guard on the grid itself: the two parametrizations must disagree, or a
-    wall that refused everything (or nothing) would read as green.
+    guard that refused everything (or nothing) would read as green.
 
     red under: move any `_ACCEPTED_SITES` entry into `_REFUSED_SITES`."""
     assert _REFUSED_SITES and _ACCEPTED_SITES
@@ -614,8 +617,8 @@ def test_a_role_no_row_defines_still_gets_its_own_diagnostic(
 ) -> None:
     """A malformed role must reach the author as the located diagnostic that
     names it, never as this sweep's registry lookup raising in compiler
-    currency — which would suppress every other diagnostic in the file
-    (decisions.md "Closed-domain completeness", failure currency).
+    channel — which would suppress every other diagnostic in the file
+    (decisions.md "Closed-domain completeness", failure channel).
 
     Found by `tests/metamorphic/test_reorder.py::…[positions_for_each]` when
     the sweep called `domains.binds_actor` before testing membership.

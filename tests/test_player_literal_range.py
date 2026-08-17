@@ -1,23 +1,29 @@
 """A Player or Team literal must name a seat/team the game has.
 
-An integer literal coerces to `Player` AND to `Team` (`assignable(Integer,
-Player)`, `assignable(Integer, Team)` -- both are 0-based int identities), so at
+An integer literal coerces to `Player` AND to `Team` (`coercible(Integer,
+Player)`, `coercible(Integer, Team)` -- both are 0-based int identities), so at
 every position that expects one, an out-of-range literal names a member that does
 not exist and the reader (a zone family with no such instance, a board frame's
 per-seat sign, a per-team score) crashes at runtime on a typechecked game. The
 class is closed BY CONSTRUCTION: every operand coercion routes through one
 function, `typecheck._check_operand`, which runs the two-sided range check
 (`typecheck._check_role_literal`, dispatching `Player`->`max_players`,
-`Team`->`max_teams`). No position is walled by being individually enumerated --
+`Team`->`max_teams`). No position is guarded by being individually enumerated --
 the per-site pattern that shipped on PR #92 rotted the day a new position was
 added. `tests/test_operand_choke_point.py` is the pin: it fails the day a new
-coercion site calls `assignable(...)` directly instead of routing through
+coercion site calls `coercible(...)` directly instead of routing through
 `_check_operand`.
+
+The one seat-valued position OUTSIDE this class is the `teams:` declaration's
+own integer lists, which are parsed straight onto the `Game` node and never
+become an operand expression at all -- so the choke point cannot reach them
+by construction, and they are guarded at their declaration instead (ledger
+tests/test_teams_partition.py).
 
 The position axis is the framing-check reconciliation -- a fresh reading of the
 grammar and AST for every place an integer reaches a Player/Team, NOT the set of
-sites the wall happens to touch. It is: the EXPRESSION and CALL positions
-(zone-family subscript, keyed-state index read/write, stdlib/game-function/
+sites the guard happens to touch. It is: the EXPRESSION and CALL positions
+(zone-family subscript, keyed-state index read/write, native/game-function/
 procedure call arg, each also with an OPTIONAL `Player?`/`Team?` expectation);
 the DECLARATION and BINDING positions (`state` default, scalar `:=`, struct
 field, variant payload, `as`, `turns from`/`over`); and the clauses that carried
@@ -44,7 +50,7 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
 registry:   the range check is `_check_role_literal`, called from the ONE choke
             point `_check_operand`. The pin `tests/test_operand_choke_point.py`
-            derives the coercion set from the `assignable(...)` CALL nodes in
+            derives the coercion set from the `coercible(...)` CALL nodes in
             cardlang/typecheck.py (via `ast`, so docstrings do not count) and
             asserts each is inside `_check_operand` or `# choke-point-exempt`.
             Bounds: `TypeEnv.max_players` (from `game.players`) and
@@ -58,8 +64,8 @@ covered:    the grid below -- `_PLAYER_BUILDERS` x {over high rejected, in range
             (`test_untyped_clause_now_rejects_a_non_player`); a team literal in a
             TEAMLESS game rejected as an empty domain
             (`test_team_literal_in_a_teamless_game_is_rejected`). The pin proves no
-            coercion escapes the choke point. Runtime backstops behind the static
-            wall stay covered: a COMPUTED out-of-range frame-verb seat
+            coercion escapes the choke point. Runtime Shadow Guards behind the static
+            guard stay covered: a COMPUTED out-of-range frame-verb seat
             (tests/test_movement_verbs.py::test_frame_verb_runtime_seat_backstop),
             a COMPUTED phantom key and a `TAny`-typed non-player `loser:`
             selection (both tests/test_fail_loud.py).
@@ -70,10 +76,11 @@ sampled:    the Team axis runs two positions (a team-keyed index, a Team call
             `_check_operand`, the Player grid proves each such position reaches
             it, and the two team rows prove `_check_operand`->`_check_role_literal`
             ranges a `Team`. Their product is every team position ranged.
-residual:   `teams:` seat/team lists (`teams: [[0, 5]]` on a
-            two-seat game) are raw parse-time integers OUTSIDE the type system --
-            they never become an operand expression, so the choke point cannot
-            reach them (issue #155). A COMPUTED
+residual:   a range game's seat literals are bounded by `high` while the game is
+            PLAYED at `low` (`players: 2..5` accepts `hand[3]`, then the runtime
+            has two seats), so this ledger's own bound is the one nothing
+            executes at (issue #296); guard: the runtime's typed
+            `OwnerGuardError` on the phantom key. A COMPUTED
             out-of-range index (`hand[0 + 9]`) is the separate zone-family
             index-strictness residual (ledger tests/test_zone_family_typing.py),
             backstopped at runtime by the typed `ZoneStore` miss.
@@ -128,7 +135,7 @@ _OUT_OF_RANGE = [
     ("zone subscript", "    move all cards from hand[0] to hand[5]\n"),
     ("state index (write)", "    score[5] := 1\n"),
     ("state index (read)", "    score[0] := score[5]\n"),
-    ("stdlib call arg (team_of)", "    score[0] := 0 offset_by (if team_of(5) is team_of(0) then left else right)\n"),
+    ("native call arg (team_of)", "    score[0] := 0 offset_by (if team_of(5) is team_of(0) then left else right)\n"),
 ]
 
 
@@ -157,7 +164,7 @@ def test_negative_seat_literal_is_rejected() -> None:
     # -1 is an `IntLit` with a negative value (there is no separate
     # negative-literal AST node), so the helper's two-sided `0 <= k < max` bound
     # rejects it: the lower bound is load-bearing, not vestigial. One row proves
-    # it for every walled position -- all call the one helper's single check.
+    # it for every guarded position -- all call the one helper's single check.
     msg = _reject(card_game(body="    score[-1] := 1\n"))
     assert "seat -1 is out of range" in msg
     assert "2 player(s) (0..1)" in msg
@@ -228,7 +235,7 @@ def test_frame_verb_valid_seat_arg_is_accepted() -> None:
 def test_out_of_range_seat_literal_to_a_procedure_is_rejected() -> None:
     # Procedure expansion runs AFTER typechecking, so `run set(5)` would become
     # an unchecked `score[5] := 1` in the spliced body -- the RunStmt arg loop
-    # must call the same wall.
+    # must call the same guard.
     src = card_game(body="    run set(5)\n") + "procedure set(p : Player) { score[p] := 1 }\n"
     msg = _reject(src)
     assert "seat 5 is out of range" in msg
@@ -257,7 +264,7 @@ def test_valid_seat_literal_to_an_optional_player_param_is_accepted() -> None:
 # --- choke point closes (`_check_operand`, one call every coercion routes) -----
 #
 # The positions above are the EXPRESSION and CALL sites the per-site helper
-# already walled. These are the rest of the class: every position an integer
+# already guarded. These are the rest of the class: every position an integer
 # literal coerces to a Player -- a `state` default, a scalar `:=`, an `as`
 # binding, a `turns`/`round` seat, a struct field, a variant payload -- plus the
 # clauses that carried NO player type-check at all (`offer to`, `loser:`,
@@ -265,7 +272,7 @@ def test_valid_seat_literal_to_an_optional_player_param_is_accepted() -> None:
 # range gate ignored it). One operand check (`_check_operand`) routes them all
 # through the same two-sided range check. The domain (the position axis) is the
 # framing-check reconciliation recorded in the ledger below, not the set of sites
-# the wall happens to touch.
+# the guard happens to touch.
 
 
 def _diagnose(source: str) -> str | None:
@@ -408,7 +415,7 @@ _PLAYER_BUILDERS: dict[str, Callable[[int], str]] = {
 # team id -> builder(team) : the parallel TEAM axis (2-team game, teams 0 and 1).
 _TEAM_BUILDERS: dict[str, Callable[[int], str]] = {
     "team_keyed_index": lambda k: _team_game(body=f"    won[{k}] := 1\n"),
-    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_meld_points({k})\n"),
+    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_canasta_bonus({k})\n"),
 }
 
 # The single knob for the staged red->green flip: a position here is still
@@ -417,18 +424,18 @@ _TEAM_BUILDERS: dict[str, Callable[[int], str]] = {
 # is emptied as each stage lands; at the end it is empty and every row is green.
 # `xfail_strict` (pyproject) then turns a leftover mark on a now-passing row into
 # a loud failure, so no flip is forgotten.
-_NOT_YET_WALLED: set[str] = set()  # every position walled by the choke point
+_NOT_YET_WALLED: set[str] = set()  # every position guarded by the choke point
 
 
 def _reject_params(builders: dict[str, Callable[[int], str]]) -> list[object]:
     """Parametrization for the out-of-range rows: xfail (AssertionError, the shape
     of `assert msg is not None` when the seat is still ACCEPTED) for any position
-    not yet walled, plain otherwise."""
+    not yet guarded, plain otherwise."""
     out: list[object] = []
     for pid in builders:
         marks = (
             [pytest.mark.xfail(strict=True, raises=AssertionError,
-                               reason=f"residual until the operand choke point walls `{pid}`")]
+                               reason=f"residual until the operand choke point guards `{pid}`")]
             if pid in _NOT_YET_WALLED
             else []
         )
@@ -449,7 +456,7 @@ def test_choke_point_rejects_out_of_range_player(pid: str) -> None:
 @pytest.mark.parametrize("pid", sorted(_PLAYER_BUILDERS))
 def test_choke_point_accepts_in_range_player(pid: str) -> None:
     # Seat 1 is a real seat of the 2-seat game: accepted before and after the
-    # wall, so the wall is proven to reject the out-of-range literal specifically,
+    # guard, so the guard is proven to reject the out-of-range literal specifically,
     # not the position.
     assert _diagnose(_PLAYER_BUILDERS[pid](1)) is None
 
@@ -471,7 +478,7 @@ def test_choke_point_accepts_in_range_team(pid: str) -> None:
 
 # A game with NO `teams:` has ZERO teams -- `max_teams == 0` is a KNOWN
 # EMPTY domain, not an unknown bound. A Team-KEYED zone/state requires
-# teams (resolve walls it), but a Team-TYPED OPERAND -- a `state` default,
+# teams (resolve guards it), but a Team-TYPED OPERAND -- a `state` default,
 # a Team call argument -- does not, and reaches the range check, where every team
 # literal (even `0`) names a team the game does not have.
 def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
@@ -497,7 +504,7 @@ def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
 
 _TEAMLESS_TEAM_LITERAL = {
     "team_state_default": lambda: _teamless_game(extra_state="owner : Team = 0"),
-    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_meld_points(0)\n"),
+    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_canasta_bonus(0)\n"),
 }
 
 
@@ -505,8 +512,8 @@ _TEAMLESS_TEAM_LITERAL = {
 def test_team_literal_in_a_teamless_game_is_rejected(pid: str) -> None:
     # 0 teams => the domain is empty => even team 0 is out of range (Codex P2:
     # `max_teams == 0` must read as an empty domain, not an unknown bound). This
-    # position needs NO teams to be written, so it is not walled at resolve
-    # like a team-keyed subscript -- the range check is the only wall it hits.
+    # position needs NO teams to be written, so it is not guarded at resolve
+    # like a team-keyed subscript -- the range check is the only guard it hits.
     msg = _diagnose(_TEAMLESS_TEAM_LITERAL[pid]())
     assert msg is not None, f"{pid}: a team literal was accepted in a teamless game"
     assert "team 0 is out of range" in msg
@@ -517,8 +524,8 @@ def test_team_literal_in_a_teamless_game_is_rejected(pid: str) -> None:
 # type-check at all before the choke point -- the worse half of the bug: they
 # accepted a STRING, not just an out-of-range seat. Routing them through
 # `_check_operand(_, _, TPlayer(), _)` types them too. A non-player value is now
-# a check-time error (the same wall the runtime backstop sat behind, moved
-# earlier -- tests/test_fail_loud.py keeps the backstop for the `TAny` case).
+# a check-time error (the same guard the runtime Shadow Guard sat behind, moved
+# earlier -- tests/test_fail_loud.py keeps the Shadow Guard for the `TAny` case).
 _UNTYPED_NON_PLAYER = {
     "offer_to": lambda: _decl_game(offer_tgt='"nope"'),
     "loser": lambda: _decl_game(loser='  loser: "nope"\n'),

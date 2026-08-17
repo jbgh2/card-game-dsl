@@ -1,12 +1,13 @@
 """Generalized re-simulation engine: drive ANY fully-kernel game
 action-by-action by replaying a recorded action history through ``play_game``.
 
-The OpenSpiel ``State`` is just ``(seed, history)``. Every query re-runs the
-game with a :class:`ReplayChooser` that decodes and returns the recorded
-actions in order and raises ``ChooserAbort`` at the first decision beyond the
-history — surfacing the current decision point with the live world and the
-per-player observation logs attached. The chooser makes no RNG calls, so a run
-is a pure function of ``seed``."""
+The OpenSpiel ``State`` is just ``(seed, history)``, that seed being the
+[[shuffle-seed]]. Every query re-runs the game with a :class:`ReplayChooser`
+that decodes and returns the recorded actions in order and raises
+``ChooserAbort`` at the first decision beyond the history — surfacing the
+current decision point with the live [[world]] and the per-player
+[[observation-log]]s attached. The chooser makes no RNG calls, so a run is a
+pure function of ``seed``."""
 
 from __future__ import annotations
 
@@ -35,11 +36,12 @@ def load(path_str: str) -> tuple[n.Game, ActionSpace]:
 
 @dataclass
 class DecisionNode:
-    """A game state where a seat must choose — the literature's decision node.
+    """A game state where a seat must choose — the literature's decision node,
+    one of the [[game-tree-node-kinds]].
 
-    The DYNAMIC occurrence. A *decision point* is the static thing: one chooser
-    call site in the interpreter. The two are not the same concept and do not
-    share a word (glossary section 4).
+    The DYNAMIC occurrence. A *decision point* is the static thing: one
+    [[chooser]] call site in the interpreter. The two are not the same concept
+    and do not share a word (the glossary's OpenSpiel boundary).
     """
 
     player: int
@@ -125,7 +127,7 @@ def _winner_target_index(game: n.Game) -> str | None:
     winner target may be declared in a nested phase block, not only at game
     level."""
     assert game.winner is not None  # callers check; keeps mypy and intent aligned
-    target = game.winner.target
+    target = game.winner.state_var
     for block in n.state_blocks(game):
         for decl in block.decls:
             if decl.name == target:

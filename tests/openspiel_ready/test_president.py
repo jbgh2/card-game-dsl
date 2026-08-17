@@ -8,7 +8,7 @@ their recorded plays reveal).
 
 Bounded conformance walk (the Tichu/Doppelkopf shape): a game runs to the
 11-point target over ~10-16 hands, thousands of actions — the same O(n^2)
-full-sim wall; full-game-to-TerminalNode coverage through the replay engine
+full-sim guard; full-game-to-TerminalNode coverage through the replay engine
 lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
 
 The dedicated derivation test drives the greedy line across the first

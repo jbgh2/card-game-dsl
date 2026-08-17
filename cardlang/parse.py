@@ -15,8 +15,9 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
-              :class:`Span`. No semantic claims — names are unclassified
-              (``NameRef.ref_kind`` is ``None``) and nothing is typed.
+              :class:`Span`. No semantic claims — names carry no
+              [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
+              nothing is typed.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
               callers parsing the same ``(text, source_name, line_offset)``
@@ -24,7 +25,7 @@ Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
               every other holder. A pass that wants to change a node builds a
               new one with ``dataclasses.replace``.
 
-              Four Owner Guards hold that, each closing a different route, all
+              Four [[owner-guard]]s hold that, each closing a different route, all
               enumerated in tests/test_node_registry.py: ``frozen=True``
               refuses every ordinary ``setattr`` (CPython's frozen
               ``__setattr__`` raises for ANY name on a direct instance, not
@@ -97,6 +98,15 @@ class _Ranking:
     # A `RANKING_CONVENTIONS` key ("aces high", …) when the convention form
     # was written; the parse-level XOR guarantees `ranks` is empty then.
     convention: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _CardPointsElse:
+    """The `else:` row of a `card_points { }` block, distinguished from the
+    rank rows so the table callback can lift it into
+    `CardPointsTable.else_value`."""
+
+    value: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,7 +258,11 @@ def _parser() -> Lark:
 # and `test_rank_dir_set_is_pinned` (test_comprehension_aggregators.py)
 # reconciles this set against the grammar terminal so a new RANK_DIR token
 # cannot land uncovered.
-RANK_DIR_TO_AGG: dict[str, str] = {"highest": "max", "lowest": "min"}
+# The order aggregators, spelled exactly as the surface spells them — the
+# grammar's RANK_DIR terminal. `Comprehension.agg` stores the token verbatim,
+# as `Winner.rank_dir` already did; before, one token had two storage
+# conventions depending on which node received it.
+RANK_DIRECTIONS: frozenset[str] = frozenset({"highest", "lowest"})
 
 
 @v_args(meta=True)
@@ -313,6 +327,61 @@ class _Builder(Transformer[Token, n.Game]):
     def card_rank(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
 
+    # --- the card-point table (`card_points { }`) ---
+
+    def card_points_key(self, meta: Meta, c: list[Token]) -> str:
+        return str(c[0])
+
+    def cp_value(self, meta: Meta, c: list[Token]) -> int:
+        return int(c[0])
+
+    def cp_neg_value(self, meta: Meta, c: list[Token]) -> int:
+        return -int(c[0])
+
+    def card_points_entry(self, meta: Meta, c: list[object]) -> n.CardPointsEntry:
+        assert isinstance(c[0], str) and isinstance(c[1], int)
+        return n.CardPointsEntry(rank=c[0], value=c[1], span=self._span(meta))
+
+    def card_points_else(self, meta: Meta, c: list[object]) -> _CardPointsElse:
+        assert isinstance(c[0], int)
+        return _CardPointsElse(c[0])
+
+    def card_points_table(self, meta: Meta, c: list[object]) -> n.CardPointsTable:
+        # Children: the rank rows, then the optional else row (None when
+        # absent — the grammar's `[card_points_else]` placeholder).
+        entries = tuple(x for x in c if isinstance(x, n.CardPointsEntry))
+        else_rows = [x for x in c if isinstance(x, _CardPointsElse)]
+        return n.CardPointsTable(
+            entries=entries,
+            else_value=else_rows[0].value if else_rows else None,
+            span=self._span(meta),
+        )
+
+    def card_points_colon_reject(self, meta: Meta, c: list[object]) -> None:
+        # A retired shape, not a clause: the block clauses take no colon, and
+        # the colon habit is the most plausible wrong sentence (every scalar
+        # clause a designer has met takes one). The `==`/`!=` mechanism: the
+        # grammar owns the shape so the rejection can name the fix.
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`card_points` is a block clause and takes no colon — write "
+                "`card_points { A: 1 ... }`",
+                self._span(meta),
+            )
+        )
+
+    def card_values_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`card_values` is not a clause — the card-point table is "
+                "declared `card_points { A: 1 ... }`, and the Builtin reading "
+                "it is `card_points(card)`",
+                self._span(meta),
+            )
+        )
+
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
         return _Trump(str(c[0]), span=self._span(meta))
 
@@ -327,7 +396,7 @@ class _Builder(Transformer[Token, n.Game]):
         return _MaxLength(int(c[0]), span=self._span(meta))
 
     def winner(self, meta: Meta, c: list[Token]) -> n.Winner:
-        return n.Winner(rank_dir=str(c[0]), target=str(c[1]), span=self._span(meta))
+        return n.Winner(rank_dir=str(c[0]), state_var=str(c[1]), span=self._span(meta))
 
     def loser(self, meta: Meta, c: list[object]) -> n.Loser:
         return n.Loser(selection=_as_expr(c[0]), span=self._span(meta))
@@ -453,7 +522,7 @@ class _Builder(Transformer[Token, n.Game]):
         # filters have no residue, so an item no filter matches is dropped
         # without a word — the accepted-but-ignored defect class, at the
         # granularity of a whole clause. `game()` below is the sibling this
-        # mirrors, down to the `else` arm's currency.
+        # mirrors, down to the `else` arm's channel.
         requires: tuple[n.RequireDecl, ...] = ()
         seen_requires = False
         state: n.StateBlock | None = None
@@ -508,7 +577,7 @@ class _Builder(Transformer[Token, n.Game]):
                 procedures.append(item)
             else:
                 # An `?library_item` alternative with no arm above. Compiler-bug
-                # currency, exactly as in `game()`: a grammar alternative nobody
+                # channel, exactly as in `game()`: a grammar alternative nobody
                 # taught the builder about is a defect in this package, not a
                 # sentence the designer got wrong, so it may not be reported as
                 # an author-facing diagnostic. Pinned by
@@ -559,7 +628,7 @@ class _Builder(Transformer[Token, n.Game]):
     # --- phases ---
 
     def phase_repeats(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
-        return n.PhaseQualifier("repeats", _as_expr(c[0]), span=self._span(meta))
+        return n.PhaseQualifier("repeat_until", _as_expr(c[0]), span=self._span(meta))
 
     def phase_when(self, meta: Meta, c: list[object]) -> n.PhaseQualifier:
         return n.PhaseQualifier("when", _as_expr(c[0]), span=self._span(meta))
@@ -632,7 +701,7 @@ class _Builder(Transformer[Token, n.Game]):
 
     def transition_to(self, meta: Meta, c: list[object]) -> n.TransitionTo:
         assert isinstance(c[1], n.MoveEvent)
-        return n.TransitionTo(target=str(c[0]), event=c[1], span=self._span(meta))
+        return n.TransitionTo(mode=str(c[0]), event=c[1], span=self._span(meta))
 
     def move_event(self, meta: Meta, c: list[object]) -> n.MoveEvent:
         where = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
@@ -686,7 +755,7 @@ class _Builder(Transformer[Token, n.Game]):
             dest=dest.zone,  # type: ignore[arg-type]
             dest_each=dest.each,
             distribution=dist,
-            filter=where.expr if where is not None else None,  # type: ignore[arg-type]
+            where=where.expr if where is not None else None,  # type: ignore[arg-type]
             joint=where.joint if where is not None else False,
             visibility=vis,  # type: ignore[arg-type]
             span=self._span(meta),
@@ -732,14 +801,14 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def shuffle_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
-        return n.EpistemicOp(op="shuffle", target=_as_expr(c[0]), span=self._span(meta))
+        return n.EpistemicOp(op="shuffle", zone=_as_expr(c[0]), span=self._span(meta))
 
     def reveal_op(self, meta: Meta, c: list[object]) -> n.EpistemicOp:
         # The filter is an ordinary predicate with `card` bound per candidate
         # (a lambda during the register transition).
         filt = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.EpistemicOp(
-            op="reveal", target=_as_expr(c[0]), filter=filt, span=self._span(meta)
+            op="reveal", zone=_as_expr(c[0]), where=filt, span=self._span(meta)
         )
 
     def name_list(self, meta: Meta, c: list[Token]) -> tuple[str, ...]:
@@ -766,7 +835,7 @@ class _Builder(Transformer[Token, n.Game]):
     def repeat_until(self, meta: Meta, c: list[object]) -> n.RepeatUntil:
         cond = _as_expr(c[0])
         body = tuple(_as_stmt(s) for s in c[1:])
-        return n.RepeatUntil(cond=cond, body=body, span=self._span(meta))
+        return n.RepeatUntil(until=cond, body=body, span=self._span(meta))
 
     def else_block(self, meta: Meta, c: list[object]) -> _ElseBlock:
         return _ElseBlock(body=tuple(_as_stmt(s) for s in c))
@@ -798,7 +867,7 @@ class _Builder(Transformer[Token, n.Game]):
             binder=str(c[0]),
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            termination=_as_expr(c[3]),
+            until=_as_expr(c[3]),
             again=str(c[4]) if c[4] is not None else None,
             body=tuple(_as_stmt(s) for s in c[5:]),
             span=self._span(meta),
@@ -844,7 +913,7 @@ class _Builder(Transformer[Token, n.Game]):
             offering=offering,
             leader=_as_expr(c[1]),
             participants=_as_expr(c[2]),
-            termination=_as_expr(c[4]),
+            until=_as_expr(c[4]),
             order_mode=str(c[3]) if c[3] is not None else None,
             outcome_fn=str(c[5]) if c[5] is not None else None,
             span=self._span(meta),
@@ -864,7 +933,7 @@ class _Builder(Transformer[Token, n.Game]):
             play_zone=str(c[4]),
             combos_fn=str(c[5]),
             follows_fn=str(c[6]),
-            termination=_as_expr(c[7]),
+            until=_as_expr(c[7]),
             span=self._span(meta),
         )
 
@@ -1004,7 +1073,7 @@ class _Builder(Transformer[Token, n.Game]):
             binder=binder,
             spelled=spelled,
             source=_as_expr(source) if source is not None else None,
-            pred=_as_expr(pred),
+            where=_as_expr(pred),
             span=self._span(meta),
         )
 
@@ -1025,23 +1094,23 @@ class _Builder(Transformer[Token, n.Game]):
 
     def cq_set(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="set", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="set", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def cq_count(self, meta: Meta, c: list[object]) -> n.CardQuery:
-        pred = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
+        where = _as_expr(c[1]) if len(c) > 1 and c[1] is not None else None
         return n.CardQuery(
-            kind="count", source=_as_expr(c[0]), pred=pred, span=self._span(meta)
+            kind="count", source=_as_expr(c[0]), where=where, span=self._span(meta)
         )
 
     def cq_any(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="any", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="any", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def cq_all(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
-            kind="all", source=_as_expr(c[0]), pred=_as_expr(c[1]), span=self._span(meta)
+            kind="all", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
         )
 
     def agg_sum(self, meta: Meta, c: list[object]) -> n.Comprehension:
@@ -1052,7 +1121,7 @@ class _Builder(Transformer[Token, n.Game]):
             source=_as_expr(c[1]),
             binder="card",
             body=_as_expr(c[0]),
-            filter=filt,
+            where=filt,
             span=self._span(meta),
         )
 
@@ -1060,19 +1129,19 @@ class _Builder(Transformer[Token, n.Game]):
         # c: [RANK_DIR, body, zone_expr, where?, default]
         filt = _as_expr(c[3]) if c[3] is not None else None
         direction = str(c[0])
-        if direction not in RANK_DIR_TO_AGG:
+        if direction not in RANK_DIRECTIONS:
             # Internal invariant, not a user diagnostic: the grammar's
-            # RANK_DIR terminal and this mapping are out of sync.
+            # RANK_DIR terminal and this set are out of sync.
             raise AssertionError(
                 f"agg_order: unhandled RANK_DIR token {direction!r} — add it to "
-                "RANK_DIR_TO_AGG"
+                "RANK_DIRECTIONS"
             )
         return n.Comprehension(
-            agg=RANK_DIR_TO_AGG[direction],
+            agg=direction,
             source=_as_expr(c[2]),
             binder="card",
             body=_as_expr(c[1]),
-            filter=filt,
+            where=filt,
             default=_as_expr(c[4]),
             span=self._span(meta),
         )
@@ -1109,23 +1178,35 @@ class _Builder(Transformer[Token, n.Game]):
         if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
             kind = "none" if rhs.name == "none" else "empty"
             return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
-        return n.BinOp("==", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
+        return n.BinOp("is", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def compare_is_not(self, meta: Meta, c: list[object]) -> n.IsCheck | n.BinOp:
         rhs = c[1]
         if isinstance(rhs, n.NameRef) and rhs.name in ("none", "empty"):
             kind = "not_none" if rhs.name == "none" else "not_empty"
             return n.IsCheck(_as_expr(c[0]), kind, span=self._span(meta))
-        return n.BinOp("!=", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
+        return n.BinOp("is_not", _as_expr(c[0]), _as_expr(rhs), span=self._span(meta))
 
     def players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="set", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="set", where=_as_expr(c[0]), span=self._span(meta))
 
     def the_player_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="pick", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="pick", where=_as_expr(c[0]), span=self._span(meta))
+
+    def the_first_player_from_where(
+        self, meta: Meta, c: list[object]
+    ) -> n.PlayerQuery:
+        # c: [start (sum-level), where]. The ring search: one inclusive lap
+        # from `start` in the game's direction (nodes.PlayerQuery docstring).
+        return n.PlayerQuery(
+            kind="first_from",
+            where=_as_expr(c[1]),
+            start=_as_expr(c[0]),
+            span=self._span(meta),
+        )
 
     def number_players_where(self, meta: Meta, c: list[object]) -> n.PlayerQuery:
-        return n.PlayerQuery(kind="count", pred=_as_expr(c[0]), span=self._span(meta))
+        return n.PlayerQuery(kind="count", where=_as_expr(c[0]), span=self._span(meta))
 
     def comp_op(self, meta: Meta, c: list[Token]) -> str:
         return str(c[0])
@@ -1161,6 +1242,48 @@ class _Builder(Transformer[Token, n.Game]):
     def offset_by(self, meta: Meta, c: list[object]) -> n.BinOp:
         return n.BinOp(
             "offset_by", _as_expr(c[0]), _as_expr(c[1]), span=self._span(meta)
+        )
+
+    def divided_by_rounded_up(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp(
+            "divided_by_rounded_up",
+            _as_expr(c[0]),
+            _as_expr(c[1]),
+            span=self._span(meta),
+        )
+
+    def divided_by_rounded_down(self, meta: Meta, c: list[object]) -> n.BinOp:
+        return n.BinOp(
+            "divided_by_rounded_down",
+            _as_expr(c[0]),
+            _as_expr(c[1]),
+            span=self._span(meta),
+        )
+
+    def div_symbol(self, meta: Meta, c: list[object]) -> n.BinOp:
+        # Retired spellings (decisions.md "The expression register"): the
+        # lexer still owns the tokens so the rejection can name the fix.
+        # `//` is absent by necessity, not oversight — it introduces a
+        # comment, so no builder can ever see it (the grammar's factor
+        # comment and tests/test_divided_by.py's characterization).
+        symbol = str(c[1])
+        if symbol == "/":
+            hint = (
+                "division names its rounding: write "
+                "`a divided by b rounded down` (floor) or "
+                "`a divided by b rounded up` (ceiling)"
+            )
+        else:  # "%"
+            hint = (
+                "there is no remainder form; write "
+                "`a - (a divided by b rounded down) * b`"
+            )
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`{symbol}` is not an operator in this language — {hint}",
+                self._span(meta),
+            )
         )
 
     def arg_list(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
@@ -1247,6 +1370,7 @@ class _Builder(Transformer[Token, n.Game]):
         direction: str | None = None
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
+        card_points: n.CardPointsTable | None = None
         trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -1304,6 +1428,9 @@ class _Builder(Transformer[Token, n.Game]):
                 once("ranking:", item.span)
                 ranking = item.ranks
                 ranking_convention = item.convention
+            elif isinstance(item, n.CardPointsTable):
+                once("card_points { }", item.span, merge_hint=True)
+                card_points = item
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
@@ -1391,6 +1518,7 @@ class _Builder(Transformer[Token, n.Game]):
             direction=direction,
             ranking=ranking,
             ranking_convention=ranking_convention,
+            card_points=card_points,
             trump=trump,
             teams=teams,
             positions=positions,
@@ -1473,7 +1601,7 @@ class _Builder(Transformer[Token, n.Game]):
         )
 
     def continue_to(self, meta: Meta, c: list[object]) -> n.ContinueTo:
-        return n.ContinueTo(target=str(c[0]), span=self._span(meta))
+        return n.ContinueTo(phase=str(c[0]), span=self._span(meta))
 
     def skip_stmt(self, meta: Meta, c: list[object]) -> n.SkipToNextHand:
         return n.SkipToNextHand(span=self._span(meta))

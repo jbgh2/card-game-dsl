@@ -1,4 +1,4 @@
-"""Standard-library move types, as data.
+"""Standard-library [[move-type]]s, as data.
 
 The named card-movement patterns from library.md "Move types". The resolver
 checks every `constrains:`, `legal_moves:`, and transition move-event
@@ -56,5 +56,5 @@ RULE_ENFORCED_MOVE_TYPE: str = "play_to_trick"
 # combination engine named by its `combinations`/`follows` queries regardless.
 # So this constant has one reader — the resolver's Owner Guard — and its job is
 # to keep the two forms' facts in one place rather than to track a consumer.
-# Until that wall landed, every other spelling was accepted and meant nothing.
+# Until that Owner Guard landed, every other spelling was accepted and meant nothing.
 CLIMB_DECISION_MOVE_TYPE: str = "play_combination"

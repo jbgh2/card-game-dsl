@@ -1,7 +1,8 @@
 """Every fully-kernel game as a registered ``pyspiel.Game``.
 
 One general adapter (SP1 spec): the state is ``(seed, history)`` over the
-re-simulation engine, the action space and information states are DERIVED, and
+re-simulation engine — that seed being the [[shuffle-seed]] the root chance node
+draws — the action space and information states are DERIVED, and
 registration is a loop over the game table — adding a fully-kernel game to the
 table is the whole per-game cost. Importing this module registers every game
 in the table; load with e.g. ``pyspiel.load_game("cardlang_hearts")``.

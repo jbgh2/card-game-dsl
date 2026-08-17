@@ -8,7 +8,7 @@ delegation itself.
 
 Why the delegation exists at all, rather than `holdem-heads-up.cardlang`
 calling `holdem_pot_share` directly: a declared-reads row is keyed on
-(module, game_file) and a primitive module binds ONE row at import
+(module, game_file) and a [[primitive]] module binds ONE row at import
 (`ROW = reads.row(...)`), so `holdem.py`'s row serves `holdem.cardlang` and
 only that. Reusing its primitive here would run this game's showdown against a
 row that does not name it, and `tests/test_primitive_reads.py` pins each row
@@ -33,7 +33,7 @@ from __future__ import annotations
 from cardlang.runtime import reads
 from cardlang.runtime.holdem import showdown_hands
 from cardlang.runtime.poker import side_pot_payouts
-from cardlang.runtime.sidecar import EngineFacts
+from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Player
 
 ROW = reads.row("cardlang/runtime/holdem_heads_up.py", "holdem-heads-up.cardlang")

@@ -1,5 +1,5 @@
 """The closed registry of *quantifiable domains* — the finite value sets the
-language can range a binder or a move parameter over.
+language can range a [[binder]] or a move [[parameter]] over.
 
 One row per domain, one column per facet the rest of the engine needs —
 derived once here rather than re-derived by each consumer:
@@ -282,7 +282,7 @@ def require_role(name: str, what: str) -> Role:
 
     Those callers hold a name that must classify, so a miss is a registry
     divergence (a compiler bug) rather than an author error, and it raises in
-    compiler currency naming the position. Distinct from `role_of`, which the
+    compiler channel naming the position. Distinct from `role_of`, which the
     Owner Guards themselves call: an Owner Guard must be able to see a miss
     and report it as a diagnostic, which is why the two readings are two
     functions rather than one with a flag. `what` names the position, so the
@@ -291,7 +291,7 @@ def require_role(name: str, what: str) -> Role:
     if role is None:
         raise AssertionError(
             f"'{name}' is not a {what} (resolve rejects these) — a role "
-            f"reaching here without a registry row means a wall was bypassed, "
+            f"reaching here without a registry row means an Owner Guard was bypassed, "
             f"not that the game is wrong"
         )
     return role

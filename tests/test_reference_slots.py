@@ -6,7 +6,7 @@ once and every consumer then reads off `ref_kind`. A minority hold their name as
 a plain string, and a pass built on `NameRef` is structurally blind to those.
 The blindness is not a design boundary: it is whichever consumer forgot the slot
 exists, which is how a family library could reach past its `requires` contract
-through `turns … again <var>` while the wall next door reported the property
+through `turns … again <var>` while the guard next door reported the property
 proven (issue #138).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -269,13 +269,13 @@ _CONTEXTUAL_WITNESSES: dict[Slot, tuple[object, ...]] = {
     (n.DomainQuery, "binder"): (
         # bare (`source is None`) names the domain; the collection form binds a
         # fixed noun and names nothing.
-        n.DomainQuery(kind="any", binder="cell", spelled="cell", source=None, pred=n.NameRef("t")),
+        n.DomainQuery(kind="any", binder="cell", spelled="cell", source=None, where=n.NameRef("t")),
         n.DomainQuery(
             kind="all",
             binder="cell",
             spelled="cells",
             source=n.NameRef("lines"),
-            pred=n.NameRef("t"),
+            where=n.NameRef("t"),
         ),
     ),
 }
@@ -336,13 +336,13 @@ def test_no_slot_carries_two_kinds() -> None:
             assert not overlap, f"{kind_a} and {kind_b} both claim {overlap}"
 
 
-# Namespaces whose declarations live outside the AST: a stdlib registry, the
+# Namespaces whose declarations live outside the AST: a native registry, the
 # domain table, or the deck. A reference into one of these is still a reference —
 # it just cannot be answered by walking a game's nodes.
 _EXTERNALLY_OWNED = frozenset(
     {
-        "stdlib_move_type",
-        "stdlib_query",
+        "kernel_move_type",
+        "primitive_query",
         "deck_rank",
         "deck_suit",
         "enum_value",
@@ -365,7 +365,7 @@ def test_every_namespace_is_named() -> None:
 
     The second half is the check with teeth: a reference into a namespace
     nothing declares is either a typo or a namespace whose owner lives outside
-    the AST (the stdlib registries, the domain table, the component set). Those
+    the AST (the kernel tables, the domain table, the component set). Those
     are listed, so the list is the statement — a new reference namespace must be
     classified as one or the other before it can land.
 
@@ -438,7 +438,7 @@ def test_slot_strings_reads_every_shape_whole() -> None:
         binder="p",
         leader=n.NameRef("l"),
         participants=n.AllPlayers(),
-        termination=n.NameRef("t"),
+        until=n.NameRef("t"),
         again="flag",
         body=(),
     )
@@ -471,7 +471,7 @@ def test_slot_namespace_answers_only_for_references() -> None:
 
 
 def test_the_offering_rename_is_complete_in_the_package() -> None:
-    """"vocabulary" is retired from `cardlang/` (issue #206, glossary section 2).
+    """"vocabulary" is retired from `cardlang/` (issue #206, docs/glossary/offering.md).
 
     The word had three senses in code — the OFFERING (a menu of moves presented
     to a decider), the word-stock the DSL gives designers, and assorted closed

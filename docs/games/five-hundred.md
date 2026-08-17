@@ -128,7 +128,7 @@ bid levels and omits the dummy; the file documents the chosen ruleset):
   Skat precedent (jacks + trump suit as one class), extended with the left
   bower's effective-suit change. The declarative `ranking:` stays a plain
   strongest-first enumeration; suit-contextual orders are out of its scope
-  ([decisions.md](../decisions.md), "The `ranking:` declaration").
+  ([decisions.md](../decisions.md), "The `ranking:` declaration: enumeration or convention").
 - The open-misère reveal is a plain movement into `exposed[declarer]`, a
   `PublicHand` zone: the mid-phase visibility flip is carried entirely by
   the standing zone projections and the movement observation — no new

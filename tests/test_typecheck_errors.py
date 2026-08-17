@@ -36,7 +36,7 @@ def test_rejects_suit_assigned_to_integer_var() -> None:
     assert "score" in str(ei.value) or "Suit" in str(ei.value) or "Integer" in str(ei.value)
 
 
-def test_rejects_wrong_stdlib_arg_type() -> None:
+def test_rejects_wrong_native_arg_type() -> None:
     # `player_holding` expects a Card; `hearts` is a Suit.
     src = _game(
         "score[player] : Integer = 0  dealer : Player = 0",
@@ -94,9 +94,9 @@ def _typed_game(body_play: str) -> str:
     position (the checker walks statements, not state defaults).
 
     `deal` is `Contract?` so its `= none` initial value is valid: a non-optional
-    struct cannot be `none`, and the state-default type wall
+    struct cannot be `none`, and the state-default type guard
     (`_check_state_default_type`) rightly rejects it — a `Contract = none` here
-    would trip that wall before the body's struct-literal check, muddying every
+    would trip that guard before the body's struct-literal check, muddying every
     case below with a second, unrelated error."""
     return f"""
 type Contract = {{ level : Integer  suit : Suit }}
@@ -368,7 +368,7 @@ def test_every_type_union_member_is_classified_by_the_member_arm() -> None:
     is read from `get_args(Type)` rather than restated here -- so a newly
     declared type fails THIS test rather than silently reaching no arm and
     inferring `TAny`. That silent fall-through is the permissive-top gap the
-    fieldless sweep closed for six types at once; a hand-listed wall would
+    fieldless sweep closed for six types at once; a hand-listed guard would
     reopen it the day someone adds a seventh, which is exactly what this pin
     prevents. The reject classes are IMPORTED from the checker, not copied, so
     the arm and this pin cannot drift apart.
@@ -425,7 +425,7 @@ def test_every_type_union_member_is_classified_by_the_member_arm() -> None:
 # TCell/TDir/TLine/TEnum/TString have no user-accessible fields, so a dot form on
 # one otherwise reaches no Member arm and infers TAny with no diagnostic (the
 # permissive-top gap a `cell`/`dir` binder or a movement verb's TCell return
-# could slip through). The whole class is walled at the Member arm, at the layer
+# could slip through). The whole class is guarded at the Member arm, at the layer
 # that owns operand kinds, not per producer (decisions.md "Closed-domain
 # completeness"; the TCard/struct/collection positives above are the negative
 # controls that fielded receivers still work). Each cell below is red before the

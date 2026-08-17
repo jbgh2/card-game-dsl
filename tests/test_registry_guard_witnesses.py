@@ -37,8 +37,8 @@ makes it fire alone.
 
 Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
-Assumes:      resolve walls a declared role against the registry before the
-              runtime sees it, so a guard here is a backstop against registry
+Assumes:      resolve guards a declared role against the registry before the
+              runtime sees it, so a guard here is a Shadow Guard against registry
               drift, never against a game description.
 Establishes:  every conjunct of every registry-reconciliation guard in
               `cardlang/` has a named witness that makes it fire; a new guard,
@@ -79,7 +79,7 @@ registry:   `_registry_constants()` derives the vocabulary from
             the cells from it. `_WITNESSES` maps cell to witness.
 covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             the DERIVED conjuncts, one row each. That parametrization is born
-            under #150's wall: were the walk to match nothing, collection now
+            under #150's guard: were the walk to match nothing, collection now
             fails rather than reporting a skip, which is the sequencing #143
             ordered these two issues for. The classifier itself is pinned
             against a synthetic module carrying every shape it must accept and
@@ -87,15 +87,15 @@ covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
             (`test_the_census_classifies_each_shape`), whose accept rows cross
             every literal form the predicate implements — four displays and
             five constructors, empty and over-literal-contents — so narrowing
-            the predicate reddens instead of silently shrinking the class. The band the literal-collection predicate excludes is walled
+            the predicate reddens instead of silently shrinking the class. The band the literal-collection predicate excludes is guarded
             as a per-module multiset
-            (`test_registry_guards_outside_the_literal_shape_are_walled`)
+            (`test_registry_guards_outside_the_literal_shape_are_guarded`)
             rather than left silent. The witness key's own assumption — that
-            it names one site — is walled by
+            it names one site — is guarded by
             `test_no_two_cells_share_a_witness_key`, since a collision is
             silent in the worst way: the second site inherits the first's
             witness and goes green untested. That band's own fidelity — that
-            it records whole guards, not prefixes — is walled by
+            it records whole guards, not prefixes — is guarded by
             `test_the_walled_band_records_the_whole_guard`, since a truncated
             entry would let an authorized guard drift past the cut in silence.
             The witnesses themselves are the three `test_widening_*` /
@@ -125,7 +125,7 @@ residual:   FOUR:
             machine-checked. R4, this ledger owns the record.
             (3) a reconciliation guard written with no literal collection at
             all (`assert set(VIEW) == set(_LOCAL_COPY)`) is outside the
-            predicate and lands in the walled band instead, where it is
+            predicate and lands in the guarded band instead, where it is
             authorized by hand rather than witnessed. R4, this ledger owns the
             record.
 """
@@ -177,7 +177,7 @@ def _registry_constants(root: pathlib.Path = _PACKAGE) -> frozenset[str]:
     Deliberately a SUPERSET of "registry view": narrowing it to
     collection-valued constants would need a judgement per constant, and the
     judgement that matters is made below by the literal-collection predicate.
-    Completeness by superset, never by judgement — a stdlib registry or an AST
+    Completeness by superset, never by judgement — a native registry or an AST
     union's mode set is in the vocabulary the day it lands, with nobody
     deciding it belongs."""
     out: set[str] = set()
@@ -213,7 +213,7 @@ def _is_literal_collection(node: ast.AST) -> bool:
     # depend on.
     if not node.args:
         # `dict(a=1)` / `dict(**x)` carry keywords rather than a literal
-        # argument; refused rather than guessed, so they land in the walled
+        # argument; refused rather than guessed, so they land in the guarded
         # band where a human authorizes them.
         return not node.keywords
     return _is_literal_collection(node.args[0])
@@ -239,7 +239,7 @@ def _guard_tests(
 ) -> list[tuple[str, ast.expr]]:
     """`(enclosing function, condition)` for every `assert` and raising `if`.
 
-    Both statement shapes, because the currency is not the point — a
+    Both statement shapes, because the channel is not the point — a
     reconciliation guard written as `if VIEW != {...}: raise` is the same guard.
     `orelse` is excluded: a raise in the else branch is not guarded by this test.
 
@@ -330,7 +330,7 @@ def _registry_guards_outside_the_shape(
     """Registry-referencing guards the literal-collection predicate excludes.
 
     The predicate is a PROXY for "this guard reconciles a hard-coded row", and
-    a proxy errs both ways. This is the band it excludes — walled as a
+    a proxy errs both ways. This is the band it excludes — guarded as a
     per-module multiset rather than left silent, so a reconciliation written in
     a shape the predicate misses forces a look instead of passing unnoticed."""
     out: dict[str, list[str]] = {}
@@ -344,7 +344,7 @@ def _registry_guards_outside_the_shape(
                 continue
             # Whole expression, never a prefix: a truncated entry makes every
             # edit past the cut invisible to the multiset, so an authorized
-            # guard's registry use or control logic could drift while the wall
+            # guard's registry use or control logic could drift while the guard
             # stayed green — the exact silence this table exists to break.
             out.setdefault(module, []).append(ast.unparse(test))
     return {k: sorted(v) for k, v in sorted(out.items())}
@@ -385,7 +385,7 @@ def test_every_conjunct_has_a_witness(
 
     Parametrized over the DERIVED cells, so a new guard — or a new conjunct
     grafted onto an existing one — arrives as a red row rather than as silence.
-    Born under #150's wall: a walk that matched nothing would once have been a
+    Born under #150's guard: a walk that matched nothing would once have been a
     skip and a green suite; it is now a collection error."""
     witness = _WITNESSES.get((module, function, source))
     assert witness is not None, (
@@ -393,7 +393,7 @@ def test_every_conjunct_has_a_witness(
         "pins a hard-coded row against a registry, so it can only be seen to "
         "work by widening that registry (or reaching the guard with an "
         "out-of-row value) and requiring the guard's message back. Add the test "
-        "and map it here; a guard nobody has watched fire is a claim, not a wall."
+        "and map it here; a guard nobody has watched fire is a claim, not a guard."
     )
     resolved = globals().get(witness)
     assert callable(resolved) and witness.startswith("test_"), (
@@ -494,9 +494,9 @@ def test_a_non_player_simultaneous_block_fails_the_executor() -> None:
 
     Widening the registry short-circuits at conjunct 1 and never evaluates this
     one, so a guard-level witness would report the guard covered while leaving
-    this conjunct exactly as unobservable as it was. Resolve walls a non-player
+    this conjunct exactly as unobservable as it was. Resolve guards a non-player
     simultaneous block, which is why the statement is rebuilt here rather than
-    written in the DSL: the guard is a backstop against a construction path
+    written in the DSL: the guard is a Shadow Guard against a construction path
     that bypasses resolve, and that is the path being simulated.
 
     red under: delete `and stmt.role == "player"` from the guard — the block
@@ -518,7 +518,7 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     exports, which other modules hold by identity.
 
     red under: delete the `assert ZONE_INDEX_ROLES == {...}` from
-    `resolve.py` — the widened registry then reaches the empty-domain walls,
+    `resolve.py` — the widened registry then reaches the empty-domain guards,
     which implement the `team` row only."""
     script = (
         "import cardlang.domains as d\n"
@@ -539,16 +539,16 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.startswith("GUARD-FIRED"), (
         "widening ZONE_INDEX_ROLES did not fail resolve's import — its "
-        f"empty-domain walls implement the `team` row only.\n{proc.stdout}{proc.stderr}"
+        f"empty-domain guards implement the `team` row only.\n{proc.stdout}{proc.stderr}"
     )
-    assert "empty-domain walls" in proc.stdout, proc.stdout
+    assert "empty-domain Owner Guards" in proc.stdout, proc.stdout
 
 
 # The registry-referencing guards the literal-collection predicate excludes.
 # Authorized one by one: each either validates a value AGAINST the registry
 # (widening the table widens the guard, so there is no hard-coded row to
 # witness) or reconciles two derived views against each other, which likewise
-# has no literal to go stale. Walled rather than trusted, because the predicate
+# has no literal to go stale. Guarded rather than trusted, because the predicate
 # is a proxy: a reconciliation written without a literal collection lands here,
 # and must be looked at rather than pass unnoticed.
 _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
@@ -562,7 +562,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
-    "parse.py": ["direction not in RANK_DIR_TO_AGG"],
+    "parse.py": ["direction not in RANK_DIRECTIONS"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     # The one latent deny-list the census surfaced: the dispatch implements
@@ -579,7 +579,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
 }
 
 
-def test_registry_guards_outside_the_literal_shape_are_walled() -> None:
+def test_registry_guards_outside_the_literal_shape_are_guarded() -> None:
     """The band the predicate excludes is authorized, not assumed.
 
     This is also what makes the derived parametrization above non-vacuous from
@@ -589,10 +589,10 @@ def test_registry_guards_outside_the_literal_shape_are_walled() -> None:
     red under: rewrite any guard above to compare its registry against a
     literal collection (`runtime/state.py`'s membership test is the clearest) —
     it leaves this band and arrives as a witness-less cell in the grid, so both
-    this wall and the grid redden together.
+    this guard and the grid redden together.
 
     Pointing `_PACKAGE` at a directory that does not exist does NOT reach this
-    test: the cell axis empties first and #150's wall stops collection outright.
+    test: the cell axis empties first and #150's guard stops collection outright.
     That is the layering working, not a gap — recorded so a reader does not
     mistake the missing failure here for a missing check."""
     assert _registry_guards_outside_the_shape() == _GUARDS_OUTSIDE_THE_SHAPE
@@ -610,7 +610,7 @@ def accepted_two_conjuncts(x):
 
 def accepted_if_raise(x):
     if VIEW != {"a"}:
-        raise ValueError("the same guard in the other currency")
+        raise ValueError("the same guard in the other channel")
 
 def accepted_frozenset_call(x):
     assert VIEW == frozenset({"a"}), "the constructor form"
@@ -739,7 +739,7 @@ def test_the_walled_band_records_the_whole_guard(tmp_path: pathlib.Path) -> None
 
     An entry truncated to a prefix makes every edit past the cut invisible: an
     authorized guard's registry use or control logic could be rewritten while
-    the wall stayed green, which is the silence this table exists to break.
+    the guard stayed green, which is the silence this table exists to break.
     Proven by two trees that agree for longer than any prefix a truncation
     would plausibly keep and diverge only at the very end — they must produce
     different bands.

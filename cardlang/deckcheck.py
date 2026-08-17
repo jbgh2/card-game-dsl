@@ -7,7 +7,7 @@ Seven-Card Stud needing 60 cards from a 52-card deck, a 5-player Bridge needing 
 is a compile error, not a runtime `ValueError` on an exhausted deck.
 
 It tracks usage as a running count that **resets when the deck is refilled** — a
-movement whose destination is the deck (`move all cards to deck`) puts cards back,
+[[transfer]] whose destination is the deck (`move all cards to deck`) puts cards back,
 so deals before and after it draw from separate fills and must not be summed. The
 window's bound is the peak usage at any single deal.
 
@@ -66,7 +66,7 @@ def check_capacity(game: n.Game) -> n.Game:
     # once" would count a loop over a VALUE domain (`for each suit s: deal 15 cards
     # …`) as one iteration: it would demand four times what this gate checked, pass,
     # and fail mid-deal, where the executor requires a source to hold at least the
-    # cards a deal asks for — the exact failure currency the gate exists to replace.
+    # cards a deal asks for — the exact failure channel the gate exists to replace.
     # A new domain row arrives here already counted.
     sources = DomainSources(
         suits=sorted(suit_names(game.deck)),
@@ -154,7 +154,7 @@ def _nested_repeating_phases(phase: n.Phase) -> list[n.Phase]:
 
 
 def _repeats(phase: n.Phase) -> bool:
-    return phase.qualifier is not None and phase.qualifier.kind == "repeats"
+    return phase.qualifier is not None and phase.qualifier.kind == "repeat_until"
 
 
 def _seq_usage(
@@ -246,7 +246,7 @@ def _stmt_usage(
             return carry, carry
         case n.Turns():
             # A turn loop's iteration count is runtime data — the same
-            # currency as `repeat until`, with the same soundness argument:
+            # case as `repeat until`, with the same soundness argument:
             # `until` is checked before the first turn (runtime `_turns`),
             # so the zero-iteration execution always exists.
             return carry, carry
@@ -261,7 +261,7 @@ def _stmt_usage(
             # An offered move's EFFECT can draw from the deck, but move effects
             # are outside this gate's domain entirely (it walks phase bodies,
             # and a move can be offered arbitrarily many times, so its draws
-            # are not statically boundable — same currency as repeat-until).
+            # are not statically boundable — same case as repeat-until).
             # Recorded as a domain limit in the module docstring and issue #135.
             return carry, carry
         case (

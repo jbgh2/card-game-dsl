@@ -78,7 +78,8 @@ game President {
       // (their highest card — a draw-free filtered movement), the President's
       // return is any card they choose.
       if president is not none {
-        move one card from hand[scum] where president_is_top_rank(scum, card) to hand[president]
+        let scum_top_strength = highest rank_value(card) over cards in hand[scum] or 0
+        move one card from hand[scum] where rank_value(card) is scum_top_strength to hand[president]
         as president { move chosen one card from hand[president] to hand[scum] }
       }
 
@@ -111,7 +112,7 @@ game President {
       // --- Scoring: first out is President (+2), second Vice-President (+1),
       // the one player still holding cards is the Scum. With five players four
       // shed before the hand ends, so both offices are always filled; the
-      // guards are the totality backstop, never taken.
+      // guards are the totality Shadow Guard, never taken.
       scum := the player where hand[player] is not empty
       president := out_first
       if out_first is not none { score[out_first] += 2 }

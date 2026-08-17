@@ -1,4 +1,4 @@
-// Wall: resolve's board-only wall (cardlang/resolve.py::_check_board_call,
+// Guard: resolve's board-only guard (cardlang/resolve.py::_check_board_call,
 // BOARD_ONLY_CALL_FUNCS). `is_diagonal` reads the `board:` entry; a boardless game
 // has no board, so the call is rejected at resolve -- the `lines` twin.
 game IsDiagonalBoardless {

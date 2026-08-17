@@ -2,7 +2,7 @@
 
 Status: exploratory analysis (proposal, not settled spec). Provenance: the
 Salvo experiment (`experiments/salvo/`) reached its combos-and-jokers round
-and stopped, by design review, rather than add another per-game stdlib
+and stopped, by design review, rather than add another per-game Primitive
 primitive. This note characterizes what the language cannot currently say,
 how often the corpus has already paid for that in Python, and a two-tier
 proposal shaped in review with the designer. It composes with
@@ -26,7 +26,7 @@ registered Python primitive.
 |---|---|---|
 | Cribbage's show | fifteens (subset sums), all pairs, runs with multiplicity, flushes, his nobs | `cribbage_show_value`, `cribbage_crib_value` |
 | Seven-Card Stud's showdown | full poker ranking, best five of seven | `pot_share` |
-| Climbing vocabularies (Big Two, Tichu) | singles, pairs, triples, full houses, straights, pair sequences, bombs — enumerated AND compared | `runtime/combinations.py` |
+| Climbing vocabularies (Big Two, Tichu) | singles, pairs, triples, full houses, straights, pair sequences, bombs — enumerated AND compared | `runtime/tichu_combinations.py` |
 | Gin's melds | sets and suited runs; arrangement validity; deadwood | `gin_valid_meld` and kin |
 | Canasta's melds | rank groups with wild participation, naturalness, canasta size | seven `canasta_*` signatures |
 | Pinochle's melds | trump-parameterized marriages, the exact-card pinochle, aces around, double melds | `pinochle_meld_value` ("a hand's meld under trump") |
@@ -81,7 +81,7 @@ as three pairs falls out arithmetically). One exclusion/wilds clause.
 own declarable order, defaulting to natural ace-to-king, and is NOT the
 strength `ranking:` — Big Two's strength order (3 low, 2 high) is not
 its straight order. Salvo masked this because its ranking is natural.
-No wraparound; a wraparound toggle is deferred behind a wall.
+No wraparound; a wraparound toggle is deferred behind a Owner Guard.
 
 The surface, in the language's register (no indefinite articles — the
 corpus's determiners are all semantic: one/all/each/any/the; "of a
@@ -169,7 +169,7 @@ should be DECLARABLE from game files (the family-library `uses` tier on
 its unmerged branch reportedly introduces small declared decks;
 reconcile with that work rather than beside it). Wild participation in
 combinations belongs to tier 1's wilds clause (exclusion — Salvo) with
-substitution (Canasta) walled to of-a-kind families when it lands.
+substitution (Canasta) restricted to of-a-kind families when it lands.
 
 ## Sequencing fork (the open decision)
 

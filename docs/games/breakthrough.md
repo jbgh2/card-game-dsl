@@ -40,7 +40,7 @@ How the DSL says it (decisions.md "Boards and cells"): `board: grid(8, 8)`
 mints the position domain `cell` whose sixty-four members are the squares, and
 `square[cell] : Cell<cell>` is the sixty-four-instance family of one-man
 holding zones (a `Cell` has capacity one, so a step onto an occupied square
-would hit the capacity wall — the guard is what keeps that from arising). The
+would hit the capacity Owner Guard — the guard is what keeps that from arising). The
 same grid family also mints the movement-direction domain `dir`, whose three
 members `ahead`, `ahead_left` and `ahead_right` are read in the *actor's*
 frame: the grid carries a per-seat frame, so one shared board serves two
@@ -51,7 +51,7 @@ opposed armies without either side's rules being written twice.
 Setup is a region walk: `home(player)` is the grid family's name for a seat's
 back two ranks, so `for each cell c: if c in home(0) { move one piece from
 reserve[0] to square[c] }` lays out one army with no cell named individually,
-and the mirror line lays out the other. `far_row(player)` is the twin — the
+and the mirror line lays out the other. `far_row(player)` is the Shadow Guard — the
 rank at the far edge of that seat's frame, which is the opponent's back row and
 the reach goal.
 
@@ -77,7 +77,7 @@ has won (`result[player] is 1`) or someone has nothing left
 (`pieces_left[player] is 0`). The outcome is written into `result[player]` as +1
 (win) / -1 (loss) and `winner: highest result` reads it, making the OpenSpiel
 returns `[+1,-1]` — zero-sum, never a draw. `max_length: 500` is a
-non-termination backstop rather than a rule; the longest measured game is 108
+non-termination Shadow Guard rather than a rule; the longest measured game is 108
 plies. Everything is public — every populated zone projects identity to both
 players — so each information set is a singleton and no hidden-information
 machinery is engaged.

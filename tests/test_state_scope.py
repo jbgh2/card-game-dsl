@@ -280,7 +280,11 @@ def test_every_game_field_is_decided() -> None:
     # a decision rather than joining whichever side it happens to land on.
     walked = sorted(fields - _GAME_LEVEL_SKIP)
     assert walked == [
-        "board", "content_flavor", "deck", "direction", "loser", "max_length",
+        # `card_points` holds rank strings and integer literals only — no
+        # expression, so no state reference to find; walked (the conservative
+        # side) rather than skipped.
+        "board", "card_points", "content_flavor", "deck", "direction", "loser",
+        "max_length",
         "name", "players", "positions", "ranking", "ranking_convention", "span",
         "teams", "trump", "types", "uses", "winner", "zones",
     ], (

@@ -1,4 +1,4 @@
-// Wall: typecheck's Call arity check. neighbor takes 3 arguments (cell, dir, player);
+// Guard: typecheck's Call arity check. neighbor takes 3 arguments (cell, dir, player);
 // called with 1, an interface mismatch at the call site.
 game NeighborWrongArity {
   players: 2

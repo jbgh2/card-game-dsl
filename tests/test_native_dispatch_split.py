@@ -22,7 +22,11 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
             == its declared set both ways);
             `test_dispatcher_home[<dispatcher>]`, one row per scraped
             dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
-            so a NEW dispatcher cannot land unplaced;
+            so a NEW dispatcher cannot land unplaced (the dispatcher column
+            is the dispatcher's FILE; the classification of the slot
+            callbacks a dispatcher keys is the registries' statement, and
+            `value_function` keys both homes' winners from primitives.py by
+            design — see DISPATCHER_HOMES);
             `test_retired_module_is_gone`;
             `test_nothing_imports_the_retired_module`
 sampled:    that each arm still computes the right answer is not this grid's
@@ -34,7 +38,7 @@ residual:   the `climb_universe_function` / `climb_codec_function` /
             membership row. Their joint coverage of PRIMITIVE_CLIMB_LEADS is
             tests/test_signatures.py's property, not this grid's. R4, and
             this ledger owns the record: the two codec dispatchers return
-            None on a miss by design, and the absence is walled loudly where
+            None on a miss by design, and the absence is guarded loudly where
             it matters (`ActionSpace.for_game`).
 
             Not a residual, recorded because it was one until issue #202:
@@ -65,8 +69,19 @@ _PRIMITIVES = _PACKAGE / "runtime" / "primitives.py"
 _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 
 # The name-keyed dispatchers and the home each belongs to. `call` is the only
-# one with a Builtins half: every other dispatcher keys a game-local callback
-# (a winner function, a climb query, an auction outcome, a codec).
+# one with a Builtins half; every other dispatcher keys slot callbacks (a
+# winner function, a climb query, an auction outcome, a codec) and lives in
+# primitives.py as ONE match statement per slot. This column is the
+# DISPATCHER's file, not the CLASSIFICATION of the names it keys:
+# `value_function` dispatches both the Builtin winners
+# (`BUILTIN_TRICK_WINNERS`, reached through the neutral `runtime/winners.py`)
+# and the Primitive ones (game-local modules) — one match, one file. Splitting
+# it by home would mint a second dispatcher for two names and put nothing in
+# the right place that is not already there; the classification of what it
+# keys is `cardlang/builtins/functions.py`'s statement, pinned by
+# tests/test_native_classification_prose.py, and the elimination metric is
+# `PRIMITIVE_CALL_FUNCS` (the call arms below) plus the epic scoreboard,
+# neither of which the winner reclassification touched.
 DISPATCHER_HOMES: dict[str, str] = {
     "call": "both",
     "value_function": "primitives",

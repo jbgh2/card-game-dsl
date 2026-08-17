@@ -1,4 +1,4 @@
-// Wall: parse.py's `game()` builder. A content clause (`cards:`/`pieces:`)
+// Guard: parse.py's `game()` builder. A content clause (`cards:`/`pieces:`)
 // is mandatory (`Game.deck` is non-optional), so the parse builder is the
 // last layer where its absence exists to report. This is the retired fuzz
 // finding of the same slug (tests/fuzz/findings.py's feed-forward rule):

@@ -1,4 +1,4 @@
-// Wall: parse.py's `game()` builder. `players:` is one of the two clauses
+// Guard: parse.py's `game()` builder. `players:` is one of the two clauses
 // the AST makes mandatory (`Game.players` is non-optional); its omission is
 // reported by the parse builder, the last layer where the absence exists.
 game MissingPlayers {

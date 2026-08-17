@@ -1,4 +1,4 @@
-"""Class-1 movement/region stdlib verbs: neighbor / has_step / is_diagonal /
+"""Class-1 movement/region Builtin verbs: neighbor / has_step / is_diagonal /
 home / far_row -- the `lines` twin (a BOARD_ONLY call reading the `board:`).
 
 The five verbs are the geometry the rung-2 `step(from : cell, along : dir)`
@@ -19,14 +19,14 @@ property:   each of the five verbs is (a) legal and correctly evaluated in a
             board game at its declared `Sig` arg/return types, (b) rejected at
             resolve in a boardless game naming the missing `board:` (the
             `lines` twin, BOARD_ONLY), and (c) enforced for arity and argument
-            type at its call site; `neighbor` is total-with-backstop (an
+            type at its call site; `neighbor` is total-with-Shadow Guard (an
             off-board step raises a typed RuntimeError, never returns None);
             and the two NEW value shapes the verbs introduce -- `home`/
             `far_row`'s `Collection<Cell>` and `neighbor`'s `TCell` return --
-            are either given correct meaning or loudly walled at every existing
+            are either given correct meaning or loudly guarded at every existing
             operation that consumes them, never silently accepted-and-ignored.
 domain:     {the five verbs} x {board game: typecheck + evaluate; boardless:
-            resolve reject + runtime backstop; wrong arity; wrong arg type},
+            resolve reject + runtime Shadow Guard; wrong arity; wrong arg type},
             crossed with the classification partition {generic, deck-only,
             board-only}; PLUS the pairwise interactions of the two new value
             shapes (`Collection<Cell>`, a call-return `TCell`) against every
@@ -36,10 +36,10 @@ registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             signatures.CALL_SIGS; the runtime -- cardlang.runtime.evaluate.native_call
             (the five arms + _board_of/_neighbor/... helpers) over cardlang.
             stdlib.boards.BoardEntry (geometry exhaustively pinned by Task 2's
-            tests/test_boards_registry.py); the resolve wall -- cardlang.
-            resolve._check_board_call; the typecheck call walls -- cardlang.
+            tests/test_boards_registry.py); the resolve guard -- cardlang.
+            resolve._check_board_call; the typecheck call guards -- cardlang.
             typecheck (infer's Call arm -> sig.ret; _check_expr's Call arm ->
-            arity + per-arg assignable); the pairwise consumers -- cardlang.
+            arity + per-arg coercible); the pairwise consumers -- cardlang.
             typecheck (_domain_query_binder_type, _check_transfer/_is_zone_type,
             _check_card_source, _check_is_check, _check_membership_operands) and
             the movement-source grammar.
@@ -49,7 +49,7 @@ covered:    the grid below, each a running row --
             CALL_FUNCS member classified generic/deck-only/board-only,
             none unclassified) is pinned ONCE at tests/test_signatures.py::
             test_deck_only_classification_partitions_call_funcs and tests/
-            test_piece_content_walls.py -- cited, not re-copied (CLAUDE.md
+            test_piece_content_guards.py -- cited, not re-copied (CLAUDE.md
             rule 4);
             positive typecheck in situ: test_witness_game_typechecks -- the
             witness `step(from : cell, along : dir)` calls all five in a real
@@ -60,7 +60,7 @@ covered:    the grid below, each a running row --
             positive evaluate: test_verb_evaluates_to_expected_value -- 16
             cells over both player frames and edge cells, values hand-computed
             from BoardEntry's offsets;
-            neighbor total-with-backstop: test_neighbor_offboard_backstop_raises;
+            neighbor total-with-Shadow Guard: test_neighbor_offboard_backstop_raises;
             boardless reject (resolve): test_verb_in_boardless_game_is_rejected
             (all five) + message goldens tests/rejections/{neighbor,has_step,
             is_diagonal,home,far_row}_boardless;
@@ -73,7 +73,7 @@ covered:    the grid below, each a running row --
             taking_board_verbs) is rejected in a non-two-player game
             (test_frame_verb_in_a_non_two_player_game_is_rejected: 3, 4, and a
             RANGE) and accepted at exactly two
-            (test_frame_verb_in_a_two_player_game_is_accepted); the wall is
+            (test_frame_verb_in_a_two_player_game_is_accepted); the guard is
             VERB-level not board-level (test_non_two_player_grid_without_a_
             frame_verb_is_accepted) and player-free board verbs are untouched
             (test_player_free_board_verb_in_a_non_two_player_game_is_accepted);
@@ -91,8 +91,8 @@ covered:    the grid below, each a running row --
 sampled:    the geometry values -- representative cells per verb (a1/d4/h8 +
             edges), not all 64 cells x 3 dirs x 2 frames: BoardEntry geometry
             is exhaustively integrity-pinned in Task 2's tests/
-            test_boards_registry.py; this module samples the stdlib WRAPPING
-            (dispatch + coercion + backstop) over it;
+            test_boards_registry.py; this module samples the Builtin WRAPPING
+            (dispatch + coercion + Shadow Guard) over it;
             the arg-type matrix -- sampled across is_diagonal/home/neighbor
             (Cell->Dir, Cell->Player, Dir->Player, arity); has_step's three
             slots are neighbor's types and are not separately misused (the
@@ -101,7 +101,7 @@ sampled:    the geometry values -- representative cells per verb (a1/d4/h8 +
             the Collection<Cell> REJECT fan-out beyond the two headline cells
             (`any line in <region>`, `over cards in <region>`, `turns over`/
             `as` <region>, equality, epistemic-target) -- each rejected by an
-            existing total wall (framing-check-mapped); the two likeliest
+            existing total guard (framing-check-mapped); the two likeliest
             author mistakes are pinned, the rest sampled;
             the ACCEPT surface consumed today -- `home(p) is empty`/`is not
             empty` and membership `c in home(p)` both typecheck AND evaluate
@@ -115,7 +115,7 @@ residual:   FIELD ACCESS on a position/board type is a SILENT permissive
             diagnostic -- the typecheck Member arm (cardlang/typecheck.py::
             _check_expr) has no arm for these types. PRE-EXISTING (rung-1 cell
             binders, Task-1 dir binders); the rung-2 verbs' TCell return newly
-            reaches it. NOT walled here -- the fix is class-wide (the
+            reaches it. NOT guarded here -- the fix is class-wide (the
             no-Member-arm Type members swept as one), out of the five-verb
             scope. Recorded in issue #111 (the field-access bullet) and
             spawned as a follow-up.
@@ -125,12 +125,12 @@ residual:   FIELD ACCESS on a position/board type is a SILENT permissive
             pre-existing for ALL positional collections, benign; same roadmap
             bullet class.
             Cell/region CONSUMPTION beyond membership + is-empty -- `for each
-            cell` iteration over a region is Task 4 (walled today by
+            cell` iteration over a region is Task 4 (guarded today by
             _ITERATION_ROLES, tests/test_cell_queries.py::
             test_for_each_cell_stays_rejected); membership `c in home(p)`
             already works (sampled above).
             State persistence of a cell/region -- `state { x : cell }` /
-            `{ x : dir }` is REJECTED at resolve (the StateDecl type-name wall;
+            `{ x : dir }` is REJECTED at resolve (the StateDecl type-name guard;
             cell/dir are not KNOWN_TYPE_NAMES), so there is no silent-TAny
             state-storage sink; closed by reject, stated so it is recorded.
 
@@ -253,7 +253,7 @@ move_type stop { effect { done := true } }
 
 def _boardless_ctx() -> Ctx:
     """A Ctx whose runtime state carries no board (`rs.board is None`) -- the
-    runtime backstop's domain (the resolve wall is the static twin,
+    runtime Shadow Guard's domain (the resolve guard is the static twin,
     tests/rejections/). Built from a genuinely boardless game (no cell-keyed
     zone), so `rs.board` stays at its `None` default."""
     game = check_dsl(_BOARDLESS_SRC, "noboard.cardlang")
@@ -273,7 +273,7 @@ def _reject(source: str) -> str:
 def _boardless_game(body: str) -> str:
     """A boardless piece game whose `foo` move body is `body` -- the universe
     a board-only call has no `board:` to read. A piece game (not a card game)
-    so a piece-flavored move body is well-formed; the board-only wall keys on
+    so a piece-flavored move body is well-formed; the board-only guard keys on
     `game.board is None`, orthogonal to the flavor."""
     return (
         "game Boardless {\n"
@@ -394,8 +394,8 @@ def test_verb_evaluates_to_expected_value(
     assert call(verb, list(args), ctx) == expected
 
 
-def test_neighbor_offboard_backstop_raises() -> None:
-    """`neighbor` is total-with-backstop: an off-board step (unreachable in a
+def test_neighbor_offboard_shadow_guard_raises() -> None:
+    """`neighbor` is total-with-Shadow-Guard: an off-board step (unreachable in a
     game because every call site is `has_step`-gated) raises a typed
     RuntimeError here, never returns None or a bare crash."""
     ctx = _board_ctx("grid", (8, 8))
@@ -404,7 +404,7 @@ def test_neighbor_offboard_backstop_raises() -> None:
 
 
 # =============================================================================
-# BOARDLESS: each verb rejected at resolve (the board-only wall, `lines`'s
+# BOARDLESS: each verb rejected at resolve (the board-only guard, `lines`'s
 # twin) -- the inline sweep of the whole class; tests/rejections/ pins the
 # rendered message.
 # =============================================================================
@@ -455,7 +455,7 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
 
 @pytest.mark.parametrize("verb", ("neighbor", "has_step", "home", "far_row"))
 def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
-    """The runtime companion to the static player-literal wall
+    """The runtime companion to the static player-literal guard
     (tests/test_player_literal_range.py): a COMPUTED out-of-range seat reaching
     a frame verb is a typed, game-facing RuntimeError naming the seat count, not
     the frame's internal `_player_sign` registry-bug ValueError. On a 2-seat
@@ -475,17 +475,17 @@ def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
 # FRAME VERBS x PLAYER COUNT (Codex P2, PR #92): a grid's per-player frame is
 # defined for two opposed seats (one's forward is the other's, the 180-degree
 # opposite), so the board-only verbs that read it -- the ones taking a player --
-# are rejected in a game that is not exactly two players. Without the wall a
+# are rejected in a game that is not exactly two players. Without the guard a
 # 3-plus-player game resolves clean and then dies at play with the frame's
 # registry-bug ValueError for seat 2. `_FRAME_CALL_FUNCS` is DERIVED from the
-# signatures (board-only + a player param), so the wall's domain cannot drift.
+# signatures (board-only + a player param), so the guard's domain cannot drift.
 # =============================================================================
 
 
 def test_frame_call_funcs_is_the_player_taking_board_verbs() -> None:
-    # The wall's domain, pinned to its derivation rather than hand-listed: the
+    # The guard's domain, pinned to its derivation rather than hand-listed: the
     # board-only calls whose Sig takes a player. A new player-taking board verb
-    # joins _FRAME_CALL_FUNCS -- and the two-seat wall -- by construction; a new
+    # joins _FRAME_CALL_FUNCS -- and the two-seat guard -- by construction; a new
     # player-free one (a second `lines`/`is_diagonal`) does not.
     from cardlang.builtins.functions import BOARD_ONLY_CALL_FUNCS
     from cardlang.builtins.signatures import CALL_SIGS
@@ -554,7 +554,7 @@ def test_frame_verb_in_a_two_player_game_is_accepted() -> None:
 
 
 def test_non_two_player_grid_without_a_frame_verb_is_accepted() -> None:
-    # The wall is VERB-level, not board-level: a 3-player grid game that reads
+    # The guard is VERB-level, not board-level: a 3-player grid game that reads
     # no frame (empty `setup_extra`, so no `home`/`neighbor`/... call) is
     # legitimate and stays accepted -- the frame's two-seat limit binds only
     # where the frame is actually consulted.
@@ -608,8 +608,8 @@ def test_wrong_arity_is_rejected() -> None:
 
 def test_is_diagonal_cell_for_dir_is_rejected() -> None:
     # `from : cell` in scope -> a TCell where `is_diagonal` wants a TDir. (A
-    # bare `a1` would be the walled cell-literal -> unresolved-name, a
-    # different wall; a cell-typed binder is the real TCell-for-TDir probe.)
+    # bare `a1` would be the guarded cell-literal -> unresolved-name, a
+    # different guard; a cell-typed binder is the real TCell-for-TDir probe.)
     msg = _reject(_board_game(body="    let x = is_diagonal(from)\n"))
     assert "is_diagonal() expects Dir, got Cell" in msg
 
@@ -631,7 +631,7 @@ def test_along_dir_for_player_is_rejected() -> None:
 # CALL_FUNCS member classified generic/deck-only/board-only, none
 # unclassified) is pinned once at tests/test_signatures.py::
 # test_deck_only_classification_partitions_call_funcs and
-# tests/test_piece_content_walls.py -- NOT re-copied here (CLAUDE.md rule 4).
+# tests/test_piece_content_guards.py -- NOT re-copied here (CLAUDE.md rule 4).
 # This focused pin names the five new members so their omission from
 # BOARD_ONLY reddens with a message about THESE verbs.
 #

@@ -1,21 +1,22 @@
 """Native function and value-callback names, by the home that implements each.
 
-The name resolver checks bare-name references (a `round`'s `winner` / `outcome` /
-`early` function, a climbing round's `combinations` / `follows` query) and `f(...)`
-calls against these sets, so the IR can mark them as functions and unknown
-names are caught. There is no zone-method namespace here: the expression layer
-has no method register (decisions.md "The expression register"). Seeded for the
-formalized corpus; extended corpus-first.
+The name resolver checks bare-name references (a [[round]]'s [[winner]] /
+`outcome` / `early` function, a climbing round's `combinations` / `follows`
+query) and `f(...)` calls against these sets, so the IR can mark them as
+functions and unknown names are caught. There is no zone-method namespace here:
+the expression layer has no method register (decisions.md "The expression
+register"). Seeded for the formalized corpus; extended corpus-first.
 
-`BUILTIN_*` names a generic function the language ships; `PRIMITIVE_*` names
-sanctioned game-local Python (glossary; issue #200). Nothing here is the
-**Stdlib**, which is the layer written in the language (`cardlang/stdlib/`).
+`BUILTIN_*` names a generic function the language ships ([[builtins]]);
+`PRIMITIVE_*` names sanctioned game-local Python ([[primitive]]; issue #200).
+Nothing here is the **[[stdlib]]**, which is the layer written in the language
+(`cardlang/stdlib/`).
 """
 
 from __future__ import annotations
 
-# Primitive value callbacks referenced by bare name (a `round`'s `winner` or
-# `outcome` callback). The two round forms yield different things and are validated
+# Value callbacks referenced by bare name (a `round`'s `winner` or `outcome`
+# callback). The two round forms yield different things and are validated
 # against separate namespaces (a trick winner function named on an auction round, or
 # vice versa, is rejected at resolve time, not left to crash the dispatcher at
 # runtime):
@@ -23,14 +24,30 @@ from __future__ import annotations
 # - a *trick* winner function : (played, led_suit, trump, rank_index) -> Player
 # - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
 #   phase's typed outcome.
+#
+# A name has ONE home, and the home is its CLASSIFICATION — generic
+# (Builtin) or game-local (Primitive) — never its syntactic position: the
+# registry's own first line draws the Builtin/Primitive split by genericity,
+# and the two standard trick comparisons are the language's, not any game's
+# (Bridge, Hearts, Spades, Oh Hell, and the Getaway/Schnapsen forms all name
+# them). They were filed under PRIMITIVE_TRICK_WINNERS from before the split
+# was drawn; the `highest_trump_or_led_suit` CALL form (issue #256) is what
+# forced the finer cut, because one name would otherwise have sat in both
+# halves. Both sets validate the winner slot through their union below.
+BUILTIN_TRICK_WINNERS: frozenset[str] = frozenset(
+    {
+        "highest_of_led_suit",  # the standard no-trump trick winner
+        "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+    }
+)
 PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
     {
-        "highest_of_led_suit",
-        "highest_trump_or_led_suit",  # trick winner with a trump suit in play
         "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
         "belote_trick_winner",  # Belote: highest trump under the J-9 trump order, else led suit
     }
 )
+# The winner slot's namespace: what a `round … winner <name>` may name.
+TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
 PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
@@ -38,14 +55,18 @@ PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
         "tarot_auction_outcome",  # French Tarot four-level bid -> taken | thrown_in
     }
 )
-# The union is the bare-name function namespace (for NameRef classification) and
-# the surface the signature tables must cover.
-PRIMITIVE_VALUE_NAMES: frozenset[str] = PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCTION_OUTCOMES
+# The union is the bare-name function namespace (for NameRef classification)
+# and the surface the signature tables must cover — every slot callback of
+# EITHER home, which is why it carries neither home's prefix (it was
+# `PRIMITIVE_VALUE_NAMES` while every member was a Primitive; a Builtin
+# member under that prefix would mislabel by name — the CALL_FUNCS pattern,
+# the neutral union of the two homes' call sets, is the precedent).
+VALUE_NAMES: frozenset[str] = TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES
 
 # Early-termination predicates a `round`'s `early` clause may name. Distinct from
 # the callbacks above — a different signature, (card, led_suit) -> Boolean —
 # so they validate against their own set, not the winner/outcome namespaces.
-# Slot-only, deliberately outside PRIMITIVE_VALUE_NAMES: an early predicate is
+# Slot-only, deliberately outside VALUE_NAMES: an early predicate is
 # unreachable as a bare NameRef and rejected in a `winner` slot, even though
 # the runtime dispatches both through `value_function`. Sharing the dispatcher
 # is an implementation detail of the runtime, not a shared namespace.
@@ -103,9 +124,15 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         "strain_index",  # bidding rank of a strain: C<D<H<S<NT (none = no-trump, highest)
         "error",  # the if_impossible fallback that rejects the move
         "rank_value",  # a card's rank strength under the game's `ranking:` (higher = stronger)
-        "card_value",  # a card's deck-declared card-point value (point-trick counters)
+        "card_points",  # a card's points under the game's `card_points { }` table
         "top_of",  # the top card of an ordered zone/collection (the sequence end)
         "bottom_of",  # the bottom card of an ordered zone/collection (the sequence front)
+        # The standard trump-game trick winner, callable over a fully public
+        # pile's Arrival Record (issue #256) — the SAME Builtin winner the
+        # trick form's `winner` clause names bare (BUILTIN_TRICK_WINNERS
+        # above), in its second position: one name, one home, two syntactic
+        # positions, each resolved against its own namespace.
+        "highest_trump_or_led_suit",
     }
 )
 
@@ -117,44 +144,25 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
-        "holdem_next_entrant",  # Hold'em: the seat, or the next entrant clockwise (busted seats skipped)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
-        "bigtwo_first_leader",  # Big Two: the holder of the 3♦, who leads the first hand
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
         "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
-        "tarot_card_points",  # French Tarot: a card's doubled card-point value
-        "schnapsen_trick_winner",  # Schnapsen: the two-card trick's winner (leader led first)
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
-        "skat_effective_loss",  # Skat: the overbid-aware loss base (needs a ceiling)
         "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
-        "tichu_mahjong_holder",  # Tichu: who holds the Mahjong (leads the first trick)
-        "tichu_players_holding",  # Tichu: how many players still hold cards
-        "tichu_double_victory",  # Tichu: are the first two finishers teammates?
-        "tichu_partner",  # Tichu: the teammate (partners sit across)
-        "tichu_next_holder",  # Tichu: the arg if holding, else the next holder ccw
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "tichu_opponent_team",  # Tichu: the team a player does not belong to
-        "tichu_first_out",  # Tichu: the first finisher (defaults to player 0)
-        "tichu_card_points",  # Tichu: the card-point table (K/10 = 10, 5 = 5, Dragon +25, Phoenix -25)
-        "president_is_top_rank",  # President: is the card the player's highest rank (2 high)?
-        "coup_players_in",  # Coup: players still holding influence (game ends at 1)
-        "coup_next_in_game",  # Coup: the next in-game player clockwise
-        "coup_has_char",  # Coup: does a player hold the claimed character (a proof)?
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
-        "peg_value",  # Cribbage: pegging/fifteens value of a card (A=1, faces 10)
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
         "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
         "cribbage_crib_value",  # Cribbage: the dealer's crib show score
-        "gin_card_points",  # Gin: deadwood value of a card (A=1, pips, faces 10)
         "gin_deadwood",  # Gin: optimal-partition deadwood of a hand
         "gin_can_knock",  # Gin: some discard leaves a <= 10 arrangement
         "gin_knock_ok",  # Gin: knock legality after a specific discard
@@ -162,8 +170,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_arrange_ok",  # Gin: valid meld AND the rest still arranges to <= 10
         "gin_can_declare",  # Gin: some declarable meld exists (knocker)
         "gin_can_declare_free",  # Gin: some valid meld exists (defender)
-        "gin_flat_points",  # Gin: a hand counted as all-deadwood
-        "gin_shown_points",  # Gin: shown_deadwood[p]'s point count
         "gin_lay_ok_a",  # Gin: card extends the knocker's meld A
         "gin_lay_ok_b",  # Gin: card extends the knocker's meld B
         "gin_lay_ok_c",  # Gin: card extends the knocker's meld C
@@ -183,23 +189,12 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_decl_trump",  # Belote: is the best combination a trump-suit sequence?
         "belote_decl_size",  # Belote: how many cards the declarations comprise (showing bound)
         "belote_decl_slot",  # Belote: is a card the k-th declared card (the showing's reveal predicate)?
-        "canasta_is_red3",  # Canasta: is the card a red three (bonus card)?
-        "canasta_is_black3",  # Canasta: is the card a black three (stop card)?
-        "canasta_top_starts_pile",  # Canasta: may the turned card start the pile?
-        "canasta_top_is_wild",  # Canasta: did the discard just freeze the pile?
-        "canasta_pile_rank",  # Canasta: the pile's top rank (the meld a take feeds)
         "canasta_can_take_pile",  # Canasta: a complete legal pile take exists
         "canasta_must_take_pile",  # Canasta: the no-stock forced take applies
         "canasta_can_start",  # Canasta: a new meld of the rank is completable from hand
         "canasta_stage_ok",  # Canasta: card joins the open attempt, close stays reachable
         "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
-        "canasta_add_ok",  # Canasta: card lays onto the side's standing meld of the rank
-        "canasta_discard_ok",  # Canasta: the discard may end the turn (go-out rule)
-        "canasta_black3_ok",  # Canasta: the go-out black-three meld is legal now
-        "canasta_meld_points",  # Canasta: card points of everything the side melded
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
-        "canasta_red3_bonus",  # Canasta: the red-three bonus, sign by melded-or-not
-        "canasta_hand_points",  # Canasta: card points left in both partners' hands
     }
 )
 
@@ -220,42 +215,30 @@ CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 # This partition is ORTHOGONAL to the Builtin/Primitive split above and does not
 # refine it: it asks which game FLAVORS a call can mean anything in, not whose
 # meaning it carries. Most of ANY_FLAVOR_CALL_FUNCS is game-named but
-# content-blind (`canasta_discard_ok` never reads its card), so it is a
-# Primitive that is nonetheless legal in a piece game.
+# content-blind (`skat_next_bid` reads only the standing bid, never a card),
+# so it is a Primitive that is nonetheless legal in a piece game.
 # that touch only players/teams/seats/zone counts or ordered-collection POSITION
 # (top_of/bottom_of), never a card's content or a board -- stay legal
 # everywhere. The three sets partition the registry, pinned by
-# tests/test_piece_content_walls.py so a newly registered call cannot land
+# tests/test_piece_content_guards.py so a newly registered call cannot land
 # unclassified (the "vacuously green" guard) and tests/test_signatures.py.
 # Derived by an audit that read every implementation; membership IS the
 # classification rationale (decisions.md "Closed-domain completeness"). The
 # organizing rule for the boundary: locating an OPAQUE caller-supplied token is
-# generic (`player_holding` matches a card by identity; `canasta_discard_ok`'s
-# card argument is unread); privileging a SPECIFIC rank/suit -- by `.rank`/
-# `.suit`, `rs.rank_index`, `rs.card_values`, a point table, or an internal
-# card literal (`bigtwo_first_leader` builds the 3 of diamonds) -- is deck-only.
+# generic (`player_holding` matches a card by identity); privileging a
+# SPECIFIC rank/suit -- by `.rank`/
+# `.suit`, `rs.rank_index`, `rs.card_points`, a point table, or an internal
+# card literal -- is deck-only.
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
-        "canasta_discard_ok",
-        "canasta_red3_bonus",
         "coup_game_summary",
-        "coup_next_in_game",
-        "coup_players_in",
         "error",
         "five_hundred_bid_level",
-        "holdem_next_entrant",
         "peg_origin_of",
         "player_holding",
-        "skat_effective_loss",
         "skat_next_bid",
         "team_of",
-        "tichu_double_victory",
-        "tichu_first_out",
-        "tichu_next_holder",
-        "tichu_opponent_team",
-        "tichu_partner",
-        "tichu_players_holding",
         "top_of",
     }
 )
@@ -275,25 +258,14 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_opp_winning",
         "belote_royal_player",
         "belote_trump_height",
-        "bigtwo_first_leader",
         "bring_in_seat",
-        "canasta_add_ok",
-        "canasta_black3_ok",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
-        "canasta_hand_points",
-        "canasta_is_black3",
-        "canasta_is_red3",
-        "canasta_meld_points",
         "canasta_must_take_pile",
-        "canasta_pile_rank",
         "canasta_stage_ok",
-        "canasta_top_is_wild",
-        "canasta_top_starts_pile",
-        "card_value",
-        "coup_has_char",
+        "card_points",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -307,38 +279,30 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_can_declare",
         "gin_can_declare_free",
         "gin_can_knock",
-        "gin_card_points",
         "gin_deadwood",
-        "gin_flat_points",
         "gin_knock_ok",
         "gin_lay_ok_a",
         "gin_lay_ok_b",
         "gin_lay_ok_c",
-        "gin_shown_points",
         "gin_valid_meld",
+        "highest_trump_or_led_suit",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
         "peg_pair_points",
         "peg_run_points",
-        "peg_value",
         "pinochle_meld_value",
         "pot_share",
-        "president_is_top_rank",
         "rank_value",
-        "schnapsen_trick_winner",
         "skat_follow_ok",
         "skat_matadors",
         "skat_trick_winner",
         "strain_index",
         "suit_of",
-        "tarot_card_points",
         "tarot_excuse_player",
         "tarot_led_suit",
         "tarot_per_opp",
         "tarot_trump_height",
-        "tichu_card_points",
         "tichu_dragon_won",
-        "tichu_mahjong_holder",
     }
 )
 

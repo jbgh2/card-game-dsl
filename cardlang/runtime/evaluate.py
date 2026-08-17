@@ -1,7 +1,7 @@
 """Expression evaluator.
 
 `evaluate(expr, ctx)` walks an `n.Expr` and returns a runtime value. The key
-move is `NameRef` dispatch on the `ref_kind` the resolver assigned — that is
+move is `NameRef` dispatch on the [[ref-kind]] the resolver assigned — that is
 exactly what the deep-resolution pass exists to make possible.
 """
 
@@ -187,7 +187,11 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "bool":
             return e.name == "true"
         case "enum_value":
-            return e.name  # suits/directions are their own string value
+            # Suits, bare ranks and the SEAT directions (`resolve._categories`
+            # keys `enum_value` on `SEAT_DIRECTION_VALUES`) are their own string
+            # value. A BOARD direction never reaches here: it binds as a move
+            # parameter typed `TDir` and arrives as a local.
+            return e.name
         case "pronoun":
             return _pronoun(e.name, ctx)
         case "function":
@@ -260,7 +264,7 @@ def _member(obj: Any, field: str) -> Any:
             # `state.<field>` against the UNION of every form's published set, because
             # a reference is not statically attached to a form (a library rule is
             # activated in context). So a trick game CAN name a climb-published field
-            # and reach here. That makes this a game-description error — the currency
+            # and reach here. That makes this a game-description error — the channel
             # the runtime uses for "the description asked for something impossible at
             # play time" — not a compiler bug, and not a bare KeyError.
             #
@@ -307,9 +311,9 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left - right
         case "*":
             return left * right
-        case "==":
+        case "is":
             return left == right
-        case "!=":
+        case "is_not":
             return left != right
         case ">=":
             return left >= right
@@ -321,6 +325,32 @@ def _binop(e: n.BinOp, ctx: Ctx) -> Any:
             return left < right
         case "offset_by":
             return ctx.rs.seating.offset_by(left, right)
+        case "divided_by_rounded_up" | "divided_by_rounded_down":
+            # The static checker passes TAny and unwraps `Integer?`, so a
+            # none or a non-Integer can reach here live — one operand class,
+            # one Owner Guard, in the game-author channel (never a bare
+            # Python TypeError/ZeroDivisionError). Booleans are checked
+            # ahead of the int test because Python's bool subclasses int:
+            # unguarded, a `true` would silently divide as 1 and a `false`
+            # divisor would be misdiagnosed as a zero divisor.
+            word = "rounded up" if e.op == "divided_by_rounded_up" else "rounded down"
+            for value in (left, right):
+                if isinstance(value, bool) or not isinstance(value, int):
+                    raise OwnerGuardError(
+                        f"`divided by ... {word}` expects Integer operands — "
+                        f"got {value!r}; the checker leaves this value's type "
+                        "open, so the read is checked here"
+                    )
+            if right == 0:
+                raise OwnerGuardError(
+                    f"`divided by ... {word}` needs a nonzero divisor — this "
+                    "division's divisor evaluated to 0"
+                )
+            if e.op == "divided_by_rounded_down":
+                return left // right  # Python floors toward negative infinity
+            # Exact integer ceiling toward positive infinity — never through
+            # float (math.ceil loses precision at magnitude).
+            return -((-left) // right)
         case "in":
             return left in elements(right)
         case _:
@@ -369,10 +399,32 @@ def _quantifier(e: n.Quantifier, ctx: Ctx) -> bool:
 
 
 def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
+    if e.kind == "first_from":
+        # The ring search: one inclusive lap from the start seat in the
+        # game's direction — `Seating.turn_order_from`, the same ring every
+        # `from <leader>` clause walks, whose membership check is the Owner
+        # Guard for a non-seat start value. The start expression evaluates in
+        # the enclosing scope (no `player` overlay); the scan short-circuits
+        # like the card-query `any`/`all` (predicates are side-effect-free).
+        assert e.start is not None, "parse builds first_from with a start"
+        start = evaluate(e.start, ctx)
+        lap = ctx.rs.seating.turn_order_from(start)
+        for seat in lap:
+            if evaluate(e.where, ctx.with_local("player", seat)):
+                return seat
+        # A runtime DATA condition, not a compiler invariant — the
+        # `the player where` precedent: the game author's premise (some
+        # seat in one lap satisfies) failed, and they hear it in the
+        # runtime's failure channel.
+        raise OwnerGuardError(
+            f"`the first player from … where …` matched no player: no seat "
+            f"in the {len(lap)}-seat lap from seat {start} satisfies the "
+            f"predicate"
+        )
     matches = [
         p
         for p in ctx.rs.seating.players
-        if evaluate(e.pred, ctx.with_local("player", p))
+        if evaluate(e.where, ctx.with_local("player", p))
     ]
     match e.kind:
         case "set":
@@ -386,7 +438,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
                 # state the checker cannot see. Typed error, not an assert —
                 # the game author wrote a `the player where …` whose premise
                 # failed, and they should hear that in the runtime's failure
-                # currency.
+                # channel.
                 raise OwnerGuardError(
                     f"`the player where …` matched {len(matches)} players, "
                     f"expected exactly 1"
@@ -399,7 +451,7 @@ def _player_query(e: n.PlayerQuery, ctx: Ctx) -> Any:
 def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     cards = list(elements(source))
-    if e.pred is None:  # the bare `number of cards in <zone>` size idiom
+    if e.where is None:  # the bare `number of cards in <zone>` size idiom
         assert e.kind == "count"  # parse builds a pred-less query only for that idiom
         return len(cards)
     # `any`/`all` short-circuit over the same card order the eager `set`/
@@ -408,10 +460,10 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
     # MustFollowSuit route `any card in hand[p] where …` through this on
     # every `legal_cards` call.
     if e.kind == "any":
-        return any(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
+        return any(evaluate(e.where, ctx.with_local("card", c)) for c in cards)
     if e.kind == "all":
-        return all(evaluate(e.pred, ctx.with_local("card", c)) for c in cards)
-    results = [bool(evaluate(e.pred, ctx.with_local("card", c))) for c in cards]
+        return all(evaluate(e.where, ctx.with_local("card", c)) for c in cards)
+    results = [bool(evaluate(e.where, ctx.with_local("card", c))) for c in cards]
     match e.kind:
         case "set":
             return [c for c, ok in zip(cards, results) if ok]
@@ -434,7 +486,7 @@ def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:
         members: Any = ctx.rs.position_domains[e.binder]
     else:
         members = elements(evaluate(e.source, ctx))
-    results = (evaluate(e.pred, ctx.with_local(e.binder, m)) for m in members)
+    results = (evaluate(e.where, ctx.with_local(e.binder, m)) for m in members)
     match e.kind:
         case "any":
             return any(results)
@@ -458,22 +510,22 @@ def _if_expr(e: n.IfExpr, ctx: Ctx) -> Any:
 def _comprehension(e: n.Comprehension, ctx: Ctx) -> Any:
     source = evaluate(e.source, ctx)
     items = list(elements(source))
-    if e.filter is not None:
+    if e.where is not None:
         items = [
             x
             for x in items
-            if evaluate(e.filter, ctx.with_local(e.binder, x))
+            if evaluate(e.where, ctx.with_local(e.binder, x))
         ]
     values = [evaluate(e.body, ctx.with_local(e.binder, x)) for x in items]
     match e.agg:
         case "sum":
             return sum(values)
-        case "max":
+        case "highest":
             if not values:
                 assert e.default is not None, "grammar makes `or <default>` mandatory"
                 return evaluate(e.default, ctx)
             return max(values)
-        case "min":
+        case "lowest":
             if not values:
                 assert e.default is not None, "grammar makes `or <default>` mandatory"
                 return evaluate(e.default, ctx)

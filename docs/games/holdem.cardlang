@@ -89,7 +89,7 @@ game Holdem {
       // take the button — and heads-up the small blind — on two hands of every
       // three. Stepping the persistent seat through the entrants keeps the
       // rotation strict, which is what makes the blinds fair.
-      dealer := holdem_next_entrant(dealer offset_by left)
+      dealer := the first player from dealer offset_by left where in_hand[player]
       button := dealer
 
       // Blinds. With three or more entrants the small blind is the first entrant
@@ -99,8 +99,8 @@ game Holdem {
       // blind needs the conditional.
       let small_blind = if (number of players where in_hand[player]) is 2
                           then button
-                          else holdem_next_entrant(button offset_by left)
-      big_blind := holdem_next_entrant(small_blind offset_by left)
+                          else the first player from button offset_by left where in_hand[player]
+      big_blind := the first player from small_blind offset_by left where in_hand[player]
 
       // The blinds are forced posts (no decision), so they go in AFTER the
       // street is opened — opening clears `bet_by`, and the big blind stands as
@@ -159,7 +159,7 @@ game Holdem {
          and ((number of players where can_act(player)) > 1
               or (number of players where can_act(player) and owes(player)) > 0) {
         round offering [check, bet, call, fold, raise]
-              from holdem_next_entrant(big_blind offset_by left)
+              from the first player from big_blind offset_by left where in_hand[player]
               over players where pending(player)
               order priority
               until (number of players where pending(player)) is 0
@@ -186,7 +186,7 @@ game Holdem {
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
-                from holdem_next_entrant(button offset_by left)
+                from the first player from button offset_by left where in_hand[player]
                 over players where pending(player)
                 order priority
                 until (number of players where pending(player)) is 0
@@ -207,7 +207,7 @@ game Holdem {
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
-                from holdem_next_entrant(button offset_by left)
+                from the first player from button offset_by left where in_hand[player]
                 over players where pending(player)
                 order priority
                 until (number of players where pending(player)) is 0
@@ -228,7 +228,7 @@ game Holdem {
       // aggression is 5, so no street can reach 60 aggressions, let alone 99.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
           round offering [check, bet, call, fold, raise]
-                from holdem_next_entrant(button offset_by left)
+                from the first player from button offset_by left where in_hand[player]
                 over players where pending(player)
                 order priority
                 until (number of players where pending(player)) is 0

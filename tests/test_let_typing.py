@@ -2,23 +2,23 @@
 let-TAny gap (`typecheck._seq_tree_scoped` + `_scoped_env`).
 
 Without this fold, a `let`-bound name would infer `TAny` in every later
-statement, and `TAny` passes `assignable` in both directions — so EVERY wall
+statement, and `TAny` passes `assignable` in both directions — so EVERY guard
 would go dark one binding away: `hearts is 3` would be rejected while
 `let z = hearts` / `z is 3` sailed through, and the same laundering would
 defeat the ordering, arithmetic, offset_by, run-argument, assignment and
-endpoint walls — the widest recorded hole in the checker. The fold: every
+endpoint guards — the widest recorded hole in the checker. The fold: every
 statement-tuple walk routes through `_seq_tree_scoped`, which binds a `let`
 for the REST of its tuple — the same fold resolve applies for scoping and the
 runtime applies for values — and `_scoped_env` types the binder by inferring
 its initializer in the environment at that point.
 
 property:   a `let`-bound name carries its initializer's inferred type into
-            every later statement of its scope, so each wall answers the same
+            every later statement of its scope, so each guard answers the same
             for the laundered spelling as for the inline one
 domain:     statement context {phase body, nested phase via items fold, hook
             body, if/repeat body, move effect, define body, produces arm,
-            procedure body} × representative wall (the walls themselves are
-            matrix-tested in test_operator_walls.py / test_procedures.py /
+            procedure body} × representative guard (the guards themselves are
+            matrix-tested in test_operator_guards.py / test_procedures.py /
             test_movement_endpoints.py; this module pins the THREADING) —
             plus the form axis {plain let, chained let-of-let, indexed let}
 covered:    every context below with an executed laundering probe; the
@@ -30,21 +30,21 @@ covered:    every context below with an executed laundering probe; the
             all, enclosing or not — it is fired by whichever round matches
             its event, so no lexical position makes a binding reliably live —
             all pinned below with contrast pairs); the facet axes (a non-card
-            collection is not a zone; unify merges each facet in its wall's
+            collection is not a zone; unify merges each facet in its guard's
             polarity — `zone` PERMITS so it ANDs, a maybe-zone is not an
             endpoint; `key` PROHIBITS so it is STICKY, a maybe-map still
             rejects `in`; keyed maps check their key domain on read and
             write; `to each` consumes the family NAME, so even a zone-valued
             binder is rejected there); the gradual case (a TAny initializer
             stays permissive, by rule)
-sampled:    each context is probed with ONE wall (cross-enum equality),
-            because `_scoped_env` is the single resolution point every wall
-            reads — per-wall coverage lives in each wall's own matrix, which
+sampled:    each context is probed with ONE guard (cross-enum equality),
+            because `_scoped_env` is the single resolution point every guard
+            reads — per-guard coverage lives in each guard's own matrix, which
             now includes laundered rows
 residual:   a `let` whose initializer itself types `TAny` (`outcome`, an
             unregistered `action.<field>`) carries `TAny` forward — gradual
             typing's ordinary rule, pinned below, with the runtime's typed
-            backstops (test_fail_loud.py) behind it
+            Shadow Guards (test_fail_loud.py) behind it
 """
 
 from __future__ import annotations
@@ -265,7 +265,7 @@ def test_a_transition_predicate_cannot_read_a_same_phase_body_let() -> None:
     # A transition is CONFIGURATION: collected position-independently and
     # evaluated with the context captured at whichever round fires it — which
     # may run before the `let`. Entry scope, like hooks and state defaults.
-    # Without this wall the earlier passes are no help: resolve scopes the let
+    # Without this guard the earlier passes are no help: resolve scopes the let
     # over it and typecheck types it, so the mismatch survives to a round that
     # may run before the binding exists.
     _rejects(
@@ -329,12 +329,12 @@ def test_an_enclosing_let_is_visible_to_a_nested_phases_hook() -> None:
     )
 
 
-# --- the element and key axes (what the type now says, the walls now use) ------
+# --- the element and key axes (what the type now says, the guards now use) ------
 
 
 def test_a_non_card_collection_is_not_a_zone() -> None:
     # A collection SHAPE is not enough: `all players` is a collection too, and
-    # without this wall it would reach the runtime's backstop with a message
+    # without this guard it would reach the runtime's Shadow Guard with a message
     # claiming the checker couldn't know — it knows Collection<Player> exactly.
     _rejects(
         _game("let z = all players\n    move all cards from z to deck"),
@@ -413,12 +413,12 @@ def test_a_zone_valued_let_map_still_works() -> None:
     )
 
 
-# --- facets through unify, and the walls that guard them -----------------------
+# --- facets through join, and the guards that guard them -----------------------
 
 
 def test_a_conditional_choice_of_zones_is_still_a_zone() -> None:
-    # Were unify() to rebuild TCollection(element) BARE, it would strip
-    # zone=True even from unify(zone, zone) — falsely rejecting this legal
+    # Were join() to rebuild TCollection(element) BARE, it would strip
+    # zone=True even from join(zone, zone) — falsely rejecting this legal
     # program with a hint calling two named zones 'a query result or list'.
     # Facets the branches agree on survive.
     check_dsl(
@@ -433,7 +433,7 @@ def test_a_conditional_choice_of_zones_is_still_a_zone() -> None:
 
 def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
     # The key facet's twin: two same-keyed maps unify to a keyed map, so the
-    # key wall fires through the conditional instead of the runtime KeyError.
+    # key guard fires through the conditional instead of the runtime KeyError.
     _rejects(
         _game(
             "let m = if n[0] is 0 then n else n\n"
@@ -444,7 +444,7 @@ def test_a_conditional_choice_of_keyed_maps_keeps_the_key() -> None:
 
 
 def test_a_map_merged_with_a_non_map_stays_keyed() -> None:
-    # The key facet is STICKY through unify: `if c then n else [99]` may be a
+    # The key facet is STICKY through join: `if c then n else [99]` may be a
     # dict at runtime, so `2 in m` is exactly as ambiguous as on the map
     # itself — without stickiness it would run the keys-vs-values misread on
     # the map branch while typing as a plain list. The domain becomes
@@ -468,7 +468,7 @@ def test_a_map_merged_with_a_non_map_stays_keyed() -> None:
 def test_a_zone_merged_with_a_non_zone_is_not_a_zone() -> None:
     # The zone facet merges the OPPOSITE way (AND): an endpoint requires a
     # DEFINITE zone, because the list branch would crash the executor. The
-    # facets' merge directions follow their walls' polarities — zone permits,
+    # facets' merge directions follow their guards' polarities — zone permits,
     # key prohibits.
     _rejects(
         _game(
@@ -482,7 +482,7 @@ def test_a_zone_merged_with_a_non_zone_is_not_a_zone() -> None:
 def test_to_each_requires_the_family_name_not_a_zone_value() -> None:
     # `to each X` deals into X[player] BY NAME — the executor never evaluates
     # the destination — so a binder can never stand there even when it holds
-    # a zone: without this wall `let h = hand[0]` / `to each h` would type
+    # a zone: without this guard `let h = hand[0]` / `to each h` would type
     # clean (h IS a zone) and reach the executor, which requires a declared
     # player-indexed zone FAMILY under that name and refuses any other name at
     # deal time. The generic endpoint rule admits zone-valued binders; this
@@ -497,7 +497,7 @@ def test_membership_on_a_keyed_map_is_rejected_as_ambiguous() -> None:
     # `2 in m` reads as a VALUE test and typechecked as one, but the runtime
     # store is a dict whose `in` asks about KEYS: with every value 99, `2 in
     # m` answered True because seat 2 exists — a silent misreading. Both
-    # meanings have direct spellings; `in` on a keyed map is walled.
+    # meanings have direct spellings; `in` on a keyed map is guarded.
     _rejects(
         _game("let m[q] = 99\n    if 2 in m { n[0] := 1 }"),
         "keys or values?",
@@ -570,7 +570,7 @@ def test_the_zone_hint_names_the_filter_only_where_one_can_be_written() -> None:
 def test_a_tany_initializer_carries_tany_forward() -> None:
     # `outcome` is deliberately loose (`TAny`) — a let bound to it stays
     # permissive, which is gradual typing's ordinary rule, not a hole in the
-    # fold. The runtime's typed backstops stand behind this path
+    # fold. The runtime's typed Shadow Guards stand behind this path
     # (tests/test_fail_loud.py).
     check_dsl(
         _game(

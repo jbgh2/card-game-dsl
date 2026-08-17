@@ -25,6 +25,10 @@ class TestReadiness(ReadinessProofs):
         depth=6,
         stock_zone="talon",
         adapter_terminal_steps=250,  # greedy line 64-188 steps over the manifest
+        # the highest_trump_or_led_suit call form reads trick_pile's record
+        # (no PRIMITIVE_READS row exists to derive this from — the consumer
+        # is a Builtin)
+        provenance_zones=("trick_pile",),
     )
 
 

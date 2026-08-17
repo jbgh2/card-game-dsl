@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_check_reserved`, run over the zone namespace by
+// Guard: resolve.py's `_check_reserved`, run over the zone namespace by
 // `_check_duplicate_names`. `state` is a fixed context pronoun
 // (`state.foo`); a zone declared under that name would silently change
 // what a bare `state` reference means, so it is rejected outright.

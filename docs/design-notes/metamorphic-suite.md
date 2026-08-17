@@ -92,5 +92,5 @@ seconds), with an env-var knob for a longer local run. Done means: all four
 transforms live over the whole corpus, each with its ledger; the
 inline-vs-`run` regression test's invariant is subsumed by transform 2's
 general form (the specific test stays — it is a rejection-shaped witness);
-and any divergence found on the way is triaged wall/backstop/missing-wall
+and any divergence found on the way is triaged Owner Guard / Shadow Guard / missing Owner Guard
 per decisions.md "Closed-domain completeness" before being fixed.

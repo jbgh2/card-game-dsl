@@ -1,4 +1,4 @@
-"""Known-value tests for Gin Rummy's stdlib primitives
+"""Known-value tests for Gin Rummy's Primitives
 (cardlang/runtime/gin.py), following the test_cribbage_primitives.py pattern:
 the combination machinery — meld validity, the optimal-deadwood partition,
 the meld-universe codec — is proven against hands whose values are known by
@@ -96,7 +96,7 @@ def test_meld_codec_rejects_a_non_meld() -> None:
 
 
 def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
-    """The game-local-primitive precondition wall (one chokepoint for the
+    """The game-local-primitive precondition guard (one chokepoint for the
     whole class, cribbage included): running a primitive against a game
     without its zones is a typed RuntimeError naming the situation, never a
     bare KeyError naming only the zone.
@@ -108,14 +108,14 @@ def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
     property each primitive has to re-earn."""
     import random
 
-    from cardlang.runtime import reads, sidecar
+    from cardlang.runtime import reads, narrowing
     from cardlang.runtime.gin import ROW
     from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
 
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     with pytest.raises(reads.PrimitiveReadError, match="zone family"):
-        sidecar.bind(rs, None, ROW)
+        narrowing.bind(rs, None, ROW)
 
 
 def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
@@ -129,7 +129,7 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     from pathlib import Path
 
     from cardlang.pipeline import check_source
-    from cardlang.runtime import sidecar
+    from cardlang.runtime import narrowing
     from cardlang.runtime.gin import ROW, gin_can_knock, gin_knock_ok
     from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
@@ -141,7 +141,7 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     hand = _h("2C", "3C", "4C", "8C", "8D", "8H", "8S", "AS", "4H", "5H")
     rs.zones.instance("hand", 0).add_all(hand)
     rs.zones.instance("taken", 0).add_all(_h("KD"))
-    ctx = sidecar.bind(rs, None, ROW)
+    ctx = narrowing.bind(rs, None, ROW)
 
     # The taken K♦ would be a legal knock-discard — but it is not in the pool.
     assert gin_knock_ok(*ctx, 0, _c("KD"))

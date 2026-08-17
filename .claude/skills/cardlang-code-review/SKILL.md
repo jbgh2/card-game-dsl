@@ -32,7 +32,7 @@ loud failure is the system working; silence is the enemy.
    fail: an assertion loop over nodes a retired construct can no longer
    produce, a ledger row with no pinning test (decisions.md "Closed-domain
    completeness").
-5. **Wrong-currency failure** — the right rejection in the wrong shape or
+5. **Wrong-channel failure** — the right rejection in the wrong shape or
    layer: a raw lark/Python exception where a located, bag-collected
    diagnostic belongs; a bare `assert`; a runtime crash for a statically
    checkable error; a diagnostic that directs the user to syntax the grammar
@@ -58,11 +58,11 @@ allocates backwards.
    `git diff HEAD` if the working tree is dirty.
 2. Classify which layers it touches: grammar (`.lark`), parse builders, AST
    nodes, resolve, typecheck, IR, runtime (`evaluate`/`execute`/`driver`/
-   `state`), stdlib (`rules.cardlang`, registries), `docs/games/` corpus,
+   `state`), stdlib (`rules.cardlang`) + kernel tables, `docs/games/` corpus,
    docs prose, tests/goldens. The classification selects the conditional
    angles below — do not run angles whose trigger the diff does not match.
 3. **Artifact gate — run before any finder.** If the diff adds or extends
-   grammar surface, a checker Owner Guard or diagnostic, a stdlib registry, or any
+   grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any
    closed-domain mechanism (the `surface-totality-audit` trigger) — including
    a diff that ANSWERS AN EARLIER FINDING on one, which must additionally
    carry that skill's **class ledger** showing the finding was swept as a
@@ -127,7 +127,7 @@ dominant cause of misses.
   postfix positions, and any value that crosses a layer without its type.
   Also hunt unvalidated literals: a string or name compared against a domain
   (ranks, suits, zone names) that no layer checks membership in.
-- **C. Failure-currency auditor.** Every new or changed error path: compile
+- **C. Failure-channel auditor.** Every new or changed error path: compile
   errors are located, bag-collected diagnostics; runtime errors are typed
   exceptions; no bare `assert` on a user-reachable path; no raw
   lark/Python exception escaping (the `VisitError`-unwrap class — check
@@ -188,12 +188,16 @@ dominant cause of misses.
   change claims semantic neutrality (byte-identical trace goldens are the
   proof; regenerated IR goldens need a stated reason). Exact-score tests pin
   `PYTHONHASHSEED`.
-- **H. Spec-lockstep sweeper** *(docs or surface changes)*. The corpus
+- **H. Spec-lockstep sweeper** *(docs, surface, or naming changes)*. The corpus
   (`docs/games/`) and every doc table/example use the current register —
   where cheap, parse doc examples rather than eyeballing them. The docs that
   describe a changed surface (decisions.md, library.md, and roadmap.md,
   "Grammar surface deferred by the checker") moved in the same change, and a newly deferred cell got its
   tracker record. No history voice in `docs/` (maintaining.md rule 1).
+  **New nouns have entries**: a concept the change names for the first time
+  carries its `docs/glossary/` entry in the same change, and a rename or a
+  retirement updates the entry and its `retired_spellings` (CLAUDE.md
+  operating rule 7). A name with no entry is class 8.
 - **I. Info-set / observation checker** *(movement, visibility,
   decision-site, or adapter changes)*. The change emits per-observer
   observations through declared zone projections; no decision runs outside

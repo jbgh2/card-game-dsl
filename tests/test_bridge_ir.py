@@ -40,7 +40,7 @@ def test_bridge_auction_round_is_well_formed() -> None:
     )
     rnd = next(i for i in auction["items"] if i["kind"] == "auction_round")
     assert rnd["offering"] == ["pass", "submit_bid", "double", "redouble"]
-    assert rnd["termination"] is not None
+    assert rnd["until"] is not None
     # The trick-only keys are not present-and-null: the auction form's IR does
     # not carry them at all.
     assert not {"move_type", "source_zone", "play_zone"} & rnd.keys()

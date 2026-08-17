@@ -1,0 +1,23 @@
+// Guard: typecheck's call-arity check over CALL_SIGS. The pre-#256 spelling
+// of a trick-winner call passed the leader so the primitive could zip seat
+// order against pile contents; the Arrival Record made the argument
+// meaningless, so the signature is nullary and the old spelling — the most
+// plausible wrong sentence for any existing description — is rejected, never
+// accepted-and-ignored.
+game ArrivalWinnerOldArity {
+  players: 4
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+    trick_pile : TrickPile
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    let w = doko_trick_winner(0)
+    score[w] += 1
+  }
+  winner: highest score
+}

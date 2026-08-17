@@ -115,12 +115,15 @@ def test_the_one_seed_exemptions_all_name_a_registered_game() -> None:
 def test_no_proof_module_without_a_registered_game() -> None:
     here = Path(__file__).resolve().parent
     # The package-wide modules, which target the registry itself rather than
-    # any one game: this completeness guard, the bound-coverage grid, and the
-    # action-rendering purity pin.
+    # any one game: this completeness guard, the bound-coverage grid, the
+    # action-rendering purity pin, and the Arrival Record's copy-purity pin
+    # (whose game axis derives from the component registry, not one game —
+    # issue #256).
     modules = {p.stem for p in here.glob("test_*.py")} - {
         "test_coverage",
         "test_conformance_bounds",
         "test_action_strings",
+        "test_arrival_purity",
     }
     expected = {_module_for(short) for short, _ in REGISTERED_GAMES}
     assert modules == expected, (

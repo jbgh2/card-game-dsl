@@ -1,4 +1,4 @@
-// Wall: resolve.py's `_resolve_winner_loser`. `winner:` and `loser:` are
+// Guard: resolve.py's `_resolve_winner_loser`. `winner:` and `loser:` are
 // each optional grammar positions, so their joint absence is checked here —
 // a game declaring neither compiles clean up to this point and would
 // otherwise die on a driver assert at its first decision.

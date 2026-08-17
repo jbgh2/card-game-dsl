@@ -1,4 +1,4 @@
-// Wall: typecheck.py's `run` call-site argument check. `give_point` declares
+// Guard: typecheck.py's `run` call-site argument check. `give_point` declares
 // its parameter `who : Player`; the call site passes `hearts`, a Suit — the
 // procedure's parameter annotations are load-bearing, not decorative.
 game RunArgumentTypeMismatch {

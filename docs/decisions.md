@@ -111,7 +111,7 @@ Examples:
   not) rather than phase state, and the criterion carries over unchanged
   — no rule's `applies_when:` reads it; it gates only the take-pile
   move's preconditions, and its operative meaning is per-side anyway (a
-  partnership that has not melded is frozen out regardless, the
+  team that has not melded is frozen out regardless, the
   per-player-exception shape below). Correctly a boolean.
 
 The criterion: ask whether any rule reads the boolean in its
@@ -372,7 +372,7 @@ the standard `MustFollowSuit` rule consults instead of comparing
 `c1.suit is c2.suit` directly. Most games keep the default
 (printed-suit equality); games with contextual suits override.
 Same shape as a `round`'s `winner` or `early` function — a per-game or
-stdlib function referenced by name, not a new language construct.
+native function referenced by name, not a new language construct.
 
 ## The auction form of `round`
 
@@ -670,7 +670,7 @@ Two decisions distinguish it from the trick and auction forms:
   the transfer vocabulary moves cards *by count* (`all` / `one` / `N cards`), never
   a named set. So a combination play cannot be a DSL `move_type` effect the way a
   bet is, and there is no DSL-visible `Combination` value. Instead the engine is two
-  **game-local stdlib queries** named on the round — `combinations` (lead options)
+  **game-local Primitive queries** named on the round — `combinations` (lead options)
   and `follows` (legal follows) — and the climb form performs the card transfer itself.
   The engines stay per-game because the combination rules differ materially (Big
   Two: suit tie-breaks on every play, flushes and quads, cross-type beating within
@@ -688,7 +688,7 @@ As with the auction form, the round's only decision points are the per-turn
 candidate draws (the lead query, then `[follows…, pass]`); the scoring and routing
 in the surrounding body consume no randomness — where a game's *rules* are random
 (Tichu's Dragon trick going to a random opponent, its random-rate call gates at
-the migrated scope), that randomness is a game-local stdlib primitive drawing on
+the migrated scope), that randomness is a game-local Primitive drawing on
 the shared `rng`, not a chooser decision. So a climbing hand re-expressed on
 this form reproduces a hand-written engine's behaviour byte-for-byte when it
 presents the same per-turn candidate lists — the property both migrations
@@ -948,7 +948,7 @@ when it runs.
 not silently stored: the default's inferred type must be assignable to the
 variable's declared type — the same `assignable` relation an ordinary
 assignment uses (`typecheck._check_state_default_type`, the initial-value
-twin of `_check_assign`). For an indexed variable the default is checked
+Shadow Guard of `_check_assign`). For an indexed variable the default is checked
 against the element type, since `score[player] : Integer = 0` broadcasts
 one value to every key. The check is as sharp as the inferencer and no
 sharper: a default whose type the inferencer leaves as the permissive top
@@ -961,11 +961,11 @@ rather than a hole here — no corpus default is untyped.
 game Bridge {
   // No game-level state in Bridge.
 
-  phase rubber repeat until any partnership.games_won >= 2 {
+  phase rubber repeat until (any team where games_won[team] >= 2) {
     state {
-      games_won[partnership]              : Integer = 0
-      above_line[partnership]             : Integer = 0
-      below_line_current_game[partnership]: Integer = 0
+      games_won[team]              : Integer = 0
+      above_line[team]             : Integer = 0
+      below_line_current_game[team]: Integer = 0
     }
 
     phase hand_sequence {
@@ -973,7 +973,7 @@ game Bridge {
         contract       : Contract? = none
         declarer       : Player?   = none
         dummy          : Player?   = none
-        tricks_taken[partnership] : Integer = 0
+        tricks_taken[team] : Integer = 0
         dummy_revealed : Boolean   = false
       }
       // ... phases inside hand_sequence ...
@@ -1169,7 +1169,7 @@ units, because no single check covers every non-termination shape:
   number generous enough for the corpus's longest game (which used to
   make every other game's reported bound meaningless). Because the
   decision counter enforces the same bound on the same unit
-  `max_game_length` is denominated in (decisions, i.e. actions), a
+  `max_game_length` is measured in (decisions, i.e. actions), a
   registered game's real trajectory length cannot silently exceed what it
   advertises to OpenSpiel.
 
@@ -1333,11 +1333,11 @@ assignments are imperative writes following the same rules.
 
 ## Typed object model
 
-The language has a typed object model with stdlib types built in,
+The language has a typed object model with built-in types,
 user-defined types declared per-game, and convenience sugar that
 rewrites to underlying forms.
 
-**Stdlib types (built into the language):**
+**Built-in types:**
 
 - `Card` — `{ suit, rank, attributes, optional facing }`. Suit and
   rank are declared at the game level (`cards { suits: { ... } }`,
@@ -1358,9 +1358,9 @@ rewrites to underlying forms.
 - `Suit`, `Rank` — enumerable value types defined by the game's
   `cards` header.
 - `Player` — bare identity; relational queries delegate to Seating.
-- `Partnership` (alias: `Team`) — declared in the game header;
-  indexable as a key into per-partnership state.
-- `Seating` — derived from `players` + `partnerships`; exposes
+- `Team` — declared in the game header; indexable as a key into
+  per-team state.
+- `Seating` — derived from `players` + `teams`; exposes
   `partner_of(p)`, `left_of(p)`, `right_of(p)`, `LHO_of(p)`,
   `RHO_of(p)`, `opposite_of(p)`. Relational queries are function
   calls (and the `offset_by` operator), never dot chains — see the
@@ -1403,7 +1403,7 @@ accessed identically to declared fields (`result.made`) but are
 stored nowhere; the compiler inlines them.
 
 User-defined types may be parameterized with the same angle-bracket
-convention as stdlib generics. They are the language's extension
+convention as built-in generics. They are the language's extension
 point for genuine record types. The current corpus models its
 structured values with flat state variables and functions instead —
 Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
@@ -1428,7 +1428,7 @@ takes (`eliminated[player] : Boolean = false`, `eliminated[p] := true`). Like
 declares them.
 
 **Deck declaration.** The `cards:` line names the deck a game uses.
-The deck is a constant from the closed stdlib registry (`DECKS` in
+The deck is a constant from the closed kernel table (`DECKS` in
 `cardlang/runtime/values.py`): a game selects one by name and does not
 spell out its cards.
 
@@ -1442,8 +1442,8 @@ not share a single rank list: French Tarot's 78 (four 14-card suits, a
 21-card trump suit, and the Excuse) and Tichu's 56 (the standard 52
 plus the four special cards Mahjong, Dog, Phoenix, Dragon). Those
 compositions live in the registry, not in per-game syntax;
-[library.md](library.md) "Stdlib component sets" catalogues them
-(decks are its card-flavored entries), and adding a deck is a stdlib
+[library.md](library.md) "Built-in component sets" catalogues them
+(decks are its card-flavored entries), and adding a deck is a kernel-table
 registry addition. Tichu's non-(suit, rank) specials
 are a separate question from the registry itself; see
 [open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md).
@@ -1508,12 +1508,12 @@ invisible: nothing in the program looks wrong.
 is one `Any`, and it means the top. A lookup whose domain is closed does not
 fall back to it:
 
-- **A closed-registry lookup raises.** Binder roles, stdlib call
+- **A closed-registry lookup raises.** Binder roles, native call
   signatures, zone content types, struct types, operator result types,
   and `ref_kind` dispatch each have a registry that an earlier pass
   validates against. A miss is a divergence between two registries —
-  a compiler bug, not a program error — so it fails in compiler
-  currency (an `AssertionError` naming the guard or builder that
+  a compiler bug, not a program error — so it fails in the compiler's
+  failure channel (an `AssertionError` naming the guard or builder that
   guarantees it), exactly as the runtime's `role_members` and
   `zone_observer_key` already did.
 - **An environment lookup raises.** A name resolve classified but the
@@ -1542,7 +1542,7 @@ fall back to it:
   plain name check. Each position's allowed set mirrors exactly what
   its type builder can resolve, so a name the guard admits is never one
   the builder still maps to the top, and no defect is reported twice in
-  two currencies.
+  two channels.
 
   A gate belongs to the DECLARATION, not to the uses that reach it: a
   gate run from the vocabulary sites that name a move would leave a move
@@ -1552,7 +1552,7 @@ fall back to it:
 **What stays permissive is a small audited set**, enumerated and pinned by a
 test so a new permissive site must be classified rather than added:
 values with no better type (a diverging `error()`, context-dependent
-stdlib returns the signature model cannot express, deferred pronoun
+native returns the signature model cannot express, deferred pronoun
 shapes, a forward struct reference), and propagation downstream of a
 guard that already fired. Gradual typing is preserved — the top still flows
 and still suppresses errors where it is deliberate.
@@ -1771,7 +1771,7 @@ not a hang. No satisfying subset is the no-implicit-actions error: guard
 the transfer so it is only reached when one exists.
 
 For the OpenSpiel target, joint candidates are card subsets — the combo
-block's currency, exactly like climb combination plays — and the subset
+what the block deals in, exactly like climb combination plays — and the subset
 universe comes from a **registered per-predicate codec**
 (`joint_codec_function`, the climb-engine codec pattern: the predicate's
 root call names it, `gin_arrange_ok` → the 329-meld universe of
@@ -1794,7 +1794,7 @@ machinery, and two rummy-family games prove the two halves:
 
 - **The key flattens into zone-family names.** A group keyed by a small
   static domain declares one zone family per key value: Canasta's
-  per-partnership per-rank melds are eleven team-indexed `TeamPile`
+  per-team per-rank melds are eleven team-indexed `TeamPile`
   families (`meldA[team] … meld4[team]`), plus the black-three going-out
   group and the red-three row; Gin's three arrangement slots are
   `meldA/B/C[player]`. The one index a zone family carries is the *owner*
@@ -1809,9 +1809,10 @@ machinery, and two rummy-family games prove the two halves:
   group persists outside its zone.
 - **Typed state is derived from composition, never stored.** Natural vs
   mixed, canasta-completion, wild-count legality are pure functions of the
-  pile's contents, evaluated at every read by game-local primitives (the
-  guards at extension time, the scorers at hand end). Storing group state
-  beside the cards would create a second source of truth.
+  pile's contents, evaluated at every read by the game's own functions and
+  game-local primitives (the guards at extension time, the scorers at hand
+  end). Storing group state beside the cards would create a second source
+  of truth.
 - **Per-group scoring reads each zone as an object.** Canasta's hand
   settlement scores every meld pile by its own composition
   (`canasta_canasta_bonus`); the group *is* the zone.
@@ -1848,7 +1849,11 @@ quantification: `is`, `is not`, `in`, `not`, `and`, `or`, `any`, `all`,
 designer can internalize — and it is Python's line, so the surface stays
 familiar. English forms for assignment were considered and rejected: the
 symbols carry no confusion cost, there is no compact English word for `>=`,
-and the per-line verbosity cost would be the largest in the language. `is`,
+and the per-line verbosity cost would be the largest in the language. One
+carve-out, the `offset_by` precedent: domain arithmetic goes word-spelled
+when the symbol would mislead — rounded division is `divided by … rounded
+up|down` (below), because no symbol spells a division that must name its
+rounding. `is`,
 `not`, and `number` are reserved words — no state variable, zone, function,
 or binder may take one of these names.
 
@@ -1870,6 +1875,20 @@ The right-hand keywords `none` and `empty` are a closed set dispatching to
 the absence and emptiness checks (`led_suit is none`, `hand[p] is not
 empty`); every other operand is ordinary equality. `==`/`!=` are not part of
 the language; the checker rejects them with the replacement spelling.
+
+**Rounded division is `divided by … rounded up|down`** — a `term`-level
+operator (the `offset_by` shape: `working_bid divided by base rounded up`),
+Integer operands and result, with the rounding direction mandatory: there is
+no bare quotient to misread as exact. `rounded down` floors toward negative
+infinity and `rounded up` ceilings toward positive infinity — the English
+words' own directions, whatever the operands' signs — and a zero divisor is
+a typed runtime error. `*` binds tighter on both sides (`2 * bid divided by
+base rounded up` divides the product); multiplying a quotient takes parens
+(`(bid divided by base rounded up) * 2`). `/` and `%` are not part of the
+language; the checker rejects them with the replacement spelling. `//`
+cannot even be rejected: it introduces a comment, so a floor-division habit
+written `a // b` reads as `a` with the rest of the line commented out —
+write the word form.
 
 **Card queries** mirror the player queries ("Player-collection queries"
 below), binding `card` per candidate over a named zone:
@@ -2152,13 +2171,13 @@ hidden_deck   : Zone<Card>     { composition: count_only to all }
 catan_hand    : Zone<Resource> { composition: count_by_type to owner, count_only to others }
 ```
 
-The set of zone types is a closed stdlib registry (`ZONE_PROJECTIONS`
+The set of zone types is a closed kernel table (`ZONE_PROJECTIONS`
 in `cardlang/stdlib/zones.py`, wrapped as the named aliases in
 [library.md](library.md), "Library zone types"). A game does not write
 a `composition` block or declare a new zone type — it selects a named
 type in its `zones {}` block, and the type carries the projection
 (`hand[player] : Hand<player>`). Adding a projection profile is a
-stdlib registry addition, not a surface a game reaches.
+kernel-table addition, not a surface a game reaches.
 
 ### Per-observer visibility on moves
 
@@ -2248,7 +2267,7 @@ Modelling belief-about-belief would add machinery no in-scope game
 exercises. If a game ever surfaces a rule that reads second-order
 knowledge, this is the decision to revisit.
 
-### Stdlib memory-affecting operations
+### Native memory-affecting operations
 
 | Operation | What it does | Effect on projections |
 |---|---|---|
@@ -2302,6 +2321,40 @@ call windows and Dragon routing) is a real announced decision in the
 observation stream. What stays reduced is named per game in its file
 (Tichu's Mahjong wish and bomb variants, and the like), as scope, not as
 hidden randomness.
+
+### The Arrival Record
+
+The kernel performs every movement, and it retains what it performed: each
+zone carries an **Arrival Record** — per card now in the zone, the deciding
+actor (`None` when no seat decided), the card value, and the source zone
+address, in arrival order (`state.Zone`). "Who played this card" is two
+facts, deliberately: the deciding actor and the source zone's owner coincide
+everywhere in the corpus today, and the one known case that splits them —
+Bridge's dummy — is the "Delegated play" section's unwired design, which the
+two-fact record already has room for. Consumers read the record in place of
+re-deriving attribution: a trick winner's pairing of seat against card is a
+read, never a zip of seat order against pile contents, and participation is
+nothing to declare — it derives from who acted, so a contract's dead seat is
+stated exactly once, in the movement structure the game file already has.
+
+The record is engine truth, mediated exactly as zone contents are: it enters
+no observation event and no information state, and any surface that reads it
+per-observer is bounded to zones whose type projects identity to every
+observer (`GameReads.arrival_zones`, refused loud otherwise; the
+`highest_trump_or_led_suit` call form guards the same predicate) — a
+concealed zone's provenance is not derivable from any observer's stream, so
+nothing may range over it, legality contexts included. Per-observer
+provenance is therefore **derived from the observation stream, never stored
+and then stripped**: a fact about an observed play persists exactly as long
+as observation entails it, and washing is an invariance rather than an
+operation — the record stores values only, so observationally equivalent
+duplicate copies produce equal entries and every projection is invariant
+under permuting them. The readiness proofs carry the executable form: the
+provenance soundness rows (the engine record equals what every observer's
+own log derives, per consumed zone), the wash pin (hidden-stock permutation
+moves no information state), and the copy-purity pin (two replays of one
+world serialize the record identically, so no per-object identity can hide
+in it).
 
 ## Position domains and positional zones
 
@@ -2387,7 +2440,7 @@ the suffix — not new surface). Sequence *knowledge* is derived, not
 declared: an identity-entitled observer saw every arrival event, so order
 falls out of the observation log under perfect recall.
 
-`top_of(z)` / `bottom_of(z)` are stdlib functions over any card
+`top_of(z)` / `bottom_of(z)` are native functions over any card
 collection; on an empty collection they fail loudly at runtime (guard
 first — `Z is not empty`). Their use in a move *guard* is subject to the
 same discipline as every guard expression: legality must not read
@@ -2399,7 +2452,7 @@ legal-action-agreement proofs police (`tests/openspiel_ready/`).
 A game's individuated zone content is declared with exactly one head
 clause — `cards: <deck>` (a card deck) or `pieces: <set>` (a piece set)
 — naming one entry of the closed component-set registry
-([library.md](library.md), "Stdlib component sets"). The two are
+([library.md](library.md), "Built-in component sets"). The two are
 mutually exclusive and one is required; a game declaring both, or
 neither, is rejected (no game has witnessed needing both).
 
@@ -2429,10 +2482,10 @@ game, is rejected with a diagnostic naming the game's declared kind
 ("this game declares pieces ('xo_marks')") — and symmetrically the
 `piece`/`pieces` noun is rejected in a card game. The guarded surfaces
 are the transfer/reveal item noun, the filter binder, `.suit`/`.rank`
-field access, the card-query and aggregation forms, the `ranking:` and
-`trump:` clauses, the `suit`/`rank` quantifier and iteration roles, the
-`Card`/`Suit`/`Suit?`/`Rank` move-parameter domains, the deck-reading
-stdlib calls, and card literals. Each rejection sits at the layer that
+field access, the card-query and aggregation forms, the `ranking:`,
+`trump:`, and `card_points { }` clauses, the `suit`/`rank` quantifier and
+iteration roles, the `Card`/`Suit`/`Suit?`/`Rank` move-parameter domains,
+the deck-reading native calls, and card literals. Each rejection sits at the layer that
 owns the operand-kind class (the typechecker), naming the kind rather
 than parsing the construct and silently giving it card meaning — the
 "accepted-but-ignored" failure this guard exists to prevent.
@@ -2450,7 +2503,7 @@ consumes no randomness — every seed yields the identical game.
 
 The acceptance property for `Card`-as-a-specialization-of-`Piece` is
 that **the card corpus cannot tell**: every card game keeps `cards:`,
-its card queries, and byte-identical behavior. Piece twins of the
+its card queries, and byte-identical behavior. Piece Shadow Guards of the
 card-query and aggregation forms are deliberately absent from the
 grammar (a piece game counts and aggregates through the generic
 collection surfaces a card game shares); the deferred declaration-site
@@ -2485,7 +2538,7 @@ to its witness; see issue #118.
 
 A game with a spatial board declares it with a `board: <family>(<args>)`
 clause: it selects a family from the closed `BOARDS` registry
-([library.md](library.md), "Stdlib boards") and gives its integer
+([library.md](library.md), "Built-in boards") and gives its integer
 arguments.
 
 ```text
@@ -2557,7 +2610,7 @@ escape instead. Where a collection value exists, two collection forms
 iterate it: `any line in <lines> where <pred>` walks a collection of
 lines (binder `line`, type `TLine`), and `all cells in <line> where
 <pred>` walks the cells of one line (binder `cell`, type `TCell`).
-`lines(k)` is the stdlib call the board's declared length-`k` lines are
+`lines(k)` is the native call the board's declared length-`k` lines are
 read through — every straight run of `k` cells along a row, column, or
 diagonal — returning a collection of `TLine`, each an ordered tuple of
 cells; `grid(3, 3)`'s `lines(3)` is the eight tic-tac-toe lines. A
@@ -2601,9 +2654,9 @@ one player's forward and the other's backward, because the second seat's
 frame is the 180-degree rotation of the first's — one shared board, a
 declared per-player transform, never a second board. The transform is
 folded into the class-1 verbs, which take the acting player and resolve
-the direction in that player's frame. Five closed stdlib verbs read the
+the direction in that player's frame. Five closed Builtin verbs read the
 board entry (rejected in a boardless game naming `board:`, the `lines(k)`
-twins):
+Shadow Guards):
 
 - `neighbor(from, along, player)` — the cell one step along `along` in
   `player`'s frame, a `TCell`. It is **total**: an off-board step is a
@@ -2688,12 +2741,13 @@ name.
 
 ## Player-collection queries
 
-Three expression forms query the player ring by a predicate:
+Four expression forms query the player ring by a predicate:
 
 ```text
-players where <pred>              // the set of matching players
-the player where <pred>           // the unique matching player (errors if not exactly one)
-number of players where <pred>    // how many match
+players where <pred>                        // the set of matching players
+the player where <pred>                     // the unique matching player (errors if not exactly one)
+the first player from <seat> where <pred>   // the ring search: the first satisfying seat of one lap
+number of players where <pred>              // how many match
 ```
 
 The predicate is evaluated once per player with `player` bound to the
@@ -2714,6 +2768,25 @@ where not eliminated[player]) > 1`.
 uses; it is an error at runtime for the predicate to match zero or
 several players, since it names exactly one.
 
+**The ring search** scans exactly one lap of the seat ring in the game's
+`direction:`, starting AT the named seat — the kernel's own "at or after"
+ring-start convention (see "The climbing form of `round`") — and yields the
+first seat whose predicate holds: `the first player from leader where
+hand[player] is not empty` is Tichu's post-trick lead advance read aloud.
+The start is any seat-valued expression, evaluated OUTSIDE the binder
+scope; it sits below the query forms in the grammar, so a query used as
+the start parenthesizes (`from (the player where …) where …`). The
+exclusive variant is spelled by composition — `from dealer offset_by left
+where in_hand[player]`, Hold'em's button advance — and because `offset_by`
+is a seat direction (absolute), the exclusive spelling composes with the
+seat direction that matches the game's turn direction: `offset_by left` in
+a clockwise game, `offset_by right` in a counterclockwise one. There is no
+default clause and no per-form direction clause; a full lap with no
+satisfying seat is a typed runtime error naming the form, exactly as `the
+player where` errors off its premise — a game whose ring can legitimately
+empty writes the guard it means (`if any player where … { … }`, Tichu's
+own post-trick spelling).
+
 `is not empty` is the negation of `is empty` (a zone predicate), paired
 for elimination games that select the player who *still* holds cards.
 
@@ -2722,7 +2795,7 @@ for elimination games that select the player who *still* holds cards.
 > **Status: designed, not yet built.** No game runs this subsystem — the runtime
 > has no `apply_components:` construct, and `ScoreDelta`/`triggered_by:` are not
 > implemented. It is the intended shape for composed scoring; the corpus scores
-> through game-local statements and stdlib primitives today (Bridge and Spades
+> through game-local statements and Primitives today (Bridge and Spades
 > inline; Pinochle's `pinochle_meld_value`, Tarot's `tarot_per_opp`, Cribbage's
 > pegging/show primitives). The components named here and in the sibling sections
 > are the proposed decomposition, promoted corpus-first when the subsystem lands.
@@ -2743,7 +2816,7 @@ phase scoring {
 ```
 
 Each component takes the hand result and returns a `ScoreDelta` — a
-structured value carrying per-partnership (or per-player)
+structured value carrying per-team (or per-player)
 contributions. The scoring phase sums the deltas across all
 components and applies the result atomically.
 
@@ -2754,7 +2827,7 @@ contribute to a single applied write.
 
 **Structured-score shapes are per-game, not generalized.** Bridge's
 `ScoreDelta { above_line, below_line }` has two channels per
-partnership because the game-win threshold cares specifically about
+team because the game-win threshold cares specifically about
 below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
 history. The games whose score is a single integer per player
@@ -2774,18 +2847,54 @@ game's `ScoreDelta` carries whatever fields the game's scoring
 mechanics need (one integer, two channels, a list of pots, etc.);
 no shared `ScoreStructure` type.
 
-**Per-card point values are inline expressions or per-game
-helpers.** Hearts scores `if card.suit is hearts then 1 elif
-card is Q of spades then 13 else 0` inline; Pinochle scores
-`if card.rank in [A, 10, K] then 10 else 0` inline; Tichu mixes
-specials and ranks. A declarative rank-keyed `counters: { ... }`
-block on the card definition was considered but only cleanly
-handles the Pinochle shape — Hearts' suit-plus-special-card and
-Tichu's special-card-plus-rank scoring both need richer
-expressions. Inline conditionals scale to all three. Lift to a
-per-game helper function when a table is large enough to repay
-the indirection (the cribbage show-scoring components are an
-example).
+**Per-card points: a rank-keyed table is the `card_points { }`
+clause; everything richer stays an inline expression or a
+per-game helper.** A game whose card points are a function of
+rank declares them as a block clause beside `cards:`, rows in
+`ranking:`'s key position (a NAME or a bare INT), values static
+signed integer literals, with one optional trailing `else:` row
+for the everything-else value:
+
+```text
+card_points {
+  A: 1
+  2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
+  J: 10  Q: 10  K: 10
+}
+```
+
+Rows are whitespace-separated like every block clause; the empty
+block is a syntax error (at least one rank row); a duplicate rank
+key and a key that is not a rank of the declared deck are resolve
+errors naming the deck. Unlisted ranks read the `else:` value, or
+0 with no else row (Tichu's sparse table prices five ranks; the
+rest read 0). Negative rows are ordinary (`Phoenix: -25`). The
+`card_points(card)` Builtin reads the declared table, and calling
+it in a game that declares no clause is a resolve error — the
+table has ONE source, the game's own clause: the deck registry
+carries composition only, never points (`values.Deck`), so one
+deck serves games that price it differently, and a piece game is
+refused the clause outright (the noun/content agreement guard,
+"Component sets: cards and pieces").
+
+The clause deliberately carries no more than the rank-keyed
+table. Card points that vary by more than rank stay inline or in
+a per-game `function`, composed OVER the clause where a table
+carries part of the fact: Hearts scores `if card.suit is hearts
+then 1 elif card is Q of spades then 13 else 0` inline; French
+Tarot declares `card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }`
+and wraps its bouts inline (`if is_bout(card) then 9 else
+card_points(card)` — a rank-keyed table cannot carry the petit,
+whose rank "1" is worth 9 in the atouts and 1 in the plain
+suits); Belote's trump-dependent pricing is a per-game function
+with no table at all. A declarative rank-keyed `counters: { ... }`
+block on the CARD definition was considered and stays rejected —
+it re-attaches a scoring fact to the component, and only cleanly
+handles the pure-rank shape; the game-level clause carries that
+shape, and inline conditionals scale to the rest. Lift to a
+per-game helper function when the composition is large enough to
+repay the indirection (Canasta's twelve-pile meld sum,
+`canasta_meld_points`, is an example).
 
 ## Triggered scoring components
 
@@ -2794,7 +2903,7 @@ example).
 
 Some scoring fires in response to a specific event rather than as
 part of an `apply_components:` batch. Bridge's GameBonus fires when
-a partnership's below-the-line score crosses 100; RubberBonus fires
+a team's below-the-line score crosses 100; RubberBonus fires
 when `games_won` reaches 2; Spades' bag-overflow fires when
 `bags >= 10`. These
 share one shape, distinct from the batched per-hand composition:
@@ -3557,7 +3666,7 @@ one layer out: the count is a second statement of a fact the code already
 holds, and the two drift (`decisions.md` is not exempt from
 [maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
 Where the set is worth naming, name the registry that defines it — the
-prose-only game twins are `PROSE_ONLY_TWINS`, not "six twins" — so a
+prose-only game Shadow Guards are `PROSE_ONLY_TWINS`, not "six Shadow Guards" — so a
 reader can count it and a change that grows it cannot leave the sentence
 behind. Identifiers in prose carry the same hazard for the same reason:
 nothing checks that a backticked name still resolves, so one naming a
@@ -3591,12 +3700,15 @@ be correct if dated should be dated, not deleted — the figures are
 evidence, and deleting them to satisfy this rule would cost the argument
 its support.
 
-An Owner Guard must also speak its **layer's failure currency**: the compile
+An Owner Guard must also speak its **layer's failure channel**: the compile
 stages fail as diagnostics (`DiagnosticBag`, with a span and a
 designer-readable message — a raw registry raise mid-resolve is loud in
-the wrong currency and suppresses every other diagnostic in the file);
+the wrong channel and suppresses every other diagnostic in the file);
 the runtime fails as typed exceptions; the proofs fail with a witness.
-Loud-but-wrong-layer is a bug with the same rank as silent.
+Loud-but-wrong-layer is a bug with the same rank as silent. "Channel" is
+never bare: a game's scoring channels, the observation channel and a
+library's feeding channel are different things (see the glossary's
+reserved words).
 
 **A check lands only after naming its owner (write-time triage).** Two
 tells at edit time mean information is being lost rather than defended:
@@ -3607,7 +3719,7 @@ declares), and *guarding* a condition that is already checked somewhere
 else. Either tell stops the edit — the fix is upstream, not local. Before
 it lands, the check is classified as exactly one of three things: an
 **Owner Guard** (it moves to the layer that owns the class, in that layer's
-currency, with a test), a **Shadow Guard** (it stays, and its comment names
+failure channel, with a test), a **Shadow Guard** (it stays, and its comment names
 the Owner Guard it shadows — and the recorded residual that makes it reachable,
 if one exists), or a **missing Owner Guard** (the Owner Guard is built at the owning
 layer, and the local site becomes a Shadow Guard citing it). A guard that
@@ -3616,7 +3728,7 @@ contract — what it assumes, what it establishes, and what becomes illegal
 after it — in a `Contract` block in its module docstring
 (`cardlang/parse.py` through `cardlang/ir.py`); the owning pass's contract
 decides where a check belongs. For the runtime packages the triage is
-mechanized: `tests/test_assert_triage.py` scrapes every assert-currency
+mechanized: `tests/test_assert_triage.py` scrapes every assert-channel
 site in `cardlang/runtime/` and `cardlang/stdlib/` and fails the build on
 any site whose attached text names neither a dispatch fallthrough nor the
 Owner Guard it shadows.
@@ -3664,18 +3776,18 @@ without it, and the temptation is to name the crash: "without this guard,
 `to each hand[0]` would die on the executor's `NameRef` assert". That
 couples the comment to another module's current implementation — the one
 detail a reader editing *this* file never sees, and the one most likely to
-move. Failure currency is deliberately mobile here: a bare `KeyError`
+move. The failure channel is deliberately mobile here: a bare `KeyError`
 becomes a typed `RuntimeError`, a Shadow Guard assert becomes an Owner Guard one layer
 up. Every comment naming the old type is then confidently wrong while still
 reading as precise, which is worse than vague. Name instead what the
 downstream layer *requires* — the thing that actually justifies the guard:
 "without this guard, it would reach the executor, which requires a zone in
 this position and refuses anything else at play time". The warning survives
-a change of currency; the coupling does not. The exception type is
-load-bearing in two places. The first is an argument *about* failure currency
+a change of channel; the coupling does not. The exception type is
+load-bearing in two places. The first is an argument *about* the failure channel
 ("a typed error, not a bare `KeyError`"), where the type is the subject
 rather than incidental colour. The second is a type that carries a guard's
-ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary section 5) — where
+ROLE — `OwnerGuardError` and `ShadowGuardError` (glossary/owner-guard.md, glossary/shadow-guard.md) — where
 the type IS the classification rather than a report of it. Mobility still runs
 in the direction this rule was written for: bare to typed is an upgrade in
 specificity, and it stays free. What is no longer free is a guard changing
@@ -3952,8 +4064,8 @@ none is coming.
 **State reaches a library two ways, and the difference is ownership.** A library
 `requires` state the including GAME owns, and `state`s the state the LIBRARY
 owns. Both are checked at the `uses` line, so an unmet contract or a collision
-lands in the game's currency rather than as an undeclared name inside spliced
-library text the author never typed.
+is reported to the game's author rather than as an undeclared name inside
+spliced library text they never typed.
 
 ```text
 requires {
@@ -4018,7 +4130,7 @@ declares no `positions { }` and cannot name one, so a position-indexed zone
 family cannot be contracted at all.
 
 That the derivation IS a derivation rests on a guard: a declared `type` and a
-per-game `positions { }` name may not take a stdlib zone type's spelling. Without
+per-game `positions { }` name may not take a kernel zone type's spelling. Without
 it `type Hand = { … }` would make `requires { x : Hand }` mean two things, and
 the classification would silently pick one.
 
@@ -4041,11 +4153,11 @@ imagined pressure, and this paragraph exists so the question is not silently
 reopened — reopen it when a family produces a case these two mechanisms cannot
 express, and name that case.
 
-A requirement's own index is checked first, and in the LIBRARY's currency:
+A requirement's own index is checked first, and reported to the LIBRARY's author:
 `requires { seen[rank] : Integer }` is refused where the library wrote it,
 because an index must be a role a state variable can be keyed by
 (player/team) and no game could answer such a requirement. That is the
-library twin of the state-index guard, and the difference in currency is
+library Shadow Guard of the state-index guard, and the difference is
 who can fix it — an unmet contract is a fact about the importing game, a
 malformed index is wrong in the library's own text. A mismatch between a
 well-formed requirement and the game's declaration names both roles
@@ -4078,8 +4190,8 @@ library alone, before any game is consulted. Without that the contract would be
 a suggestion: a body reading past it resolves against a game that happens to
 declare the extra name and fails against a game meeting the contract in full,
 reporting an unresolved-name error inside library text the game's author never
-wrote. That is the currency failure `requires` exists to prevent, arriving by
-the back door, and it is why the check reports in the LIBRARY's currency — the
+wrote. That is the misaddressed failure `requires` exists to prevent, arriving by
+the back door, and it is why the check reports to the LIBRARY's author — the
 library author is the only one who can fix it. The same rule makes a library
 deck-agnostic: it names no rank, no suit and no card, because those exist only
 once an including game names a deck, and a family's members do not share one
@@ -4097,7 +4209,7 @@ authored, because no annotation carries it.
 
 The registry is what makes the boundary statable. A namespace a library can
 reach is either swept against what the library itself has, or carries a written
-reason why reaching it is not a channel — a closed stdlib or domain registry
+reason why reaching it is not a channel — a closed kernel table or domain registry
 identical either side, or a name owned by a declaration that IS swept. There is
 no third state, and no consumer keeps a list of the slots it remembered.
 
@@ -4264,6 +4376,6 @@ different *shape* of material. Read Survey 2 as "phases were not forced by this
 family", not as "phases are settled".
 
 The tier's completeness gate is `tests/test_family_libraries.py`, whose ledger
-records the one deliberate non-cell: stdlib move types and a game's `move_type`
+records the one deliberate non-cell: kernel move types and a game's `move_type`
 definitions are disjoint consult paths that never share a namespace, so there is
 no collision there to guard against.

@@ -1,6 +1,6 @@
-// Wall: resolve.py's `_resolve_board`. A `board:` clause lays out piece
+// Guard: resolve.py's `_resolve_board`. A `board:` clause lays out piece
 // positions and is only valid alongside `pieces:`. Parse enforces cards XOR
-// pieces, so a board on a card deck is the same wall as a board without
+// pieces, so a board on a card deck is the same guard as a board without
 // pieces -- rejected until a game witnesses needing both.
 game BoardWithCards {
   players: 2

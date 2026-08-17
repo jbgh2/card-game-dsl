@@ -3,7 +3,7 @@ type. `v : Integer = "s"` had parsed, resolved, and run — the declared
 `type_name` reached the checker only as the variable's type for later reads, and
 the default expression was never compared against it.
 
-Found by the surface-totality audit of the declare-time scope wall
+Found by the surface-totality audit of the declare-time scope guard
 (`test_state_default_scope.py`), recorded as that grid's one residual (the
 `AllPlayers` row: `v : Integer = all players` was accepted), and closed here.
 The check mirrors `_check_assign`: `infer(default)` must be `assignable` to
@@ -18,20 +18,20 @@ property:   a `state { }` default that `check_dsl` accepts has a type
 domain:     declared value type x inferred default type. The declared axis is
             `KNOWN_TYPE_NAMES` (scalars + enums) crossed with {plain, optional,
             indexed} plus struct types; the default axis is the `n.Expr` union's
-            inferred types. The verdict for a cell is `assignable(default,
-            declared)` — the same relation the wall uses, computed
+            inferred types. The verdict for a cell is `coercible(default,
+            declared)` — the same relation the guard uses, computed
             independently in the breadth sweep so the test drives the real
-            pipeline against an expected column it did not scrape from the wall.
+            pipeline against an expected column it did not scrape from the guard.
 covered:    the concrete cells below (hand-decided outcomes for the behaviours
             that matter — primitive mismatch, the `all players` residual,
             optional/non-optional `none`, indexed element-checking, struct
             fit), executed at BOTH default sites (game-level and nested-phase);
             plus the derived breadth sweep over the declared x default cross.
-residual:   PRECISION, stated like the `Call` ban's: the wall is exactly as
+residual:   PRECISION, stated like the `Call` ban's: the guard is exactly as
             sharp as `infer`, which returns `TAny` (the permissive top) for its
             unrefined arms, so a default whose inferred type is `TAny` passes
             whatever the declared type. This is the type system's design, not a
-            hole in the wall — `assignable` treats `TAny` as compatible
+            hole in the guard — `assignable` treats `TAny` as compatible
             everywhere. No corpus default is `TAny`-typed (all 268 are precise),
             so nothing rides on the boundary today; it moves as `infer` gains
             precision, never needing a change here.
@@ -47,14 +47,14 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 from cardlang.typecheck import env_from_game, infer, type_from_name
-from cardlang.types import assignable
+from cardlang.types import coercible
 
 
 def _game(state_decls: str, tail: str = "", *, deck: str = "standard52") -> str:
     # 8 seats so the breadth sweep's fixed integer default (`7`) is a VALID seat
     # for a `Player`-typed cell: this test isolates ASSIGNABILITY, and the
     # operand choke point additionally range-checks a Player/Team literal (that
-    # wall is `tests/test_player_literal_range.py`). Keeping 7 in range makes the
+    # guard is `tests/test_player_literal_range.py`). Keeping 7 in range makes the
     # range check a no-op here, so `assignable` stays the sweep's complete model.
     return f"""
 game Probe {{
@@ -71,7 +71,7 @@ game Probe {{
 
 
 # Each cell: (declaration text, ACCEPT?) — the outcome is a human judgement about
-# what the language should do, not a value read back from the wall.
+# what the language should do, not a value read back from the guard.
 _CELLS: list[tuple[str, bool]] = [
     ("v : Integer = 7", True),
     ('v : Integer = "s"', False),  # StrLit into Integer
@@ -138,7 +138,7 @@ _DEFAULTS: list[str] = ["7", '"s"', "false", "none", "hearts", "all players"]
 def test_breadth_sweep_matches_assignable(
     decl_prefix: str, type_name: str, optional: bool, default: str
 ) -> None:
-    """The added-breadth cross. The expected column is `assignable(infer(default),
+    """The added-breadth cross. The expected column is `coercible(infer(default),
     type_from_name(...))` computed here against the real type machinery — NOT
     scraped from `check_dsl` or the new helper — so the test proves the default
     is actually routed through `assignable`, and a wiring bug (checking the
@@ -151,7 +151,7 @@ def test_breadth_sweep_matches_assignable(
     probe_env = env_from_game(check_bare(source))
     declared = type_from_name(type_name, optional, probe_env.structs)
     got = infer(_default_expr(source), probe_env)
-    expected_accept = assignable(got, declared)
+    expected_accept = coercible(got, declared)
 
     accepted = True
     try:
@@ -161,12 +161,12 @@ def test_breadth_sweep_matches_assignable(
     verb = "accepted" if accepted else "rejected"
     assert accepted == expected_accept, (
         f"{decl_prefix} = {default}: pipeline {verb}, "
-        f"assignable({got}, {declared}) = {expected_accept}"
+        f"coercible({got}, {declared}) = {expected_accept}"
     )
 
 
 def check_bare(source: str):  # type: ignore[no-untyped-def]
-    """Parse+resolve without typecheck, so a default that the wall would reject
+    """Parse+resolve without typecheck, so a default that the guard would reject
     is still available to `infer` for the sweep's independent expectation."""
     from cardlang.parse import parse_text
     from cardlang.resolve import resolve

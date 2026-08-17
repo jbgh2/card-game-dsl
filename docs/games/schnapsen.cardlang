@@ -1,9 +1,10 @@
 // Schnapsen — formalized DSL (parser/checker/runtime target).
 //
 // Companion to schnapsen.md. Two-player Ace-Ten point-trick game on the 20-card
-// schnapsen20 deck (A 10 K Q J high to low; values A=11 10=10 K=4 Q=3 J=2, so
-// the deck holds 120 card points). A hand is played to 66 card points; the match
-// runs to 7 game points scored downward (first to 0 wins).
+// schnapsen20 deck (A 10 K Q J high to low; the `card_points` table prices it
+// A=11 10=10 K=4 Q=3 J=2, so the deck holds 120 card points). A hand is played
+// to 66 card points; the match runs to 7 game points scored downward (first
+// to 0 wins).
 //
 // The hand runs fully on the kernel: the leader's heterogeneous turn (lead a
 // card, declare a marriage, exchange the trump jack, close the talon) is the
@@ -23,6 +24,7 @@ game Schnapsen {
 
   cards: schnapsen20
   ranking: ace-ten
+  card_points { A: 11  10: 10  K: 4  Q: 3  J: 2 }
 
   zones {
     deck            : Deck
@@ -43,7 +45,7 @@ game Schnapsen {
       dealer                 : Player  = 0
       leader                 : Player? = none
       trump_suit             : Suit?   = none
-      card_points[player]    : Integer = 0
+      points_taken[player]   : Integer = 0
       tricks_won[player]     : Integer = 0
     }
 
@@ -57,7 +59,7 @@ game Schnapsen {
       move all cards from deck to talon            // the rest is the stock
       dealer := dealer offset_by left              // alternates each hand
       leader := the player where player is not dealer  // non-dealer leads
-      for each player p: card_points[p] := 0
+      for each player p: points_taken[p] := 0
       for each player p: tricks_won[p] := 0
     }
 
@@ -104,11 +106,11 @@ game Schnapsen {
           }
         }
 
-        let w = schnapsen_trick_winner(leader, trump_suit)
-        card_points[w] += sum of card_value(card) over cards in trick_pile
+        let w = highest_trump_or_led_suit(trick_pile, trump_suit)
+        points_taken[w] += sum of card_points(card) over cards in trick_pile
         tricks_won[w] += 1
         if pending[w] > 0 {
-          card_points[w] += pending[w]
+          points_taken[w] += pending[w]
           pending[w] := 0
         }
         move all cards from trick_pile to captured[w]
@@ -116,14 +118,14 @@ game Schnapsen {
 
         // Claim the instant a player reaches 66 (the trick winner checked first).
         let lo = the player where player is not w
-        if card_points[w] >= 66 {
+        if points_taken[w] >= 66 {
           produce claimed(w,
-                          if closed_by is not none and closed_by is w then closer_opp_cp else card_points[lo],
+                          if closed_by is not none and closed_by is w then closer_opp_cp else points_taken[lo],
                           if closed_by is not none and closed_by is w then closer_opp_tr else tricks_won[lo])
         }
-        if card_points[lo] >= 66 {
+        if points_taken[lo] >= 66 {
           produce claimed(lo,
-                          if closed_by is not none and closed_by is lo then closer_opp_cp else card_points[w],
+                          if closed_by is not none and closed_by is lo then closer_opp_cp else points_taken[w],
                           if closed_by is not none and closed_by is lo then closer_opp_tr else tricks_won[w])
         }
 
@@ -183,7 +185,7 @@ move_type declare_marriage(s : Suit) {
   effect {
     // 40 for the royal (trump) marriage, 20 otherwise — banked until the
     // declarer has won a trick.
-    if tricks_won[actor] > 0 { card_points[actor] += if s is trump_suit then 40 else 20 }
+    if tricks_won[actor] > 0 { points_taken[actor] += if s is trump_suit then 40 else 20 }
     else { pending[actor] += if s is trump_suit then 40 else 20 }
     move one card from hand[actor] where card.rank is Q and card.suit is s to trick_pile
   }
@@ -208,7 +210,7 @@ move_type close_talon {
     closed := true
     closed_by := actor
     let opp = the player where player is not actor
-    closer_opp_cp := card_points[opp]
+    closer_opp_cp := points_taken[opp]
     closer_opp_tr := tricks_won[opp]
   }
 }

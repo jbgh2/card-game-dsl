@@ -19,7 +19,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Zone** | A named container parameterized by what it holds: `Zone<Card>`, `Zone<Resource>`, `Zone<Resource<chip>>`. Carries a per-observer visibility declaration (which projection of zone contents each observer is informed by — see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"), ownership, and structural type (set, ordered, stack). Library types in [library.md](library.md) give common configurations named aliases (`Hand<Player>`, `Deck`, `Discard`, `TrickPile`, `ChipStack<Player>`, `Pot`). |
 | **Card queries** | The English query surface over zones: `cards in … where`, `number of cards in …`, `any/all card(s) in … where`, `sum of … over cards in …`, `highest/lowest … over cards in … or <default>` (decisions.md "The expression register"). |
 | **TurnOrder** | A cyclic ordering of players with a current pointer and optionally a direction. Operations: advance, reverse, set. |
-| **State variable** | A typed, named, scoped piece of game state. Scope is lexical: a variable lives as long as the phase instance that lexically encloses its declaration. See [decisions.md](decisions.md) "State scoping" and "Mutation semantics"; [appendix.md](appendix.md) catalogues every state variable across the five-game corpus as a reference for both. |
+| **State variable** | A typed, named, scoped piece of game state. Scope is lexical: a variable lives as long as the phase instance that lexically encloses its declaration. See [decisions.md](decisions.md) "State scoping (lexical)" and "Mutation semantics"; [appendix.md](appendix.md) catalogues every state variable across the five-game corpus as a reference for both. |
 | **User-defined type** | A struct-like declaration with named, typed fields and optional `derived` fields. May be parameterized (see [library.md](library.md), "Types"). See [decisions.md](decisions.md) "Typed object model". |
 | **Move type** | A named, parameterized player action: declared source/destination/participating zones and associated events. Reusable across games. A move type's effect is written as **Transfers** (below). |
 | **Move** | One played instance of a Move type, bound to its Parameters. A Move performs zero, one, or many **Transfers** — see "Moves and Transfers" below. |
@@ -28,7 +28,7 @@ All domain-neutral. About twenty things; none of them mention "trick" or
 | **Rule** | A named, parameterizable constraint on a move type. Attached to phases via the phase's active rule set. |
 | **Constraint composition** | Rules combine by intersection (AND) over the set of legal candidate moves. |
 | **Observation event** | An event emitted automatically by a move or memory operation, projected per observer according to the visibility settings of the zones involved (see [decisions.md](decisions.md) "Knowledge, visibility, and the projection model"). Maintained as per-player histories; used to derive information sets. |
-| **Memory operation** | A stdlib-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `transfer`, `muck`, `forget`). See [decisions.md](decisions.md). |
+| **Memory operation** | A native-named operation that affects player knowledge (`peek`, `reveal`, `hide`, `shuffle`, `announce`, `expose_top`, `deal`, `transfer`, `muck`, `forget`). See [decisions.md](decisions.md). |
 | **Resolution** | A deterministic computation over current state, used to drive non-choice moves (e.g., "who won the trick"). |
 | **Scoring component** | A named, parameterizable function producing a ScoreDelta. Batched components compose by summation inside `apply_components:`; triggered components fire on specific events via `triggered_by:` clauses. Bridge introduced this; see [library.md](library.md) "Scoring components" and [decisions.md](decisions.md) "Scoring composition" / "Triggered scoring components". |
 
@@ -168,7 +168,7 @@ intersection: the cards it selects (when `applies_when` holds) sit *outside*
 every rule's demand entirely — never narrowed, never counted toward
 satisfying one — and are appended after every other legal card, in hand
 order (French Tarot's Excuse: never bound by follow-suit/trump obligations,
-always playable last; see [decisions.md](decisions.md) "Rule exemption").
+always playable last; see [decisions.md](decisions.md) "Rule exemption (`exempts:`)").
 
 Rules are referenced from phases by name:
 
@@ -180,7 +180,7 @@ phase play {
 
 ### Move types
 
-A move type names a kind of move a player can make. Some are stdlib
+A move type names a kind of move a player can make. Some are kernel move types
 names shared across games (`play_to_trick`, `submit_bid`); a game also
 defines its own with a `move_type` block — an optional `when:` guard
 and an `effect` that carries out the move:
@@ -193,7 +193,7 @@ move_type play_card(c : Card) {
 
 Rules attach to move types via their `constrains:` clause. A game
 references a move type by name in a phase's `legal_moves:` or an
-`offer`; the stdlib move types are shared, so Hearts, Spades, and
+`offer`; the kernel move types are shared, so Hearts, Spades, and
 Pinochle all use `play_to_trick`.
 
 The set of legal move types in a phase is derivable from the phase's active

@@ -60,11 +60,11 @@ direction rather than picking a new one.
   own name (`MustFollowEffectiveSuit`) — shadowing a library name is
   rejected.
 - **Domain completion** — negative Integer literals; deck-derived rank
-  values with the enum-comparison wall; suit/rank quantifier and `for each`
+  values with the enum-comparison Owner Guard; suit/rank quantifier and `for each`
   domains; membership `in` with list literals
   ([decisions.md](../decisions.md) "The expression register",
   [roadmap.md](../roadmap.md), "Grammar surface deferred by the checker",
-  for the walls).
+  for the Owner Guards).
 - **The `count`-body defect** — closed first, independently (the evaluator
   discarded a `count` body silently); the whole aggregator class was swept
   and the retired spelling is now unparseable.
@@ -87,7 +87,7 @@ direction rather than picking a new one.
   name-form ranks are bare enum values, numeric ranks keep the string
   spelling *validated against the deck*, and the checker rejects every
   silently-false shape (Rank vs Integer, name-form-in-string, unknown
-  values, cross-enum). One spelling per rank, loud walls between them.
+  values, cross-enum). One spelling per rank, loud Owner Guards between them.
 - **Nested card queries surfaced a binder-capture limit.** Exactly one
   nesting level can use the implicit `card`; go-fish's per-rank book counts
   needed the outer card's rank inside an inner count. The register-pure
@@ -107,7 +107,7 @@ direction rather than picking a new one.
 
 1. **Named procedures.** The one definition-form gap with a forcing corpus case
    (Coup ×29). Spec: [../decisions.md](../decisions.md) "Named procedures";
-   the design conversation and the two hygiene walls it did not anticipate are in
+   the design conversation and the two hygiene Owner Guards it did not anticipate are in
    [procedures.md](procedures.md). Coup: 521 → 375 lines, 29 pasted blocks → 3.
 2. **The `state.` pronoun split.** This was mis-triaged here as ergonomics ("a
    real semantic distinction with no surface cue... not blocking anything"). It
@@ -144,4 +144,4 @@ evidence did not support:
   zone (`influence[victim]`).
 - The **`trick.` rename** item 2 proposed would not have fixed anything —
   `trick.idx` would still have been readable. The surface cue was never the
-  problem; the missing wall was.
+  problem; the missing Owner Guard was.

@@ -242,7 +242,7 @@ def test_adapter_agrees_over_two_whole_leduc_deals() -> None:
         assert not state.is_terminal()
         assert state.current_player() == r.player
         assert state.legal_actions() == r.legal
-        # ...and the rendered text agrees too. Backstop; the wall is
+        # ...and the rendered text agrees too. Shadow Guard; the guard is
         # `test_action_strings.py` (see `harness.action_strings`).
         assert [state.action_to_string(r.player, a) for a in state.legal_actions()] == (
             action_strings(space, r.legal)

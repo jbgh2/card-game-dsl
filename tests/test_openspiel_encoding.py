@@ -11,13 +11,13 @@ from cardlang.openspiel.encoding import (
     action_to_card,
     card_to_action,
 )
-from cardlang.runtime import reads, sidecar
+from cardlang.runtime import reads, narrowing
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.tichu import ROW as TICHU_ROW
 from cardlang.runtime.values import RANKS, SUITS, Card, Seating
 
 
-def _tichu_bundles() -> tuple[sidecar.EngineFacts, reads.GameReads]:
+def _tichu_bundles() -> tuple[narrowing.EngineFacts, reads.GameReads]:
     """The bundles a tichu climb query receives. The lead query ignores them
     (Tichu leads depend only on the hand), but they are built for real rather
     than faked: a None would only typecheck behind an ignore, and the next
@@ -29,7 +29,7 @@ def _tichu_bundles() -> tuple[sidecar.EngineFacts, reads.GameReads]:
     rs.push_frame()
     rs.declare("out_first", False, None)
     rs.declare("out_second", False, None)
-    return sidecar.bind(rs, None, TICHU_ROW)
+    return narrowing.bind(rs, None, TICHU_ROW)
 
 
 def test_round_trip_all_52() -> None:
@@ -311,7 +311,7 @@ def test_tichu_space_derives_its_own_56_block_and_the_combo_codec() -> None:
     # Spot ids: the combo block opens at 63 with the Dog (its own trick-ending
     # kind), and the engine's Phoenix+Mahjong pair (the by_rank quirk) sits at
     # a pinned slot inside the pair sub-block.
-    from cardlang.runtime.combinations import Play
+    from cardlang.runtime.tichu_combinations import Play
     from cardlang.runtime.values import build_deck
 
     deck = build_deck("tichu56")

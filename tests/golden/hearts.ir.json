@@ -34,7 +34,7 @@
       "kind": "zone",
       "name": "deck",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Deck",
         "args": []
@@ -44,7 +44,7 @@
       "kind": "zone",
       "name": "hand",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "Hand",
         "args": [
@@ -56,7 +56,7 @@
       "kind": "zone",
       "name": "trick_pile",
       "index": null,
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "TrickPile",
         "args": []
@@ -66,7 +66,7 @@
       "kind": "zone",
       "name": "captured",
       "index": "player",
-      "type": {
+      "type_ref": {
         "kind": "type_ref",
         "name": "PlayerPile",
         "args": [
@@ -97,7 +97,7 @@
       "name": "hand_sequence",
       "qualifier": {
         "kind": "phase_qualifier",
-        "qualifier": "repeats",
+        "qualifier": "repeat_until",
         "expr": {
           "kind": "quantifier",
           "quant": "any",
@@ -113,7 +113,7 @@
                 "name": "cumulative_score",
                 "ref": "state_var"
               },
-              "index": {
+              "index_expr": {
                 "kind": "name",
                 "name": "player",
                 "ref": "local"
@@ -179,7 +179,7 @@
             {
               "kind": "epistemic_op",
               "op": "shuffle",
-              "target": {
+              "zone": {
                 "kind": "name",
                 "name": "deck",
                 "ref": "zone"
@@ -210,7 +210,7 @@
             },
             {
               "kind": "rotate",
-              "var": "pass_direction",
+              "target": "pass_direction",
               "values": [
                 "left",
                 "right",
@@ -228,7 +228,7 @@
             "qualifier": "when",
             "expr": {
               "kind": "binop",
-              "op": "!=",
+              "op": "is_not",
               "left": {
                 "kind": "name",
                 "name": "pass_direction",
@@ -268,7 +268,7 @@
                     "name": "hand",
                     "ref": "zone"
                   },
-                  "index": {
+                  "index_expr": {
                     "kind": "name",
                     "name": "player",
                     "ref": "local"
@@ -281,7 +281,7 @@
                     "name": "hand",
                     "ref": "zone"
                   },
-                  "index": {
+                  "index_expr": {
                     "kind": "binop",
                     "op": "offset_by",
                     "left": {
@@ -315,17 +315,17 @@
                 {
                   "kind": "rule_ref",
                   "name": "MustFollowSuit",
-                  "op": "plain"
+                  "delta": "plain"
                 },
                 {
                   "kind": "rule_ref",
                   "name": "MustLeadTwoOfClubsOnFirstPlay",
-                  "op": "plain"
+                  "delta": "plain"
                 },
                 {
                   "kind": "rule_ref",
                   "name": "NoPenaltyCardsOnFirstTrick",
-                  "op": "plain"
+                  "delta": "plain"
                 }
               ]
             },
@@ -337,8 +337,8 @@
             },
             {
               "kind": "assign",
-              "name": "leader",
-              "index": null,
+              "target": "leader",
+              "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "call",
@@ -387,7 +387,7 @@
                   "name": "captured",
                   "ref": "zone"
                 },
-                "index": {
+                "index_expr": {
                   "kind": "name",
                   "name": "winner",
                   "ref": "pronoun"
@@ -399,8 +399,8 @@
             },
             {
               "kind": "assign",
-              "name": "leader",
-              "index": null,
+              "target": "leader",
+              "index_expr": null,
               "op": ":=",
               "value": {
                 "kind": "name",
@@ -422,7 +422,7 @@
                 {
                   "kind": "rule_ref",
                   "name": "MustFollowSuit",
-                  "op": "plain"
+                  "delta": "plain"
                 }
               ]
             },
@@ -442,7 +442,7 @@
                     {
                       "kind": "rule_ref",
                       "name": "NoLeadingSuitUntilBroken",
-                      "op": "add",
+                      "delta": "add",
                       "args": [
                         {
                           "kind": "name",
@@ -457,13 +457,13 @@
               "transitions": [
                 {
                   "kind": "transition_to",
-                  "target": "hearts_broken",
+                  "mode": "hearts_broken",
                   "event": {
                     "kind": "move_event",
                     "move_type": "play_to_trick",
                     "where": {
                       "kind": "binop",
-                      "op": "==",
+                      "op": "is",
                       "left": {
                         "kind": "member",
                         "obj": {
@@ -495,7 +495,7 @@
             },
             {
               "kind": "repeat_until",
-              "cond": {
+              "until": {
                 "kind": "quantifier",
                 "quant": "all",
                 "role": "player",
@@ -510,7 +510,7 @@
                       "name": "hand",
                       "ref": "zone"
                     },
-                    "index": {
+                    "index_expr": {
                       "kind": "name",
                       "name": "player",
                       "ref": "local"
@@ -554,7 +554,7 @@
                       "name": "captured",
                       "ref": "zone"
                     },
-                    "index": {
+                    "index_expr": {
                       "kind": "name",
                       "name": "winner",
                       "ref": "pronoun"
@@ -566,8 +566,8 @@
                 },
                 {
                   "kind": "assign",
-                  "name": "leader",
-                  "index": null,
+                  "target": "leader",
+                  "index_expr": null,
                   "op": ":=",
                   "value": {
                     "kind": "name",
@@ -599,7 +599,7 @@
                     "name": "captured",
                     "ref": "zone"
                   },
-                  "index": {
+                  "index_expr": {
                     "kind": "name",
                     "name": "p",
                     "ref": "local"
@@ -607,10 +607,10 @@
                 },
                 "binder": "card",
                 "body": {
-                  "kind": "if",
+                  "kind": "if_expr",
                   "cond": {
                     "kind": "binop",
-                    "op": "==",
+                    "op": "is",
                     "left": {
                       "kind": "member",
                       "obj": {
@@ -634,7 +634,7 @@
                     [
                       {
                         "kind": "binop",
-                        "op": "==",
+                        "op": "is",
                         "left": {
                           "kind": "name",
                           "name": "card",
@@ -664,7 +664,7 @@
               "name": "hand_score",
               "index": "p",
               "value": {
-                "kind": "if",
+                "kind": "if_expr",
                 "cond": {
                   "kind": "quantifier",
                   "quant": "any",
@@ -672,7 +672,7 @@
                   "binder": "player",
                   "body": {
                     "kind": "binop",
-                    "op": "==",
+                    "op": "is",
                     "left": {
                       "kind": "subscript",
                       "obj": {
@@ -680,7 +680,7 @@
                         "name": "base",
                         "ref": "local"
                       },
-                      "index": {
+                      "index_expr": {
                         "kind": "name",
                         "name": "player",
                         "ref": "local"
@@ -693,10 +693,10 @@
                   }
                 },
                 "then": {
-                  "kind": "if",
+                  "kind": "if_expr",
                   "cond": {
                     "kind": "binop",
-                    "op": "==",
+                    "op": "is",
                     "left": {
                       "kind": "subscript",
                       "obj": {
@@ -704,7 +704,7 @@
                         "name": "base",
                         "ref": "local"
                       },
-                      "index": {
+                      "index_expr": {
                         "kind": "name",
                         "name": "p",
                         "ref": "local"
@@ -733,7 +733,7 @@
                     "name": "base",
                     "ref": "local"
                   },
-                  "index": {
+                  "index_expr": {
                     "kind": "name",
                     "name": "p",
                     "ref": "local"
@@ -747,8 +747,8 @@
               "binder": "p",
               "body": {
                 "kind": "assign",
-                "name": "cumulative_score",
-                "index": {
+                "target": "cumulative_score",
+                "index_expr": {
                   "kind": "name",
                   "name": "p",
                   "ref": "local"
@@ -761,7 +761,7 @@
                     "name": "hand_score",
                     "ref": "local"
                   },
-                  "index": {
+                  "index_expr": {
                     "kind": "name",
                     "name": "p",
                     "ref": "local"
@@ -777,7 +777,7 @@
   "winner": {
     "kind": "winner",
     "rank_dir": "lowest",
-    "target": "cumulative_score"
+    "state_var": "cumulative_score"
   },
   "loser": null,
   "rules": [
@@ -813,9 +813,9 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
-            "op": "==",
+            "op": "is",
             "left": {
               "kind": "name",
               "name": "card",
@@ -860,12 +860,12 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
             "op": "and",
             "left": {
               "kind": "binop",
-              "op": "!=",
+              "op": "is_not",
               "left": {
                 "kind": "member",
                 "obj": {
@@ -883,7 +883,7 @@
             },
             "right": {
               "kind": "binop",
-              "op": "!=",
+              "op": "is_not",
               "left": {
                 "kind": "name",
                 "name": "card",
@@ -936,9 +936,9 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
-            "op": "==",
+            "op": "is",
             "left": {
               "kind": "member",
               "obj": {
@@ -998,9 +998,9 @@
             "name": "hand",
             "ref": "zone"
           },
-          "pred": {
+          "where": {
             "kind": "binop",
-            "op": "!=",
+            "op": "is_not",
             "left": {
               "kind": "member",
               "obj": {

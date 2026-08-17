@@ -1,7 +1,7 @@
 """Doppelkopf — OpenSpiel readiness.
 
 Bounded conformance walk (the Skat/Tichu shape): a four-hand session runs to
-several hundred decisions, the same O(n^2) re-simulation wall; full-game-to-
+several hundred decisions, the same O(n^2) re-simulation guard; full-game-to-
 TerminalNode coverage lives in `test_openspiel_replay.py`'s KERNEL_GAMES list.
 
 Known swap caveat (the structural-infoset-proofs class): a ♣Q in the hand of
@@ -33,7 +33,12 @@ _ANNOUNCE_NAMES = (
 
 
 class TestReadiness(ReadinessProofs):
-    spec = GameSpec("cardlang_doppelkopf", "doppelkopf.cardlang", conformance_steps=120)
+    spec = GameSpec(
+        "cardlang_doppelkopf",
+        "doppelkopf.cardlang",
+        conformance_steps=120,
+        # provenance zones derive from PRIMITIVE_READS.arrival_zones (doko's row)
+    )
 
 
 def _encode(space: object, name: str) -> int:

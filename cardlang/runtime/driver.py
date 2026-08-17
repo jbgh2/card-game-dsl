@@ -1,10 +1,10 @@
 """The game driver: run the phase tree to play a game end to end.
 
-`play_game` sets up the world, runs the top-level phases, and reads the winner.
-`run_phase` handles a phase's state block and its qualifier (`when` guard /
-`repeat until` loop); `run_body` runs the items — modes are configuration, read
-by `phases.compute_active_rules` rather than executed — and threads `let`
-bindings.
+`play_game` sets up the [[world]], runs the top-level phases, and reads the
+[[winner]]. `run_phase` handles a phase's state block and its qualifier (`when`
+guard / `repeat until` loop); `run_body` runs the items — modes are
+configuration, read by `active_rules.compute_active_rules` rather than
+executed — and threads `let` bindings.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import require_role, role_members
-from cardlang.runtime import phases
+from cardlang.runtime import active_rules
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
@@ -38,7 +38,6 @@ from cardlang.runtime.values import (
     Seating,
     axis_attributes,
     build_deck,
-    component_deck,
     deck_ranks,
     deck_suits,
 )
@@ -67,6 +66,22 @@ class GameResult:
 # reconciles this set against the grammar terminal so a new RANK_DIR token
 # cannot land uncovered here.
 RANK_DIR_TO_PICK: dict[str, Callable[..., Player]] = {"highest": max, "lowest": min}
+
+
+def declared_card_points(game: n.Game) -> dict[str, int]:
+    """The game's card-point table, materialized over the deck's ranks: the
+    `card_points { }` rows verbatim, every unlisted rank at the `else:` value
+    (or 0 with no else row). Materializing here — the one load site — is what
+    keeps the table's two consumers (the `card_points(card)` Builtin and the
+    card-point census below) reading identical values by construction: neither
+    re-applies a default. Empty for a game declaring no clause (resolve's
+    clause-required guard refuses the Builtin call there, and the census sums
+    to 0, the pre-clause behavior)."""
+    if game.card_points is None:
+        return {}
+    declared = {e.rank: e.value for e in game.card_points.entries}
+    default = game.card_points.else_value or 0
+    return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
 
 
 def play_game(
@@ -105,10 +120,11 @@ def play_game(
     assert game.max_length is not None, "resolve() must reject a missing max_length"
     rs.max_length = game.max_length
     # Rank strength is read from the game's `ranking:` (high to low), so every
-    # deck ranks correctly without a hardcoded order. Card values come from the
-    # deck table (empty for games that score by other means).
+    # deck ranks correctly without a hardcoded order. Card points come from the
+    # game's own `card_points { }` clause — the ONE source; the deck registry
+    # carries no point table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
-    rs.card_values = dict(component_deck(game.deck).values)
+    rs.card_points = declared_card_points(game)
     rs.content_flavor = game.content_flavor
     rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)
@@ -123,7 +139,7 @@ def play_game(
     rs.deck_zone = next(z.name for z in game.zones if z.type_ref.name == "Deck")
     rs.zones.single(rs.deck_zone).add_all(build_deck(game.deck))
     if game.winner is not None:
-        rs.score_var = game.winner.target  # loser games have no score var
+        rs.score_var = game.winner.state_var  # loser games have no score var
     base_chooser = chooser or random_chooser(rng)
 
     uncounted = base_chooser
@@ -190,7 +206,7 @@ def play_game(
     winner: Player | None = None
     loser: Player | None = None
     if game.winner is not None:
-        scores = dict(rs.get(game.winner.target))
+        scores = dict(rs.get(game.winner.state_var))
         if game.winner.rank_dir not in RANK_DIR_TO_PICK:
             # Internal invariant, not a user diagnostic: the grammar's
             # RANK_DIR terminal and this mapping are out of sync.
@@ -226,10 +242,13 @@ def _final_card_census(rs: RuntimeState) -> dict[str, int]:
     for family in rs.zones.families.values():
         all_zones.extend(family.values())
     total = sum(len(z.cards) for z in all_zones)
-    # Total card-point value across every zone — a deck-integrity check for
-    # point-trick games (e.g. Schnapsen's 120). Zero when the deck has no values.
+    # Total card points across every zone — a deck-integrity check for
+    # point-trick games (e.g. Schnapsen's 120). Zero when the game declares no
+    # `card_points { }` clause. The table is materialized over the deck's
+    # ranks (`declared_card_points`), so the `.get` default only serves the
+    # clause-less empty table.
     total_value = sum(
-        rs.card_values.get(c.rank, 0) for z in all_zones for c in z.cards
+        rs.card_points.get(c.rank, 0) for z in all_zones for c in z.cards
     )
     hands = rs.zones.families.get("hand", {})
     with_cards = sum(1 for z in hands.values() if z.cards)
@@ -237,7 +256,10 @@ def _final_card_census(rs: RuntimeState) -> dict[str, int]:
 
 
 class _HandCounter:
-    """Counts scoring phases run, for diagnostics / invariant checks."""
+    """Counts executions of phases literally named `scoring`, reported as
+    `hands_played`, for diagnostics / invariant checks. That is a PROXY for the
+    [[hand-loop]]'s passes, not a count of them: a game whose scoring phase is
+    named otherwise reports zero (→ F-6)."""
 
     def __init__(self) -> None:
         self.value = 0
@@ -277,7 +299,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
         after = next((i for i in phase.items if isinstance(i, n.AfterEach)), None)
 
         q = phase.qualifier
-        if q is not None and q.kind == "repeats":
+        if q is not None and q.kind == "repeat_until":
             # Each new hand discards any outcome produced inside this loop's subtree
             # in the prior iteration (a producer skipped by `continue to`, or
             # guarded off). Scoped to descendants, so a sibling/ancestor outcome

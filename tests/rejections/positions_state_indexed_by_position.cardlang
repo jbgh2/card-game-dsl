@@ -1,4 +1,4 @@
-// Wall: resolve.py's state-index role check (the same registry a
+// Guard: resolve.py's state-index role check (the same registry a
 // zone index reads). A position-indexed state store is deferred —
 // rejected, never keyed-by-players silently; issue #111 records it.
 game PositionsStateIndexedByPosition {

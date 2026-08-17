@@ -1,4 +1,4 @@
-// Wall: resolve.py `_check_move_params`. A misspelled position name
+// Guard: resolve.py `_check_move_params`. A misspelled position name
 // in a parameter domain is rejected with the declared positions
 // listed beside the built-in domains.
 game PositionsParamDomainTypo {

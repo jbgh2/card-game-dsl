@@ -1,9 +1,10 @@
-"""Declared reads for game-local runtime primitives.
+"""Declared reads for game-local runtime [[primitive]]s.
 
 A game-local primitive (`cardlang/runtime/<game>.py`, plus the per-game
-auction outcomes in `stdlib.py`) is sanctioned Python for pure value
-computation (library.md "Stdlib functions"; kernel-migration.md). It reads
-live `RuntimeState` by the zone/state-variable name the game file declares —
+auction outcomes in `primitives.py`) is sanctioned Python for pure value
+computation (library.md "Native functions"; kernel-migration.md). It reads
+live `RuntimeState` by the zone / [[state-variable]] name the game file
+declares —
 a coupling the front-end pipeline cannot see: nothing about
 `zones { influence[player] : Hand<player> }` tells resolve or typecheck that
 `coup.py` also spells this name. Undeclared, that coupling surfaces as a
@@ -56,7 +57,8 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from cardlang.runtime.state import RuntimeState, Zone, elements
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import Card, Player
+from cardlang.stdlib.zones import identity_to_all
 from cardlang.types import TAny, TCollection
 
 # Atomic leaves: immutable, never descended. `str`/`bytes` are sequences (of
@@ -77,8 +79,8 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     `deep_freeze`s it: the positional args are the second channel a primitive
     can touch (the bundles are the first), and `cards.clear()` on a live zone
     list would corrupt engine state exactly as a bundle write would.
-    A SCALAR `Card` argument (a `TCard` param — `canasta_stage_ok(p, card)`,
-    `president_is_top_rank(p, c)`) is frozen too: evaluation preserves the
+    A SCALAR `Card` argument (a `TCard` param —
+    `canasta_stage_ok(p, card)`) is frozen too: evaluation preserves the
     engine's `Card` by identity, and a frozen+slots `Card` is still mutable
     via `object.__setattr__`, so an unfrozen scalar card is the same leak as
     an unfrozen collection. The freeze is SIGNATURE-DRIVEN, not blanket: a
@@ -87,7 +89,7 @@ def coerce_args(sig: Any, args: list[Any]) -> list[Any]:
     schnapsen trump indicator, and `deep_freeze` would refuse a Zone). Every
     other param is `deep_freeze`d: a copy for a `Card`, a no-op for the
     immutable scalars (`Player`, `Integer`, `Rank`, ...). The registry side is
-    pinned by tests/test_stdlib_boundary.py (every TCollection param probed
+    pinned by tests/test_native_call_boundary.py (every TCollection param probed
     with a Zone, the TAny set pinned, no param zone=True).
 
     It lives here, with `deep_freeze`, rather than with either dispatch half:
@@ -209,14 +211,26 @@ class PrimitiveReads:
 
     `module` is the repo-relative path of the Python module doing the
     reading; `game_file` the `docs/games/` basename whose declarations the
-    names must match. A module serving several games (stdlib.py's auction
-    outcomes) has one row per game."""
+    names must match. A module serving several games (primitives.py's auction
+    outcomes) has one row per game.
+
+    `arrival_zones` declares which of the row's single zones the module also
+    reads the [[arrival-record]] of — the (deciding actor, card) pairs the
+    kernel retains per movement (issue #256). Bounded twice at bind time,
+    loud on both: a name must be in the row's own `single_zones`, and the
+    zone's declared type must project identity to EVERY observer
+    (`stdlib.zones.identity_to_all`) — provenance of a concealed zone is not
+    derivable from any observer's stream, so no primitive may range over it,
+    legality context or otherwise. Zone FAMILIES are deliberately absent:
+    no consumer reads a family's record, and the query surface over the
+    recorded facts is issue #253's set of decisions."""
 
     module: str
     game_file: str
     state_vars: frozenset[str] = field(default=frozenset())
     zone_families: frozenset[str] = field(default=frozenset())
     single_zones: frozenset[str] = field(default=frozenset())
+    arrival_zones: frozenset[str] = field(default=frozenset())
 
 
 def _fs(*names: str) -> frozenset[str]:
@@ -228,7 +242,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/bigtwo.py",
         game_file="big-two.cardlang",
         state_vars=_fs("opened"),
-        zone_families=_fs("hand"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/coup.py",
@@ -248,6 +261,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/doko.py",
         game_file="doppelkopf.cardlang",
         single_zones=_fs("trick_pile"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/pinochle.py",
@@ -255,15 +269,12 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         state_vars=_fs("trump_suit"),
         zone_families=_fs("hand"),
     ),
+    # An empty row, not a missing one: president.py's climb queries are pure
+    # over their arguments, but the climb binder keys the module's bundle
+    # from this row (primitives.climb_row), so the row must exist.
     PrimitiveReads(
         module="cardlang/runtime/president.py",
         game_file="president.cardlang",
-        zone_families=_fs("hand"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/schnapsen.py",
-        game_file="schnapsen.cardlang",
-        single_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/skat.py",
@@ -271,6 +282,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         state_vars=_fs("is_null", "is_grand", "trump_suit"),
         zone_families=_fs("hand"),
         single_zones=_fs("trick_pile", "skat"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/stud.py",
@@ -304,14 +316,15 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("captured", "discard"),
         single_zones=_fs("trick_pile", "chien"),
     ),
+    # `declarer` left this row with the dead-seat derivation it fed
+    # (issue #256): participation now derives from the Arrival Record.
     PrimitiveReads(
         module="cardlang/runtime/five_hundred.py",
         game_file="five-hundred.cardlang",
-        state_vars=_fs(
-            "trump_suit", "is_misere", "is_open_misere", "joker_suit", "declarer"
-        ),
+        state_vars=_fs("trump_suit", "is_misere", "is_open_misere", "joker_suit"),
         zone_families=_fs("hand", "exposed"),
         single_zones=_fs("trick_pile"),
+        arrival_zones=_fs("trick_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/belote.py",
@@ -322,9 +335,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/gin.py",
         game_file="gin-rummy.cardlang",
-        zone_families=_fs(
-            "hand", "taken", "shown_deadwood", "meldA", "meldB", "meldC"
-        ),
+        zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/canasta.py",
@@ -333,17 +344,19 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
             "pile_frozen", "team_melded", "meld_rank", "taking_pile", "score"
         ),
         zone_families=_fs(
-            "hand", "stage", "red3",
+            "hand", "stage",
             "meldA", "meldK", "meldQ", "meldJ", "meld10", "meld9",
             "meld8", "meld7", "meld6", "meld5", "meld4", "meld3b",
         ),
         single_zones=_fs("pile_top", "pile_rest"),
     ),
+    # Tichu's surviving primitives take the hand as an argument or read the
+    # round's terminal frame through EngineFacts — the row binds the module
+    # to its game with no declared zone/state reads (the leader advance,
+    # this module's one `hand` reader, retired onto the ring search).
     PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
-        state_vars=_fs("out_first", "out_second"),
-        zone_families=_fs("hand"),
     ),
     # primitives.py's per-game functions: the auction outcomes and cribbage's
     # pegging-scorer call sites. One row per game served.
@@ -470,11 +483,43 @@ class GameReads:
     indexed state variable's `{player: value}` dict, not anything nested
     inside them. That is the narrowing: what used to be a convention enforced
     by review ("primitives are pure reads") is now a property of what the
-    value can express."""
+    value can express.
+
+    `arrivals` carries, per declared `arrival_zones` name, the zone's
+    Arrival Record as (deciding actor, card) pairs in arrival order — the
+    kernel-retained attribution the trick winners consume in place of
+    zipping seat order against pile contents (issue #256)."""
 
     state: Mapping[str, Any]
     families: Mapping[str, Mapping[int, tuple[Card, ...]]]
     singles: Mapping[str, tuple[Card, ...]]
+    arrivals: Mapping[str, tuple[tuple[Player | None, Card], ...]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+
+def _arrival_pairs(
+    rs: RuntimeState, r: PrimitiveReads, name: str
+) -> list[tuple[Player | None, Card]]:
+    """One declared arrival-zone read, validated at bind time (the
+    decision-context rule — see `PrimitiveReads.arrival_zones`)."""
+    if name not in r.single_zones:
+        raise PrimitiveReadError(
+            f"{r.module} (serving {r.game_file}) declares arrival_zones "
+            f"{name!r} outside its own single_zones {sorted(r.single_zones)} — "
+            f"the Arrival Record is a facet of a declared single-zone read, "
+            f"never a separate channel"
+        )
+    ztype = rs.zones.zone_type.get(name)
+    if ztype is None or not identity_to_all(ztype):
+        raise PrimitiveReadError(
+            f"{r.module} (serving {r.game_file}) declares arrival_zones "
+            f"{name!r}, whose type {ztype!r} does not project identity to "
+            f"every observer (cardlang/stdlib/zones.py ZONE_PROJECTIONS) — a "
+            f"concealed zone's provenance is not derivable from any "
+            f"observer's stream, so no primitive may range over it"
+        )
+    return [(a.actor, a.card) for a in single(rs, r, name).arrivals]
 
 
 def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
@@ -500,18 +545,21 @@ def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
         singles=deep_freeze(
             {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
         ),
+        arrivals=deep_freeze(
+            {n: _arrival_pairs(rs, r, n) for n in sorted(r.arrival_zones)}
+        ),
     )
 
 
 def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
-    """The one game-INDEPENDENT zone read a general stdlib function makes:
+    """The one game-INDEPENDENT zone read a general native function makes:
     `player_holding` scans `hand[player]`, the language-wide magic name
     (decisions.md "Declared parameter domains"). Not registry-keyed — the
     coupling is to the language rule, not to any one game file — but held to
-    the same failure currency: a game that declares no `hand[player]` family
+    the same [[failure-channel]]: a game that declares no `hand[player]` family
     gets a typed error naming the rule, not a `KeyError`. (resolve's magic-
     name check only covers games with `Card`-typed move parameters, so this
-    is an Owner Guard, not a Shadow Guard.)
+    is an [[owner-guard]], not a [[shadow-guard]].)
 
     Returns player-keyed instances: `hand` is a `hand[player]` family by the
     magic-name rule, so its keys are seats even though the generic zone store
@@ -524,6 +572,6 @@ def magic_hand(rs: RuntimeState) -> dict[int, Zone]:
         raise PrimitiveReadError(
             "player_holding: the game declares no `hand[player]` zone family "
             "— `hand` is the language-wide magic name (decisions.md "
-            '"Declared parameter domains") this stdlib function reads'
+            '"Declared parameter domains") this native function reads'
         )
     return cast("dict[int, Zone]", fam)

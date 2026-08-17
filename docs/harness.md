@@ -3,7 +3,7 @@
 How work flows through this repo: who may take what, who merges which
 change, and how the tracker carries the work graph. This file is process
 doctrine. The merge *gate* stays in CLAUDE.md ("Verifying changes"); the
-vocabulary lives in `docs/glossary.md` (§7); deferred harness *work*
+vocabulary lives in `docs/glossary.md`; deferred harness *work*
 lives in the tracker like all work (epic
 [#274](https://github.com/jbgh2/card-game-dsl/issues/274)). Everything
 here is public by design — the graph, the doctrine, the roles, and their
@@ -65,7 +65,7 @@ per-PR by preference. Two rules compose the table:
 | Runtime (`evaluate` / `execute` / `driver` / `state`, the OpenSpiel adapter) | `cardlang/runtime/**`, `cardlang/openspiel/**` | B |
 | Stdlib (`rules.cardlang`, registries, builtins) | `cardlang/stdlib/**`, `cardlang/builtins/**` | B |
 | `docs/games/` corpus and family libraries — DSL-only edits, zero engine diff | `docs/games/**`, `docs/libraries/**` | C |
-| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md`, CLAUDE.md) | `docs/*.md`, `CLAUDE.md` | B |
+| Docs — the spec and doctrine (top-level `docs/*.md`, `docs/glossary.md` and the `docs/glossary/` entries it is generated from, CLAUDE.md) | `docs/*.md`, `docs/glossary/**`, `CLAUDE.md` | B |
 | Docs — exploratory (`design-notes/`, `open-questions/`, `research/`, `plans/`, `superpowers/`) | `docs/design-notes/**`, `docs/open-questions/**`, `docs/research/**`, `docs/plans/**`, `docs/superpowers/**` | C |
 | Tests / goldens — coverage-only additions, no behavior change claimed | `tests/**` | C |
 | Tests / goldens — anything else (golden regeneration, proof-harness changes) | `tests/**` | B |
@@ -81,8 +81,8 @@ per-PR by preference. Two rules compose the table:
 
 The Paths column is machine-read: `tools/lane-of.sh` classifies a diff by
 matching every changed file against every row and taking the supremum
-lane across all matches — so twin rows sharing a path resolve to their
-stricter twin mechanically, and relaxing to the softer twin (a
+lane across all matches — so Shadow Guard rows sharing a path resolve to their
+stricter Shadow Guard mechanically, and relaxing to the softer Shadow Guard (a
 coverage-only test change, a mechanical tools fix, a hygiene edit) is
 judgment the tool never performs and an agent never performs on its own
 behalf. A file matching no row is reported unmapped and defaults to
@@ -146,7 +146,7 @@ moving on — it watches review activity and the gate as independent,
 concurrent signals — and handles its own review rounds in-context when
 woken: the author holds the diff's reasoning and is the best respondent.
 A PR whose author is gone falls to the Warden's thread sweep as the
-backstop, and the event-driven trigger for authorless rounds is tracker
+Shadow Guard, and the event-driven trigger for authorless rounds is tracker
 work on the epic. The check is derived, like everything else:
 
 ```bash
@@ -256,6 +256,15 @@ that runs the sweeps and reaps stale Leases
 ([#277](https://github.com/jbgh2/card-game-dsl/issues/277)). A role's
 charter lives in its skill file; this file stays the map.
 
+Scheduled invocation is owned by `tools/fleet/` (issue
+[#317](https://github.com/jbgh2/card-game-dsl/issues/317)): the
+machine's scheduler fires the engine headless in a dedicated fleet
+clone — never the operator's working copy — under the permission
+charter, and the wrapper guarantees every run a delivery record on the
+fleet epic. Installing or scheduling a launch agent is the operator's
+hand, never an agent's. The charters bind identically however a role is
+invoked.
+
 ## The Language Owner
 
 The **Language Owner** is a persona, not a person and not a Standing
@@ -274,6 +283,43 @@ the English proverb for rules authority ("according to Hoyle"). The
 charter is minted through the tracker
 ([#284](https://github.com/jbgh2/card-game-dsl/issues/284)) and lives in
 its skill file, reviewed like code.
+
+## The Architect
+
+The **Architect** is Hoyle's engine-side counterpart: the persona
+consulted at planning time on engine-structural questions — pass
+architecture and Contract blocks, the type system, IR and runtime shape,
+diagnostics machinery, testing strategy, the observability model. Its
+authority comes from a book, not a costume: counsel cites
+`docs/research/architect-sourcebook.md` and asserts from
+`docs/design-notes/architect-principles.md`, where its standing tensions
+with the law are filed openly, each with its standing stated honestly. It advises; the operator rules; a
+change with both faces takes both counsels. Minted through the tracker
+([#305](https://github.com/jbgh2/card-game-dsl/issues/305)); charter in
+its skill file.
+
+The Architect is named **Foster** — after Robert Frederick Foster,
+educated as an architect and civil engineer before he became the author
+of *Foster's Complete Hoyle*, and deviser of whist's Rule of Eleven
+(independently with E.M.F. Benecke): a formula that derives facts about
+the unseen hands from one observed card — this project's moat, a century
+early ("according to Foster").
+
+Counsel from either persona speaks two altitudes. The counsel proper is
+precise and cited — the record and the implementer's currency. It closes
+with **the Headnote** — after the law reporter's: written after the
+judgment and from it, at the head of the report, no part of the law —
+the same verdict, the strongest case against it and its cost, and the
+operator's decision, in plain words, with the facts each seat's charter
+says must survive. Written last, so it condenses the analysis and never
+steers it; where the two disagree the counsel governs. The Headnote is
+the operator's currency — read in a burst, between other work — and
+counsel without one is not finished, at the table or in the record. It
+is the third member of a house class: the tracker's Summary against its
+Detail and the PR description against its diff already give the decider
+impact currency and the implementer mechanism; counsel was the last
+artifact that gave the decider only the execution-grade text. The exact
+shape is the charters' contract; this file names only the obligation.
 
 ## The physical layer
 

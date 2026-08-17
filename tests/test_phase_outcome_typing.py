@@ -659,7 +659,7 @@ def test_accepts_after_each_consuming_its_loop_body_producer() -> None:
     # `prod`, a producer in its own loop body with no skip before it. This is
     # the only place an after_each consumer's producer can live: hooks belong
     # to `repeat until` phases (on any other phase the runtime never runs
-    # them, and the checker rejects the combination), and the loop wall keeps
+    # them, and the checker rejects the combination), and the loop guard keeps
     # outer run-once producers from carrying in.
     src = """
 game G {

@@ -18,7 +18,7 @@ a game that violates either cannot be walked here:
   chance node interleaved with the alternating turns. Teaching this walker to
   FOLLOW a native chance outcome (the mechanism GOPS already has bespoke) is the
   one addition its rung of the board-topology ladder will require; until a game
-  forces it, a chance node is a loud wall, not a silent skip.
+  forces it, a chance node is a loud guard, not a silent skip.
 
 Contract:
 - Assumes: the native game named by `native_game` starts at
@@ -151,7 +151,7 @@ def walk_paired_alternating(
 def classify(returns: list[float]) -> str:
     """The win/loss/draw outcome a 2-player returns vector induces, by the sign
     of the return difference — scale-agnostic (a [+1,-1] convention and a
-    [+10,-10] one classify identically). A loud wall on any other player count:
+    [+10,-10] one classify identically). A loud guard on any other player count:
     the whole alternating-perfect-information rung ladder (tic-tac-toe through
     draughts, and backgammon) is 2-player, so a wider game is a new design, not
     a silent mis-classification."""

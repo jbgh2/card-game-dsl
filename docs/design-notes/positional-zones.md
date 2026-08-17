@@ -110,7 +110,7 @@ position domains and keeps movement closed.
 (Games whose piles are not rank-monotone runs — Spider's same-suit
 removal is close but still monotone — would force a positional slice
 ("from card X up") as real surface. That is recorded as deferred in
-issue #111, behind the existing movement-filter wall: a
+issue #111, behind the existing movement-filter Owner Guard: a
 non-denotable selection simply has no sentence that expresses it.)
 
 ## Adjacency
@@ -143,7 +143,7 @@ regions) arrive as further board-entry data with their witnesses
   are game-independent; column counts are per-game (7 vs 8) and
   per-family (`cell : 1..4` beside `column : 1..8` in FreeCell). Hence
   *declared* domains, reconciled against the built-in registry by a
-  collision wall so the two sources can never disagree.
+  collision Owner Guard so the two sources can never disagree.
 - **Extending `zone_key_of` to positions.** The domains table conflated
   "can index a zone family" with "an observer owns a key". Positions
   split it: they are indexable but unowned — `zone_observer_key` returns

@@ -3,7 +3,7 @@
 status:     stage 2 COMPLETE — every module in `_GAME_MODULES` is free of every
             engine handle, so the crossed grid is green with nothing
             excused. Stage 3 (`primitives { }`) narrows the bundles from
-            module- to primitive-granularity; residual (2) is its brief.
+            module- to primitive-granularity; residual (2) is its execution brief.
 
 property:   a game-local primitive sees VALUES, never an engine handle. Its
             implementation names no `Ctx` and no `RuntimeState`; everything
@@ -21,7 +21,7 @@ domain:     every game-local primitive (derived: the dispatch tables in
             today) x every `EngineFacts` field (derived: the dataclass).
 registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             the safe polarity — a NEW runtime module is a game module by
-            default and must pass the wall); `NARROWED` (sites proven
+            default and must pass the guard); `NARROWED` (sites proven
             handle-free) and `MIGRATED` (primitives), both now covering
             everything the dispatch routes; `_STILL_REACHES` (the
             per-cell work list, now EMPTY — stage 2 is complete);
@@ -103,9 +103,9 @@ sampled:    behavioral identity rides the byte-identical goldens and the
 residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             `tarot_auction_outcome`) are implemented INSIDE
             `cardlang/runtime/primitives.py`, which is engine core, so the
-            game-module wall does not reach them; they are game knowledge
+            game-module guard does not reach them; they are game knowledge
             in the language package and stage 4 (co-location) owns their
-            move. Wall: `test_engine_core_game_knowledge_is_named`, which
+            move. Guard: `test_engine_core_game_knowledge_is_named`, which
             fails if that set changes without this ledger changing.
             Record: issue #142.
             (2) `EngineFacts` is MODULE-granular by ratified stage-2 scope
@@ -114,7 +114,7 @@ residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
             narrowing that remains is stage 3's, and until it lands a
             primitive can read a fact it does not need, and every call
             materializes its module's whole row whether or not it reads
-            any of it. Wall: the field set is closed and every field is
+            any of it. Guard: the field set is closed and every field is
             pinned to a consumer (c), so the bundle cannot grow
             speculatively; the per-call cost is recorded in
             issue #142.
@@ -162,7 +162,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    PRIMITIVE_TRICK_WINNERS,
+    TRICK_WINNER_NAMES,
 )
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS
@@ -176,7 +176,7 @@ RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
 #
 # Hand-authored as the EXCLUSION half only, so the polarity is safe: a new
 # file under cardlang/runtime/ is a game module until someone argues it into
-# this table, and therefore has to pass the wall. Each row names why the
+# this table, and therefore has to pass the guard. Each row names why the
 # engine core legitimately holds an engine handle.
 _ENGINE_CORE: dict[str, str] = {
     "__init__.py": "package init",
@@ -186,10 +186,10 @@ _ENGINE_CORE: dict[str, str] = {
     "execute.py": "engine core — the statement interpreter",
     "mechanics.py": "engine core — the round machinery",
     "observe.py": "engine core — the projection substrate",
-    "phases.py": "engine core — phase sequencing",
+    "active_rules.py": "engine core — active-rule computation for a phase",
     "reads.py": "the declared-reads accessors (the sanctioned raw-access site)",
     "rules.py": "engine core — rule application",
-    "sidecar.py": "the binder — it BUILDS the bundles, so it holds the handle",
+    "narrowing.py": "the binder — it BUILDS the bundles, so it holds the handle",
     "state.py": "engine core — defines RuntimeState and Ctx",
     "builtins.py": "engine core — the generic native functions",
     "primitives.py": "engine core — the dispatch layer that BUILDS the bundles",
@@ -271,7 +271,7 @@ def _impls_in(path: Path) -> list[Impl]:
 
 _ALL_REGISTERED: frozenset[str] = (
     CALL_FUNCS
-    | PRIMITIVE_TRICK_WINNERS
+    | TRICK_WINNER_NAMES
     | PRIMITIVE_AUCTION_OUTCOMES
     | PRIMITIVE_EARLY_PREDICATES
     | PRIMITIVE_CLIMB_LEADS
@@ -325,41 +325,24 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_royal_player",
         "belote.py::belote_trick_winner",
         "belote.py::belote_trump_height",
-        "bigtwo.py::ROW",
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
-        "bigtwo.py::first_leader_seat",
         "canasta.py::ROW",
-        "canasta.py::canasta_add_ok",
-        "canasta.py::canasta_black3_ok",
         "canasta.py::canasta_can_start",
         "canasta.py::canasta_can_take_pile",
         "canasta.py::canasta_canasta_bonus",
         "canasta.py::canasta_close_ok",
-        "canasta.py::canasta_discard_ok",
-        "canasta.py::canasta_hand_points",
-        "canasta.py::canasta_is_black3",
-        "canasta.py::canasta_is_red3",
-        "canasta.py::canasta_meld_points",
         "canasta.py::canasta_must_take_pile",
-        "canasta.py::canasta_pile_rank",
-        "canasta.py::canasta_red3_bonus",
         "canasta.py::canasta_stage_ok",
-        "canasta.py::canasta_top_is_wild",
-        "canasta.py::canasta_top_starts_pile",
         "coup.py::ROW",
         "coup.py::coup_game_summary",
-        "coup.py::coup_has_char",
-        "coup.py::coup_next_in_game",
-        "coup.py::coup_players_in",
         "cribbage.py::ROW",
         "cribbage.py::cribbage_crib_value",
         "cribbage.py::cribbage_show_value",
         "cribbage.py::peg_origin_of",
         "cribbage.py::peg_pair_points",
         "cribbage.py::peg_run_points",
-        "cribbage.py::value",
         "doko.py::ROW",
         "doko.py::doko_trick_winner",
         "five_hundred.py::ROW",
@@ -370,35 +353,26 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_next_bid",
         "five_hundred.py::five_hundred_trick_winner",
         "gin.py::ROW",
-        "gin.py::card_points",
         "gin.py::gin_arrange_ok",
         "gin.py::gin_can_declare",
         "gin.py::gin_can_declare_free",
         "gin.py::gin_can_knock",
         "gin.py::gin_deadwood",
-        "gin.py::gin_flat_points",
         "gin.py::gin_knock_ok",
         "gin.py::gin_lay_ok_a",
         "gin.py::gin_lay_ok_b",
         "gin.py::gin_lay_ok_c",
-        "gin.py::gin_shown_points",
         "gin.py::gin_valid_meld",
         "holdem.py::ROW",
-        "holdem.py::holdem_next_entrant",
         "holdem.py::holdem_pot_share",
         "holdem_heads_up.py::ROW",
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
-        "president.py::ROW",
         "president.py::president_follows",
-        "president.py::president_is_top_rank",
         "president.py::president_lead_options",
         "president.py::president_universe",
-        "schnapsen.py::ROW",
-        "schnapsen.py::schnapsen_trick_winner",
         "skat.py::ROW",
-        "skat.py::skat_effective_loss",
         "skat.py::skat_follow_ok",
         "skat.py::skat_matadors",
         "skat.py::skat_next_bid",
@@ -408,7 +382,6 @@ NARROWED: frozenset[str] = frozenset(
         "stud.py::first_to_act_seat",
         "stud.py::pot_share",
         "tarot.py::ROW",
-        "tarot.py::tarot_card_points",
         "tarot.py::tarot_excuse_player",
         "tarot.py::tarot_led_suit",
         "tarot.py::tarot_per_opp",
@@ -416,21 +389,13 @@ NARROWED: frozenset[str] = frozenset(
         "tarot.py::tarot_trump_height",
         "tichu.py::ROW",
         "tichu.py::TICHU_COMBO_CODEC",
-        "tichu.py::tichu_card_points",
-        "tichu.py::tichu_double_victory",
         "tichu.py::tichu_dragon_won",
-        "tichu.py::tichu_first_out",
         "tichu.py::tichu_follows",
         "tichu.py::tichu_lead_options",
-        "tichu.py::tichu_mahjong_holder",
-        "tichu.py::tichu_next_holder",
-        "tichu.py::tichu_opponent_team",
-        "tichu.py::tichu_partner",
-        "tichu.py::tichu_players_holding",
     }
 )
 
-# Primitives narrowed by stage 2 so far, for the module-level wall below.
+# Primitives narrowed by stage 2 so far, for the module-level guard below.
 MIGRATED: frozenset[str] = frozenset(
     {
         "belote_best_is",
@@ -442,31 +407,16 @@ MIGRATED: frozenset[str] = frozenset(
         "belote_decl_trump",
         "belote_opp_winning",
         "belote_royal_player",
-        "bigtwo_first_leader",
         "bigtwo_follows",
         "bigtwo_lead_options",
         "bring_in_seat",
-        "canasta_add_ok",
-        "canasta_black3_ok",
         "canasta_can_start",
         "canasta_can_take_pile",
         "canasta_canasta_bonus",
         "canasta_close_ok",
-        "canasta_discard_ok",
-        "canasta_hand_points",
-        "canasta_is_black3",
-        "canasta_is_red3",
-        "canasta_meld_points",
         "canasta_must_take_pile",
-        "canasta_pile_rank",
-        "canasta_red3_bonus",
         "canasta_stage_ok",
-        "canasta_top_is_wild",
-        "canasta_top_starts_pile",
         "coup_game_summary",
-        "coup_has_char",
-        "coup_next_in_game",
-        "coup_players_in",
         "cribbage_crib_value",
         "cribbage_show_value",
         "doko_trick_winner",
@@ -479,40 +429,27 @@ MIGRATED: frozenset[str] = frozenset(
         "gin_can_declare_free",
         "gin_can_knock",
         "gin_deadwood",
-        "gin_flat_points",
         "gin_knock_ok",
         "gin_lay_ok_a",
         "gin_lay_ok_b",
         "gin_lay_ok_c",
-        "gin_shown_points",
         "gin_valid_meld",
         "holdem_heads_up_pot_share",
-        "holdem_next_entrant",
         "holdem_pot_share",
         "peg_origin_of",
         "pinochle_meld_value",
         "pot_share",
         "president_follows",
-        "president_is_top_rank",
         "president_lead_options",
-        "schnapsen_trick_winner",
         "skat_follow_ok",
         "skat_matadors",
         "skat_trick_winner",
         "tarot_excuse_player",
         "tarot_led_suit",
         "tarot_per_opp",
-        "tichu_card_points",
-        "tichu_double_victory",
         "tichu_dragon_won",
-        "tichu_first_out",
         "tichu_follows",
         "tichu_lead_options",
-        "tichu_mahjong_holder",
-        "tichu_next_holder",
-        "tichu_opponent_team",
-        "tichu_partner",
-        "tichu_players_holding",
     }
 )
 
@@ -521,7 +458,6 @@ MIGRATED: frozenset[str] = frozenset(
 # emission travels back as data and the dispatch layer performs it.
 EMITS_TRACE: frozenset[str] = frozenset(
     {
-        "schnapsen_trick_winner",
         "doko_trick_winner",
         "skat_trick_winner",
         "five_hundred_trick_winner",
@@ -779,18 +715,18 @@ def test_game_module_is_free_of_engine_handle(module: str, handle: str) -> None:
 # --- grid (c): EngineFacts ---------------------------------------------------
 
 
-def _sidecar() -> Any:
+def _narrowing() -> Any:
     """The mechanism under test. Imported lazily so that, before it exists,
     the cells below fail with this message rather than collapsing the whole
     module into a collection error."""
     try:
-        from cardlang.runtime import sidecar
+        from cardlang.runtime import narrowing
     except ImportError as exc:  # pragma: no cover - the red state
         pytest.fail(
-            f"cardlang/runtime/sidecar.py does not exist yet: {exc}. It owns "
+            f"cardlang/runtime/narrowing.py does not exist yet: {exc}. It owns "
             f"EngineFacts, GameReads and the binder."
         )
-    return sidecar
+    return narrowing
 
 
 # The engine expression each field mirrors. This IS the field axis: a field
@@ -798,7 +734,6 @@ def _sidecar() -> Any:
 # pinned`, and a row naming a field that does not exist fails too.
 _FACT_SOURCES: dict[str, str] = {
     "seating": "rs.seating",
-    "teams": "rs.teams",
     "team_of": "rs.team_of",
     "rank_index": "rs.rank_index",
     "round_state": "rs.mech_state[-1] if rs.mech_state else rs.last_round_state",
@@ -813,7 +748,6 @@ _FACT_SOURCES: dict[str, str] = {
 # narrowed is still a consumed fact, not a speculative field.
 _FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
     "seating": ("facts.seating", "ctx.rs.seating"),
-    "teams": ("facts.teams", "ctx.rs.teams"),
     "team_of": ("facts.team_of", "ctx.rs.team_of"),
     "rank_index": ("facts.rank_index", "ctx.rs.rank_index"),
     "round_state": ("facts.round_state", "ctx.rs.mech_state"),
@@ -837,7 +771,7 @@ def test_every_engine_fact_has_a_consumer() -> None:
     ledger's "every field is consumed" would be prose, not a guarantee:
     adding a field to the dataclass, `_FACT_SOURCES` and the value matrix
     would leave the suite entirely green."""
-    facts_cls = _sidecar().EngineFacts
+    facts_cls = _narrowing().EngineFacts
     fields = frozenset(facts_cls.__dataclass_fields__)
     assert fields == frozenset(_FACT_CONSUMERS), (
         f"EngineFacts fields {sorted(fields)} disagree with the consumer map "
@@ -860,7 +794,7 @@ def test_every_engine_fact_has_a_consumer() -> None:
 def _live_state() -> RuntimeState:
     decls = (
         n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),
-        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="Pile")),
+        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
     )
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     rs.push_frame()
@@ -875,7 +809,7 @@ def test_every_engine_fact_is_pinned() -> None:
     """The field axis, both ways: EngineFacts' fields and `_FACT_SOURCES`'
     keys are the same set. A field with no named engine source cannot be
     reviewed for whether it is the RIGHT value."""
-    facts_cls = _sidecar().EngineFacts
+    facts_cls = _narrowing().EngineFacts
     fields = frozenset(facts_cls.__dataclass_fields__)
     assert fields == frozenset(_FACT_SOURCES), (
         f"EngineFacts fields {sorted(fields)} disagree with the pinned "
@@ -890,12 +824,11 @@ def test_engine_fact_carries_the_engine_value(field: str) -> None:
     is, so a round-state frame's `played: []` reads as the `played: ()` the
     freeze produces (same value, immutable shape) rather than failing on the
     list-vs-tuple the purity guarantee deliberately introduces."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
-    facts = sidecar.engine_facts(rs, actor=1)
+    facts = narrowing.engine_facts(rs, actor=1)
     expected: dict[str, Any] = {
         "seating": rs.seating,
-        "teams": reads_mod.deep_freeze(rs.teams),
         "team_of": reads_mod.deep_freeze(rs.team_of),
         "rank_index": reads_mod.deep_freeze(rs.rank_index),
         "round_state": reads_mod.deep_freeze(rs.last_round_state),
@@ -911,11 +844,11 @@ def test_engine_facts_holds_no_live_engine_object_by_identity() -> None:
     reaches the engine's object), yet the walker treats frozen+slots as safe.
     So pin the copy directly — engine_facts freezes every field, so no
     dataclass/mapping fact is the engine's live object. This is the guard that
-    would have caught `seating` being passed by identity. (An immutable tuple
-    of scalars like `teams` may keep identity — safe, nothing to setattr.)"""
-    sidecar = _sidecar()
+    would have caught `seating` being passed by identity. (A scalar like
+    `actor` may keep identity — safe, nothing to setattr.)"""
+    narrowing = _narrowing()
     rs = _live_state()
-    facts = sidecar.engine_facts(rs, actor=0)
+    facts = narrowing.engine_facts(rs, actor=0)
     sources = {
         "seating": rs.seating,  # a frozen+slots dataclass -> must be a copy
         "team_of": rs.team_of,
@@ -936,10 +869,10 @@ def test_the_two_round_state_views_are_distinct() -> None:
     read the first, Tichu's `tichu_dragon_won` the second — collapsing them
     changes behavior while a round is active, which is exactly what this
     stage must not do."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"marker": "live"})
-    facts = sidecar.engine_facts(rs, actor=None)
+    facts = narrowing.engine_facts(rs, actor=None)
     assert facts.round_state == {"marker": "live"}
     assert facts.last_round_state is not None
     assert facts.last_round_state["marker"] == "terminal"
@@ -948,8 +881,8 @@ def test_the_two_round_state_views_are_distinct() -> None:
 
 def test_engine_facts_is_frozen() -> None:
     """Structural, not conventional: a primitive cannot write back."""
-    sidecar = _sidecar()
-    facts = sidecar.engine_facts(_live_state(), actor=None)
+    narrowing = _narrowing()
+    facts = narrowing.engine_facts(_live_state(), actor=None)
     with pytest.raises((AttributeError, TypeError)):
         # `facts` is typed Any here (the module is imported lazily), so this
         # is a RUNTIME check that frozen+slots really refuses the write —
@@ -967,12 +900,13 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     a narrowing rather than a rename of `Ctx`."""
     rs = _live_state()
     row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
+        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
     )
     bundle = reads_mod.game_reads(rs, row)
     assert frozenset(bundle.singles) == row.single_zones
     assert frozenset(bundle.families) == row.zone_families
     assert frozenset(bundle.state) == row.state_vars
+    assert frozenset(bundle.arrivals) == row.arrival_zones
     assert "hand" not in bundle.families, (
         "the bundle exposed a zone the row does not declare — the binder is "
         "handing over more than the declaration bounds"
@@ -985,7 +919,7 @@ def test_game_reads_cards_are_immutable() -> None:
     rs = _live_state()
     rs.zones.single("trick_pile").cards.append(Card("7", "hearts"))
     row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/schnapsen.py"
+        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
     )
     bundle = reads_mod.game_reads(rs, row)
     assert isinstance(bundle.singles["trick_pile"], tuple)
@@ -1130,11 +1064,11 @@ def test_engine_facts_round_state_is_deeply_immutable_at_any_depth() -> None:
     `rs.mech_state` / `rs.last_round_state` through them at any depth."""
     from copy import deepcopy
 
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"played": [(0, "a"), (1, "b")], "nest": deepcopy(_NESTED)})
     rs.last_round_state = {"played": [], "nest": deepcopy(_NESTED)}
-    facts = sidecar.engine_facts(rs, actor=0)
+    facts = narrowing.engine_facts(rs, actor=0)
 
     for name in ("round_state", "last_round_state"):
         bad = _reachable_mutable(getattr(facts, name), f"facts.{name}")
@@ -1192,8 +1126,8 @@ def test_corpus_play_types_are_slotted() -> None:
     they must be truly immutable (frozen AND slotted), not just frozen —
     otherwise deep_freeze would refuse them mid-playout."""
     from cardlang.runtime.bigtwo import Play as BigTwoPlay
-    from cardlang.runtime.combinations import Play as CombinationsPlay
     from cardlang.runtime.president import Play as PresidentPlay
+    from cardlang.runtime.tichu_combinations import Play as CombinationsPlay
 
     for cls in (BigTwoPlay, CombinationsPlay, PresidentPlay):
         # The `key` field types differ across the three (tuple/float/int); the
@@ -1275,14 +1209,14 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     from cardlang.builtins.signatures import CALL_SIGS
     from cardlang.runtime.reads import coerce_args
 
-    card = Card("3", "hearts")  # a red three
-    (coerced,) = coerce_args(CALL_SIGS["canasta_is_red3"], [card])
+    card = Card("3", "hearts")
+    (coerced,) = coerce_args(CALL_SIGS["card_points"], [card])
     assert coerced == card and coerced is not card, "the live engine Card leaked"
     object.__setattr__(coerced, "rank", "K")  # back door, on the copy
     assert card.rank == "3", "mutating the copy reached the engine's Card"
 
     # An immutable scalar (a TPlayer int) is a no-op, not refused.
-    p_sig = CALL_SIGS["president_is_top_rank"]  # [TPlayer, TCard]
+    p_sig = CALL_SIGS["canasta_stage_ok"]  # [TPlayer, TCard]
     assert coerce_args(p_sig, [1, card])[0] == 1
 
 
@@ -1391,10 +1325,10 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
     """The whole bundle, not two chosen fields: EVERY EngineFacts field is
     immutable at every depth. Nested data is injected into the round-state
     frames; the scalar/tuple/frozen-dataclass fields pass by construction."""
-    sidecar = _sidecar()
+    narrowing = _narrowing()
     rs = _live_state()
     rs.mech_state.append({"played": [(0, "a")], "nest": _NESTED})
-    facts = sidecar.engine_facts(rs, actor=1)
+    facts = narrowing.engine_facts(rs, actor=1)
     offenders: list[str] = []
     for name in facts.__dataclass_fields__:
         offenders += _reachable_mutable(getattr(facts, name), f"facts.{name}")
@@ -1418,7 +1352,7 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
 def test_tracing_primitive_returns_events(name: str) -> None:
     """A listed primitive hands its events back as data. Until it is
     migrated it still emits through `ctx.trace`, so the cell is a strict
-    xfail — the same self-closing shape as the walls above."""
+    xfail — the same self-closing shape as the guards above."""
     impl = next(i for i in _GAME_IMPLS if i.primitive == name)
     scan = _scan_module(impl.module)
     assert "ctx.trace" not in scan.hits, (
@@ -1454,7 +1388,7 @@ _ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = frozenset(
 def test_engine_core_game_knowledge_is_named() -> None:
     """The residual, pinned so it cannot grow quietly. These primitives are
     implemented inside primitives.py — engine core — so the game-module
-    wall does not reach them; stage 4 (co-location) owns their move. A NEW
+    guard does not reach them; stage 4 (co-location) owns their move. A NEW
     per-game function added to primitives.py fails here."""
     rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/primitives.py"}
     assert rows == {

@@ -20,7 +20,7 @@ covered:    names (set equality both ways, every tabled registry),
             plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
-            rank_value, card_value, error, peg_pair/run_points) get
+            rank_value, card_points, error, peg_pair/run_points) get
             arity-only coverage: there is no annotation to introspect, and
             the expression is its own statement of the types. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
@@ -51,10 +51,12 @@ from cardlang.builtins.functions import (
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
     ANY_FLAVOR_CALL_FUNCS,
+    BUILTIN_TRICK_WINNERS,
     PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
-    PRIMITIVE_VALUE_NAMES,
+    TRICK_WINNER_NAMES,
+    VALUE_NAMES,
 )
 from cardlang.builtins.signatures import (
     CALL_SIGS,
@@ -63,7 +65,7 @@ from cardlang.builtins.signatures import (
     ZONE_CONTENT,
     Sig,
 )
-from cardlang.runtime import sidecar
+from cardlang.runtime import narrowing
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, TTeam
 
@@ -72,13 +74,17 @@ def test_tables_reconcile_with_name_sets() -> None:
     # The declaration side is data: the signature tables must cover exactly
     # the name sets, both directions.
     assert set(CALL_SIGS) == set(CALL_FUNCS)
-    assert set(VALUE_SIGS) == set(PRIMITIVE_VALUE_NAMES)
+    assert set(VALUE_SIGS) == set(VALUE_NAMES)
     assert set(EARLY_SIGS) == set(PRIMITIVE_EARLY_PREDICATES)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
     # The two outcome namespaces partition the value-name set (the resolver
-    # validates each round form against its own; the union is the bare-name space).
-    assert PRIMITIVE_TRICK_WINNERS | PRIMITIVE_AUCTION_OUTCOMES == PRIMITIVE_VALUE_NAMES
-    assert PRIMITIVE_TRICK_WINNERS.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
+    # validates each round form against its own; the union is the bare-name
+    # space), and the winner namespace is itself the disjoint union of its
+    # two homes (the Builtin standard comparisons and the game-local ones).
+    assert TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES == VALUE_NAMES
+    assert TRICK_WINNER_NAMES.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
+    assert BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS == TRICK_WINNER_NAMES
+    assert BUILTIN_TRICK_WINNERS.isdisjoint(PRIMITIVE_TRICK_WINNERS)
 
 
 def test_outcome_names_are_dispatchable() -> None:
@@ -87,7 +93,7 @@ def test_outcome_names_are_dispatchable() -> None:
     # (else a name passes resolve and then Assertion-fails mid-playout).
     from cardlang.runtime.primitives import auction_outcome_function, value_function
 
-    for name in PRIMITIVE_TRICK_WINNERS:
+    for name in TRICK_WINNER_NAMES:
         assert callable(value_function(name))
     for name in PRIMITIVE_AUCTION_OUTCOMES:
         assert callable(auction_outcome_function(name))
@@ -180,17 +186,17 @@ def test_call_funcs_are_dispatchable() -> None:
                 f"{name!r} falls through call()'s default arm: {e}"
             )
         except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
-            pass  # dispatched; the currency split is walled by test_assert_triage.py
+            pass  # dispatched; the channel split is guarded by test_assert_triage.py
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:
     # The feature classification (functions.py) partitions the call registry:
-    # every stdlib call is deck-only (rejected in a piece game), board-only
+    # every native call is deck-only (rejected in a piece game), board-only
     # (rejected in a boardless game), or generic (legal everywhere), exactly
     # one, none omitted. A newly registered call absent from all three sets
-    # fails here rather than silently defaulting -- the wall's domain stays
+    # fails here rather than silently defaulting -- the guard's domain stays
     # exactly CALL_FUNCS. (The rejection behavior itself is
-    # tests/test_piece_content_walls.py.)
+    # tests/test_piece_content_guards.py.)
     assert (
         DECK_ONLY_CALL_FUNCS | BOARD_ONLY_CALL_FUNCS | ANY_FLAVOR_CALL_FUNCS
         == CALL_FUNCS
@@ -211,7 +217,7 @@ def test_known_call_signatures() -> None:
 
 # --- CALL_SIGS <-> runtime dispatch reconciliation ----------------------------
 #
-# CALL_SIGS states each stdlib function's interface once for the checker; the
+# CALL_SIGS states each native function's interface once for the checker; the
 # `call()` match (across both dispatch homes) states it again for the runtime (how many
 # `args[i]` the arm consumes, and the Python annotations of the helper it
 # forwards to). Two statements of one interface, which nothing else
@@ -373,7 +379,7 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
         for name, fact in facts.items()
         if fact.helper is None or not callable(fact.helper)
     )
-    assert inline == ["card_value", "error", "rank_value", "team_of"], (
+    assert inline == ["card_points", "error", "rank_value", "team_of"], (
         f"arms with no introspectable helper: {inline} — if the dispatch shape "
         "changed, teach _call_dispatch_facts the new shape rather than letting "
         "the annotation check silently skip these"
@@ -431,7 +437,7 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
                 # DECLARED type is the first element, and the second must be
                 # the trace-event tuple — checked, not waved through.
                 targs = typing.get_args(actual_ret)
-                if len(targs) != 2 or targs[1] != tuple[sidecar.TraceEvent, ...]:
+                if len(targs) != 2 or targs[1] != tuple[narrowing.TraceEvent, ...]:
                     problems.append(
                         f"{name}: EMITS_TRACE helper must return "
                         f"(value, tuple[TraceEvent, ...]); got {actual_ret}"

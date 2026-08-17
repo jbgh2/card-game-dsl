@@ -15,8 +15,8 @@ wins" and Schweinchen/Genscher house variants are excluded).
 ## The pack
 
 Two copies each of A 10 K Q J 9 in all four suits (the Pinochle
-composition), with the Skat card values: A=11, 10=10, K=4, Q=3, J=2, 9=0 —
-240 card points in play.
+composition), with the Skat card points — the game's `card_points` table:
+A=11, 10=10, K=4, Q=3, J=2, 9=0 — 240 card points in play.
 
 **Trumps (26 cards), high to low:**
 ♥10 ♥10 · ♣Q ♣Q ♠Q ♠Q ♥Q ♥Q ♦Q ♦Q · ♣J ♣J ♠J ♠J ♥J ♥J ♦J ♦J ·
@@ -125,8 +125,9 @@ are trumps). Every queen and jack is a trump, so plain suits have no Q or J.
   between any two card plays — a foreign decision inside the trick, which
   the trick form of `round` cannot host. The one game-local runtime
   primitive is `doko_trick_winner` (ordered first-of-equals comparison over
-  the trump class); follow legality, the window gate, and all bookkeeping
-  are in-DSL functions.
+  the trump class, the plays read off the trick pile's Arrival Record —
+  who played each card is the kernel's fact, never seat arithmetic); follow
+  legality, the window gate, and all bookkeeping are in-DSL functions.
 - **Deferred bonus events** (Fox, Charlie, the last trick's winner) are
   recorded as `Player?` slots during play — public facts about public
   plays — and team-resolved at scoring, when the partition is complete.

@@ -1,4 +1,4 @@
-// Wall: typecheck.py's movement-combination check. A per-movement
+// Guard: typecheck.py's movement-combination check. A per-movement
 // `visibility = ...` clause parses (the grammar's `vis_clause`), but the
 // runtime is not wired to honor it — visibility derives from the declared
 // zone types, never a per-statement override (docs/decisions.md, "Knowledge,

@@ -47,7 +47,8 @@ winner a low card when one is available — is ordinary body movements after
 the round. `tarot_per_opp` computes the settlement (bouts threshold, doubled
 card points from `captured` + the hidden `discard`, petit-au-bout, bid
 multiplier); the `for each player` scoring statement applies it 3:1 zero-sum.
-Card points are kept in doubled integer units (the 78 cards sum to 182).
+Card points are kept in doubled integer units (the 78 cards sum to 182);
+the `card_points { }` clause carries the rank-keyed part of that table.
 Real FFT forces the taker to discard atouts/the Excuse/a King face up when
 fewer than six other cards remain to discard — out of scope here (a 24-card
 taker hand+chien essentially never runs short of plain non-King cards).
@@ -62,6 +63,12 @@ game FrenchTarot {
   max_length: 15000
 
   cards: tarot78
+  // Doubled card points (printed half-points doubled: K=4.5, Q=3.5, C=2.5,
+  // J=1.5, every other card half a point). The bouts (Excuse, petit, 21)
+  // are worth 4.5 each and stay INLINE at the reads — a rank-keyed table
+  // cannot carry the petit, whose rank "1" is 4.5 in atouts and half a
+  // point in the plain suits: `if is_bout(card) then 9 else card_points(card)`.
+  card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }
   trump: atouts
 
   zones {
@@ -151,8 +158,8 @@ game FrenchTarot {
           // repaid the first captured low card, when one is available.
           move all cards from trick_pile where card.suit is excuse to captured[xp]
           move all cards from trick_pile to captured[winner]
-          if any card in captured[xp] where tarot_card_points(card) is 1 {
-            move one card from captured[xp] where tarot_card_points(card) is 1
+          if any card in captured[xp] where (if is_bout(card) then 9 else card_points(card)) is 1 {
+            move one card from captured[xp] where (if is_bout(card) then 9 else card_points(card)) is 1
                  to captured[winner]
           }
         } else {

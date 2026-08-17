@@ -1,6 +1,6 @@
 ---
 name: surface-totality-audit
-description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker guard or diagnostic, a stdlib registry, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
+description: "MANDATORY completeness gate for any change that adds or extends grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any closed-domain mechanism — INCLUDING a change made in response to a review finding on one, where the finding is a sample of a class and never the spec for the fix. Run BEFORE writing the implementation — the grid is authored red first — and again before committing. Produces the artifacts the change must ship with: the grid (the crossed coverage domain as an executable test), the misuse-probe rejection tests, the completeness ledger, and — when answering a finding — the class ledger. A green suite is a regression gate, not a completeness gate; this skill is the completeness gate."
 ---
 
 # Surface-totality audit
@@ -89,7 +89,7 @@ member.
 makes every decided cell honest; it does nothing for the axis you never
 derived. So before authoring the expected column, hand a fresh subagent
 the definition sources ONLY — the grammar, the AST unions, and the
-registry modules (a domain defined by a stdlib registry appears in
+registry modules (a domain defined by a native registry appears in
 neither grammar nor AST) — never the diff, the plan, or your domain
 statement — and ask what axes and positions the surface actually has.
 Your own derivation is PROVISIONAL until this diff: the accepted domain
@@ -157,7 +157,7 @@ registry member loses exactly its new cells from the replay.
 For each new or extended surface form, write the **five most plausible wrong
 sentences** a designer or an LLM author would produce, and run each through
 `check_dsl`. Every probe must yield a diagnostic with a span, in the layer's
-failure currency (compile = bag-collected diagnostic; runtime = typed
+failure channel (compile = bag-collected diagnostic; runtime = typed
 exception; never a bare assert, a raw Python error, or — worst — a
 *differently-shaped successful parse*). Draw probes from these categories,
 which map one-to-one onto this repo's historical misses:
@@ -189,7 +189,7 @@ which map one-to-one onto this repo's historical misses:
    `:`, the singular/plural noun swap.
 
 Probes that correctly fail loud become **rejection tests** in the change.
-Probes that reveal a silent misread or a wrong-currency failure are defects
+Probes that reveal a silent misread or a wrong-channel failure are defects
 to fix before the change ships — or loud guards plus a roadmap record if
 genuinely deferred.
 

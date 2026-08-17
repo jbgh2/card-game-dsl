@@ -1,6 +1,6 @@
-// Wall: typecheck's Call arg-type check. is_diagonal(Dir)->Boolean; a `cell`-typed
+// Guard: typecheck's Call arg-type check. is_diagonal(Dir)->Boolean; a `cell`-typed
 // argument (`from : cell`) is a TCell where a TDir is required. (A bare `a1`
-// would resolve as a walled cell-literal -> unresolved name, a different wall.)
+// would resolve as a guarded cell-literal -> unresolved name, a different guard.)
 game IsDiagonalCellForDir {
   players: 2
   direction: clockwise

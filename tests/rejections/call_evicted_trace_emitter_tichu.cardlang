@@ -1,4 +1,4 @@
-// Wall: resolve.py's unknown-call check. `tichu_hand_summary` was Tichu's
+// Guard: resolve.py's unknown-call check. `tichu_hand_summary` was Tichu's
 // trace emitter, evicted to the harness layer (primitive-sidecars stage 1;
 // tests/playout_trace.py derives the hand summary instead). An author copying
 // the old rules text's `let summary = tichu_hand_summary()` gets the standard

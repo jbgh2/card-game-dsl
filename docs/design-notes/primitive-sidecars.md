@@ -1,8 +1,8 @@
-# Game primitives: from stdlib registries to sealed sidecars
+# Game primitives: from Primitive registries to sealed sidecars
 
 *Status: design analysis / proposal — not a settled decision. The committed
 spec is in [decisions.md](../decisions.md); the sanctioned role of game-local
-Python is described in [library.md](../library.md) "Stdlib functions" and the
+Python is described in [library.md](../library.md) "Native functions" and the
 history that produced it in [kernel-migration.md](../kernel-migration.md).
 This note is about the package boundary and the primitive interface, not the
 language surface.*
@@ -102,13 +102,13 @@ file, the implementation's location stops mattering for safety — so it moves
 next to the game it serves, and the language package
 (`cardlang/stdlib`, `cardlang/runtime`) becomes game-independent. The
 genuinely general names stay in the stdlib: `team_of`, `player_holding`,
-`suit_of`, `rank_value`, `card_value`, `error` (and `best_five_card_hand`,
+`suit_of`, `rank_value`, `card_points`, `error` (and `best_five_card_hand`,
 specified in [library.md](../library.md) but not yet wired) — and
 the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
 `pot_share`) graduate there when a second poker game lands, per the usual
 corpus-first promotion.
 
-**What this is not.** The `instantiate` lesson
+**What this is not.** The [[instantiate-lesson]]
 ([principles.md](../principles.md)) stands untouched: no control flow, no
 movement, no decisions, no mutation in Python — hell was Python holding
 mechanics and touching state invisibly, not Python computing a score from a
@@ -120,7 +120,7 @@ interface cannot express one.
 - **Granularity, not the handle.** The `Ctx` coupling is gone: no game
   module names `Ctx`, `RuntimeState`, `ZoneStore` or `Chooser`, so a
   primitive structurally cannot mutate state, make a decision, or read a
-  name its module never declared (stage 2; the crossed wall in
+  name its module never declared (stage 2; the crossed Owner Guard in
   `tests/test_primitive_narrowing.py`). What it CAN still do is read a
   declared name it does not personally need, because both bundles the
   binder hands over — `GameReads` from `PRIMITIVE_READS`, and the closed
@@ -203,7 +203,7 @@ EXACTLY as they are; the implementation is rewritten
 values-in/value-out, and the dispatch layer binds what the
 implementation may see and passes plain values. Scorers first, the
 accumulator-readers (`pot_share`) and trick-terminal readers last.
-Acceptance per PR: no `Ctx` reaches any game module (the crossed wall
+Acceptance per PR: no `Ctx` reaches any game module (the crossed Owner Guard
 in `tests/test_primitive_narrowing.py`), the declared-reads pins hold,
 goldens byte-identical — this stage is a pure refactor.
 
@@ -212,7 +212,7 @@ the authored inventory of the name-keyed half only; the
 engine-structural half (the seating ring, `team_of`/`teams`,
 `rank_index`, the two round-state views, the acting player) had no
 declaration anywhere and is now the closed `EngineFacts` field set in
-`cardlang/runtime/sidecar.py`. Both bundles are MODULE-granular this
+`cardlang/runtime/narrowing.py`. Both bundles are MODULE-granular this
 stage; the design note's §2 end state is per-primitive, which is what
 stage 3's `reads` clause buys — and it buys two concrete things
 beyond precision: a primitive stops paying to materialize rows it
@@ -245,7 +245,7 @@ stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
 Resolve/typecheck: declared-but-unimplemented and
 implemented-but-undeclared are both errors; call sites check against
 the DECLARED signature; the reads clause validates zone and state
-names. Scope wall for v1: the reads clause is checked for name
+names. Scope Owner Guard for v1: the reads clause is checked for name
 validity and drives what the dispatch hands over — the derived-reveal
 analysis (hidden reads flowing into public state) is recorded
 follow-on work, not silently absent. Registry, signatures, and

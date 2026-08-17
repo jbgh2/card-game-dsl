@@ -84,7 +84,7 @@ covered:    every block in the domain carries a recognized tag
             are each independently proven with synthetic fixtures
             (test_self_*), since the real docs currently contain zero
             `cardlang`, zero `cardlang-bad`, and zero `cardlang-bad-
-            fragment` blocks — the wall still has to have teeth on the day
+            fragment` blocks — the guard still has to have teeth on the day
             one of those tags is used for the first time. For
             cardlang-bad-fragment specifically, the synthetic fixtures also
             prove the negative: a *benign* fragment mistagged
@@ -127,7 +127,7 @@ residual:   fragment KINDS with no cheap wrapping harness. These are never
                 declarations — no such production exists; per-observer
                 projection is a closed Python registry
                 (cardlang/stdlib/zones.py `ZONE_PROJECTIONS`), keyed by the
-                stdlib zone-type name a game references inside `zones {}`,
+                kernel zone-type name a game references inside `zones {}`,
                 never authored inline.
               - `type` fields with a range/union/parameterized shape
                 (`level : Integer in 1..7`, `suit : Suit | NT`,
@@ -179,10 +179,10 @@ KNOWN_TAGS = frozenset(
 # deck-capacity) has enough context to run. The recipes share a common
 # zone/state vocabulary (`_SHARED_ZONES`/`_SHARED_STATE`) so they read like
 # one small game, not seven unrelated ones — but each recipe adds only the
-# names its own fragment actually references (a stdlib rule/move-type name,
+# names its own fragment actually references (a kernel rule/move-type name,
 # never an invented game-specific one). Fragments that need genuinely
 # game-specific vocabulary (a bid-level enum, an undeclared rule with no
-# stdlib analog) have no recipe and are not tagged `cardlang-fragment` or
+# kernel analog) have no recipe and are not tagged `cardlang-fragment` or
 # `cardlang-bad-fragment` in the docs — see the module docstring's ledger
 # "residual" section.
 #
@@ -216,15 +216,20 @@ _SHARED_STATE = """\
 """
 
 
-def _game(body: str, *, top_level: str = "") -> str:
+def _game(body: str, *, top_level: str = "", ranking: str = "") -> str:
     """A minimal plausible game: the shared zones/state plus `body` (typically
-    one or more `phase` declarations) as the remaining game items."""
+    one or more `phase` declarations) as the remaining game items. `ranking`
+    is supplied by the wrappers whose fragments play tricks with a
+    ranking-reading winner (the wrapper's job is to provide what a fragment
+    legitimately omits); every other shell stays ranking-free so fragments
+    that carry their own game lines cannot collide with a duplicate."""
     return f"""
 {top_level}
 game Skeleton {{
   players: 4
   max_length: 1000
   cards: standard52
+  {ranking}
   zones {{
 {_SHARED_ZONES}
   }}
@@ -239,7 +244,7 @@ game Skeleton {{
 def _wrap_active_rules_shadowing(frag: str) -> str:
     # decisions.md "Sub-phase rule and legal-move deltas": plain shadowing
     # (no +/-/override). The rule names are the doc's own illustrative
-    # letters, given a trivial always-true body against the stdlib move type.
+    # letters, given a trivial always-true body against the kernel move type.
     rules = "\n".join(
         f"rule {name} {{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }}"
         for name in ("A", "B", "C", "X", "Y")
@@ -252,13 +257,16 @@ def _wrap_first_trick_phase(frag: str) -> str:
         "rule MustLeadAceOfSpadesOnFirstPlay "
         "{ constrains: play_to_trick applies_when: always demands: cards in hand where card.suit is hearts if_impossible: hand }"
     )
-    return _game(f"{frag}\n  winner: highest score", top_level=rule)
+    return _game(
+        f"{frag}\n  winner: highest score", top_level=rule, ranking="ranking: aces high"
+    )
 
 
 def _wrap_play_phase(frag: str) -> str:
-    # References only stdlib names (play_to_trick, highest_of_led_suit,
+    # References only native names (play_to_trick, highest_of_led_suit,
     # on_play_off_led_suit) and shared-skeleton state (leader, eliminated).
-    return _game(f"{frag}\n  winner: highest score")
+    # highest_of_led_suit is ranking-gated, so this shell supplies ranking:.
+    return _game(f"{frag}\n  winner: highest score", ranking="ranking: aces high")
 
 
 def _wrap_before_each(frag: str) -> str:
@@ -409,7 +417,7 @@ game Skeleton {{
 
 
 def _wrap_library_zones_block(frag: str) -> str:
-    # `frag` is a complete `zones { ... }` game_item (library.md's stdlib
+    # `frag` is a complete `zones { ... }` game_item (library.md's kernel
     # zone-type usage example).
     return f"""
 game Skeleton {{
@@ -484,8 +492,8 @@ def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 54, "library.md": 13, "model.md": 5}
-    assert len(_BLOCKS) == 72
+    assert per_doc == {"decisions.md": 55, "library.md": 13, "model.md": 5}
+    assert len(_BLOCKS) == 73
 
 
 def _block_id(block: FencedBlock) -> str:
@@ -568,7 +576,7 @@ def _rejected_when_wrapped(
 
 
 # ---------------------------------------------------------------------------
-# The wall: every block must be classified.
+# The guard: every block must be classified.
 # ---------------------------------------------------------------------------
 
 
@@ -731,7 +739,7 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
 # ---------------------------------------------------------------------------
 # Self-tests: prove each code path with synthetic fixtures, independent of
 # what the real docs currently contain (today they hold zero `cardlang`,
-# zero `cardlang-bad`, and zero `cardlang-bad-fragment` blocks — the wall
+# zero `cardlang-bad`, and zero `cardlang-bad-fragment` blocks — the guard
 # must still have teeth).
 # ---------------------------------------------------------------------------
 

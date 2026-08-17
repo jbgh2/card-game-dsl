@@ -11,7 +11,7 @@
 // The hand runs on the kernel `round climb` construct. The combination model —
 // the two rank orders (2 high for sets; natural for straights), suit tie-breaks,
 // and the straight < flush < full house < quads < straight flush hierarchy — is
-// not expressible in the DSL, so it lives in the game-local stdlib queries
+// not expressible in the DSL, so it lives in the game-local Primitive queries
 // `bigtwo_lead_options` / `bigtwo_follows` (see big-two.md). Everything else —
 // the climbing trick loop, the 3♦ opening, pile routing to the discard, the
 // shed-out finish, and penalty scoring — is DSL. This is the second climbing
@@ -50,7 +50,7 @@ game BigTwo {
       shuffle deck
       deal 13 cards from deck to each hand
       // The 3♦ holder leads the first hand; thereafter the previous winner does.
-      leader := (if winner_seat is none then bigtwo_first_leader() else winner_seat)
+      leader := (if winner_seat is none then player_holding(3 of diamonds) else winner_seat)
     }
 
     phase play {

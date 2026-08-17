@@ -95,11 +95,11 @@ game Coup {
     for each player p: coins[p] += 2
     treasury -= 8
 
-    repeat until coup_players_in() <= 1 {
+    repeat until (number of players where alive[player] and influence[player] is not empty) <= 1 {
       if alive[turn] and influence[turn] is not empty {
         offer to turn one of [income, foreign_aid, tax, steal, exchange, coup, assassinate]
       }
-      turn := coup_next_in_game(turn)
+      turn := the first player from turn offset_by left where alive[player] and influence[player] is not empty
     }
 
     let summary = coup_game_summary()
@@ -118,7 +118,7 @@ procedure challenge_window(claimant : Player) {
   window_open := true
   responder := claimant
   repeat until not window_open {
-    responder := coup_next_in_game(responder)
+    responder := the first player from responder offset_by left where alive[player] and influence[player] is not empty
     if responder is claimant { window_open := false }
     if window_open {
       offer to responder one of [challenge, allow]
@@ -223,7 +223,7 @@ move_type foreign_aid {
     window_open := true
     responder := actor
     repeat until not window_open {
-      responder := coup_next_in_game(responder)
+      responder := the first player from responder offset_by left where alive[player] and influence[player] is not empty
       if responder is actor { window_open := false }
       if window_open {
         offer to responder one of [block_claiming_duke, allow]
@@ -234,7 +234,7 @@ move_type foreign_aid {
       block_stands := true
       run challenge_window(blocker)
       if challenged {
-        if coup_has_char(blocker, block_claim) {
+        if any card in influence[blocker] where card.rank is block_claim {
           run prove_claim(blocker, block_claim)
           run lose_influence(challenger)
         } else {
@@ -257,7 +257,7 @@ move_type tax {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, Duke) {
+      if any card in influence[actor] where card.rank is Duke {
         run prove_claim(actor, Duke)
         run lose_influence(challenger)
       } else {
@@ -280,7 +280,7 @@ move_type steal(target : Player) {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, Captain) {
+      if any card in influence[actor] where card.rank is Captain {
         run prove_claim(actor, Captain)
         run lose_influence(challenger)
       } else {
@@ -299,7 +299,7 @@ move_type steal(target : Player) {
         block_stands := true
         run challenge_window(target)
         if challenged {
-          if coup_has_char(target, block_claim) {
+          if any card in influence[target] where card.rank is block_claim {
             run prove_claim(target, block_claim)
             run lose_influence(challenger)
           } else {
@@ -323,7 +323,7 @@ move_type exchange {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, Ambassador) {
+      if any card in influence[actor] where card.rank is Ambassador {
         run prove_claim(actor, Ambassador)
         run lose_influence(challenger)
       } else {
@@ -360,7 +360,7 @@ move_type assassinate(target : Player) {
     challenge_stands := true
     run challenge_window(actor)
     if challenged {
-      if coup_has_char(actor, Assassin) {
+      if any card in influence[actor] where card.rank is Assassin {
         run prove_claim(actor, Assassin)
         run lose_influence(challenger)
       } else {
@@ -379,7 +379,7 @@ move_type assassinate(target : Player) {
         block_stands := true
         run challenge_window(target)
         if challenged {
-          if coup_has_char(target, block_claim) {
+          if any card in influence[target] where card.rank is block_claim {
             run prove_claim(target, block_claim)
             run lose_influence(challenger)
           } else {

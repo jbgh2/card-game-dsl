@@ -69,7 +69,7 @@ deducible from the reveals), the derived information set is *almost* the
 whole state — hidden in exactly two places, the prize order and the live
 bid, which is precisely what makes the game pure strategy. The rank scale
 needs no game-local primitive: under `ranking: aces low`,
-the stdlib `rank_value` is 0 for the Ace up to 12 for the King — the bid
+the Builtin `rank_value` is 0 for the Ace up to 12 for the King — the bid
 comparison directly, and the prize value as `rank_value + 1`.
 
 ```

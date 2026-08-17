@@ -18,7 +18,7 @@ registry:   constrains -- `stdlib.moves.LIBRARY_MOVE_TYPES`, plus the
             demands    -- `ast.nodes.DEMAND_KINDS`. This registry did not
                           exist before this change: the two kinds lived in a
                           `# "cards" | "actions"` comment on the field, so
-                          the axis had no defining site in code and the wall
+                          the axis had no defining site in code and the guard
                           had nothing to be the complement OF. Adding it is
                           this change's first artifact (surface-totality
                           audit, Step 1). Pinned by
@@ -29,8 +29,8 @@ covered:    `test_rule_surface_grid`, the full
             CONSTRAINS x DEMAND_KINDS_OR_ABSENT x EXEMPTS cross (54 rows).
             Each rejected cell asserts the SPECIFIC diagnostic it must
             produce, never bare rejection: several cells can trip more than
-            one wall (a `cards` demand still needs its `if_impossible`), and
-            a cell asserting only "rejected" passes for the wrong wall.
+            one guard (a `cards` demand still needs its `if_impossible`), and
+            a cell asserting only "rejected" passes for the wrong guard.
 sampled:    none.
 decided:    The vacuous rule (`constrains: play_to_trick`, no `demands:`, no
             `exempts:`) is REJECTED, and that is a judgment call rather than
@@ -55,9 +55,9 @@ residual:   `applies_when:` and `if_impossible:` are NOT axes, deliberately.
             NOT closed here, each a DIFFERENT defect with its own record:
             - duplicate rule clauses are silently last-wins (`rule X {
               constrains: a  constrains: b }` keeps `b`) -- issue #173, R3.
-              A silent MISREAD, not accepted-but-ignored: these walls narrow
+              A silent MISREAD, not accepted-but-ignored: these guards narrow
               its blast radius but cannot close it, and
-              `test_duplicate_clause_misread_is_not_closed_by_these_walls`
+              `test_duplicate_clause_misread_is_not_closed_by_these_guards`
               below pins that honestly rather than letting the grid imply
               otherwise.
             - the four rule-clause expressions are typechecked for arity
@@ -68,11 +68,11 @@ residual:   `applies_when:` and `if_impossible:` are NOT axes, deliberately.
               silently, while a parameterized rule never instantiated is a
               hard error -- issue #175, R4.
 
-            One CONSEQUENCE of this wall, not a gap in it: a family library
+            One CONSEQUENCE of this guard, not a gap in it: a family library
             can no longer declare a rule. An enforceable rule must name a
             zone and a `requires { }` contract names state only, so every
-            library rule is either unenforceable (walled here) or reaches
-            past its contract (walled by the library encapsulation check).
+            library rule is either unenforceable (guarded here) or reaches
+            past its contract (guarded by the library encapsulation check).
             No library declares one today and the standard library is
             unaffected -- it is spliced by a separate path with no contract
             to violate, which is the asymmetry epic #181 exists to remove.
@@ -90,7 +90,7 @@ package) enumerated the rule surface and its readers. Three of its findings
 are in this ledger and were absent from the author's derivation:
   - the `actions`-demand cell where the rule ALSO carries `exempts`. The
     rule is live (exempts is read) while the demand clause stays inert, so
-    the wall had to become per-CLAUSE; the author's per-rule framing would
+    the guard had to become per-CLAUSE; the author's per-rule framing would
     have let that cell through.
   - `DEMAND_KINDS` had no defining site, which is why it is created here.
   - the three separately-filed defects above, none of which the author's
@@ -120,7 +120,7 @@ EXEMPTS: tuple[bool, ...] = (False, True)
 
 def _reaches_a_reader(constrains: str | None, demands: str | None, exempts: bool) -> bool:
     """The acceptance predicate, authored from `rules.legal_cards`'s guards —
-    NOT read off the wall it is about to check. A rule is accepted iff it
+    NOT read off the guard it is about to check. A rule is accepted iff it
     constrains the one enforced move type and carries something that site can
     act on: a card-set demand, or an exempt set. An `actions` demand is never
     enforceable, so it is rejected even when a live `exempts` sits beside it."""
@@ -141,7 +141,7 @@ def test_constrains_axis_is_the_move_registry() -> None:
 
 def test_demands_axis_is_the_kind_registry() -> None:
     """The axis IS `DEMAND_KINDS`, and the parse builder may emit nothing
-    outside it — otherwise a third form could reach the wall as an unlisted
+    outside it — otherwise a third form could reach the guard as an unlisted
     kind and the grid would never name the cell.
 
     red under: add a third member to `n.DEMAND_KINDS` (e.g. `"moves"`)
@@ -197,8 +197,8 @@ def _source(constrains: str | None, demands: str | None, exempts: bool) -> str:
         clauses.append(f"  constrains: {constrains}")
     if demands == n.DEMAND_KIND_CARDS:
         # A card-set demand carries its own mandatory `if_impossible` (a
-        # separate, older wall). Supplying it keeps every rejection in this
-        # grid attributable to reachability rather than to that wall.
+        # separate, older guard). Supplying it keeps every rejection in this
+        # grid attributable to reachability rather than to that guard.
         clauses.append(f"  demands: {CARD_SET}")
         clauses.append("  if_impossible: hand")
     elif demands == n.DEMAND_KIND_ACTIONS:
@@ -229,8 +229,8 @@ def test_rule_surface_grid(
         check_dsl(src, "rule.cardlang")
     message = str(excinfo.value)
 
-    # Each cell asserts the SPECIFIC wall it must trip. Bare rejection would
-    # pass for a neighbouring wall and prove nothing about this cell.
+    # Each cell asserts the SPECIFIC guard it must trip. Bare rejection would
+    # pass for a neighbouring guard and prove nothing about this cell.
     if constrains != ENFORCED_MOVE_TYPE:
         assert "no decision site" in message, message
     elif demands is not None:
@@ -273,7 +273,7 @@ def test_rule_surface_grid(
             "enforces nothing",
         ),
         # `exempts` beside an inert demand: the RULE is live (exempts is read)
-        # but the demand clause is not, which is why the wall is per-clause.
+        # but the demand clause is not, which is why the guard is per-clause.
         (
             "actions_demand_beside_a_live_exempts",
             "  constrains: play_to_trick\n"
@@ -283,7 +283,7 @@ def test_rule_surface_grid(
         ),
     ],
 )
-def test_misuse_probe_is_rejected_in_the_right_currency(
+def test_misuse_probe_is_rejected_in_the_right_channel(
     label: str, clauses: str, needle: str
 ) -> None:
     with pytest.raises(DiagnosticError) as excinfo:
@@ -291,10 +291,10 @@ def test_misuse_probe_is_rejected_in_the_right_currency(
     assert needle in str(excinfo.value), str(excinfo.value)
 
 
-def test_duplicate_clause_misread_is_not_closed_by_these_walls() -> None:
+def test_duplicate_clause_misread_is_not_closed_by_these_guards() -> None:
     """Issue #173, pinned as an ACCEPTED defect so the grid above cannot be
     read as closing it. Clauses are last-wins, so a duplicate `constrains:`
-    whose LAST value is the enforced move type sails through — the walls
+    whose LAST value is the enforced move type sails through — the guards
     narrow this defect's blast radius without closing it, and saying so in a
     test keeps the ledger's residual row honest.
 

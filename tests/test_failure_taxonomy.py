@@ -48,7 +48,7 @@ registry:  the class axis derives by importing every module of the package and
 covered:   the full cross product, as `test_containment` — every derived class
            against every predicate, expected values in `_EXPECTED`.
 sampled:   none. The cross product is total over both axes.
-residual:  stdlib exception classes raised directly by the engine
+residual:  builtin Python exception classes raised directly by the engine
            (`ValueError`, `KeyError`, ...) are not classes the engine DEFINES,
            so they have no position to pin here; that they are raised at all
            where a role type belongs is the census's property, not this
@@ -140,7 +140,7 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # --- the compile passes' own channel -----------------------------------
     # Diagnostics are bag-collected and carry spans; a compile failure is never
     # a play-time refusal, and catching one as a game-description failure would
-    # cross two currencies.
+    # cross two channels.
     "DiagnosticError": {"in_game_description_tree": False, "is_runtime_error": False},
 }
 

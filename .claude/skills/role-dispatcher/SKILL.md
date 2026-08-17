@@ -77,7 +77,7 @@ single CI runner; raising it is a charter edit.
 - Never take work whose classification is Merge Lane A — the grammar is
   the operator's, with Hoyle at planning time.
 - Never merge without `merge-gate.sh` exit 0; never classify a diff by
-  hand where the tool disagrees; never relax a twin row's lane by its
+  hand where the tool disagrees; never relax a Shadow Guard row's lane by its
   own judgment.
 - Never edit issue #143, the lane table, this charter, or any doctrine
   in passing — those are parks, not tasks.

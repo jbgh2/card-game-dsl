@@ -1,8 +1,8 @@
-"""500's game-local runtime primitives.
+"""500's game-local runtime [[primitive]]s.
 
 The hand runs fully on the kernel (five-hundred.cardlang): the ascending
-auction is the drop-out ring form of `round` (the Pinochle shape), the kitty
-pickup and discard are plain movements, the joker nomination an `offer`, and
+auction is the drop-out ring [[form]] of `round` (the Pinochle shape), the kitty
+pickup and discard are plain [[transfer]]s, the joker nomination an `offer`, and
 the ten tricks single-actor filtered movements (the Skat/Doppelkopf shape).
 What stays game-local: the 27-rung bid ladder with the misère insertions, the
 per-contract follow/lead legality, and trick resolution — the joker and both
@@ -10,15 +10,15 @@ bowers behave in all respects as members of the trump suit (the Skat
 jacks-as-a-follow-class precedent, plus an effective-suit remap for the left
 bower), and in the no-trump family the joker is suitless (or, once nominated,
 the highest card of its suit). The trick primitive also emits the
-play/trick_end/trick trace events the playout harness recomputes winners from
-(tests/test_playout_five_hundred.py).
+play/trick_end/trick [[trace-event]]s the playout harness recomputes winners
+from (tests/test_playout_five_hundred.py).
 
 The contract-dependent primitives read the declared contract from phase state
-(`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit` / `declarer`) —
-the Skat/Stud precedent for game-local primitives over live state.
+(`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit`) — the
+Skat/Stud precedent for game-local primitives over live state.
 
 Contract ordinals: every bid is a rung on one strictly-ordered ladder,
-encoded as an integer so the standing bid is one public state variable.
+encoded as an integer so the standing bid is one public [[state-variable]].
 Suit/no-trump bids take 10*((level-6)*5 + strain) with strain ♠1 ♣2 ♦3 ♥4
 NT5 (so 6♠=10 … 10NT=250); misère sits at 105 (above every seven bid, below
 every eight bid) and open misère at 235 (above 10♦, below 10♥). Point values
@@ -28,9 +28,9 @@ BELOW it; the ordinal and the value never share a scale.
 
 from __future__ import annotations
 
-from cardlang.runtime import reads
+from cardlang.runtime import reads, winners
 from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.sidecar import EngineFacts, TraceEvent
+from cardlang.runtime.narrowing import EngineFacts, TraceEvent
 from cardlang.runtime.values import Card, Player
 
 ROW = reads.row("cardlang/runtime/five_hundred.py", "five-hundred.cardlang")
@@ -77,7 +77,7 @@ def five_hundred_bid_value(rank: int) -> int:
     """The score value of a contract ordinal: the Pagat table (6♠=40, +20 per
     strain, +100 per level, 10NT=520), misère 250, open misère 500. Any other
     integer is no contract — the ladder above is the whole domain, so a stray
-    value is the description's error, so this raise is its Owner Guard."""
+    value is the description's error, so this raise is its [[owner-guard]]."""
     if rank == _MISERE_ORD:
         return 250
     if rank == _OPEN_MISERE_ORD:
@@ -179,7 +179,7 @@ def lead_ok(pool: list[Card], c: Card, trump: str | None, joker_suit: str | None
     """The pure lead rule: anything may be led, except that in the no-trump
     family an un-nominated joker may not be led before the holder's last
     card (the modelled form of Pagat's lead-nomination rule — see
-    five-hundred.md, "Chosen ruleset"). Under a trump contract the joker is
+    five-hundred.md, "Chosen ruleset (modelling notes)"). Under a trump contract the joker is
     simply the top trump and leads freely; a nominated joker leads as the
     highest card of its suit."""
     if trump is not None or c.suit != "joker":
@@ -235,32 +235,25 @@ def five_hundred_lead_ok(
 
 
 def five_hundred_trick_winner(
-    facts: EngineFacts, gr: reads.GameReads, leader: Player
+    facts: EngineFacts, gr: reads.GameReads
 ) -> tuple[Player, tuple[TraceEvent, ...]]:
-    """The completed trick's winner (`trick_pile` holds the cards in seat
-    order from the leader — three cards in a misère contract, where the
-    declarer's partner sits out, else four): the highest trump if any was
-    played (joker > right bower > left bower > A..), else the highest card
-    of the led class; in the no-trump family an un-nominated joker wins any
-    trick it is played to, and a nominated joker is simply the highest card
-    of its suit. Emits the play/trick_end/trick traces the playout harness
-    recomputes winners from."""
+    """The completed trick's winner — three cards in a misère contract
+    (three seats play; the contract's own rule), else four: the highest
+    trump if any was played (joker > right bower > left bower > A..), else
+    the highest card of the led class; in the no-trump family an
+    un-nominated joker wins any trick it is played to, and a nominated joker
+    is simply the highest card of its suit. Who played each card — and so
+    who participated — is the kernel's Arrival Record (`gr.arrivals`, issue
+    #256): participation derives from who acted, so the dead seat is stated
+    exactly once, in the game file's movement structure. Emits the
+    play/trick_end/trick traces the playout harness recomputes winners
+    from."""
     trump, misere = _contract(gr)
     joker_suit = gr.state["joker_suit"]
-    cards = gr.singles["trick_pile"]
-    order = facts.seating.turn_order_from(leader)
-    if misere:
-        declarer = gr.state["declarer"]
-        dead = facts.seating.offset_by(declarer, "across")
-        order = [q for q in order if q != dead]
-    if len(cards) != len(order):
-        # The pile's live size is the hosting game's runtime data, so a wrong
-        # call site is the description's error, so this raise is its Owner Guard.
-        raise OwnerGuardError(
-            f"five_hundred_trick_winner: trick pile holds {len(cards)} cards, "
-            f"expected a completed {len(order)}-card trick"
-        )
-    played = list(zip(order, cards))
+    played = winners.recorded_plays(
+        gr.arrivals["trick_pile"], "five_hundred_trick_winner", 3 if misere else 4
+    )
+    cards = [c for _, c in played]
     events: list[TraceEvent] = [("play", (q, c)) for q, c in played]
     winner = trick_winner(played, trump, joker_suit)
     events.append(
