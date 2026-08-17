@@ -191,6 +191,19 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             resolve.py's `_LIBRARY_UNSWEPT` header comment (a swept
             namespace cannot carry an "unswept" row); the value's Owner
             Guard is `_resolve_trump`, over the game.
+            (10) The MIXED consumption shape -- a reachable phase round with
+            a trump-blind winner AND a reading round stranded in an
+            unreachable container -- has no cell of its own: the
+            `test_dead_clause_counts_reachable_rounds` fixture puts a round
+            in the phase only for its reachable cells, so the cross of
+            "reachable blind" with "stranded reader" is unreached by the
+            grid. The verdict is the same either way (refused: no reachable
+            round reads the trump) and the message's `parts` list is built
+            uniformly, so both sentences appear in order; the PR #365 review
+            probed all four (rounds, stranded) combinations and found the
+            message correct in each. Not work: this ledger owns the record;
+            the cell is one `_container_source` parameter away if the
+            message shape ever gains a branch.
 
 Framing check: RAN (a fresh-context subagent given the definition sources
 only -- grammar, AST, registries, runtime bodies -- with no plan or diff).
