@@ -58,6 +58,18 @@ covered:    the grid below — `winner_axes.cells()` x {accepted, rejected},
             phase (both refused by the name guards, with
             `_check_winner_target` silent), and a `team`-indexed target in a
             game declaring no `teams:`.
+
+            42 of the 95 rows are born green — the 38 answered by the
+            pre-existing declaration guard and the 4 accepted ones — so
+            each names the mutation that reddens it, per class rather than
+            per row. red under: replace `_validate_refs`' `if nd.index is
+            not None and role_of(nd.index) not in ZONE_INDEX_ROLES:` with
+            `if False:` — the 38 `reject:declaration` rows redden, executed.
+            red under: `_RANKABLE_TYPES = frozenset()` — 18 rows redden,
+            executed: the 4 `accept` rows, plus the 14 `reject:type` rows,
+            whose asserted phrase names that set. The admissible types are
+            one registry, so no mutation reaches the accepted rows alone
+            and the wider blast radius is the witness, not a defect in it.
 sampled:    the struct-type cell runs ONE struct shape (`Pair`), not a
             sub-axis of field shapes: a struct is unrankable whatever it
             holds, so the field list cannot vary the property under guard.
