@@ -206,6 +206,9 @@ def play_game(
     winner: Player | None = None
     loser: Player | None = None
     if game.winner is not None:
+        # Shadow Guard behind resolve's `_check_winner_target`: a target that
+        # is not a per-member score dies here on a raw `TypeError` rather than
+        # ranking something meaningless.
         scores = dict(rs.get(game.winner.state_var))
         if game.winner.rank_dir not in RANK_DIR_TO_PICK:
             # Internal invariant, not a user diagnostic: the grammar's
