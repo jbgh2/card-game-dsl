@@ -4265,9 +4265,9 @@ def _consumption_reachable_nodes(game: n.Game) -> list[object]:
         node = frontier.pop()
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
             namespace = slot_namespace(node, field_name)
-            pool = pools.get(namespace) if namespace is not None else None
-            if pool is None:
+            if namespace is None or namespace not in pools:
                 continue
+            pool = pools[namespace]
             for name in slot_strings(node, field_name):
                 key = (namespace, name)
                 target = pool.get(name)
