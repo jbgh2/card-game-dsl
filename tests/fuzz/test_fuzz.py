@@ -139,7 +139,11 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     # count guard was `recorded_plays`', which the kernel winner deliberately
     # does not consult (a mid-trick read is the winner so far, issue #350). The
     # same deliberate deletion of the leader's play now surfaces in the
-    # harness's own T3 invariant instead, the `gops_empty_legal_set` channel.
+    # harness's own T3 invariant instead, the `gops_empty_legal_set` channel --
+    # measured on skat itself (2026-08-18): deleting skat.cardlang's leader
+    # play raises "legal set of 0" at decision 35 (seed 0) and 37 (seed 2),
+    # inside the sweep's cap, so the channel is demonstrable here and not only
+    # by class from gops.
 }
 
 
