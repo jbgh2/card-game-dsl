@@ -206,3 +206,36 @@ def test_the_provenance_derivation_reads_the_call_registry() -> None:
         f"the AST half derived {spec.all_provenance_zones} -- the call registry "
         f"is not reaching the harness's derivation"
     )
+
+
+def test_a_family_pile_expands_before_it_is_derived_from() -> None:
+    """The subscripted-pile path, exercised directly.
+
+    `highest_by_trick_order(piles[p])` is designed surface, but the AST
+    derivation can only see the family NAME. Two halves make that safe, and
+    neither has a corpus witness (no corpus game names a family pile), so both
+    are driven here rather than left to the accept cells: the proof EXPANDS a
+    family into its live instances, and `derive_arrivals` REFUSES a bare
+    family loudly rather than matching no move event and returning [] — which
+    the proof would read as a passing comparison of two empty sequences.
+
+    red under (executed, reverted): drop the `is_family` branch from
+    `_instance_labels` — the expansion assertion fails; and remove
+    `derive_arrivals`' family assert — the refusal assertion fails."""
+    import random
+
+    from cardlang.ast import nodes as n
+    from cardlang.runtime.state import RuntimeState, ZoneStore
+    from cardlang.runtime.values import Seating
+
+    from .harness import _instance_labels
+    from .partition import derive_arrivals
+
+    decls = (
+        n.ZoneDecl(name="pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
+        n.ZoneDecl(name="piles", index="player", type_ref=n.TypeRef(name="PlayerPile")),
+    )
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    assert _instance_labels(rs, ("pile", "piles")) == ["pile", "piles[0]", "piles[1]"]
+    with pytest.raises(AssertionError, match="zone FAMILY"):
+        derive_arrivals(rs, [], "piles")

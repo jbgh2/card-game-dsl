@@ -429,7 +429,10 @@ def test_a_retired_spelling_is_actually_retired() -> None:
     roots = [_P("cardlang"), _P("docs/games")]
     live: dict[str, list[str]] = {}
     for entry in load():
-        for spelling in _spellings(entry):
+        for raw in _spellings(entry):
+            # The frontmatter list is a hand format and its members may be
+            # quoted; `_spellings` strips backticks only.
+            spelling = raw.strip().strip('"').strip("'")
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", spelling):
                 continue  # a prose spelling, not an identifier
             hits = [
