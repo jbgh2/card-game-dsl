@@ -4385,8 +4385,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     # A climbing round's combination queries carry their OWN strength order
     # (`RANKING_GATED_CLIMB_QUERIES` — president's read `rank_index`), so a
     # game declaring a Trick Order beside one has two orders and the engine
-    # quietly runs both: the block for the trick vocabulary, the query's table
-    # for the climb. Refused for the same reason an excluded winner is.
+    # quietly runs both: the block for trick play, the query's own table for
+    # the climb. Refused for the same reason an excluded winner is.
     for nd in _walk(game):
         if isinstance(nd, n.ClimbRound):
             for query_slot, fname in (
