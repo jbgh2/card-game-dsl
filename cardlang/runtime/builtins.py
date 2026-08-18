@@ -30,12 +30,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from cardlang.runtime import reads, winners
+from cardlang.runtime import reads, trick_order, winners
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.state import Ctx, IllegalMove
 from cardlang.runtime.values import SUITS, Card, Player, rank_strength
 from cardlang.stdlib.boards import BoardEntry
-from cardlang.stdlib.zones import identity_to_all
 
 
 class _NotABuiltin:
@@ -94,8 +93,32 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             return _end_card(args[0], "bottom_of", 0)
         case "highest_trump_or_led_suit":
             return _pile_trick_winner(args[0], args[1], ctx)
+        # The Trick Order's five (decisions.md "Trick Order"). The three
+        # readers answer from the table the driver materialized; the two
+        # Builtins over the declaration delegate to the neutral module. None
+        # of the five emits a `trick` trace: a call form's read may be
+        # mid-trick (the winner so far, issue #350), and a trace there would
+        # announce trick ends that did not happen (issue #250 PR 1, ruled
+        # point 7) -- the round form's `outcome` keeps its trace.
+        case "is_trump":
+            return bool(_trick_order_table(ctx, "is_trump").is_trump(args[0], ctx))
+        case "follow_class":
+            return _trick_order_table(ctx, "follow_class").follow_class(args[0], ctx)
+        case "card_strength":
+            return _trick_order_table(ctx, "card_strength").card_strength(args[0], ctx)
+        case "follows_lead":
+            return trick_order.follows_lead_over_pile(args[0], args[1], ctx)
+        case "highest_by_trick_order":
+            return trick_order.winner_over_pile(args[0], ctx)
         case _:
             return NOT_A_BUILTIN
+
+
+def _trick_order_table(ctx: Ctx, reader: str) -> trick_order.TrickOrderTable:
+    """The materialized [[trick-order]] a minted reader reads. [[shadow-guard]]
+    behind resolve's presence partition, which refuses every reader in a game
+    declaring no block."""
+    return trick_order.table_of(ctx, f"{reader}(card)")
 
 
 def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:
@@ -229,46 +252,24 @@ def _pile_trick_winner(value: Any, trump: str | None, ctx: Ctx) -> Player:
     #256; the same comparison the trick form's `winner` clause names, made
     callable for hand-rolled tricks — Schnapsen's).
 
-    Three guards, all in the runtime's channel because every one is
-    user-reachable: the argument must be a zone (`TAny`, the `suit_of`
-    precedent); its type must project identity to EVERY observer — a
-    concealed pile's provenance is not derivable from any observer's stream,
-    so naming its winner would compute from facts no player could know; and
-    the pile must hold plays — non-empty, every arrival carrying a deciding
-    actor (a pile fed by deals has no winner to name)."""
-    from cardlang.runtime.state import Zone
-
-    if not isinstance(value, Zone):
-        raise OwnerGuardError(
-            f"highest_trump_or_led_suit expects a zone, got {type(value).__name__} — "
-            f"this value is not a zone"
-        )
-    name, key = ctx.rs.zones.locate(value)
-    label = name if key is None else f"{name}[{key}]"
-    ztype = ctx.rs.zones.zone_type[name]
-    if not identity_to_all(ztype):
-        raise OwnerGuardError(
-            f"highest_trump_or_led_suit over '{label}' ({ztype}): the zone "
-            f"type does not project identity to every observer, so its "
-            f"provenance is not derivable from any observer's stream — a "
-            f"winner may only be named over a fully public pile"
-        )
-    if not value.cards:
+    The pile argument reaches the shared Arrival-Record boundary
+    (`runtime/trick_order.public_pile_plays`), which every member of
+    `ARRIVAL_RECORD_CALLS` uses: the argument being a zone, and that zone's
+    type projecting identity to EVERY observer, are decided STATICALLY now
+    (`resolve._check_arrival_record_pile_args`, issue #250 PR 1) and stand
+    there as [[shadow-guard]]s; every arrival carrying a deciding actor stays
+    the boundary's own [[owner-guard]], a fact of what ran. Emptiness is this
+    winner's own Owner Guard — the boundary returns possibly-empty pairs so
+    `follows_lead` can answer false on them."""
+    label, played = trick_order.public_pile_plays(
+        value, ctx, "highest_trump_or_led_suit"
+    )
+    if not played:
         raise OwnerGuardError(
             f"highest_trump_or_led_suit over '{label}': the pile is empty — "
             f"no plays to name a winner from; guard the read "
             f"(`{label} is not empty`)"
         )
-    played: list[tuple[Player, Card]] = []
-    for a in value.arrivals:
-        if a.actor is None:
-            raise OwnerGuardError(
-                f"highest_trump_or_led_suit over '{label}': {a.card} arrived "
-                f"with no deciding actor (an engine deal, not a play) — a "
-                f"winner is named among players, so every card in the pile "
-                f"must have been played by one"
-            )
-        played.append((a.actor, a.card))
     return winners.highest_trump_or_led_suit(
         played, played[0][1].suit, trump, ctx.rs.rank_index
     )

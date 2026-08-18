@@ -530,7 +530,11 @@ _BODY_SPELLINGS: tuple[tuple[str, str, str], ...] = (
     ("Rank", "card.rank", ""),
     ("Card", "card", ""),
     ("Player", "leader", ""),
-    ("Collection", "hand[0]", ""),
+    # A PUBLIC collection: `hand[0]` types the same but is a concealed read,
+    # which resolve's hermeticity guard refuses BEFORE typecheck runs -- the
+    # cell would then pin R10 and never observe the type message it exists for.
+    # One axis per cell; the concealed-read cells are section 3's.
+    ("Collection", "won[0]", ""),
     ("Any", 'if card.rank is Q then "trump" else card.suit', ""),
 )
 

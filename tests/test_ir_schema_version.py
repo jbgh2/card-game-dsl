@@ -64,7 +64,8 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:field', 'key:fields',
         'key:follows_fn', 'key:form', 'key:func', 'key:functions', 'key:hi',
         'key:high', 'key:if_impossible', 'key:index', 'key:index_expr', 'key:item',
-        'key:items', 'key:kind', 'key:leader', 'key:left', 'key:lo', 'key:loser',
+        'key:items', 'key:key', 'key:kind', 'key:leader', 'key:left', 'key:lo',
+        'key:loser',
         'key:low', 'key:max_length', 'key:members', 'key:mode', 'key:move_type',
         'key:move_types', 'key:name', 'key:obj', 'key:offering', 'key:op',
         'key:operand', 'key:optional', 'key:order_mode', 'key:otherwise',
@@ -73,10 +74,11 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:play_zone', 'key:player', 'key:players', 'key:positions', 'key:pred',
         'key:qualifier', 'key:quant', 'key:query', 'key:rank', 'key:rank_dir',
         'key:ranking', 'key:ranking_convention', 'key:ref', 'key:refs', 'key:right',
-        'key:role', 'key:rules', 'key:selection', 'key:selection_mode',
+        'key:role', 'key:rows', 'key:rules', 'key:selection', 'key:selection_mode',
         'key:source', 'key:source_zone', 'key:state', 'key:state_var', 'key:suit',
         'key:tag', 'key:target', 'key:teams', 'key:then', 'key:transitions',
-        'key:trump', 'key:type', 'key:type_name', 'key:type_ref', 'key:types',
+        'key:trick_order', 'key:trump', 'key:type', 'key:type_name',
+        'key:type_ref', 'key:types',
         'key:until', 'key:value', 'key:values', 'key:verb', 'key:visibility',
         'key:when', 'key:where', 'key:winner', 'key:winner_fn', 'key:zone',
         'key:zones', 'tag:active_rules', 'tag:after_each', 'tag:all_players',
@@ -96,7 +98,8 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'tag:repeat_until', 'tag:rotate', 'tag:rule', 'tag:rule_ref',
         'tag:skip_to_next_hand', 'tag:state', 'tag:state_decl', 'tag:str',
         'tag:struct_field', 'tag:struct_lit', 'tag:subscript', 'tag:transfer',
-        'tag:transition_to', 'tag:trick_round', 'tag:turns', 'tag:type_def',
+        'tag:transition_to', 'tag:trick_order', 'tag:trick_order_row',
+        'tag:trick_round', 'tag:turns', 'tag:type_def',
         'tag:type_ref', 'tag:winner', 'tag:zone'
     }
 )

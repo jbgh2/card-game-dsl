@@ -307,12 +307,26 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
 # --- value-callbacks (mechanic functions passed by name) ---
 
-# The two Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
+# The Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
 # `runtime/winners.py` — both dispatch halves consume them and may not import
 # each other. `value_function` below is the ONE winner-slot dispatcher and
-# keys both homes' winners (the Builtin pair through winners.py, the
-# game-local pair through their modules); its file is the dispatcher's home,
-# not a classification of what it keys (tests/test_native_dispatch_split.py).
+# keys both homes' winners (the Builtins through winners.py, the game-local
+# pair through their modules); its file is the dispatcher's home, not a
+# classification of what it keys (tests/test_native_dispatch_split.py).
+#
+# It returns callables under one of TWO contracts, keyed by
+# `TRICK_ORDER_GATED_WINNERS` (cardlang/builtins/functions.py):
+#
+# * the UNIFORM contract, `OutcomeFn` below — (played, led_suit, trump,
+#   rank_index) -> Player — for every winner whose comparison is configured by
+#   the ROUND;
+# * the TRICK ORDER contract, `trick_order.TrickOrderWinner` — (played, ctx)
+#   -> Player — for the winner whose trumps, classes and strengths are the
+#   GAME's `trick_order { }` rows, which need a ctx to evaluate under.
+#
+# The caller (`mechanics.TrickForm.outcome`) selects the contract from the
+# registry and then invokes what THIS function returned, so the dispatcher
+# stays the single site that maps a name to an implementation.
 RankIndex = winners.RankIndex
 OutcomeFn = Callable[[list[tuple[Player, Card]], str, "str | None", RankIndex], Player]
 # An early-termination predicate: does this play end the trick? (card, led_suit)
@@ -325,6 +339,10 @@ def value_function(name: str) -> Callable[..., Any]:
             return winners.highest_of_led_suit
         case "highest_trump_or_led_suit":
             return winners.highest_trump_or_led_suit
+        case "highest_by_trick_order":
+            from cardlang.runtime.trick_order import TrickOrderWinner
+
+            return TrickOrderWinner()
         case "on_play_off_led_suit":
             return on_play_off_led_suit
         case "tarot_trick_winner":

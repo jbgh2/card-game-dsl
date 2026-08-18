@@ -82,6 +82,15 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
+    ARRIVAL_RECORD_CALLS,
+    TRICK_ORDER_EARLY_PREDICATES,
+    TRICK_ORDER_EXCLUDED_FUNCS,
+    TRICK_ORDER_EXCLUDED_WINNERS,
+    TRICK_ORDER_GATED_FUNCS,
+    TRICK_ORDER_GATED_WINNERS,
+    TRICK_ORDER_READERS,
+    TRICK_ORDER_ROW_CALLS,
+    TRICK_ORDER_ROWS,
     TRICK_WINNER_NAMES,
     TRUMP_READING_WINNERS,
     VALUE_NAMES,
@@ -118,7 +127,11 @@ from cardlang.stdlib.moves import (
     RULE_ENFORCED_MOVE_TYPE,
 )
 from cardlang.stdlib.rules import stdlib_rules
-from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, ZONE_PROJECTIONS
+from cardlang.stdlib.zones import (
+    LIBRARY_ZONE_TYPES,
+    ZONE_PROJECTIONS,
+    identity_to_all,
+)
 from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
 
@@ -1972,6 +1985,9 @@ def resolve(game: n.Game) -> n.Game:
     game = _expand_ranking(game, bag)
     _resolve_ranking(game, bag)
     _resolve_card_points(game, bag)
+    # Before `_resolve_trump`, which returns early on a block game: R1 owns the
+    # game-clause-beside-a-block cell, so the two never co-report on it.
+    _check_trick_order_partition(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
@@ -2030,6 +2046,12 @@ def resolve(game: n.Game) -> n.Game:
     _check_state_default_scope(game, bag)
     _check_state_scope(game, bag)
     _check_functions(game, bag)
+    # After `_check_functions`: the row walk reuses its call map and `_reaches`
+    # to follow a row's reach through the designer functions.
+    _check_trick_order_rows(game, bag)
+    # After `_classify_names`: both read the `ref_kind` the classifier stamped,
+    # rather than re-deriving what is or is not a zone reference.
+    _check_arrival_record_pile_args(game, bag)
     _check_procedures(game, bag)
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
@@ -2106,6 +2128,13 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             return ("player",)
         case n.CardQuery():
             return ("card",)
+        case n.TrickOrderRow():
+            # A Trick Order row's body is an expression over the implicit
+            # `card` — the card-query and filter convention, in a clause
+            # position. Card-only like the query binders: a piece game's
+            # `trick_order` is refused outright
+            # (`_reject_card_content_clauses`), so the noun is fixed.
+            return ("card",)
         case n.Transfer() if node.where is not None:
             # `where jointly` binds the candidate SET; a per-card `where`
             # binds each candidate (decisions.md "Joint-predicate selection").
@@ -2177,6 +2206,9 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             | n.AllPlayers() | n.Member() | n.Subscript() | n.FieldInit()
             | n.StructLit() | n.Call() | n.NamedArg() | n.BinOp() | n.Not()
             | n.IsCheck() | n.IfExpr() | n.Choose()
+            # The block itself binds nothing: each ROW binds `card` over its
+            # own body (above).
+            | n.TrickOrder()
         ):
             return ()
         case _:
@@ -4012,6 +4044,12 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
             f"piece set has no notion of; drop the clause",
             game.card_points.span or game.span,
         )
+    if game.trick_order is not None:
+        bag.error(
+            f"{kind} -- `trick_order` orders a deck's cards for trick play, "
+            f"which a piece set has no notion of; drop the block",
+            game.trick_order.span or game.span,
+        )
 
 
 def _resolve_direction(game: n.Game, bag: DiagnosticBag) -> None:
@@ -4184,6 +4222,399 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+def _trick_order_rounds(game: n.Game) -> list[n.TrickRound]:
+    return [nd for nd in _reachable_nodes(game) if isinstance(nd, n.TrickRound)]
+
+
+def _row_order(key: str) -> int:
+    """A row's position in the language's reference order — the order rows are
+    READ in, fixed by `TRICK_ORDER_ROWS`, never the textual one."""
+    return [k for k, _ in TRICK_ORDER_ROWS].index(key)
+
+
+def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
+    """The presence partition, both directions: a game either declares a
+    [[trick-order]] and uses ITS vocabulary, or declares none and uses the
+    round-configured one. Never a mixture.
+
+    The Owner Guard for a class that would otherwise be silent in both
+    directions. WITH a block, the round-configured trumps (`trump:`, a round's
+    `trump` clause) and the winners that read them are not merely redundant —
+    they describe a DIFFERENT order from the one the block declares, and the
+    engine would quietly run one of the two. WITHOUT a block, every gated name
+    reads a table that was never materialized, which is a crash at play time
+    rather than a diagnostic at check time.
+
+    A block nobody reads is refused too (R7): an unread `trick_order { }` is
+    the accepted-but-ignored class in its purest form — a whole declared order
+    the game never consults. Consumption counts readers OUTSIDE the block, so
+    rows reading each other's readers never make a block look live.
+    """
+    if game.trick_order is None:
+        # --- without a block: no gated name may appear -----------------------
+        for rnd in _trick_order_rounds(game):
+            if rnd.winner_fn in TRICK_ORDER_GATED_WINNERS:
+                others = ", ".join(sorted(TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS))
+                bag.error(
+                    f"round winner {rnd.winner_fn} reads the game's "
+                    f"`trick_order {{ }}` block, but this game declares none — "
+                    f"declare one (rows "
+                    + ", ".join(f"`{k}:`" for k, _ in TRICK_ORDER_ROWS)
+                    + f"), or name {others}",
+                    rnd.span,
+                )
+        for call in _gated_calls(game):
+            reader_hint = ""
+            for row_key, reader in TRICK_ORDER_ROWS:
+                if call.func == reader:
+                    reader_hint = (
+                        f" (`{reader}(card)` is the reader of the block's "
+                        f"`{row_key}:` row)"
+                    )
+            bag.error(
+                f"`{call.func}(...)` reads the game's `trick_order {{ }}` "
+                f"block, but this game declares none — declare one"
+                + reader_hint,
+                call.span or game.span,
+            )
+        return
+
+    # --- with a block: the round-configured vocabulary is refused ------------
+    if game.trump is not None:
+        remedy = ""
+        if _deck_known(game.deck) and game.trump in suit_names(game.deck):
+            remedy = f" (for a fixed suit, `trump: card.suit is {game.trump}`)"
+        bag.error(
+            f"`trump: {game.trump}` beside a `trick_order {{ }}` block — with a "
+            f"Trick Order the block's `trump:` row is the trump{remedy}; drop "
+            f"the game-level clause",
+            game.span,
+        )
+    for rnd in _trick_order_rounds(game):
+        if rnd.trump is not None:
+            bag.error(
+                "round `trump` clause beside a `trick_order { }` block — the "
+                "block's `trump:` row is the trump; drop the clause",
+                rnd.span,
+            )
+        if rnd.winner_fn in TRICK_ORDER_EXCLUDED_WINNERS:
+            gated = ", ".join(sorted(TRICK_ORDER_GATED_WINNERS))
+            bag.error(
+                f"round winner {rnd.winner_fn} beside a `trick_order {{ }}` "
+                f"block — the block declares the Trick Order, and {gated} is "
+                f"the winner that reads it; name that, or drop the block",
+                rnd.span,
+            )
+        if (
+            rnd.early_termination is not None
+            and rnd.early_termination not in TRICK_ORDER_EARLY_PREDICATES
+            and rnd.winner_fn in TRICK_ORDER_GATED_WINNERS
+        ):
+            bag.error(
+                f"`early` clause on winner {rnd.winner_fn} — `early` "
+                f"predicates read the literal led suit, and a Trick Order's "
+                f"follow class may differ; no game has needed both — drop the "
+                f"clause",
+                rnd.span,
+            )
+    for call in _walk(game):
+        if isinstance(call, n.Call) and call.func in TRICK_ORDER_EXCLUDED_FUNCS:
+            arg = "pile"
+            if call.args and isinstance(call.args[0], n.NameRef):
+                arg = call.args[0].name
+            bag.error(
+                f"`{call.func}(...)` beside a `trick_order {{ }}` block — the "
+                f"block's rows are the trick order; call "
+                f"`{min(TRICK_ORDER_GATED_WINNERS)}({arg})`",
+                call.span or game.span,
+            )
+    # R7: the block must have a consumer OUTSIDE its own rows.
+    rows = set(game.trick_order.rows)
+    outside = [
+        nd
+        for nd in _walk(game)
+        if isinstance(nd, n.Call)
+        and nd.func in TRICK_ORDER_GATED_FUNCS
+        and not any(nd in set(_walk(r)) for r in rows)
+    ]
+    slot = any(
+        rnd.winner_fn in TRICK_ORDER_GATED_WINNERS for rnd in _trick_order_rounds(game)
+    )
+    if not slot and not outside:
+        gated = ", ".join(f"`{f}`" for f in sorted(TRICK_ORDER_GATED_FUNCS))
+        bag.error(
+            f"`trick_order {{ }}` is read by nothing — no round names "
+            f"{min(TRICK_ORDER_GATED_WINNERS)}, and nothing outside the block "
+            f"calls {gated}; name {min(TRICK_ORDER_GATED_WINNERS)} on a trick "
+            f"round or call it over the trick pile, or drop the block",
+            game.trick_order.span or game.span,
+        )
+
+
+def _gated_calls(game: n.Game) -> list[n.Call]:
+    return [
+        nd
+        for nd in _walk(game)
+        if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_GATED_FUNCS
+    ]
+
+
+def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every row of a [[trick-order]] is HERMETIC: a pure function of the card
+    and public state.
+
+    The Owner Guard for that property, and the reason the construct can be
+    trusted at all. A row is asked from three places under three different live
+    frames — the legality filter (mid-decision, an actor bound), the winner
+    slot (end of trick, a `winner` in scope), and a hand-rolled body (any
+    frame, or none) — so a row whose answer depended on WHO was asking, or on
+    how far the trick had run, would give different orders to the filter and to
+    the winner. Every refusal below removes one way for that to happen:
+
+    * no pronoun of any namespace (`_PRONOUNS`), so the answer cannot vary with
+      the live frame;
+    * no `choose`, so a row is a fact and never a decision site (an info-set
+      leak: a decision inside a legality computation);
+    * only zones that project identity to EVERY observer, and never a bare
+      per-player family, so a row cannot read a card some observer cannot see;
+    * only the row-callable Builtins (`TRICK_ORDER_ROW_CALLS`) and the readers
+      of EARLIER rows, so a row cannot reach the order it helps define.
+
+    Each refusal follows the call graph, so a row that reaches the forbidden
+    thing THROUGH a designer function is refused with the function named — a
+    row's hermeticity is a property of what it can reach, not of its own text.
+    """
+    if game.trick_order is None:
+        return
+    fn_names = {f.name for f in game.functions}
+    fns = {f.name: f for f in game.functions}
+    # The zone references that carry a subscript (`won[0]`). A family read is
+    # BARE -- the acting player's instance, which a row does not have -- only
+    # when it is not one of these; identity, because two reads of the same zone
+    # are distinct nodes and only one of them may be subscripted.
+    subscripted = {
+        id(nd.obj)
+        for nd in _walk(game)
+        if isinstance(nd, n.Subscript) and isinstance(nd.obj, n.NameRef)
+    }
+    calls: dict[str, set[str]] = {
+        f.name: {
+            c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names
+        }
+        for f in game.functions
+    }
+
+    for row in game.trick_order.rows:
+        # (node, the function it was reached through, or None when direct)
+        sites: list[tuple[object, str | None]] = [(nd, None) for nd in _walk(row.body)]
+        direct = {
+            c.func
+            for c in _walk(row.body)
+            if isinstance(c, n.Call) and c.func in fn_names
+        }
+        for name in sorted(fn_names):
+            if any(f == name or _reaches(f, name, calls) for f in direct):
+                sites.extend((nd, name) for nd in _walk(fns[name].body))
+
+        def through(fn: str | None) -> str:
+            return f" through function `{fn}`" if fn else ""
+
+        for nd, fn in sites:
+            if isinstance(nd, n.NameRef) and nd.ref_kind == "pronoun":
+                # actor/action/winner reached through a function are already
+                # refused by `_check_functions`' own hermeticity guard, which
+                # owns that class; this names the ROW as well, and is the only
+                # guard for the other two.
+                if fn is not None and nd.name in _CALL_SITE_PRONOUNS:
+                    continue
+                bag.error(
+                    f"`{row.key}:` reads the pronoun '{nd.name}'"
+                    + through(fn)
+                    + f" — a Trick Order row is hermetic: it is asked from the "
+                    f"legality filter, the winner slot and a hand-rolled body "
+                    f"under different live frames, so it may read no pronoun "
+                    f"({', '.join(sorted(_PRONOUNS))}); a card's trick order is "
+                    f"a fact of the card and public state alone",
+                    nd.span or row.span,
+                )
+            elif isinstance(nd, n.Choose):
+                bag.error(
+                    f"`{row.key}:` makes a `choose`"
+                    + through(fn)
+                    + " — a Trick Order row is a fact, not a decision: it may "
+                    "not choose",
+                    nd.span or row.span,
+                )
+            elif isinstance(nd, n.NameRef) and nd.ref_kind == "zone":
+                _check_row_zone_read(
+                    game, row, nd, fn, bag, through, id(nd) in subscripted
+                )
+            elif isinstance(nd, n.Call):
+                _check_row_call(row, nd, fn, bag, through)
+
+
+def _check_row_zone_read(
+    game: n.Game,
+    row: n.TrickOrderRow,
+    nd: n.NameRef,
+    fn: str | None,
+    bag: DiagnosticBag,
+    through: Callable[[str | None], str],
+    is_subscripted: bool,
+) -> None:
+    decl = next((z for z in game.zones if z.name == nd.name), None)
+    if decl is None:
+        return
+    ztype = decl.type_ref.name
+    if ztype not in LIBRARY_ZONE_TYPES:
+        return
+    if not identity_to_all(ztype):
+        bag.error(
+            f"`{row.key}:` reads zone '{nd.name}' ({ztype})"
+            + through(fn)
+            + ", which does not project identity to every observer — a Trick "
+            "Order is public by construction and may read only fully public "
+            "zones",
+            nd.span or row.span,
+        )
+    elif decl.index is not None and not is_subscripted:
+        # A bare per-player family read sugars to the ACTING player's instance
+        # -- and a row has no acting player, by construction (the runtime
+        # clears it, `evaluate.row_context`). Named here rather than left to
+        # that Shadow Guard so the fix is a subscript the author can write.
+        # A player-typed state variable of THIS game, so the suggested
+        # subscript is a name the designer can actually write.
+        example = "declarer"
+        if game.state is not None:
+            example = next(
+                (v.name for v in game.state.decls if v.type_name == "Player"), example
+            )
+        bag.error(
+            f"`{row.key}:` reads `{nd.name}` bare (the acting player's "
+            f"instance)"
+            + through(fn)
+            + f" — a Trick Order row has no acting player; subscript it with a "
+            f"player the state names (`{nd.name}[{example}]`)",
+            nd.span or row.span,
+        )
+
+
+def _check_row_call(
+    row: n.TrickOrderRow,
+    nd: n.Call,
+    fn: str | None,
+    bag: DiagnosticBag,
+    through: Callable[[str | None], str],
+) -> None:
+    if nd.func in TRICK_ORDER_ROW_CALLS or nd.func not in CALL_FUNCS:
+        return  # allowed, or a designer function (walked on its own)
+    if nd.func in TRICK_ORDER_GATED_FUNCS - frozenset(TRICK_ORDER_READERS):
+        bag.error(
+            f"`{row.key}:` calls `{nd.func}(...)`, which reads every row of "
+            f"the Trick Order"
+            + through(fn)
+            + " — a row may not read the Trick Order it defines",
+            nd.span or row.span,
+        )
+        return
+    if nd.func in TRICK_ORDER_READERS:
+        reader_row = next(k for k, r in TRICK_ORDER_ROWS if r == nd.func)
+        if reader_row == row.key:
+            bag.error(
+                f"`{row.key}:` reads its own reader `{nd.func}(...)`"
+                + through(fn),
+                nd.span or row.span,
+            )
+        elif _row_order(reader_row) > _row_order(row.key):
+            order = ", then ".join(f"`{k}:`" for k, _ in TRICK_ORDER_ROWS)
+            bag.error(
+                f"`{row.key}:` reads `{nd.func}(...)`, the reader of a row "
+                f"that comes after it in the Trick Order"
+                + through(fn)
+                + f" — the rows are read in one order, {order}, whatever order "
+                f"they are written in, and a row may read only the readers of "
+                f"the rows before it; spell the fact in this row, or move it "
+                f"to the later one",
+                nd.span or row.span,
+            )
+        return
+    bag.error(
+        f"`{nd.func}(...)` may not be called from a Trick Order row"
+        + through(fn)
+        + " — a row reads the card and public state only",
+        nd.span or row.span,
+    )
+
+
+def _check_arrival_record_pile_args(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every [[arrival-record]] read names a fully public zone, STATICALLY.
+
+    The Owner Guard for the provenance rule (issue #256's decision-context
+    rule, tightened here to a static check): a winner is named from who played
+    what, so the pile it reads must be one whose arrivals every observer can
+    derive from their own stream. Two facts must hold, and both are decidable
+    without running anything — the argument is a zone REFERENCE (not a
+    computed value, whose zone nobody can name until play time), and that
+    zone's declared type projects identity to all.
+
+    Deciding them here rather than at the call is what makes the proof
+    harness's provenance derivation possible: it walks the checked AST for
+    these calls and reads the pile's zone name off the argument
+    (`tests/openspiel_ready/harness.py`), which is only sound because the
+    argument is guaranteed to BE a name. The runtime's matching guards become
+    Shadow Guards behind this one."""
+    zones = {z.name: z for z in game.zones}
+    for nd in _walk(game):
+        if not isinstance(nd, n.Call) or nd.func not in ARRIVAL_RECORD_CALLS:
+            continue
+        idx = ARRIVAL_RECORD_CALLS[nd.func]
+        arg = nd.args[idx] if len(nd.args) > idx else None
+        name: str | None = None
+        if isinstance(arg, n.NameRef) and arg.ref_kind == "zone":
+            name = arg.name
+        elif isinstance(arg, n.Subscript) and isinstance(arg.obj, n.NameRef):
+            if arg.obj.ref_kind == "zone":
+                name = arg.obj.name
+        if name is None:
+            bag.error(
+                f"`{nd.func}` reads the Arrival Record of its pile argument, "
+                f"which must name a zone (`{nd.func}(trick_pile)`); got "
+                f"{_arg_shape(arg)}",
+                nd.span or game.span,
+            )
+            continue
+        decl = zones.get(name)
+        if decl is None or decl.type_ref.name not in LIBRARY_ZONE_TYPES:
+            continue
+        ztype = decl.type_ref.name
+        if not identity_to_all(ztype):
+            bag.error(
+                f"`{nd.func}` over '{name}' ({ztype}): the zone type does not "
+                f"project identity to every observer, so its provenance is not "
+                f"derivable from any observer's stream — a winner may only be "
+                f"named over a fully public pile",
+                nd.span or game.span,
+            )
+
+
+def _arg_shape(arg: object) -> str:
+    """How a rejected pile argument is described back to the author — its
+    SHAPE, in the language's words, never a node class name."""
+    match arg:
+        case None:
+            return "no argument"
+        case n.IntLit() | n.StrLit():
+            return "a literal"
+        case n.Call() as c:
+            return f"the value of `{c.func}(...)`"
+        case n.CardQuery():
+            return "a card query"
+        case n.NameRef() as r:
+            return f"'{r.name}', which is not a zone"
+        case _:
+            return "an expression"
+
+
 def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     """`trump: NAME` names a suit of the declared deck, and some trick round
     reads it — the two Owner Guards of the game-level trump slot.
@@ -4238,6 +4669,11 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     unknown deck is `_resolve_component_set`'s (the value has no domain to
     check against, so this returns, as `_resolve_ranking` does)."""
     if game.trump is None or game.content_flavor != "card" or not _deck_known(game.deck):
+        return
+    if game.trick_order is not None:
+        # A block game's `trump:` is `_check_trick_order_partition`'s cell (R1),
+        # whose message names the block and the row that replaces the clause.
+        # Returning here is what keeps the two from co-reporting on one defect.
         return
     if game.trump == "none":
         bag.error(
@@ -4387,6 +4823,7 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     n.Quantifier: ("body",),
     n.Comprehension: ("where", "body"),
     n.CardQuery: ("where",),
+    n.TrickOrderRow: ("body",),
     # A PlayerQuery's binder scopes to its `where` only; the ring search's
     # `start` seat is evaluated in the enclosing scope (the same split as
     # every source field absent from this table), so `player` in a start
@@ -4589,10 +5026,22 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
     }
     for fn in game.functions:
         if fn.name in CALL_FUNCS:
+            # A reader is MINTED from a row, so the designer who wrote one very
+            # likely meant to write the row instead of a function beside it:
+            # the hint names that fix, without changing the class this guard
+            # owns (a native name a function may not take).
+            hint = ""
+            for row_key, reader in TRICK_ORDER_ROWS:
+                if fn.name == reader:
+                    hint = (
+                        f" — the language mints `{reader}(card)` from a "
+                        f"`trick_order {{ {row_key}: ... }}` row; move the body "
+                        f"into the row, or rename"
+                    )
             bag.error(
                 f"function '{fn.name}' shadows the native function of the same name; "
                 f"rename it (a call would type-check against the native signature but "
-                f"run this function instead)",
+                f"run this function instead){hint}",
                 fn.span,
             )
         allowed = {p.name for p in fn.params}
@@ -5804,12 +6253,43 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     bag.error(f"round source zone '{nd.source_zone}' is unknown", nd.span)
                 if nd.play_zone not in zone_names:
                     bag.error(f"round play zone '{nd.play_zone}' is unknown", nd.span)
+                else:
+                    # A trick's plays ARE the provenance every winner reads, so
+                    # the zone they land in must project identity to every
+                    # observer -- otherwise the winner is computed from facts no
+                    # player's own stream could derive. Every trick round, not
+                    # only a Trick Order one: the rule is the [[arrival-record]]
+                    # rule (issue #256), and this is where the play zone is
+                    # named (issue #250 PR 1, ruled point 4).
+                    play_decl = next(
+                        (z for z in game.zones if z.name == nd.play_zone), None
+                    )
+                    if (
+                        play_decl is not None
+                        and play_decl.type_ref.name in LIBRARY_ZONE_TYPES
+                        and not identity_to_all(play_decl.type_ref.name)
+                    ):
+                        bag.error(
+                            f"round `into {nd.play_zone}` "
+                            f"({play_decl.type_ref.name}): a trick's play zone "
+                            f"must project identity to every observer — the "
+                            f"plays are the provenance every winner reads; use "
+                            f"a TrickPile",
+                            nd.span,
+                        )
                 if nd.winner_fn not in TRICK_WINNER_NAMES:
                     bag.error(
                         f"trick round winner '{nd.winner_fn}' is not a trick "
                         f"winner function",
                         nd.span,
                     )
+                elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
+                    # A Trick Order winner takes no `trump` argument at all --
+                    # its trumps are the block's row -- so this arm's question
+                    # (a clause the winner would ignore) is not the one to ask.
+                    # `_check_trick_order_partition` owns both cells: R2 with a
+                    # block, R5 without one, and each names the block.
+                    pass
                 elif nd.trump is not None and nd.winner_fn not in TRUMP_READING_WINNERS:
                     # The winner contract carries a `trump` argument for every
                     # member, but only TRUMP_READING_WINNERS' bodies read it:

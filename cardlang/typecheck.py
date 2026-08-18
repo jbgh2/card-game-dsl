@@ -43,6 +43,7 @@ from typing import assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
+from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS, TRICK_ORDER_ROWS
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import require_role, role_type
@@ -2102,10 +2103,112 @@ def _check_round_ranking(
         for name in demanded:
             bag.error(
                 f"{name} reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or use a "
-                f"game-specific rank function",
+                f"but the game declares no ranking: — declare one, or declare "
+                f"a `trick_order {{ }}` with a `card_strength:` row and name "
+                f"{min(TRICK_ORDER_GATED_WINNERS)}",
                 stmt.span,
             )
+
+
+def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Each [[trick-order]] row types EXACTLY its reader's return type.
+
+    The required type is `CALL_SIGS[reader].ret` — read back from the
+    signature the language mints, so the demand is stated once and a row and
+    its reader can never disagree. Strictness is the point (issue #250 PR 1,
+    ruled point 2): `trump:` and `card_strength:` compare by type EQUALITY, so
+    an optional cannot slip in. A `Boolean?` trump row whose value went absent
+    would read as not-a-trump, silently, for the rest of the game; only
+    `follow_class:` is genuinely optional-typed, and it routes through
+    `_check_operand` because `none` and a bare `Suit` both legitimately stand
+    where `Suit?` is wanted.
+
+    `TAny`, the [[permissive-top]], is refused in both arms. It is what the
+    checker returns when it CANNOT type an expression — a mixed-branch `if`,
+    an untyped read — so accepting it would let exactly the rows nobody could
+    check through the strictest gate in the construct.
+    """
+    if game.trick_order is None:
+        return
+    row_env = _scoped_env(env, (("card", TCard()),))
+    for row in game.trick_order.rows:
+        # Through the generic expression walk first, so a row gets every
+        # ordinary diagnostic (an unknown card field, a call arity, the
+        # `ranking:` gate on `rank_value`) from the pass that owns it, and
+        # this check adds only the demand that is the ROW's own.
+        _check_expr(row.body, row_env, bag)
+        reader = next(r for k, r in TRICK_ORDER_ROWS if k == row.key)
+        expected = CALL_SIGS[reader].ret
+        got = infer(row.body, row_env)
+        if isinstance(got, TAny):
+            bag.error(
+                f"`{row.key}:` row types as `Any`, the permissive top (a value "
+                f"the checker cannot type — a mixed-branch `if`, an untyped "
+                f"read); a Trick Order row must type exactly "
+                f"{_type_name(expected)}",
+                row.span or game.span,
+            )
+            continue
+        if isinstance(expected, TOptional):
+            _check_operand(
+                row.body, got, expected, row_env, bag,
+                _row_type_message(row.key, got, expected, game),
+                row.span or game.span,
+            )
+        elif got != expected:
+            bag.error(
+                _row_type_message(row.key, got, expected, game), row.span or game.span
+            )
+    if game.trick_order.row("card_strength") is None and not env.has_ranking:
+        # The omitted row defaults to `rank_value(card)` (the driver's table),
+        # which reads `ranking:` -- so the default silently demands a clause
+        # the game may not declare. Named at the BLOCK, not through the
+        # RANKING_GATED sentence: the reader here is a default nobody wrote.
+        bag.error(
+            "`trick_order` declares no `card_strength:` row, so strength "
+            "defaults to `rank_value(card)`, which reads `ranking:` — but the "
+            "game declares no `ranking:`; declare one, or write a "
+            "`card_strength:` row",
+            game.trick_order.span or game.span,
+        )
+
+
+def _row_type_message(key: str, got: Type, expected: Type, game: n.Game) -> str:
+    """A row's type refusal, with the hint its most plausible wrong spelling
+    earns. Each hint answers a specific confusion the row invites, so a
+    designer who wrote the wrong thing is told what the RIGHT thing looks
+    like rather than only that the type is wrong."""
+    gname = _type_name(got)
+    if key == "trump":
+        msg = f"`trump:` row must type Boolean (is this card a trump?), got {gname}"
+        if isinstance(got, TEnum) and got.name == "Suit":
+            # A concrete suit of THIS deck, so the remedy is a sentence the
+            # designer can paste (resolve already refused an unknown deck, the
+            # `_suit_types` precedent above).
+            known = sorted(suit_names(game.deck))
+            suit = known[0] if known else "spades"
+            return msg + f" — for a fixed trump suit write `trump: card.suit is {suit}`"
+        if isinstance(got, TOptional) and isinstance(got.inner, TBoolean):
+            return msg + (
+                " — a Trick Order row is never absent-valued (a `none` would "
+                "read as not-a-trump silently)"
+            )
+        return msg
+    if key == "follow_class":
+        msg = (
+            f"`follow_class:` row must type Suit? (the class the card follows "
+            f"as, or none for class-less), got {gname}"
+        )
+        if isinstance(got, TString):
+            return msg + (
+                " — a trump follows as a trump by the `trump:` row, never by a "
+                "class value; the class of a trump card is not consulted"
+            )
+        return msg
+    return (
+        f"`card_strength:` row must type Integer (strength within its class; "
+        f"higher beats lower), got {gname}"
+    )
 
 
 def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2266,8 +2369,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
-                f"but the game declares no ranking: — declare one, or use a "
-                f"game-specific rank function",
+                f"but the game declares no ranking: — declare one, or declare "
+                f"a `trick_order {{ }}` with a `card_strength:` row and name "
+                f"{min(TRICK_ORDER_GATED_WINNERS)}",
                 e.span,
             )
     elif isinstance(e, n.Subscript):
@@ -3529,6 +3633,7 @@ def typecheck(game: Game) -> Game:
                 phase.qualifier.expr, env, bag, f"phase '{phase.name}' condition"
             )
         check_phase_positions(phase, ())
+    _check_trick_order(game, env, bag)
     if game.loser is not None:
         _check_expr(game.loser.selection, env, bag)
         # `loser:` names a player directly (unlike `winner:`, which ranks a score

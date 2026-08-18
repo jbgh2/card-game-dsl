@@ -25,6 +25,7 @@ from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from cardlang.runtime.trick_order import TrickOrderTable
     from cardlang.stdlib.boards import BoardEntry
 
 
@@ -361,6 +362,11 @@ class RuntimeState:
         # rank -> card points, materialized over the deck's ranks from the
         # game's `card_points { }` clause; empty for a game declaring none.
         self.card_points: dict[str, int] = {}
+        # The game's [[trick-order]], materialized once from its
+        # `trick_order { }` clause with both row defaults already applied
+        # (`runtime/driver.py`); None for a game declaring no block, where
+        # resolve's presence partition admits no reader of one.
+        self.trick_order: TrickOrderTable | None = None
         self.suits: tuple[str, ...] = ()  # the deck's actual card suits (move-param domains)
         self.ranks: tuple[str, ...] = ()  # rank iteration order: ranking: if declared, else deck order
         # Declared position domains, name -> ordered members (decisions.md
