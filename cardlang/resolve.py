@@ -49,7 +49,17 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer.
+              rather than in the type layer. And a ``winner:`` target that
+              is not a per-member score — unindexed, optional, or declared
+              outside ``Integer``/``Boolean`` (``_check_winner_target``,
+              decisions.md "Game result: `winner:` and `loser:`");
+              ``runtime/driver`` may therefore assume the target reads as a
+              map from member to score, and hard-fails on one this pass did
+              not admit as its Shadow Guard. And a ``teams:`` list that does
+              not PARTITION the seats (``_check_teams``); every consumer
+              building ``{p: ti for ti, members in enumerate(game.teams) for
+              p in members}`` — the driver, the returns path, and the
+              readiness proofs — may therefore read it as one.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
