@@ -120,12 +120,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             winner, events = skat_trick_winner(*_bind(ctx, ROW))
             _emit(ctx, events)
             return winner
-        case "doko_trick_winner":
-            from cardlang.runtime.doko import ROW, doko_trick_winner
-
-            winner, events = doko_trick_winner(*_bind(ctx, ROW))
-            _emit(ctx, events)
-            return winner
         case "skat_matadors":
             from cardlang.runtime.skat import ROW, skat_matadors
 

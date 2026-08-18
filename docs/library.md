@@ -12,6 +12,13 @@ lead sets the led suit; an optional early-termination predicate may end the pass
 before everyone has played; then a winner function selects a player, bound as
 `winner` for the surrounding body, which does the routing.
 
+A round's `trump <expr>` names the trump for the pass. A game whose trumps are
+not a suit — Doppelkopf's queens and jacks, Skat's jacks — declares a
+`trick_order { }` instead (decisions.md "Trick Order") and names
+`highest_by_trick_order`; such a round writes no `trump` clause at all. Every
+trick round's play zone must project identity to every observer: the plays are
+the provenance every winner reads.
+
 ```text
 round <move_type> from <leader> over <participants>
       source <zone> into <zone> winner <fn> [trump <expr>] [early <predicate>]
@@ -271,8 +278,22 @@ slot (a name's home is its classification, never its syntactic position):
   is refused)
 - `belote_trick_winner` — the Primitive for Belote: highest trump under the
   J-9 trump order, else highest of the led suit under the ace-ten ranking
+- `highest_by_trick_order` — the Builtin winner of a game's declared Trick
+  Order (decisions.md "Trick Order"): the strongest trump if any, else the
+  strongest card of the Effective Lead's class, all three facts read from the
+  game's `trick_order { }` rows. Like `highest_trump_or_led_suit` it is also
+  callable over a public pile's Arrival Record (see "Native functions"). It
+  takes no `trump` clause — the block's `trump:` row is the trump.
 
-Which of the four reads its trump is `TRUMP_READING_WINNERS`
+**The two vocabularies do not mix.** A game declaring a `trick_order { }`
+block names `highest_by_trick_order` and nothing else: every other winner
+here, the game-level `trump:` clause, a round's `trump` clause and
+`highest_trump_or_led_suit(...)` are all refused beside a block, because each
+describes a different order from the one the block declares. A game with no
+block may not name `highest_by_trick_order`. The partition is checked in both
+directions, at resolve.
+
+Which of the trump-argument winners reads it is `TRUMP_READING_WINNERS`
 (cardlang/builtins/functions.py), reconciled against the bodies by execution
 in tests/test_trump_slot_class.py.
 
@@ -810,10 +831,32 @@ mid-playout.
   Arrival Record): the plays are the recorded (actor, card) arrivals in play
   order, the led suit is the first arrival's, the strengths the game's
   `ranking:`. The same winner concept the trick form's `winner` clause names
-  bare, made callable for a hand-rolled trick (Schnapsen). Loud runtime
-  errors on a zone whose type is not identity-to-every-observer (a concealed
-  pile's provenance is no observer's to compute a winner from), an empty
-  pile, or a pile holding any card no seat played (an engine deal).
+  bare, made callable for a hand-rolled trick (Schnapsen). The pile argument
+  must be a static reference to a zone whose type projects identity to every
+  observer -- checked at resolve, because a concealed pile's provenance is no
+  observer's to compute a winner from. Loud runtime errors on an empty pile,
+  or on a pile holding any card no seat played (an engine deal).
+- `is_trump(card) → Boolean` / `follow_class(card) → Suit?` /
+  `card_strength(card) → Integer` — the three readers the language MINTS from
+  a game's `trick_order { }` rows (decisions.md "Trick Order"): is the card a
+  trump, what class does it follow as, how strong is it within that class.
+  Available only in a game that declares the block, and refused in one that
+  does not.
+- `highest_by_trick_order(zone) → Player` — the Trick Order's winner over a
+  public pile's Arrival Record, the call-form twin of the `winner` slot's
+  bare name: the strongest trump if any, else the strongest card of the
+  Effective Lead's class, First of Equals on a tie. Over an incomplete trick
+  it answers the winner SO FAR, which is designed surface. Same static pile
+  rule as `highest_trump_or_led_suit`; loud runtime errors on an empty pile,
+  a pile no seat played to, and a pile in which no card can win (every
+  arrival class-less and none a trump). Used by Doppelkopf.
+- `follows_lead(card, zone) → Boolean` — whether the card follows what the
+  pile has been led: the winner's own candidate test, made callable so a
+  follow filter reads ONE definition of the led class. On a pile with nothing
+  led it is the value `false`, so a leader's filter is written
+  `if any card in hand[p] where follows_lead(card, pile) then
+  follows_lead(c, pile) else true` — the shape that also gives "void in the
+  led class, anything goes". Used by Doppelkopf's `follow_ok`.
 - `lines(k) → Collection<Line>` — the board's straight lines of exactly `k`
   cells: every run of `k` consecutive cells along a row, a column, or either
   diagonal (decisions.md "Boards and cells"), for the `any line in lines(k)

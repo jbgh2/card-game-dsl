@@ -204,7 +204,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
-        "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
@@ -416,7 +415,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "card_strength",
         "cribbage_crib_value",
         "cribbage_show_value",
-        "doko_trick_winner",
         "first_to_act_seat",
         "five_hundred_bid_value",
         "five_hundred_follow_ok",

@@ -28,7 +28,7 @@ class TestReadiness(ReadinessProofs):
         # the highest_trump_or_led_suit call form reads trick_pile's record
         # (no PRIMITIVE_READS row exists to derive this from — the consumer
         # is a Builtin)
-        provenance_zones=("trick_pile",),
+
     )
 
 

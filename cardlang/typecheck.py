@@ -179,7 +179,7 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     the bigtwo_* and tichu_* engines, which carry their own orders.
 #   NON-members elsewhere: peg_pair_points (rank equality only),
 #     on_play_off_led_suit (suit only), every auction outcome, and the
-#     skat/doko/five_hundred winners (game-local strength tables). The Rank
+#     skat/five_hundred winners (game-local strength tables). The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
 #     own clause-required guard.
 RANKING_GATED_FUNCS: frozenset[str] = frozenset(

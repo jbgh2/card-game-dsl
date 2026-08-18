@@ -68,6 +68,19 @@ from .partition import (
 
 GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
+
+@cache
+def _checked_game_nodes(path: str) -> tuple[object, ...]:
+    """Every node of a corpus game's CHECKED AST — post-resolve, so a
+    `NameRef`'s `ref_kind` is the classification the resolver stamped rather
+    than something this walk re-derives. Cached: the specs ask repeatedly and
+    checking a game is pure."""
+    from cardlang.pipeline import check_dsl
+    from cardlang.resolve import _walk
+
+    game = check_dsl(Path(path).read_text(), Path(path).name)
+    return tuple(_walk(game))
+
 # (short_name, filename), deterministic order — the registry the per-game
 # modules must cover (test_coverage.py).
 REGISTERED_GAMES = sorted(ogame.GAMES.items())
@@ -200,24 +213,32 @@ class GameSpec:
     # "any": no public card/rank observation (a pure betting vocabulary).
     swap_axis: Literal["suit", "rank", "any"] = "suit"
 
-    # The fully public zones whose Arrival Record a CALL-FORM consumer reads
-    # in this game — the pile a `highest_trump_or_led_suit(zone, …)` call
-    # names (schnapsen), which no registry can see. This is deliberately
-    # HALF the proof's domain: the primitive half is derived inside the
-    # provenance proof from `PRIMITIVE_READS.arrival_zones` (the rows whose
-    # game_file is this spec's), so a future consumer declaring
-    # `arrival_zones` joins the soundness proof automatically rather than
-    # depending on someone also editing its game's spec here. A game with
-    # neither half records a vacuous cell rather than silently passing
-    # (most games consume no provenance today — the query surface is issue
-    # #253's).
-    provenance_zones: tuple[str, ...] = ()
-
     @property
     def all_provenance_zones(self) -> tuple[str, ...]:
-        """The proof's whole domain: the hand-listed call-form half plus the
-        registry-derived primitive half — reconciliation by derivation, so
-        the two sources cannot drift apart silently."""
+        """The proof's whole domain: every fully public zone whose Arrival
+        Record a consumer reads in this game — derived from TWO sources, both
+        registries, neither hand-listed.
+
+        The CALL-FORM half walks this game's checked AST for every call in
+        `ARRIVAL_RECORD_CALLS` and reads the zone name off its pile argument.
+        That walk is only sound because resolve GUARANTEES the argument is a
+        static zone reference (`_check_arrival_record_pile_args`, issue #250
+        PR 1) — before that guard the argument could be any expression and the
+        name was unknowable without running the game, which is why this half
+        used to be a hand-listed `provenance_zones` field on each spec. A
+        hand-listed field is a check narrower than its ledger: a game that
+        grew a second consumer kept proving the first one only.
+
+        The PRIMITIVE half is derived from `PRIMITIVE_READS.arrival_zones`
+        (the rows whose game_file is this spec's), so a Primitive declaring
+        `arrival_zones` joins the soundness proof automatically. It empties as
+        the Primitives retire.
+
+        A game with neither half records a vacuous cell rather than silently
+        passing (most games consume no provenance today — the query surface is
+        issue #253's)."""
+        from cardlang.ast import nodes as n
+        from cardlang.builtins.functions import ARRIVAL_RECORD_CALLS
         from cardlang.runtime.reads import PRIMITIVE_READS
 
         derived = {
@@ -226,7 +247,15 @@ class GameSpec:
             if row.game_file == self.filename
             for zone in row.arrival_zones
         }
-        return tuple(sorted(set(self.provenance_zones) | derived))
+        for call in _checked_game_nodes(self.path):
+            if not isinstance(call, n.Call) or call.func not in ARRIVAL_RECORD_CALLS:
+                continue
+            arg = call.args[ARRIVAL_RECORD_CALLS[call.func]]
+            if isinstance(arg, n.NameRef) and arg.ref_kind == "zone":
+                derived.add(arg.name)
+            elif isinstance(arg, n.Subscript) and isinstance(arg.obj, n.NameRef):
+                derived.add(arg.obj.name)
+        return tuple(sorted(derived))
 
     # Where the provenance walk starts. The proof walks 40 greedy nodes from
     # here and REFUSES a run that compared zero record entries, so a game
@@ -743,7 +772,9 @@ class ReadinessProofs:
         self, seed: int
     ) -> None:
         """The soundness rows of issue #256's no-leak criterion: for every
-        zone a consumer reads the Arrival Record of (`spec.provenance_zones`),
+        zone a consumer reads the Arrival Record of
+        (`spec.all_provenance_zones`, derived from the checked AST and the
+        Primitive reads rows),
         the engine's (deciding actor, card) sequence equals what EVERY
         observer derives from their own observation log — so the record adds
         nothing beyond what observation entails, which is the executable
@@ -757,7 +788,7 @@ class ReadinessProofs:
         first play (executed 2026-08-15; see the change's completeness
         ledger in tests/test_arrival_record.py)."""
         spec = self.spec
-        zones = spec.all_provenance_zones  # hand-listed call-form half + registry-derived half
+        zones = spec.all_provenance_zones  # AST-derived call half + registry-derived Primitive half
         if not zones:
             record(spec.short_name, "provenance", seed=seed, zones=0, vacuous=True)
             return

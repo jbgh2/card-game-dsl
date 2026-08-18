@@ -194,6 +194,7 @@ _ENGINE_CORE: dict[str, str] = {
     "builtins.py": "engine core — the generic native functions",
     "primitives.py": "engine core — the dispatch layer that BUILDS the bundles",
     "values.py": "engine core — the value types",
+    "trick_order.py": "engine core — materializes the game's Trick Order, so it\n        threads Ctx into the row callables",
 }
 
 _GAME_MODULES: tuple[str, ...] = tuple(
@@ -343,8 +344,6 @@ NARROWED: frozenset[str] = frozenset(
         "cribbage.py::peg_origin_of",
         "cribbage.py::peg_pair_points",
         "cribbage.py::peg_run_points",
-        "doko.py::ROW",
-        "doko.py::doko_trick_winner",
         "five_hundred.py::ROW",
         "five_hundred.py::five_hundred_bid_level",
         "five_hundred.py::five_hundred_bid_value",
@@ -419,7 +418,6 @@ MIGRATED: frozenset[str] = frozenset(
         "coup_game_summary",
         "cribbage_crib_value",
         "cribbage_show_value",
-        "doko_trick_winner",
         "first_to_act_seat",
         "five_hundred_follow_ok",
         "five_hundred_lead_ok",
@@ -458,7 +456,6 @@ MIGRATED: frozenset[str] = frozenset(
 # emission travels back as data and the dispatch layer performs it.
 EMITS_TRACE: frozenset[str] = frozenset(
     {
-        "doko_trick_winner",
         "skat_trick_winner",
         "five_hundred_trick_winner",
         "coup_game_summary",
@@ -805,6 +802,45 @@ def _live_state() -> RuntimeState:
     return rs
 
 
+# The declared-reads row the two bundle probes below narrow against. Chosen by
+# SHAPE, not by name: it must declare at least one of every kind the bundle
+# carries (single zone, family, state variable, arrival zone), so "every
+# declared name present, no undeclared name reachable" is a claim with all four
+# kinds in it. Doppelkopf's row served until the Trick Order retired it.
+_BUNDLE_ROW_MODULE = "cardlang/runtime/five_hundred.py"
+# A zone family the fixture declares and the row does not — asserted
+# absent from the bundle below. Pinned outside the row by the fixture
+# itself, so the negative witness cannot silently become a name the row
+# grew (which is how it stopped discriminating once before).
+_UNDECLARED_FAMILY = "decoy"
+
+
+def _bundle_state() -> RuntimeState:
+    """`_live_state` extended with exactly what `_BUNDLE_ROW_MODULE`'s row
+    declares — the row is the fixture's specification, read from the registry
+    rather than transcribed, so a row that grows a name fails loudly here
+    instead of being silently under-satisfied."""
+    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+    decls = (
+        n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),
+        n.ZoneDecl(name="exposed", index="player", type_ref=n.TypeRef(name="PublicHand")),
+        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
+        # The UNDECLARED family, the negative half of the narrowing claim: the
+        # store holds it, the row does not name it, so the bundle must not
+        # carry it. Without a zone outside the row the equality assertions
+        # below hold vacuously.
+        n.ZoneDecl(name=_UNDECLARED_FAMILY, index="player", type_ref=n.TypeRef(name="Hand")),
+    )
+    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
+    rs.push_frame()
+    for var in sorted(row.state_vars):
+        rs.declare(var, False, None)
+    rs.teams = (0, 1)
+    rs.team_of = {0: 0, 1: 1}
+    rs.rank_index = {"7": 0, "8": 1}
+    return rs
+
+
 def test_every_engine_fact_is_pinned() -> None:
     """The field axis, both ways: EngineFacts' fields and `_FACT_SOURCES`'
     keys are the same set. A field with no named engine source cannot be
@@ -898,16 +934,18 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     """The bundle is bounded by PRIMITIVE_READS: every declared name present,
     no undeclared name reachable. This is the property that makes the binder
     a narrowing rather than a rename of `Ctx`."""
-    rs = _live_state()
-    row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
-    )
+    rs = _bundle_state()
+    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
     bundle = reads_mod.game_reads(rs, row)
     assert frozenset(bundle.singles) == row.single_zones
     assert frozenset(bundle.families) == row.zone_families
     assert frozenset(bundle.state) == row.state_vars
     assert frozenset(bundle.arrivals) == row.arrival_zones
-    assert "hand" not in bundle.families, (
+    assert _UNDECLARED_FAMILY not in row.zone_families, (
+        f"{_UNDECLARED_FAMILY!r} is in the row now — the negative witness below "
+        f"no longer discriminates; pick another name outside the row"
+    )
+    assert _UNDECLARED_FAMILY not in bundle.families, (
         "the bundle exposed a zone the row does not declare — the binder is "
         "handing over more than the declaration bounds"
     )
@@ -916,11 +954,9 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
 def test_game_reads_cards_are_immutable() -> None:
     """Zone cards arrive as tuples: a primitive cannot mutate a live zone
     through the bundle (today it receives the Zone's own mutable list)."""
-    rs = _live_state()
+    rs = _bundle_state()
     rs.zones.single("trick_pile").cards.append(Card("7", "hearts"))
-    row = next(
-        r for r in PRIMITIVE_READS if r.module == "cardlang/runtime/doko.py"
-    )
+    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
     bundle = reads_mod.game_reads(rs, row)
     assert isinstance(bundle.singles["trick_pile"], tuple)
 
@@ -1302,6 +1338,10 @@ def test_trick_outcome_freezes_its_collection_args() -> None:
 
     form = object.__new__(TrickForm)
     form.winner_fn = capture
+    # The uniform contract: `outcome` selects the call shape from the winner's
+    # NAME against `TRICK_ORDER_GATED_WINNERS`, so the probe must say which
+    # contract it is standing in for (cardlang/builtins/functions.py).
+    form.winner_fn_name = "highest_of_led_suit"
     form.trump = None
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     rs.rank_index = {"7": 0}

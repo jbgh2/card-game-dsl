@@ -438,6 +438,28 @@ def _grammar_cells() -> list[Cell]:
     add(Cell("eq-row-all", _source(clauses="trick_order { trump = card.suit is hearts }"), (P3_EQ,)))
     add(Cell("eq-row-mixed", _source(clauses="trick_order { trump: card.suit is hearts  card_strength = 3 }"), ("not `card_strength = <expr>`",)))
     add(Cell("assign-row", _source(clauses="trick_order { trump := card.suit is hearts }"), (P3_ASSIGN,)))
+    # The three habits CROSSED. Each alone has a named reject arm above; the
+    # four combinations match no arm and die as a bare syntax error -- loud,
+    # but in the lexer's voice rather than the block's (residual (9)). Pinned
+    # LOUD here so the cells are recorded rather than assumed, and so a future
+    # crossed arm makes them fail rather than pass silently.
+    add(Cell("habits-colon-and-comma",
+             _source(clauses="trick_order: { trump: card.suit is hearts, card_strength: 3 }"),
+             ("syntax error",), red=False))
+    add(Cell("habits-colon-and-eq",
+             _source(clauses="trick_order: { trump = card.suit is hearts }"),
+             ("syntax error",), red=False))
+    add(Cell("habits-comma-and-eq",
+             _source(clauses="trick_order { trump: card.suit is hearts, card_strength = 3 }"),
+             ("syntax error",), red=False))
+    add(Cell("habits-all-three",
+             _source(clauses="trick_order: { trump = card.suit is hearts, card_strength := 3 }"),
+             ("syntax error",), red=False))
+    # `trick_order` is an ordinary NAME outside the clause position (it is not
+    # in NAME's exclusion): a zone may be called it, and the clause still
+    # resolves. One reading, accepted.
+    add(Cell("zone-named-trick_order",
+             _source(clauses=BLOCK, zones="  trick_order : Discard"), (), red=False))
     for bad in ("strength", "class", "order", "trumps", "rank", "is_trump", "trumpx", "follow_classcard_strength"):
         add(Cell(f"bad-key-{bad}", _source(clauses=f"trick_order {{ trump: card.suit is hearts  {bad}: 3 }}"), (P4,)))
     for key, body in (("trump", "card.suit is hearts"), ("follow_class", "card.suit"), ("card_strength", "3")):

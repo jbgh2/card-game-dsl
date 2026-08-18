@@ -438,8 +438,33 @@ game Skeleton {{
 # registry. `test_recipe_labels_are_wellformed` pins that every fragment block
 # carries a unique label and every non-fragment block carries none;
 # `test_no_orphan_recipes` pins that every label here is claimed by a block.
+def _wrap_trick_order(frag: str) -> str:
+    # `frag` is a `trick_order { }` game clause. The skeleton supplies what the
+    # block's own guards demand of its host: a `ranking:` (the defaulted
+    # strength row reads it) and a CONSUMER outside the block -- a Trick Order
+    # nothing reads is refused, so a wrapper without one would report the
+    # doc's block as bad for a reason the doc has nothing to do with.
+    return f"""
+game Skeleton {{
+  players: 4
+  max_length: 1000
+  cards: standard52
+  ranking: aces high
+  {frag}
+  zones {{ deck : Deck  hand[player] : Hand<player>  pile : TrickPile }}
+  state {{ score[player] : Integer = 0 }}
+  phase main {{
+    let w = highest_by_trick_order(pile)
+    score[w] += 1
+  }}
+  winner: highest score
+}}
+"""
+
+
 WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "actor_alias": _wrap_actor_alias,
+    "trick_order": _wrap_trick_order,
     "active_rules_shadowing": _wrap_active_rules_shadowing,
     "first_trick_phase": _wrap_first_trick_phase,
     "play_phase": _wrap_play_phase,
@@ -492,8 +517,8 @@ def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 55, "library.md": 13, "model.md": 5}
-    assert len(_BLOCKS) == 73
+    assert per_doc == {"decisions.md": 56, "library.md": 13, "model.md": 5}
+    assert len(_BLOCKS) == 74
 
 
 def _block_id(block: FencedBlock) -> str:

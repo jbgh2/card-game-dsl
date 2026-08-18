@@ -116,7 +116,6 @@ CALL_SIGS: dict[str, Sig] = {
     # `leader` parameter existed only for the retired seat-order zip.
     "skat_trick_winner": Sig((), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
-    "doko_trick_winner": Sig((), TPlayer()),  # Doppelkopf: the trick's winner
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points

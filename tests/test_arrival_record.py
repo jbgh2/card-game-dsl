@@ -35,7 +35,7 @@ covered:    (a) the invariant walk: per game x manifest-head seed, every
             zone's cards — no id(), no copy index (the copy-swap pins in
             tests/openspiel_ready/ carry the executed reddening for this);
             (c) arrival-order truth for the trick piles the consumers read:
-            at every doko/skat/500/schnapsen winner call the pairs the
+            at every skat/500/schnapsen winner call the pairs the
             record holds are asserted against the plays the trace events
             report (the trace is emitted FROM the same primitives, so this
             cell's independent half is the schnapsen reconstruction in
@@ -243,10 +243,10 @@ def test_declared_arrival_zone_materializes_actor_card_pairs() -> None:
     deep-frozen (actor, card) pairs in arrival order."""
     from cardlang.runtime import reads
 
-    rs = _rs_for("doppelkopf.cardlang")
+    rs = _rs_for("skat.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/doko.py",
-        game_file="doppelkopf.cardlang",
+        module="cardlang/runtime/skat.py",
+        game_file="skat.cardlang",
         single_zones=frozenset({"trick_pile"}),
         arrival_zones=frozenset({"trick_pile"}),
     )
@@ -279,10 +279,10 @@ def test_arrival_zone_must_be_a_declared_single_zone() -> None:
     FAMILY is the recorded residual (issue #253 owns the query surface)."""
     from cardlang.runtime import reads
 
-    rs = _rs_for("doppelkopf.cardlang")
+    rs = _rs_for("skat.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/doko.py",
-        game_file="doppelkopf.cardlang",
+        module="cardlang/runtime/skat.py",
+        game_file="skat.cardlang",
         arrival_zones=frozenset({"trick_pile"}),  # not in single_zones
     )
     with pytest.raises(reads.PrimitiveReadError, match="single_zones"):
@@ -307,12 +307,18 @@ def _call_builtin(rs: RuntimeState, name: str, args: list[Any]) -> Any:
     return result
 
 
+@pytest.mark.expects_shadow_guard
 def test_call_form_refuses_a_concealed_zone() -> None:
-    from cardlang.runtime.errors import OwnerGuardError
+    """A SHADOW GUARD since issue #250 PR 1: the class is owned statically by
+    `resolve._check_arrival_record_pile_args`, which refuses a concealed pile
+    at check time for every member of `ARRIVAL_RECORD_CALLS`. Reaching this
+    guard is therefore an engine gap, not a bad game — which is what the type
+    says. Driven here by calling the Builtin directly, past resolve."""
+    from cardlang.runtime.errors import ShadowGuardError
 
     rs = _rs_for("schnapsen.cardlang")
     talon = rs.zones.single("talon")
-    with pytest.raises(OwnerGuardError, match="identity to every observer"):
+    with pytest.raises(ShadowGuardError, match="identity to every observer"):
         _call_builtin(rs, "highest_trump_or_led_suit", [talon, None])
 
 
@@ -338,11 +344,15 @@ def test_call_form_refuses_a_pile_nobody_played_to() -> None:
         _call_builtin(rs, "highest_trump_or_led_suit", [ind, None])
 
 
+@pytest.mark.expects_shadow_guard
 def test_call_form_refuses_a_non_zone_argument() -> None:
-    from cardlang.runtime.errors import OwnerGuardError
+    """The concealed-zone cell's twin, and a Shadow Guard for the same reason:
+    the pile argument must be a static zone REFERENCE at resolve, so a
+    non-zone value reaching the runtime means the static guard leaked."""
+    from cardlang.runtime.errors import ShadowGuardError
 
     rs = _rs_for("schnapsen.cardlang")
-    with pytest.raises(OwnerGuardError, match="not a zone"):
+    with pytest.raises(ShadowGuardError, match="not a zone"):
         _call_builtin(rs, "highest_trump_or_led_suit", [Card("A", "spades"), None])
 
 
