@@ -394,17 +394,21 @@ in tests/test_trump_slot_class.py.
   `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
   contract declaration a pair of `offer`s plus a one-draw
   `declare_suit(s : Suit)` round, and the ten tricks three single-actor
-  filtered transfers per trick over `follows_lead` — like Schnapsen's
-  follower, the strict-follow legality is a filter predicate, not an
-  `active_rules` cascade, because the reference draws from hand-ordered
-  legality where the trick form's rules-driven candidate set is unordered.
+  filtered transfers per trick over the game's own `follow_ok`, which asks
+  `follows_lead` of the hand first and admits any card when the player holds
+  nothing in the led class — like Schnapsen's follower, the strict-follow
+  legality is a filter predicate, not an `active_rules` cascade, because the
+  reference draws from hand-ordered legality where the trick form's
+  rules-driven candidate set is unordered.
   The three contracts' orders are the game's Trick Order, whose rows read the
   declared contract off the public state, so the jacks-plus-trump-suit class
   and Null's trumpless rank order are one declaration rather than two agreeing
   predicates.
-  The winner, matador count, and overbid arithmetic are the game-local
-  primitives below; scoring writes `score[declarer]` directly (no typed
-  outcome — the settlement is a plain two-armed statement).
+  The matador count is the game-local primitive below; the winner is the
+  Builtin `highest_by_trick_order` over the declared Trick Order, and the
+  overbid arithmetic is rounded division written in the game text. Scoring
+  writes `score[declarer]` directly (no typed outcome — the settlement is a
+  plain two-armed statement).
 - **Tichu's hand** runs on the kernel with no mechanic: each climbing trick is
   the climb `round` (above) over the `tichu_lead_options` / `tichu_follows`
   queries, with the Dog as the engine-marked `ends_trick` lead and the
