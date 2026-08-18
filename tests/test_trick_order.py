@@ -815,16 +815,29 @@ def _partition_cells() -> list[Cell]:
     for w in excluded_winners:
         add(Cell(f"with-block-winner-{w}", _source(clauses=BLOCK, body=_ROUND.format(winner=w, extra="")),
                  (R3.format(name=w),)))
-    # A climbing query with its own strength order beside the block: two
-    # orders in one game (the design's C-item; RANKING_GATED_CLIMB_QUERIES).
-    _CLIMB = ("round climb play_to_trick from leader over all players "
+    # A climbing query beside the block: two card orders in one game, and the
+    # engine runs both. PARAMETRIZED over the whole climb registry -- every
+    # query carries its own order, whether it reads `ranking:` (president's)
+    # or hard-codes one (bigtwo, tichu) -- so a query added to either registry
+    # gets a cell without an edit here. The pairing is by game prefix, which is
+    # how the two registries are written.
+    _CLIMB = ("round climb play_combination from leader over all players "
               "source hand into pile combinations {combos} follows {follows} "
               "until (number of players where hand[player] is not empty) <= 1")
-    for combos, follows in (("president_lead_options", "president_follows"),):
+    _CLIMB_NEEDLE = "the climbing round's queries carry their own order"
+    for combos in sorted(F.PRIMITIVE_CLIMB_LEADS):
+        family = combos.rsplit("_lead_options", 1)[0]
+        follows = next(
+            f for f in sorted(F.PRIMITIVE_CLIMB_FOLLOWS) if f.startswith(family)
+        )
         add(Cell(f"with-block-climb-{combos}",
                  _source(clauses=BLOCK,
                          body=_CLIMB.format(combos=combos, follows=follows) + "\n    " + LIVE),
-                 ("carries its own card order",)))
+                 (_CLIMB_NEEDLE, combos)))
+        # ... and the same round without a block is untouched by this guard.
+        add(Cell(f"without-block-climb-{combos}",
+                 _source(body=_CLIMB.format(combos=combos, follows=follows)),
+                 (), forbidden=(_CLIMB_NEEDLE,)))
     add(Cell("with-block-excluded-call",
              _source(clauses=BLOCK, body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), (R4,)))
     add(Cell("with-block-early",
@@ -842,6 +855,16 @@ def _partition_cells() -> list[Cell]:
              _source(clauses=BLOCK, body="score[1] += 1",
                      tail="procedure p() {\n  let w = highest_by_trick_order(pile)\n  score[w] += 1\n}"),
              (R7,)))
+    # A consumer in a GAME-LEVEL evaluated position, outside every phase body:
+    # the `loser:` terminal selection, which the driver evaluates after the
+    # phases finish. Accepted -- it is read, by the engine, every game.
+    add(Cell("consumer-only-in-the-loser-selection",
+             _source(clauses=BLOCK, body="score[1] += 1",
+                     tail="").replace(
+                 "  winner: highest score",
+                 "  loser: if is_trump(A of hearts) then 0 else 1"),
+             ()))
+
     # --- the refusal half validates WHERE WRITTEN ------------------------
     # A gated or excluded name inside a container nothing invokes is still
     # refused: the refusal guards walk the text, so a dead container's mistake
@@ -1051,6 +1074,36 @@ def _reg(name: str) -> Any:
     name so this module type-checks on the pre-implementation tree and the
     cell fails with AttributeError (the constrained red) until it lands."""
     return getattr(F, name)
+
+
+def test_every_game_field_is_classified_for_consumption() -> None:
+    """`_GAME_FIELD_ROLES` is exhaustive over `n.Game`'s fields, and its
+    "root" half is what a consumption question walks.
+
+    The roots were once a list -- the phase bodies, and nothing else -- so a
+    game whose only consumer sat in `loser:` (evaluated after the phases
+    finish) or in a game-level `state` default (evaluated at setup) was told
+    its declaration was read by nothing. A field added to `Game` must land in
+    this table, or it silently rejoins that class.
+
+    red under (executed, reverted): drop any key from `_GAME_FIELD_ROLES` --
+    this fails naming it."""
+    import dataclasses
+
+    from cardlang.ast import nodes as n
+    from cardlang.resolve import _GAME_FIELD_ROLES
+
+    fields = {f.name for f in dataclasses.fields(n.Game)}
+    assert set(_GAME_FIELD_ROLES) == fields, (
+        f"unclassified: {sorted(fields - set(_GAME_FIELD_ROLES))}; "
+        f"stale: {sorted(set(_GAME_FIELD_ROLES) - fields)}"
+    )
+    assert set(_GAME_FIELD_ROLES.values()) == {"root", "phase", "definition", "declared"}
+    # The three non-root roles are the ones with a reason to be excluded; every
+    # other field is walked, so an inert field can never cost a consumer.
+    assert _GAME_FIELD_ROLES["phases"] == "phase"
+    assert _GAME_FIELD_ROLES["trick_order"] == "declared"
+    assert _GAME_FIELD_ROLES["loser"] == "root"
 
 
 def test_row_registry_matches_the_grid() -> None:

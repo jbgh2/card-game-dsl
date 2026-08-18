@@ -4237,6 +4237,71 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
 _CALLABLE_CONTAINERS: dict[str, str] = {"function": "functions", "rule": "rules"}
 
 
+# Every field of `n.Game`, classified by WHEN the engine evaluates what it
+# holds. Exhaustive over the node's fields and pinned there
+# (tests/test_trick_order.py::test_every_game_field_is_classified_for_consumption),
+# so a field added to `Game` lands unclassified and fails rather than being
+# silently left out of every consumption question.
+#
+#   "root"       -- reached at GAME level, outside any phase body, so a
+#                   consumption walk must start here. The engine evaluates
+#                   these directly (`driver.play_game`: the `loser:` terminal
+#                   selection after the phases finish, the game-level `state`
+#                   declaration defaults at setup) or they are inert today but
+#                   could hold an expression tomorrow, which is the safe side
+#                   to be on: an extra root can only over-count consumption,
+#                   never miss it.
+#   "phase"      -- the phase bodies, the walk's base.
+#   "definition" -- a body that runs only when something reachable NAMES it;
+#                   reached by the closure below, never as a root.
+#   "declared"   -- the block whose consumers this question is ABOUT. Its own
+#                   rows may not consume it, which R7 enforces separately.
+_GAME_FIELD_ROLES: dict[str, str] = {
+    "phases": "phase",
+    "defines": "definition",
+    "move_types": "definition",
+    "procedures": "definition",
+    "functions": "definition",
+    "rules": "definition",
+    "trick_order": "declared",
+    "state": "root",  # declaration defaults, evaluated at setup
+    "loser": "root",  # the terminal selection, evaluated after the phases
+    "winner": "root",  # names a state variable today; walked for symmetry
+    "board": "root",
+    "zones": "root",
+    "positions": "root",
+    "card_points": "root",
+    "types": "root",
+    "uses": "root",
+    "players": "root",
+    "teams": "root",
+    "name": "root",
+    "deck": "root",
+    "content_flavor": "root",
+    "direction": "root",
+    "ranking": "root",
+    "ranking_convention": "root",
+    "trump": "root",
+    "max_length": "root",
+    "span": "root",
+}
+
+
+def _consumption_roots(game: n.Game) -> Iterator[object]:
+    """Every node a consumption question starts from: the phase bodies, plus
+    each game-level field the engine evaluates outside them.
+
+    Derived from `_GAME_FIELD_ROLES` rather than listed at the call site --
+    the roots used to BE a list (phases and nothing else), and a game whose
+    only consumer sat in `loser:` or in a game-level `state` default was told
+    its declaration was read by nothing."""
+    for phase in game.phases:
+        yield from _walk(phase)
+    for field, role in _GAME_FIELD_ROLES.items():
+        if role == "root":
+            yield from _walk(getattr(game, field))
+
+
 def _consumption_reachable_nodes(game: n.Game) -> list[object]:
     """Every node the game can actually RUN — `_reachable_nodes` (the phase
     bodies plus the definition containers something reachable names) closed
@@ -4258,7 +4323,12 @@ def _consumption_reachable_nodes(game: n.Game) -> list[object]:
         ns: {d.name: d for d in getattr(game, field)}
         for ns, field in _CALLABLE_CONTAINERS.items()
     }
-    nodes: list[object] = list(_reachable_nodes(game))
+    nodes: list[object] = list(_consumption_roots(game))
+    nodes.extend(
+        node
+        for container in _reachable_definitions(game).values()
+        for node in _walk(container)
+    )
     reached: set[tuple[str, str]] = set()
     frontier: list[object] = list(nodes)
     while frontier:
@@ -4382,24 +4452,26 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"clause",
                 rnd.span,
             )
-    # A climbing round's combination queries carry their OWN strength order
-    # (`RANKING_GATED_CLIMB_QUERIES` — president's read `rank_index`), so a
-    # game declaring a Trick Order beside one has two orders and the engine
-    # quietly runs both: the block for trick play, the query's own table for
-    # the climb. Refused for the same reason an excluded winner is.
+    # EVERY registered climbing query, not the `ranking:`-reading subset: a
+    # climb query carries its own card order whether it reads `rank_index`
+    # (president's) or hard-codes one (the bigtwo_* and tichu_* engines), and
+    # either way a game naming one beside a Trick Order has two orders that
+    # the engine runs side by side. Derived from the two registries by union
+    # so a query added to either is refused without an edit here.
+    climb_queries = PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS
     for nd in _walk(game):
         if isinstance(nd, n.ClimbRound):
             for query_slot, fname in (
                 ("combinations", nd.combos_fn),
                 ("follows", nd.follows_fn),
             ):
-                if fname in RANKING_GATED_CLIMB_QUERIES:
+                if fname in climb_queries:
                     bag.error(
                         f"climb round `{query_slot} {fname}` beside a "
-                        f"`trick_order {{ }}` block — {fname} carries its own "
-                        f"card order, and the block declares the game's; a "
-                        f"game has one Trick Order, so drop the block or name "
-                        f"a query that does not rank cards",
+                        f"`trick_order {{ }}` block — the climbing round's "
+                        f"queries carry their own order; a game with a Trick "
+                        f"Order cannot also name {fname} (the climb family "
+                        f"reading the Trick Order is issue #251)",
                         nd.span,
                     )
     for nd in _walk(game):
