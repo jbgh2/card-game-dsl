@@ -563,6 +563,15 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
     "parse.py": ["direction not in RANK_DIRECTIONS"],
+    # Like `domains.py` above: it reconciles two registries rather than pinning
+    # one against a literal, so there is no collection to widen and no witness
+    # of this module's shape. `_DEFINITION_CONTAINERS`' namespaces must be ones
+    # `_REFERENCE_SLOTS` actually issues, or the reachability lookup matches
+    # nothing and every definition body reads as unreachable — a silent wrong
+    # answer (every game pairing a `trump:` with a `define` would be refused).
+    # Its reddening mutation is executed: misspell one namespace and the module
+    # raises at import ("names namespaces no reference slot issues: ['dfine']").
+    "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     # The one latent deny-list the census surfaced: the dispatch implements

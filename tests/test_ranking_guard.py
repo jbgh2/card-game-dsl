@@ -44,11 +44,17 @@ one deliberate partial — Canasta's eleven meldable natural ranks under
 canasta108's 14 (wilds and threes are never a meld's rank) — and the sweep
 below pins each partial's omission set EXACTLY
 (`_DELIBERATE_PARTIAL_OMISSIONS`), so an accidental omission in any game
-still fails. A card whose rank falls outside a partial ranking still
-crashes `rank_value`'s `ctx.rs.rank_index[...]` lookup at runtime instead
-of erroring at resolve time — recorded HERE, in this module's ledger and
-the strict xfail below, guarded only by that runtime KeyError, not by this
-check.
+still fails. A card whose rank falls outside a partial ranking reaching a
+strength read is a RUNTIME fact (which cards a zone holds), so its Owner
+Guard is the runtime's: `runtime/values.py::rank_strength`, the one lookup
+every `rank_index` consumer routes through, refusing in the typed channel
+with the reader, the rank and the declared order named — pinned below for
+`rank_value`, and swept per consumer (the two Builtin winners in both
+positions, Belote's, cribbage's, President's) in
+tests/test_trump_slot_class.py. Not this check's, and deliberately: a
+static "partial ranking + a strength reader named" guard would refuse
+games whose reads never meet an unranked card while proving nothing about
+the ones that do.
 
 Adjacent cell closed here (same two-source domain, opposite direction):
 card-LITERAL rank validation (`resolve._categories.ranks`, consumed by the
@@ -256,17 +262,15 @@ def test_card_literal_with_a_nondeck_rank_still_rejected() -> None:
     )
 
 
-# --- the recorded gap, as an expectation rather than a sentence ------------
+# --- the partial ranking's runtime half, as an expectation ------------------
 #
-# `ranking:` coverage is unchecked: a PARTIAL `ranking:` is a
-# deliberate feature, but a card whose rank falls outside it crashes
-# `rank_value`'s `rank_index` lookup at play time in the wrong channel. The
-# ledger above records that half as having no pinning test. This is it.
-#
-# `xfail_strict` is on (pyproject.toml), so when that lookup is given the
-# runtime's typed channel this test XPASSES and FAILS the build — forcing
-# the ledger above to be retired in the same change that closes the gap.
-# A prose residual cannot do that; it just quietly stops being true.
+# `ranking:` coverage is unchecked by design: a PARTIAL `ranking:` is a
+# deliberate feature, and a card whose rank falls outside it reaching a
+# strength read is refused at play time in the runtime's typed channel
+# (`rank_strength`, the Owner Guard the ledger above names). This cell was
+# born as a strict xfail on the bare KeyError; the guard's arrival XPASSED
+# it, and it became the pin below in the same change -- which is exactly
+# what the strict mark was for.
 
 
 _PARTIAL_RANKING_GAME = """
@@ -294,13 +298,16 @@ def test_a_partial_ranking_accepts_at_check_time() -> None:
     assert check_dsl(_PARTIAL_RANKING_GAME, "partial.cardlang") is not None
 
 
-@pytest.mark.xfail(
-    raises=KeyError,
-    reason="`ranking:` coverage is unchecked: rank_value's "
-    "rank_index lookup has no guard, so a rank outside a partial ranking "
-    "surfaces as a bare KeyError instead of the runtime's typed channel",
-)
 def test_a_rank_outside_a_partial_ranking_fails_in_the_runtime_channel() -> None:
+    """Seed 0 deals each hand one card, and with three of thirteen ranks
+    ranked one of them is unranked: `rank_value` refuses in the runtime's
+    typed channel, naming itself, the rank, and the declared order.
+
+    red under: `rank_strength` returning `rank_index[rank]` bare
+    (cardlang/runtime/values.py) -- a KeyError, which is not an
+    OwnerGuardError."""
     game = check_dsl(_PARTIAL_RANKING_GAME, "partial.cardlang")
-    with pytest.raises(OwnerGuardError):
+    with pytest.raises(OwnerGuardError) as exc:
         play_game(game, random.Random(0))
+    assert "rank_value" in str(exc.value)
+    assert "(A, K, Q)" in str(exc.value)

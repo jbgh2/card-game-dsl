@@ -2108,6 +2108,30 @@ def _check_round_ranking(
             )
 
 
+def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """The trick round's `trump <expr>` names the trump suit for the pass —
+    or `none` for no trump (Bridge's no-trump contract) — so it is held to
+    `Suit?`, exactly the type the call form's trump argument already carries
+    (`CALL_SIGS["highest_trump_or_led_suit"]`). Before this the clause was
+    only walked as an expression: `trump 3`, `trump "hearts"`, `trump J`
+    all checked clean and the runtime compared card suits against an
+    Integer, a String, a Rank — no suit ever matched, and the game silently
+    played no-trumps while its rules still enforced the trump obligations
+    (accepted-with-different-semantics). Through the operand choke point,
+    so an out-of-range seat literal and the coercion rules are the same
+    ones every other operand gets. Whether the WINNER reads the clause at
+    all is resolve's (`TRUMP_READING_WINNERS`), settled before this runs."""
+    if stmt.trump is None:
+        return
+    got = infer(stmt.trump, env)
+    _check_operand(
+        stmt.trump, got, TOptional(TEnum("Suit")), env, bag,
+        f"round `trump` names the trump suit — expected Suit? (a suit, or "
+        f"none for no trump), got {_type_name(got)}",
+        stmt.span,
+    )
+
+
 def _check_participants(
     node: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str, span: Span | None
 ) -> None:
@@ -2653,6 +2677,7 @@ def _check_stmt_semantics(stmt: n.Stmt, env: TypeEnv, bag: DiagnosticBag) -> Non
         case n.TrickRound():
             _check_round_actors(stmt, env, bag)
             _check_round_ranking(stmt, env, bag)
+            _check_round_trump(stmt, env, bag)
         case n.AuctionRound() | n.ClimbRound():
             # `until` is mandatory on exactly the two forms that loop, so it is
             # checked without asking whether it is there — which is the split's

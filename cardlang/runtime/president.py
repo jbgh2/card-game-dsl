@@ -39,7 +39,7 @@ from dataclasses import dataclass
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import SUITS, Card
+from cardlang.runtime.values import SUITS, Card, rank_strength
 
 ROW = reads.row("cardlang/runtime/president.py", "president.cardlang")
 
@@ -94,8 +94,9 @@ def president_lead_options(
     strength = facts.rank_index
     leads: list[Play] = []
     for r, cs in _by_rank(hand).items():
+        key = rank_strength(strength, r, "president_lead_options")
         for size in range(1, len(cs) + 1):
-            leads.append(Play("set", size, strength[r], tuple(cs[:size])))
+            leads.append(Play("set", size, key, tuple(cs[:size])))
     return leads
 
 
@@ -115,8 +116,11 @@ def president_follows(
     strength = facts.rank_index
     follows: list[Play] = []
     for r, cs in _by_rank(hand).items():
-        if len(cs) >= current.size and strength[r] > current.key:
-            follows.append(Play("set", current.size, strength[r], tuple(cs[:current.size])))
+        if len(cs) < current.size:
+            continue
+        key = rank_strength(strength, r, "president_follows")
+        if key > current.key:
+            follows.append(Play("set", current.size, key, tuple(cs[:current.size])))
     threes = [c for c in hand if c.rank == "3"]
     threes.sort(key=lambda c: _SUITS_DESC.index(c.suit))
     if len(threes) >= current.size:

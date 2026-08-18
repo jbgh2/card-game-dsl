@@ -39,7 +39,15 @@ Key design notes:
 
 - **`trump <expr>` is optional.** Omitted, the round uses the game-level `trump:`
   declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each
-  deal; Bridge's contract sets it, none for no-trump).
+  deal; Bridge's contract sets it, none for no-trump). The expression is `Suit?`
+  (a suit, or `none` for no trump), and only a winner whose body reads a trump
+  may carry the clause — `highest_trump_or_led_suit`, `belote_trick_winner`
+  (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
+  `highest_of_led_suit` or `tarot_trick_winner` it would be silently ignored,
+  so the checker refuses it. The same rule holds the game-level `trump:` to a
+  suit of the declared deck, and to being READ: a `trump:` that no trick round
+  inherits (no round; every winner trump-blind; every reading round supplying
+  its own clause) is refused as dead rather than accepted and dropped.
 
 - **The round emits observation events** for each play, with visibility derived
   from the zones. Hidden-info and perfect-info games use the same construct; the
@@ -252,15 +260,21 @@ match) and so must trump if able, a quirk the split preserves precisely.
 The trick form's `winner` slot names one of these bare. Two homes share the
 slot (a name's home is its classification, never its syntactic position):
 
-- `highest_of_led_suit` — the Builtin no-trump winner
+- `highest_of_led_suit` — the Builtin no-trump winner (reads no trump: a
+  `trump` clause on it is refused)
 - `highest_trump_or_led_suit` — the Builtin with-trump winner (the round's
   `trump` clause, else the game's declared trump); the same Builtin is also
   callable over a public pile's Arrival Record (see "Native functions")
 - `tarot_trick_winner` — the Primitive for French Tarot: highest atout, else
   highest of the effective led suit (`tarot_led_suit()`); the Excuse never
-  wins
+  wins (reads no trump — the atouts are its own suit; a `trump` clause on it
+  is refused)
 - `belote_trick_winner` — the Primitive for Belote: highest trump under the
   J-9 trump order, else highest of the led suit under the ace-ten ranking
+
+Which of the four reads its trump is `TRUMP_READING_WINNERS`
+(cardlang/builtins/functions.py), reconciled against the bodies by execution
+in tests/test_trump_slot_class.py.
 
 ## Mechanics
 

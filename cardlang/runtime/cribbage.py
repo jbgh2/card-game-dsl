@@ -38,7 +38,7 @@ from itertools import combinations
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, Player, rank_strength
 
 ROW = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")
 
@@ -69,19 +69,21 @@ def count_pairs(cards: list[Card]) -> int:
     return 2 * sum(1 for a, b in combinations(cards, 2) if a.rank == b.rank)
 
 
-def run_score(cards: list[Card], order: Mapping[str, int]) -> int:
+def run_score(cards: list[Card], order: Mapping[str, int], reader: str) -> int:
     """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
     contains at most one run). `order` is the game's declared rank order —
     `ctx.rs.rank_index` from cribbage.cardlang's `ranking: aces low` — under
     which "a run" means ranks ADJACENT in the declaration: strengths are dense
     consecutive integers (the driver's `enumerate` formula), so A-2-3 runs and
     Q-K-A does not, exactly the A-low no-wraparound rule. `order` must cover
-    every rank it is asked for, exactly as `rank_value` requires — the same
-    partial-`ranking:` residual, moot here since `aces low` covers the whole
-    deck."""
+    every rank it is asked for, exactly as `rank_value` requires: a rank
+    outside a partial `ranking:` is refused by `rank_strength`, the runtime
+    Owner Guard for that class, naming `reader` (the DSL-visible Primitive
+    that asked) — moot for the corpus, since `aces low` covers the deck."""
     counts: dict[int, int] = {}
     for c in cards:
-        counts[order[c.rank]] = counts.get(order[c.rank], 0) + 1
+        strength = rank_strength(order, c.rank, reader)
+        counts[strength] = counts.get(strength, 0) + 1
     distinct = sorted(counts)
     i = 0
     while i < len(distinct):
@@ -110,12 +112,18 @@ def nob_score(hand4: list[Card], starter: Card) -> int:
     return 1 if any(c.rank == "J" and c.suit == starter.suit for c in hand4) else 0
 
 
-def show_score(hand4: list[Card], starter: Card, is_crib: bool, order: Mapping[str, int]) -> int:
+def show_score(
+    hand4: list[Card],
+    starter: Card,
+    is_crib: bool,
+    order: Mapping[str, int],
+    reader: str,
+) -> int:
     five = [*hand4, starter]
     return (
         count_fifteens(five)
         + count_pairs(five)
-        + run_score(five, order)
+        + run_score(five, order, reader)
         + flush_score(hand4, starter, is_crib)
         + nob_score(hand4, starter)
     )
@@ -138,9 +146,10 @@ def peg_pair_points(seq: list[Card]) -> int:
 
 def peg_run_points(seq: list[Card], order: Mapping[str, int]) -> int:
     """`order` as in `run_score`: the declared ranking's `rank_index`, whose
-    dense consecutive strengths carry the run-adjacency meaning."""
+    dense consecutive strengths carry the run-adjacency meaning (and whose
+    misses `rank_strength` refuses, naming this Primitive)."""
     for k in range(len(seq), 2, -1):
-        orders = [order[c.rank] for c in seq[-k:]]
+        orders = [rank_strength(order, c.rank, "peg_run_points") for c in seq[-k:]]
         if len(set(orders)) == k and max(orders) - min(orders) == k - 1:
             return k
     return 0
@@ -178,11 +187,15 @@ def cribbage_show_value(
     to `played[p]`, never the crib), scored against the shared starter."""
     hand4 = list(gr.families["played"][p])
     starter = gr.singles["starter"][0]
-    return show_score(hand4, starter, is_crib=False, order=facts.rank_index)
+    return show_score(
+        hand4, starter, is_crib=False, order=facts.rank_index, reader="cribbage_show_value"
+    )
 
 
 def cribbage_crib_value(facts: EngineFacts, gr: reads.GameReads) -> int:
     """The dealer's crib show score against the shared starter."""
     crib = list(gr.singles["crib"])
     starter = gr.singles["starter"][0]
-    return show_score(crib, starter, is_crib=True, order=facts.rank_index)
+    return show_score(
+        crib, starter, is_crib=True, order=facts.rank_index, reader="cribbage_crib_value"
+    )

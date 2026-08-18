@@ -9,9 +9,10 @@ selects from: card decks, uniform and not, and the board games' piece sets.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.types import Flavor
 
 # Suits shared by the French-suited decks. Rank ordering is not a global:
@@ -377,6 +378,44 @@ def expand_ranking_convention(convention: str, deck_name: str) -> tuple[str, ...
     silently drop a deck rank."""
     members = set(deck_ranks(deck_name))
     return tuple(r for r in RANKING_CONVENTIONS[convention] if r in members)
+
+
+def rank_strength(rank_index: Mapping[str, int], rank: str, reader: str) -> int:
+    """A rank's strength under the game's declared `ranking:` — the ONE
+    lookup every consumer of `rs.rank_index` routes through (the two Builtin
+    winners, `rank_value`, Belote's winner, cribbage's run/show scorers, the
+    President climb queries; the census is typecheck's `RANKING_GATED_*`,
+    and tests/test_trump_slot_class.py drives every member through here).
+
+    A rank the order does not rank is the game author's: `ranking:` may be a
+    PARTIAL permutation of the deck (a supported feature — it narrows the
+    Rank move-parameter domain; Canasta's eleven meldable ranks), and which
+    cards reach a strength read is a fact of zone contents, decidable only
+    at play time. So this is the Owner Guard for that class, in the
+    runtime's channel, naming the reader (the DSL-visible function), the
+    rank, and the declared order, so the fix is in the message. An EMPTY
+    order is a different case: typecheck's `RANKING_GATED_FUNCS` /
+    `RANKING_GATED_WINNERS` / `RANKING_GATED_CLIMB_QUERIES` gates refuse
+    every reader in a game that declares no `ranking:`, so a reader meeting
+    no order at all is an engine gap — the Shadow Guard behind those gates,
+    addressed to the maintainer."""
+    strength = rank_index.get(rank)
+    if strength is not None:
+        return strength
+    if not rank_index:
+        raise ShadowGuardError(
+            "typecheck RANKING_GATED_FUNCS / RANKING_GATED_WINNERS / "
+            "RANKING_GATED_CLIMB_QUERIES",
+            f"{reader} read a rank strength in a game with no `ranking:` — "
+            f"the ranking gates admit no strength reader without one",
+        )
+    raise OwnerGuardError(
+        f"{reader}: rank {rank!r} has no strength under the game's `ranking:` "
+        f"({', '.join(rank_index)}) — the declared order does not rank it. A "
+        f"partial `ranking:` narrows the Rank move-parameter domain, and every "
+        f"card that reaches a rank-strength read must be ranked: add {rank!r} "
+        f"to `ranking:`, or keep the card out of this read"
+    )
 
 
 # A player is just an identity; the runtime uses small ints P0..P(n-1).
