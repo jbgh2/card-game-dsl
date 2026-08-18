@@ -4389,10 +4389,13 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     # for the climb. Refused for the same reason an excluded winner is.
     for nd in _walk(game):
         if isinstance(nd, n.ClimbRound):
-            for slot, fname in (("combinations", nd.combos_fn), ("follows", nd.follows_fn)):
+            for query_slot, fname in (
+                ("combinations", nd.combos_fn),
+                ("follows", nd.follows_fn),
+            ):
                 if fname in RANKING_GATED_CLIMB_QUERIES:
                     bag.error(
-                        f"climb round `{slot} {fname}` beside a "
+                        f"climb round `{query_slot} {fname}` beside a "
                         f"`trick_order {{ }}` block — {fname} carries its own "
                         f"card order, and the block declares the game's; a "
                         f"game has one Trick Order, so drop the block or name "
