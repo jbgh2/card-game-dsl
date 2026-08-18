@@ -53,13 +53,20 @@ Born red: this module is committed with the Doppelkopf hash file captured on
 the pre-migration tree, so it is GREEN at that commit by construction; its
 capacity to fail is proven by the planted mutation recorded below.
 
-red under (executed on the pre-migration tree, then reverted): flipping
-First of Equals to last-of-equals in `doko.py`'s trump comparison (`>` to
-`>=`) moved 33 of the first 40 seeds' hashes (`33 failed, 8 passed`, the
-not-slow selection). The implementer re-executes the witness against the
-kernel once the construct exists -- the same flip in
-`winners.highest_by_trick_order`, or dropping `not is_trump` from the
-follow-class test in `winners.follows_lead` -- and records the count here.
+red under, executed twice -- once on each side of the migration, which is
+what makes the pin's capacity to fail a property of the CLAIM rather than of
+one implementation:
+
+* pre-migration, in `doko.py`'s trump comparison (`>` to `>=`): 33 of the
+  first 40 seeds' hashes moved (`33 failed, 8 passed`, the not-slow
+  selection);
+* post-migration, the same flip in `winners.highest_by_trick_order`: 200 of
+  200 seeds moved (`200 failed, 1 passed` -- the one pass is the hash-file
+  coverage cell, which reads the file rather than a playout).
+
+The kernel plant moves every seed where the module plant moved four in five,
+because the kernel comparison runs for every game that declares a Trick Order
+rather than for one game's winner. Neither was re-blessed.
 """
 
 from __future__ import annotations

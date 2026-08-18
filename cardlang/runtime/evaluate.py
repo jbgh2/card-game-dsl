@@ -142,12 +142,10 @@ def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
     Order"). Clearing it makes a bare-family read inside a row reach the loud
     Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
     resolve's R11, which owns the class statically."""
+    if keep_actor:
+        return replace(ctx, locals=scope, winner=None, action=None)
     return replace(
-        ctx,
-        locals=scope,
-        winner=None,
-        action=None,
-        **({} if keep_actor else {"current_player": None}),
+        ctx, locals=scope, winner=None, action=None, current_player=None
     )
 
 

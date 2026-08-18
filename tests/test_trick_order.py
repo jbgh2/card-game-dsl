@@ -86,7 +86,14 @@ covered:    `test_grammar_cell` (twins, absorbers, placement, empty block,
             the end-to-end cells (`test_slot_and_call_agree`,
             `test_block_agrees_with_the_standard_winner`, `test_readers_end_to_end`,
             `test_no_candidate_is_loud_end_to_end`, `test_dealt_pile_has_no_winner`,
-            `test_follows_lead_on_the_empty_pile_is_false`).
+            `test_follows_lead_on_the_empty_pile_is_false`), plus the
+            ambiguity budget over every accept source
+            (tests/test_grammar_ambiguity.py, derived from `_grammar_cells`).
+            A post-grammar framing check over the definition sources alone
+            (issue #250) added the crossed reject-habit cells, the
+            `trick_order`-as-a-NAME cell and the ambiguity budget; everything
+            else it enumerated was already a cell here or a guard in the
+            tree.
 sampled:    the body-type axis is one spelling per representative
             `cardlang.types` shape (Boolean, Boolean?, Suit, Suit?, none,
             Integer, Integer?, String, Rank, Card, Player, Collection, the
@@ -130,39 +137,51 @@ residual:   (1) `trump: card.rank is J` written at GAME level (the row
             own order table on a foreign deck (#364) are outside this grid
             by their issues; #350 closes with this construct (mid-trick
             reads of the pile winner are designed surface, pinned by the
-            winner-so-far cells). (8) Row-evaluation cost on the legality
+            winner-so-far cells). (9) The three reject-with-replacement
+            habits -- the colon, the commas, the `=`/`:=` rows -- each have a
+            named arm, but the four CROSSED combinations match no arm and die
+            as a bare syntax error: loud, in the lexer's voice rather than the
+            block's, the same class as residuals (1) and (2). Pinned loud by
+            the `habits-*` cells rather than assumed. R4, this ledger owns the
+            record: a crossed arm buys a better voice on a sentence nobody has
+            written, and the cells fail if one is ever added without the voice
+            improving. (10) `TRICK_ORDER_EARLY_PREDICATES` is EMPTY, so the
+            admission direction of the `early` gate cannot be exercised --
+            only its refusal, which the `with-block-early` cell pins. Recorded
+            rather than papered over: a test iterating the empty set would
+            pass over zero rows and read as coverage. R4, this ledger owns the
+            record; the direction opens when a predicate joins the set with a
+            witness. (8) Row-evaluation cost on the legality
             path: measured 1.5x per Doppelkopf playout by the Architect's
             prototype (issue #250, Architect counsel PR 1, Q2); no memo is
             built (the epoch-counter memo the repo reverted); re-measured
             by PRs 2 and 3.
-provisional (cells resting on a cut-level point still open for the operator;
-            the alternate outcome is what flips if the ruling goes the other
-            way):
-            - `trump:` row REQUIRED (`test_defaults_cell` P8 cells): both
-              counsels recommend requiring it, `trump: false` the no-trump
-              spelling; the alternate is accept-with-default-`false`.
-            - strict typing for `trump:` / `card_strength:` (the `Boolean?` /
-              `Integer?` cells of `test_row_type_cell`): both counsels
-              recommend strict; the alternate is coercion through
-              `_check_operand`.
-            - every `_PRONOUNS` member refused in a row, `state` and
-              `active_rules` included, and through a function (the
-              `state`/`active_rules` cells of `test_row_hermeticity_cell`):
-              the Architect's amendment; the alternate is the call-site three
-              only.
-            - `choose` refused in a row (its cells): the Architect's
-              amendment; the alternate is accept.
-            - the row-callable allow-list (the `player_holding` / `error`
-              cells): both counsels; the alternate is a zone-walk only, under
-              which `player_holding` would be accepted.
-            - the pile-argument zone-reference guard and the identity rule
-              on every trick round's play zone (`test_pile_argument_cell`,
-              `test_play_zone_cell`): both counsels; the alternate leaves
-              them runtime Owner Guards (the computed-pile cells then check
-              clean and die at play time).
-            - `early` refused beside the block winner: both counsels; the
-              alternate is accept.
-
+ruled:      every cut-level point this grid's cells rest on is ruled (issue
+            #250, the operator's PR-1 ruling 5321676867), and each was ruled
+            as the cells were authored, so no cell flipped: the `trump:` row
+            is REQUIRED and `trump: false` is the no-trump spelling; `trump:`
+            and `card_strength:` type strictly, only `follow_class:` coerces,
+            `TAny` refused; a row reads no `_PRONOUNS` member and makes no
+            `choose`, directly or through a helper, while declared state
+            variables stay readable; the row-callable Builtin surface is an
+            allow-list with its complement listed; the pile argument of every
+            Arrival-Record call is a static identity-to-all zone reference at
+            resolve and every trick round's play zone is one, both tightening
+            the EXISTING call form; `early` is refused beside the block
+            winner; the winner slot has two contracts keyed by
+            `TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`;
+            the call form emits no `trick` trace.
+cost:       the legality path evaluates a row per candidate per decision.
+            MEASURED on this branch, 20 games x 3 samples, median: 61.7
+            ms/game before the migration, 113.9 ms/game after -- 1.85x, above
+            the 1.5x the Architect's prototype predicted (62 -> 92) and
+            accepted on the same terms. The gap is Doppelkopf's banded
+            `card_strength:` row, which the prototype did not carry: the
+            follow filter asks `follows_lead` per candidate and each ask
+            projects the whole pile. No memo is built -- none is sound
+            without an epoch counter, and this repo built and reverted that
+            one already; the measurement is the record, and PRs 2 and 3
+            re-measure with heavier rows.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line
@@ -875,7 +894,7 @@ def test_pile_argument_cell(cell: Cell) -> None:
 def _play_zone_cells() -> list[Cell]:
     cells: list[Cell] = []
     for ztype in sorted(LIBRARY_ZONE_TYPES):
-        positions, decl, read, _ = _zone_decl(ztype)
+        _positions, decl, _read, _bare = _zone_decl(ztype)
         # A round's `into` names a single zone; families need an instance --
         # the trick form's `into NAME` takes a single zone name only, so
         # owner-indexed types are spelled through a single-zone alias where
@@ -884,7 +903,8 @@ def _play_zone_cells() -> list[Cell]:
         # here; owner-indexed types are covered by the pile-argument cells.
         if LIBRARY_ZONE_TYPES[ztype]:
             continue
-        body = f"round play_to_trick from leader over all players source hand into z winner highest_of_led_suit\n    score[winner] += 1"
+        body = ("round play_to_trick from leader over all players source hand "
+                "into z winner highest_of_led_suit\n    score[winner] += 1")
         src = _source(zones=decl, body=body)
         ok = identity_to_all(ztype)
         cells.append(Cell(f"into-{ztype}", src, () if ok else (R15,)))
@@ -1287,7 +1307,11 @@ def test_readers_end_to_end() -> None:
     for seed in range(8):
         rng = random.Random(seed)
         seen: list[tuple[int, tuple[Any, ...]]] = []
-        result = play_game(game, rng, None, random_chooser(rng), observer=lambda p, e: seen.append((p, e)))
+
+        def watch(p: int, e: tuple[Any, ...], log: Any = seen) -> None:
+            log.append((p, e))
+
+        result = play_game(game, rng, None, random_chooser(rng), observer=watch)
         deal = next(e for p, e in seen if p == 0 and e[0] == "move" and e[3] == "hand[0]")
         rank, suit = _parse(deal[4][0])
         ranks = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A")

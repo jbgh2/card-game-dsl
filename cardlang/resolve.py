@@ -75,6 +75,7 @@ from typing import assert_never, cast, get_args
 from cardlang.ast import nodes as n
 from cardlang.board_domains import BOARD_DOMAIN, DIRECTION_DOMAIN, directions_of
 from cardlang.builtins.functions import (
+    ARRIVAL_RECORD_CALLS,
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
@@ -82,7 +83,6 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
-    ARRIVAL_RECORD_CALLS,
     TRICK_ORDER_EARLY_PREDICATES,
     TRICK_ORDER_EXCLUDED_FUNCS,
     TRICK_ORDER_EXCLUDED_WINNERS,
@@ -4317,16 +4317,16 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"clause",
                 rnd.span,
             )
-    for call in _walk(game):
-        if isinstance(call, n.Call) and call.func in TRICK_ORDER_EXCLUDED_FUNCS:
+    for nd in _walk(game):
+        if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_EXCLUDED_FUNCS:
             arg = "pile"
-            if call.args and isinstance(call.args[0], n.NameRef):
-                arg = call.args[0].name
+            if nd.args and isinstance(nd.args[0], n.NameRef):
+                arg = nd.args[0].name
             bag.error(
-                f"`{call.func}(...)` beside a `trick_order {{ }}` block — the "
+                f"`{nd.func}(...)` beside a `trick_order {{ }}` block — the "
                 f"block's rows are the trick order; call "
                 f"`{min(TRICK_ORDER_GATED_WINNERS)}({arg})`",
-                call.span or game.span,
+                nd.span or game.span,
             )
     # R7: the block must have a consumer OUTSIDE its own rows.
     rows = set(game.trick_order.rows)
@@ -4572,9 +4572,12 @@ def _check_arrival_record_pile_args(game: n.Game, bag: DiagnosticBag) -> None:
         name: str | None = None
         if isinstance(arg, n.NameRef) and arg.ref_kind == "zone":
             name = arg.name
-        elif isinstance(arg, n.Subscript) and isinstance(arg.obj, n.NameRef):
-            if arg.obj.ref_kind == "zone":
-                name = arg.obj.name
+        elif (
+            isinstance(arg, n.Subscript)
+            and isinstance(arg.obj, n.NameRef)
+            and arg.obj.ref_kind == "zone"
+        ):
+            name = arg.obj.name
         if name is None:
             bag.error(
                 f"`{nd.func}` reads the Arrival Record of its pile argument, "
