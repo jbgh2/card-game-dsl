@@ -497,6 +497,11 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.AuctionRound, "order_mode"),
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
+        # Annotated `TrickOrderRowKey` (a `Literal`), like `content_flavor`
+        # below: a KEYWORD, not a reference -- the row key names a row of the
+        # language's `TRICK_ORDER_ROWS`, a fixed set the parse builder
+        # validates against, never a designer-authored name in any namespace.
+        (n.TrickOrderRow, "key"),
         # Annotated `Flavor` (a `Literal`), not `str` — which is exactly why it
         # was the one field the registry's first domain predicate missed. It
         # holds a string like any other keyword slot: the clause that selected
@@ -4234,8 +4239,8 @@ def _row_order(key: str) -> int:
 
 def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     """The presence partition, both directions: a game either declares a
-    [[trick-order]] and uses ITS vocabulary, or declares none and uses the
-    round-configured one. Never a mixture.
+    [[trick-order]] and names the winner and calls that read it, or declares
+    none and names the round-configured ones. Never a mixture.
 
     The Owner Guard for a class that would otherwise be silent in both
     directions. WITH a block, the round-configured trumps (`trump:`, a round's
@@ -4279,7 +4284,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             )
         return
 
-    # --- with a block: the round-configured vocabulary is refused ------------
+    # --- with a block: the round-configured names are refused ----------------
     if game.trump is not None:
         remedy = ""
         if _deck_known(game.deck) and game.trump in suit_names(game.deck):

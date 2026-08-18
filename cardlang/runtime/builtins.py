@@ -101,15 +101,15 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
         # announce trick ends that did not happen (issue #250 PR 1, ruled
         # point 7) -- the round form's `outcome` keeps its trace.
         case "is_trump":
-            return bool(_trick_order_table(ctx, "is_trump").is_trump(args[0], ctx))
+            return _is_trump(args[0], ctx)
         case "follow_class":
-            return _trick_order_table(ctx, "follow_class").follow_class(args[0], ctx)
+            return _follow_class(args[0], ctx)
         case "card_strength":
-            return _trick_order_table(ctx, "card_strength").card_strength(args[0], ctx)
+            return _card_strength(args[0], ctx)
         case "follows_lead":
-            return trick_order.follows_lead_over_pile(args[0], args[1], ctx)
+            return _follows_lead(args[0], args[1], ctx)
         case "highest_by_trick_order":
-            return trick_order.winner_over_pile(args[0], ctx)
+            return _trick_order_winner(args[0], ctx)
         case _:
             return NOT_A_BUILTIN
 
@@ -119,6 +119,47 @@ def _trick_order_table(ctx: Ctx, reader: str) -> trick_order.TrickOrderTable:
     behind resolve's presence partition, which refuses every reader in a game
     declaring no block."""
     return trick_order.table_of(ctx, f"{reader}(card)")
+
+
+def _is_trump(card: Card, ctx: Ctx) -> bool:
+    """`is_trump(card)` — the reader the language mints from the block's
+    `trump:` row."""
+    return bool(_trick_order_table(ctx, "is_trump").is_trump(card, ctx))
+
+
+def _follow_class(card: Card, ctx: Ctx) -> str | None:
+    """`follow_class(card)` — the class the card follows as, `none` for
+    class-less."""
+    value = _trick_order_table(ctx, "follow_class").follow_class(card, ctx)
+    # shadow guard: typecheck `_check_trick_order` (T1) holds the
+    # `follow_class:` row to `Suit?`
+    assert value is None or isinstance(value, str), (
+        f"follow_class row yielded {value!r}"
+    )
+    return value
+
+
+def _card_strength(card: Card, ctx: Ctx) -> int:
+    """`card_strength(card)` — the card's strength within its class."""
+    value = _trick_order_table(ctx, "card_strength").card_strength(card, ctx)
+    # shadow guard: typecheck `_check_trick_order` (T1) requires the
+    # `card_strength:` row to type exactly Integer
+    assert isinstance(value, int), f"card_strength row yielded {value!r}"
+    return value
+
+
+def _follows_lead(card: Card, pile: Any, ctx: Ctx) -> bool:
+    """`follows_lead(card, pile)` — the winner's candidate test, over a public
+    pile's [[arrival-record]]. `card` is declared `TCard` and coerced by
+    `reads.coerce_args`; the pile is the polymorphic `TAny` (the Zone handle,
+    so the Arrival Record rides along)."""
+    return trick_order.follows_lead_over_pile(card, pile, ctx)
+
+
+def _trick_order_winner(pile: Any, ctx: Ctx) -> Player:
+    """`highest_by_trick_order(pile)` — the [[trick-order]]'s winner over a
+    public pile's [[arrival-record]]."""
+    return trick_order.winner_over_pile(pile, ctx)
 
 
 def _lines(ctx: Ctx, k: int) -> tuple[tuple[str, ...], ...]:

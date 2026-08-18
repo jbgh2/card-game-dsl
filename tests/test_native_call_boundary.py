@@ -78,9 +78,10 @@ def _polymorphic_param_funcs() -> set[str]:
     }
 
 
-def _game(body: str) -> str:
+def _game(body: str, clauses: str = "") -> str:
     return (
         "game G {\n"
+        + clauses +
         "  players: 2\n"
         "  max_length: 1000\n"
         "  cards: standard52\n"
@@ -191,7 +192,12 @@ def test_polymorphic_param_set_is_pinned() -> None:
     class: their adapters dispatch on the runtime shape themselves, so the
     boundary must pass their arguments raw.  A new TAny-param function must
     decide its shape handling here and gets a probe like suit_of's."""
-    assert _polymorphic_param_funcs() == {"suit_of", "highest_trump_or_led_suit"}, (
+    assert _polymorphic_param_funcs() == {
+        "suit_of",
+        "highest_trump_or_led_suit",
+        "highest_by_trick_order",
+        "follows_lead",
+    }, (
         "a native function with a TAny (polymorphic) param joined the "
         "boundary — its adapter sees raw shapes (no coercion); add a "
         "zone-argument probe for it beside test_polymorphic_suit_of_"
@@ -213,6 +219,55 @@ def test_polymorphic_trick_winner_still_sees_the_zone() -> None:
             "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
             "    if highest_trump_or_led_suit(discard, clubs) is dealer { score[dealer] += 1 }\n"
             "  }"
+        ),
+        "probe.cardlang",
+    )
+    result = play_game(game, rng=random.Random(0))
+    assert result.scores == {0: 1, 1: 0}
+
+
+_TRICK_ORDER_PROBE = "  trick_order { trump: card.suit is clubs }\n"
+
+
+def test_polymorphic_trick_order_winner_still_sees_the_zone() -> None:
+    """`highest_by_trick_order` declares TAny for the same reason its sibling
+    does: the [[arrival-record]] rides the Zone, and a coerced element list
+    would strip it. Same probe shape — the dealer plays one heart into the
+    public discard, and the winner over that one recorded play is the dealer,
+    which only computes if the adapter received the zone with its record
+    intact. Under this block hearts are not trumps, so the winner comes from
+    the Effective Lead's class, exercising the non-trump branch."""
+    game = check_dsl(
+        _game(
+            "  phase p {\n"
+            "    move all cards to deck\n"
+            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    if highest_by_trick_order(discard) is dealer { score[dealer] += 1 }\n"
+            "  }",
+            clauses=_TRICK_ORDER_PROBE,
+        ),
+        "probe.cardlang",
+    )
+    result = play_game(game, rng=random.Random(0))
+    assert result.scores == {0: 1, 1: 0}
+
+
+def test_polymorphic_follows_lead_still_sees_the_zone() -> None:
+    """`follows_lead`'s PILE argument is the polymorphic one (its card is
+    `TCard` and coerced). The probe drives the answer both ways off one
+    recorded play: a heart follows the led heart, a club does not — and
+    neither answer is computable unless the adapter received the zone with
+    its Arrival Record intact, because an empty record makes `follows_lead`
+    false for everything."""
+    game = check_dsl(
+        _game(
+            "  phase p {\n"
+            "    move all cards to deck\n"
+            "    as dealer { move chosen one card from deck where card.suit is hearts to discard }\n"
+            "    if any card in deck where card.suit is hearts and follows_lead(card, discard) { score[dealer] += 1 }\n"
+            "    if any card in deck where card.suit is clubs and follows_lead(card, discard) { score[1] += 1 }\n"
+            "  }",
+            clauses=_TRICK_ORDER_PROBE,
         ),
         "probe.cardlang",
     )

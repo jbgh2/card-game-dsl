@@ -237,7 +237,9 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
 
     The instance was `Game.content_flavor`, found by planting the negation of
     this module's own totality claim. The fix was the predicate, not a row: a
-    row would have left the next `Literal`-typed field escaping in the same way.
+    row would have left the next `Literal`-typed field escaping in the same
+    way -- and `TrickOrderRow.key` is that next field, which the widened
+    predicate caught on arrival rather than a year later.
 
     red under: drop the `Literal` arm from `_holds_a_string` — RUN, and it
     reddens this test and the membership pin together, the member leaving the
@@ -246,7 +248,7 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
     fire, because the membership pin compares two views that agree on being
     wrong."""
     members = _string_valued_but_not_str_annotated()
-    assert members == ["Game.content_flavor"], (
+    assert members == ["Game.content_flavor", "TrickOrderRow.key"], (
         f"the string-valued-but-not-str-annotated class is {members} — every "
         f"member must be in the registry's domain, so widening it means "
         f"widening `_holds_a_string`, never adding a row"

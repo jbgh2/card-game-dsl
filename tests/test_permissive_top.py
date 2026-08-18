@@ -914,19 +914,23 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # types.py (2)
 #   `unify`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# builtins/signatures.py (12)
-#   the audited dynamic-signature set: `suit_of`'s polymorphic argument,
-#   `highest_trump_or_led_suit`'s zone argument (the same polymorphic shape —
-#   the runtime needs the Zone handle so the Arrival Record rides along,
-#   issue #256; probed in tests/test_native_call_boundary.py beside
-#   suit_of's), `error()`'s return (it diverges, so it must type in any
+# builtins/signatures.py (15)
+#   the audited dynamic-signature set: `suit_of`'s polymorphic argument, the
+#   ZONE argument of all three Arrival-Record calls — `highest_trump_or_led_suit`
+#   (issue #256), and `highest_by_trick_order` / `follows_lead` (issue #250) —
+#   which carry the same polymorphic shape for the same reason: the runtime
+#   needs the Zone handle so the Arrival Record rides along, and each is probed
+#   in tests/test_native_call_boundary.py beside suit_of's. Their WHICH-argument
+#   is `ARRIVAL_RECORD_CALLS`, and resolve now decides each statically, so the
+#   top here is a value-shape looseness the checker no longer has to carry
+#   alone. Plus `error()`'s return (it diverges, so it must type in any
 #   context), the trick-winner and auction-outcome callbacks whose real type
-#   the `Sig` model cannot express, and the `ChipStack` resource zone's
-#   element.
+#   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
+#   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 16,
     "types.py": 2,
-    "builtins/signatures.py": 12,
+    "builtins/signatures.py": 15,
 }
 
 
