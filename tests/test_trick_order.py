@@ -258,6 +258,12 @@ P7 = "by its bare name"
 P8 = "declares no `trump:` row"
 R1 = "beside a `trick_order { }` block"
 R1_FIX = "drop the game-level clause"
+# `_resolve_trump`'s dead-clause message. FORBIDDEN beside R1: both guards can
+# see a block game's `trump:` clause, and two messages about one defect send
+# the designer looking for two problems. R1 owns the cell, so `_resolve_trump`
+# returns early on a block game -- and this needle is what makes dropping that
+# early return redden something.
+DEAD_TRUMP = "is read by no trick round"
 R2 = "round `trump` clause beside a `trick_order { }` block"
 R3 = "round winner {name} beside a `trick_order {{ }}` block"
 R4 = "`highest_trump_or_led_suit(...)` beside a `trick_order { }` block"
@@ -721,9 +727,17 @@ def _partition_cells() -> list[Cell]:
     add = cells.append
     excluded_winners = sorted(F.TRICK_WINNER_NAMES - _GATED_WINNERS)
     # WITH a block --------------------------------------------------------------
-    add(Cell("with-block-game-trump", _source(clauses=f"trump: spades\n  {BLOCK}"), (R1, R1_FIX)))
+    add(Cell("with-block-game-trump", _source(clauses=f"trump: spades\n  {BLOCK}"),
+             (R1, R1_FIX), forbidden=(DEAD_TRUMP,)))
     add(Cell("with-block-game-trump-non-suit", _source(clauses=f"trump: is_trump\n  {BLOCK}"),
-             (R1,), forbidden=("card.suit is is_trump",)))
+             (R1,), forbidden=("card.suit is is_trump", DEAD_TRUMP)))
+    # A block game whose trump clause WOULD have been read by a round, had the
+    # round not been a block round: the shape on which `_resolve_trump` has
+    # most to say, and must still say nothing.
+    add(Cell("with-block-game-trump-and-round",
+             _source(clauses=f"trump: spades\n  {BLOCK}",
+                     body=_ROUND.format(winner="highest_by_trick_order", extra="")),
+             (R1,), forbidden=(DEAD_TRUMP,)))
     add(Cell("with-block-round-trump",
              _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra=" trump hearts")),
              (R2,), forbidden=("reads no trump",)))
