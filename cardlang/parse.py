@@ -54,6 +54,7 @@ import re
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
+from typing import cast
 
 from lark import Lark, Token, Tree
 from lark.exceptions import UnexpectedInput, VisitError
@@ -61,6 +62,7 @@ from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import TRICK_ORDER_ROW_KEYS
 from cardlang.diagnostics import (
     Diagnostic,
     DiagnosticBag,
@@ -112,6 +114,17 @@ class _CardPointsElse:
 @dataclass(frozen=True, slots=True)
 class _Trump:
     suit: str
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _TrickOrderEqRow:
+    """An assignment-shaped Trick Order row (`trump = ...` / `trump := ...`),
+    carried only far enough for the reject callback to name the offending key
+    and operator at its own span."""
+
+    key: str
+    op: str
     span: Span
 
 
@@ -382,8 +395,122 @@ class _Builder(Transformer[Token, n.Game]):
             )
         )
 
+    # --- the Trick Order block (decisions.md "Trick Order"; issue #250) ------
+    #
+    # The row set is `TRICK_ORDER_ROWS`, and it is stated there ONLY: the
+    # grammar's key terminal matches any identifier, and these callbacks
+    # validate against the registry. That is what keeps a row added to the
+    # language from needing a grammar edit, and what lets a wrong key be
+    # refused by NAMING the rows rather than dying as a bare syntax error.
+
+    def trick_order_row(self, meta: Meta, c: list[object]) -> n.TrickOrderRow:
+        key = str(c[0])
+        assert isinstance(c[1], n.Expr)
+        if key not in TRICK_ORDER_ROW_KEYS:
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    f"`{key}:` is not a row of `trick_order` — the rows are "
+                    + ", ".join(f"`{k}:`" for k in TRICK_ORDER_ROW_KEYS),
+                    self._span(meta),
+                )
+            )
+        return n.TrickOrderRow(
+            key=cast(n.TrickOrderRowKey, key), body=c[1], span=self._span(meta)
+        )
+
+    def trick_order(self, meta: Meta, c: list[object]) -> n.TrickOrder:
+        rows = tuple(x for x in c if isinstance(x, n.TrickOrderRow))
+        seen: set[str] = set()
+        for row in rows:
+            if row.key in seen:
+                # A repeat would silently replace the first — the
+                # accepted-but-ignored class, refused at its own row's span.
+                raise DiagnosticError(
+                    Diagnostic(
+                        Severity.ERROR,
+                        f"`trick_order` declares one `{row.key}:` row — the "
+                        f"repeat would silently replace the first; keep one",
+                        row.span,
+                    )
+                )
+            seen.add(row.key)
+        if "trump" not in seen:
+            # Required, both counsels and the operator's ruling: every Trick
+            # Order names its trumps, and a game with none says so rather than
+            # leaving the reader to infer it from an absence.
+            raise DiagnosticError(
+                Diagnostic(
+                    Severity.ERROR,
+                    "`trick_order` declares no `trump:` row — every Trick "
+                    "Order names its trumps; write `trump: false` for one "
+                    "with none",
+                    self._span(meta),
+                )
+            )
+        return n.TrickOrder(rows=rows, span=self._span(meta))
+
+    def trick_order_colon_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`trick_order` is a block clause and takes no colon — write "
+                "`trick_order { trump: ... }`",
+                self._span(meta),
+            )
+        )
+
+    def trick_order_comma_reject(self, meta: Meta, c: list[object]) -> None:
+        first, second = TRICK_ORDER_ROW_KEYS[0], TRICK_ORDER_ROW_KEYS[1]
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"`trick_order` rows are whitespace-separated, never "
+                f"comma-separated — write `trick_order {{ {first}: ...  "
+                f"{second}: ... }}`",
+                self._span(meta),
+            )
+        )
+
+    def trick_order_eq_row(self, meta: Meta, c: list[object]) -> _TrickOrderEqRow:
+        return _TrickOrderEqRow(str(c[0]), str(c[1]), span=self._span(meta))
+
+    def trick_order_eq_reject(self, meta: Meta, c: list[object]) -> None:
+        # The first assignment-shaped row speaks, so a block mixing one wrong
+        # row among colon rows is refused at the row that is wrong.
+        bad = next(x for x in c if isinstance(x, _TrickOrderEqRow))
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `trick_order` row is `{bad.key}: <expr>`, not "
+                f"`{bad.key} {bad.op} <expr>` — write `{bad.key}: ...`",
+                bad.span,
+            )
+        )
+
     def trump(self, meta: Meta, c: list[Token]) -> _Trump:
         return _Trump(str(c[0]), span=self._span(meta))
+
+    def trump_int_reject(self, meta: Meta, c: list[Token]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`trump:` names a suit of the declared deck by its bare name "
+                "(`trump: spades`), not a number",
+                self._span(meta),
+            )
+        )
+
+    def trump_string_reject(self, meta: Meta, c: list[Token]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`trump:` names a suit of the declared deck by its bare name "
+                "(`trump: spades`), not a quoted string — write the suit "
+                "unquoted",
+                self._span(meta),
+            )
+        )
 
     def team_spec(self, meta: Meta, c: list[Token]) -> tuple[int, ...]:
         return tuple(int(x) for x in c)
@@ -1371,6 +1498,7 @@ class _Builder(Transformer[Token, n.Game]):
         ranking: tuple[str, ...] = ()
         ranking_convention: str | None = None
         card_points: n.CardPointsTable | None = None
+        trick_order: n.TrickOrder | None = None
         trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -1431,6 +1559,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.CardPointsTable):
                 once("card_points { }", item.span, merge_hint=True)
                 card_points = item
+            elif isinstance(item, n.TrickOrder):
+                once("trick_order { }", item.span, merge_hint=True)
+                trick_order = item
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
@@ -1519,6 +1650,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking=ranking,
             ranking_convention=ranking_convention,
             card_points=card_points,
+            trick_order=trick_order,
             trump=trump,
             teams=teams,
             positions=positions,

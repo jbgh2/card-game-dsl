@@ -19,8 +19,8 @@ from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import require_role, role_members
 from cardlang.runtime import active_rules
 from cardlang.runtime.chooser import random_chooser
-from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.evaluate import evaluate
+from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.evaluate import evaluate, row_context
 from cardlang.runtime.execute import execute
 from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
@@ -33,13 +33,16 @@ from cardlang.runtime.state import (
     _ProduceSignal,
     _SkipHand,
 )
+from cardlang.runtime.trick_order import TrickOrderTable
 from cardlang.runtime.values import (
+    Card,
     Player,
     Seating,
     axis_attributes,
     build_deck,
     deck_ranks,
     deck_suits,
+    rank_strength,
 )
 from cardlang.stdlib.boards import board_entry
 
@@ -84,6 +87,73 @@ def declared_card_points(game: n.Game) -> dict[str, int]:
     return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
 
 
+def declared_trick_order(game: n.Game) -> TrickOrderTable | None:
+    """The game's [[trick-order]], materialized: one callable per row, with the
+    two DEFAULTS applied here and nowhere else. None for a game declaring no
+    block (resolve's presence partition admits no reader of one there).
+
+    Applying the defaults at this single load site is what keeps every consumer
+    — the three readers, the winner, `follows_lead` — reading identical facts
+    by construction, the `declared_card_points` precedent above: no reader
+    re-derives what an omitted row means.
+
+    The two defaults (decisions.md "Trick Order"):
+
+    * `follow_class:` omitted — a card follows as its printed suit, the
+      ordinary trick-taking rule. A game needs the row only when some card
+      follows as something else (a class-remapped trump) or as nothing (the
+      Excuse).
+    * `card_strength:` omitted — `rank_value(card)`, the game's declared
+      `ranking:`. typecheck's T2 refuses that combination in a game with no
+      `ranking:`, so an empty order reaching the closure is an engine gap, not
+      a bad game, and says so in the [[shadow-guard]]'s voice.
+
+    A row's body evaluates under the hermetic row context
+    (`evaluate.row_context`): only `card` is bound and no pronoun of any
+    namespace is readable, which is what makes the answer a fact of the card
+    and public state rather than of whoever happened to be asking."""
+    if game.trick_order is None:
+        return None
+
+    def row_callable(body: n.Expr) -> Callable[[Card, Ctx], Any]:
+        def read(card: Card, ctx: Ctx) -> Any:
+            return evaluate(body, row_context(ctx, card))
+
+        return read
+
+    def default_class(card: Card, ctx: Ctx) -> str:
+        return card.suit
+
+    def default_strength(card: Card, ctx: Ctx) -> int:
+        if not ctx.rs.rank_index:
+            raise ShadowGuardError(
+                "typecheck._check_trick_order (T2)",
+                "a `trick_order { }` with no `card_strength:` row defaults to "
+                "`rank_value(card)`, but the game declares no `ranking:` — T2 "
+                "admits no defaulted strength without one",
+            )
+        return rank_strength(ctx.rs.rank_index, card.rank, "card_strength")
+
+    rows = {r.key: r.body for r in game.trick_order.rows}
+    trump_body = rows.get("trump")
+    # shadow guard: parse requires the `trump:` row (P8), so a block that
+    # reached here always has one
+    assert trump_body is not None, "a `trick_order { }` with no `trump:` row"
+    return TrickOrderTable(
+        is_trump=row_callable(trump_body),
+        follow_class=(
+            row_callable(rows["follow_class"])
+            if "follow_class" in rows
+            else default_class
+        ),
+        card_strength=(
+            row_callable(rows["card_strength"])
+            if "card_strength" in rows
+            else default_strength
+        ),
+    )
+
+
 def play_game(
     game: n.Game,
     rng: random.Random,
@@ -125,6 +195,7 @@ def play_game(
     # carries no point table (empty for games that score by other means).
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
     rs.card_points = declared_card_points(game)
+    rs.trick_order = declared_trick_order(game)
     rs.content_flavor = game.content_flavor
     rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)

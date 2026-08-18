@@ -402,3 +402,50 @@ def test_the_entry_directory_is_not_empty() -> None:
     red under: point `ENTRIES` at an empty directory.
     """
     assert len(load()) > 50, "the entry walk collapsed -- every check above is vacuous"
+
+
+def test_a_retired_spelling_is_actually_retired() -> None:
+    """`retired_spellings:` is a claim ABOUT THE TREE, and until now nothing
+    checked it against one: the index pin reconciles prose to field, so an
+    entry could name a spelling that is still live everywhere and stay green.
+
+    The instance that motivated this: Card Strength listed
+    `belote_trump_height` / `tarot_trump_height` as retired while two corpus
+    games called them (they retire when those games migrate, issue #250 PRs
+    4-5). A retired-spelling claim a reader trusts is how a rename gets
+    declared finished before it is.
+
+    Scope: a spelling that looks like a code identifier (no spaces) must not
+    survive as a NAME the engine or the corpus still uses. Prose spellings
+    (retired English phrasings) are not identifiers and are skipped -- they
+    have no tree to check against.
+
+    red under (executed, reverted): restore either height Primitive to Card
+    Strength's `retired_spellings` -- this fails naming it and the corpus
+    files that still call it."""
+    import re
+    from pathlib import Path as _P
+
+    roots = [_P("cardlang"), _P("docs/games")]
+    live: dict[str, list[str]] = {}
+    for entry in load():
+        for raw in _spellings(entry):
+            # The frontmatter list is a hand format and its members may be
+            # quoted; `_spellings` strips backticks only.
+            spelling = raw.strip().strip('"').strip("'")
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", spelling):
+                continue  # a prose spelling, not an identifier
+            hits = [
+                str(f)
+                for root in roots
+                for f in root.rglob("*")
+                if f.is_file()
+                and f.suffix in (".py", ".cardlang", ".lark")
+                and re.search(rf"\b{re.escape(spelling)}\b", f.read_text())
+            ]
+            if hits:
+                live[f"{entry['_slug']}.md: {spelling}"] = sorted(hits)[:4]
+    assert not live, (
+        "entries claim a spelling is retired while the tree still uses it:\n"
+        + "\n".join(f"  {k} -> {v}" for k, v in sorted(live.items()))
+    )

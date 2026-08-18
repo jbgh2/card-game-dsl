@@ -286,6 +286,7 @@ _CLAUSE_TEXT: dict[str, str] = {
     "ranking": "ranking: K Q J",
     "card_points_table": "card_points { A: 1 }",
     "trump": "trump: hearts",
+    "trick_order": "trick_order { trump: card.suit is hearts }",
     "teams": "teams: [[0, 2], [1, 3]]",
     "max_length": "max_length: 10",
     "positions": "positions { column : 1..7 }",
@@ -330,17 +331,31 @@ def _head_is_name_shaped(symbol: str, depth: int = 0) -> bool:
     """Whether an entry's HEAD symbol can lex as identifier text — half of
     what makes the entry match `field_init` (`NAME ":" expr`). True for
     `NAME` itself, for an identifier-shaped terminal (its definition carries
-    the identifier class — CARD_POINTS_KEY's shape), and for a rule whose
-    alternatives reach one of those (card_points_key -> CARD_POINTS_KEY).
-    The chase is bounded and only ever runs on a head that already sits
-    before a `":"` (the shape check in `_absorbable_clause_keywords`), so an
-    alternation over whole statement forms is never chased."""
+    the identifier class — CARD_POINTS_KEY's shape), for a KEYWORD terminal
+    whose word `NAME` does not exclude, and for a rule whose alternatives
+    reach one of those (card_points_key -> CARD_POINTS_KEY). The chase is
+    bounded and only ever runs on a head that already sits before a `":"`
+    (the shape check in `_absorbable_clause_keywords`), so an alternation over
+    whole statement forms is never chased.
+
+    The keyword-terminal arm is what makes the recognizer total over head
+    SHAPES rather than over the two the corpus happened to use. A row headed
+    by `_X_KW` is absorbable exactly when `X` still lexes as a NAME: if
+    `NAME`'s exclusion list does not carry the word, the same text derives as
+    a struct literal's field and the clause is silently eaten. Deciding it
+    from the exclusion list rather than from the head's spelling means a
+    keyword REMOVED from that list later re-enters this domain by itself."""
     assert depth < 4, f"head-symbol chase too deep at {symbol!r} — widen the scrape"
     if symbol == "NAME":
         return True
     if re.fullmatch(r"[A-Z0-9_]+", symbol):  # a terminal reference
         match = re.search(rf"^{symbol}:\s*(.+)$", GRAMMAR, re.MULTILINE)
-        return match is not None and "[a-zA-Z_][a-zA-Z0-9_]*" in match.group(1)
+        if match is None:
+            return False
+        if "[a-zA-Z_][a-zA-Z0-9_]*" in match.group(1):
+            return True
+        word = re.match(r'\s*"(\w+)"', match.group(1))
+        return word is not None and word.group(1) not in _terminal_excluded("NAME")
     match = re.search(
         rf"^\??{symbol}:\s*(\w+)((?:\s*\|\s*\w+)*)", GRAMMAR, re.MULTILINE
     )
@@ -532,6 +547,7 @@ SINGLE_VALUED: dict[str, str] = {
     "ranking": "ranking:",
     "card_points_table": "card_points { }",
     "trump": "trump:",
+    "trick_order": "trick_order { }",
     "teams": "teams:",
     "max_length": "max_length:",
     "positions": "positions { }",
@@ -574,6 +590,10 @@ _EXTRA_CLAUSE: dict[str, str] = {
     "direction": "  direction: clockwise",
     "ranking": "  ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     "trump": "  trump: spades",
+    # The duplicate probe must reach the `once` guard, so the block itself has
+    # to be well-formed: a `trump:` row is required (parse's P8), and it speaks
+    # first for a block that lacks one.
+    "trick_order": "  trick_order { trump: card.suit is spades }",
     "teams": "  teams: [[0, 1]]",
     "loser": "  loser: active",
 }

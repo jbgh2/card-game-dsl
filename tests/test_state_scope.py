@@ -286,7 +286,7 @@ def test_every_game_field_is_decided() -> None:
         "board", "card_points", "content_flavor", "deck", "direction", "loser",
         "max_length",
         "name", "players", "positions", "ranking", "ranking_convention", "span",
-        "teams", "trump", "types", "uses", "winner", "zones",
+        "teams", "trick_order", "trump", "types", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "
         f"reference in it runs inside a phase (skip it, and say which set) or "

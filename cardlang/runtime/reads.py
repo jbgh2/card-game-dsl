@@ -258,12 +258,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         single_zones=_fs("play_pile", "starter", "crib"),
     ),
     PrimitiveReads(
-        module="cardlang/runtime/doko.py",
-        game_file="doppelkopf.cardlang",
-        single_zones=_fs("trick_pile"),
-        arrival_zones=_fs("trick_pile"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/pinochle.py",
         game_file="pinochle.cardlang",
         state_vars=_fs("trump_suit"),

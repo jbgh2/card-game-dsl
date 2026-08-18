@@ -123,11 +123,15 @@ are trumps). Every queen and jack is a trump, so plain suits have no Q or J.
   announcement at exactly the hand sizes the paper rules allow.
 - **Tricks are hand-rolled** (the Skat shape) because announcements land
   between any two card plays — a foreign decision inside the trick, which
-  the trick form of `round` cannot host. The one game-local runtime
-  primitive is `doko_trick_winner` (ordered first-of-equals comparison over
-  the trump class, the plays read off the trick pile's Arrival Record —
-  who played each card is the kernel's fact, never seat arithmetic); follow
-  legality, the window gate, and all bookkeeping are in-DSL functions.
+  the trick form of `round` cannot host. No game-local runtime primitive
+  remains: the trump group (both hearts 10, the queens, the jacks, the
+  diamonds) is the game's **Trick Order** (decisions.md "Trick Order"), so
+  `highest_by_trick_order(trick_pile)` names the winner — first of equals
+  over the trump class, the plays read off the trick pile's Arrival Record,
+  who played each card the kernel's fact and never seat arithmetic — and
+  `follows_lead` gives follow legality from the SAME declaration, so the led
+  class has one definition rather than two. The window gate and all
+  bookkeeping remain in-DSL functions.
 - **Deferred bonus events** (Fox, Charlie, the last trick's winner) are
   recorded as `Player?` slots during play — public facts about public
   plays — and team-resolved at scoring, when the partition is complete.

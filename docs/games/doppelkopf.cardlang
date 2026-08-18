@@ -37,9 +37,9 @@
 // Tricks are hand-rolled (the Skat shape) because announcements may land
 // between any two card plays — a foreign decision inside the trick, which
 // the trick form of `round` cannot host. The trump group (both ♥10, all
-// queens, all jacks, all diamonds) is a computed follow class in in-DSL
-// functions; the only game-local runtime primitive is doko_trick_winner
-// (ordered first-of-equals comparison, which needs the pile's play order).
+// queens, all jacks, all diamonds) is declared as the game's Trick Order,
+// so follow legality and the winner are both the language's: no game-local
+// runtime primitive remains.
 
 game Doppelkopf {
 
@@ -50,6 +50,21 @@ game Doppelkopf {
   cards: doppelkopf48
   ranking: ace-ten
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0 }
+
+  // The normal game's trump group: both hearts 10 (the Dulle) on top, then
+  // the queens, then the jacks (clubs > spades > hearts > diamonds within
+  // each rank), then the plain diamonds. Trumps are ONE class for following,
+  // which the Trick Order gives without a second definition: a trump follows
+  // as a trump by the `trump:` row, never by its printed suit. Strengths are
+  // banded so a band's members never collide with a neighbour's.
+  trick_order {
+    trump:         card.rank is Q or card.rank is J or card.suit is diamonds
+                   or (card.suit is hearts and card.rank is "10")
+    card_strength: if card.suit is hearts and card.rank is "10" then 300
+                   elif card.rank is Q then 200 + suit_order(card.suit)
+                   elif card.rank is J then 100 + suit_order(card.suit)
+                   else rank_value(card)
+  }
 
   zones {
     deck             : Deck
@@ -89,9 +104,6 @@ game Doppelkopf {
         re_known[player] : Boolean = false
         // Poll bookkeeping: consecutive no_announcement count.
         quiet         : Integer = 0
-        // Led class for follow legality, set by the leader's play.
-        led_trump     : Boolean = false
-        led_suit      : Suit?   = none
         // Per-trick counters for attributing just-played cards to seats.
         trick_no      : Integer = 0
         cq_seen       : Integer = 0
@@ -139,8 +151,6 @@ game Doppelkopf {
                 from leader over all players until quiet >= 4
         }
         as leader { move chosen one card from hand[leader] to trick_pile }
-        led_trump := any card in trick_pile where is_trump(card)
-        led_suit := suit_of(trick_pile)
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
           re_known[leader] := true
           cq_seen += 1
@@ -226,8 +236,8 @@ game Doppelkopf {
           cj_seen += 1
         }
 
-        // --- Trick end: first-of-equals winner over the trump class.
-        let w = doko_trick_winner()
+        // --- Trick end: the Trick Order's winner (first of equals).
+        let w = highest_by_trick_order(trick_pile)
         tricks_won[w] += 1
         if fox1_victim is not none and fox1_winner is none { fox1_winner := w }
         if fox2_victim is not none and fox2_winner is none { fox2_winner := w }
@@ -464,23 +474,19 @@ function cards_left(p : Player) = number of cards in hand[p]
 function is_re(p : Player) =
   re_known[p] or (any card in hand[p] where card is Q of clubs)
 
-// The trump group of the normal game: both ♥10 (the Dulle), all queens,
-// all jacks, and all diamonds.
-function is_trump(c : Card) =
-  c.rank is Q or c.rank is J or c.suit is diamonds
-  or (c.suit is hearts and c.rank is "10")
+// Within the queens and the jacks: clubs > spades > hearts > diamonds.
+function suit_order(s : Suit) =
+  if s is clubs then 4 elif s is spades then 3 elif s is hearts then 2 else 1
 
-function holds_trump(p : Player) =
-  any card in hand[p] where is_trump(card)
-
-// Strict follow by class: trumps are one suit for following purposes; a
-// plain-suit lead must be followed with a non-trump card of that suit.
+// Strict follow by class, straight off the Trick Order: `follows_lead` is
+// the winner's own candidate test, so legality and winning read ONE
+// definition of the led class. Void in that class, anything goes — the void
+// case is the `if any ... else true` shape, because `follows_lead` on a pile
+// with nothing led is the value false.
 function follow_ok(p : Player, c : Card) =
-  if led_trump
-  then (if holds_trump(p) then is_trump(c) else true)
-  else (if (any card in hand[p] where card.suit is led_suit and not is_trump(card))
-        then (c.suit is led_suit and not is_trump(c))
-        else true)
+  if any card in hand[p] where follows_lead(card, trick_pile)
+  then follows_lead(c, trick_pile)
+  else true
 
 // Re/Kontra floors: 11 cards normally; after the other side's announcement
 // the reply floor is one fewer card than that announcement required

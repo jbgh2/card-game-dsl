@@ -562,7 +562,16 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
-    "parse.py": ["direction not in RANK_DIRECTIONS"],
+    # Both are the same shape: the builder validating a grammar-admitted
+    # identifier against the registry that owns the row set, so the registry
+    # stays the ONE place the set is stated and a wrong key gets a rejection
+    # naming the rows. Nothing to widen against here — the registry is the
+    # collection, and its own grid owns the witness
+    # (tests/test_trick_order.py, the `bad-key-*` cells).
+    "parse.py": [
+        "direction not in RANK_DIRECTIONS",
+        "key not in TRICK_ORDER_ROW_KEYS",
+    ],
     # Like `domains.py` above: it reconciles two registries rather than pinning
     # one against a literal, so there is no collection to widen and no witness
     # of this module's shape. `_DEFINITION_CONTAINERS`' namespaces must be ones

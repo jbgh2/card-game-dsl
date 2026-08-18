@@ -85,6 +85,42 @@ def test_corpus_game_parses_with_zero_ambiguity(path: Path) -> None:
     assert ambig == 0, f"grammar ambiguity in {path.name}: {ambig} site(s)"
 
 
+def _trick_order_accept_sources() -> list[tuple[str, str]]:
+    """Every ACCEPTED source of the `trick_order { }` grid — its boundary
+    sentences above all (a row expression running up against the next row's
+    key: an `else` then a key, an `elif` chain then a key, a call then a key,
+    a suit literal then a key).
+
+    Derived from the grid's own cells rather than re-spelled here, so a
+    boundary sentence added there is budgeted here without an edit. The corpus
+    pin above cannot stand in for this: the corpus holds ONE shape of the block
+    (Doppelkopf's), while the four `trick_order` alternatives all share the
+    `_TRICK_ORDER_KW "{"` prefix — which is exactly where a latent `_ambig`
+    would sit."""
+    from tests.test_trick_order import _grammar_cells
+
+    return [(c.id, c.source) for c in _grammar_cells() if not c.needles]
+
+
+@pytest.mark.parametrize(
+    ("cell_id", "source"),
+    _trick_order_accept_sources(),
+    ids=[i for i, _ in _trick_order_accept_sources()],
+)
+def test_trick_order_accepts_with_zero_ambiguity(cell_id: str, source: str) -> None:
+    tree = _PARSER.parse(source)
+    assert isinstance(tree, Tree)
+    ambig = _count_ambig(tree)
+    assert ambig == 0, f"grammar ambiguity in {cell_id}: {ambig} site(s)"
+
+
+def test_the_trick_order_accept_set_is_nonempty() -> None:
+    """The sibling of the corpus-glob pin below: a grid whose accept cells all
+    grew needles would make the budget above vacuous — zero cases collected,
+    suite green."""
+    assert len(_trick_order_accept_sources()) >= 8
+
+
 def test_corpus_glob_is_nonempty() -> None:
     # A silently-empty glob would make every parametrized case above vacuous
     # — pytest collects zero tests and the suite stays green. Pin the corpus

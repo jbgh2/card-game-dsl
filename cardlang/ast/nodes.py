@@ -15,7 +15,7 @@ grows one construct at a time as the corpus forces one (`docs/games/`).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from cardlang.diagnostics import Span
 from cardlang.types import Flavor
@@ -815,6 +815,52 @@ class CardPointsTable:
     span: Span | None = None
 
 
+# The rows a `trick_order { }` block may declare. This literal is the
+# type-level statement of the row set; `builtins.functions.TRICK_ORDER_ROWS` is
+# the value-level one, and the two are pinned equal
+# (tests/test_trick_order.py::test_row_registry_matches_the_grid) so a row
+# cannot be added to one without the other.
+TrickOrderRowKey = Literal["trump", "follow_class", "card_strength"]
+
+
+@dataclass(frozen=True, slots=True)
+class TrickOrderRow:
+    """One row of the `trick_order { }` block: `<key>: <expr>` (decisions.md
+    "Trick Order"). The body is an expression over the implicit `card` binder
+    — the card-query and filter convention — which makes this a BINDING node
+    (`resolve._node_binders`), the binder scoping over `body` alone."""
+
+    key: TrickOrderRowKey
+    body: Expr
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TrickOrder:
+    """The `trick_order { }` clause: the game's [[trick-order]] — the three
+    per-card facts a trick's resolution and follow legality derive from
+    (decisions.md "Trick Order").
+
+    Rows are held in SOURCE order and each key appears at most once (parse).
+    The order they are READ in is the language's, fixed by `TRICK_ORDER_ROWS`,
+    never the textual one — so consumers ask through `row()` and none depends
+    on how the designer happened to arrange the block. The driver materializes
+    the table at load (`driver.declared_trick_order`), applying the two row
+    defaults once."""
+
+    rows: tuple[TrickOrderRow, ...]
+    span: Span | None = None
+
+    def row(self, key: TrickOrderRowKey) -> Expr | None:
+        """The body declared for `key`, or None when the block omits the row.
+        `follow_class:` and `card_strength:` have defaults; `trump:` is
+        required, so a None there is a parse-guaranteed impossibility."""
+        for r in self.rows:
+            if r.key == key:
+                return r.body
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class PositionDecl:
     """One entry of the `positions { }` block: a declared per-game position
@@ -1296,6 +1342,12 @@ class Game:
     # carries none): the driver loads `rs.card_points` from it, and resolve's
     # clause-required guard refuses a `card_points(card)` call without it.
     card_points: CardPointsTable | None = None
+    # The `trick_order { }` clause, or None for a game declaring no Trick
+    # Order. The ONE source of the game's per-card trick facts: the driver
+    # loads `rs.trick_order` from it, and resolve's presence partition refuses
+    # every reader of a block in a game without one — and every winner and
+    # call the block replaces in a game with one.
+    trick_order: TrickOrder | None = None
     trump: str | None = None
     teams: tuple[tuple[int, ...], ...] = ()
     # Declared position domains (`positions { column : 1..7 }`) — per-game
@@ -1359,6 +1411,8 @@ Node = (
     | ZoneDecl
     | CardPointsEntry
     | CardPointsTable
+    | TrickOrderRow
+    | TrickOrder
     | TypeRef
     | TypeArg
     | StateBlock

@@ -1,15 +1,32 @@
 """Random-playout harness for Doppelkopf.
 
 Doppelkopf's falsifiable surface is unusually rich because the whole hand is
-recomputable from the play traces plus the announcement decisions: the deal
-partitions the double pack (hands reconstruct from what each player played),
-follow legality and the trick winner are pure functions of the fixed normal-
-game trump structure, the ♣Q partition derives from who played the queens,
-and the hand value is a closed formula over card points, tricks, extras
-(Fox / Charlie / Doppelkopf) and the announcement ladder. This test replays
-every seed and recomputes ALL of it independently — an implementation of the
-Pagat rules written against the trace log, not the runtime — and asserts the
-driver's final scores match the recomputed per-hand settlements exactly.
+recomputable from what an OBSERVER SEES plus the announcement decisions: the
+deal partitions the double pack (hands reconstruct from what each player
+played), follow legality and the trick winner are pure functions of the fixed
+normal-game trump structure, the ♣Q partition derives from who played the
+queens, and the hand value is a closed formula over card points, tricks,
+extras (Fox / Charlie / Doppelkopf) and the announcement ladder. This test
+replays every seed and recomputes ALL of it independently — an implementation
+of the Pagat rules, written against the observation stream rather than the
+runtime — and asserts the driver's final scores match the recomputed per-hand
+settlements exactly.
+
+Observation-derived, not trace-derived (the schnapsen precedent). The facts
+it consumes are observer 0's `move` events: plays are the movements into
+`trick_pile`, winners are the `trick_pile -> captured[w]` drains. Both zones
+project identity to every observer (`TrickPile`, `PlayerPile` —
+cardlang/stdlib/zones.py ZONE_PROJECTIONS), so every consumed fact is one
+any seat could have written down at the table. The `play`/`trick` TRACE
+events this used to read were emitted by the game-local winner Primitive,
+which the Trick Order retired; deriving from observations instead is
+strictly stronger, because a divergence between what the engine recorded and
+what observers saw would now BREAK this oracle rather than being invisible
+to it.
+
+The recomputation stays INDEPENDENT of the construct under test: it never
+calls `follows_lead` or `highest_by_trick_order`, and re-implements the trump
+order in Python below.
 """
 
 from __future__ import annotations
@@ -34,6 +51,16 @@ REPO = Path(__file__).parent.parent
 
 HANDS = 4
 TRICKS_PER_HAND = 12
+
+# A rendered card back to a Card. The observation stream carries the printed
+# text — what a seat at the table reads off the pile — never an engine value,
+# which is part of what keeps this oracle independent of the runtime.
+_SUITS = {"♣": "clubs", "♦": "diamonds", "♥": "hearts", "♠": "spades"}
+
+
+def _parse(card_str: str) -> Card:
+    return Card(card_str[:-1], _SUITS[card_str[-1]])
+
 
 _VALUES = {"A": 11, "10": 10, "K": 4, "Q": 3, "J": 2, "9": 0}
 _SUIT_ORDER = {"clubs": 4, "spades": 3, "hearts": 2, "diamonds": 1}
@@ -196,11 +223,23 @@ def _run_and_verify(
     announcements: list[tuple[int, str]] = []
     branches: Counter[str] = Counter()
 
-    def tracer(event: str, data: Any) -> None:
-        if event == "play":
-            plays.append((data[0], data[1]))
-        elif event == "trick":
-            tricks.append((data[0], list(data[1])))
+    pending: list[tuple[Player, Card]] = []
+
+    def observer(player: Player, event: tuple[Any, ...]) -> None:
+        # Observer 0's stream only: every fact below rides an identity-to-all
+        # zone, so seat 0 sees the same cards every other seat does.
+        if player != 0 or event[0] != "move":
+            return
+        _, src, _src_view, dst, dst_view = event
+        if dst == "trick_pile" and isinstance(src, str) and src.startswith("hand["):
+            (card_str,) = dst_view  # one card per play
+            seat = int(src[len("hand[") : -1])
+            card = _parse(card_str)
+            plays.append((seat, card))
+            pending.append((seat, card))
+        elif src == "trick_pile" and isinstance(dst, str) and dst.startswith("captured["):
+            tricks.append((int(dst[len("captured[") : -1]), [c for _, c in pending]))
+            pending.clear()
 
     rng = random.Random(seed)
     base = random_chooser(rng)
@@ -217,7 +256,7 @@ def _run_and_verify(
                 announcements.append((len(tricks), str(item[0])))
         return picked
 
-    result = play_game(game, rng, tracer, chooser)
+    result = play_game(game, rng, None, chooser, observer=observer)
 
     assert len(tricks) == HANDS * TRICKS_PER_HAND, f"seed {seed}"
     assert len(plays) == 4 * len(tricks), f"seed {seed}"

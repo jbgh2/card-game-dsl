@@ -17,6 +17,7 @@ import itertools
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
 from cardlang.domains import DomainSources, enumerate_domain
 from cardlang.runtime import active_rules, narrowing, observe, reads, rules
 from cardlang.runtime.errors import OwnerGuardError
@@ -133,12 +134,16 @@ class TrickForm:
         self.leader: Player = evaluate(stmt.leader, ctx)
         self.source_family = stmt.source_zone
         self.play_zone = stmt.play_zone
+        self.winner_fn_name = stmt.winner_fn
         self.winner_fn = primitives.value_function(stmt.winner_fn)
         self.early_term = (
             primitives.value_function(stmt.early_termination)
             if stmt.early_termination is not None
             else None
         )
+        # A Trick Order game declares no trump anywhere — the block's `trump:`
+        # row is the trump, and resolve's presence partition refuses both the
+        # game clause (R1) and the round's (R2) beside a block.
         self.trump: str | None = (
             evaluate(stmt.trump, ctx) if stmt.trump is not None else ctx.rs.trump
         )
@@ -211,16 +216,28 @@ class TrickForm:
         ctx.trace(
             "trick_end", {"early": state["trick_terminated_early"], "trump": self.trump}
         )
-        # The winner callback (a game-local trick winner, or an engine-core
-        # `highest_*`) reads its plays and rank strengths as arguments, not
-        # through a bundle, so the live `played` list and `rank_index` dict are
-        # frozen here — the direct-call-site analogue of `reads.coerce_args`.
-        winner = self.winner_fn(
-            reads.deep_freeze(state["played"]),
-            state["led_suit"],
-            self.trump,
-            reads.deep_freeze(ctx.rs.rank_index),
-        )
+        # The winner callback answers one of TWO contracts, keyed by
+        # `TRICK_ORDER_GATED_WINNERS` and dispatched by the one
+        # `primitives.value_function`: the registry selects which call shape to
+        # make, and the callable that dispatcher returned is what runs, either
+        # way.
+        if self.winner_fn_name in TRICK_ORDER_GATED_WINNERS:
+            # The Trick Order contract. Its trumps, follow classes and
+            # strengths are the GAME's declared rows, so it takes the plays and
+            # a ctx to evaluate them under — never the round's led suit or
+            # trump, which a block game does not have (R1/R2).
+            winner = self.winner_fn(reads.deep_freeze(state["played"]), ctx)
+        else:
+            # The uniform contract: reads its plays and rank strengths as
+            # arguments, not through a bundle, so the live `played` list and
+            # `rank_index` dict are frozen here — the direct-call-site
+            # analogue of `reads.coerce_args`.
+            winner = self.winner_fn(
+                reads.deep_freeze(state["played"]),
+                state["led_suit"],
+                self.trump,
+                reads.deep_freeze(ctx.rs.rank_index),
+            )
         # shadow guard: resolve admits only the trick-winner namespace (both
         # homes) into this slot, and every member returns a seat
         assert isinstance(winner, int)

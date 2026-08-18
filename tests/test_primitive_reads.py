@@ -304,7 +304,7 @@ def _scan_source(source: str, where: str) -> ScanResult:
                     # read (reads.PrimitiveReads.arrival_zones requires the
                     # subset), so reading the record IS reading the zone —
                     # counted for both kinds, which is what lets a facet-only
-                    # reader (doko) keep its single_zones declaration honest.
+                    # reader (skat) keep its single_zones declaration honest.
                     result.reads["single"].add(idx.value)
             else:
                 result.problems.append(

@@ -363,16 +363,119 @@ The body reads the round's `winner` (the selected player) and its terminal
 readable as `state.x` until the next round runs. Routing is just body
 statements — there is no separate routing construct.
 
-**Per-game predicates for contextual interpretations.** Some games
-need to interpret card properties contextually rather than from the
-card's intrinsic fields. Skat's jacks are trumps regardless of
-printed suit; in Doppelkopf, both queens and jacks would be trumps.
-The pattern: a per-game `same_suit_class(c1, c2)` predicate that
-the standard `MustFollowSuit` rule consults instead of comparing
-`c1.suit is c2.suit` directly. Most games keep the default
-(printed-suit equality); games with contextual suits override.
-Same shape as a `round`'s `winner` or `early` function — a per-game or
-native function referenced by name, not a new language construct.
+**Contextual card properties are the game's Trick Order.** Some games
+interpret card properties contextually rather than from the card's intrinsic
+fields: Skat's jacks are trumps regardless of printed suit, and in Doppelkopf
+the queens and jacks are too. Those games declare a `trick_order { }` block
+("Trick Order" below), whose three rows say what a trump is, what class a card
+follows as, and how strong it is; the language mints the readers and the
+winner from the declaration. A game that declares none keeps the default —
+printed-suit equality, and a `trump:` suit if it has one — and the presence
+partition refuses any mixture of the two vocabularies.
+
+## Trick Order
+
+A trick's resolution and its follow legality both rest on three facts about
+each card: is it a **trump**, what **class** does it follow as, and how
+**strong** is it within that class. In a plain game those fall out of the
+card's printed fields and the `trump:` clause. In the big European games they
+do not: Doppelkopf's queens and jacks are trumps whatever suit they are
+printed, Skat's jacks likewise, and French Tarot's Excuse belongs to no class
+at all. A game whose answer differs from the printed one declares it:
+
+```cardlang-fragment trick_order
+trick_order {
+  trump:         card.rank is Q or card.rank is J or card.suit is diamonds
+  follow_class:  if card.rank is Q then none else card.suit
+  card_strength: if card.rank is Q then 200 else rank_value(card)
+}
+```
+
+The block is a **define form**: it does not select among behaviours, it
+*defines* the three facts, as ordinary expressions over the implicit `card`
+binder (the card-query and filter convention). From the declaration the
+language mints one reader per row — `is_trump(card)`, `follow_class(card)`,
+`card_strength(card)` — the `card_points { }` / `card_points(card)`
+precedent. A game states its order once, and every consumer reads that
+statement rather than a second copy of it.
+
+**The rows.** `trump:` is required and types Boolean; a game whose Trick Order
+has no trumps writes `trump: false`, so the absence is stated rather than
+inferred. `follow_class:` types `Suit?`, where `none` means class-less — a
+card that neither sets the lead nor wins — and defaults to the card's printed
+suit. `card_strength:` types Integer, higher beating lower, and defaults to
+`rank_value(card)`, which reads `ranking:`; a game taking that default without
+declaring a `ranking:` is refused. Both defaults are applied once, when the
+game loads.
+
+Rows may be written in any order. The order they are READ in is the
+language's — `trump:`, then `follow_class:`, then `card_strength:` — and a
+row may call the readers of the rows before it only. So a strength row may ask
+`is_trump(card)`, and a trump row may not ask `card_strength(card)`; the
+reference order is a property of the language, never of how a designer
+happened to arrange the block.
+
+**Rows are hermetic.** A row is asked from three places under three different
+live frames: the legality filter mid-decision, the winner slot at the end of a
+trick, and any hand-rolled body. An answer that varied with the asker would
+not be a fact about the card, so a row may read no pronoun of any namespace,
+make no `choose`, read no zone that is not fully public and no per-player zone
+without naming whose, and call only the Builtins that are pure over their
+arguments. Each refusal follows the call graph, so a row that reaches the
+forbidden thing through a designer function is refused with the function
+named. This is what makes a Trick Order a public fact, and therefore
+information-set-safe: nothing it computes can depend on what any one player
+knows.
+
+**Two Builtins over the declaration.** `highest_by_trick_order` is the winner.
+It is the same name in both of a winner's positions — named bare in a trick
+round's `winner` slot, or called over a public pile's Arrival Record for a
+hand-rolled trick. `follows_lead(card, pile)` is the winner's own candidate
+test, made callable so a follow filter can ask it; legality and winning then
+read one definition of the led class instead of two that can drift.
+
+**The Effective Lead.** The card that sets a trick's class is not always the
+first one played: a class-less card leads to nothing, and the next card sets
+the class instead. The Effective Lead is the first arrival that is a trump or
+carries a follow class. It is a different fact from the state variable a game
+might keep for the literal first card's suit.
+
+**The algorithm.** The winner is the strongest trump if any trump was played,
+else the strongest card of the Effective Lead's class. Trumps are ONE class
+for both following and winning, whatever suits they are printed, so a trump
+never follows a plain class and a plain card never follows a trump lead.
+Strength is read for candidates only: a card that can neither lead nor win is
+never asked, which matters because such a card may be outside the game's
+`ranking:` altogether.
+
+**First of Equals.** When two plays compare equal, the winner is the one
+played EARLIER. It is invisible in a single pack and decisive in a double one
+(Doppelkopf, Pinochle), so it is stated as the kernel rule for every winner
+the language ships rather than left to fall out of an implementation.
+
+**Reading a pile mid-trick.** `highest_by_trick_order(pile)` over an
+incomplete trick answers the winner SO FAR. That is designed surface, not an
+edge case: nothing in the algorithm reads how many plays a trick should hold.
+`follows_lead(card, pile)` on a pile with nothing led is the value `false` --
+not an error — so a leader's filter is written `if any card in hand[p] where
+follows_lead(card, pile) then follows_lead(c, pile) else true`, which is also
+the shape that gives "void in the led class, anything goes".
+
+**The presence partition.** A game either declares a Trick Order and uses its
+vocabulary, or declares none and uses the round-configured one. With a block,
+the game-level `trump:` clause, a round's `trump` clause, every other trick
+winner and `highest_trump_or_led_suit(...)` are all refused — each describes a
+different order from the one the block declares, and admitting both would
+leave the engine quietly running one of them. Without a block, every gated
+name is refused, because it would read a table the game never declared. A
+block that nothing reads is refused too.
+
+**Provenance.** Every Arrival Record read names a fully public zone,
+statically: the pile argument of each of these calls is a zone reference whose
+declared type projects identity to every observer, and every trick round plays
+into such a zone. A winner is named from who played what, so the pile it reads
+must be one whose arrivals every observer can derive from their own
+observation stream ("The Arrival Record").
 
 ## The auction form of `round`
 
@@ -514,8 +617,12 @@ order and never sees the keyword. The registry is
 `cardlang/runtime/values.py::RANKING_CONVENTIONS`, derived from the one
 canonical `RANKS` tuple and reconciled against the grammar in both
 directions by `tests/test_ranking_conventions.py`; suit-contextual orders
-(trump promotions, Euchre's bowers) are out of this declaration's scope
-([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
+(trump promotions, Euchre's bowers) are out of this declaration's scope: a
+game whose strength depends on the trick's context declares a
+`trick_order { }` with a `card_strength:` row instead ("Trick Order"), and
+`ranking:` stays the deck's one context-free order. What the block does not
+answer — a card whose IDENTITY changes with context, Tichu's Phoenix — stays
+open ([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
 
 ## Declared parameter domains
 

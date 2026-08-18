@@ -307,7 +307,23 @@ from cardlang.typecheck import (
     RANKING_GATED_WINNERS,
 )
 
-WINNERS: tuple[str, ...] = tuple(sorted(F.TRICK_WINNER_NAMES))
+# The winner slot's namespace MINUS the winners under the Trick Order contract
+# -- every winner this module can drive, derived BY SUBTRACTION so a winner
+# added to either registry lands on the right side without an edit here.
+#
+# The excluded members answer `(played, ctx)` rather than the uniform
+# `(played, led_suit, trump, rank_index)` (cardlang/builtins/functions.py,
+# `TRICK_ORDER_GATED_WINNERS`), so `reads_trump`'s differential cannot be
+# posed of them: they receive no trump argument to read or ignore, and the
+# question this module asks -- does the body consume the round's trump? -- has
+# no meaning for a winner whose trumps are the game's `trick_order { }` rows.
+# Their trump-clause cells are DECIDED and live in the construct's own grid
+# (tests/test_trick_order.py): without a block, every spelling is R5 (the
+# winner reads a block the game does not declare); with one, a round `trump`
+# clause is R2 and the game-level clause is R1.
+WINNERS: tuple[str, ...] = tuple(
+    sorted(F.TRICK_WINNER_NAMES - F.TRICK_ORDER_GATED_WINNERS)
+)
 
 
 # --- the executed body partition ---------------------------------------------
@@ -683,8 +699,12 @@ def _container_cells() -> list[tuple[str, bool, str, tuple[str, ...], tuple[str,
     A procedure is refused either way by a pre-existing Owner Guard (a
     procedure may not hold a `round` at all), so its four cells PIN that wall
     rather than adding coverage."""
-    reading = min(F.TRUMP_READING_WINNERS)
-    blind = min(F.TRICK_WINNER_NAMES - F.TRUMP_READING_WINNERS)
+    # Both picked from `WINNERS`, the uniform-contract domain, so the blind
+    # representative is a winner this module can actually execute -- picking
+    # from the whole namespace would select the Trick Order winner, whose
+    # trump question is posed and answered elsewhere (see `WINNERS` above).
+    reading = min(w for w in WINNERS if w in F.TRUMP_READING_WINNERS)
+    blind = min(w for w in WINNERS if w not in F.TRUMP_READING_WINNERS)
     cells = []
     for container in sorted(_CONTAINER_FIXTURES):
         for reachable in (True, False):

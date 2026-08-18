@@ -21,9 +21,20 @@ from __future__ import annotations
 # vice versa, is rejected at resolve time, not left to crash the dispatcher at
 # runtime):
 #
-# - a *trick* winner function : (played, led_suit, trump, rank_index) -> Player
-#   (a uniform contract; which members READ `trump` is `TRUMP_READING_WINNERS`
-#   below, and which read `rank_index` is typecheck's `RANKING_GATED_WINNERS`)
+# - a *trick* winner function, under one of TWO contracts keyed by
+#   `TRICK_ORDER_GATED_WINNERS` below and dispatched by the one
+#   `runtime/primitives.py::value_function`:
+#     * the uniform contract, (played, led_suit, trump, rank_index) -> Player,
+#       which every winner that reads the ROUND's configuration answers (which
+#       members READ `trump` is `TRUMP_READING_WINNERS` below, and which read
+#       `rank_index` is typecheck's `RANKING_GATED_WINNERS`);
+#     * the Trick Order contract, (played, ctx) -> Player, which the gated
+#       winner answers because its led suit, its trumps and its strengths are
+#       the GAME's `trick_order { }` rows, materialized once at load, not the
+#       round's arguments (`runtime/trick_order.py::TrickOrderWinner`).
+#   Two contracts rather than a fifth argument on one: handing a live Ctx to
+#   every game-local winner would widen what a Primitive may read, against the
+#   narrowing contract (issue #200).
 # - an *auction* outcome function: (history, ctx) -> (tag, payloads), producing the
 #   phase's typed outcome.
 #
@@ -40,6 +51,7 @@ BUILTIN_TRICK_WINNERS: frozenset[str] = frozenset(
     {
         "highest_of_led_suit",  # the standard no-trump trick winner
         "highest_trump_or_led_suit",  # trick winner with a trump suit in play
+        "highest_by_trick_order",  # the winner of a game's declared Trick Order
     }
 )
 PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
@@ -62,9 +74,16 @@ TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WIN
 # so a winner filed on the wrong side fails there. A new winner not listed
 # here is treated as trump-blind -- its trump clause is REFUSED, loudly,
 # rather than admitted on trust.
+# `highest_by_trick_order` is deliberately NOT a member: its trumps are the
+# game's `trick_order { trump: ... }` row, not the round's `trump` argument,
+# which it never receives (the other contract). A round `trump` clause beside
+# it is refused by the presence partition (`_check_trick_order_partition`, R2),
+# whose message names the block -- so the two guards divide the case rather
+# than co-reporting on it.
 TRUMP_READING_WINNERS: frozenset[str] = frozenset(
     {"highest_trump_or_led_suit", "belote_trick_winner"}
 )
+
 PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
         "bridge_auction_outcome",  # Bridge auction -> contract_finalized | all_pass
@@ -150,6 +169,19 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
         # above), in its second position: one name, one home, two syntactic
         # positions, each resolved against its own namespace.
         "highest_trump_or_led_suit",
+        # The Trick Order's surface (decisions.md "Trick Order"; issue #250).
+        # The three READERS the language mints from the block's rows -- one per
+        # row, each a fact of the card alone; and the two Builtins over the
+        # whole declaration: the winner (also in BUILTIN_TRICK_WINNERS above,
+        # the same two-position shape as `highest_trump_or_led_suit`) and the
+        # candidate test the winner uses, made callable so a follow filter can
+        # ask it. All five are gated on the block's presence in BOTH directions
+        # (`TRICK_ORDER_GATED_FUNCS`).
+        "is_trump",
+        "follow_class",
+        "card_strength",
+        "highest_by_trick_order",
+        "follows_lead",
     }
 )
 
@@ -172,7 +204,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
         "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
-        "doko_trick_winner",  # Doppelkopf: the four-card trick's winner (first of equals)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
@@ -219,6 +250,107 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 # the surface CALL_SIGS must cover. DERIVED from the two homes, so a name can
 # never be in the namespace without a home having claimed it.
 CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
+
+
+# --- The Trick Order (decisions.md "Trick Order"; issue #250) ----------------
+#
+# The game-level `trick_order { }` block declares three per-card facts -- is
+# the card a trump, what class does it follow as, how strong is it within its
+# class -- and the language mints one reader per row plus two Builtins over
+# the declaration. These tables are the ONE source for: which rows exist
+# (parse, resolve, typecheck, IR and the diagnostics all render from it),
+# which names the block gates, and which names it excludes.
+
+# row key -> the reader the language mints from it. The tuple ORDER is the
+# language's reference order: a row may read the readers of the rows BEFORE
+# it and no others, whatever order the rows are written in (resolve, R8).
+# A row's required body type is `CALL_SIGS[reader].ret` -- stated once there.
+TRICK_ORDER_ROWS: tuple[tuple[str, str], ...] = (
+    ("trump", "is_trump"),
+    ("follow_class", "follow_class"),
+    ("card_strength", "card_strength"),
+)
+TRICK_ORDER_ROW_KEYS: tuple[str, ...] = tuple(k for k, _ in TRICK_ORDER_ROWS)
+TRICK_ORDER_READERS: tuple[str, ...] = tuple(r for _, r in TRICK_ORDER_ROWS)
+
+# The winner that reads the block, and the whole surface the block gates. Both
+# directions of the presence partition key on these: with a block, everything
+# OUTSIDE them is refused; without one, everything INSIDE them is.
+TRICK_ORDER_GATED_WINNERS: frozenset[str] = frozenset({"highest_by_trick_order"})
+TRICK_ORDER_GATED_FUNCS: frozenset[str] = frozenset(
+    {"highest_by_trick_order", "follows_lead"}
+) | frozenset(TRICK_ORDER_READERS)
+# The complements, BY SUBTRACTION: a winner or call added to the language later
+# lands on the excluded side automatically rather than being silently admitted
+# beside a block by an out-of-date hand-listing.
+TRICK_ORDER_EXCLUDED_WINNERS: frozenset[str] = TRICK_WINNER_NAMES - TRICK_ORDER_GATED_WINNERS
+TRICK_ORDER_EXCLUDED_FUNCS: frozenset[str] = (
+    BUILTIN_TRICK_WINNERS & BUILTIN_CALL_FUNCS
+) - TRICK_ORDER_GATED_FUNCS
+
+# What a Trick Order row may call. A row is HERMETIC -- a pure function of the
+# card and public state, asked from the legality filter, the winner slot and a
+# hand-rolled body under different live frames -- so the callable surface is an
+# ALLOW-LIST, and its complement is listed explicitly rather than derived, so a
+# newly registered Builtin lands unclassified and the partition test names it
+# (tests/test_trick_order.py::test_row_callable_partition_is_total) instead of
+# being absorbed silently into either side. Every `PRIMITIVE_CALL_FUNCS` member
+# is uncallable by construction (a row calls no game-local Python), which is
+# why only the Builtin half is partitioned here.
+TRICK_ORDER_ROW_CALLS: frozenset[str] = frozenset(
+    {
+        "rank_value",  # the declared `ranking:` order -- what strength defaults to
+        "card_points",  # the declared `card_points { }` table
+        "suit_of",  # the suit of its card argument
+        "strain_index",  # a strain's bidding rank (pure over the argument)
+        "team_of",  # the seating's team map (public, fixed)
+        "top_of",  # a position read of the collection its argument names
+        "bottom_of",
+    }
+)
+TRICK_ORDER_ROW_UNCALLABLE: frozenset[str] = frozenset(
+    {
+        "player_holding",  # walks every hand -- a concealed read the argument does not name
+        "error",  # not a value: a row is a fact, and may not refuse a move
+        "lines",  # the board verbs: a Trick Order orders a deck, not a board
+        "neighbor",
+        "has_step",
+        "is_diagonal",
+        "home",
+        "far_row",
+        "highest_trump_or_led_suit",  # the standard winner, excluded beside a block anyway
+        "highest_by_trick_order",  # a consumer: reads every row of the order it would define
+        "follows_lead",  # a consumer, likewise
+    }
+)
+
+# The calls that read a pile's [[arrival-record]], name -> the index of the
+# PILE argument. One registry beneath two consumers: resolve's static
+# pile-argument guard (`_check_arrival_record_pile_args`, which decides BOTH
+# that the argument is a zone reference and that its declared type projects
+# identity to every observer), and the proof harness's provenance derivation
+# (tests/openspiel_ready/harness.py), which walks the checked AST for these
+# calls rather than reading a hand-listed zone name off each game's row --
+# sound only because that guard makes the argument statically a name.
+# Every member is in `BUILTIN_CALL_FUNCS` with a `TAny` parameter at its index
+# (the runtime needs the Zone handle, not coerced elements); that the two sets
+# agree is pinned by
+# tests/test_trick_order.py::test_every_arrival_record_call_takes_a_top_pile.
+ARRIVAL_RECORD_CALLS: dict[str, int] = {
+    "highest_by_trick_order": 0,
+    "follows_lead": 1,
+    "highest_trump_or_led_suit": 0,
+}
+
+# The `early` predicates admitted beside a Trick Order winner: none. An early
+# predicate reads the LITERAL led suit, and a Trick Order's follow class may
+# differ from it (a class-remapped trump, a class-less Excuse), so the two
+# would disagree about when a trick ends. Empty rather than absent so the
+# refusal is a subtraction from `PRIMITIVE_EARLY_PREDICATES` -- a predicate
+# added later is refused beside the block until someone puts it here with a
+# witness (issue #250 PR 1, ruled point 6).
+TRICK_ORDER_EARLY_PREDICATES: frozenset[str] = frozenset()
+
 
 
 # The classification of every CALL_FUNCS member by the game feature its
@@ -283,15 +415,17 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_must_take_pile",
         "canasta_stage_ok",
         "card_points",
+        "card_strength",
         "cribbage_crib_value",
         "cribbage_show_value",
-        "doko_trick_winner",
         "first_to_act_seat",
         "five_hundred_bid_value",
         "five_hundred_follow_ok",
         "five_hundred_lead_ok",
         "five_hundred_next_bid",
         "five_hundred_trick_winner",
+        "follow_class",
+        "follows_lead",
         "gin_arrange_ok",
         "gin_can_declare",
         "gin_can_declare_free",
@@ -302,9 +436,11 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "gin_lay_ok_b",
         "gin_lay_ok_c",
         "gin_valid_meld",
+        "highest_by_trick_order",
         "highest_trump_or_led_suit",
         "holdem_heads_up_pot_share",
         "holdem_pot_share",
+        "is_trump",
         "peg_pair_points",
         "peg_run_points",
         "pinochle_meld_value",

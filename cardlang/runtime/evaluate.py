@@ -128,6 +128,35 @@ def _pos(arg: n.Arg) -> n.Expr:
     return arg
 
 
+def _hermetic_ctx(ctx: Ctx, scope: dict[str, Any], *, keep_actor: bool) -> Ctx:
+    """A fresh scope holding only `scope`, over the shared game/phase state —
+    the one context construction both hermetic bodies use.
+
+    `keep_actor` is the whole difference between the two, and the difference is
+    semantic. A user FUNCTION inherits `current_player`: its body may read a
+    bare per-player zone (`cards in hand where …`), whose family instance
+    resolves through the acting player the caller set. A [[trick-order]] ROW
+    clears it: a row is asked from the legality filter, the winner slot and a
+    hand-rolled body under different live frames, and an answer that varied
+    with the asker would not be a fact of the card (decisions.md "Trick
+    Order"). Clearing it makes a bare-family read inside a row reach the loud
+    Owner Guard in `_name` below — the runtime [[shadow-guard]] behind
+    resolve's R11, which owns the class statically."""
+    if keep_actor:
+        return replace(ctx, locals=scope, winner=None, action=None)
+    return replace(
+        ctx, locals=scope, winner=None, action=None, current_player=None
+    )
+
+
+def row_context(ctx: Ctx, card: Card) -> Ctx:
+    """The context a [[trick-order]] row's body evaluates under: `card` bound,
+    every pronoun cleared. Resolve refuses a row that reads a pronoun of any
+    namespace (`_check_trick_order_rows`, R9); this is the runtime shape that
+    keeps that refusal true of what actually runs."""
+    return _hermetic_ctx(ctx, {"card": card}, keep_actor=False)
+
+
 def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     """Evaluate a user function hermetically: the arguments evaluate in the caller's
     context, then the body runs in a fresh scope holding only the parameters, over
@@ -138,11 +167,8 @@ def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     `cards in hand where card.suit is spades`), whose family instance resolves
     through the acting player the caller set."""
     values = [evaluate(_pos(a), ctx) for a in args]
-    body_ctx = replace(
-        ctx,
-        locals={p.name: v for p, v in zip(fn.params, values)},
-        winner=None,
-        action=None,
+    body_ctx = _hermetic_ctx(
+        ctx, {p.name: v for p, v in zip(fn.params, values)}, keep_actor=True
     )
     return evaluate(fn.body, body_ctx)
 

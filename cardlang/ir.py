@@ -71,6 +71,14 @@ def emit(game: n.Game) -> IRDict:
             if game.card_points is not None
             else {}
         ),
+        # Keyed ONLY when the game declares a `trick_order { }` block — the
+        # `card_points` precedent above, so block-less games' IR goldens stay
+        # byte-stable.
+        **(
+            {"trick_order": _trick_order(game.trick_order)}
+            if game.trick_order is not None
+            else {}
+        ),
         "trump": game.trump,
         "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
@@ -117,6 +125,19 @@ def _card_points_table(t: n.CardPointsTable) -> IRDict:
             for e in t.entries
         ],
         "else_value": t.else_value,
+    }
+
+
+def _trick_order(t: n.TrickOrder) -> IRDict:
+    """The game's [[trick-order]]. Rows keep SOURCE order (the node's), so the
+    IR is a faithful record of what was written; the order they are READ in is
+    the language's and is not a property of any one game."""
+    return {
+        "kind": "trick_order",
+        "rows": [
+            {"kind": "trick_order_row", "key": r.key, "body": _expr(r.body)}
+            for r in t.rows
+        ],
     }
 
 
