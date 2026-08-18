@@ -11,7 +11,7 @@ game HomeCellForPlayer {
     square[cell]    : Cell<cell>
     reserve[player] : PlayerPile<player>
   }
-  state { done : Boolean = false }
+  state { done : Boolean = false  score[player] : Integer = 0 }
   phase setup {
     move all pieces from box where piece.side is x to reserve[0]
     move all pieces from box to reserve[1]
@@ -21,7 +21,7 @@ game HomeCellForPlayer {
       offer to t one of [step, stop]
     }
   }
-  winner: highest done
+  winner: highest score
 }
 move_type step(from : cell, along : dir) {
   when: has_step(from, along, actor)

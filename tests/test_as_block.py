@@ -222,9 +222,9 @@ def test_leading_as_identifier_still_lexes_as_a_name() -> None:
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { hand[player] : Hand<player> }\n"
-        "  state { assets : Integer = 0 }\n"
+        "  state { assets[player] : Integer = 0 }\n"
         "  winner: highest assets\n"
-        "  phase p { assets := 5 }\n"
+        "  phase p { assets[0] := 5 }\n"
         "}\n"
     )
     check_dsl(dsl, "test.cardlang")

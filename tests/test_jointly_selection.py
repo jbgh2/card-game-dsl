@@ -517,9 +517,9 @@ def test_leading_jointly_identifier_still_lexes_as_a_name() -> None:
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { hand[player] : Hand<player> }\n"
-        "  state { jointly_valid : Integer = 0  some_var : Integer = 0 }\n"
+        "  state { jointly_valid[player] : Integer = 0  some_var : Integer = 0 }\n"
         "  winner: highest jointly_valid\n"
-        "  phase p { jointly_valid := 1\n"
+        "  phase p { jointly_valid[0] := 1\n"
         "            some_var := 2 }\n"
         "}\n"
     )

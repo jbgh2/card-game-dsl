@@ -527,13 +527,13 @@ def test_boardless_dir_parameter_is_unsupported() -> None:
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase play {\n"
         "    turns t from 0 over all players until done {\n"
         "      offer to t one of [pick]\n"
         "    }\n"
         "  }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
         "move_type pick(along : dir) { effect { done := true } }\n"
     )
@@ -567,9 +567,9 @@ def test_card_game_emits_no_directions_ir_key() -> None:
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase play { shuffle deck }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
     )
     game = check_dsl(card, "card.cardlang")

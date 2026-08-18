@@ -16,9 +16,9 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { hand[player] : Hand<player> }
-  state { done : Integer = 0 }
+  state { done : Integer = 0  score[player] : Integer = 0 }
   phase play { offer to 0 one of [ask] done := 1 }
-  winner: highest done
+  winner: highest score
 }
 move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }
 """
@@ -43,9 +43,9 @@ game G2 {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { hand[player] : Hand<player> }
-  state { done : Integer = 0 }
+  state { done : Integer = 0  score[player] : Integer = 0 }
   phase play { offer to 0 one of [play_card] done := 1 }
-  winner: highest done
+  winner: highest score
 }
 move_type play_card(c : Card) { effect { done := 1 } }
 """
@@ -80,9 +80,9 @@ game G3 {
   cards: standard52
   ranking: A K Q
   zones { hand[player] : Hand<player> }
-  state { done : Integer = 0 }
+  state { done : Integer = 0  score[player] : Integer = 0 }
   phase play { offer to 0 one of [ask] done := 1 }
-  winner: highest done
+  winner: highest score
 }
 move_type ask(target : Player, rank : Rank) { when: target is not actor effect { done := 1 } }
 """

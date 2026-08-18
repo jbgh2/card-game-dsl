@@ -757,9 +757,9 @@ game G {{
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones {{ deck : Deck  hand[player] : Hand<player> }}
-  state {{ score : Integer = 0 }}
+  state {{ score : Integer = 0  result[player] : Integer = 0 }}
   phase play {{ score := 1 }}
-  winner: highest score
+  winner: highest result
 }}
 """
     from cardlang.parse import parse_text
@@ -784,10 +784,8 @@ def test_env_from_game_keeps_the_signatures_it_solved() -> None:
     from cardlang.resolve import resolve
     from cardlang.typecheck import env_from_game
 
-    src = _game(decls="function dbl(x : Integer) = x + x", state="score : Integer = 0")
-    env = env_from_game(
-        resolve(parse_text(src.replace("score[p] := 1", "score := 1"), "g.cardlang"))
-    )
+    src = _game(decls="function dbl(x : Integer) = x + x")
+    env = env_from_game(resolve(parse_text(src, "g.cardlang")))
     assert set(env.functions) == {"dbl"}
     assert infer(n.Call("dbl", (n.IntLit(2),)), env) == TInteger()
 
@@ -816,11 +814,11 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { score : Integer = 0 }
-  phase play { score := 1  run bump(0) }
+  state { score[player] : Integer = 0 }
+  phase play { score[0] := 1  run bump(0) }
   winner: highest score
 }
-procedure bump(p : Player) { score := 1 }
+procedure bump(p : Player) { score[p] := 1 }
 """
     env = env_from_game(resolve(parse_text(src, "g.cardlang")))
     assert set(env.procedures) == {"bump"}

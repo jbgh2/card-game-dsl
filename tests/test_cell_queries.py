@@ -201,6 +201,7 @@ def board_game(
         "  }\n"
         "  state {\n"
         "    done : Boolean = false\n"
+        "    score[player] : Integer = 0\n"
         "  }\n"
         "  phase setup {\n"
         "    move all pieces from box where piece.side is x to reserve[0]\n"
@@ -211,7 +212,7 @@ def board_game(
         f"      offer to t one of [{vocab}]\n"
         "    }\n"
         "  }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
         f"{moves}"
     )
@@ -265,11 +266,11 @@ def _board_probe_src(expr_src: str) -> str:
         "    square[cell]    : Cell<cell>\n"
         "    reserve[player] : PlayerPile<player>\n"
         "  }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase p {\n"
         f"    let probe = {expr_src}\n"
         "  }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
     )
 
@@ -326,11 +327,11 @@ def _fc_probe_src(expr_src: str) -> str:
         "  cards: standard52\n"
         "  positions { column : 1..4 }\n"
         "  zones { deck : Deck  cascade[column] : Cascade<column> }\n"
-        "  state { done : Boolean = false }\n"
+        "  state { done : Boolean = false  score[player] : Integer = 0 }\n"
         "  phase p {\n"
         f"    let probe = {expr_src}\n"
         "  }\n"
-        "  winner: highest done\n"
+        "  winner: highest score\n"
         "}\n"
     )
 

@@ -10,13 +10,13 @@ game FarRowBoardless {
     box          : Deck
     pile[player] : PlayerPile<player>
   }
-  state { n : Integer = 0  done : Boolean = false }
+  state { n : Integer = 0  done : Boolean = false  score[player] : Integer = 0 }
   phase play {
     turns t from 0 over all players until done {
       offer to t one of [foo, stop]
     }
   }
-  winner: highest n
+  winner: highest score
 }
 move_type foo {
   effect {

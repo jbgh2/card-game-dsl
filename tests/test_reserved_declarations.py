@@ -300,9 +300,9 @@ game Mini {
   max_length: 1000
   cards: standard52
   zones { hand[player] : Hand<player> }
-  state { done : Integer = 0 }
+  state { done : Integer = 0  score[player] : Integer = 0 }
   phase play { offer to 0 one of [ask] done := 1 }
-  winner: highest done
+  winner: highest score
 }
 move_type ask(actor : Player) { effect { done := 1 } }
 """,

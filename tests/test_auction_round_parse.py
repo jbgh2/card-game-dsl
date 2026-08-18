@@ -25,12 +25,12 @@ game Mini {
   max_length: 1000
   cards: standard52
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { high : Integer = 0  passes : Integer = 0 }
+  state { high : Integer = 0  passes : Integer = 0  score[player] : Integer = 0 }
   phase bid {
     round offering [raise, pass] from 0 over all players
           until (passes >= 2) outcome bridge_auction_outcome
   }
-  winner: highest high
+  winner: highest score
 }
 move_type raise { effect { high += 1  passes := 0 } }
 move_type pass { effect { passes += 1 } }

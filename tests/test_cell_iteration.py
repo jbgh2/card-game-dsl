@@ -221,11 +221,11 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   positions { column : 1..4 }
   zones { deck : Deck  pile[column] : Cascade<column> }
-  state { n : Integer = 0 }
+  state { n : Integer = 0  score[player] : Integer = 0 }
   phase play {
     for each column c: n := 1
   }
-  winner: highest n
+  winner: highest score
 }
 """
     msg = _reject(src)
@@ -242,11 +242,11 @@ game G {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { n : Integer = 0 }
+  state { n : Integer = 0  score[player] : Integer = 0 }
   phase play {
     for each cell c: n := 1
   }
-  winner: highest n
+  winner: highest score
 }
 """
     msg = _reject(src)
