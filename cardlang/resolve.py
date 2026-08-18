@@ -4255,6 +4255,8 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     the game never consults. Consumption counts readers OUTSIDE the block, so
     rows reading each other's readers never make a block look live.
     """
+    if game.content_flavor != "card":
+        return  # `_reject_card_content_clauses` already named the kind
     if game.trick_order is None:
         # --- without a block: no gated name may appear -----------------------
         for rnd in _trick_order_rounds(game):
@@ -4334,10 +4336,18 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 nd.span or game.span,
             )
     # R7: the block must have a consumer OUTSIDE its own rows.
+    # Consumption counts the calls the game RUNS, not the calls its text holds
+    # -- `_reachable_nodes`, exactly as `_resolve_trump`'s dead-clause guard
+    # counts rounds. A gated call sitting only inside a container nothing
+    # invokes would otherwise make a provably dead block look live, which is
+    # the accepted-but-ignored direction. The without-a-block guards above walk
+    # the whole text instead, and rightly: those validate a call WHERE IT IS
+    # WRITTEN, so a dead container's call is refused too -- over-reporting in
+    # the safe direction, which can never miss.
     rows = set(game.trick_order.rows)
     outside = [
         nd
-        for nd in _walk(game)
+        for nd in _reachable_nodes(game)
         if isinstance(nd, n.Call)
         and nd.func in TRICK_ORDER_GATED_FUNCS
         and not any(nd in set(_walk(r)) for r in rows)

@@ -151,7 +151,17 @@ residual:   (1) `trump: card.rank is J` written at GAME level (the row
             rather than papered over: a test iterating the empty set would
             pass over zero rows and read as coverage. R4, this ledger owns the
             record; the direction opens when a predicate joins the set with a
-            witness. (8) Row-evaluation cost on the legality
+            witness. (11) `TRICK_ORDER_EQ: ":=" | "="` is a NAMED terminal
+            whose alternatives overlap `ASSIGN_OP`'s `:=` and every anonymous
+            `"="` in the grammar (`state_decl`, `let_stmt`, `derived_field`,
+            `type_def`, `function_def`, `vis_clause`, `named_arg`). Under
+            Earley with the dynamic lexer this resolves by position, and the
+            `eq-row-*` cells plus the ambiguity budget exercise it clean; it is
+            a stated FORWARD hazard for the LALR tightening the grammar header
+            announces, where a named terminal overlapping anonymous literals is
+            precisely what breaks. R4, this ledger owns the record: a recorded
+            trap, not work -- the reject arm is the point of the terminal, and
+            the tightening re-decides it with the rest of the grammar. (8) Row-evaluation cost on the legality
             path: measured 1.5x per Doppelkopf playout by the Architect's
             prototype (issue #250, Architect counsel PR 1, Q2); no memo is
             built (the epoch-counter memo the repo reverted); re-measured
@@ -507,13 +517,17 @@ def _grammar_cells() -> list[Cell]:
              ("syntax error",), forbidden=("unresolved name 'card'", "unknown type")))
     # Placement: a phase body, a piece game, a library.
     add(Cell("block-in-phase-body", _source(body=f"{BLOCK}\n    {LIVE}"), ("syntax error",)))
+    # R12 names the kind, and the partition must stay SILENT: a piece game has
+    # no gated consumer, so `_check_trick_order_partition` would otherwise
+    # co-report R7 on top of it and send the designer after two problems.
     add(Cell("block-in-piece-game",
              "game P {\n  players: 2\n  pieces: xo_marks\n  max_length: 60\n"
              "  trick_order { trump: true }\n"
              "  zones { box : Deck  reserve[player] : PlayerPile<player> }\n"
              "  state { score[player] : Integer = 0 }\n"
              "  phase play {\n    move all pieces from box where piece.side is x to reserve[0]\n"
-             "    score[0] += 1\n  }\n  winner: highest score\n}\n", (R12,)))
+             "    score[0] += 1\n  }\n  winner: highest score\n}\n",
+             (R12,), forbidden=(R7,)))
     return cells
 
 
@@ -772,6 +786,14 @@ def _partition_cells() -> list[Cell]:
     add(Cell("with-block-dead-self-referencing-rows",
              _source(clauses=_block("trump: card.suit is hearts  card_strength: if is_trump(card) then 9 else 1"),
                      body="score[1] += 1"), (R7,)))
+    # The block's only consumer sits in a procedure nothing runs, so the game
+    # never REACHES it: the block is dead, and counting the text rather than
+    # what runs would call it live -- `_resolve_trump`'s dead-clause guard
+    # takes the same care over the same question.
+    add(Cell("with-block-consumer-only-in-an-unreached-procedure",
+             _source(clauses=BLOCK, body="score[1] += 1",
+                     tail="procedure p() {\n  let w = highest_by_trick_order(pile)\n  score[w] += 1\n}"),
+             (R7,)))
     # live via each consumer position
     add(Cell("with-block-live-slot", _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra="")), ()))
     add(Cell("with-block-live-call", _source(clauses=BLOCK, body=LIVE), ()))
