@@ -243,10 +243,10 @@ def test_declared_arrival_zone_materializes_actor_card_pairs() -> None:
     deep-frozen (actor, card) pairs in arrival order."""
     from cardlang.runtime import reads
 
-    rs = _rs_for("skat.cardlang")
+    rs = _rs_for("five-hundred.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/skat.py",
-        game_file="skat.cardlang",
+        module="cardlang/runtime/five_hundred.py",
+        game_file="five-hundred.cardlang",
         single_zones=frozenset({"trick_pile"}),
         arrival_zones=frozenset({"trick_pile"}),
     )
@@ -279,10 +279,10 @@ def test_arrival_zone_must_be_a_declared_single_zone() -> None:
     FAMILY is the recorded residual (issue #253 owns the query surface)."""
     from cardlang.runtime import reads
 
-    rs = _rs_for("skat.cardlang")
+    rs = _rs_for("five-hundred.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/skat.py",
-        game_file="skat.cardlang",
+        module="cardlang/runtime/five_hundred.py",
+        game_file="five-hundred.cardlang",
         arrival_zones=frozenset({"trick_pile"}),  # not in single_zones
     )
     with pytest.raises(reads.PrimitiveReadError, match="single_zones"):

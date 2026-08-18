@@ -201,8 +201,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
-        "skat_follow_ok",  # Skat: follow-class legality (jacks + trump suit are one class)
-        "skat_trick_winner",  # Skat: the three-card trick's winner under the contract
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
         "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
@@ -446,9 +444,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "pinochle_meld_value",
         "pot_share",
         "rank_value",
-        "skat_follow_ok",
         "skat_matadors",
-        "skat_trick_winner",
         "strain_index",
         "suit_of",
         "tarot_excuse_player",

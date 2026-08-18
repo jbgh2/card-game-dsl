@@ -110,16 +110,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.skat import skat_next_bid
 
             return skat_next_bid(args[0])
-        case "skat_follow_ok":
-            from cardlang.runtime.skat import ROW, skat_follow_ok
-
-            return skat_follow_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "skat_trick_winner":
-            from cardlang.runtime.skat import ROW, skat_trick_winner
-
-            winner, events = skat_trick_winner(*_bind(ctx, ROW))
-            _emit(ctx, events)
-            return winner
         case "skat_matadors":
             from cardlang.runtime.skat import ROW, skat_matadors
 

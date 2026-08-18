@@ -16,7 +16,7 @@ game ArrivalWinnerOldArity {
   }
   state { score[player] : Integer = 0 }
   phase play {
-    let w = skat_trick_winner(0)
+    let w = five_hundred_trick_winner(0)
     score[w] += 1
   }
   winner: highest score

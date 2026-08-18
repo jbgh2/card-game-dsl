@@ -200,9 +200,10 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   seat reorder) each mapped to an existing axis — guards, the `until`
   predicate, `from <speaker>`. The contract choice is a pair of `offer`s plus
   a one-draw `declare_suit(s : Suit)` round; the ten tricks run
-  Schnapsen-style (three single-actor filtered movements over
-  `skat_follow_ok` — the trick form's rules-driven candidates are unordered
-  where the reference draws hand-ordered legality); scoring is plain
+  Schnapsen-style (three single-actor filtered movements over `follows_lead`,
+  read off the game's declared Trick Order — the trick form's rules-driven
+  candidates are unordered where the reference draws hand-ordered legality);
+  scoring is plain
   statements over the game-local `skat_matadors` primitive, with the
   overbid arithmetic written as rounded division in the game text.
 

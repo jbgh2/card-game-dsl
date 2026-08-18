@@ -110,11 +110,9 @@ CALL_SIGS: dict[str, Sig] = {
     "follows_lead": Sig((TCard(), TAny()), TBoolean()),
     "highest_by_trick_order": Sig((TAny(),), TPlayer()),
     "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
-    "skat_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Skat: follow-class legality
     # The three trick winners read the trick pile's Arrival Record (issue
     # #256): attribution is the kernel's, so no argument remains — the old
     # `leader` parameter existed only for the retired seat-order zip.
-    "skat_trick_winner": Sig((), TPlayer()),  # Skat: the three-card trick's winner
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace

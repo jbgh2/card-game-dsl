@@ -168,45 +168,4 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "asked to choose from an empty hand at decision 27."
         ),
     ),
-    Finding(
-        slug="skat_follow_ok_nothing_led",
-        classification="accepted-then-crashes-at-playout",
-        stage="playout",
-        exception_type_name="IndexError",
-        message_substring="tuple index out of range",
-        note=(
-            "docs/games/skat.cardlang, `delete_line` seed 2 after the "
-            "card_points clause landed (issue #249): the clause insertion "
-            "shifted the file, so the same seed now deletes the LEADER's "
-            "play `as leader { move chosen one card from hand[leader] to "
-            "trick_pile }` (line 132 at discovery time) instead of the "
-            "second player's follow. The second player's follow filter then "
-            "runs with an empty trick pile, and `skat_follow_ok` "
-            "(cardlang/runtime/skat.py, `led = gr.singles[\"trick_pile\"]"
-            "[0]`) crashes on the empty read — a bare IndexError in the "
-            "engine channel, where a follow question with nothing led is a "
-            "game-description error that wants a typed OwnerGuardError "
-            "naming the author (the guard-vocabulary triage this ledger "
-            "records but does not fix). The prior finding at this (file, "
-            "operator, seed) key, `skat_trick_winner_wrong_count`, remains "
-            "below: its frozen fixture still reproduces; only the live-"
-            "corpus key moved here."
-        ),
-    ),
-    Finding(
-        slug="skat_trick_winner_wrong_count",
-        classification="accepted-then-crashes-at-playout",
-        stage="playout",
-        exception_type_name="OwnerGuardError",
-        message_substring="expected a completed 3-card trick",
-        note=(
-            "docs/games/skat.cardlang, `delete_line` seed 2, deleting the "
-            "second player's follow `as second { move chosen one card from "
-            "hand[second] where skat_follow_ok(second, card) to trick_pile "
-            "}` (line 131 at discovery time). The trick pile is short one "
-            "card at resolution time, and `skat_trick_winner` — which "
-            "assumes a completed 3-card trick — fails loudly on the count "
-            "mismatch rather than silently scoring a partial trick."
-        ),
-    ),
 )

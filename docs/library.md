@@ -394,10 +394,14 @@ in tests/test_trump_slot_class.py.
   `skat_next_bid` primitive and its exhaustion in the `until` predicate), the
   contract declaration a pair of `offer`s plus a one-draw
   `declare_suit(s : Suit)` round, and the ten tricks three single-actor
-  filtered transfers per trick over `skat_follow_ok` — like Schnapsen's
+  filtered transfers per trick over `follows_lead` — like Schnapsen's
   follower, the strict-follow legality is a filter predicate, not an
   `active_rules` cascade, because the reference draws from hand-ordered
   legality where the trick form's rules-driven candidate set is unordered.
+  The three contracts' orders are the game's Trick Order, whose rows read the
+  declared contract off the public state, so the jacks-plus-trump-suit class
+  and Null's trumpless rank order are one declaration rather than two agreeing
+  predicates.
   The winner, matador count, and overbid arithmetic are the game-local
   primitives below; scoring writes `score[declarer]` directly (no typed
   outcome — the settlement is a plain two-armed statement).
@@ -900,20 +904,14 @@ through the engine-core `highest_trump_or_led_suit` call (above) over the
 trick pile's Arrival Record, and the playout harness derives its trick facts
 from observation events.
 
-Skat's contract machinery is five game-local primitives reading
-`cardlang/runtime/skat.py`; the contract-dependent ones read the declared
-contract (`is_grand` / `is_null` / `trump_suit`) from phase state:
+Skat's remaining contract machinery reads `cardlang/runtime/skat.py`; follow
+legality and the trick winner are the game's declared Trick Order, not
+primitives. `skat_matadors` reads the declared contract (`is_grand` /
+`is_null` / `trump_suit`) from state:
 
 - `skat_next_bid(value: Integer) → Integer` — the next of the 62 reachable
   Reizen game values above `value`, or 0 when the ladder is exhausted (the
   auction's `until` reads 0 as "the speaker cannot raise").
-- `skat_follow_ok(p: Player, c: Card) → Boolean` — follow-class legality
-  against the led card (`trick_pile[0]`): the four jacks and the trump suit
-  are one class in Suit and Grand; Null has plain suits and no trumps.
-- `skat_trick_winner() → Player` — the completed three-card trick's winner
-  (highest trump, else highest of the led suit; Null's own rank order), the
-  plays read off the trick pile's Arrival Record. Emits the
-  play/trick_end/trick traces the playout harness recomputes winners from.
 - `skat_matadors(p: Player) → Integer` — the with/without run from the club
   Jack down the trump order, over `p`'s hand plus the skat. (The overbid
   rule's loss base — the smallest multiple of the base covering the bid —

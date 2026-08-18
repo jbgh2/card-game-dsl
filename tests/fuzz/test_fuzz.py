@@ -59,14 +59,18 @@ registry:   `mutate.MUTATORS` (closed, pinned by `test_mutate.py`'s own
             `known_findings/*.cardlang`).
 covered:    a discovery sweep at authoring time (seeds 0-4, the whole corpus,
             every operator) found 6 crashing triples,
-            all under `delete_line`; all 6 are in `EXCUSED`/`KNOWN_FINDINGS`.
+            all under `delete_line`; all 6 were in `EXCUSED`/`KNOWN_FINDINGS`.
             Re-run in full after the chooser was strengthened to the runtime
             chooser's whole `k <= len(candidates)` contract (it previously
             checked only the empty-pool special case): identical 6 findings —
             no mutant at these seeds requests an over-sized pick from a
             non-empty pool within the step budget.
+            Two of the six were Skat's, and both were FIXED rather than
+            re-keyed when the Trick Order retired the Primitives whose reads
+            crashed (issue #250 PR 2, the `EXCUSED` comment below); they left
+            the ledger by the feed-forward rule, so four remain.
             `MUTATION_SEEDS = (0, 2)` was chosen specifically because it
-            covers 5 of those 6 triples (`getaway_no_legal_play...` needed
+            covers 3 of those 4 triples (`getaway_no_legal_play...` needed
             seed 4 and is validated only by the frozen pinned test, not by
             this live sweep — see its `EXCUSED` comment below).
 sampled:    every other `(game, operator, seed)` triple outside that
@@ -121,13 +125,16 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
-    # The card_points clause (issue #249) shifted skat.cardlang, so this key's
-    # deletion moved from the second player's follow to the leader's play:
-    # the crash it now reproduces is `skat_follow_ok_nothing_led`. The prior
-    # finding at this key, `skat_trick_winner_wrong_count`, stays in the
-    # ledger under its frozen fixture (the replay half still reproduces it);
-    # only the live-corpus key moved.
-    ("skat.cardlang", "delete_line", 2): "skat_follow_ok_nothing_led",
+    # Skat has NO key here anymore, and no ledger entry either. Both of its
+    # findings were reads that the Trick Order retired with the Primitives that
+    # made them (issue #250 PR 2): `skat_follow_ok`'s bare `IndexError` on
+    # `trick_pile[0]` cannot happen because nothing reads the led card that way
+    # -- `follows_lead` on a pile with nothing led is the VALUE false (issue
+    # #345), pinned by tests/test_trick_order.py -- and the completed-trick
+    # count guard was `recorded_plays`', which the kernel winner deliberately
+    # does not consult (a mid-trick read is the winner so far, issue #350). The
+    # same deliberate deletion of the leader's play now surfaces in the
+    # harness's own T3 invariant instead, the `gops_empty_legal_set` channel.
 }
 
 
