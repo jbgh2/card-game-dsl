@@ -908,10 +908,10 @@ through the engine-core `highest_trump_or_led_suit` call (above) over the
 trick pile's Arrival Record, and the playout harness derives its trick facts
 from observation events.
 
-Skat's remaining contract machinery reads `cardlang/runtime/skat.py`; follow
-legality and the trick winner are the game's declared Trick Order, not
-primitives. `skat_matadors` reads the declared contract (`is_grand` /
-`is_null` / `trump_suit`) from state:
+Skat's contract machinery is the game-local primitives below, reading
+`cardlang/runtime/skat.py`; follow legality and the trick winner are the
+game's declared Trick Order rather than primitives. `skat_matadors` reads the
+declared contract (`is_grand` / `is_null` / `trump_suit`) from state:
 
 - `skat_next_bid(value: Integer) → Integer` — the next of the 62 reachable
   Reizen game values above `value`, or 0 when the ladder is exhausted (the
