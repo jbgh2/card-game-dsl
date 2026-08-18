@@ -1192,6 +1192,48 @@ def test_follows_lead_cell(lead: str, cand: str, expected: bool) -> None:
     assert w.follows_lead(is_trump, cls, arrivals) is expected
 
 
+_SUBSCRIPTED_PILE_GAME = """
+game G {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: aces high
+  trick_order { trump: card.suit is hearts }
+  zones { deck : Deck  hand[player] : Hand<player>  piles[player] : PlayerPile<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    move all cards to deck
+    shuffle deck
+    deal 1 cards from deck to each hand
+    as 0 { move chosen one card from hand[0] to piles[0] }
+    as 1 { move chosen one card from hand[1] to piles[0] }
+    let w = highest_by_trick_order(piles[0])
+    score[w] += 1
+  }
+  winner: highest score
+}
+"""
+
+
+def test_a_subscripted_pile_is_named_and_played() -> None:
+    """A FAMILY-subscripted pile is designed surface (the
+    `*-playerpile-subscripted` accept cells), and the harness's provenance
+    derivation can only see the family NAME -- which instance a call reads is
+    a runtime value. So the family has to be expanded into instances before it
+    reaches `derive_arrivals`, which refuses a bare family loudly rather than
+    deriving [] in silence and certifying nothing.
+
+    This is the executable end of that: a minimal game whose winner is named
+    over `piles[0]`, checked and PLAYED, so the subscripted path is exercised
+    rather than assumed from the accept cells alone.
+
+    red under (executed, reverted): drop the `is_family` expansion from
+    `harness._instance_labels` -- `derive_arrivals`' assert fires on the bare
+    family name instead of the proof passing vacuously."""
+    result = _play(_SUBSCRIPTED_PILE_GAME, 0)
+    assert sum(result.scores.values()) == 1
+
+
 def test_the_lazy_lead_agrees_with_the_eager_one() -> None:
     """The legality path runs `follows_lead_lazily`, which asks each row only
     where the answer can still change; the grid's cells above test the EAGER

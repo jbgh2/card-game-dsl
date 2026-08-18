@@ -296,6 +296,16 @@ def derive_arrivals(
     never stored-then-stripped, so the engine's Arrival Record for a
     consumed zone must equal what every observer's log entails.
 
+    `zone_label` names ONE zone instance -- `trick_pile`, or `captured[2]`,
+    never the bare family `captured`. A family name would match no `move`
+    event's destination and this would return [] in silence, which the
+    provenance proof would read as "the observer derived nothing, and the
+    engine's record was also empty" -- a vacuously-passing cell where the
+    whole point is to compare two non-empty sequences. So the family case is
+    refused loudly here, at the boundary that would otherwise absorb it, and
+    the proof expands families into instances before calling
+    (`ReadinessProofs`).
+
     The derivation replays the log's `move` events: an arrival into the zone
     appends each card of the (identity) destination view, attributed to the
     source label's owner seat when the source is a player-indexed family
@@ -306,6 +316,11 @@ def derive_arrivals(
     the single-card plays the consumers read, and a LOUD mismatch rather
     than a silent one if a future consumer's pile ever takes batches whose
     internal order matters."""
+    assert not rs.zones.is_family(zone_label), (
+        f"derive_arrivals got the zone FAMILY {zone_label!r}, not an instance "
+        f"-- it would match no move event and derive [] in silence, which "
+        f"reads as a passing comparison; expand the family first"
+    )
     state: list[tuple[int | None, str]] = []
     for event in obs_log:
         if event[0] != "move":

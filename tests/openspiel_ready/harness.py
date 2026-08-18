@@ -69,6 +69,27 @@ from .partition import (
 GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
 
+def _instance_key(rs: Any, family: str, raw: str) -> Any:
+    """The live instance key matching a rendered label part (`captured[2]` ->
+    the seat 2, whatever type the family is keyed by)."""
+    for key in rs.zones.families[family]:
+        if str(key) == raw:
+            return key
+    raise AssertionError(f"no instance {raw!r} of family {family!r}")
+
+
+def _instance_labels(rs: Any, zones: tuple[str, ...]) -> list[str]:
+    """Each declared provenance zone as concrete instance labels: a single
+    zone is itself, a family becomes one label per live instance."""
+    out: list[str] = []
+    for name in zones:
+        if rs.zones.is_family(name):
+            out.extend(f"{name}[{key}]" for key in sorted(rs.zones.families[name]))
+        else:
+            out.append(name)
+    return out
+
+
 @cache
 def _checked_game_nodes(path: str) -> tuple[object, ...]:
     """Every node of a corpus game's CHECKED AST — post-resolve, so a
@@ -805,8 +826,19 @@ class ReadinessProofs:
         entries_compared = 0
         nodes = 0
         while isinstance(r, DecisionNode) and nodes < 40:
-            for zone_label in zones:
-                zone = r.rs.zones.single(zone_label)
+            # A declared zone may be a FAMILY (`highest_by_trick_order(piles[p])`
+            # is designed surface), and the AST derivation can only see the
+            # family's name -- which instance a call reads is a runtime value.
+            # So expand here, where the live instances exist, and compare per
+            # instance. Comparing the family as one label would derive [] and
+            # certify nothing.
+            for zone_label in _instance_labels(r.rs, zones):
+                name, _, key = zone_label.partition("[")
+                zone = (
+                    r.rs.zones.instance(name, _instance_key(r.rs, name, key[:-1]))
+                    if key
+                    else r.rs.zones.single(name)
+                )
                 engine = [(a.actor, str(a.card)) for a in zone.arrivals]
                 entries_compared += len(engine)
                 for observer in range(len(r.obs_logs)):
