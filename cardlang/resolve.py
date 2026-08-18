@@ -132,7 +132,7 @@ from cardlang.stdlib.zones import (
     ZONE_PROJECTIONS,
     identity_to_all,
 )
-from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.typecheck import KNOWN_TYPE_NAMES, RANKING_GATED_CLIMB_QUERIES
 from cardlang.types import Flavor, TPlayer
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
@@ -4382,6 +4382,23 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 f"clause",
                 rnd.span,
             )
+    # A climbing round's combination queries carry their OWN strength order
+    # (`RANKING_GATED_CLIMB_QUERIES` -- president's read `rank_index`), so a
+    # game declaring a Trick Order beside one has two orders and the engine
+    # quietly runs both: the block for the trick vocabulary, the query's table
+    # for the climb. Refused for the same reason an excluded winner is.
+    for nd in _walk(game):
+        if isinstance(nd, n.ClimbRound):
+            for slot, fname in (("combinations", nd.combos_fn), ("follows", nd.follows_fn)):
+                if fname in RANKING_GATED_CLIMB_QUERIES:
+                    bag.error(
+                        f"climb round `{slot} {fname}` beside a "
+                        f"`trick_order {{ }}` block — {fname} carries its own "
+                        f"card order, and the block declares the game's; a "
+                        f"game has one Trick Order, so drop the block or name "
+                        f"a query that does not rank cards",
+                        nd.span,
+                    )
     for nd in _walk(game):
         if isinstance(nd, n.Call) and nd.func in TRICK_ORDER_EXCLUDED_FUNCS:
             arg = "pile"

@@ -777,6 +777,16 @@ def _partition_cells() -> list[Cell]:
     for w in excluded_winners:
         add(Cell(f"with-block-winner-{w}", _source(clauses=BLOCK, body=_ROUND.format(winner=w, extra="")),
                  (R3.format(name=w),)))
+    # A climbing query with its own strength order beside the block: two
+    # orders in one game (the design's C-item; RANKING_GATED_CLIMB_QUERIES).
+    _CLIMB = ("round climb play_to_trick from leader over all players "
+              "source hand into pile combinations {combos} follows {follows} "
+              "until (number of players where hand[player] is not empty) <= 1")
+    for combos, follows in (("president_lead_options", "president_follows"),):
+        add(Cell(f"with-block-climb-{combos}",
+                 _source(clauses=BLOCK,
+                         body=_CLIMB.format(combos=combos, follows=follows) + "\n    " + LIVE),
+                 ("carries its own card order",)))
     add(Cell("with-block-excluded-call",
              _source(clauses=BLOCK, body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), (R4,)))
     add(Cell("with-block-early",
@@ -1026,7 +1036,18 @@ def test_gated_registries_match_the_grid() -> None:
     assert _reg("TRICK_ORDER_GATED_FUNCS") == _GATED_FUNCS
     assert _reg("TRICK_ORDER_GATED_WINNERS") <= F.BUILTIN_TRICK_WINNERS
     assert _reg("TRICK_ORDER_GATED_FUNCS") <= F.BUILTIN_CALL_FUNCS
-    assert _reg("TRICK_ORDER_EXCLUDED_WINNERS") == F.TRICK_WINNER_NAMES - _reg("TRICK_ORDER_GATED_WINNERS")
+    # NOT `TRICK_WINNER_NAMES - GATED` -- that restates the expression the
+    # registry is DEFINED by and cannot fail. The claim worth pinning is what
+    # the subtraction is FOR: the two sides partition the winner namespace,
+    # every excluded member is a real registered winner, and the gated one is
+    # not among them.
+    excluded = _reg("TRICK_ORDER_EXCLUDED_WINNERS")
+    assert excluded | _reg("TRICK_ORDER_GATED_WINNERS") == F.TRICK_WINNER_NAMES
+    assert not (excluded & _reg("TRICK_ORDER_GATED_WINNERS"))
+    assert excluded == {
+        "highest_of_led_suit", "highest_trump_or_led_suit",
+        "tarot_trick_winner", "belote_trick_winner",
+    }
     assert _reg("TRICK_ORDER_EXCLUDED_FUNCS") == {"highest_trump_or_led_suit"}
     assert _reg("TRICK_ORDER_EARLY_PREDICATES") == frozenset()
     assert dict(_reg("ARRIVAL_RECORD_CALLS")) == _ARRIVAL_RECORD_CALLS
@@ -1042,6 +1063,27 @@ def test_row_callable_partition_is_total() -> None:
     assert uncallable == _ROW_UNCALLABLE
     assert not (callable_ & uncallable)
     assert callable_ | uncallable | set(_READERS) == F.BUILTIN_CALL_FUNCS
+
+
+def test_every_arrival_record_call_takes_a_top_pile() -> None:
+    """`ARRIVAL_RECORD_CALLS`' comment claims every member carries a `TAny`
+    parameter at its pile index -- the Zone handle, uncoerced, so the record
+    rides along. Pinned here, because that claim had no test: a member whose
+    pile argument were declared `TCollection` would be coerced to elements at
+    the boundary and the record would be stripped before the adapter saw it.
+
+    red under (executed, reverted): declare `follows_lead`'s pile
+    `TCollection(TCard())` in CALL_SIGS -- this fails naming it."""
+    from cardlang.types import TAny
+
+    for name, idx in F.ARRIVAL_RECORD_CALLS.items():
+        assert name in F.BUILTIN_CALL_FUNCS, name
+        params = CALL_SIGS[name].params
+        assert len(params) > idx, f"{name} has no parameter at index {idx}"
+        assert isinstance(params[idx], TAny), (
+            f"{name}'s pile parameter is {params[idx]}, not the permissive top "
+            f"-- the boundary would coerce it and strip the Arrival Record"
+        )
 
 
 def test_new_builtins_are_registered_and_deck_only() -> None:

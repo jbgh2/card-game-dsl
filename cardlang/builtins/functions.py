@@ -325,14 +325,17 @@ TRICK_ORDER_ROW_UNCALLABLE: frozenset[str] = frozenset(
 )
 
 # The calls that read a pile's [[arrival-record]], name -> the index of the
-# PILE argument. One registry beneath three consumers: resolve's static
-# pile-argument guard (`_check_arrival_record_pile_args`), the identity hoist
-# that guard performs, and the proof harness's provenance derivation
+# PILE argument. One registry beneath two consumers: resolve's static
+# pile-argument guard (`_check_arrival_record_pile_args`, which decides BOTH
+# that the argument is a zone reference and that its declared type projects
+# identity to every observer), and the proof harness's provenance derivation
 # (tests/openspiel_ready/harness.py), which walks the checked AST for these
-# calls rather than reading a hand-listed zone name off each game's row.
+# calls rather than reading a hand-listed zone name off each game's row --
+# sound only because that guard makes the argument statically a name.
 # Every member is in `BUILTIN_CALL_FUNCS` with a `TAny` parameter at its index
-# (the runtime needs the Zone handle, not coerced elements) -- pinned by
-# tests/test_native_call_boundary.py.
+# (the runtime needs the Zone handle, not coerced elements); that the two sets
+# agree is pinned by
+# tests/test_trick_order.py::test_every_arrival_record_call_takes_a_top_pile.
 ARRIVAL_RECORD_CALLS: dict[str, int] = {
     "highest_by_trick_order": 0,
     "follows_lead": 1,
