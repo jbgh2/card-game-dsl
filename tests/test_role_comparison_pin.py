@@ -174,7 +174,9 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     "parse.py": ["player", "player", "rank", "rank", "suit", "suit", "team", "team"],
     "resolve.py": ["player", "player", "rank", "rank", "suit"],
     "runtime/evaluate.py": ["player", "player"],
-    "runtime/skat.py": ["suit", "suit"],
+    # `_contract`'s return tag: a Skat contract KIND ("suit"/"grand"/"null"),
+    # unrelated to the domain table's roles.
+    "runtime/skat.py": ["suit"],
     "runtime/state.py": ["rank", "rank", "suit", "suit"],
     "runtime/values.py": ["rank"] * 14 + ["suit"] * 14,
     "typecheck.py": ["player", "player", "rank", "suit", "team", "team"],
