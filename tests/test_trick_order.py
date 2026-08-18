@@ -1137,6 +1137,78 @@ def test_follows_lead_cell(lead: str, cand: str, expected: bool) -> None:
     assert w.follows_lead(is_trump, cls, arrivals) is expected
 
 
+def test_the_lazy_lead_agrees_with_the_eager_one() -> None:
+    """The legality path runs `follows_lead_lazily`, which asks each row only
+    where the answer can still change; the grid's cells above test the EAGER
+    `follows_lead` over already-projected arrivals. That is two implementations
+    of one rule, so their agreement is proven here over the same crossed domain
+    rather than assumed -- and the laziness is only sound because a row is
+    hermetic, which makes "how many rows ran" unobservable.
+
+    Also counts the row asks, so the saving is a measured fact and not a hope:
+    the eager form projects both rows for every arrival, the lazy one stops at
+    the Effective Lead.
+
+    red under (executed, reverted): drop the `if cand_is_trump(): return False`
+    arm from `winners.follows_lead_lazily` -- `plain-led-trump` and
+    `classless-then-plain-led-trump` disagree and this fails naming them."""
+    w = _api()
+    for lead in _LEADS:
+        arrivals = [_arr(w, a, c, **kw) for a, c, kw in _LEADS[lead]]
+        plays = [(a.actor, a.card) for a in arrivals]
+        by_card = {(a.card.rank, a.card.suit): a for a in arrivals}
+
+        def is_trump_of(card: Card) -> bool:
+            # `_api()` is reached by name so this module imports on a tree
+            # without the construct, which leaves `Arrival` untyped here.
+            return bool(by_card[(card.rank, card.suit)].is_trump)
+
+        def class_of(card: Card) -> str | None:
+            cls = by_card[(card.rank, card.suit)].follow_class
+            return None if cls is None else str(cls)
+
+        for cand, (cand_trump, cand_cls) in _CANDIDATES.items():
+            eager = w.follows_lead(cand_trump, cand_cls, arrivals)
+            lazy = w.follows_lead_lazily(
+                lambda: cand_trump, lambda: cand_cls, plays, is_trump_of, class_of
+            )
+            assert eager is lazy, f"{lead} x {cand}: eager={eager} lazy={lazy}"
+
+
+def test_the_lazy_lead_asks_fewer_rows_than_the_eager_one() -> None:
+    """The saving, as a number. A trump lead settles on the first arrival, so
+    a pile of any depth costs one `trump` ask and no `follow_class` ask at
+    all -- against the eager form's two per arrival.
+
+    red under (executed, reverted): make `effective_lead_facts` project every
+    play before scanning -- the counts equalize and this fails."""
+    w = _api()
+    asked: list[str] = []
+    plays = [
+        (0, _c("Q", "diamonds")),  # the trump lead: the scan stops here
+        (1, _c("A", "hearts")),
+        (2, _c("K", "hearts")),
+    ]
+
+    def is_trump_of(card: Card) -> bool:
+        asked.append("trump")
+        return card.suit == "diamonds"
+
+    def class_of(card: Card) -> str | None:
+        asked.append("class")
+        return card.suit
+
+    lead = w.effective_lead_facts(plays, is_trump_of, class_of)
+    assert lead is not None and lead.is_trump
+    assert asked == ["trump"], f"the scan asked {asked}, not one trump row"
+    # and the candidate's class is never asked under a trump lead
+    asked.clear()
+    assert w.follows_lead_lazily(
+        lambda: True, lambda: (_ for _ in ()).throw(AssertionError("class asked")),
+        plays, is_trump_of, class_of,
+    ) is True
+
+
 def test_strength_is_never_read_on_a_non_candidate() -> None:
     """Strength is a candidate's property: the Excuse (class-less) and an
     off-class card are never asked -- PR 5's Tarot leaves the Excuse unranked

@@ -101,11 +101,75 @@ def effective_lead(arrivals: list[Arrival]) -> Arrival | None:
     return None
 
 
+@dataclass(frozen=True)
+class LeadFacts:
+    """The [[effective-lead]]'s two facts, as much of them as a follow question
+    needs. `follow_class` is None for a TRUMP lead -- not "class-less", but
+    "not consulted": when the lead is a trump only trumps follow, so its class
+    is never compared and asking a row for it would be work no answer uses."""
+
+    is_trump: bool
+    follow_class: str | None
+
+
+def effective_lead_facts(
+    plays: list[tuple[Player, Card]],
+    is_trump_of: Callable[[Card], bool],
+    class_of: Callable[[Card], str | None],
+) -> LeadFacts | None:
+    """The [[effective-lead]] of `plays`, computed LAZILY: the scan stops at
+    the first arrival that is a trump or carries a class, and asks each row
+    only where the answer can still change the outcome.
+
+    The eager twin is `effective_lead` above, over already-projected
+    `Arrival`s. That one is the SPECIFICATION -- it is what the algorithm
+    means, and what the grid's value cells test; this is the implementation the
+    legality path runs, because a follow filter asks this question once per
+    candidate per decision and projecting the whole pile each time is the
+    dominant cost of the construct. The two agree cell for cell, proven by
+    execution rather than by inspection
+    (tests/test_trick_order.py::test_the_lazy_lead_agrees_with_the_eager_one).
+
+    Laziness is sound because a [[trick-order]] row is HERMETIC: a pure
+    function of the card and public state, emitting no observation and
+    touching no state. So how MANY rows are evaluated, and in what order,
+    cannot be observed -- which is exactly what the hermeticity guards buy,
+    spent here."""
+    for _actor, card in plays:
+        if is_trump_of(card):
+            return LeadFacts(True, None)
+        cls = class_of(card)
+        if cls is not None:
+            return LeadFacts(False, cls)
+    return None
+
+
+def follows_lead_lazily(
+    cand_is_trump: Callable[[], bool],
+    cand_class: Callable[[], str | None],
+    plays: list[tuple[Player, Card]],
+    is_trump_of: Callable[[Card], bool],
+    class_of: Callable[[Card], str | None],
+) -> bool:
+    """`follows_lead`, asking only the rows the answer needs. The candidate's
+    two facts arrive as THUNKS: its class is asked only when the lead is a
+    plain class AND the candidate is not itself a trump, which are the only
+    circumstances in which the comparison happens."""
+    lead = effective_lead_facts(plays, is_trump_of, class_of)
+    if lead is None:
+        return False
+    if lead.is_trump:
+        return cand_is_trump()
+    if cand_is_trump():
+        return False
+    return cand_class() == lead.follow_class
+
+
 def follows_lead(
     is_trump: bool, follow_class: str | None, arrivals: list[Arrival]
 ) -> bool:
     """Whether a card with these facts follows what has been led — the
-    winner's candidate test, exposed so a follow filter can ask it.
+    winner's candidate test, and the SPECIFICATION of the lazy form above.
 
     False when there is no [[effective-lead]]: with nothing led, nothing
     follows (issue #345's ruling — the VALUE false, not an error, so the
