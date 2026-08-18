@@ -46,10 +46,13 @@ registry:   `tests/winner_axes.py` derives both axes in code — the index
             rows from the parametrization.
 covered:    the grid below — `winner_axes.cells()` x {accepted, rejected},
             `test_winner_target_cell`, 95 rows. Each rejecting row also
-            asserts WHICH layer answers (the pre-existing state-declaration
-            guard for a non-indexable role, this module's new guard
-            otherwise), so a cell that starts being rejected by the wrong
-            wall is a failure rather than a pass. Plus three misuse probes,
+            asserts WHICH BRANCH answers, through a phrase only that branch
+            emits (`REFUSAL_PHRASES`): the pre-existing state-declaration
+            guard for a non-indexable role, and one of the new guard's three
+            branches — unindexed, optional, unrankable type — otherwise. The
+            three branches share a "`winner:`" prefix, so a phrase at layer
+            granularity would let a cell refused by the wrong branch read as
+            covered. Plus three misuse probes,
             which vary the GAME the grid holds constant rather than the
             declaration: a target naming a zone, a target declared inside a
             phase (both refused by the name guards, with
@@ -114,6 +117,19 @@ from tests.winner_axes import DEFAULTS, STRUCT_TYPE, cells
 RANKABLE_INDEXES = frozenset({"player", "team"})
 RANKABLE_TYPES = frozenset({"Integer", "Boolean"})
 
+# The phrase each answering BRANCH alone can emit, keyed by verdict. The three
+# `_check_winner_target` branches share a "`winner:`" prefix, two of them share
+# "a game is ranked by a score", and two open "declared `" — so asserting any
+# shared fragment lets a cell refused by the wrong branch read as covered,
+# which is the layer-granularity claim one level down. Each phrase below is
+# emitted by exactly one branch.
+REFUSAL_PHRASES: dict[str, str] = {
+    "reject:declaration": "not an indexable role",
+    "reject:unindexed": "which is not indexed",
+    "reject:optional": "an optional score may be `none`",
+    "reject:type": "the target must be " + ", ".join(sorted(RANKABLE_TYPES)),
+}
+
 
 def test_default_table_covers_every_declared_type() -> None:
     """A new declared type must reach the grid, not vanish from it.
@@ -155,17 +171,22 @@ def expected_verdict(index: str | None, written: str) -> str:
     Authored from the property, not from the implementation — a
     non-indexable role is refused by the state DECLARATION guard that
     already exists (`resolve`'s indexable-role check), and everything else
-    this module rejects is refused by the new `winner:` guard. Recording
-    which wall answers is what keeps a cell from starting to pass for the
-    wrong reason.
+    this module rejects is refused by one named branch of the new `winner:`
+    guard. Recording which wall answers, down to the branch, is what keeps a
+    cell from starting to pass for the wrong reason.
+
+    The order below is the guard's own precedence — index, then optional,
+    then declared type — so a cell that is unindexed AND optional AND
+    unrankable belongs to the unindexed branch by decision rather than by
+    accident.
     """
     if index is not None and index not in RANKABLE_INDEXES:
         return "reject:declaration"
     if index is None:
-        return "reject:winner"
+        return "reject:unindexed"
     if written.endswith("?"):
-        return "reject:winner"
-    return "accept" if written in RANKABLE_TYPES else "reject:winner"
+        return "reject:optional"
+    return "accept" if written in RANKABLE_TYPES else "reject:type"
 
 
 GRID = [
@@ -184,10 +205,7 @@ def test_winner_target_cell(index: str | None, written: str, default: str) -> No
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(source, "winner_target.cardlang")
     message = exc.value.diagnostic.message
-    if verdict == "reject:declaration":
-        assert "not an indexable role" in message, message
-    else:
-        assert "`winner:`" in message, message
+    assert REFUSAL_PHRASES[verdict] in message, message
 
 
 # --- misuse probes: the sentences the grid's fixed game context cannot reach --
