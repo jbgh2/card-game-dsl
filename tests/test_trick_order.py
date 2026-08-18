@@ -794,6 +794,61 @@ def _partition_cells() -> list[Cell]:
              _source(clauses=BLOCK, body="score[1] += 1",
                      tail="procedure p() {\n  let w = highest_by_trick_order(pile)\n  score[w] += 1\n}"),
              (R7,)))
+    # --- the refusal half validates WHERE WRITTEN ------------------------
+    # A gated or excluded name inside a container nothing invokes is still
+    # refused: the refusal guards walk the text, so a dead container's mistake
+    # is reported where it sits rather than waiting for someone to invoke it.
+    # Both directions of the partition, so the two halves cannot drift into
+    # disagreeing about which question they are asking.
+    def _dead_define(winner: str) -> str:
+        return (
+            "define d -> { done }\n{\n  round play_to_trick from leader "
+            f"over all players source hand into pile winner {winner}\n"
+            "  score[winner] += 1\n  produce done\n}"
+        )
+
+    add(Cell("with-block-excluded-winner-in-a-dead-define",
+             _source(clauses=BLOCK, body=LIVE, tail=_dead_define("highest_of_led_suit")),
+             (R3.format(name="highest_of_led_suit"),)))
+    add(Cell("without-block-gated-winner-in-a-dead-define",
+             _source(body="score[1] += 1", tail=_dead_define("highest_by_trick_order")),
+             (R5,)))
+
+    # --- consumption x reachability -------------------------------------
+    # R7 asks "does anything RUN that reads this block", so the answer must
+    # follow calls into function and rule bodies -- a consumer in a helper is a
+    # consumer -- while an UNREACHED container holds no consumer at all. Both
+    # directions, for each container kind, so the reachability notion is pinned
+    # rather than the one shape the corpus happens to use.
+    _CALL = "let w = highest_by_trick_order(pile)\n    score[w] += 1"
+    add(Cell("consumer-in-a-called-function",
+             _source(clauses=BLOCK,
+                     body="if helper(0) { score[1] += 1 }",
+                     tail="function helper(p : Player) = any card in hand[p] where is_trump(card)"),
+             ()))
+    add(Cell("consumer-in-an-uncalled-function",
+             _source(clauses=BLOCK, body="score[1] += 1",
+                     tail="function helper(p : Player) = any card in hand[p] where is_trump(card)"),
+             (R7,)))
+    add(Cell("consumer-in-a-called-function-through-a-second",
+             _source(clauses=BLOCK,
+                     body="if outer(0) { score[1] += 1 }",
+                     tail="function outer(p : Player) = helper(p)\n"
+                          "function helper(p : Player) = any card in hand[p] where is_trump(card)"),
+             ()))
+    _RULE = ("rule OnlyTrumps {\n"
+             "  constrains: play_to_trick\n"
+             "  applies_when: always\n"
+             "  demands: cards in hand where is_trump(card)\n"
+             "  if_impossible: hand\n}")
+    add(Cell("consumer-in-an-active-rule",
+             _source(clauses=BLOCK,
+                     body="active_rules: [OnlyTrumps]\n    score[1] += 1",
+                     tail=_RULE),
+             ()))
+    add(Cell("consumer-in-a-never-activated-rule",
+             _source(clauses=BLOCK, body="score[1] += 1", tail=_RULE),
+             (R7,)))
     # live via each consumer position
     add(Cell("with-block-live-slot", _source(clauses=BLOCK, body=_ROUND.format(winner="highest_by_trick_order", extra="")), ()))
     add(Cell("with-block-live-call", _source(clauses=BLOCK, body=LIVE), ()))

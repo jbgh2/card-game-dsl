@@ -4227,8 +4227,66 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
+# The callable containers a CONSUMPTION question must follow into, beyond the
+# three `_DEFINITION_CONTAINERS` that `_reachable_nodes` already covers: a
+# function body and a rule body both run, and both can hold the call that
+# consumes a declaration. Keyed by the namespace `_REFERENCE_SLOTS` issues for
+# each, so the sweep below finds them through the slot registry rather than by
+# matching node kinds -- a future callable added to that registry joins without
+# an edit here.
+_CALLABLE_CONTAINERS: dict[str, str] = {"function": "functions", "rule": "rules"}
+
+
+def _consumption_reachable_nodes(game: n.Game) -> list[object]:
+    """Every node the game can actually RUN -- `_reachable_nodes` (the phase
+    bodies plus the definition containers something reachable names) closed
+    over the FUNCTION and RULE bodies those reach, transitively.
+
+    The distinction this exists for: `_reachable_nodes` answers "does this
+    body run" for defines, move types and procedures, and stops there. A
+    function is not one of those, so a game whose only consumer of a
+    declaration sits in a helper called from a phase looked, to a guard built
+    on `_reachable_nodes` alone, exactly like a game with no consumer at
+    all -- and was refused. Rules have the same shape: a rule body runs when
+    a reachable phase activates it.
+
+    Used ONLY by consumption questions (is this declaration read by anything).
+    A guard that REFUSES a construct validates it where it is WRITTEN and
+    walks the whole text instead -- over-reporting into dead code, which
+    over-reports in the safe direction and can never miss."""
+    pools: dict[str, dict[str, object]] = {
+        ns: {d.name: d for d in getattr(game, field)}
+        for ns, field in _CALLABLE_CONTAINERS.items()
+    }
+    nodes: list[object] = list(_reachable_nodes(game))
+    reached: set[tuple[str, str]] = set()
+    frontier: list[object] = list(nodes)
+    while frontier:
+        node = frontier.pop()
+        for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            namespace = slot_namespace(node, field_name)
+            pool = pools.get(namespace) if namespace is not None else None
+            if pool is None:
+                continue
+            for name in slot_strings(node, field_name):
+                key = (namespace, name)
+                target = pool.get(name)
+                if target is None or key in reached:
+                    continue
+                reached.add(key)
+                body = list(_walk(target))
+                nodes.extend(body)
+                frontier.extend(body)
+    return nodes
+
+
 def _trick_order_rounds(game: n.Game) -> list[n.TrickRound]:
-    return [nd for nd in _reachable_nodes(game) if isinstance(nd, n.TrickRound)]
+    """Every trick round the game's TEXT holds. The refusal half of the
+    partition validates a round WHERE IT IS WRITTEN, so a round in a container
+    nothing invokes is refused too: over-reporting in the safe direction,
+    which can never miss. Consumption asks the other question and uses
+    `_consumption_reachable_nodes`."""
+    return [nd for nd in _walk(game) if isinstance(nd, n.TrickRound)]
 
 
 def _row_order(key: str) -> int:
@@ -4336,24 +4394,26 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 nd.span or game.span,
             )
     # R7: the block must have a consumer OUTSIDE its own rows.
-    # Consumption counts the calls the game RUNS, not the calls its text holds
-    # -- `_reachable_nodes`, exactly as `_resolve_trump`'s dead-clause guard
-    # counts rounds. A gated call sitting only inside a container nothing
-    # invokes would otherwise make a provably dead block look live, which is
-    # the accepted-but-ignored direction. The without-a-block guards above walk
-    # the whole text instead, and rightly: those validate a call WHERE IT IS
-    # WRITTEN, so a dead container's call is refused too -- over-reporting in
-    # the safe direction, which can never miss.
+    #
+    # Consumption counts what the game RUNS, not what its text holds -- and
+    # "runs" has to include function and rule bodies, or a game whose only
+    # consumer sits in a helper is told its block is read by nothing
+    # (`_consumption_reachable_nodes`, which says why). This is the ONE
+    # reachability notion the whole partition uses for that question; the
+    # refusal guards above deliberately use the other one, walking the text so
+    # a gated name in a dead container is refused where it is written.
     rows = set(game.trick_order.rows)
+    running = _consumption_reachable_nodes(game)
     outside = [
         nd
-        for nd in _reachable_nodes(game)
+        for nd in running
         if isinstance(nd, n.Call)
         and nd.func in TRICK_ORDER_GATED_FUNCS
         and not any(nd in set(_walk(r)) for r in rows)
     ]
     slot = any(
-        rnd.winner_fn in TRICK_ORDER_GATED_WINNERS for rnd in _trick_order_rounds(game)
+        isinstance(nd, n.TrickRound) and nd.winner_fn in TRICK_ORDER_GATED_WINNERS
+        for nd in running
     )
     if not slot and not outside:
         gated = ", ".join(f"`{f}`" for f in sorted(TRICK_ORDER_GATED_FUNCS))
