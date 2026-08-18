@@ -130,3 +130,47 @@ def test_no_proof_module_without_a_registered_game() -> None:
         "proof modules and the adapter registry disagree: "
         f"extra={sorted(modules - expected)}, missing={sorted(expected - modules)}"
     )
+
+
+def _games_with_a_provenance_consumer() -> list[tuple[str, str]]:
+    """Every registered game whose description actually READS an Arrival
+    Record -- derived, from both sources the proof's domain is built from: an
+    `ARRIVAL_RECORD_CALLS` call in the checked AST, or a `PRIMITIVE_READS` row
+    declaring `arrival_zones`. Derived rather than listed, because the point of
+    the pin below is precisely that this list is not written by hand."""
+    from .harness import GameSpec
+
+    return [
+        (short, filename)
+        for short, filename in REGISTERED_GAMES
+        if GameSpec(short_name=short, filename=filename).all_provenance_zones
+    ]
+
+
+def test_the_provenance_proof_is_non_vacuous_where_a_consumer_exists() -> None:
+    """A game that reads an Arrival Record must prove that read SOUND, never
+    record a vacuous cell.
+
+    The provenance proof honestly records `vacuous=True` for a game with no
+    consumer, which is most of the corpus -- so the proof as a whole can go
+    green while a game that DOES consume provenance proves nothing, if its
+    zone never entered the proof's domain. That was reachable while the
+    call-form half of the domain was a hand-listed field per spec: a game that
+    grew a consumer kept whatever list it already had.
+
+    Non-empty by construction: the helper derives its own domain, and an empty
+    domain would make this pin vacuous in turn, so the count is asserted.
+
+    red under: drop the AST source from `GameSpec.all_provenance_zones` --
+    doppelkopf's domain empties, its provenance proof records `vacuous=True`,
+    and this fails naming it (executed)."""
+    consumers = _games_with_a_provenance_consumer()
+    assert len(consumers) >= 4, (
+        f"only {len(consumers)} game(s) derive a provenance domain -- the "
+        f"derivation is broken, and this pin is vacuous"
+    )
+    for short, filename in consumers:
+        from .harness import GameSpec
+
+        zones = GameSpec(short_name=short, filename=filename).all_provenance_zones
+        assert zones, f"{short} lost its provenance domain"

@@ -177,16 +177,16 @@ the existing call form's accept cells, and the First of Equals sweep (whose
 red-under is executed in its docstring). The designed-to-flip cells ride
 strict xfail marks constrained to their designed failure
 (`raises=AssertionError` for a static cell, `DiagnosticError` for an
-end-to-end cell whose fixture cannot parse yet, `ImportError` /
-`AttributeError` for a cell over an engine API that does not exist yet); the
-implementation removes the marks (`red=False`, or the decorator) as the cells
-flip, and a leftover mark on a green cell fails loud.
+end-to-end cell whose fixture could not parse yet, `ImportError` /
+`AttributeError` for a cell over an engine API that did not exist yet). Every
+cell has flipped, so no mark remains: the grid is green unmarked, and the
+born-red counts above are its provenance, carried in the git log rather than
+in a skip.
 """
 
 from __future__ import annotations
 
 import importlib
-import os
 import random
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -204,25 +204,6 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES, identity_to_all
-
-# --- the marks the born-red cells ride ---------------------------------------
-
-_REASON = "#250 PR 1: born red -- the construct is not implemented yet"
-# `TRICK_ORDER_GRID_BARE=1` runs the grid with no xfail marks: the born-red
-# run, and the implementer's true red count while the cells flip.
-_BARE = os.environ.get("TRICK_ORDER_GRID_BARE") == "1"
-
-
-def _red(raises: Any) -> pytest.MarkDecorator:
-    if _BARE:
-        return pytest.mark.skipif(False, reason="bare run: no xfail marks")  # inert
-    return pytest.mark.xfail(strict=True, raises=raises, reason=_REASON)
-
-
-RED_STATIC = _red(AssertionError)
-RED_E2E = _red(DiagnosticError)
-RED_API = _red((ImportError, AttributeError))
-
 
 # --- the row table, authored; reconciled against the registry once it exists --
 
@@ -405,14 +386,10 @@ class Cell:
     needles: tuple[str, ...]  # empty = accept
     forbidden: tuple[str, ...] = ()
     any_of: bool = False  # `needles` are alternatives (one suffices)
-    red: bool = True  # designed to flip: rides RED_STATIC today
 
 
 def _params(cells: Iterable[Cell]) -> list[Any]:
-    return [
-        pytest.param(c, id=c.id, marks=(RED_STATIC,) if c.red else ())
-        for c in cells
-    ]
+    return [pytest.param(c, id=c.id) for c in cells]
 
 
 def _run(cell: Cell) -> None:
@@ -445,21 +422,21 @@ def _grammar_cells() -> list[Cell]:
     # crossed arm makes them fail rather than pass silently.
     add(Cell("habits-colon-and-comma",
              _source(clauses="trick_order: { trump: card.suit is hearts, card_strength: 3 }"),
-             ("syntax error",), red=False))
+             ("syntax error",)))
     add(Cell("habits-colon-and-eq",
              _source(clauses="trick_order: { trump = card.suit is hearts }"),
-             ("syntax error",), red=False))
+             ("syntax error",)))
     add(Cell("habits-comma-and-eq",
              _source(clauses="trick_order { trump: card.suit is hearts, card_strength = 3 }"),
-             ("syntax error",), red=False))
+             ("syntax error",)))
     add(Cell("habits-all-three",
              _source(clauses="trick_order: { trump = card.suit is hearts, card_strength := 3 }"),
-             ("syntax error",), red=False))
+             ("syntax error",)))
     # `trick_order` is an ordinary NAME outside the clause position (it is not
     # in NAME's exclusion): a zone may be called it, and the clause still
     # resolves. One reading, accepted.
     add(Cell("zone-named-trick_order",
-             _source(clauses=BLOCK, zones="  trick_order : Discard"), (), red=False))
+             _source(clauses=BLOCK, zones="  trick_order : Discard"), ()))
     for bad in ("strength", "class", "order", "trumps", "rank", "is_trump", "trumpx", "follow_classcard_strength"):
         add(Cell(f"bad-key-{bad}", _source(clauses=f"trick_order {{ trump: card.suit is hearts  {bad}: 3 }}"), (P4,)))
     for key, body in (("trump", "card.suit is hearts"), ("follow_class", "card.suit"), ("card_strength", "3")):
@@ -470,7 +447,7 @@ def _grammar_cells() -> list[Cell]:
     add(Cell("game-trump-int", _source(clauses="trump: 5", body="score[1] += 1"), (P7,)))
     add(Cell("game-trump-string", _source(clauses='trump: "spades"', body="score[1] += 1"), (P7,)))
     # The empty block is entry-plus: a syntax error, the card_points precedent.
-    add(Cell("empty-block", _source(clauses="trick_order { }"), ("syntax error",), red=False))
+    add(Cell("empty-block", _source(clauses="trick_order { }"), ("syntax error",)))
     # Any row order accepts; the reference order is the language's, not the text's.
     add(Cell("row-order-strength-first",
              _source(clauses=_block("card_strength: rank_value(card)  trump: card.suit is hearts")), ()))
@@ -502,9 +479,9 @@ def _grammar_cells() -> list[Cell]:
     # "unknown type 'trick_order'" / "unresolved name 'card'".
     add(Cell("struct-literal-does-not-absorb-the-block",
              _source(clauses=BLOCK, body=f"let x = {BLOCK}\n    {LIVE}"),
-             ("syntax error",), forbidden=("unresolved name 'card'", "unknown type"), red=False))
+             ("syntax error",), forbidden=("unresolved name 'card'", "unknown type")))
     # Placement: a phase body, a piece game, a library.
-    add(Cell("block-in-phase-body", _source(body=f"{BLOCK}\n    {LIVE}"), ("syntax error",), red=False))
+    add(Cell("block-in-phase-body", _source(body=f"{BLOCK}\n    {LIVE}"), ("syntax error",)))
     add(Cell("block-in-piece-game",
              "game P {\n  players: 2\n  pieces: xo_marks\n  max_length: 60\n"
              "  trick_order { trump: true }\n"
@@ -787,11 +764,11 @@ def _partition_cells() -> list[Cell]:
         add(Cell(f"without-block-call-{name}", _source(body=use), (R6,)))
     # controls: the existing vocabulary, unchanged without a block
     add(Cell("control-standard-winner-inherits-game-trump",
-             _source(clauses="trump: hearts", body=_ROUND.format(winner="highest_trump_or_led_suit", extra="")), (), red=False))
+             _source(clauses="trump: hearts", body=_ROUND.format(winner="highest_trump_or_led_suit", extra="")), ()))
     add(Cell("control-no-trump-winner",
-             _source(body=_ROUND.format(winner="highest_of_led_suit", extra="")), (), red=False))
+             _source(body=_ROUND.format(winner="highest_of_led_suit", extra="")), ()))
     add(Cell("control-standard-call",
-             _source(body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), (), red=False))
+             _source(body="let w = highest_trump_or_led_suit(pile, hearts)\n    score[w] += 1"), ()))
     return cells
 
 
@@ -868,11 +845,11 @@ def _pile_argument_cells() -> list[Cell]:
             else:
                 body = f"let w = highest_trump_or_led_suit({arg}, hearts)\n    score[w] += 1"
             src = _source(clauses=clauses, zones=zdecl, body=body)
-            # The existing call form is TIGHTENED by the resolve guard: today its
-            # computed/concealed piles check clean and die at play time. Its
-            # accept cells are green today; its reject cells are born red.
-            red = not (name == "highest_trump_or_led_suit" and needle is None)
-            cells.append(Cell(f"{name}-{label}", src, () if needle is None else (needle,), red=red))
+            # The EXISTING call form is tightened by the same guard, which is
+            # why it is an axis member and not a control: before issue #250 PR
+            # 1 its computed and concealed piles checked clean and died at play
+            # time.
+            cells.append(Cell(f"{name}-{label}", src, () if needle is None else (needle,)))
     return cells
 
 
@@ -896,7 +873,7 @@ def _play_zone_cells() -> list[Cell]:
         body = f"round play_to_trick from leader over all players source hand into z winner highest_of_led_suit\n    score[winner] += 1"
         src = _source(zones=decl, body=body)
         ok = identity_to_all(ztype)
-        cells.append(Cell(f"into-{ztype}", src, () if ok else (R15,), red=not ok))
+        cells.append(Cell(f"into-{ztype}", src, () if ok else (R15,)))
     return cells
 
 
@@ -917,7 +894,6 @@ def _reg(name: str) -> Any:
     return getattr(F, name)
 
 
-@RED_API
 def test_row_registry_matches_the_grid() -> None:
     """One row table: the registry, the node's key literal, the readers'
     signatures. red under (once green): reorder or rename a row in
@@ -934,7 +910,6 @@ def test_row_registry_matches_the_grid() -> None:
         assert CALL_SIGS[reader].params == CALL_SIGS["rank_value"].params  # (Card,)
 
 
-@RED_API
 def test_gated_registries_match_the_grid() -> None:
     assert _reg("TRICK_ORDER_GATED_WINNERS") == _GATED_WINNERS
     assert _reg("TRICK_ORDER_GATED_FUNCS") == _GATED_FUNCS
@@ -946,7 +921,6 @@ def test_gated_registries_match_the_grid() -> None:
     assert dict(_reg("ARRIVAL_RECORD_CALLS")) == _ARRIVAL_RECORD_CALLS
 
 
-@RED_API
 def test_row_callable_partition_is_total() -> None:
     """Every Builtin call is classified callable-from-a-row or not; the two
     sets partition BUILTIN_CALL_FUNCS minus the readers (whose callability is
@@ -959,7 +933,6 @@ def test_row_callable_partition_is_total() -> None:
     assert callable_ | uncallable | set(_READERS) == F.BUILTIN_CALL_FUNCS
 
 
-@RED_STATIC
 def test_new_builtins_are_registered_and_deck_only() -> None:
     """red under (once green): drop one of the five from DECK_ONLY_CALL_FUNCS."""
     assert _NEW_BUILTINS <= F.BUILTIN_CALL_FUNCS
@@ -970,7 +943,6 @@ def test_new_builtins_are_registered_and_deck_only() -> None:
         assert name in CALL_SIGS
 
 
-@RED_API
 def test_winner_slot_has_two_contracts_keyed_by_registry() -> None:
     """The gated winner is dispatched by `value_function` under the block
     contract (a marker callable over (played, ctx)); every other member of
@@ -1044,7 +1016,6 @@ _WINNER_CELLS: tuple[tuple[str, list[tuple[int, Card, dict[str, Any]]], int | st
 )
 
 
-@RED_API
 @pytest.mark.parametrize(("plays", "expected"), [(p, e) for _, p, e in _WINNER_CELLS], ids=[i for i, _, _ in _WINNER_CELLS])
 def test_winner_cell(plays: list[tuple[int, Card, dict[str, Any]]], expected: int | str) -> None:
     w = _api()
@@ -1102,7 +1073,6 @@ def _follows_cells() -> list[Any]:
     return out
 
 
-@RED_API
 @pytest.mark.parametrize(("lead", "cand", "expected"), _follows_cells())
 def test_follows_lead_cell(lead: str, cand: str, expected: bool) -> None:
     w = _api()
@@ -1111,7 +1081,6 @@ def test_follows_lead_cell(lead: str, cand: str, expected: bool) -> None:
     assert w.follows_lead(is_trump, cls, arrivals) is expected
 
 
-@RED_API
 def test_strength_is_never_read_on_a_non_candidate() -> None:
     """Strength is a candidate's property: the Excuse (class-less) and an
     off-class card are never asked -- PR 5's Tarot leaves the Excuse unranked
@@ -1231,7 +1200,6 @@ def _play(source: str, seed: int) -> Any:
 _SEEDS = range(6)
 
 
-@RED_E2E
 @pytest.mark.parametrize("deck", ["standard52", "pinochle48"])
 def test_slot_and_call_agree(deck: str) -> None:
     """One fixture written twice -- round form (the slot) and hand-rolled (the
@@ -1247,7 +1215,6 @@ def test_slot_and_call_agree(deck: str) -> None:
         assert _play(slot, seed).scores == _play(call, seed).scores, f"seed {seed}"
 
 
-@RED_E2E
 @pytest.mark.parametrize("deck", ["standard52", "pinochle48"])
 def test_block_agrees_with_the_standard_winner(deck: str) -> None:
     """The metamorphic pin: a block `trump: card.suit is X` with the default
@@ -1299,7 +1266,6 @@ game G {
 """
 
 
-@RED_E2E
 def test_readers_end_to_end() -> None:
     """The three readers answer the rows for a dealt card, recomputed here in
     Python from the same rows over the observed deal."""
@@ -1348,7 +1314,6 @@ game G {
 """
 
 
-@RED_E2E
 def test_no_candidate_is_loud_end_to_end() -> None:
     """Every card class-less and none a trump: the pile has no Effective Lead
     and no card can win -- the runtime's typed channel, naming the fix."""
@@ -1377,7 +1342,6 @@ game G {
 """
 
 
-@RED_E2E
 def test_dealt_pile_has_no_winner() -> None:
     with pytest.raises(OwnerGuardError, match=W_NO_ACTOR):
         _play(_DEALT_PILE_GAME, 0)
@@ -1405,7 +1369,6 @@ game G {
 """
 
 
-@RED_E2E
 def test_follows_lead_on_the_empty_pile_is_false() -> None:
     """`follows_lead` on a pile with nothing led is the value false (issue
     #345's ruling), so a bare `where follows_lead(...)` on the LEADER admits no
