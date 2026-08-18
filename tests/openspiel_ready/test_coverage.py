@@ -174,3 +174,35 @@ def test_the_provenance_proof_is_non_vacuous_where_a_consumer_exists() -> None:
 
         zones = GameSpec(short_name=short, filename=filename).all_provenance_zones
         assert zones, f"{short} lost its provenance domain"
+
+
+def test_the_provenance_derivation_reads_the_call_registry() -> None:
+    """`ARRIVAL_RECORD_CALLS` has two consumers, and only one of them could
+    fail on a bad key. Resolve's guard reddens loudly under a renamed member
+    (the construct's grid); the HARNESS consumer did not -- its derivation is
+    a set union, so a key nobody matches contributes nothing and every
+    provenance proof stays green while deriving less. A registry with a
+    consumer that cannot fail is a registry that has stopped being one.
+
+    Pinned by the derivation's OWN answer: doppelkopf reads its trick pile
+    through an `ARRIVAL_RECORD_CALLS` call and through no Primitive row (its
+    module retired), so that zone is in the domain if and only if the AST half
+    read the registry correctly.
+
+    red under (executed, reverted): rename `highest_by_trick_order` in
+    `ARRIVAL_RECORD_CALLS` -- doppelkopf's domain empties and this fails,
+    where before the rename only the construct's own grid noticed."""
+    from cardlang.builtins.functions import ARRIVAL_RECORD_CALLS
+    from cardlang.runtime.reads import PRIMITIVE_READS
+
+    from .harness import GameSpec
+
+    spec = GameSpec(short_name="cardlang_doppelkopf", filename="doppelkopf.cardlang")
+    assert not [
+        r for r in PRIMITIVE_READS if r.game_file == spec.filename and r.arrival_zones
+    ], "doppelkopf grew a Primitive arrival row -- this pin no longer isolates the AST half"
+    assert "highest_by_trick_order" in ARRIVAL_RECORD_CALLS
+    assert spec.all_provenance_zones == ("trick_pile",), (
+        f"the AST half derived {spec.all_provenance_zones} -- the call registry "
+        f"is not reaching the harness's derivation"
+    )
