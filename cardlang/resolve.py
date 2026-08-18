@@ -132,7 +132,7 @@ from cardlang.stdlib.zones import (
     ZONE_PROJECTIONS,
     identity_to_all,
 )
-from cardlang.typecheck import KNOWN_TYPE_NAMES, RANKING_GATED_CLIMB_QUERIES
+from cardlang.typecheck import KNOWN_TYPE_NAMES
 from cardlang.types import Flavor, TPlayer
 
 # The board-only calls that read a grid's PER-PLAYER frame -- one seat's forward
