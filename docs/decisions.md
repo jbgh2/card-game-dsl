@@ -2721,9 +2721,21 @@ loser:  the player where hand[player] is not empty   // Getaway — select direc
 ```
 
 The two forms reflect two shapes of game. A *scored* game accumulates a
-numeric variable and the result is whoever ranks first by it, so
+score each member holds and the result is whoever ranks first by it, so
 `winner: <lowest|highest> <score-var>` names the rank direction and the
-variable. An *elimination* game has no score: players drop out until one
+variable. The variable it names is a game-level `state` declaration
+indexed by player or by team (`cumulative_score[player]`) and declared
+`Integer` or `Boolean` — a per-member value is what there is to rank, and
+those values are what the game hands OpenSpiel as its returns. A
+`Boolean` target ranks `true` above `false`, so a game decided by a flag
+ranks on it directly (`winner: highest alive`). A target that is scalar,
+optional, or of any other declared type is refused at check time with a
+diagnostic naming the declaration: an unindexed one has no per-member
+value, an optional one may hold `none`, and the rest either cannot be
+compared or compare fine and mean nothing (a `Player`-typed target would
+deliver seat ids as utilities). See [Winner](glossary/winner.md).
+
+An *elimination* game has no score: players drop out until one
 remains, and that survivor is named directly, so `loser: <selection>`
 takes a player-valued expression (typically the singular player-selection
 `the player where <pred>`) evaluated at game end.
