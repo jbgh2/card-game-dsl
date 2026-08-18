@@ -169,7 +169,7 @@ def follows_lead_over_pile(card: Any, value: Any, ctx: Ctx) -> bool:
 
     The LEGALITY path, and the hot one: a follow filter asks this once per
     candidate per decision, so it runs orders of magnitude more often than the
-    winner below. It therefore projects LAZILY -- the pile scan stops at the
+    winner below. It therefore projects LAZILY — the pile scan stops at the
     [[effective-lead]] and each row is asked only where the answer can still
     change (`winners.follows_lead_lazily`). Projecting the whole pile per ask,
     as the winner path does, was measured as the dominant cost of the whole

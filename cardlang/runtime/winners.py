@@ -104,7 +104,7 @@ def effective_lead(arrivals: list[Arrival]) -> Arrival | None:
 @dataclass(frozen=True)
 class LeadFacts:
     """The [[effective-lead]]'s two facts, as much of them as a follow question
-    needs. `follow_class` is None for a TRUMP lead -- not "class-less", but
+    needs. `follow_class` is None for a TRUMP lead — not "class-less", but
     "not consulted": when the lead is a trump only trumps follow, so its class
     is never compared and asking a row for it would be work no answer uses."""
 
@@ -122,7 +122,7 @@ def effective_lead_facts(
     only where the answer can still change the outcome.
 
     The eager twin is `effective_lead` above, over already-projected
-    `Arrival`s. That one is the SPECIFICATION -- it is what the algorithm
+    `Arrival`s. That one is the SPECIFICATION — it is what the algorithm
     means, and what the grid's value cells test; this is the implementation the
     legality path runs, because a follow filter asks this question once per
     candidate per decision and projecting the whole pile each time is the
@@ -133,7 +133,7 @@ def effective_lead_facts(
     Laziness is sound because a [[trick-order]] row is HERMETIC: a pure
     function of the card and public state, emitting no observation and
     touching no state. So how MANY rows are evaluated, and in what order,
-    cannot be observed -- which is exactly what the hermeticity guards buy,
+    cannot be observed — which is exactly what the hermeticity guards buy,
     spent here."""
     for _actor, card in plays:
         if is_trump_of(card):

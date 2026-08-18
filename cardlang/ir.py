@@ -71,7 +71,7 @@ def emit(game: n.Game) -> IRDict:
             if game.card_points is not None
             else {}
         ),
-        # Keyed ONLY when the game declares a `trick_order { }` block -- the
+        # Keyed ONLY when the game declares a `trick_order { }` block — the
         # `card_points` precedent above, so block-less games' IR goldens stay
         # byte-stable.
         **(

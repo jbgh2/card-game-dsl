@@ -140,7 +140,7 @@ interface cannot express one.
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
   its own design step (issue #142).
-  The game-local trick winners (`schnapsen_`, `doko_`, `skat_`,
+  The game-local trick winners (`skat_trick_winner`,
   `five_hundred_trick_winner`) compute a real value AND emit the engine's
   own `play`/`trick`/`trick_end` events from a game-local site; they now
   return `(value, events)` and the dispatch layer performs the emission,

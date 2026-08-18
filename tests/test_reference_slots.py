@@ -238,7 +238,7 @@ def test_the_string_valued_class_is_swept_not_patched() -> None:
     The instance was `Game.content_flavor`, found by planting the negation of
     this module's own totality claim. The fix was the predicate, not a row: a
     row would have left the next `Literal`-typed field escaping in the same
-    way -- and `TrickOrderRow.key` is that next field, which the widened
+    way — and `TrickOrderRow.key` is that next field, which the widened
     predicate caught on arrival rather than a year later.
 
     red under: drop the `Literal` arm from `_holds_a_string` — RUN, and it

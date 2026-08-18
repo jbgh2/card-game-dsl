@@ -394,22 +394,22 @@ trick_order {
 The block is a **define form**: it does not select among behaviours, it
 *defines* the three facts, as ordinary expressions over the implicit `card`
 binder (the card-query and filter convention). From the declaration the
-language mints one reader per row -- `is_trump(card)`, `follow_class(card)`,
-`card_strength(card)` -- the `card_points { }` / `card_points(card)`
+language mints one reader per row — `is_trump(card)`, `follow_class(card)`,
+`card_strength(card)` — the `card_points { }` / `card_points(card)`
 precedent. A game states its order once, and every consumer reads that
 statement rather than a second copy of it.
 
 **The rows.** `trump:` is required and types Boolean; a game whose Trick Order
 has no trumps writes `trump: false`, so the absence is stated rather than
-inferred. `follow_class:` types `Suit?`, where `none` means class-less -- a
-card that neither sets the lead nor wins -- and defaults to the card's printed
+inferred. `follow_class:` types `Suit?`, where `none` means class-less — a
+card that neither sets the lead nor wins — and defaults to the card's printed
 suit. `card_strength:` types Integer, higher beating lower, and defaults to
 `rank_value(card)`, which reads `ranking:`; a game taking that default without
 declaring a `ranking:` is refused. Both defaults are applied once, when the
 game loads.
 
 Rows may be written in any order. The order they are READ in is the
-language's -- `trump:`, then `follow_class:`, then `card_strength:` -- and a
+language's — `trump:`, then `follow_class:`, then `card_strength:` — and a
 row may call the readers of the rows before it only. So a strength row may ask
 `is_trump(card)`, and a trump row may not ask `card_strength(card)`; the
 reference order is a property of the language, never of how a designer
@@ -428,7 +428,7 @@ information-set-safe: nothing it computes can depend on what any one player
 knows.
 
 **Two Builtins over the declaration.** `highest_by_trick_order` is the winner.
-It is the same name in both of a winner's positions -- named bare in a trick
+It is the same name in both of a winner's positions — named bare in a trick
 round's `winner` slot, or called over a public pile's Arrival Record for a
 hand-rolled trick. `follows_lead(card, pile)` is the winner's own candidate
 test, made callable so a follow filter can ask it; legality and winning then
@@ -457,14 +457,14 @@ the language ships rather than left to fall out of an implementation.
 incomplete trick answers the winner SO FAR. That is designed surface, not an
 edge case: nothing in the algorithm reads how many plays a trick should hold.
 `follows_lead(card, pile)` on a pile with nothing led is the value `false` --
-not an error -- so a leader's filter is written `if any card in hand[p] where
+not an error — so a leader's filter is written `if any card in hand[p] where
 follows_lead(card, pile) then follows_lead(c, pile) else true`, which is also
 the shape that gives "void in the led class, anything goes".
 
 **The presence partition.** A game either declares a Trick Order and uses its
 vocabulary, or declares none and uses the round-configured one. With a block,
 the game-level `trump:` clause, a round's `trump` clause, every other trick
-winner and `highest_trump_or_led_suit(...)` are all refused -- each describes a
+winner and `highest_trump_or_led_suit(...)` are all refused — each describes a
 different order from the one the block declares, and admitting both would
 leave the engine quietly running one of them. Without a block, every gated
 name is refused, because it would read a table the game never declared. A
@@ -621,7 +621,7 @@ directions by `tests/test_ranking_conventions.py`; suit-contextual orders
 game whose strength depends on the trick's context declares a
 `trick_order { }` with a `card_strength:` row instead ("Trick Order"), and
 `ranking:` stays the deck's one context-free order. What the block does not
-answer -- a card whose IDENTITY changes with context, Tichu's Phoenix -- stays
+answer — a card whose IDENTITY changes with context, Tichu's Phoenix — stays
 open ([open-questions/special-cards-declaration.md](open-questions/special-cards-declaration.md)).
 
 ## Declared parameter domains

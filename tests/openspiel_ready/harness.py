@@ -828,7 +828,7 @@ class ReadinessProofs:
         while isinstance(r, DecisionNode) and nodes < 40:
             # A declared zone may be a FAMILY (`highest_by_trick_order(piles[p])`
             # is designed surface), and the AST derivation can only see the
-            # family's name -- which instance a call reads is a runtime value.
+            # family's name — which instance a call reads is a runtime value.
             # So expand here, where the live instances exist, and compare per
             # instance. Comparing the family as one label would derive [] and
             # certify nothing.

@@ -152,7 +152,7 @@ card_points_value: INT       -> cp_value
                  | "-" INT   -> cp_neg_value
 
 // The game's [[trick-order]] (decisions.md "Trick Order"): the three per-card
-// facts a trick's resolution and follow legality derive from -- is the card a
+// facts a trick's resolution and follow legality derive from — is the card a
 // trump, what class does it follow as, how strong is it within its class --
 // each an expression over the implicit `card` binder (the card-query and
 // filter convention). The language mints the readers `is_trump(card)`,
@@ -162,7 +162,7 @@ card_points_value: INT       -> cp_value
 // called over a public pile's [[arrival-record]]) and `follows_lead(card,
 // pile)`. Entry-plus (the empty block is a syntax error, the
 // `card_points_table` rule). The row key is its own terminal, validated by the
-// builder against `TRICK_ORDER_ROWS` -- ONE source for the row set, and a
+// builder against `TRICK_ORDER_ROWS` — ONE source for the row set, and a
 // wrong key gets a rejection naming the rows rather than a bare syntax error.
 // Each row at most once, in any order; the reference order BETWEEN rows is the
 // language's (trump, follow_class, card_strength), never the textual one. Rows
@@ -170,17 +170,19 @@ card_points_value: INT       -> cp_value
 // reject-with-replacement twins (the `card_points_table` mechanism): the colon
 // habit, comma-separated rows, and the assignment habit `trump = ...` /
 // `trump := ...` anywhere in the block, including one wrong row among colon
-// rows.
+// rows. The comma arm's tail is `row*`, not `row+`, so a TRAILING comma
+// (`{ trump: X, }` -- the likeliest single slip, and the one a list habit
+// produces) reaches the same designer-voice rejection instead of the lexer's.
 trick_order: _TRICK_ORDER_KW "{" trick_order_row+ "}"
            | _TRICK_ORDER_KW ":" "{" trick_order_row* "}"                             -> trick_order_colon_reject
-           | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row+)+ "}"         -> trick_order_comma_reject
+           | _TRICK_ORDER_KW "{" trick_order_row+ ("," trick_order_row*)+ "}"         -> trick_order_comma_reject
            | _TRICK_ORDER_KW "{" trick_order_row* trick_order_eq_row (trick_order_row | trick_order_eq_row)* "}" -> trick_order_eq_reject
 trick_order_row: TRICK_ORDER_KEY ":" expr
 trick_order_eq_row: TRICK_ORDER_KEY TRICK_ORDER_EQ expr
 TRICK_ORDER_EQ: ":=" | "="
 
 // The game-level trump clause: the suit that beats all others in a trick,
-// named bare (`trump: spades`) -- a suit of the declared deck (resolve,
+// named bare (`trump: spades`) — a suit of the declared deck (resolve,
 // `_resolve_trump`), read by a trick round whose winner reads a trump and
 // writes no `trump` clause of its own. Refused beside a `trick_order` block
 // (the block's `trump:` row is then the trump). A number or a quoted string
@@ -755,9 +757,12 @@ CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|di
 // absorbs one.
 CARD_POINTS_KEY: /(?!(?:else|always|all|one|some|jointly|not|is|number)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
-// The Trick Order row-key terminal: NAME's own base reserved-word exclusions,
-// for parity with CARD_POINTS_KEY. The clause-keyword exclusions CARD_RANK_NAME
-// carries are deliberately absent -- the block is brace-bounded, so a following
+// The Trick Order row-key terminal: NAME's own base reserved-word exclusions
+// and nothing else. CARD_POINTS_KEY carries one more -- `else`, because the
+// card-point table has an `else:` row that would otherwise derive as a rank
+// key too; this block has no such row, so it needs no such exclusion. The
+// clause-keyword exclusions CARD_RANK_NAME
+// carries are deliberately absent — the block is brace-bounded, so a following
 // clause can never be absorbed into it. Which keys are LEGAL is not this
 // terminal's question: it matches any identifier and the builder validates
 // against `TRICK_ORDER_ROWS`, so the row set is stated once, in the registry,

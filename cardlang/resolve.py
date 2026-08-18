@@ -498,7 +498,7 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Winner, "rank_dir"),
         (n.Game, "ranking_convention"),
         # Annotated `TrickOrderRowKey` (a `Literal`), like `content_flavor`
-        # below: a KEYWORD, not a reference -- the row key names a row of the
+        # below: a KEYWORD, not a reference — the row key names a row of the
         # language's `TRICK_ORDER_ROWS`, a fixed set the parse builder
         # validates against, never a designer-authored name in any namespace.
         (n.TrickOrderRow, "key"),
@@ -4051,7 +4051,7 @@ def _reject_card_content_clauses(game: n.Game, bag: DiagnosticBag) -> None:
         )
     if game.trick_order is not None:
         bag.error(
-            f"{kind} -- `trick_order` orders a deck's cards for trick play, "
+            f"{kind} — `trick_order` orders a deck's cards for trick play, "
             f"which a piece set has no notion of; drop the block",
             game.trick_order.span or game.span,
         )
@@ -4232,13 +4232,13 @@ def _resolve_card_points(game: n.Game, bag: DiagnosticBag) -> None:
 # function body and a rule body both run, and both can hold the call that
 # consumes a declaration. Keyed by the namespace `_REFERENCE_SLOTS` issues for
 # each, so the sweep below finds them through the slot registry rather than by
-# matching node kinds -- a future callable added to that registry joins without
+# matching node kinds — a future callable added to that registry joins without
 # an edit here.
 _CALLABLE_CONTAINERS: dict[str, str] = {"function": "functions", "rule": "rules"}
 
 
 def _consumption_reachable_nodes(game: n.Game) -> list[object]:
-    """Every node the game can actually RUN -- `_reachable_nodes` (the phase
+    """Every node the game can actually RUN — `_reachable_nodes` (the phase
     bodies plus the definition containers something reachable names) closed
     over the FUNCTION and RULE bodies those reach, transitively.
 
@@ -4247,12 +4247,12 @@ def _consumption_reachable_nodes(game: n.Game) -> list[object]:
     function is not one of those, so a game whose only consumer of a
     declaration sits in a helper called from a phase looked, to a guard built
     on `_reachable_nodes` alone, exactly like a game with no consumer at
-    all -- and was refused. Rules have the same shape: a rule body runs when
+    all — and was refused. Rules have the same shape: a rule body runs when
     a reachable phase activates it.
 
     Used ONLY by consumption questions (is this declaration read by anything).
     A guard that REFUSES a construct validates it where it is WRITTEN and
-    walks the whole text instead -- over-reporting into dead code, which
+    walks the whole text instead — over-reporting into dead code, which
     over-reports in the safe direction and can never miss."""
     pools: dict[str, dict[str, object]] = {
         ns: {d.name: d for d in getattr(game, field)}
@@ -4383,7 +4383,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
                 rnd.span,
             )
     # A climbing round's combination queries carry their OWN strength order
-    # (`RANKING_GATED_CLIMB_QUERIES` -- president's read `rank_index`), so a
+    # (`RANKING_GATED_CLIMB_QUERIES` — president's read `rank_index`), so a
     # game declaring a Trick Order beside one has two orders and the engine
     # quietly runs both: the block for the trick vocabulary, the query's table
     # for the climb. Refused for the same reason an excluded winner is.
@@ -4415,7 +4415,7 @@ def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
             )
     # R7: the block must have a consumer OUTSIDE its own rows.
     #
-    # Consumption counts what the game RUNS, not what its text holds -- and
+    # Consumption counts what the game RUNS, not what its text holds — and
     # "runs" has to include function and rule bodies, or a game whose only
     # consumer sits in a helper is told its block is read by nothing
     # (`_consumption_reachable_nodes`, which says why). This is the ONE
@@ -4484,7 +4484,7 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
     fn_names = {f.name for f in game.functions}
     fns = {f.name: f for f in game.functions}
     # The zone references that carry a subscript (`won[0]`). A family read is
-    # BARE -- the acting player's instance, which a row does not have -- only
+    # BARE — the acting player's instance, which a row does not have — only
     # when it is not one of these; identity, because two reads of the same zone
     # are distinct nodes and only one of them may be subscripted.
     subscripted = {
@@ -4574,7 +4574,7 @@ def _check_row_zone_read(
         )
     elif decl.index is not None and not is_subscripted:
         # A bare per-player family read sugars to the ACTING player's instance
-        # -- and a row has no acting player, by construction (the runtime
+        # — and a row has no acting player, by construction (the runtime
         # clears it, `evaluate.row_context`). Named here rather than left to
         # that Shadow Guard so the fix is a subscript the author can write.
         # A player-typed state variable of THIS game, so the suggested
@@ -6354,7 +6354,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 else:
                     # A trick's plays ARE the provenance every winner reads, so
                     # the zone they land in must project identity to every
-                    # observer -- otherwise the winner is computed from facts no
+                    # observer — otherwise the winner is computed from facts no
                     # player's own stream could derive. Every trick round, not
                     # only a Trick Order one: the rule is the [[arrival-record]]
                     # rule (issue #256), and this is where the play zone is
@@ -6383,7 +6383,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     )
                 elif nd.winner_fn in TRICK_ORDER_GATED_WINNERS:
                     # A Trick Order winner takes no `trump` argument at all --
-                    # its trumps are the block's row -- so this arm's question
+                    # its trumps are the block's row — so this arm's question
                     # (a clause the winner would ignore) is not the one to ask.
                     # `_check_trick_order_partition` owns both cells: R2 with a
                     # block, R5 without one, and each names the block.

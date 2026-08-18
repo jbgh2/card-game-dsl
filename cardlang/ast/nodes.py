@@ -1345,7 +1345,7 @@ class Game:
     # The `trick_order { }` clause, or None for a game declaring no Trick
     # Order. The ONE source of the game's per-card trick facts: the driver
     # loads `rs.trick_order` from it, and resolve's presence partition refuses
-    # every reader of a block in a game without one -- and every winner and
+    # every reader of a block in a game without one — and every winner and
     # call the block replaces in a game with one.
     trick_order: TrickOrder | None = None
     trump: str | None = None

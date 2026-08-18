@@ -441,7 +441,7 @@ game Skeleton {{
 def _wrap_trick_order(frag: str) -> str:
     # `frag` is a `trick_order { }` game clause. The skeleton supplies what the
     # block's own guards demand of its host: a `ranking:` (the defaulted
-    # strength row reads it) and a CONSUMER outside the block -- a Trick Order
+    # strength row reads it) and a CONSUMER outside the block — a Trick Order
     # nothing reads is refused, so a wrapper without one would report the
     # doc's block as bad for a reason the doc has nothing to do with.
     return f"""

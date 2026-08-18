@@ -565,7 +565,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # Both are the same shape: the builder validating a grammar-admitted
     # identifier against the registry that owns the row set, so the registry
     # stays the ONE place the set is stated and a wrong key gets a rejection
-    # naming the rows. Nothing to widen against here -- the registry is the
+    # naming the rows. Nothing to widen against here — the registry is the
     # collection, and its own grid owns the witness
     # (tests/test_trick_order.py, the `bad-key-*` cells).
     "parse.py": [

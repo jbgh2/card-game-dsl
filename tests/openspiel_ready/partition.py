@@ -296,11 +296,11 @@ def derive_arrivals(
     never stored-then-stripped, so the engine's Arrival Record for a
     consumed zone must equal what every observer's log entails.
 
-    `zone_label` names ONE zone instance -- `trick_pile`, or `captured[2]`,
+    `zone_label` names ONE zone instance — `trick_pile`, or `captured[2]`,
     never the bare family `captured`. A family name would match no `move`
     event's destination and this would return [] in silence, which the
     provenance proof would read as "the observer derived nothing, and the
-    engine's record was also empty" -- a vacuously-passing cell where the
+    engine's record was also empty" — a vacuously-passing cell where the
     whole point is to compare two non-empty sequences. So the family case is
     refused loudly here, at the boundary that would otherwise absorb it, and
     the proof expands families into instances before calling

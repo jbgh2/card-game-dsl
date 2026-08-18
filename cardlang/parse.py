@@ -424,7 +424,7 @@ class _Builder(Transformer[Token, n.Game]):
         seen: set[str] = set()
         for row in rows:
             if row.key in seen:
-                # A repeat would silently replace the first -- the
+                # A repeat would silently replace the first — the
                 # accepted-but-ignored class, refused at its own row's span.
                 raise DiagnosticError(
                     Diagnostic(

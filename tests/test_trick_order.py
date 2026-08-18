@@ -129,8 +129,7 @@ residual:   (1) `trump: card.rank is J` written at GAME level (the row
             not this change's). (6) `choose` inside a designer function used
             as a `where` filter, and inside a filter directly, is accepted
             today outside any Trick Order (a decision site inside a
-            legality computation) -- pre-existing, its own class; to file
-            (the planning report lists it). (7) The Tarot Pagat correction
+            legality computation) -- pre-existing, its own class; `issue #370`. (7) The Tarot Pagat correction
             (#357), named alternate rankings (#360), the two R2s the design
             phase found (#358 the `winner` pronoun mid-trick, #359
             `active_rules` in a hand-rolled phase), and a Primitive winner's
@@ -161,11 +160,19 @@ residual:   (1) `trump: card.rank is J` written at GAME level (the row
             announces, where a named terminal overlapping anonymous literals is
             precisely what breaks. R4, this ledger owns the record: a recorded
             trap, not work -- the reject arm is the point of the terminal, and
-            the tightening re-decides it with the rest of the grammar. (8) Row-evaluation cost on the legality
-            path: measured 1.5x per Doppelkopf playout by the Architect's
-            prototype (issue #250, Architect counsel PR 1, Q2); no memo is
-            built (the epoch-counter memo the repo reverted); re-measured
-            by PRs 2 and 3.
+            the tightening re-decides it with the rest of the grammar.
+            (8) Row-evaluation cost on the legality path: MEASURED, see
+            `cost:` below; no memo is built (the epoch-counter memo the repo
+            reverted); re-measured by PRs 2 and 3. (12) Three cells assert
+            only "syntax error" (`empty-block`,
+            `struct-literal-does-not-absorb-the-block`,
+            `block-in-phase-body`), which a tree WITHOUT the construct also
+            produces -- so none can tell "refused by design" from "not
+            implemented", and each passed at base for that reason. Kept,
+            because the sentence must stay refused, and recorded here rather
+            than counted as coverage: what discriminates is the ACCEPT cells
+            beside them, which base cannot pass. R4, this ledger owns the
+            record.
 ruled:      every cut-level point this grid's cells rest on is ruled (issue
             #250, the operator's PR-1 ruling 5321676867), and each was ruled
             as the cells were authored, so no cell flipped: the `trump:` row
@@ -182,16 +189,25 @@ ruled:      every cut-level point this grid's cells rest on is ruled (issue
             `TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`;
             the call form emits no `trick` trace.
 cost:       the legality path evaluates a row per candidate per decision.
-            MEASURED on this branch, 20 games x 3 samples, median: 61.7
-            ms/game before the migration, 113.9 ms/game after -- 1.85x, above
-            the 1.5x the Architect's prototype predicted (62 -> 92) and
-            accepted on the same terms. The gap is Doppelkopf's banded
-            `card_strength:` row, which the prototype did not carry: the
-            follow filter asks `follows_lead` per candidate and each ask
-            projects the whole pile. No memo is built -- none is sound
-            without an epoch counter, and this repo built and reverted that
-            one already; the measurement is the record, and PRs 2 and 3
-            re-measure with heavier rows.
+            MEASURED per Doppelkopf playout, base and head INTERLEAVED (three
+            alternating reps of 20 games each on one machine, front end
+            outside the clock, median): base 61.4 ms/game, head 94.7 --
+            **1.54x**, against the 1.5x the Architect's prototype measured
+            (62 -> 92) and the operator accepted.
+            The dominant cost is the number of ROW EVALUATIONS on the follow
+            filter, not the weight of any one row: `follow_ok` asks
+            `follows_lead` once per candidate per decision, and each ask
+            walks the pile. Counted over three games: 34,899 row evaluations,
+            of which 33,307 are the follows path. `card_strength` runs 440
+            times and NEVER on that path -- strength is a winner-path fact,
+            which is why the banded row a designer writes does not drive the
+            cost. An earlier reading of this ledger said it did; it was wrong,
+            and the number it explained (1.85x) was the cost of projecting
+            each arrival through BOTH rows on every ask, before the lazy
+            Effective Lead landed.
+            No memo is built -- none is sound without an epoch counter, and
+            this repo built and reverted that one already; the measurement is
+            the record, and PRs 2 and 3 re-measure with heavier rows.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line
@@ -450,6 +466,22 @@ def _grammar_cells() -> list[Cell]:
     add(Cell("eq-row-all", _source(clauses="trick_order { trump = card.suit is hearts }"), (P3_EQ,)))
     add(Cell("eq-row-mixed", _source(clauses="trick_order { trump: card.suit is hearts  card_strength = 3 }"), ("not `card_strength = <expr>`",)))
     add(Cell("assign-row", _source(clauses="trick_order { trump := card.suit is hearts }"), (P3_ASSIGN,)))
+    # Separator slips, one cell each. The TRAILING comma is the likeliest --
+    # a list habit produces it, and it used to miss the comma arm because the
+    # arm's tail demanded a row AFTER the comma -- so it earns the designer's
+    # voice; the other three are rarer and stay in the lexer's, recorded in
+    # residual (9)'s family rather than assumed.
+    add(Cell("separator-trailing-comma",
+             _source(clauses="trick_order { trump: card.suit is hearts, }"), (P2,)))
+    add(Cell("separator-leading-comma",
+             _source(clauses="trick_order { , trump: card.suit is hearts }"),
+             ("syntax error",)))
+    add(Cell("separator-semicolon",
+             _source(clauses="trick_order { trump: card.suit is hearts; card_strength: 3 }"),
+             ("syntax error",)))
+    add(Cell("row-with-an-empty-body",
+             _source(clauses="trick_order { trump: card.suit is hearts  card_strength: }"),
+             ("syntax error",)))
     # The three habits CROSSED. Each alone has a named reject arm above; the
     # four combinations match no arm and die as a bare syntax error -- loud,
     # but in the lexer's voice rather than the block's (residual (9)). Pinned
@@ -482,6 +514,12 @@ def _grammar_cells() -> list[Cell]:
     add(Cell("game-trump-int", _source(clauses="trump: 5", body="score[1] += 1"), (P7,)))
     add(Cell("game-trump-string", _source(clauses='trump: "spades"', body="score[1] += 1"), (P7,)))
     # The empty block is entry-plus: a syntax error, the card_points precedent.
+    # This and the two placement cells below assert only "syntax error", which
+    # is what a tree WITHOUT the construct also produces -- so each passed at
+    # base for the wrong reason, and none can distinguish "refused by design"
+    # from "not implemented". They are kept (the sentence must stay refused)
+    # and recorded in residual (12); their discriminating power comes from the
+    # accept cells beside them, which base cannot pass.
     add(Cell("empty-block", _source(clauses="trick_order { }"), ("syntax error",)))
     # Any row order accepts; the reference order is the language's, not the text's.
     add(Cell("row-order-strength-first",
@@ -1297,19 +1335,23 @@ def test_the_lazy_lead_agrees_with_the_eager_one() -> None:
         plays = [(a.actor, a.card) for a in arrivals]
         by_card = {(a.card.rank, a.card.suit): a for a in arrivals}
 
-        def is_trump_of(card: Card) -> bool:
+        # Each closure binds the loop's value as a DEFAULT, not by capture:
+        # a late-binding closure here would silently compare the last
+        # candidate against every lead and the pin would prove one cell.
+        def is_trump_of(card: Card, table: Any = by_card) -> bool:
             # `_api()` is reached by name so this module imports on a tree
             # without the construct, which leaves `Arrival` untyped here.
-            return bool(by_card[(card.rank, card.suit)].is_trump)
+            return bool(table[(card.rank, card.suit)].is_trump)
 
-        def class_of(card: Card) -> str | None:
-            cls = by_card[(card.rank, card.suit)].follow_class
+        def class_of(card: Card, table: Any = by_card) -> str | None:
+            cls = table[(card.rank, card.suit)].follow_class
             return None if cls is None else str(cls)
 
         for cand, (cand_trump, cand_cls) in _CANDIDATES.items():
             eager = w.follows_lead(cand_trump, cand_cls, arrivals)
             lazy = w.follows_lead_lazily(
-                lambda: cand_trump, lambda: cand_cls, plays, is_trump_of, class_of
+                lambda t=cand_trump: t, lambda c=cand_cls: c,
+                plays, is_trump_of, class_of,
             )
             assert eager is lazy, f"{lead} x {cand}: eager={eager} lazy={lazy}"
 

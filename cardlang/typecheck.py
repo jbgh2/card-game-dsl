@@ -2161,7 +2161,7 @@ def _check_trick_order(game: n.Game, env: TypeEnv, bag: DiagnosticBag) -> None:
             )
     if game.trick_order.row("card_strength") is None and not env.has_ranking:
         # The omitted row defaults to `rank_value(card)` (the driver's table),
-        # which reads `ranking:` -- so the default silently demands a clause
+        # which reads `ranking:` — so the default silently demands a clause
         # the game may not declare. Named at the BLOCK, not through the
         # RANKING_GATED sentence: the reader here is a default nobody wrote.
         bag.error(

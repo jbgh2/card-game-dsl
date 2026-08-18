@@ -95,7 +95,7 @@ CALL_SIGS: dict[str, Sig] = {
     "highest_trump_or_led_suit": Sig((TAny(), TOptional(TEnum("Suit"))), TPlayer()),
     # The Trick Order's five (decisions.md "Trick Order"; issue #250). The
     # three READERS the language mints from the block's rows: each takes the
-    # card and returns exactly what its row must type -- these return types
+    # card and returns exactly what its row must type — these return types
     # ARE the required row types, read back by typecheck's `_check_trick_order`
     # so the demand is stated once. `follow_class` is `Suit?` because `none`
     # means class-less (a card that neither sets the lead nor wins).

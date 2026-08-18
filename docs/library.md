@@ -833,7 +833,7 @@ mid-playout.
   `ranking:`. The same winner concept the trick form's `winner` clause names
   bare, made callable for a hand-rolled trick (Schnapsen). The pile argument
   must be a static reference to a zone whose type projects identity to every
-  observer -- checked at resolve, because a concealed pile's provenance is no
+  observer — checked at resolve, because a concealed pile's provenance is no
   observer's to compute a winner from. Loud runtime errors on an empty pile,
   or on a pile holding any card no seat played (an engine deal).
 - `is_trump(card) → Boolean` / `follow_class(card) → Suit?` /

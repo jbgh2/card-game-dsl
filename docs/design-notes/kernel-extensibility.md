@@ -97,8 +97,7 @@ Absorbed as values, no open question: Stud's `priority` betting order
 Stud's shrinking ring (participant-filter values); Stud's betting
 accumulator ("ordinary phase state written by the move-type effects,"
 no construct); Tichu-vs-Big-Two shed-out termination (a value on the
-termination axis); contextual-suit jacks (a `same_suit_class`
-predicate); bid outcome variants like `contract_finalized | all_pass`
+termination axis); bid outcome variants like `contract_finalized | all_pass`
 (a named outcome function). None needed sign-off; none left a trace in
 `open-questions/`.
 

@@ -141,7 +141,7 @@ class TrickForm:
             if stmt.early_termination is not None
             else None
         )
-        # A Trick Order game declares no trump anywhere -- the block's `trump:`
+        # A Trick Order game declares no trump anywhere — the block's `trump:`
         # row is the trump, and resolve's presence partition refuses both the
         # game clause (R1) and the round's (R2) beside a block.
         self.trump: str | None = (
