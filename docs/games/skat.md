@@ -38,12 +38,20 @@ call-and-response bullet). The contract declaration is a pair of `offer`s
 (play-at-18/throw-in on an all-pass; hand vs picking up the skat, with the
 two-card discard in the `pick_up_skat` effect; the three-way game type) plus a
 one-draw `declare_suit(s : Suit)` round. The ten tricks are three single-actor
-filtered movements per trick over the `skat_follow_ok` follow-class predicate
-(the four jacks and the trump suit are one class; Null has no trumps and its
-own rank order), with the winner from the game-local `skat_trick_winner`
-primitive; scoring writes `score[declarer]` directly through `skat_matadors`,
-with the overbid rule's smallest-covering-multiple written as rounded
-division (`working_bid divided by base rounded up`) in the game text.
+filtered movements per trick, and the contract's order is the game's Trick
+Order ([decisions.md](../decisions.md), "Trick Order"): its rows read the
+declared contract off the public state, which is what puts the four jacks and
+the trump suit in one follow class under Suit and Grand and leaves Null
+trumpless on its own rank order. Follow legality (`follows_lead`) and the
+winner (`highest_by_trick_order`) are then both the language's. Scoring writes
+`score[declarer]` directly through `skat_matadors`, with the overbid rule's
+smallest-covering-multiple written as rounded division (`working_bid divided
+by base rounded up`) in the game text.
+
+The contract's three variables (`is_grand`, `is_null`, `trump_suit`) are
+declared at game level rather than in `phase play`, because a `trick_order`
+block is a game clause and sees game state only; the phase clears them on
+entry, so they still last exactly one hand.
 
 ```
 game Skat {
@@ -55,6 +63,24 @@ game Skat {
   cards: skat32
   ranking: ace-ten
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
+
+  // The declared contract decides the order, so the rows read it off the
+  // public state the declaration wrote (`is_null`, `is_grand`, `trump_suit`).
+  // Suit and Grand: the four jacks are trumps, banded above everything, clubs
+  // > spades > hearts > diamonds; a Suit game adds its whole trump suit below
+  // them, in ONE class with them, which is what makes the jacks unfollowable
+  // by their printed suit. Null: no trumps at all, and the natural order
+  // A K Q J 10 9 8 7, where the jack sits between the queen and the ten
+  // instead of above the ace. Non-trumps follow as their printed suit — the
+  // omitted `follow_class:` row's default — so a Null hand is plain suits
+  // throughout.
+  trick_order {
+    trump:         not is_null
+                   and (card.rank is J or (not is_grand and card.suit is trump_suit))
+    card_strength: if is_null then null_strength(card)
+                   elif card.rank is J then 100 + suit_order(card.suit)
+                   else rank_value(card)
+  }
 
   zones {
     deck             : Deck
@@ -68,6 +94,13 @@ game Skat {
     // Game-level: persists across hands.
     score[player] : Integer = 0
     hands_played  : Integer = 0
+    // The declared contract. Game-level because the Trick Order rows read it
+    // and a game clause sees game state only — not because it outlives a
+    // hand: `phase play` clears all three on entry, where its own state block
+    // would otherwise have re-declared them.
+    is_grand      : Boolean = false
+    is_null       : Boolean = false
+    trump_suit    : Suit?   = none
   }
 
   phase hand_sequence repeat until hands_played >= 36 {
@@ -95,12 +128,15 @@ game Skat {
         declarer        : Player? = none
         thrown          : Boolean = false
         hand_mode       : Boolean = false
-        is_grand        : Boolean = false
-        is_null         : Boolean = false
-        trump_suit      : Suit?   = none
         declarer_tricks : Integer = 0
         leader          : Player? = none
       }
+
+      // The contract's three variables are game-level (the Trick Order reads
+      // them); clearing them here is what the phase's own state block did.
+      is_grand := false
+      is_null := false
+      trump_suit := none
 
       // --- The Reizen: middlehand speaks against forehand, then rearhand
       // against the survivor. A speaker bids the next ladder value or passes;
@@ -155,9 +191,9 @@ game Skat {
         let second = leader offset_by left
         let third  = second offset_by left
         as leader { move chosen one card from hand[leader] to trick_pile }
-        as second { move chosen one card from hand[second] where skat_follow_ok(second, card) to trick_pile }
-        as third  { move chosen one card from hand[third] where skat_follow_ok(third, card) to trick_pile }
-        let w = skat_trick_winner()
+        as second { move chosen one card from hand[second] where follow_ok(second, card) to trick_pile }
+        as third  { move chosen one card from hand[third] where follow_ok(third, card) to trick_pile }
+        let w = highest_by_trick_order(trick_pile)
         if w is declarer { declarer_tricks += 1 }
         move all cards from trick_pile to captured[w]
         leader := w
@@ -254,4 +290,29 @@ move_type declare_null {
 move_type declare_suit(s : Suit) {
   effect { trump_suit := s }
 }
+
+// === Functions ===
+
+// Within the jacks: clubs > spades > hearts > diamonds.
+function suit_order(s : Suit) =
+  if s is clubs then 4 elif s is spades then 3 elif s is hearts then 2 else 1
+
+// Null's natural order, A K Q J 10 9 8 7 — the ten drops below the jack,
+// which the game's ace-ten `ranking:` (read by `rank_value`) does not do, so
+// Null spells its own eight values rather than deriving them.
+function null_strength(c : Card) =
+  if c.rank is A then 8 elif c.rank is K then 7 elif c.rank is Q then 6
+  elif c.rank is J then 5 elif c.rank is "10" then 4 elif c.rank is "9" then 3
+  elif c.rank is "8" then 2 else 1
+
+// Strict follow by class, straight off the Trick Order: `follows_lead` is the
+// winner's own candidate test, so legality and winning read ONE definition of
+// the led class — under Suit and Grand a trump obliges a trump, whatever suit
+// it is printed. Void in the class, anything goes; the void case is the
+// `if any ... else true` shape, because `follows_lead` on a pile with nothing
+// led is the value false.
+function follow_ok(p : Player, c : Card) =
+  if any card in hand[p] where follows_lead(card, trick_pile)
+  then follows_lead(c, trick_pile)
+  else true
 ```
