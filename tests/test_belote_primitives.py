@@ -43,6 +43,7 @@ residual:   the premature-call guards (`belote_opp_winning` /
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import cast
 
@@ -50,7 +51,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
-from cardlang.runtime import reads, narrowing
+from cardlang.runtime import narrowing, reads
 from cardlang.runtime.belote import (
     belote_best_is,
     belote_trick_winner,
@@ -227,3 +228,16 @@ def test_probe_auction_outcome_on_the_trick_round_is_rejected() -> None:
     _expect_rejected(
         text, "trick round winner 'tarot_auction_outcome' is not a trick winner function"
     )
+
+
+def test_the_trick_winners_reader_default_is_its_own_name() -> None:
+    """`belote_trick_winner.reader` keeps a default because the kernel calls
+    every registered trick winner through one uniform four-argument signature
+    and cannot pass a fifth — so the guard's label cannot be made a required
+    parameter the way its cribbage siblings were. What a required parameter
+    would have bought (mypy reddening on drift) is bought here instead: the
+    default must be the function's OWN name, so a rename that left the string
+    literal behind reddens rather than silently mislabelling every rank
+    diagnostic this winner raises."""
+    default = inspect.signature(belote_trick_winner).parameters["reader"].default
+    assert default == belote_trick_winner.__name__, default

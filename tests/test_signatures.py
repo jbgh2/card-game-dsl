@@ -20,9 +20,13 @@ covered:    names (set equality both ways, every tabled registry),
             plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
-            rank_value, card_points, error, peg_pair/run_points) get
-            arity-only coverage: there is no annotation to introspect, and
-            the expression is its own statement of the types. TAny positions
+            card_points, error, peg_pair/run_points) get arity-only
+            coverage: there is no annotation to introspect, and the
+            expression is its own statement of the types. `rank_value`
+            forwards to `values.rank_strength` (the runtime Owner Guard for
+            a rank outside a partial `ranking:`), but passes `args[0].rank`
+            -- a computed position the mapping skips -- so it too gets
+            arity plus return-annotation coverage only. TAny positions
             are deliberately loose (polymorphic suit_of argument; the typed
             object model's deferred edges) and skipped by the mapping.
             The climb sets have no signature table and no reconciliation
@@ -372,14 +376,17 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
     resolve, so a mechanical dispatch refactor (a helpers dict, attribute
     calls, keyword arguments) could decay it to checking nothing while staying
     green. Pin the residual exactly: the only arms without an introspectable
-    helper are the four inline expressions the module ledger names."""
+    helper are the three inline expressions the module ledger names
+    (`rank_value` left the list when it began forwarding to
+    `values.rank_strength`; its argument positions are computed, so the
+    helper resolves and only its return is reconciled)."""
     facts = _call_dispatch_facts()
     inline = sorted(
         name
         for name, fact in facts.items()
         if fact.helper is None or not callable(fact.helper)
     )
-    assert inline == ["card_points", "error", "rank_value", "team_of"], (
+    assert inline == ["card_points", "error", "team_of"], (
         f"arms with no introspectable helper: {inline} — if the dispatch shape "
         "changed, teach _call_dispatch_facts the new shape rather than letting "
         "the annotation check silently skip these"

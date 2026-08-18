@@ -62,7 +62,7 @@ from collections.abc import Mapping
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import SUITS, Card, Player
+from cardlang.runtime.values import SUITS, Card, Player, rank_strength
 
 ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
 
@@ -103,16 +103,31 @@ def belote_trick_winner(
     played: list[tuple[Player, Card]],
     led_suit: str,
     trump: str | None,
-    rank_index: dict[str, int],
+    rank_index: Mapping[str, int],
+    reader: str = "belote_trick_winner",
 ) -> Player:
     """The trick outcome: the highest trump under the J-9 trump order if any
     trump was played, else the highest card of the led suit under the game's
-    ace-ten `rank_index`."""
+    ace-ten `rank_index` — read through `rank_strength`, the runtime Owner
+    Guard for a rank outside a partial `ranking:`, naming `reader` (the
+    DSL-visible function: this winner, or `belote_opp_winning` recomputing
+    the live winner through it).
+
+    `reader` keeps a default where its cribbage siblings do not: the kernel
+    calls every registered trick winner through one uniform four-argument
+    signature (`primitives.value_function` hands back the bare function), so
+    the kernel path cannot pass a fifth. The default is therefore this
+    function's OWN name, and a rename that left the literal behind would
+    mislabel the diagnostic silently — pinned against `__name__` by
+    tests/test_belote_primitives.py, which is what a required parameter would
+    otherwise have bought."""
     trumps = [(p, c) for p, c in played if c.suit == trump]
     if trumps:
         return max(trumps, key=lambda pc: _TRUMP_HEIGHT[pc[1].rank])[0]
     of_led = [(p, c) for p, c in played if c.suit == led_suit]
-    return max(of_led, key=lambda pc: rank_index[pc[1].rank])[0]
+    return max(
+        of_led, key=lambda pc: rank_strength(rank_index, pc[1].rank, reader)
+    )[0]
 
 
 def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
@@ -150,7 +165,9 @@ def belote_opp_winning(facts: EngineFacts, gr: reads.GameReads) -> bool:
         )
     trump: str | None = state["trump"]  # type: ignore[assignment]
     led: str = played[0][1].suit
-    winner = belote_trick_winner(played, led, trump, dict(facts.rank_index))
+    winner = belote_trick_winner(
+        played, led, trump, facts.rank_index, reader="belote_opp_winning"
+    )
     return facts.team_of[winner] != facts.team_of[actor]
 
 

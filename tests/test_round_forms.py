@@ -109,6 +109,12 @@ from tests import round_axes as axes
 # as eleven games because the cell list is DERIVED: a new optional clause makes
 # `clause_settings` return rows whose substitution key no template has, and the
 # `KeyError` is the fixture telling you it no longer covers its own axis.
+#
+# The trick template names `highest_trump_or_led_suit`, the winner whose body
+# READS the round's `trump` clause: on `highest_of_led_suit` the clause is
+# accepted-but-ignored and resolve refuses it (`TRUMP_READING_WINNERS`,
+# tests/test_trump_slot_class.py), so the `trump=present` cells need a
+# reading winner to be legal cells at all.
 
 _TRICK = """
 game G {{
@@ -123,7 +129,7 @@ game G {{
   phase play {{
     repeat until (all players where hand[player] is empty) {{
       round play_to_trick from 0 over all players source hand into trick_pile
-            winner highest_of_led_suit{trump}{early}
+            winner highest_trump_or_led_suit{trump}{early}
       won[winner] += 1
       move all cards from trick_pile to deck
     }}
