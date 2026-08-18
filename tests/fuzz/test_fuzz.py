@@ -56,7 +56,12 @@ domain:     `CORPUS x OPERATORS x MUTATION_SEEDS` — the full
 registry:   `mutate.MUTATORS` (closed, pinned by `test_mutate.py`'s own
             enumeration test) and `findings.KNOWN_FINDINGS` (closed, pinned
             by `test_known_findings_directory_matches_ledger` below against
-            `known_findings/*.cardlang`).
+            `known_findings/*.cardlang`, and held non-empty by
+            `empty_parameter_set_mark = "fail_at_collect"` over
+            `test_known_findings_still_reproduce`'s parametrization).
+            `EXCUSED` has no such parametrization and so carries its own
+            floor, `test_the_excused_table_is_not_empty` — at zero entries
+            both ledgers' pins pass over nothing.
 covered:    a discovery sweep at authoring time (seeds 0-4, the whole corpus,
             every operator) found 6 crashing triples,
             all under `delete_line`; all 6 were in `EXCUSED`/`KNOWN_FINDINGS`.
@@ -344,6 +349,41 @@ def test_excused_table_targets_known_findings() -> None:
     slugs = {f.slug for f in KNOWN_FINDINGS}
     for key, slug in EXCUSED.items():
         assert slug in slugs, f"EXCUSED[{key}] names unknown finding {slug!r}"
+
+
+def test_the_excused_table_is_not_empty() -> None:
+    """A floor under the half of the ledger that nothing else floors. At zero
+    entries `test_excused_table_targets_known_findings` iterates an empty
+    `EXCUSED` and passes over nothing, and the sweep stops running its
+    suppression path on any live triple — while this module's docstring goes
+    on claiming `MUTATION_SEEDS` is chosen so that every CI run exercises it.
+    That is the empty-input-set class (decisions.md "Closed-domain
+    completeness"): a check whose input emptied, reporting clean.
+
+    `KNOWN_FINDINGS` needs no floor here, and must not be given a decorative
+    one: `pyproject.toml`'s `empty_parameter_set_mark = "fail_at_collect"` is
+    its Owner Guard, and `test_known_findings_still_reproduce` parametrizes
+    over it directly — so an empty ledger fails the whole module at COLLECT
+    (measured: `Empty parameter set in 'test_known_findings_still_reproduce'`),
+    before any assertion in this module could run. An `assert KNOWN_FINDINGS`
+    beside the one below would be unreachable in the only state it claims to
+    catch, which is the guarantee-that-cannot-fail defect wearing a floor's
+    clothes.
+
+    Deliberately "not empty" rather than a count: findings.py's feed-forward
+    rule DELETES an entry when its finding is fixed, so a floor at today's
+    size would red a legitimate retirement. Zero is the one size that is not
+    a clean state — and if the last excused triple is genuinely retired,
+    retiring this floor belongs to that same change rather than to whoever
+    next wonders why the sweep excuses nothing.
+
+    red under: `EXCUSED = {}` — executed; this fires while
+    `test_excused_table_targets_known_findings` passes alongside it."""
+    assert EXCUSED, (
+        "the EXCUSED table is empty, so "
+        "`test_excused_table_targets_known_findings` iterates nothing and the "
+        "sweep never runs its suppression path on a live triple."
+    )
 
 
 def test_fuzz_open_ended_local() -> None:

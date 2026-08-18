@@ -183,6 +183,14 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     # Non-vacuity, pinned against the announcements rather than against itself:
     # every hand not thrown in plays exactly ten tricks, so an oracle whose
     # observation stream went empty fails here instead of iterating nothing.
+    # This floor comes FIRST because the three counts below are each `0 == 0`
+    # when every hand is thrown in -- the non-vacuity guard passing vacuously,
+    # the same class it exists to close. It is a floor, not a live constraint:
+    # thrown-in hands run 2..8 of 36 across seeds 0..49 (measured 2026-08-17).
+    assert table.thrown < HANDS, (
+        f"seed {seed}: every hand was thrown in, so the three counts below "
+        f"would each read 0 == 0 and this non-vacuity block would prove nothing"
+    )
     played_hands = HANDS - table.thrown
     assert len(table.hand_starts) == played_hands, f"seed {seed}"
     assert len(table.tricks) == played_hands * TRICKS_PER_HAND, f"seed {seed}"
