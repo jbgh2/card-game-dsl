@@ -166,9 +166,15 @@ a row could sit green over a hash nothing can move:
   `200 failed`, skat `200 failed`, five-hundred `200 failed` (2026-08-19).
   It leaves BELOTE `200 passed`, and that is the row being different rather
   than dead: Belote's follow filter is the library rule `MustFollowSuit`
-  over the literal `state.led_suit`, which is sound only because Belote
-  declares no `follow_class:` remap (belote.cardlang says so where the rule
-  is activated), so its only consumer of the block is the winner. The
+  over the literal `state.led_suit`, so its only consumer of the block is
+  the winner. That is sound because Belote declares no `follow_class:` remap
+  and holds no class-less card, and the soundness is EXECUTED rather than
+  argued -- adding a remap (`if card.rank is J then trump_suit else
+  card.suit`) reds this row `200 failed` AND the playout oracle at seed 0
+  hand 2 trick 2, where the legality the rule computed and the classes the
+  winner reads have come apart ("P2 was offered [six cards] ... give ['J♣',
+  'K♣'] (must-trump)"). So a future remap cannot land beside the library
+  rule in silence (executed 2026-08-19). The
   mutation that reaches ALL FOUR is therefore in the winner:
   `winners.highest_by_trick_order`'s trump-candidate filter inverted
   (`if a.is_trump` -> `if not a.is_trump`) -- doppelkopf `200 failed`, skat
