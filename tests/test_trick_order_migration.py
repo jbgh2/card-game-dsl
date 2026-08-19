@@ -155,6 +155,15 @@ MIGRATIONS: tuple[Migration, ...] = (
         "skat_stream_hashes.json",
         retired_traces=frozenset({"trick_end"}),
     ),
+    # `five_hundred_trick_winner` emitted `trick_end` carrying the declared
+    # contract ({trump, misere, joker_suit}) and was 500's only emitter of it:
+    # the ten tricks are hand-rolled movements and the game's one `round` is
+    # the auction, which emits no trick.
+    Migration(
+        "five-hundred.cardlang",
+        "five_hundred_stream_hashes.json",
+        retired_traces=frozenset({"trick_end"}),
+    ),
 )
 
 SEEDS: tuple[int, ...] = tuple(range(200))
