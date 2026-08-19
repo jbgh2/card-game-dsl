@@ -15,10 +15,11 @@ hand, including thrown-in hands.
 ## Rank orders and card points
 
 Belote uses four orders, and they are different. The two PLAY orders decide
-tricks and are declared together as the executable spec's Trick Order (one
-`trick_order { }` block, whose `card_strength:` row is the trump reorder over
-the game's `ranking: ace-ten`); the two DECLARATION orders decide
-combinations, are never consulted by a trick, and stay game-local:
+tricks, and the executable spec's Trick Order answers both from one
+`card_strength:` row: it OWNS the trump reorder outright and DELEGATES the
+plain-suit order to the game's `ranking: ace-ten` (the row's else-branch is
+`rank_value(card)`). The two DECLARATION orders decide combinations, are never
+consulted by a trick, and stay game-local Python:
 
 - **Plain suits (play):** A > 10 > K > Q > J > 9 > 8 > 7, worth
   11 / 10 / 4 / 3 / 2 / 0 / 0 / 0.

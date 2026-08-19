@@ -25,14 +25,16 @@
 // card still in hand, and the entitled side's showing is a loop of
 // one-card `reveal`s over the best combination's cards.
 //
-// The order a trick is decided by — the within-trump reorder over the
-// plain-suit `ace-ten` ranking — is declared as the game's Trick Order, so
+// The order a trick is decided by is declared as the game's Trick Order, so
 // the winner, the head/over-trump comparisons and the team-relative gates
 // all read ONE declaration instead of a Primitive they had to agree with.
-// The declaration classes carry their OWN two orders (the natural A K Q J
-// 10 9 8 7 that a sequence runs in, and the carré strength J > 9 > A > 10 >
-// K > Q), which are facts about combinations rather than about tricks and
-// stay in the belote_decl_* primitives (issue #254).
+// The block OWNS the within-trump reorder and DELEGATES the plain-suit
+// order to `ranking: ace-ten` (the strength row's else-branch is
+// `rank_value(card)`). The declaration classes carry their own two orders —
+// the natural A K Q J 10 9 8 7 a sequence runs in, and the carré strength
+// J > 9 > A > 10 > K > Q — which are facts about COMBINATIONS, are never
+// consulted by a trick, and stay in the belote_decl_* primitives
+// (issue #254).
 
 game Belote {
 
