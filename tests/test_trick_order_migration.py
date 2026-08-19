@@ -77,24 +77,44 @@ residual:   (1) the information-state string, moved BY DESIGN and owned by
             (forgetting an exclusion) is loud through the primary pin. R4,
             this ledger owns the record.
 
-Born red: this module is committed with the Doppelkopf hash file captured on
-the pre-migration tree, so it is GREEN at that commit by construction; its
-capacity to fail is proven by the planted mutation recorded below.
+Born red: each row is committed with its hash file captured on that game's
+pre-migration tree, so every row is GREEN at its own commit by construction;
+capacity to fail is proven per row by the planted mutations recorded below.
+Nothing here was ever re-blessed.
 
-red under, executed twice -- once on each side of the migration, which is
-what makes the pin's capacity to fail a property of the CLAIM rather than of
-one implementation:
+red under, PER ROW -- because a mutation that reddens one row does not
+thereby redden another, and reading one row's witness as the module's is how
+a row could sit green over a hash nothing can move:
 
-* pre-migration, in `doko.py`'s trump comparison (`>` to `>=`): 33 of the
-  first 40 seeds' hashes moved (`33 failed, 8 passed`, the not-slow
-  selection);
-* post-migration, the same flip in `winners.highest_by_trick_order`: 200 of
-  200 seeds moved (`200 failed, 1 passed` -- the one pass is the hash-file
-  coverage cell, which reads the file rather than a playout).
-
-The kernel plant moves every seed where the module plant moved four in five,
-because the kernel comparison runs for every game that declares a Trick Order
-rather than for one game's winner. Neither was re-blessed.
+* THE TIE-BREAK WITNESS IS PACK-SPECIFIC, and this is the record that says so.
+  [[first-of-equals]] (`>` to `>=` in `winners.highest_by_trick_order`, and
+  its pre-migration twin in `doko.py`) can only change an answer where two
+  CANDIDATES compare equal, which needs two identical cards in one trick --
+  a doubled pack. Measured over three seeds per game (2026-08-19): of the
+  winner calls whose candidate set holds an equal-strength pair, Doppelkopf
+  36 of 144, Skat 0 of 960, Five Hundred 0 of 30. So:
+    - doppelkopf: pre-migration, `doko.py`'s trump comparison flipped -- 33
+      of the first 40 seeds moved (`33 failed, 8 passed`, the not-slow
+      selection); post-migration, the same flip in the kernel --
+      `200 failed, 409 deselected`.
+    - skat, five-hundred: the SAME kernel flip leaves both rows
+      `200 passed` (executed 2026-08-19). That is the pack, not a dead row,
+      and the witnesses below prove it.
+* A KERNEL WITNESS EVERY ROW ANSWERS TO. `winners.follows_lead_lazily`'s
+  class comparison inverted (`==` to `!=`), which every follow filter routes
+  through whatever the pack: doppelkopf `200 failed`, skat `200 failed`,
+  five-hundred `200 failed` (2026-08-19). This is the mutation that shows
+  all three rows live over shared machinery.
+* PER-ROW ORDER WITNESSES, each in that game's own declaration, so a row
+  cannot be green over a game file nothing in it matters to:
+    - doppelkopf.cardlang, the queen band reversed
+      (`200 + suit_order(...)` -> `200 - suit_order(...)`): `200 failed`.
+    - skat.cardlang, the jack band reversed
+      (`100 + suit_order(...)` -> `100 - suit_order(...)`): `200 failed`.
+    - five-hundred.cardlang, the two bowers swapped in `card_strength:`
+      (101 <-> 100): `3 failed, 197 passed` -- fewer seeds because a 500 game
+      is one to three hands and only some deals put a bower in a decided
+      trick, which is the reachability the count reports rather than hides.
 """
 
 from __future__ import annotations

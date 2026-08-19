@@ -2448,7 +2448,7 @@ stated exactly once, in the movement structure the game file already has.
 The record is engine truth, mediated exactly as zone contents are: it enters
 no observation event and no information state, and any surface that reads it
 per-observer is bounded to zones whose type projects identity to every
-observer (`GameReads.arrival_zones`, refused loud otherwise; the
+observer (`PrimitiveReads.arrival_zones`, refused loud otherwise; the
 `highest_trump_or_led_suit` call form guards the same predicate) — a
 concealed zone's provenance is not derivable from any observer's stream, so
 nothing may range over it, legality contexts included. Per-observer

@@ -257,7 +257,13 @@ class GameSpec:
 
         A game with neither half records a vacuous cell rather than silently
         passing (most games consume no provenance today — the query surface is
-        issue #253's)."""
+        issue #253's).
+
+        Residual: the PRIMITIVE half has now emptied for every game — no row
+        declares `arrival_zones` since the Trick Order retired the last
+        Primitive that read one (issue #250 PR 3) — so the union below adds
+        nothing anywhere and cannot redden. Every provenance cell in the
+        corpus rides the AST half alone. Recorded, not fixed: issue #379."""
         from cardlang.ast import nodes as n
         from cardlang.builtins.functions import ARRIVAL_RECORD_CALLS
         from cardlang.runtime.reads import PRIMITIVE_READS

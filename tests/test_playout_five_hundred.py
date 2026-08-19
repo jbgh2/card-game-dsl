@@ -12,15 +12,19 @@ it red. Plus deck integrity (43 cards) and the champion invariant (the game
 ends only on a contract win crossing +500 or a side out backwards at -500).
 
 Observation-derived, not trace-derived (the Skat and Doppelkopf precedent).
-Every fact it consumes rides observer 0's stream: the hands are marked by the
-three kitty deals, the plays are the `move` events into `trick_pile`, the
-tricks are the drains into the capture piles, and the CONTRACT is what the
-auction ANNOUNCED — a public decision every seat hears, which makes it a fact
-of the table rather than of the engine. The `play` / `trick` / `trick_end`
-TRACE events this used to read are emitted by the game-local winner Primitive
-alone; deriving from observations instead is strictly stronger, because a
-divergence between what the engine recorded and what observers saw would now
-BREAK this oracle rather than being invisible to it.
+It consumes exactly two things, both of them information a PLAYER has. The
+public record is observer 0's stream: the hands are marked by the three kitty
+deals, the plays are the `move` events into `trick_pile`, the tricks are the
+drains into the capture piles, and the CONTRACT is what the auction ANNOUNCED
+— a public decision every seat hears, which makes it a fact of the table
+rather than of the engine. The private half is the acting seat's own
+CANDIDATE SET at each card decision, which is what OpenSpiel hands that seat
+as its legal actions; the legality rules are judged on it (`_Table.offered`).
+The `play` / `trick` / `trick_end` TRACE events this used to read are emitted
+by the game-local winner Primitive alone; deriving from what players see
+instead is strictly stronger, because a divergence between what the engine
+recorded and what a seat was shown would now BREAK this oracle rather than
+being invisible to it.
 
 Non-vacuity is asserted, not hoped for, and the assertion is DERIVED: the
 announcements say how many tricks each hand owes (ten for a suit or no-trump
@@ -51,10 +55,20 @@ Ledger note — what the observation stream cannot pin
    ten, bounded, and recorded here.
 2. A hand's holdings are reconstructed from the cards actually played, so
    for a misère that ended early the reconstruction is a SUBSET of what each
-   seat held. Follow and lead legality are then checked against a subset,
-   which can only MISS a violation, never invent one. Every suit and
-   no-trump hand plays all forty cards, so the reconstruction is exact
-   there.
+   seat held. That is why the LEGALITY rules are judged on the candidate sets
+   the acting seats were offered (`_Table.offered`) and not on the reconstructed
+   pool: a rule binds the offer, and a rule the engine stopped enforcing still
+   yields legal-looking plays wherever the chooser obeyed it anyway. The pool
+   checks stay as the second reading, and can only MISS a violation there,
+   never invent one. Every suit and no-trump hand plays all forty cards, so
+   the reconstruction is exact there.
+3. `_NOT_A_BID` is a hand-listed axis: the announcements that are not a bid,
+   written here rather than derived from the game file's `move_type`s, so a
+   new non-bid move type would be read as a bid and silently rewrite the
+   contract. Nothing pins the two equal today. Recorded, not fixed: issue
+   #380 (the same list is spelled again in
+   tests/openspiel_ready/test_five_hundred.py, and the fix is one derivation
+   serving both).
 """
 
 from __future__ import annotations
@@ -140,9 +154,13 @@ def _follow_reason(
     misere: bool,
     joker_suit: str | None,
 ) -> tuple[bool, str]:
-    """Whether `c` was a legal follow, and WHICH rule decided it — the reason
-    is what `test_every_joker_role_is_reached` counts, so the misère
-    forced-joker arm cannot go unexercised unnoticed."""
+    """Whether the card PLAYED was a legal follow, and which rule decided it.
+
+    This is the weaker of the module's two legality readings and is labelled
+    as such: it can only judge the one card that came out of the candidate
+    set, so it is silent wherever a deleted rule still produced a legal play,
+    and its `forced-joker` reason counts obedience rather than enforcement.
+    `_Table._follow_offer` is the reading with teeth — it judges the SET."""
     cls = _cls(led, trump, joker_suit)
     if any(_cls(x, trump, joker_suit) == cls for x in pool):
         return _cls(c, trump, joker_suit) == cls, "in-class"
@@ -188,6 +206,8 @@ class _Hand:
 class _Table:
     def __init__(self) -> None:
         self.hands: list[_Hand] = []
+        self.offers: Counter[str] = Counter()
+        self.offer_failures: list[str] = []
         self._kitty_deals = 0
         self._pending: list[tuple[Player, Card]] = []
 
@@ -245,6 +265,83 @@ class _Table:
         elif src.startswith("hand[") and dst.startswith("exposed["):
             self._hand.exposed = True
 
+    # --- the acting seat's own view: the cards it was OFFERED ---------------
+    #
+    # A legality rule is a rule about the CANDIDATE SET, not about the one card
+    # that came out of it, and the two are not the same claim: a rule the engine
+    # stopped enforcing still yields a legal-looking play whenever the chooser
+    # happens to pick a legal card, which is how a rule can be deleted with
+    # every play still checking out. The offered set is the acting seat's own
+    # information (it is what OpenSpiel hands that seat as its legal actions),
+    # so consuming it keeps the oracle to facts a player has -- and it is
+    # produced by the game file's `follow_ok` / `lead_ok` over `follows_lead`,
+    # which is exactly the thing under test, so comparing it against the rules
+    # recomputed here is a differential and not a tautology.
+
+    def offered(self, player: Player, candidates: list[Card], n: int) -> None:
+        if n != 1 or not candidates or not all(isinstance(c, Card) for c in candidates):
+            return  # not a card play: the auction, an offer, the 3-card discard
+        if not self.hands or self._hand.declarer is None:
+            return  # no contract yet: nothing to judge legality against
+        h = self._hand
+        offered = {str(c) for c in candidates}
+        if not self._pending:
+            self._lead_offer(player, candidates, offered, h)
+        else:
+            self._follow_offer(player, candidates, offered, h)
+
+    @property
+    def _where(self) -> str:
+        return f"hand {len(self.hands) - 1} trick {len(self._hand.tricks)}"
+
+    def _lead_offer(
+        self, player: Player, candidates: list[Card], offered: set[str], h: _Hand
+    ) -> None:
+        """The un-nominated joker may be offered as a LEAD only when it is the
+        holder's last card."""
+        if h.trump is not None or h.joker_suit is not None:
+            return
+        if not any(c.suit == "joker" for c in candidates):
+            self.offers["lead_joker_withheld" if len(candidates) > 1 else "lead_plain"] += 1
+            return
+        self.offers["lead_joker_offered"] += 1
+        if len(candidates) != 1:
+            self.offer_failures.append(
+                f"{self._where}: P{player} was offered the un-nominated joker to LEAD among "
+                f"{len(candidates)} cards {sorted(offered)} -- it is legal only "
+                f"as the holder's last card"
+            )
+
+    def _follow_offer(
+        self, player: Player, candidates: list[Card], offered: set[str], h: _Hand
+    ) -> None:
+        led = self._pending[0][1]
+        cls = _cls(led, h.trump, h.joker_suit)
+        in_class = {str(c) for c in candidates if _cls(c, h.trump, h.joker_suit) == cls}
+        if in_class:
+            self.offers["offer_in_class"] += 1
+            if offered != in_class:
+                self.offer_failures.append(
+                    f"{self._where}: P{player} holding the led class ({cls}, led {led}) was "
+                    f"offered {sorted(offered - in_class)} outside it"
+                )
+            return
+        # Void in the led class. 500's own rule: in a misere a void holder of
+        # the un-nominated joker MUST play it, so the joker being OFFERED at all
+        # means it must be the only thing offered. This is the arm that a
+        # played-card check cannot reach -- a holder who is never obliged, or
+        # who never plays the joker at all, leaves no trace in the plays.
+        if h.misere and h.joker_suit is None and any(c.suit == "joker" for c in candidates):
+            self.offers["offer_forced_joker"] += 1
+            if len(candidates) != 1:
+                self.offer_failures.append(
+                    f"{self._where}: P{player} void in {cls} (led {led}) in a misere, holding "
+                    f"the un-nominated joker, was offered {sorted(offered)} -- "
+                    f"the joker is the only legal play"
+                )
+            return
+        self.offers["offer_void"] += 1
+
 
 def _play(game: Any, seed: int) -> tuple[_Table, dict[str, int], list[dict[int, int]], Any]:
     table = _Table()
@@ -259,11 +356,17 @@ def _play(game: Any, seed: int) -> tuple[_Table, dict[str, int], list[dict[int, 
             census.update(data)
 
     rng = random.Random(seed)
+    pick = random_chooser(rng)
+
+    def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
+        table.offered(player, candidates, n)
+        return pick(player, candidates, n)
+
     result = play_game(
         game,
         rng,
         tracer,
-        random_chooser(rng),
+        chooser,
         observer=table.observe,
         on_first_decision=lambda rs: rs_box.append(rs),
     )
@@ -287,9 +390,36 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
     loser = 1 - result.winner
     assert final[result.winner] >= 500 or final[loser] <= -500, f"seed {seed}: {final}"
 
+    # The legality rules, judged on the CANDIDATE SETS the acting seats were
+    # offered rather than on the cards that came out of them (see `_Table.offered`).
+    assert not table.offer_failures, (
+        f"seed {seed}: " + "\n  ".join(table.offer_failures[:4])
+    )
+
     # Non-vacuity, pinned against the announcements rather than against
     # itself, and BEFORE the recomputation below: an observation stream that
     # went empty fails here instead of leaving every loop iterating nothing.
+    #
+    # A hand with PLAYS but no declarer is the first thing checked, because it
+    # is the shape that partial loss takes: lose one hand's announcements and
+    # the hand looks thrown in, and every claim below silently skips it. Only
+    # a hand that never reached a contract has no plays, so "plays without a
+    # declarer" is exactly "this hand's announcements went missing" -- and it
+    # must be judged over EVERY hand, before any filter that would drop it.
+    # (Measured 2026-08-19: 0 of the 50 hands over these 40 seeds is genuinely
+    # thrown in, so the thrown-in exemption below is a rules allowance with no
+    # live instance today; its only reachable effect would be absorbing loss,
+    # which is what this guard removes.)
+    lost = [
+        i
+        for i, h in enumerate(table.hands)
+        if h.declarer is None and (h.plays or h.tricks)
+    ]
+    assert not lost, (
+        f"seed {seed}: hand(s) {lost} of {len(table.hands)} were played but no "
+        f"contract was announced in them -- the observation stream lost those "
+        f"announcements, and every claim below would skip the hand as thrown in"
+    )
     played = [h for h in table.hands if h.declarer is not None]
     assert played, (
         f"seed {seed}: no hand reached a contract ({len(table.hands)} dealt), so "
@@ -371,6 +501,7 @@ def _check_seed(game: Any, seed: int) -> Counter[str]:
             for p, c in group:
                 roles.update(_card_roles(c, h.trump, h.joker_suit, p == led_p))
                 pool[p].remove(c)
+    roles += table.offers
     return roles
 
 
@@ -407,7 +538,13 @@ def test_every_joker_role_is_reached() -> None:
     that wins any trick under no-trumps (including when it is itself led),
     the nominated joker remapped into its suit, and the misère forced-joker
     follow. A sweep that never played one would leave that arm entirely
-    unchecked while every assertion above stayed green."""
+    unchecked while every assertion above stayed green.
+
+    The `offer_*` and `lead_joker_*` cells are the OFFERED-SET half, and they
+    are the ones that guard a RULE rather than an occurrence: a cell counting
+    played cards fires only where the rule was obeyed, so it survives the
+    rule's deletion wherever the chooser happened to obey it anyway. Each of
+    these counts a decision where the rule bound the candidate set."""
     game = _five_hundred()
     roles: Counter[str] = Counter()
     for seed in range(40):
@@ -426,6 +563,12 @@ def test_every_joker_role_is_reached() -> None:
         "follow_in-class",
         "follow_void",
         "follow_forced-joker",
+        # the offered-set arms
+        "offer_in_class",
+        "offer_void",
+        "offer_forced_joker",
+        "lead_joker_offered",
+        "lead_joker_withheld",
     ):
         assert roles[cell] > 0, f"{cell} never occurred: {roles}"
 
