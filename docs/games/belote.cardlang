@@ -145,9 +145,11 @@ game Belote {
       // while its trump-making runs — a fact no observer's log derives about
       // the hand being played. The witness is
       // tests/openspiel_ready/test_belote.py,
-      // `test_the_published_trump_derives_from_each_observers_log`: deleted,
-      // it reddens at seed 3 step 38 for all four observers with "the state
-      // renders trump_suit=clubs, but P0's own log derives None".
+      // `test_the_published_trump_derives_from_each_observers_log`, which
+      // DRIVES a second hand's auction rather than relying on the greedy line
+      // to reach one: deleted, it reddens 32 times on that driven line alone
+      // (seed 3 from step 40, all four observers) with "the state renders
+      // trump_suit=clubs, but P0's own log derives None".
       trump_suit := none
 
       // The cascade constrains only `play_to_trick`, so the game-defined
@@ -474,9 +476,16 @@ move_type no_belote {
 // `highest_by_trick_order` over a partial pile is the winner SO FAR (issue
 // #350, designed surface), which is exactly the question the gate asks, so
 // legality and the trick's outcome read one declaration rather than a winner
-// Primitive and a live-trick recomputation that had to agree with it. The
-// emptiness guard is not optional: naming a winner over an empty pile is an
-// error, not the value `none`.
+// Primitive and a live-trick recomputation that had to agree with it.
+//
+// The emptiness test is DEFENSIVE and no call reaches it: naming a winner
+// over an empty pile is an error rather than the value `none`, but all three
+// rules below test `state.led_suit is not none` first and `and`
+// short-circuits, and during a trick the led suit is set exactly when the
+// pile is non-empty. Executed 2026-08-19: deleting the test leaves the game
+// byte-identical. It stays because this function is the game's, callable
+// from a rule that does not test the lead, and because it is what makes the
+// function total on its own terms rather than on its callers'.
 function opp_winning(p : Player) =
   trick_pile is not empty and
   team_of(highest_by_trick_order(trick_pile)) is not team_of(p)

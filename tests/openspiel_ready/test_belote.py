@@ -301,32 +301,46 @@ _TAKE_SUIT = "take_suit("
 _SUIT_GLYPH = {"♣": "clubs", "♦": "diamonds", "♥": "hearts", "♠": "spades"}
 
 
-def _trump_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str]:
+def _trump_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str, int]:
     """The made trump as a seat at the table would write it down from what it
-    HEARD, plus which arm named it. A hand begins at its turn-up (`deck ->
-    turnup`, one per hand and the only movement into that zone); `take` means
-    that card's suit, and `take_suit(s)` names its own. Reads no engine state
-    and no other seat's view -- that is the whole point."""
+    HEARD, which arm named it, and which hand is running. A hand begins at its
+    turn-up (`deck -> turnup`, one per hand and the only movement into that
+    zone); `take` means that card's suit, and `take_suit(s)` names its own.
+    Reads no engine state and no other seat's view -- that is the whole point.
+
+    The hand INDEX is what makes the pre-take arm worth counting: a first
+    hand's auction renders `none` with nothing behind it to be stale, so only
+    a LATER hand's auction is the shape the phase's `trump_suit := none`
+    protects."""
     trump: str | None = None
     arm = "none"
     turnup: str | None = None
+    hand = -1
     for e in log:
         if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup":
             turnup = _SUIT_GLYPH[str(e[4][0])[-1]]
             trump, arm = None, "none"
+            hand += 1
         elif e[0] == "announce":
             said = str(e[2])
             if said == "take":
                 trump, arm = turnup, "take"
             elif said.startswith(_TAKE_SUIT):
                 trump, arm = said[len(_TAKE_SUIT) : -1], "take_suit"
-    return trump, arm
+    return trump, arm, hand
 
 
-def _check_line(seed: int, history: tuple[int, ...], limit: int) -> Any:
-    """Walk the greedy line from `history`, comparing the published trump
-    against each observer's own derivation at every node. Returns (facts
-    checked, per-arm counts, failures)."""
+def _check_line(
+    seed: int, history: tuple[int, ...], limit: int, prefer: str | None = None
+) -> Any:
+    """Walk from `history`, comparing the published trump against each
+    observer's own derivation at every node. Returns (facts checked, per-arm
+    counts, failures).
+
+    The line is greedy (`legal[0]`) unless `prefer` names an action string
+    still on offer -- passing `"pass"` keeps an auction OPEN instead of
+    ending it on the first take, which is how the pre-take arm is reached
+    more than one node deep."""
     checked = 0
     arms: dict[str, int] = {}
     failures: list[str] = []
@@ -341,22 +355,71 @@ def _check_line(seed: int, history: tuple[int, ...], limit: int) -> Any:
                 .split(";")
                 if "=" in kv
             )
-            trump, arm = _trump_from_log(r.obs_logs[q])
+            trump, arm, hand = _trump_from_log(r.obs_logs[q])
             want = "None" if trump is None else trump
             checked += 1
             arms[arm] = arms.get(arm, 0) + 1
+            if arm == "none" and hand > 0:
+                arms["none_after_a_hand"] = arms.get("none_after_a_hand", 0) + 1
             if rendered.get("trump_suit") != want:
                 failures.append(
                     f"seed {seed} step {len(hist)} P{q}: the state renders "
                     f"trump_suit={rendered.get('trump_suit')}, but P{q}'s own "
                     f"log derives {want} (via {arm})"
                 )
-        hist.append(r.legal[0])
+        chosen = r.legal[0]
+        if prefer is not None:
+            _game, space = load(PATH)
+            chosen = next(
+                (a for a in r.legal if space.to_string(a) == prefer), chosen
+            )
+        hist.append(chosen)
         nxt = run(PATH, seed, tuple(hist))
         if not isinstance(nxt, DecisionNode):
             break
         r = nxt
     return checked, arms, failures
+
+
+def _turnups(log: list[tuple[Any, ...]]) -> int:
+    return sum(
+        1
+        for e in log
+        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup"
+    )
+
+
+def _drive_to_the_second_auction(seed: int, cap: int = 80) -> tuple[int, ...]:
+    """The greedy line up to the SECOND hand's turn-up, then `pass` while it
+    is legal — so the second auction runs several decisions deep instead of
+    ending on its first `take`.
+
+    That depth is the point. A first hand's auction renders `trump_suit=None`
+    with nothing behind it to be stale, so the arm that witnesses `phase
+    play`'s `trump_suit := none` is a LATER hand's auction — and on the greedy
+    line that arm is one node wide, close enough to any depth cap that a deal
+    shift would drop it silently."""
+    _game, space = load(PATH)
+    passing = space.encode(("pass", None))
+    hist: list[int] = []
+    r = run(PATH, seed, ())
+    for _ in range(cap):
+        assert isinstance(r, DecisionNode), "the game ended before the second deal"
+        if _turnups(r.obs_logs[0]) >= 2:
+            for _ in range(2):  # open the second auction, then let the walk pass
+                if passing not in r.legal:
+                    break
+                hist.append(passing)
+                nxt = run(PATH, seed, tuple(hist))
+                if not isinstance(nxt, DecisionNode):
+                    break
+                r = nxt
+            return tuple(hist)
+        hist.append(r.legal[0])
+        r = run(PATH, seed, tuple(hist))
+    raise AssertionError(
+        f"seed {seed}: no second hand within {cap} steps — re-pin the seed"
+    )
 
 
 def test_the_published_trump_derives_from_each_observers_log() -> None:
@@ -398,6 +461,17 @@ def test_the_published_trump_derives_from_each_observers_log() -> None:
         arms[k] = arms.get(k, 0) + v
     failures += f
 
+    # The driven SECOND-hand auction: the arm a stale trump would show in,
+    # several decisions deep rather than the one node the greedy line reaches.
+    for seed in (3, 5):
+        c, a, f = _check_line(
+            seed, _drive_to_the_second_auction(seed), 8, prefer="pass"
+        )
+        checked += c
+        for k, v in a.items():
+            arms[k] = arms.get(k, 0) + v
+        failures += f
+
     assert not failures, "\n".join(failures[:6])
     assert checked > 0 and arms.get("take", 0) > 0, arms
     assert arms.get("take_suit", 0) > 0, (
@@ -405,7 +479,9 @@ def test_the_published_trump_derives_from_each_observers_log() -> None:
         f"driven line above stopped reaching `take_suit`, so that arm is "
         f"unproven"
     )
-    assert arms.get("none", 0) > 0, (
-        f"no state was ever rendered before a seat took ({arms}) — the "
-        f"pre-take arm is where a stale trump would show"
+    assert arms.get("none_after_a_hand", 0) > 0, (
+        f"no state was rendered during a LATER hand's auction ({arms}) — a "
+        f"first hand's `none` has nothing behind it to be stale, so this "
+        f"proof would no longer reach the shape `phase play`'s "
+        f"`trump_suit := none` protects; deepen the walk"
     )
