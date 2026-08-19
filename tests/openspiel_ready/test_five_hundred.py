@@ -15,6 +15,36 @@ The auction-mask probes double as this change's misuse-probe rejection tests
 as Owner Guards (an illegal bid is an absent action, not a crash):
 misère before any seven bid, a raise above 10NT, and the deck-derived
 "joker" pseudo-strain as a bid or a nomination must all be masked out.
+
+What 500's information state PUBLISHES, and why that is entitled
+----------------------------------------------------------------
+Scope decides publication: game-scoped state renders into the information
+state where phase-scoped state does not. 500's Trick Order rows read the
+declared contract, and a `trick_order` block is a game clause, so
+`trump_suit` and `joker_suit` are game-level — and therefore public — where
+they used to be phase-level and invisible. The soundness matrix's
+`state_vars` count is 16 against 8 before (four game variables for each of
+four observers), and every one of the four is perturbed and proven visible
+there.
+
+The information-set PARTITION did not move, which is the claim that matters
+and is executed rather than argued (issue #250 PR 3):
+
+* over 1100 states — 275 greedy-line nodes x 4 observers x 5 manifest seeds —
+  every observer's ZONE VIEWS and OBSERVATION LOG are byte-identical to the
+  pre-migration tree, and the two names above are the ONLY difference in the
+  rendering;
+* every published value re-derives from the reading observer's OWN log: the
+  contract is the last bid the auction announced in the current hand and the
+  nomination is the declarer's announced `nominate_joker_suit`, both public
+  decisions every seat hears. Checked over 3960 (state, observer, variable)
+  facts with 0 mismatches, plus a driven nomination line for the
+  `joker_suit` values the greedy line never reaches.
+
+So the two variables carry no fact an observer could not already compute, and
+no observer's states merge or split. The pre/post byte-identity of PLAY
+itself is `tests/test_trick_order_migration.py`, whose ledger delegates this
+surface here.
 """
 
 from __future__ import annotations

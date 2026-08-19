@@ -422,6 +422,7 @@ def test_every_joker_role_is_reached() -> None:
         "nt_joker_free",
         "nt_joker_nominated",
         "led_joker_free",
+        "led_joker_nominated",
         "follow_in-class",
         "follow_void",
         "follow_forced-joker",

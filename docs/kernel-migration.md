@@ -30,14 +30,17 @@ Primitives the DSL calls: Stud's poker evaluator, seat selectors, and
 `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
 per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Skat's bid
-ladder, follow-class legality, trick winner, matador count, and overbid
-arithmetic; Tichu's climb queries over the shared `combinations.py` engine,
+ladder, matador count, and overbid arithmetic; 500's bid ladder and contract
+values; Tichu's climb queries over the shared `combinations.py` engine,
 team/finishing lookups, and the OpenSpiel combo codec; Coup's
 in-game scans and trace emitters. Schnapsen carries no module at all: its
 trick resolution is the `highest_trump_or_led_suit` call form over the
 kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout
-harness derives its trick facts from observation events.
+harness derives its trick facts from observation events. Where a game's trick
+order is not the printed one — Doppelkopf, Skat, 500 — follow legality and
+the winner are its declared `trick_order { }` block, read by `follows_lead`
+and `highest_by_trick_order`, not a game-local Primitive.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
 Primitive registries; every `tests/test_playout_*.py` green with
