@@ -123,12 +123,25 @@ bid levels and omits the dummy; the file documents the chosen ruleset):
   state variable); the game-local primitives map ordinals to values and
   trick targets, so the ordering (misère above the sevens, open misère
   between 10♦ and 10♥) and the value table never share a scale.
-- The bowers and the joker are a follow-*class* remap in the game-local
-  `five_hundred_follow_ok` / `five_hundred_trick_winner` primitives — the
-  Skat precedent (jacks + trump suit as one class), extended with the left
-  bower's effective-suit change. The declarative `ranking:` stays a plain
-  strongest-first enumeration; suit-contextual orders are out of its scope
+- The bowers and the joker are the game's **Trick Order**
+  ([decisions.md](../decisions.md), "Trick Order"), whose rows read the
+  contract off the public state the auction wrote — the Skat precedent
+  (jacks + trump suit as one class), extended with the left bower's
+  effective-suit change. Under no-trumps the un-nominated joker is declared
+  the contract's one *trump*: that is what "highest in the pack, and nobody
+  can follow it" means in the language, and nominating it turns it back into
+  the highest card of the nominated suit through the `follow_class:` row.
+  Follow legality and the trick winner are then one declaration, read by
+  `follows_lead` and `highest_by_trick_order`; the misère forced-joker rule
+  and the un-nominated joker's lead restriction, neither of which is a fact
+  about the ORDER, stay designer `function`s over it. The declarative
+  `ranking:` stays a plain strongest-first enumeration; suit-contextual
+  orders are out of its scope
   ([decisions.md](../decisions.md), "The `ranking:` declaration: enumeration or convention").
+- The contract's `trump_suit` and `joker_suit` are game-level state, not
+  phase-level: a `trick_order` block is a game clause and sees game state
+  only. `phase play` clears both on entry, so a hand behaves exactly as it
+  did when its own state block declared them.
 - The open-misère reveal is a plain movement into `exposed[declarer]`, a
   `PublicHand` zone: the mid-phase visibility flip is carried entirely by
   the standing zone projections and the movement observation — no new

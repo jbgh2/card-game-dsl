@@ -17,8 +17,12 @@
 // the named strain that beats the standing bid (the Bridge precedent —
 // level jumps are folded into successive raises), with misère and open
 // misère as their own guarded moves at their Pagat insertion points. The
-// ladder ordinal, contract values, follow/lead legality, and trick winner
-// are game-local primitives (cardlang/runtime/five_hundred.py); the tricks
+// contract's order — the bowers, the joker, and the no-trump family's
+// suitless joker — is declared as the game's Trick Order, which reads the
+// contract off the public state the auction wrote, so follow legality and
+// the winner are both the language's; the ladder ordinal and the contract
+// values stay game-local primitives
+// (cardlang/runtime/five_hundred.py). The tricks
 // are single-actor filtered movements (the Skat/Doppelkopf shape), three
 // per trick in a misère. The open-misère reveal is a plain movement into
 // `exposed[declarer]` — a PublicHand zone, identity to every observer — so
@@ -40,6 +44,33 @@ game FiveHundred {
   cards: five_hundred43
   ranking: Joker A K Q J 10 9 8 7 6 5 4
 
+  // The auction decides the order, so the rows read what it wrote onto the
+  // public state (`trump_suit`, `joker_suit`).
+  //
+  // Under a SUIT contract the joker and both bowers are members of the trump
+  // suit in all respects, so they are trumps and the trump suit is one follow
+  // class — which is what makes the left bower unfollowable by its printed
+  // suit. Above the ace they band joker > right bower > left bower.
+  //
+  // In the NO-TRUMP family there is one trump and it exists only while the
+  // joker is un-nominated: the joker itself, which is why it wins any trick
+  // it is played to and why nobody can follow it. Nominated, it stops being a
+  // trump and becomes the highest card of the nominated suit — the one
+  // `follow_class:` remap. Every other card follows as its printed suit, the
+  // omitted default.
+  trick_order {
+    trump:         if trump_suit is none
+                   then card.rank is Joker and joker_suit is none
+                   else card.rank is Joker or card.suit is trump_suit
+                        or (card.rank is J and card.suit is same_colour(trump_suit))
+    follow_class:  if trump_suit is none and card.rank is Joker and joker_suit is not none
+                   then joker_suit else card.suit
+    card_strength: if card.rank is Joker then 102
+                   elif trump_suit is not none and card.rank is J and card.suit is trump_suit then 101
+                   elif trump_suit is not none and card.rank is J and card.suit is same_colour(trump_suit) then 100
+                   else rank_value(card)
+  }
+
   zones {
     deck            : Deck
     hand[player]    : Hand<player>
@@ -56,6 +87,12 @@ game FiveHundred {
     // side going out backwards at -500.
     score[team]    : Integer = 0
     champion[team] : Integer = 0
+    // The declared contract, as much of it as the Trick Order reads. Game-level
+    // because a `trick_order` block is a game clause and sees game state only —
+    // not because it outlives a hand: `phase play` clears both on entry, where
+    // its own state block would otherwise have re-declared them.
+    trump_suit     : Suit?   = none   // none = the no-trump family
+    joker_suit     : Suit?   = none   // the declarer's nomination, if any
   }
 
   phase hand_sequence repeat until (any team where champion[team] is 1) {
@@ -83,15 +120,19 @@ game FiveHundred {
         bid_rank          : Integer  = 0      // standing contract ordinal (0 = none)
         high_bidder       : Player?  = none
         declarer          : Player?  = none
-        trump_suit        : Suit?    = none   // none = the no-trump family
         is_misere         : Boolean  = false
         is_open_misere    : Boolean  = false
-        joker_suit        : Suit?    = none   // the declarer's nomination, if any
         leader            : Player?  = none
         tricks_played     : Integer  = 0
         declarer_tricks   : Integer  = 0      // misère contracts count these
         team_tricks[team] : Integer  = 0      // suit/no-trump contracts count these
       }
+
+      // The contract's two order-bearing variables are game-level (the Trick
+      // Order reads them); clearing them here is what the phase's own state
+      // block did.
+      trump_suit := none
+      joker_suit := none
 
       // --- The auction: eldest speaks first, clockwise; a bid must beat the
       // standing bid on the ladder; a pass drops the seat for the rest of the
@@ -139,21 +180,21 @@ game FiveHundred {
           let x2 = a2 offset_by left
           let a3 = if x2 is dead then x2 offset_by left else x2
           if is_open_misere and tricks_played >= 1 and leader is declarer {
-            as leader { move chosen one card from exposed[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
+            as leader { move chosen one card from exposed[leader] where lead_ok(leader, card) to trick_pile }
           } else {
-            as leader { move chosen one card from hand[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
+            as leader { move chosen one card from hand[leader] where lead_ok(leader, card) to trick_pile }
           }
           if is_open_misere and tricks_played >= 1 and a2 is declarer {
-            as a2 { move chosen one card from exposed[a2] where five_hundred_follow_ok(a2, card) to trick_pile }
+            as a2 { move chosen one card from exposed[a2] where follow_ok(a2, card) to trick_pile }
           } else {
-            as a2 { move chosen one card from hand[a2] where five_hundred_follow_ok(a2, card) to trick_pile }
+            as a2 { move chosen one card from hand[a2] where follow_ok(a2, card) to trick_pile }
           }
           if is_open_misere and tricks_played >= 1 and a3 is declarer {
-            as a3 { move chosen one card from exposed[a3] where five_hundred_follow_ok(a3, card) to trick_pile }
+            as a3 { move chosen one card from exposed[a3] where follow_ok(a3, card) to trick_pile }
           } else {
-            as a3 { move chosen one card from hand[a3] where five_hundred_follow_ok(a3, card) to trick_pile }
+            as a3 { move chosen one card from hand[a3] where follow_ok(a3, card) to trick_pile }
           }
-          let w = five_hundred_trick_winner()
+          let w = highest_by_trick_order(trick_pile)
           move all cards from trick_pile to captured[team_of(w)]
           if w is declarer { declarer_tricks += 1 }
           tricks_played += 1
@@ -168,11 +209,11 @@ game FiveHundred {
           let s2 = leader offset_by left
           let s3 = s2 offset_by left
           let s4 = s3 offset_by left
-          as leader { move chosen one card from hand[leader] where five_hundred_lead_ok(leader, card) to trick_pile }
-          as s2 { move chosen one card from hand[s2] where five_hundred_follow_ok(s2, card) to trick_pile }
-          as s3 { move chosen one card from hand[s3] where five_hundred_follow_ok(s3, card) to trick_pile }
-          as s4 { move chosen one card from hand[s4] where five_hundred_follow_ok(s4, card) to trick_pile }
-          let w = five_hundred_trick_winner()
+          as leader { move chosen one card from hand[leader] where lead_ok(leader, card) to trick_pile }
+          as s2 { move chosen one card from hand[s2] where follow_ok(s2, card) to trick_pile }
+          as s3 { move chosen one card from hand[s3] where follow_ok(s3, card) to trick_pile }
+          as s4 { move chosen one card from hand[s4] where follow_ok(s4, card) to trick_pile }
+          let w = highest_by_trick_order(trick_pile)
           move all cards from trick_pile to captured[team_of(w)]
           team_tricks[team_of(w)] += 1
           tricks_played += 1
@@ -269,3 +310,52 @@ move_type nominate_joker_suit(s : Suit) {
 move_type decline_nomination {
   effect { }
 }
+
+// === Functions ===
+
+// The other suit of the same colour: the left bower is the jack of it. Total
+// over the deck-derived Suit domain, whose fifth value is the joker's own
+// suit — and over `none`, which the strength row's guards exclude but the
+// language evaluates anyway. Both land on `joker`, which no jack is printed,
+// so neither bower arm can fire without a real trump suit.
+function same_colour(s : Suit?) =
+  if s is spades then clubs elif s is clubs then spades
+  elif s is hearts then diamonds elif s is diamonds then hearts else joker
+
+// The cards a seat plays from: his hand, or — after the open-misère exposure
+// — his face-up lay-down. Exactly one of the two is non-empty during play,
+// so the union is the pool whether or not the declarer has been exposed.
+function can_follow(p : Player) =
+  (any card in hand[p] where follows_lead(card, trick_pile))
+  or (any card in exposed[p] where follows_lead(card, trick_pile))
+
+function holds_joker(p : Player) =
+  (any card in hand[p] where card.rank is Joker)
+  or (any card in exposed[p] where card.rank is Joker)
+
+function cards_left(p : Player) =
+  (number of cards in hand[p]) + (number of cards in exposed[p])
+
+// Strict follow by class, straight off the Trick Order: `follows_lead` is the
+// winner's own candidate test, so legality and winning read ONE definition of
+// the led class — a trump obliges a trump whatever suit it is printed, and
+// under no-trumps the un-nominated joker is the trump nobody else can follow.
+// Void in the class, anything goes, with 500's own exception: in a misère a
+// void holder of the un-nominated joker MUST play it (Pagat, "you must play
+// the joker if you have no cards of the suit led"). The void case is the
+// `if any ... else true` shape, because `follows_lead` on a pile with nothing
+// led is the value false.
+function follow_ok(p : Player, c : Card) =
+  if can_follow(p) then follows_lead(c, trick_pile)
+  elif (is_misere or is_open_misere) and joker_suit is none and holds_joker(p)
+  then c.rank is Joker
+  else true
+
+// Anything may be led, except that in the no-trump family an un-nominated
+// joker may not be led before the holder's last card — the modelled form of
+// Pagat's lead-nomination rule (five-hundred.md, "Chosen ruleset (modelling
+// notes)"). Under a trump contract the joker is simply the top trump and
+// leads freely; a nominated joker leads as the highest card of its suit.
+function lead_ok(p : Player, c : Card) =
+  if trump_suit is not none or c.rank is not Joker then true
+  else joker_suit is not none or cards_left(p) is 1
