@@ -60,7 +60,11 @@ empty-input-set class, decisions.md "Closed-domain completeness"). The
 vocabulary census (`test_every_obligation_arm_is_reached`) is the second
 half: the cascade has five rules and the recomputation branches on each of
 their arms, so a sweep that never reached one would leave that arm unchecked
-while every assertion above stayed green.
+while every assertion above stayed green. Two of the census cells are RARE
+enough that a 20-seed sweep does not reach them by luck, and they are reached
+by NAMED witness seeds instead (`_RARE_ARM_SEEDS`) rather than left out of the
+census -- a cell no seed reaches is an assertion that cannot fail, which is
+the same defect this module's own guards exist to refuse.
 
 The recomputation stays INDEPENDENT of the language's trick machinery: it
 never calls `follows_lead` or `highest_by_trick_order`, and re-implements the
@@ -609,6 +613,42 @@ def test_20_random_games_recompute_exactly() -> None:
     assert arms["made"] > 0 and arms["dedans"] > 0, arms
 
 
+# The two census cells the 20-seed sweep does not reach by luck, and the seeds
+# that do. Derived by execution (2026-08-19) rather than assumed, and each
+# carries the count it contributes so a deal shift that moved the shape fails
+# `test_the_rare_arm_seeds_still_carry_their_arm` naming the cell, instead of
+# leaving the census green over an arm nothing reaches:
+#
+# * a THROWN-IN hand -- all eight announcements pass -- occurs once in the 615
+#   hands of seeds 0-59, at seed 47. None at all in seeds 0-19, so before this
+#   the `owed = 0` arm of `_check_seed` and its "eight passes" assertion ran
+#   zero times: written, never executed.
+# * a CAPOT -- the taking side wins all eight tricks -- occurs once in the 210
+#   hands of seeds 0-19, at seed 4. Already inside the sweep, but named here
+#   too, because a cell that depends on one hand in two hundred needs to say
+#   WHICH hand or it rots into a coincidence nobody notices losing.
+_RARE_ARM_SEEDS: dict[str, tuple[int, int]] = {"thrown": (47, 1), "capot": (4, 1)}
+
+_CENSUS_SEEDS: tuple[int, ...] = (*range(20), _RARE_ARM_SEEDS["thrown"][0])
+
+
+def test_the_rare_arm_seeds_still_carry_their_arm() -> None:
+    """Each named witness seed still produces the arm it is named for.
+
+    Without this the census would keep passing off the OTHER seeds while its
+    rare cells quietly depended on nothing -- and the failure would read as
+    "capot never occurred" with no hint that a named seed had drifted. Here it
+    reads as the seed's own."""
+    game = check_source(BELOTE)
+    for cell, (seed, want) in _RARE_ARM_SEEDS.items():
+        got = _check_seed(game, seed)[cell]
+        assert got == want, (
+            f"seed {seed} was named as the census witness for '{cell}' and now "
+            f"produces {got}, not {want} — re-derive the seed (see "
+            f"`_RARE_ARM_SEEDS`), do not drop the cell"
+        )
+
+
 def test_every_obligation_arm_is_reached() -> None:
     """Every arm of the five-rule cascade, and every vocabulary and
     settlement branch the recomputation takes, occurs over the sweep.
@@ -617,10 +657,19 @@ def test_every_obligation_arm_is_reached() -> None:
     occurrence: each names the obligation that BOUND the candidate set at some
     decision, so a cell at zero would mean that rule was never exercised and
     its deletion could go unnoticed here. The rest are the arithmetic's own
-    branches."""
+    branches. The two rare ones ride named witness seeds (`_RARE_ARM_SEEDS`)
+    rather than the sweep's luck.
+
+    What is NOT a cell here, and why: the census counts what the
+    RECOMPUTATION branches on, and `_hand_value`'s declaration classes
+    (`poll_class_1..4`) are counted but not required — a hand holding a quinte
+    or a carré is a deal accident, and the class arithmetic they select is
+    already pinned by known-value tests over the decomposition
+    (tests/test_belote_primitives.py). A cell whose only guard would be a rare
+    deal belongs there, not here."""
     game = check_source(BELOTE)
     arms: Counter[str] = Counter()
-    for seed in range(20):
+    for seed in _CENSUS_SEEDS:
         arms += _check_seed(game, seed)
     for cell in (
         # the cascade's arms, judged on the offered set
@@ -637,6 +686,8 @@ def test_every_obligation_arm_is_reached() -> None:
         # the vocabularies and the settlement
         "took_turnup",
         "named_suit",
+        "thrown",
+        "trick",
         "poll_declared",
         "poll_silent",
         "showed",
@@ -644,6 +695,7 @@ def test_every_obligation_arm_is_reached() -> None:
         "belote_no_belote",
         "made",
         "dedans",
+        "capot",
     ):
         assert arms[cell] > 0, f"{cell} never occurred: {arms}"
 

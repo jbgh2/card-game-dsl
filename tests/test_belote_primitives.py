@@ -7,10 +7,11 @@ Completeness ledger (surface-totality-audit)
 property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of its native names
             fails loud in the owning layer's channel
-domain:     Belote's 9 CALL_FUNCS rows x {name, arity, param types,
-            dispatch arm, reads row} + the primitives' own value domains
-            (the decomposition's combination classes over 32 ranks x 4
-            suits, the guard's class argument). Belote holds no
+domain:     every `belote_*` row of CALL_FUNCS (the registry is the axis;
+            no count is written here) x {name, arity, param types, dispatch
+            arm, reads row} + the primitives' own value domains (the
+            decomposition's combination classes over 32 ranks x 4 suits, the
+            guard's class argument). Belote holds no
             PRIMITIVE_TRICK_WINNERS row: the trick order is the game's
             `trick_order { }` block (issue #250 PR 4), so the winner, the
             within-trump strength and the live-trick team gate are the

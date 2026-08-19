@@ -252,8 +252,31 @@ cost:       the legality path evaluates a row per candidate per decision.
             two games) against Skat's 55,585, because a 500 game is one to
             three hands of ten tricks where a Skat game is thirty-six.
             Normalized, that is ~57 row evaluations per DECISION over 63
-            decisions per game. The count of asks is the cost; the weight of
-            a row is noise beside it. Still no memo.
+            decisions per game. Still no memo.
+            RE-MEASURED again on Belote (issue #250 PR 4, the same method:
+            interleaved reps, medians over 24 samples): base 192.1 ms/game,
+            head 190.7 -- **0.99x**, on the game whose WINNER sits on the
+            legality path (three rules gate on `opp_winning(actor)`, which
+            calls `highest_by_trick_order` over the partial pile). Row asks
+            went UP -- 33,724 over five games against 14,836 per-card
+            examinations before, 2.27x the per-card work -- and the ratio
+            still did not move, because what went away was 2,664
+            narrowed-Primitive bundle materializations: `belote_opp_winning`
+            bound and deep-froze its whole declared reads row on every gated
+            `applies_when`.
+            WHAT THE FOUR MEASUREMENTS SUPPORT, stated no wider. At the row
+            weights the corpus actually writes, the count of BOUNDARY
+            CROSSINGS dominates and per-row weight does not track the ratio:
+            500's rows are the heaviest in the corpus and its ratio is the
+            joint-lowest. That is not the same as "weight is noise", and the
+            counter-measurement is named rather than left for a reader to
+            find: padding Belote's `card_strength:` else-branch with 60 no-op
+            `+ 0` terms, at an UNCHANGED crossing count, costs 182.3 -> 202.8
+            ms/game, 1.11x (executed 2026-08-19; the PR #381 reviewer measured
+            +15% on the same shape). So row weight is spendable, not free --
+            it is simply small at the weights the corpus writes, and a row
+            that grew an order of magnitude heavier would need its own
+            measurement rather than this ledger's.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line

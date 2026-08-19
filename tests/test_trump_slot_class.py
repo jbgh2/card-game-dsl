@@ -151,10 +151,11 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             game-local Primitive behind a trick round can read back and
             `TRUMP_READING_WINNERS` cannot see. NO corpus game does today --
             Belote's `belote_opp_winning` and `belote_royal_player` were the
-            instance and both left with the Trick Order migration (issue
-            #250 PR 4; the surviving Primitive reads the game's own
-            `trump_suit` state variable). The residual is what a future one
-            would meet: a game whose ONLY reader is such a Primitive under a
+            instance, and the Trick Order migration closed both differently
+            (issue #250 PR 4): the first RETIRED, the second STAYED and
+            repointed onto the game's own `trump_suit` state variable, which
+            is a game clause the guard's model does cover. The residual is
+            what a future one would meet: a game whose ONLY reader is such a Primitive under a
             blind winner is refused -- a FALSE REFUSAL, over-reach in the
             safe direction, never a miss. Not work; this ledger owns it.
             (6) The reachability filter is the CONSUMPTION guard's alone.
@@ -383,17 +384,18 @@ def test_trump_reading_registry_matches_the_bodies() -> None:
     future author produces when the one pile misses a read -- so
     `registry == executed` still holds and belote sits in `static` alone:
     this fired with `static-only=['belote_trick_winner']`, where the subset
-    form stayed green.
-
-    THAT PLANT IS NOT REPRODUCIBLE TODAY, and this says so rather than
-    reading as a live witness. `belote_trick_winner` retired with issue #250
-    PR 4, leaving `TRUMP_READING_WINNERS` a single member: emptying the
-    registry to plant the same shape trips a `min()` on an empty set in the
-    diagnostic below it, so the plant reddens through the wrong channel
-    (executed 2026-08-19). The witness returns with the second trump-reading
-    winner, which is what the shape needs -- one member cannot be the odd one
-    out. (A single-site plant on `_PILE` cannot witness it either: it trips
-    the no-trump control or the registry pin first.)"""
+    form stayed green. That winner retired with issue #250 PR 4, so the plant
+    is RE-ANCHORED onto a live member and re-run rather than recorded as
+    history: `_planted_unused = trump` added to `tarot_trick_winner`'s body
+    puts a trump-blind winner in `static` alone, and this assertion reddens in
+    its own channel -- "the static and executed trump-reader oracles disagree
+    ... static-only=['tarot_trick_winner'] executed-only=[]" (executed
+    2026-08-19). Note the re-anchor goes on the winner and NOT on the
+    registry: `TRUMP_READING_WINNERS` now has a single member, so emptying it
+    to plant the old shape trips a `min()` on an empty set in the diagnostic
+    below and reddens through the wrong channel. (A single-site plant on
+    `_PILE` cannot witness it either: it trips the no-trump control or the
+    registry pin first.)"""
     assert F.TRUMP_READING_WINNERS <= F.TRICK_WINNER_NAMES
     executed = {w for w in WINNERS if reads_trump(w)}
     assert F.TRUMP_READING_WINNERS == executed

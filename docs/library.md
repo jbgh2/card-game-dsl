@@ -1007,7 +1007,7 @@ Belote's trick order — the within-trump reorder J > 9 > A > 10 > K > Q > 8 > 7
 over the plain-suit `ranking: ace-ten` — is the game's `trick_order { }`
 block, so the winner, the head/over-trump demands and the team-relative gate
 are all the language's. What stays game-local is the Belote-Rebelote window's
-aim and the declaration combinations: nine primitives reading
+aim and the declaration combinations, reading
 `cardlang/runtime/belote.py`:
 
 - `belote_royal_player() → Player?` — who played a trump King or Queen in

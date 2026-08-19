@@ -748,8 +748,12 @@ _UNREAD_RESIDUALS: dict[str, str] = {
     # one the language passes. Removing the field is a change to the binder's
     # signature (`engine_facts`, `bind`, every dispatch call site), which
     # belongs to the narrowing contract's own change rather than to a game
-    # migration; carried here, named, until then.
-    "actor": "no Primitive reads it since issue #250 PR 4 retired belote_opp_winning",
+    # migration. That is WORK, not a recorded constraint, so it carries a
+    # tracker record and not just this prose: issue #383.
+    "actor": (
+        "no Primitive reads it since issue #250 PR 4 retired "
+        "belote_opp_winning; removal is issue #383"
+    ),
 }
 
 
