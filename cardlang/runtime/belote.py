@@ -176,12 +176,19 @@ def belote_royal_player(
 ) -> Player | None:
     """The player who played a trump King or Queen in the trick that just
     completed (the first of them in play order), or None. A pure read of
-    public facts — the trick's plays and the declared trump — used by the DSL
+    public facts — the trick's plays and the made trump — used by the DSL
     to aim the Belote-Rebelote window's offer; the announcing move's own
-    guard checks the private partner-card holding."""
+    guard checks the private partner-card holding.
+
+    The trump is the GAME's `trump_suit` (this module's declared state read),
+    not the round's `state["trump"]`: a `trick_order` block forbids the round
+    a `trump` clause, so that key is None for every trick Belote plays, and
+    reading it would find no royal in any trick — the window would never
+    open. The two carried the same value before the Trick Order; one is a
+    fact of the game and the other of the round, and only the first survives."""
     state = _round_state(facts, "belote_royal_player")
     played: list[tuple[Player, Card]] = state["played"]  # type: ignore[assignment]
-    trump: str | None = state["trump"]  # type: ignore[assignment]
+    trump: str | None = gr.state["trump_suit"]
     return next(
         (p for p, c in played if c.suit == trump and c.rank in ("K", "Q")), None
     )

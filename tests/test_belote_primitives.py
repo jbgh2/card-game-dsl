@@ -221,8 +221,7 @@ def test_probe_trick_winner_fn_on_an_auction_round_is_rejected() -> None:
 def test_probe_auction_outcome_on_the_trick_round_is_rejected() -> None:
     src = BELOTE.read_text()
     text = src.replace(
-        "winner belote_trick_winner trump trump_suit",
-        "winner tarot_auction_outcome trump trump_suit",
+        "winner highest_by_trick_order", "winner tarot_auction_outcome"
     )
     assert text != src
     _expect_rejected(
