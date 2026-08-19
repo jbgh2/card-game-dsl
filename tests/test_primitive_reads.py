@@ -303,9 +303,13 @@ def _scan_source(source: str, where: str) -> ScanResult:
                     # The Arrival Record is a FACET of a declared single-zone
                     # read (reads.PrimitiveReads.arrival_zones requires the
                     # subset), so reading the record IS reading the zone —
-                    # counted for both kinds, which is what lets a facet-only
-                    # reader (five_hundred) keep its single_zones declaration
-                    # honest.
+                    # counted for both kinds, which is what would let a
+                    # facet-only reader keep its single_zones declaration
+                    # honest. No module declares `arrival_zones` today (the
+                    # Trick Order reads the pile's record at the call boundary
+                    # instead), so this arm currently runs for nobody; it stays
+                    # because the scan's classification must be total over the
+                    # bundle's kinds, not over today's registry.
                     result.reads["single"].add(idx.value)
             else:
                 result.problems.append(

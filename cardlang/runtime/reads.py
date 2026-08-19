@@ -309,16 +309,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("captured", "discard"),
         single_zones=_fs("trick_pile", "chien"),
     ),
-    # `declarer` left this row with the dead-seat derivation it fed
-    # (issue #256): participation now derives from the Arrival Record.
-    PrimitiveReads(
-        module="cardlang/runtime/five_hundred.py",
-        game_file="five-hundred.cardlang",
-        state_vars=_fs("trump_suit", "is_misere", "is_open_misere", "joker_suit"),
-        zone_families=_fs("hand", "exposed"),
-        single_zones=_fs("trick_pile"),
-        arrival_zones=_fs("trick_pile"),
-    ),
     PrimitiveReads(
         module="cardlang/runtime/belote.py",
         game_file="belote.cardlang",

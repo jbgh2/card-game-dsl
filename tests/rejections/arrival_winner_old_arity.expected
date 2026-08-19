@@ -1,1 +1,1 @@
-arrival_winner_old_arity.cardlang:19:13: error: five_hundred_trick_winner() expects 0 argument(s), got 1
+arrival_winner_old_arity.cardlang:20:13: error: highest_by_trick_order() expects 1 argument(s), got 2

@@ -222,9 +222,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_next_bid",  # 500: cheapest bid ordinal in a strain beating the standing bid
         "five_hundred_bid_value",  # 500: a contract ordinal's score value (misère 250, open 500)
         "five_hundred_bid_level",  # 500: a suit/NT contract ordinal's trick target (6..10)
-        "five_hundred_follow_ok",  # 500: follow legality (joker + bowers are trump-suit members)
-        "five_hundred_lead_ok",  # 500: lead legality (un-nominated joker lead restriction)
-        "five_hundred_trick_winner",  # 500: the trick's winner (3 cards in misère, else 4)
         "belote_trump_height",  # Belote: a rank's strength within trump (J > 9 > A > 10 > K > Q > 8 > 7)
         "belote_opp_winning",  # Belote: is the live trick's current winner an opponent of the actor?
         "belote_royal_player",  # Belote: who played a trump K/Q in the trick just completed
@@ -418,10 +415,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "cribbage_show_value",
         "first_to_act_seat",
         "five_hundred_bid_value",
-        "five_hundred_follow_ok",
-        "five_hundred_lead_ok",
         "five_hundred_next_bid",
-        "five_hundred_trick_winner",
         "follow_class",
         "follows_lead",
         "gin_arrange_ok",

@@ -204,20 +204,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.five_hundred import five_hundred_bid_level
 
             return five_hundred_bid_level(args[0])
-        case "five_hundred_follow_ok":
-            from cardlang.runtime.five_hundred import ROW, five_hundred_follow_ok
-
-            return five_hundred_follow_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "five_hundred_lead_ok":
-            from cardlang.runtime.five_hundred import ROW, five_hundred_lead_ok
-
-            return five_hundred_lead_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "five_hundred_trick_winner":
-            from cardlang.runtime.five_hundred import ROW, five_hundred_trick_winner
-
-            winner, events = five_hundred_trick_winner(*_bind(ctx, ROW))
-            _emit(ctx, events)
-            return winner
         case "belote_trump_height":
             from cardlang.runtime.belote import belote_trump_height
 

@@ -13,8 +13,8 @@ before everyone has played; then a winner function selects a player, bound as
 `winner` for the surrounding body, which does the routing.
 
 A round's `trump <expr>` names the trump for the pass. A game whose trumps are
-not a suit — Doppelkopf's queens and jacks, Skat's jacks — declares a
-`trick_order { }` instead (decisions.md "Trick Order") and names
+not a suit — Doppelkopf's queens and jacks, Skat's jacks, 500's joker and
+bowers — declares a `trick_order { }` instead (decisions.md "Trick Order") and names
 `highest_by_trick_order`; such a round writes no `trump` clause at all. Every
 trick round's play zone must project identity to every observer: the plays are
 the provenance every winner reads.
@@ -922,10 +922,16 @@ declared contract (`is_grand` / `is_null` / `trump_suit`) from state:
   is not a primitive: the game text writes it as
   `base * (working_bid divided by base rounded up)`.)
 
-500's contract machinery is six game-local primitives reading
-`cardlang/runtime/five_hundred.py`; the play-legality ones read the declared
-contract (`trump_suit` / `is_misere` / `is_open_misere` / `joker_suit`)
-from phase state:
+500's contract machinery is the three game-local primitives below, reading
+`cardlang/runtime/five_hundred.py` — all of them pure functions of their
+arguments. The contract's ORDER is not among them: the joker, the two bowers
+and the no-trump family's suitless joker are the game's declared Trick Order
+(decisions.md "Trick Order"), whose rows read `trump_suit` and `joker_suit`
+off game state, so follow legality is `follows_lead` and the winner is
+`highest_by_trick_order`. The two rules that are not facts about the order —
+the misère holder of the un-nominated joker who is void and must play it, and
+the lead restriction that holds an un-nominated joker back until its holder's
+last card — are the game file's own `function`s.
 
 - `five_hundred_next_bid(standing: Integer, strain: Suit?) → Integer` — the
   cheapest rung in the strain that beats the standing contract ordinal on
@@ -937,22 +943,6 @@ from phase state:
   refuse loudly.
 - `five_hundred_bid_level(rank: Integer) → Integer` — a suit/no-trump
   ordinal's trick target (6..10); the misères have none and refuse.
-- `five_hundred_follow_ok(p: Player, c: Card) → Boolean` — follow-class
-  legality against the led card: under a trump contract the joker, right
-  bower, and left bower are members of the trump suit in all respects (the
-  Skat follow-class shape plus the left bower's effective-suit change); in
-  the no-trump family the joker is suitless (playable only when void; FORCED
-  when void in a misère) or, once nominated, a member of its suit.
-- `five_hundred_lead_ok(p: Player, c: Card) → Boolean` — lead legality: an
-  un-nominated joker may not be led in the no-trump family before the
-  holder's last card (the modelled form of the lead-nomination rule —
-  [games/five-hundred.md](games/five-hundred.md), "Chosen ruleset (modelling notes)").
-- `five_hundred_trick_winner() → Player` — the completed trick's winner
-  (three cards in a misère — three seats play — else four), the plays and
-  the participation both read off the trick pile's Arrival Record: highest
-  trump (joker > bowers > A..), else highest of the led class; an
-  un-nominated joker wins any no-trump trick it is played to. Emits the
-  play/trick_end/trick traces the playout harness recomputes winners from.
 
 Tichu's game-local primitives read `cardlang/runtime/tichu.py` (the
 combination engine itself stays `cardlang/runtime/tichu_combinations.py`);
