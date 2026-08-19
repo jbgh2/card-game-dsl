@@ -1,34 +1,42 @@
 """Known-value tests for 500's Primitives
 (cardlang/runtime/five_hundred.py), following the gin/cribbage pattern: the
-pure decision cores — the bid ladder, follow/lead legality, the trick winner
-— are proven against positions whose answers are known by construction,
-independent of the ctx-adapter wiring (the playout harness re-verifies the
-same rules end-to-end from the emitted traces).
+pure decision core -- the 27-rung bid ladder with the misere insertions -- is
+proven against ordinals whose values are known by construction, independent of
+the ctx-adapter wiring.
+
+The contract's ORDER is not here and has no known-value table: the joker, the
+bowers and the no-trump family's suitless joker are the game's declared Trick
+Order (issue #250 PR 3), so what once needed a table of positions is now
+proven by execution instead -- an independent recomputation of every trick's
+winner and every follow and lead decision over forty seeded games
+(tests/test_playout_five_hundred.py, with a census pinning that each joker and
+bower role actually occurs), and a 200-seed byte-identity pin against the
+pre-migration engine (tests/test_trick_order_migration.py). The construct's own
+domain is tests/test_trick_order.py.
 
 Completeness ledger (surface-totality audit, this change):
 
-property:   every 500 contract shape resolves follow/lead/winner correctly,
-            and every bid ordinal maps to its Pagat value/target or refuses
-domain:     contract shapes {4 trump suits, no-trumps, misère, open misère}
-            x joker states {absent, un-nominated, nominated} x card classes
-            {joker, right bower, left bower, plain trump, led suit, off
-            suit}; bid ordinals {10..250 by tens, 105, 235} + non-ordinals
+property:   every bid ordinal maps to its Pagat value/target or refuses, and
+            the deck is the 43-card pack
+domain:     bid ordinals {10..250 by tens, 105, 235} + non-ordinals x the
+            three ladder readers; the five strains including the
+            never-biddable "joker" pseudo-strain
 registry:   cardlang/runtime/five_hundred.py (_STRAIN_ORD, _MISERE_ORD,
-            _OPEN_MISERE_ORD, _SUIT_BID_ORDS, _PLAIN_RANK, _SAME_COLOUR);
-            the deck in cardlang/runtime/values.py (five_hundred43)
-covered:    the full 27-rung ladder value/order table (exhaustive below);
-            bower/joker follow-class remap and trump strength; the no-trump
-            joker in all three nomination states incl. the misère forced
-            play; the never-biddable/never-nominable "joker" pseudo-strain;
-            the off-ladder refusals (bid_value / bid_level / trick size)
+            _OPEN_MISERE_ORD, _SUIT_BID_ORDS); the deck in
+            cardlang/runtime/values.py (five_hundred43)
+covered:    the full 27-rung ladder value/order table (exhaustive below); each
+            strain's opening rung and cheapest raise; the exhausted-ladder 0;
+            the never-biddable "joker" pseudo-strain; the off-ladder refusals
+            (bid_value / bid_level)
 sampled:    full-game reachability of each contract family via the playout
             suite (tests/test_playout_five_hundred.py) and the driven
-            open-misère line (tests/openspiel_ready/test_five_hundred.py)
+            open-misere line (tests/openspiel_ready/test_five_hundred.py)
 residual:   the lead-time joker nomination Pagat allows when leading an
             un-nominated joker (modelled as "not before the holder's last
-            card" — the guard is `lead_ok` returning False, loud as an empty
-            candidate set never arises and the restriction is documented in
-            five-hundred.md "Chosen ruleset (modelling notes)"; recorded in issue #106)
+            card" -- now the game file's own `lead_ok` function, loud as an
+            empty candidate set never arises and the restriction is documented
+            in five-hundred.md "Chosen ruleset (modelling notes)"; recorded in
+            issue #106)
 """
 
 from __future__ import annotations
@@ -40,23 +48,8 @@ from cardlang.runtime.five_hundred import (
     five_hundred_bid_level,
     five_hundred_bid_value,
     five_hundred_next_bid,
-    follow_ok,
-    lead_ok,
-    trick_winner,
 )
-from cardlang.runtime.values import Card, build_deck
-
-JOKER = Card("Joker", "joker")
-
-
-def _c(spec: str) -> Card:
-    rank, suit = spec[:-1], {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}[spec[-1]]
-    return Card(rank, suit)
-
-
-def _h(*specs: str) -> list[Card]:
-    return [_c(s) for s in specs]
-
+from cardlang.runtime.values import build_deck
 
 # --- the deck ---------------------------------------------------------------
 
@@ -126,90 +119,3 @@ def test_off_ladder_ordinals_refuse_loudly() -> None:
     for bad in (105, 235, 0, 37):
         with pytest.raises(OwnerGuardError, match="not a suit/no-trump contract"):
             five_hundred_bid_level(bad)
-
-
-# --- follow legality ---------------------------------------------------------
-
-
-def test_trump_contract_bowers_and_joker_are_one_follow_class() -> None:
-    # Hearts trump: joker, J♥ (right), J♦ (left) and hearts are the class.
-    pool = _h("JD", "5H", "AD", "8C") + [JOKER]
-    led = _c("KH")
-    # Holding trump-class cards obliges a trump-class play.
-    assert follow_ok(pool, led, _c("5H"), "hearts", False, None)
-    assert follow_ok(pool, led, _c("JD"), "hearts", False, None)   # left bower follows hearts
-    assert follow_ok(pool, led, JOKER, "hearts", False, None)      # joker follows hearts
-    assert not follow_ok(pool, led, _c("AD"), "hearts", False, None)
-    assert not follow_ok(pool, led, _c("8C"), "hearts", False, None)
-    # The left bower's printed suit does NOT follow its colour-mate lead:
-    # diamonds led, J♦ is a heart (trump) — holding another diamond, the
-    # jack is not a legal follow.
-    pool2 = _h("JD", "7D", "8C")
-    assert follow_ok(pool2, _c("AD"), _c("7D"), "hearts", False, None)
-    assert not follow_ok(pool2, _c("AD"), _c("JD"), "hearts", False, None)
-    # Void of the led class: anything goes (no obligation to trump).
-    pool3 = _h("8C", "5S")
-    assert follow_ok(pool3, _c("KH"), _c("8C"), "hearts", False, None)
-    assert follow_ok(pool3, _c("KH"), _c("5S"), "hearts", False, None)
-
-
-def test_no_trump_joker_plays_only_when_void_and_is_forced_in_misere() -> None:
-    pool = _h("7D", "8C") + [JOKER]
-    led = _c("KD")
-    # Holding the led suit: must follow — the suitless joker is not legal.
-    assert follow_ok(pool, led, _c("7D"), None, False, None)
-    assert not follow_ok(pool, led, JOKER, None, False, None)
-    # Void in plain no-trumps: the joker becomes playable but stays optional.
-    pool_void = _h("8C") + [JOKER]
-    assert follow_ok(pool_void, led, JOKER, None, False, None)
-    assert follow_ok(pool_void, led, _c("8C"), None, False, None)
-    # Void in a misère: the un-nominated joker is FORCED.
-    assert follow_ok(pool_void, led, JOKER, None, True, None)
-    assert not follow_ok(pool_void, led, _c("8C"), None, True, None)
-    # Nominated, the joker is a member of its suit: not forced when void of
-    # the led suit (it is just a discard), and obliged when its suit is led.
-    assert follow_ok(pool_void, led, _c("8C"), None, True, "clubs")
-    assert follow_ok(pool_void, _c("4C"), JOKER, None, False, "clubs")
-    # Hearts led with the joker nominated hearts: the joker IS the holder's
-    # only heart, so the club is no longer a legal play.
-    assert not follow_ok(pool_void, _c("4H"), _c("8C"), None, False, "hearts")
-
-
-def test_lead_legality_for_the_joker() -> None:
-    pool = _h("7D", "8C") + [JOKER]
-    # Trump contract: the joker is the top trump and leads freely.
-    assert lead_ok(pool, JOKER, "spades", None)
-    # No-trump family, un-nominated: not before the holder's last card.
-    assert not lead_ok(pool, JOKER, None, None)
-    assert lead_ok([JOKER], JOKER, None, None)
-    # Nominated: leads as the highest card of its suit.
-    assert lead_ok(pool, JOKER, None, "hearts")
-    # Plain cards always lead.
-    assert lead_ok(pool, _c("7D"), None, None)
-
-
-# --- the trick winner --------------------------------------------------------
-
-
-def test_trump_trick_winner_joker_over_right_over_left_over_ace() -> None:
-    trump = "hearts"
-    assert trick_winner([(0, _c("AH")), (1, _c("JD")), (2, _c("JH")), (3, JOKER)], trump, None) == 3
-    assert trick_winner([(0, _c("AH")), (1, _c("JD")), (2, _c("JH")), (3, _c("KH"))], trump, None) == 2
-    assert trick_winner([(0, _c("AH")), (1, _c("JD")), (2, _c("10H")), (3, _c("KH"))], trump, None) == 1
-    # No trump played: highest of the suit led.
-    assert trick_winner([(2, _c("9C")), (3, _c("QC")), (0, _c("4D")), (1, _c("AS"))], trump, None) == 3
-    # The left bower TRUMPS a plain lead of its printed suit.
-    assert trick_winner([(0, _c("AD")), (1, _c("JD")), (2, _c("KD")), (3, _c("QD"))], trump, None) == 1
-
-
-def test_no_trump_trick_winner_and_the_nominated_joker() -> None:
-    # Un-nominated joker wins any trick it is played to.
-    assert trick_winner([(0, _c("AD")), (1, JOKER), (2, _c("KD")), (3, _c("QD"))], None, None) == 1
-    # No joker: highest of the suit led (aces high, off-suit never wins).
-    assert trick_winner([(1, _c("9C")), (2, _c("QC")), (3, _c("AD")), (0, _c("KC"))], None, None) == 0
-    # Nominated joker wins when its suit is led...
-    assert trick_winner([(0, _c("AD")), (1, JOKER), (2, _c("KD"))], None, "diamonds") == 1
-    # ...and LOSES when discarded on another suit (it is just a diamond).
-    assert trick_winner([(0, _c("AC")), (1, JOKER), (2, _c("KC"))], None, "diamonds") == 0
-    # A nominated joker led sets its suit as the led class.
-    assert trick_winner([(1, JOKER), (2, _c("AD")), (3, _c("AC"))], None, "diamonds") == 1

@@ -178,10 +178,11 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     president_follows (president.py reads facts.rank_index). NON-members:
 #     the bigtwo_* and tichu_* engines, which carry their own orders.
 #   NON-members elsewhere: peg_pair_points (rank equality only),
-#     on_play_off_led_suit (suit only), every auction outcome, and the
-#     skat/five_hundred winners (game-local strength tables). The Rank
+#     on_play_off_led_suit (suit only), and every auction outcome. The Rank
 #     move-parameter domain is resolve's gate; `card_points` is gated by its
-#     own clause-required guard.
+#     own clause-required guard, and a Trick Order's OMITTED `card_strength:`
+#     row by `_check_trick_order`'s own ranking gate (the default is
+#     `rank_value(card)`).
 RANKING_GATED_FUNCS: frozenset[str] = frozenset(
     {
         "rank_value",

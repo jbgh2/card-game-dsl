@@ -15,9 +15,49 @@ The auction-mask probes double as this change's misuse-probe rejection tests
 as Owner Guards (an illegal bid is an absent action, not a crash):
 misère before any seven bid, a raise above 10NT, and the deck-derived
 "joker" pseudo-strain as a bid or a nomination must all be masked out.
+
+What 500's information state PUBLISHES, and why that is entitled
+----------------------------------------------------------------
+Scope decides publication: game-scoped state renders into the information
+state where phase-scoped state does not. 500's Trick Order rows read the
+declared contract, and a `trick_order` block is a game clause, so
+`trump_suit` and `joker_suit` are game-level — and therefore public — where
+they used to be phase-level and invisible. The soundness matrix's
+`state_vars` count is 16 against 8 before (four game variables for each of
+four observers), and every one of the four is perturbed and proven visible
+there.
+
+The information-set PARTITION did not move. Half of that claim is EXECUTED
+here and half is a recorded RESIDUAL, and the two are not mixed together:
+
+* executed — `test_published_contract_facts_derive_from_each_observers_log`
+  below. Every published value re-derives from the reading observer's OWN
+  log, because the contract is the last bid the auction announced in the
+  current hand and the nomination is the declarer's announced
+  `nominate_joker_suit`, both public decisions every seat hears. The greedy
+  line reaches non-null `trump_suit` but never a nomination, so a DRIVEN
+  nomination line carries the `joker_suit` values and both non-null counts
+  are asserted positive — without that guard the `joker_suit` half would
+  compare None against None forever.
+* residual — the base-to-head comparison. Measured while the migration
+  landed (issue #250 PR 3): over 1100 states (275 greedy-line nodes x 4
+  observers x 5 manifest seeds) every observer's zone views and observation
+  log were byte-identical to the PRE-migration tree, the two names above the
+  only difference in the rendering. It cannot become a test in this tree —
+  it needs the pre-migration game file to compare against — so it is a
+  one-shot measurement whose provenance is the commit that made it, the same
+  standing as `tests/test_trick_order_migration.py`'s own captures. R4, THIS
+  LEDGER ROW owns the record.
+
+So the two variables carry no fact an observer could not already compute, and
+no observer's states merge or split. The pre/post byte-identity of PLAY
+itself is `tests/test_trick_order_migration.py`, whose ledger delegates this
+surface here.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import DecisionNode, load, run
@@ -35,7 +75,8 @@ class TestReadiness(ReadinessProofs):
         "cardlang_five_hundred",
         "five-hundred.cardlang",
         adapter_terminal_steps=400,  # greedy line measured 55 steps
-        # provenance zones derive from PRIMITIVE_READS.arrival_zones (500's row)
+        # provenance zones derive from the checked AST's Arrival-Record calls
+        # (`follows_lead` / `highest_by_trick_order` over `trick_pile`)
     )
 
 
@@ -231,3 +272,120 @@ def test_joker_suit_is_never_nominable() -> None:
     assert "decline_nomination" in decoded
     assert ("nominate_joker_suit", "joker") not in decoded
     assert {("nominate_joker_suit", s) for s in ("clubs", "diamonds", "hearts", "spades")} <= decoded
+
+
+# --- the published contract facts, re-derived from each observer's own log --
+
+# A hand-listed axis against the game file's `move_type`s, with nothing
+# pinning the two equal — a new non-bid move type would read as a bid here.
+# Recorded, not fixed: issue #380 (tests/test_playout_five_hundred.py spells
+# the same list).
+_NOT_A_BID = frozenset({"pass", "decline_nomination"})
+_NOMINATE = "nominate_joker_suit("
+_SUBMIT = "submit_bid("
+
+
+def _contract_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str | None]:
+    """(trump_suit, joker_suit) as a seat at the table would write them down
+    from what it HEARD: a hand begins at the first of its three kitty deals,
+    the standing contract is the last bid announced in it, and the nomination
+    is the declarer's announced `nominate_joker_suit`. Reads no engine state
+    and no other seat's view — that is the whole point."""
+    trump: str | None = None
+    joker: str | None = None
+    kitty = 0
+    for e in log:
+        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "kitty":
+            if kitty % 3 == 0:
+                trump, joker = None, None
+            kitty += 1
+        elif e[0] == "announce":
+            said = str(e[2])
+            if said in _NOT_A_BID:
+                continue
+            if said.startswith(_NOMINATE):
+                joker = said[len(_NOMINATE) : -1]
+            elif said.startswith(_SUBMIT):
+                trump = said[len(_SUBMIT) : -1]
+            else:  # the bare `submit_bid`, `bid_misere`, `bid_open_misere`
+                trump = None
+    return trump, joker
+
+
+def _walk(
+    seed: int, history: tuple[int, ...], limit: int
+) -> tuple[int, int, int, list[str]]:
+    """Walk the greedy line from `history`, comparing the two published facts
+    against each observer's own derivation at every node. Returns (facts
+    checked, non-null trump renderings, non-null joker renderings, failures)."""
+    checked = t_seen = j_seen = 0
+    failures: list[str] = []
+    hist = list(history)
+    r = run(PATH, seed, tuple(hist))
+    while isinstance(r, DecisionNode) and len(hist) - len(history) < limit:
+        for q in sorted(r.obs_logs):
+            rendered = dict(
+                kv.split("=", 1)
+                for kv in information_state(q, r.rs, r.obs_logs[q]).split("|", 3)[2].split(";")
+                if "=" in kv
+            )
+            trump, joker = _contract_from_log(r.obs_logs[q])
+            want = {"trump_suit": "None" if trump is None else trump,
+                    "joker_suit": "None" if joker is None else joker}
+            for var, value in want.items():
+                checked += 1
+                if rendered.get(var) != value:
+                    failures.append(
+                        f"seed {seed} step {len(hist)} P{q}: the state renders "
+                        f"{var}={rendered.get(var)}, but P{q}'s own log derives {value}"
+                    )
+            t_seen += want["trump_suit"] != "None"
+            j_seen += want["joker_suit"] != "None"
+        hist.append(r.legal[0])
+        nxt = run(PATH, seed, tuple(hist))
+        if not isinstance(nxt, DecisionNode):
+            break
+        r = nxt
+    return checked, t_seen, j_seen, failures
+
+
+def test_published_contract_facts_derive_from_each_observers_log() -> None:
+    """`trump_suit` and `joker_suit` are game-scoped and therefore RENDER into
+    every information state (module docstring). This is the entitlement half:
+    each rendered value is a function of what that observer already heard, so
+    publishing it merges and splits nothing.
+
+    The DRIVING is load-bearing and pinned as such. The greedy line reaches
+    real trump strains but never a nomination — every seat declines — so the
+    `joker_suit` half would be None-against-None on the manifest seeds alone.
+    The driven line below bids open misère, takes the kitty and NOMINATES, and
+    the two `assert ... > 0` guards are what stop either half from passing on
+    a constant."""
+    checked = t_seen = j_seen = 0
+    failures: list[str] = []
+    for seed in (3, 5, 14, 15, 18):
+        c, t, j, f = _walk(seed, (), 400)
+        checked, t_seen, j_seen = checked + c, t_seen + t, j_seen + j
+        failures += f
+
+    # The driven nomination line: open misère from the opener, three passes,
+    # the three kitty discards, then the joker nominated hearts.
+    _game, space = load(PATH)
+    hist = [space.encode(("bid_open_misere", None))] + [space.encode(("pass", None))] * 3
+    r = run(PATH, 3, tuple(hist))
+    for _ in range(3):  # the three kitty discard picks
+        assert isinstance(r, DecisionNode)
+        hist.append(r.legal[0])
+        r = run(PATH, 3, tuple(hist))
+    assert isinstance(r, DecisionNode)
+    hist.append(space.encode(("nominate_joker_suit", "hearts")))
+    c, t, j, f = _walk(3, tuple(hist), 40)
+    checked, t_seen, j_seen = checked + c, t_seen + t, j_seen + j
+    failures += f
+
+    assert not failures, "\n".join(failures[:6])
+    assert t_seen > 0, "no state ever rendered a real trump suit — vacuous"
+    assert j_seen > 0, (
+        "no state ever rendered a nominated joker suit — the driven line above "
+        "stopped reaching the nomination, so this proof is None against None"
+    )

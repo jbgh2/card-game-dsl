@@ -34,13 +34,13 @@ covered:    (a) the invariant walk: per game x manifest-head seed, every
             (b) value-purity: the record contains Card values equal to the
             zone's cards — no id(), no copy index (the copy-swap pins in
             tests/openspiel_ready/ carry the executed reddening for this);
-            (c) arrival-order truth for the trick piles the consumers read:
-            at every skat/500/schnapsen winner call the pairs the
-            record holds are asserted against the plays the trace events
-            report (the trace is emitted FROM the same primitives, so this
-            cell's independent half is the schnapsen reconstruction in
-            tests/test_playout_schnapsen.py, which derives plays from
-            observation events alone).
+            (c) arrival-order truth for the trick piles: the playout oracle
+            of every trick game whose winner the record once fed (schnapsen,
+            skat, 500) recomputes each trick from the movements INTO the
+            pile, in order, deriving them from observation events alone —
+            the same pairs the record holds, obtained without asking the
+            engine. The openspiel_ready provenance rows are that claim
+            again, per observer.
 sampled:    one seed per game here (the playout suites and goldens carry
             the multi-seed load); the full openspiel_ready manifest
             exercises the same walk indirectly through its replays.
@@ -77,8 +77,9 @@ residual:   `arrival_zones` for zone FAMILIES — no consumer in this change
             ROW owns the record of the gap until it lands.
 
 misuse probes: tests/rejections/arrival_winner_old_arity.{cardlang,expected}
-            (the pre-#256 leader-argument spelling — rejected at typecheck
-            arity, never accepted-and-ignored) and
+            (the pre-#256 leader-argument spelling, over the surviving
+            Arrival-Record winner `highest_by_trick_order` — rejected at
+            typecheck arity, never accepted-and-ignored) and
             arrival_winner_missing_trump.{cardlang,expected} (the trump-less
             call). The runtime-channel probes are this module's call-form
             and reads-surface cells above.
@@ -123,8 +124,12 @@ from cardlang.runtime.values import Card
 
 GAMES_DIR = Path(__file__).parent.parent / "docs" / "games"
 
-# The four consumers' games walk first (they read the record); the rest of
-# the corpus rides the same invariant so a missed site anywhere fails.
+# The trick games whose winners the record was built for walk first; the rest
+# of the corpus rides the same invariant so a missed site anywhere fails. None
+# of the four declares `arrival_zones` anymore -- the Trick Order's
+# `highest_by_trick_order` / `follows_lead` read the pile's record at the call
+# boundary instead (runtime/trick_order.py), so these are the games whose piles
+# the record is consumed FROM, not the modules that declare it.
 CONSUMER_GAMES = (
     "doppelkopf.cardlang",
     "skat.cardlang",
@@ -240,12 +245,17 @@ def _rs_for(game_file: str, seed: int = 11) -> RuntimeState:
 
 def test_declared_arrival_zone_materializes_actor_card_pairs() -> None:
     """A row declaring `arrival_zones` gets `GameReads.arrivals[name]` as
-    deep-frozen (actor, card) pairs in arrival order."""
+    deep-frozen (actor, card) pairs in arrival order.
+
+    The row is SYNTHETIC and has to be: no module in `PRIMITIVE_READS`
+    declares `arrival_zones` since the Trick Order retired the last hand-rolled
+    winner that read one (issue #250 PR 3), so these three cells are the
+    column's only coverage until a Primitive needs it again."""
     from cardlang.runtime import reads
 
     rs = _rs_for("five-hundred.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/five_hundred.py",
+        module="cardlang/runtime/<synthetic>.py",
         game_file="five-hundred.cardlang",
         single_zones=frozenset({"trick_pile"}),
         arrival_zones=frozenset({"trick_pile"}),
@@ -264,7 +274,7 @@ def test_arrival_zone_of_concealed_type_is_refused_at_bind() -> None:
 
     rs = _rs_for("schnapsen.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/schnapsen.py",
+        module="cardlang/runtime/<synthetic>.py",
         game_file="schnapsen.cardlang",
         single_zones=frozenset({"talon"}),
         arrival_zones=frozenset({"talon"}),  # FaceDownPile: count_only to all
@@ -281,7 +291,7 @@ def test_arrival_zone_must_be_a_declared_single_zone() -> None:
 
     rs = _rs_for("five-hundred.cardlang")
     row = reads.PrimitiveReads(
-        module="cardlang/runtime/five_hundred.py",
+        module="cardlang/runtime/<synthetic>.py",
         game_file="five-hundred.cardlang",
         arrival_zones=frozenset({"trick_pile"}),  # not in single_zones
     )

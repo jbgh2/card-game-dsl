@@ -110,9 +110,6 @@ CALL_SIGS: dict[str, Sig] = {
     "follows_lead": Sig((TCard(), TAny()), TBoolean()),
     "highest_by_trick_order": Sig((TAny(),), TPlayer()),
     "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
-    # The three trick winners read the trick pile's Arrival Record (issue
-    # #256): attribution is the kernel's, so no argument remains — the old
-    # `leader` parameter existed only for the retired seat-order zip.
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
     "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
@@ -142,9 +139,6 @@ CALL_SIGS: dict[str, Sig] = {
     ),  # 500: cheapest bid ordinal in a strain beating the standing bid (0 = none)
     "five_hundred_bid_value": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> score value
     "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
-    "five_hundred_follow_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: follow legality
-    "five_hundred_lead_ok": Sig((TPlayer(), TCard()), TBoolean()),  # 500: lead legality
-    "five_hundred_trick_winner": Sig((), TPlayer()),  # 500: the trick's winner
     "belote_trump_height": Sig((TCard(),), TInteger()),  # Belote: trump-suit rank strength
     "belote_opp_winning": Sig((), TBoolean()),  # Belote: live trick's winner is an opponent?
     "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q

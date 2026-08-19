@@ -50,7 +50,14 @@ def recorded_plays(
     pairs: tuple[tuple[Player | None, Card], ...], caller: str, expected: int
 ) -> list[tuple[Player, Card]]:
     """A completed trick's plays, read off the pile's [[arrival-record]]
-    pairs (issue #256) — the shared guard of every hand-rolled trick winner.
+    pairs (issue #256) — the shared guard the hand-rolled trick winners used.
+
+    It has NO caller today: the last of those winners retired onto the Trick
+    Order (issue #250), whose own winner deliberately consults no expected
+    count, because a mid-trick read is the winner so far. It stays because the
+    guard it carries is the one a future hand-rolled winner would need, and
+    its absence from the Trick Order path is a designed gap with a record —
+    tests/test_arrival_record.py's `residual` row owns it, citing issue #350.
 
     Two Owner Guards, both the hosting description's errors: the pile must
     hold exactly the completed trick (`expected` plays — a wrong call site

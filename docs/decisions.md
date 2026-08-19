@@ -380,8 +380,9 @@ each card: is it a **trump**, what **class** does it follow as, and how
 **strong** is it within that class. In a plain game those fall out of the
 card's printed fields and the `trump:` clause. In the big European games they
 do not: Doppelkopf's queens and jacks are trumps whatever suit they are
-printed, Skat's jacks likewise, and French Tarot's Excuse belongs to no class
-at all. A game whose answer differs from the printed one declares it:
+printed, Skat's jacks likewise, 500's joker and left bower are members of a
+trump suit they are not printed in, and French Tarot's Excuse belongs to no
+class at all. A game whose answer differs from the printed one declares it:
 
 ```cardlang-fragment trick_order
 trick_order {
@@ -2447,7 +2448,7 @@ stated exactly once, in the movement structure the game file already has.
 The record is engine truth, mediated exactly as zone contents are: it enters
 no observation event and no information state, and any surface that reads it
 per-observer is bounded to zones whose type projects identity to every
-observer (`GameReads.arrival_zones`, refused loud otherwise; the
+observer (`PrimitiveReads.arrival_zones`, refused loud otherwise; the
 `highest_trump_or_led_suit` call form guards the same predicate) — a
 concealed zone's provenance is not derivable from any observer's stream, so
 nothing may range over it, legality contexts included. Per-observer

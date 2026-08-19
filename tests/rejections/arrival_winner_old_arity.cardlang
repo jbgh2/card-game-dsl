@@ -1,14 +1,15 @@
-// Guard: typecheck's call-arity check over CALL_SIGS. The pre-#256 spelling
-// of a trick-winner call passed the leader so the primitive could zip seat
-// order against pile contents; the Arrival Record made the argument
-// meaningless, so the signature is nullary and the old spelling — the most
-// plausible wrong sentence for any existing description — is rejected, never
-// accepted-and-ignored.
+// Guard: typecheck's call-arity check over CALL_SIGS. A trick-winner call
+// over a pile's Arrival Record takes the PILE and nothing else — attribution
+// is the kernel's, so the `leader` argument the pre-#256 spelling carried has
+// nothing left to do. Passing it anyway is the most plausible wrong sentence
+// for any description written against the old shape, and it is rejected,
+// never accepted-and-ignored.
 game ArrivalWinnerOldArity {
   players: 4
   max_length: 1000
   cards: standard52
   ranking: aces high
+  trick_order { trump: card.suit is spades }
   zones {
     deck : Deck
     hand[player] : Hand<player>
@@ -16,7 +17,7 @@ game ArrivalWinnerOldArity {
   }
   state { score[player] : Integer = 0 }
   phase play {
-    let w = five_hundred_trick_winner(0)
+    let w = highest_by_trick_order(trick_pile, 0)
     score[w] += 1
   }
   winner: highest score

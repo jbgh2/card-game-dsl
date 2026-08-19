@@ -165,7 +165,7 @@ from cardlang.builtins.functions import (
     TRICK_WINNER_NAMES,
 )
 from cardlang.runtime import reads as reads_mod
-from cardlang.runtime.reads import PRIMITIVE_READS
+from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -344,13 +344,9 @@ NARROWED: frozenset[str] = frozenset(
         "cribbage.py::peg_origin_of",
         "cribbage.py::peg_pair_points",
         "cribbage.py::peg_run_points",
-        "five_hundred.py::ROW",
         "five_hundred.py::five_hundred_bid_level",
         "five_hundred.py::five_hundred_bid_value",
-        "five_hundred.py::five_hundred_follow_ok",
-        "five_hundred.py::five_hundred_lead_ok",
         "five_hundred.py::five_hundred_next_bid",
-        "five_hundred.py::five_hundred_trick_winner",
         "gin.py::ROW",
         "gin.py::gin_arrange_ok",
         "gin.py::gin_can_declare",
@@ -417,9 +413,6 @@ MIGRATED: frozenset[str] = frozenset(
         "cribbage_crib_value",
         "cribbage_show_value",
         "first_to_act_seat",
-        "five_hundred_follow_ok",
-        "five_hundred_lead_ok",
-        "five_hundred_trick_winner",
         "gin_arrange_ok",
         "gin_can_declare",
         "gin_can_declare_free",
@@ -452,7 +445,6 @@ MIGRATED: frozenset[str] = frozenset(
 # emission travels back as data and the dispatch layer performs it.
 EMITS_TRACE: frozenset[str] = frozenset(
     {
-        "five_hundred_trick_winner",
         "coup_game_summary",
     }
 )
@@ -799,27 +791,48 @@ def _live_state() -> RuntimeState:
 
 # The declared-reads row the two bundle probes below narrow against. Chosen by
 # SHAPE, not by name: it must declare at least one of every kind the bundle
-# carries (single zone, family, state variable, arrival zone), so "every
-# declared name present, no undeclared name reachable" is a claim with all four
-# kinds in it. Doppelkopf's row served until the Trick Order retired it.
-_BUNDLE_ROW_MODULE = "cardlang/runtime/five_hundred.py"
+# carries that ANY row declares, so "every declared name present, no undeclared
+# name reachable" is a claim with all of those kinds in it. Doppelkopf's row
+# served until the Trick Order retired it, then Five Hundred's until the same
+# construct retired that one — and with it the last `arrival_zones` declaration
+# in the registry, so that kind is now witnessed by nothing.
+# `test_the_bundle_row_covers_every_declared_kind` is what keeps this a shape
+# choice rather than a name: it derives the kinds in play from the registry, so
+# the day a Primitive declares a kind this row lacks, the pin reddens instead
+# of the corresponding cell below quietly comparing two empty sets.
+_BUNDLE_ROW_MODULE = "cardlang/runtime/skat.py"
 # A zone family the fixture declares and the row does not — asserted
 # absent from the bundle below. Pinned outside the row by the fixture
 # itself, so the negative witness cannot silently become a name the row
 # grew (which is how it stopped discriminating once before).
 _UNDECLARED_FAMILY = "decoy"
 
+# The bundle's four kinds, each as the row attribute that declares it.
+_BUNDLE_KIND_FIELDS = ("single_zones", "zone_families", "state_vars", "arrival_zones")
+
+
+def _bundle_row() -> PrimitiveReads:
+    return next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+
 
 def _bundle_state() -> RuntimeState:
     """`_live_state` extended with exactly what `_BUNDLE_ROW_MODULE`'s row
     declares — the row is the fixture's specification, read from the registry
-    rather than transcribed, so a row that grows a name fails loudly here
-    instead of being silently under-satisfied."""
-    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+    rather than transcribed (zones included), so a row that grows a name fails
+    loudly here instead of being silently under-satisfied. Every single zone is
+    declared public because `arrival_zones` is a subset of them and an arrival
+    read requires identity to every observer; the probes below are about the
+    binder's narrowing, not about any one game's zone types."""
+    row = _bundle_row()
     decls = (
-        n.ZoneDecl(name="hand", index="player", type_ref=n.TypeRef(name="Hand")),
-        n.ZoneDecl(name="exposed", index="player", type_ref=n.TypeRef(name="PublicHand")),
-        n.ZoneDecl(name="trick_pile", index=None, type_ref=n.TypeRef(name="TrickPile")),
+        *(
+            n.ZoneDecl(name=z, index=None, type_ref=n.TypeRef(name="TrickPile"))
+            for z in sorted(row.single_zones)
+        ),
+        *(
+            n.ZoneDecl(name=z, index="player", type_ref=n.TypeRef(name="Hand"))
+            for z in sorted(row.zone_families)
+        ),
         # The UNDECLARED family, the negative half of the narrowing claim: the
         # store holds it, the row does not name it, so the bundle must not
         # carry it. Without a zone outside the row the equality assertions
@@ -834,6 +847,25 @@ def _bundle_state() -> RuntimeState:
     rs.team_of = {0: 0, 1: 1}
     rs.rank_index = {"7": 0, "8": 1}
     return rs
+
+
+def test_the_bundle_row_covers_every_declared_kind() -> None:
+    """The fixture's row is a SHAPE choice, and this is what enforces it: for
+    every bundle kind some row in the registry declares, the chosen row must
+    declare it too. Otherwise that kind's equality below compares two empty
+    sets — a cell reported as covered that cannot fail, which is how this
+    fixture stopped discriminating once before."""
+    row = _bundle_row()
+    unmet = [
+        field
+        for field in _BUNDLE_KIND_FIELDS
+        if any(getattr(r, field) for r in PRIMITIVE_READS) and not getattr(row, field)
+    ]
+    assert not unmet, (
+        f"{_BUNDLE_ROW_MODULE} declares no {unmet}, which other rows do — the "
+        f"bundle probes would compare two empty sets for those kinds; pick a "
+        f"row that declares them"
+    )
 
 
 def test_every_engine_fact_is_pinned() -> None:
@@ -930,7 +962,7 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     no undeclared name reachable. This is the property that makes the binder
     a narrowing rather than a rename of `Ctx`."""
     rs = _bundle_state()
-    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+    row = _bundle_row()
     bundle = reads_mod.game_reads(rs, row)
     assert frozenset(bundle.singles) == row.single_zones
     assert frozenset(bundle.families) == row.zone_families
@@ -950,10 +982,11 @@ def test_game_reads_cards_are_immutable() -> None:
     """Zone cards arrive as tuples: a primitive cannot mutate a live zone
     through the bundle (today it receives the Zone's own mutable list)."""
     rs = _bundle_state()
-    rs.zones.single("trick_pile").cards.append(Card("7", "hearts"))
-    row = next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+    row = _bundle_row()
+    probe = min(row.single_zones)
+    rs.zones.single(probe).cards.append(Card("7", "hearts"))
     bundle = reads_mod.game_reads(rs, row)
-    assert isinstance(bundle.singles["trick_pile"], tuple)
+    assert isinstance(bundle.singles[probe], tuple)
 
 
 # --- grid (d'): NOTHING mutable is reachable through a bundle, at any depth --
