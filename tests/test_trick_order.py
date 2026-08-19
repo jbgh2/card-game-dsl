@@ -89,6 +89,12 @@ covered:    `test_grammar_cell` (twins, absorbers, placement, empty block,
             `test_follows_lead_on_the_empty_pile_is_false`), plus the
             ambiguity budget over every accept source
             (tests/test_grammar_ambiguity.py, derived from `_grammar_cells`).
+            Skat (issue #250 PR 2) adds no cell and needs none: it is the
+            CORPUS witness for cells this grid only spelled synthetically --
+            a row reading declared state (`state-var-named-trump`) and a row
+            calling a designer function -- executed against a byte-identity
+            oracle (tests/test_trick_order_migration.py) rather than against
+            an authored expectation.
             A post-grammar framing check over the definition sources alone
             (issue #250) added the crossed reject-habit cells, the
             `trick_order`-as-a-NAME cell and the ambiguity budget; everything
@@ -207,7 +213,23 @@ cost:       the legality path evaluates a row per candidate per decision.
             Effective Lead landed.
             No memo is built -- none is sound without an epoch counter, and
             this repo built and reverted that one already; the measurement is
-            the record, and PRs 2 and 3 re-measure with heavier rows.
+            the record.
+            RE-MEASURED on Skat (issue #250 PR 2, the same method: three
+            alternating reps of 6 games, medians): base 212.7 ms/game, head
+            220.4 -- **1.04x**, on rows that READ STATE, which Doppelkopf's do
+            not, and 55,585 row evaluations per game (30,330 `trump:`, 24,529
+            `follow_class:`, 726 `card_strength:` -- again almost none on the
+            follows path's account of strength) against Doppelkopf's 34,899
+            over three games. Two things make the ratio smaller rather than
+            larger, and neither is the construct getting cheaper. Skat's
+            playout is mostly NOT tricks -- thirty-six hands of Reizen
+            auction, declaration offers and scoring dilute the legality path
+            that Doppelkopf's playout is nearly all of. And Skat's baseline
+            was not a cheap read: `skat_follow_ok` scanned the whole hand
+            natively on every candidate, so the delta measures rows against a
+            comparable scan rather than against nothing. 1.54x stands as the
+            figure for a trick-dominated game; neither number motivates a
+            memo.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line

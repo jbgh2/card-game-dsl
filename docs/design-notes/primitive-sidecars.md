@@ -140,10 +140,10 @@ interface cannot express one.
   because its `coup_game` payload recomputes conservation totals from engine
   state rather than from movement views — reproducing it at the harness is
   its own design step (issue #142).
-  The game-local trick winners (`skat_trick_winner`,
-  `five_hundred_trick_winner`) compute a real value AND emit the engine's
-  own `play`/`trick`/`trick_end` events from a game-local site; they now
-  return `(value, events)` and the dispatch layer performs the emission,
+  The game-local trick winner `five_hundred_trick_winner` computes a real
+  value AND emits the engine's own `play`/`trick`/`trick_end` events from a
+  game-local site; it returns `(value, events)` and the dispatch layer
+  performs the emission,
   which is how a primitive that emits stays values-out. `coup_game_summary`
   does the same, so it is narrowed without being evicted.
 - **The climb queries and outcome functions.** `bigtwo_lead_options` /

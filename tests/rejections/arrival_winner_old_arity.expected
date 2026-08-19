@@ -1,1 +1,1 @@
-arrival_winner_old_arity.cardlang:19:13: error: skat_trick_winner() expects 0 argument(s), got 1
+arrival_winner_old_arity.cardlang:19:13: error: five_hundred_trick_winner() expects 0 argument(s), got 1

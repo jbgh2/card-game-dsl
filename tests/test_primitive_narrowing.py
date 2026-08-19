@@ -372,10 +372,8 @@ NARROWED: frozenset[str] = frozenset(
         "president.py::president_lead_options",
         "president.py::president_universe",
         "skat.py::ROW",
-        "skat.py::skat_follow_ok",
         "skat.py::skat_matadors",
         "skat.py::skat_next_bid",
-        "skat.py::skat_trick_winner",
         "stud.py::ROW",
         "stud.py::bring_in_seat",
         "stud.py::first_to_act_seat",
@@ -439,9 +437,7 @@ MIGRATED: frozenset[str] = frozenset(
         "pot_share",
         "president_follows",
         "president_lead_options",
-        "skat_follow_ok",
         "skat_matadors",
-        "skat_trick_winner",
         "tarot_excuse_player",
         "tarot_led_suit",
         "tarot_per_opp",
@@ -456,7 +452,6 @@ MIGRATED: frozenset[str] = frozenset(
 # emission travels back as data and the dispatch layer performs it.
 EMITS_TRACE: frozenset[str] = frozenset(
     {
-        "skat_trick_winner",
         "five_hundred_trick_winner",
         "coup_game_summary",
     }

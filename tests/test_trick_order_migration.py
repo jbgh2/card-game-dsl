@@ -19,16 +19,27 @@ not stated:
 * The existing per-seed score goldens (`tests/golden/<game>_scores.json`,
   owned by each game's playout module) stay byte-identical -- pinned there.
 
-What the hash deliberately does NOT cover: the `play` / `trick` TRACE events
--- the retiring Primitive winners were their only emitters in the hand-rolled
-games and the kernel's call form emits none (Architect counsel, #250 PR 1,
-Q7) -- and the OpenSpiel information-state string, which renders every
-public state variable and therefore moves by the variables a migration
+What the hash deliberately does NOT cover: the TRACE events a migration
+retires -- the retiring Primitive winners were their only emitters in the
+hand-rolled games and the kernel's call form emits none (Architect counsel,
+#250 PR 1, Q7) -- and the OpenSpiel information-state string, which renders
+every public state variable and therefore moves by the variables a migration
 retires (Doppelkopf: `led_trump`, `led_suit`); the openspiel_ready proof
 modules own that surface per manifest seed. The playout oracles
 (`tests/test_playout_<game>.py`) are the INDEPENDENT recomputation of the
 rules; this module is the regression pin that the engine's answer did not
 move.
+
+WHICH trace events those are is a per-game fact, not a global one, so it is
+declared per row (`Migration.retired_traces`) over the pair every hand-rolled
+winner emitted (`_BASE_RETIRED_TRACES`). Skat's Primitive also emitted
+`trick_end` carrying the contract, and was the game's only emitter of it; the
+round form emits `trick_end` too (`runtime/mechanics.py`), so a game migrating
+ONTO a round form keeps it. Excluding it globally would therefore stop
+covering a trace that, in some other game, did not move -- the silencer
+failure mode. An exclusion is a CLAIM that the event is gone, and
+`test_retired_traces_are_actually_gone` executes that claim: a row naming a
+trace the migrated game still emits is red.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -37,17 +48,34 @@ property:   a migrated game's per-observer observation stream, decision
             tree on every seed of the pin.
 domain:     `MIGRATIONS` x `SEEDS` (200 seeds: the coverage-manifest head
             plus the long tail; the first 40 coincide with the score golden's
-            seeds).
+            seeds), and `MIGRATIONS` x each row's declared `retired_traces`.
 registry:   `MIGRATIONS` below -- one row per migrated game, keyed by its
             hash file; the row is added in the PR that migrates the game and
-            its hash file is captured on the parent commit.
+            its hash file is captured on the parent commit. Each row's
+            `retired_traces` is that game's own widening of
+            `_BASE_RETIRED_TRACES`.
 covered:    `test_stream_hash_is_byte_identical` (every game x every seed);
             `test_hash_file_covers_every_seed` (a hash file with a missing
-            or extra seed is a stale capture, not a pass).
-sampled:    nothing -- the pin is exact.
-residual:   the trace channel's `play`/`trick` events and the information-
-            state string, both moved BY DESIGN and owned elsewhere (above);
-            R4, this ledger owns the record.
+            or extra seed is a stale capture, not a pass);
+            `test_retired_traces_are_actually_gone` (every row x every trace
+            it claims to retire -- the claim executed, so an exclusion
+            cannot silence a live event);
+            `test_retired_traces_do_not_restate_the_base` (a row widening by
+            a name the base already holds would read as a widening while
+            covering nothing new).
+sampled:    nothing -- the pin is exact. `test_retired_traces_are_actually_gone`
+            runs one seed per row: a trace emitted from a trick site fires in
+            every seed that plays a trick, so a second seed adds no cell.
+residual:   (1) the information-state string, moved BY DESIGN and owned by
+            the openspiel_ready proof modules (above); R4, this ledger owns
+            the record. (2) A row could under-declare -- omit a trace the
+            migration really does retire -- which no pin here catches,
+            because the hash then simply moves and
+            `test_stream_hash_is_byte_identical` reports it as the
+            byte-identity failure it is. That is the wanted direction: the
+            unsafe error (silencing a live event) is guarded, the safe one
+            (forgetting an exclusion) is loud through the primary pin. R4,
+            this ledger owns the record.
 
 Born red: this module is committed with the Doppelkopf hash file captured on
 the pre-migration tree, so it is GREEN at that commit by construction; its
@@ -75,6 +103,7 @@ import hashlib
 import json
 import os
 import random
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -90,20 +119,48 @@ GOLDEN = Path(__file__).parent / "golden"
 
 BLESS = os.environ.get("CARDLANG_STREAM_BLESS") == "1"
 
-# (game file, hash file). One row per migrated game; the hash file is captured
-# on the commit BEFORE the migration lands.
-MIGRATIONS: tuple[tuple[str, str], ...] = (
-    ("doppelkopf.cardlang", "doppelkopf_stream_hashes.json"),
+# The two trace events EVERY hand-rolled trick winner emitted, which the
+# kernel's call form emits from nowhere; every migration retires both.
+_BASE_RETIRED_TRACES = frozenset({"play", "trick"})
+
+
+@dataclass(frozen=True)
+class Migration:
+    """One migrated game's pin. The hash file is captured on the commit
+    BEFORE the migration lands, so its provenance is the git log.
+
+    `retired_traces` is this game's own widening of `_BASE_RETIRED_TRACES` --
+    the trace events its RETIRING Primitive was the game's only emitter of.
+    It is a claim about the post-migration tree, executed by
+    `test_retired_traces_are_actually_gone`, never a way to quiet a diff."""
+
+    game_file: str
+    hash_file: str
+    retired_traces: frozenset[str] = frozenset()
+
+    @property
+    def excluded_traces(self) -> frozenset[str]:
+        return _BASE_RETIRED_TRACES | self.retired_traces
+
+
+# One row per migrated game.
+MIGRATIONS: tuple[Migration, ...] = (
+    Migration("doppelkopf.cardlang", "doppelkopf_stream_hashes.json"),
+    # `skat_trick_winner` emitted `trick_end` carrying the declared contract
+    # ({game_type, trump}) and was Skat's only emitter of it -- the ten tricks
+    # are hand-rolled movements, not a trick `round`, so no round form emits
+    # one here.
+    Migration(
+        "skat.cardlang",
+        "skat_stream_hashes.json",
+        retired_traces=frozenset({"trick_end"}),
+    ),
 )
 
 SEEDS: tuple[int, ...] = tuple(range(200))
 
-# The trace events a migration retires by design (see the docstring); every
-# other trace event is part of the hashed rendering.
-_TRACE_EXCLUDED = frozenset({"play", "trick"})
 
-
-def _stream_digest(game_file: str, seed: int) -> str:
+def _stream_digest(game_file: str, seed: int, excluded: frozenset[str]) -> str:
     game = check_source(GAMES / game_file)
     rng = random.Random(seed)
     events: list[tuple[Player, tuple[Any, ...]]] = []
@@ -113,7 +170,7 @@ def _stream_digest(game_file: str, seed: int) -> str:
         events.append((player, event))
 
     def tracer(name: str, data: Any) -> None:
-        if name not in _TRACE_EXCLUDED:
+        if name not in excluded:
             traces.append((name, data))
 
     result = play_game(game, rng, tracer, random_chooser(rng), observer=observer)
@@ -139,36 +196,78 @@ def _load(hash_file: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items()}
 
 
-@pytest.mark.parametrize(("game_file", "hash_file"), MIGRATIONS, ids=[g for g, _ in MIGRATIONS])
-def test_hash_file_covers_every_seed(game_file: str, hash_file: str) -> None:
+_IDS = [m.game_file for m in MIGRATIONS]
+
+
+@pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
+def test_hash_file_covers_every_seed(migration: Migration) -> None:
     """The capture is exactly `SEEDS` -- a missing seed is a stale capture and
     an extra one a capture from another manifest, and neither may pass."""
     if BLESS:
         pytest.skip("blessing")
-    assert set(_load(hash_file)) == {str(s) for s in SEEDS}
+    assert set(_load(migration.hash_file)) == {str(s) for s in SEEDS}
 
 
 def _cells() -> list[Any]:
     return [
-        pytest.param(g, h, s, id=f"{g}-{s}", marks=() if s < 40 else pytest.mark.slow)
-        for g, h in MIGRATIONS
+        pytest.param(
+            m, s, id=f"{m.game_file}-{s}", marks=() if s < 40 else pytest.mark.slow
+        )
+        for m in MIGRATIONS
         for s in SEEDS
     ]
 
 
-@pytest.mark.parametrize(("game_file", "hash_file", "seed"), _cells())
-def test_stream_hash_is_byte_identical(game_file: str, hash_file: str, seed: int) -> None:
-    digest = _stream_digest(game_file, seed)
+@pytest.mark.parametrize(("migration", "seed"), _cells())
+def test_stream_hash_is_byte_identical(migration: Migration, seed: int) -> None:
+    digest = _stream_digest(migration.game_file, seed, migration.excluded_traces)
     if BLESS:
-        path = _hash_path(hash_file)
+        path = _hash_path(migration.hash_file)
         current = json.loads(path.read_text()) if path.exists() else {}
         current[str(seed)] = digest
         path.write_text(json.dumps(dict(sorted(current.items(), key=lambda kv: int(kv[0]))), indent=2) + "\n")
         return
-    expected = _load(hash_file)
-    assert str(seed) in expected, f"seed {seed} is not in {hash_file}: re-capture on the pre-migration tree"
+    expected = _load(migration.hash_file)
+    assert str(seed) in expected, (
+        f"seed {seed} is not in {migration.hash_file}: re-capture on the "
+        f"pre-migration tree"
+    )
     assert digest == expected[str(seed)], (
-        f"{game_file} seed {seed}: the observation stream / decisions / scores moved "
-        f"against the pre-migration capture ({hash_file}); the migration is not "
+        f"{migration.game_file} seed {seed}: the observation stream / decisions / scores moved "
+        f"against the pre-migration capture ({migration.hash_file}); the migration is not "
         f"byte-identical -- diff the two trees' event streams for the first divergence"
+    )
+
+
+@pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
+def test_retired_traces_do_not_restate_the_base(migration: Migration) -> None:
+    """A row widens the exclusion or it does not. Restating a base name would
+    read as a widening while covering nothing new -- the shape a reviewer
+    would take at face value."""
+    assert not (migration.retired_traces & _BASE_RETIRED_TRACES), migration.game_file
+
+
+@pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
+def test_retired_traces_are_actually_gone(migration: Migration) -> None:
+    """A row's exclusion is a CLAIM -- "the migration retired this event" --
+    and this executes it: one seeded playout of the MIGRATED game, and every
+    excluded name must be absent from the trace channel.
+
+    Without this, an exclusion is a silencer: naming an event that still
+    fires would drop it from the hashed rendering, and the pin would go on
+    passing while covering strictly less than its docstring says. That is
+    the vacuously-green class, in the one place this module could grow it."""
+    seen: set[str] = set()
+
+    def tracer(name: str, data: Any) -> None:
+        seen.add(name)
+
+    game = check_source(GAMES / migration.game_file)
+    rng = random.Random(0)
+    play_game(game, rng, tracer, random_chooser(rng))
+    still_emitted = sorted(migration.excluded_traces & seen)
+    assert not still_emitted, (
+        f"{migration.game_file} still emits {still_emitted}, which its "
+        f"`Migration` row excludes from the hashed rendering: the exclusion "
+        f"is silencing a live event rather than recording a retired one"
     )

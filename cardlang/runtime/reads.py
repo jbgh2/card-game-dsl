@@ -275,8 +275,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="skat.cardlang",
         state_vars=_fs("is_null", "is_grand", "trump_suit"),
         zone_families=_fs("hand"),
-        single_zones=_fs("trick_pile", "skat"),
-        arrival_zones=_fs("trick_pile"),
+        single_zones=_fs("skat"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/stud.py",

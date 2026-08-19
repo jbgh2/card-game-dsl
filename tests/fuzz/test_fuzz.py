@@ -56,17 +56,26 @@ domain:     `CORPUS x OPERATORS x MUTATION_SEEDS` — the full
 registry:   `mutate.MUTATORS` (closed, pinned by `test_mutate.py`'s own
             enumeration test) and `findings.KNOWN_FINDINGS` (closed, pinned
             by `test_known_findings_directory_matches_ledger` below against
-            `known_findings/*.cardlang`).
+            `known_findings/*.cardlang`, and held non-empty by
+            `empty_parameter_set_mark = "fail_at_collect"` over
+            `test_known_findings_still_reproduce`'s parametrization).
+            `EXCUSED` has no such parametrization and so carries its own
+            floor, `test_the_excused_table_is_not_empty` — at zero entries
+            both ledgers' pins pass over nothing.
 covered:    a discovery sweep at authoring time (seeds 0-4, the whole corpus,
             every operator) found 6 crashing triples,
-            all under `delete_line`; all 6 are in `EXCUSED`/`KNOWN_FINDINGS`.
+            all under `delete_line`; all 6 were in `EXCUSED`/`KNOWN_FINDINGS`.
             Re-run in full after the chooser was strengthened to the runtime
             chooser's whole `k <= len(candidates)` contract (it previously
             checked only the empty-pool special case): identical 6 findings —
             no mutant at these seeds requests an over-sized pick from a
             non-empty pool within the step budget.
+            Two of the six were Skat's, and both were FIXED rather than
+            re-keyed when the Trick Order retired the Primitives whose reads
+            crashed (issue #250 PR 2, the `EXCUSED` comment below); they left
+            the ledger by the feed-forward rule, so four remain.
             `MUTATION_SEEDS = (0, 2)` was chosen specifically because it
-            covers 5 of those 6 triples (`getaway_no_legal_play...` needed
+            covers 3 of those 4 triples (`getaway_no_legal_play...` needed
             seed 4 and is validated only by the frozen pinned test, not by
             this live sweep — see its `EXCUSED` comment below).
 sampled:    every other `(game, operator, seed)` triple outside that
@@ -121,13 +130,20 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
-    # The card_points clause (issue #249) shifted skat.cardlang, so this key's
-    # deletion moved from the second player's follow to the leader's play:
-    # the crash it now reproduces is `skat_follow_ok_nothing_led`. The prior
-    # finding at this key, `skat_trick_winner_wrong_count`, stays in the
-    # ledger under its frozen fixture (the replay half still reproduces it);
-    # only the live-corpus key moved.
-    ("skat.cardlang", "delete_line", 2): "skat_follow_ok_nothing_led",
+    # Skat has NO key here anymore, and no ledger entry either. Both of its
+    # findings were reads that the Trick Order retired with the Primitives that
+    # made them (issue #250 PR 2): `skat_follow_ok`'s bare `IndexError` on
+    # `trick_pile[0]` cannot happen because nothing reads the led card that way
+    # -- `follows_lead` on a pile with nothing led is the VALUE false (issue
+    # #345), pinned by tests/test_trick_order.py -- and the completed-trick
+    # count guard was `recorded_plays`', which the kernel winner deliberately
+    # does not consult (a mid-trick read is the winner so far, issue #350). The
+    # same deliberate deletion of the leader's play now surfaces in the
+    # harness's own T3 invariant instead, the `gops_empty_legal_set` channel --
+    # measured on skat itself (2026-08-18): deleting skat.cardlang's leader
+    # play raises "legal set of 0" at decision 35 (seed 0) and 37 (seed 2),
+    # inside the sweep's cap, so the channel is demonstrable here and not only
+    # by class from gops.
 }
 
 
@@ -337,6 +353,41 @@ def test_excused_table_targets_known_findings() -> None:
     slugs = {f.slug for f in KNOWN_FINDINGS}
     for key, slug in EXCUSED.items():
         assert slug in slugs, f"EXCUSED[{key}] names unknown finding {slug!r}"
+
+
+def test_the_excused_table_is_not_empty() -> None:
+    """A floor under the half of the ledger that nothing else floors. At zero
+    entries `test_excused_table_targets_known_findings` iterates an empty
+    `EXCUSED` and passes over nothing, and the sweep stops running its
+    suppression path on any live triple — while this module's docstring goes
+    on claiming `MUTATION_SEEDS` is chosen so that every CI run exercises it.
+    That is the empty-input-set class (decisions.md "Closed-domain
+    completeness"): a check whose input emptied, reporting clean.
+
+    `KNOWN_FINDINGS` needs no floor here, and must not be given a decorative
+    one: `pyproject.toml`'s `empty_parameter_set_mark = "fail_at_collect"` is
+    its Owner Guard, and `test_known_findings_still_reproduce` parametrizes
+    over it directly — so an empty ledger fails the whole module at COLLECT
+    (measured: `Empty parameter set in 'test_known_findings_still_reproduce'`),
+    before any assertion in this module could run. An `assert KNOWN_FINDINGS`
+    beside the one below would be unreachable in the only state it claims to
+    catch, which is the guarantee-that-cannot-fail defect wearing a floor's
+    clothes.
+
+    Deliberately "not empty" rather than a count: findings.py's feed-forward
+    rule DELETES an entry when its finding is fixed, so a floor at today's
+    size would red a legitimate retirement. Zero is the one size that is not
+    a clean state — and if the last excused triple is genuinely retired,
+    retiring this floor belongs to that same change rather than to whoever
+    next wonders why the sweep excuses nothing.
+
+    red under: `EXCUSED = {}` — executed; this fires while
+    `test_excused_table_targets_known_findings` passes alongside it."""
+    assert EXCUSED, (
+        "the EXCUSED table is empty, so "
+        "`test_excused_table_targets_known_findings` iterates nothing and the "
+        "sweep never runs its suppression path on a live triple."
+    )
 
 
 def test_fuzz_open_ended_local() -> None:
