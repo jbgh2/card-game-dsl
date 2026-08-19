@@ -322,10 +322,7 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_decl_size",
         "belote.py::belote_decl_slot",
         "belote.py::belote_decl_trump",
-        "belote.py::belote_opp_winning",
         "belote.py::belote_royal_player",
-        "belote.py::belote_trick_winner",
-        "belote.py::belote_trump_height",
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
@@ -398,7 +395,6 @@ MIGRATED: frozenset[str] = frozenset(
         "belote_decl_size",
         "belote_decl_slot",
         "belote_decl_trump",
-        "belote_opp_winning",
         "belote_royal_player",
         "bigtwo_follows",
         "bigtwo_lead_options",
@@ -739,6 +735,23 @@ _FACT_CONSUMERS: dict[str, tuple[str, ...]] = {
     "actor": ("facts.actor", "ctx.current_player"),
 }
 
+# Fields NO game module reads any more, with the reason each is still
+# declared. A named residual is what the pin below asks for in place of a
+# silent carry, and it is checked in BOTH directions: an unread field with no
+# row here is the original failure, and a row naming a field that IS read is a
+# stale exemption. So the exemption cannot outlive its reason.
+_UNREAD_RESIDUALS: dict[str, str] = {
+    # `belote_opp_winning` was the last reader, and it did not move -- it
+    # RETIRED (issue #250 PR 4): the acting seat's team gate is now a designer
+    # function over the game's Trick Order, which takes `actor` as an ordinary
+    # DSL argument, so the fact a Primitive needed the engine to hand it is now
+    # one the language passes. Removing the field is a change to the binder's
+    # signature (`engine_facts`, `bind`, every dispatch call site), which
+    # belongs to the narrowing contract's own change rather than to a game
+    # migration; carried here, named, until then.
+    "actor": "no Primitive reads it since issue #250 PR 4 retired belote_opp_winning",
+}
+
 
 @cache
 def _game_module_sources() -> str:
@@ -763,15 +776,23 @@ def test_every_engine_fact_has_a_consumer() -> None:
         f"spells its read, or be removed"
     )
     src = _game_module_sources()
-    unread = sorted(
+    unread = {
         field
         for field, spellings in _FACT_CONSUMERS.items()
         if not any(s in src for s in spellings)
-    )
-    assert not unread, (
-        f"EngineFacts fields no game module reads: {unread}. Remove them, or "
+    }
+    assert not sorted(unread - set(_UNREAD_RESIDUALS)), (
+        f"EngineFacts fields no game module reads: "
+        f"{sorted(unread - set(_UNREAD_RESIDUALS))}. Remove them, or "
         f"if a field is genuinely needed by work not yet landed, record it as "
-        f"a named residual rather than carrying it silently."
+        f"a named residual in `_UNREAD_RESIDUALS` rather than carrying it "
+        f"silently."
+    )
+    assert not sorted(set(_UNREAD_RESIDUALS) - unread), (
+        f"`_UNREAD_RESIDUALS` names "
+        f"{sorted(set(_UNREAD_RESIDUALS) - unread)}, which a game module DOES "
+        f"read — a stale exemption reads as a live carve-out while covering "
+        f"nothing; drop the row"
     )
 
 

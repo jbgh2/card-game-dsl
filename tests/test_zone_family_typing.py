@@ -56,11 +56,14 @@ sampled:   the predicate-context axis of the call gate is sampled at one
            the load-bearing non-member cells. Born red 2026-08-15 before
            the gates existed: 7 failed (DID NOT RAISE), 32 passed. The
            per-member completion's own proof is executed mutation, not
-           inspection: removing `belote_trick_winner` from
-           RANKING_GATED_WINNERS originally left all 39 module tests green
-           (the reviewer's finding); with the per-member cells it reds
-           `test_rejects_the_belote_winner_slot_with_no_declared_ranking`
-           (executed: plant, red, revert, re-green).
+           inspection: removing `highest_of_led_suit` from
+           RANKING_GATED_WINNERS leaves every other cell green and reds
+           `test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking`
+           alone (executed 2026-08-19: plant, red, revert, re-green). The
+           finding that forced the per-member axis was the same mutation on
+           `belote_trick_winner`, which left all 39 module tests green;
+           that winner retired with issue #250 PR 4, and its cells with
+           it.
 residual:  (a) `action`'s move-type-specific fields (`action.amount`,
            `action.card_count` — named in the grammar comment at
            cardlang/grammar/cardlang.lark:320, used in
@@ -445,17 +448,6 @@ def test_accepts_cribbage_crib_value_with_a_declared_ranking() -> None:
     _accepts(_game("score[0] += cribbage_crib_value()"))
 
 
-def test_rejects_belote_opp_winning_with_no_declared_ranking() -> None:
-    _rejects(
-        _game("if belote_opp_winning() { score[0] += 1 }", ranking=""),
-        "belote_opp_winning() reads a card's rank strength from ranking:",
-    )
-
-
-def test_accepts_belote_opp_winning_with_a_declared_ranking() -> None:
-    _accepts(_game("if belote_opp_winning() { score[0] += 1 }"))
-
-
 _TRICK_ROUND = (
     "round play_to_trick from 0 over all players source hand into pile\n"
     "          winner {winner}"
@@ -471,17 +463,6 @@ def test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking() -> No
 
 def test_accepts_a_ranking_reading_trick_winner_with_a_declared_ranking() -> None:
     _accepts(_game(_TRICK_ROUND.format(winner="highest_of_led_suit")))
-
-
-def test_rejects_the_belote_winner_slot_with_no_declared_ranking() -> None:
-    _rejects(
-        _game(_TRICK_ROUND.format(winner="belote_trick_winner"), ranking=""),
-        "round winner belote_trick_winner reads a card's rank strength from ranking:",
-    )
-
-
-def test_accepts_the_belote_winner_slot_with_a_declared_ranking() -> None:
-    _accepts(_game(_TRICK_ROUND.format(winner="belote_trick_winner")))
 
 
 def test_rejects_the_trump_winner_slot_with_no_declared_ranking() -> None:

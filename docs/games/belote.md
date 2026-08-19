@@ -14,7 +14,11 @@ hand, including thrown-in hands.
 
 ## Rank orders and card points
 
-Belote uses three orders, and they are different:
+Belote uses four orders, and they are different. The two PLAY orders decide
+tricks and are declared together as the executable spec's Trick Order (one
+`trick_order { }` block, whose `card_strength:` row is the trump reorder over
+the game's `ranking: ace-ten`); the two DECLARATION orders decide
+combinations, are never consulted by a trick, and stay game-local:
 
 - **Plain suits (play):** A > 10 > K > Q > J > 9 > 8 > 7, worth
   11 / 10 / 4 / 3 / 2 / 0 / 0 / 0.
@@ -23,6 +27,8 @@ Belote uses three orders, and they are different:
 - **Sequences (declarations only):** the natural order
   A K Q J 10 9 8 7 — so K-Q-J is a sequence but A-K-Q-J-10-9 style "wrap"
   never is, and 10 sits in its natural place, not next to the ace.
+- **Carrés (declarations only):** J > 9 > A > 10 > K > Q, and 8s and 7s do
+  not form a declarable carré at all (see Declarations).
 
 The card points sum to 152; with the 10 for the last trick a hand's trick
 points total 162.

@@ -5,25 +5,12 @@ the eight tricks under the follow/trump/over-trump obligation cascade (the
 `MustFollowSuit`/`MustHeadTrumpLead`/`MustTrumpIfVoidVsOpponents`/
 `MustOverTrumpVsOpponents`/`NoUnderTrumpVsPartner` rules), the declaration
 poll with its comparison and showing, the Belote-Rebelote window, and the
-contract scoring all run in the DSL (docs/games/belote.cardlang). This module
+contract scoring all run in the DSL (docs/games/belote.cardlang), and so does
+the ORDER a trick is decided by: the within-trump reorder over the plain-suit
+`ace-ten` ranking is the game's `trick_order { }`, which the winner, the
+head/over-trump demands and the team-relative gate all read. This module
 holds only what is not expressible there:
 
-- `belote_trump_height` — a rank's strength within the trump suit
-  (J > 9 > A > 10 > K > Q > 8 > 7), the ordering the over-trump comparison uses.
-  A pure rank map: the caller's demand filters on `card.suit is trump_suit`,
-  so this needs no suit knowledge (the Tarot `tarot_trump_height` shape).
-  Suit-contextual orders are explicitly outside the `ranking:` declaration's
-  scope (decisions.md, "The `ranking:` declaration: enumeration or convention"), so the trump reorder
-  lives here while the plain-suit order stays `ranking: ace-ten`.
-- `belote_trick_winner` — the trick round's `outcome` function: highest trump
-  under the trump order if any trump was played, else highest of the led suit
-  under the game's ace-ten `rank_index`.
-- `belote_opp_winning` — is the player currently winning the live, partial
-  trick an OPPONENT of the acting player? The team-relative gate on
-  the trump/over-trump obligations ("if an opponent is currently winning the
-  trick, he must trump if he can … if his partner is currently winning he is
-  free"). Read off the live round accumulator exactly as the `state` pronoun
-  is, plus the acting player the rules engine bound (the engine facts' `actor`).
 - `belote_royal_player` — who (if anyone) played a trump King or Queen in the
   trick that just completed, while the Belote-Rebelote window is still open.
   A PUBLIC fact (trick plays are identity to all): the DSL uses it only to
@@ -62,17 +49,13 @@ from collections.abc import Mapping
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import SUITS, Card, Player, rank_strength
+from cardlang.runtime.values import SUITS, Card, Player
 
 ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
 
-# Trump-suit strength, strongest 8: J > 9 > A > 10 > K > Q > 8 > 7. Nonzero
-# for every trump rank so the demand's `or 0` empty-pile default sits below
-# the whole scale.
-_TRUMP_HEIGHT = {"J": 8, "9": 7, "A": 6, "10": 5, "K": 4, "Q": 3, "8": 2, "7": 1}
-
 # Natural (sequence) order A K Q J 10 9 8 7 — the declaration order, distinct
-# from BOTH play orders (ace-ten in plain suits, the trump reorder above).
+# from BOTH play orders (the game's `ranking: ace-ten` in plain suits, and the
+# Trick Order's within-trump reorder).
 _NATURAL = {"A": 8, "K": 7, "Q": 6, "J": 5, "10": 4, "9": 3, "8": 2, "7": 1}
 
 # Carré strength and points: J > 9 > A > 10 > K > Q; 8s and 7s not declarable.
@@ -82,52 +65,6 @@ _CARRE_POINTS = {"J": 200, "9": 150, "A": 100, "10": 100, "K": 100, "Q": 100}
 _SEQ_POINTS = {3: 20, 4: 50, 5: 100}
 _SEQ_CLASS = {3: 1, 4: 2, 5: 3}  # tierce / quarte / quinte
 _CARRE_CLASS = 4  # "a square is higher than a 5 card sequence"
-
-
-def belote_trump_height(c: Card) -> int:
-    """A rank's strength within the trump suit (1..8). Pure rank map — the
-    demand that consumes it filters on `card.suit is trump_suit` itself. A
-    rank outside the 32-card pack (a game calling this over another deck)
-    is a game-description error, reported here at the cause rather than as
-    a bare KeyError mid-playout."""
-    height = _TRUMP_HEIGHT.get(c.rank)
-    if height is None:
-        raise OwnerGuardError(
-            f"belote_trump_height: rank {c.rank!r} is not a skat32 rank — "
-            f"the Belote primitives serve the 32-card A..7 pack only"
-        )
-    return height
-
-
-def belote_trick_winner(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: Mapping[str, int],
-    reader: str = "belote_trick_winner",
-) -> Player:
-    """The trick outcome: the highest trump under the J-9 trump order if any
-    trump was played, else the highest card of the led suit under the game's
-    ace-ten `rank_index` — read through `rank_strength`, the runtime Owner
-    Guard for a rank outside a partial `ranking:`, naming `reader` (the
-    DSL-visible function: this winner, or `belote_opp_winning` recomputing
-    the live winner through it).
-
-    `reader` keeps a default where its cribbage siblings do not: the kernel
-    calls every registered trick winner through one uniform four-argument
-    signature (`primitives.value_function` hands back the bare function), so
-    the kernel path cannot pass a fifth. The default is therefore this
-    function's OWN name, and a rename that left the literal behind would
-    mislabel the diagnostic silently — pinned against `__name__` by
-    tests/test_belote_primitives.py, which is what a required parameter would
-    otherwise have bought."""
-    trumps = [(p, c) for p, c in played if c.suit == trump]
-    if trumps:
-        return max(trumps, key=lambda pc: _TRUMP_HEIGHT[pc[1].rank])[0]
-    of_led = [(p, c) for p, c in played if c.suit == led_suit]
-    return max(
-        of_led, key=lambda pc: rank_strength(rank_index, pc[1].rank, reader)
-    )[0]
 
 
 def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
@@ -142,33 +79,6 @@ def _round_state(facts: EngineFacts, caller: str) -> Mapping[str, object]:
             f"{caller}() called with no active or just-completed round"
         )
     return state
-
-
-def belote_opp_winning(facts: EngineFacts, gr: reads.GameReads) -> bool:
-    """Is the current winner of the live, partial trick an opponent of the
-    acting player? False while nothing has been played. The rules engine binds
-    the candidate actor before evaluating `applies_when`, so the facts'
-    `actor` is the player whose legality is being computed."""
-    state = _round_state(facts, "belote_opp_winning")
-    played: list[tuple[Player, Card]] = state["played"]  # type: ignore[assignment]
-    if not played:
-        return False
-    actor = facts.actor
-    if actor is None:
-        # A missing Owner Guard: the class "a primitive needing a live actor"
-        # belongs upstream in resolve, and no such guard exists yet — so the
-        # runtime carries the fix instead (tests/test_fail_loud.py records the
-        # same gap one layer up, for a bare family read).
-        raise OwnerGuardError(
-            "belote_opp_winning() evaluated with no acting player — it belongs "
-            "in a rule's applies_when, where legal_cards binds the actor"
-        )
-    trump: str | None = state["trump"]  # type: ignore[assignment]
-    led: str = played[0][1].suit
-    winner = belote_trick_winner(
-        played, led, trump, facts.rank_index, reader="belote_opp_winning"
-    )
-    return facts.team_of[winner] != facts.team_of[actor]
 
 
 def belote_royal_player(

@@ -4888,14 +4888,15 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     Consumption: `game.trump` reaches the runtime as the trick form's default
     trump — the trump of a round that names a trump-reading winner and
     supplies no `trump` clause of its own (`runtime/mechanics.py`,
-    `TrickForm`). That round is not its only reader: the form also publishes
-    the value as `state["trump"]` (mechanics.py), which the game-local
-    Primitives `belote_opp_winning` and `belote_royal_player` read back. Both
-    of those sit BEHIND a trick round, so a clause some round inherits is
-    live for them too — but a blind-winner game whose only reader is such a
-    Primitive would be refused here, which is over-reach in the safe
-    direction and recorded as a residual in the grid's ledger (issue #250,
-    retiring when PR 4 migrates Belote).
+    `TrickForm`). That round is the value's only reader in the corpus. The
+    form ALSO publishes it as `state["trump"]` (mechanics.py), a channel any
+    Primitive behind a trick round could read back and this guard cannot
+    see; Belote's two were the corpus instance, and both left with the
+    Trick Order migration (issue #250 PR 4) — the surviving one reads the
+    GAME's own `trump_suit` state variable instead. So the reader model is
+    exact today, and a game that revived the `state["trump"]` channel under
+    a blind winner would meet a FALSE REFUSAL here: over-reach in the safe
+    direction, never a miss.
 
     A `trump:` no round reads — the game runs no trick round; every round's
     winner ignores its trump (`TRUMP_READING_WINNERS`' complement); every

@@ -38,9 +38,12 @@ trick resolution is the `highest_trump_or_led_suit` call form over the
 kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout
 harness derives its trick facts from observation events. Where a game's trick
-order is not the printed one — Doppelkopf, Skat, 500 — follow legality and
-the winner are its declared `trick_order { }` block, read by `follows_lead`
-and `highest_by_trick_order`, not a game-local Primitive.
+order is not the printed one — Doppelkopf, Skat, 500, Belote — follow
+legality and the winner are its declared `trick_order { }` block, read by
+`follows_lead` and `highest_by_trick_order`, not a game-local Primitive; in
+Belote the same block also answers the rule cascade's head/over-trump
+comparisons and the team-relative gate that asks who is winning the
+partial trick.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
 Primitive registries; every `tests/test_playout_*.py` green with

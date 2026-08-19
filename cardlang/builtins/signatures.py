@@ -139,8 +139,6 @@ CALL_SIGS: dict[str, Sig] = {
     ),  # 500: cheapest bid ordinal in a strain beating the standing bid (0 = none)
     "five_hundred_bid_value": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> score value
     "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
-    "belote_trump_height": Sig((TCard(),), TInteger()),  # Belote: trump-suit rank strength
-    "belote_opp_winning": Sig((), TBoolean()),  # Belote: live trick's winner is an opponent?
     "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q
     "belote_best_is": Sig(
         (TPlayer(), TInteger(), TEnum("Rank"), TBoolean()), TBoolean()
@@ -169,7 +167,6 @@ VALUE_SIGS: dict[str, Type] = {
     "highest_trump_or_led_suit": TAny(),
     "highest_by_trick_order": TAny(),  # trick winner under the game's `trick_order { }`
     "tarot_trick_winner": TAny(),  # trick winner; the Excuse never wins
-    "belote_trick_winner": TAny(),  # trick winner under Belote's J-9 trump order
     "bridge_auction_outcome": TAny(),  # auction form: produces the typed outcome
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
     "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in

@@ -381,8 +381,8 @@ each card: is it a **trump**, what **class** does it follow as, and how
 card's printed fields and the `trump:` clause. In the big European games they
 do not: Doppelkopf's queens and jacks are trumps whatever suit they are
 printed, Skat's jacks likewise, 500's joker and left bower are members of a
-trump suit they are not printed in, and French Tarot's Excuse belongs to no
-class at all. A game whose answer differs from the printed one declares it:
+trump suit they are not printed in, Belote reorders the ranks WITHIN its
+trump suit alone, and French Tarot's Excuse belongs to no class at all. A game whose answer differs from the printed one declares it:
 
 ```cardlang-fragment trick_order
 trick_order {
