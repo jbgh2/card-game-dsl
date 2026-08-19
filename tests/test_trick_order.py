@@ -94,7 +94,16 @@ covered:    `test_grammar_cell` (twins, absorbers, placement, empty block,
             a row reading declared state (`state-var-named-trump`) and a row
             calling a designer function -- executed against a byte-identity
             oracle (tests/test_trick_order_migration.py) rather than against
-            an authored expectation.
+            an authored expectation. Five Hundred (PR 3) adds none either,
+            and is the corpus's FIRST `follow_class:` row: Doppelkopf's and
+            Skat's both take the omitted default, so until 500 the row's
+            three-value axis (a class, `none`, a REMAPPED class) was
+            authored-only above. Its remap reads mutable public state -- the
+            joker's class is whatever the declarer nominated -- and its
+            `trump:` row is likewise a function of state rather than of the
+            printed card, so 500 witnesses "the trump SET differs between two
+            hands of the same game", the shape the block exists for. Same
+            byte-identity oracle, same 200 seeds.
             A post-grammar framing check over the definition sources alone
             (issue #250) added the crossed reject-habit cells, the
             `trick_order`-as-a-NAME cell and the ambiguity budget; everything
@@ -230,6 +239,21 @@ cost:       the legality path evaluates a row per candidate per decision.
             comparable scan rather than against nothing. 1.54x stands as the
             figure for a trick-dominated game; neither number motivates a
             memo.
+            RE-MEASURED again on Five Hundred (issue #250 PR 3, the same
+            method: three alternating reps of 200 games, medians): base 16.2
+            ms/game, head 16.9 -- **1.04x**, on the heaviest rows in the
+            corpus (a three-branch `trump:` reading two state variables and
+            calling a designer function, a `follow_class:` remap, a
+            four-branch `card_strength:`). Per-row weight is NOT what the
+            ratio tracks, and this is the measurement that shows it: 500
+            evaluates 3,566 rows per game (1,815 `trump:`, 1,717
+            `follow_class:`, 34 `card_strength:` -- 99% of the first two on
+            the follows path, none of the third, the same split as the other
+            two games) against Skat's 55,585, because a 500 game is one to
+            three hands of ten tricks where a Skat game is thirty-six.
+            Normalized, that is ~57 row evaluations per DECISION over 63
+            decisions per game. The count of asks is the cost; the weight of
+            a row is noise beside it. Still no memo.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line
