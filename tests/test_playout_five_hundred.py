@@ -11,20 +11,31 @@ wrong joker rule, a wrong misère seat-skip or a broken lead restriction turns
 it red. Plus deck integrity (43 cards) and the champion invariant (the game
 ends only on a contract win crossing +500 or a side out backwards at -500).
 
-Observation-derived, not trace-derived (the Skat and Doppelkopf precedent).
-It consumes exactly two things, both of them information a PLAYER has. The
-public record is observer 0's stream: the hands are marked by the three kitty
-deals, the plays are the `move` events into `trick_pile`, the tricks are the
-drains into the capture piles, and the CONTRACT is what the auction ANNOUNCED
-— a public decision every seat hears, which makes it a fact of the table
-rather than of the engine. The private half is the acting seat's own
-CANDIDATE SET at each card decision, which is what OpenSpiel hands that seat
-as its legal actions; the legality rules are judged on it (`_Table.offered`).
-The `play` / `trick` / `trick_end` TRACE events this used to read are emitted
-by the game-local winner Primitive alone; deriving from what players see
-instead is strictly stronger, because a divergence between what the engine
-recorded and what a seat was shown would now BREAK this oracle rather than
-being invisible to it.
+Where every fact comes from, and why that source
+------------------------------------------------
+1. OBSERVATIONS (observer 0's stream) — the hands, marked by the three kitty
+   deals; the plays, the `move` events into `trick_pile`; the tricks, the
+   drains into the capture piles; and the CONTRACT, which is what the auction
+   ANNOUNCED. These are the facts the oracle JUDGES: a public decision every
+   seat hears is a fact of the table rather than of the engine, so a
+   divergence between what the engine did and what observers saw breaks this
+   module rather than being invisible to it. The `play` / `trick` /
+   `trick_end` TRACE events it used to read instead were emitted by the
+   game-local winner Primitive alone, and went silent when that Primitive
+   retired while every recomputation loop kept passing on nothing (issue
+   #373) — which is the whole reason for this list.
+2. The OFFERED SET at each card decision — the acting seat's own legal
+   actions, as OpenSpiel would hand them to it. A legality rule is a rule
+   about this set, so it is what the rules are checked against.
+3. ENGINE STATE, at exactly one point: the acting seat's hand and lay-down
+   zones, read live to recompute what the offer SHOULD have been. Both sides
+   of that comparison have to come from outside the filter or it only sees
+   one direction — an expectation derived from the offer equals the offer, so
+   a filter that WITHHELD legal cards would compare equal to itself. This is
+   a harness, not a player, and reading the true hand is what makes the
+   comparison two-sided; the rule this module lives under is that no claim
+   may rest on a trace that can retire (2 and 3 cannot), never that engine
+   state is off limits.
 
 Non-vacuity is asserted, not hoped for, and the assertion is DERIVED: the
 announcements say how many tricks each hand owes (ten for a suit or no-trump
@@ -76,6 +87,7 @@ from __future__ import annotations
 import random
 from collections import Counter
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -265,82 +277,92 @@ class _Table:
         elif src.startswith("hand[") and dst.startswith("exposed["):
             self._hand.exposed = True
 
-    # --- the acting seat's own view: the cards it was OFFERED ---------------
+    # --- the legality rules, judged on the OFFER against the true holding ---
     #
     # A legality rule is a rule about the CANDIDATE SET, not about the one card
     # that came out of it, and the two are not the same claim: a rule the engine
     # stopped enforcing still yields a legal-looking play whenever the chooser
     # happens to pick a legal card, which is how a rule can be deleted with
-    # every play still checking out. The offered set is the acting seat's own
-    # information (it is what OpenSpiel hands that seat as its legal actions),
-    # so consuming it keeps the oracle to facts a player has -- and it is
-    # produced by the game file's `follow_ok` / `lead_ok` over `follows_lead`,
-    # which is exactly the thing under test, so comparing it against the rules
-    # recomputed here is a differential and not a tautology.
+    # every play still checking out.
+    #
+    # Both SIDES of the comparison have to come from outside the filter, or the
+    # check only sees one direction. The expected set is therefore recomputed
+    # from the acting seat's FULL HOLDING -- read off the live zones, engine
+    # state, see the module docstring -- and never from the candidates: an
+    # expectation derived from the offer equals the offer, so a filter that
+    # withholds legal cards would compare equal to itself. Measured: with the
+    # expectation taken from the candidates, a filter dropping one in-class card
+    # under-offered 310 times over these forty seeds and every one of them
+    # passed.
 
-    def offered(self, player: Player, candidates: list[Card], n: int) -> None:
+    def offered(
+        self, rs: Any, player: Player, candidates: list[Card], n: int
+    ) -> None:
         if n != 1 or not candidates or not all(isinstance(c, Card) for c in candidates):
             return  # not a card play: the auction, an offer, the 3-card discard
         if not self.hands or self._hand.declarer is None:
             return  # no contract yet: nothing to judge legality against
         h = self._hand
-        offered = {str(c) for c in candidates}
-        if not self._pending:
-            self._lead_offer(player, candidates, offered, h)
-        else:
-            self._follow_offer(player, candidates, offered, h)
+        # The seat plays from its hand, or -- once an open misere has exposed
+        # the declarer -- from its lay-down; exactly one of the two is non-empty
+        # during play, so the union is the pool the movement draws from.
+        pool = [
+            *rs.zones.instance("hand", player).cards,
+            *rs.zones.instance("exposed", player).cards,
+        ]
+        offer = sorted(str(c) for c in candidates)
+        expected = sorted(
+            str(c)
+            for c in (
+                self._legal_leads(pool, h)
+                if not self._pending
+                else self._legal_follows(pool, h)
+            )
+        )
+        if offer != expected:
+            self.offer_failures.append(
+                f"{self._where}: P{player} was offered {offer}, but the rules "
+                f"recomputed over its holding {sorted(str(c) for c in pool)} "
+                f"give {expected}"
+                + ("" if self._pending else " (leading)")
+                + (
+                    f" (led {self._pending[0][1]}, trump {h.trump}, "
+                    f"joker {h.joker_suit}, misere {h.misere})"
+                    if self._pending
+                    else ""
+                )
+            )
 
     @property
     def _where(self) -> str:
         return f"hand {len(self.hands) - 1} trick {len(self._hand.tricks)}"
 
-    def _lead_offer(
-        self, player: Player, candidates: list[Card], offered: set[str], h: _Hand
-    ) -> None:
-        """The un-nominated joker may be offered as a LEAD only when it is the
-        holder's last card."""
-        if h.trump is not None or h.joker_suit is not None:
-            return
-        if not any(c.suit == "joker" for c in candidates):
-            self.offers["lead_joker_withheld" if len(candidates) > 1 else "lead_plain"] += 1
-            return
-        self.offers["lead_joker_offered"] += 1
-        if len(candidates) != 1:
-            self.offer_failures.append(
-                f"{self._where}: P{player} was offered the un-nominated joker to LEAD among "
-                f"{len(candidates)} cards {sorted(offered)} -- it is legal only "
-                f"as the holder's last card"
-            )
+    def _legal_leads(self, pool: list[Card], h: _Hand) -> list[Card]:
+        """Anything may be led, except that in the no-trump family an
+        un-nominated joker is held back until it is the leader's last card."""
+        if h.trump is not None or h.joker_suit is not None or len(pool) == 1:
+            self.offers["lead_plain"] += 1
+            return pool
+        if any(c.suit == "joker" for c in pool):
+            self.offers["lead_joker_withheld"] += 1
+            return [c for c in pool if c.suit != "joker"]
+        self.offers["lead_plain"] += 1
+        return pool
 
-    def _follow_offer(
-        self, player: Player, candidates: list[Card], offered: set[str], h: _Hand
-    ) -> None:
+    def _legal_follows(self, pool: list[Card], h: _Hand) -> list[Card]:
+        """Strict follow within the led class; void, anything goes -- except
+        that in a misere a void holder of the un-nominated joker must play it."""
         led = self._pending[0][1]
         cls = _cls(led, h.trump, h.joker_suit)
-        in_class = {str(c) for c in candidates if _cls(c, h.trump, h.joker_suit) == cls}
+        in_class = [c for c in pool if _cls(c, h.trump, h.joker_suit) == cls]
         if in_class:
             self.offers["offer_in_class"] += 1
-            if offered != in_class:
-                self.offer_failures.append(
-                    f"{self._where}: P{player} holding the led class ({cls}, led {led}) was "
-                    f"offered {sorted(offered - in_class)} outside it"
-                )
-            return
-        # Void in the led class. 500's own rule: in a misere a void holder of
-        # the un-nominated joker MUST play it, so the joker being OFFERED at all
-        # means it must be the only thing offered. This is the arm that a
-        # played-card check cannot reach -- a holder who is never obliged, or
-        # who never plays the joker at all, leaves no trace in the plays.
-        if h.misere and h.joker_suit is None and any(c.suit == "joker" for c in candidates):
+            return in_class
+        if h.misere and h.joker_suit is None and any(c.suit == "joker" for c in pool):
             self.offers["offer_forced_joker"] += 1
-            if len(candidates) != 1:
-                self.offer_failures.append(
-                    f"{self._where}: P{player} void in {cls} (led {led}) in a misere, holding "
-                    f"the un-nominated joker, was offered {sorted(offered)} -- "
-                    f"the joker is the only legal play"
-                )
-            return
+            return [c for c in pool if c.suit == "joker"]
         self.offers["offer_void"] += 1
+        return pool
 
 
 def _play(game: Any, seed: int) -> tuple[_Table, dict[str, int], list[dict[int, int]], Any]:
@@ -359,7 +381,8 @@ def _play(game: Any, seed: int) -> tuple[_Table, dict[str, int], list[dict[int, 
     pick = random_chooser(rng)
 
     def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
-        table.offered(player, candidates, n)
+        if rs_box:
+            table.offered(rs_box[0], player, candidates, n)
         return pick(player, candidates, n)
 
     result = play_game(
@@ -567,7 +590,7 @@ def test_every_joker_role_is_reached() -> None:
         "offer_in_class",
         "offer_void",
         "offer_forced_joker",
-        "lead_joker_offered",
+        "lead_plain",
         "lead_joker_withheld",
     ):
         assert roles[cell] > 0, f"{cell} never occurred: {roles}"
@@ -589,3 +612,47 @@ def test_seed0_characterization() -> None:
     hand = table.hands[0]
     assert len(hand.tricks) == 10
     assert (hand.declarer, hand.trump, hand.misere, hand.joker_suit) == (0, None, False, None)
+
+
+# The hoist's own hazard, and the seeds that make it visible.
+#
+# `trump_suit` / `joker_suit` are GAME-scoped so the Trick Order rows can read
+# them (a `trick_order` block is a game clause). Phase-scoped state is
+# re-initialized by the language on every phase entry; game-scoped state is
+# not, so that guarantee is now two hand-written assignments in `phase play`,
+# and the contract of one hand survives into the next if either is dropped.
+#
+# Only `joker_suit`'s clear is READ by a playout, and only in a hand sequence
+# that nominates the joker and then plays a hand that does not. Measured over
+# seeds 0-599 (2026-08-19): five seeds have that shape -- 321, 353, 416, 585,
+# 592, none below 200, so neither the forty-seed sweep above nor the 200-seed
+# stream pin can reach it. Of those five only THREE redden when the clear is
+# deleted, because the stale nomination has to change a candidate set as well
+# as exist: the joker must fall to a seat that is obliged in the led class.
+# That is why the seeds below are chosen by the executed red-under and not by
+# the structural filter, and why the shape is asserted rather than assumed --
+# a game-file change that moved these lines could leave three seeds that no
+# longer nominate at all, and this cell would pass on nothing.
+_NOMINATION_CLEAR_SEEDS = (353, 585, 592)
+
+
+def test_the_nomination_clears_between_hands() -> None:
+    """`phase play`'s `joker_suit := none`, given a witness.
+
+    Each seed plays a hand that nominates the joker and a later hand that does
+    not; the second hand's legality must be computed with no nomination
+    standing. Deleting the clear puts the joker back in the old suit, which the
+    candidate-set reading catches as a card offered outside the led class."""
+    game = _five_hundred()
+    for seed in _NOMINATION_CLEAR_SEEDS:
+        table, _census, _scores, _result = _play(game, seed)
+        hands = [h for h in table.hands if h.declarer is not None]
+        assert any(
+            a.joker_suit is not None and b.joker_suit is None
+            for a, b in pairwise(hands)
+        ), (
+            f"seed {seed} no longer nominates the joker in one hand and plays "
+            f"another without a nomination, so it cannot exercise the clear -- "
+            f"re-derive the witness seeds (see this cell's comment)"
+        )
+        _check_seed(game, seed)

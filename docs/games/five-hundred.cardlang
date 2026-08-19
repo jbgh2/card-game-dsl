@@ -130,7 +130,22 @@ game FiveHundred {
 
       // The contract's two order-bearing variables are game-level (the Trick
       // Order reads them); clearing them here is what the phase's own state
-      // block did.
+      // block did. Being game-level, nothing resets them between hands but
+      // these two lines — each one carries a whole contract forward if it is
+      // dropped.
+      //
+      // `joker_suit` is read every hand: whenever a hand that nominates the
+      // joker is followed by one that does not, dropping this line leaves the
+      // joker belonging to the old suit, which is a wrong GAME and not merely
+      // a wrong rendering (tests/test_playout_five_hundred.py,
+      // `test_the_nomination_clears_between_hands`).
+      //
+      // `trump_suit` is defensive and no playout reaches it, because every bid
+      // assigns it: only a hand where all four pass leaves it untouched. It
+      // stays for that hand — the rules allow it and `if high_bidder is none`
+      // below already handles it — and without this line such a hand would
+      // render the PREVIOUS hand's contract into every information state while
+      // its own auction ran.
       trump_suit := none
       joker_suit := none
 

@@ -77,6 +77,23 @@ residual:   (1) the information-state string, moved BY DESIGN and owned by
             (forgetting an exclusion) is loud through the primary pin. R4,
             this ledger owns the record.
 
+A HAZARD EVERY MIGRATION AFTER THE FIRST INHERITS, stated once here because
+the next row added will meet it. A `trick_order` block is a game clause and
+sees game state only, so a game whose rows read a declared contract must HOIST
+those variables out of the phase that declared them -- and hoisting trades a
+guarantee for a line of code: phase-scoped state is re-initialized BY THE
+LANGUAGE on every phase entry, game-scoped state is not, so the reset becomes
+a hand-written assignment that nothing checks. Dropping one is silent in the
+general case -- the value simply carries into the next hand -- and whether
+that is visible at all depends on the game. So each such clear needs its OWN
+witness, and the witness may sit far outside these seeds: 500's
+`joker_suit := none` is first read at seed 353, and only three of the five
+seeds under 600 with the right shape redden when it is dropped
+(tests/test_playout_five_hundred.py, `test_the_nomination_clears_between_hands`).
+A clear that no witness can reach is then a decision rather than an oversight,
+and says so where it stands -- 500's `trump_suit := none` is the worked
+example.
+
 Born red: each row is committed with its hash file captured on that game's
 pre-migration tree, so every row is GREEN at its own commit by construction;
 capacity to fail is proven per row by the planted mutations recorded below.
