@@ -580,7 +580,14 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # answer (every game pairing a `trump:` with a `define` would be refused).
     # Its reddening mutation is executed: misspell one namespace and the module
     # raises at import ("names namespaces no reference slot issues: ['dfine']").
-    "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES"],
+    # `site in RESERVATION_SITES` is the parse.py shape, one layer up: a caller
+    # validating the site label it passes against the registry that owns the
+    # set, so widening `RESERVATION_SITES` widens the guard and there is no
+    # hard-coded row to go stale. Its witness is the registry's own, not this
+    # assert's: tests/test_positions.py::test_every_reservation_site_passes_
+    # its_own_id scrapes the call sites, so a site that stopped naming itself
+    # -- or a fourth consumer joining silently -- reddens there.
+    "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES", "site in RESERVATION_SITES"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     # The one latent deny-list the census surfaced: the dispatch implements

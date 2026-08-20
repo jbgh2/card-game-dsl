@@ -515,7 +515,7 @@ def test_dir_collides_with_a_declared_type_name() -> None:
     # two meanings. The `cell` mint already rejected this via the reserved set
     # (which includes declared type names); `dir` gets the same second check.
     msg = _reject(direction_game(extra="type dir = { x : Integer }\n"))
-    assert "dir" in msg and ("built-in domain or type name" in msg)
+    assert "dir" in msg and ("collides with a declared type name" in msg)
 
 
 def test_boardless_dir_parameter_is_unsupported() -> None:
