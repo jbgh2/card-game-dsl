@@ -306,8 +306,8 @@ says it is closed. A stale locator sends the reader somewhere that is not
 there, and `tests/test_ledger_referents.py` reddens on it.
 
 **Route what is left; do not pour it into the last row.** Only an
-instrument limit is a `does not prove:` row. The other five things that
-used to collect in a catch-all have homes that act on them:
+instrument limit is a `does not prove:` row. The five other things you may
+be holding have homes that act on them:
 
 | what you have | where it goes | a row? |
 |---|---|---|

@@ -3763,7 +3763,7 @@ cross-reference-don't-duplicate rule payable at all: cite the sibling pin
 rather than re-copying its enumeration, which is the duplication that
 drifts. Write it in locator register, a label and the id with no assertion
 verb, because "the partition is pinned at X" is a coverage claim wearing a
-pointer's clothes and a coverage claim is what this format removed.
+pointer's clothes, and no row of this format holds a coverage claim.
 
 The division is by failure mode, which is how prose should be ranked: not
 by how likely it is to be wrong but by **what being wrong licenses a reader
@@ -3772,12 +3772,12 @@ tested is a reason not to test it, so a stale one leaves a gap open and
 says it is closed. A wrong locator sends the reader to a place that is not
 there, and `tests/test_ledger_referents.py` reddens on it.
 
-**Four rows, and only the last is a judgment.** An earlier format carried a
-catch-all residual row, and a catch-all noun catches all: deferred work,
-uncovered cells, domain boundaries and designed constraints were filed into
-it beside genuine instrument limits, where a reader could not tell which
-demanded action. Each has a home that acts on it, and a slot named for what
-it holds cannot take the others:
+**Only `does not prove:` carries a caution**; the other three state the
+guarantee, its scope, and where to look. The row is named for the one thing
+it may hold, because a catch-all noun catches all — deferred work, an
+uncovered cell, a domain boundary and a designed constraint make four
+different demands on a reader, and each has a home that acts on it. A slot
+named for what it holds cannot take the others:
 
 | what you have | where it goes | a row? |
 |---|---|---|
@@ -3788,8 +3788,8 @@ it holds cannot take the others:
 | An instrument limit — what a green does *not* prove | `does not prove:` | **yes** |
 | Nothing | nothing; omit the row | no |
 
-Three of the six were never residuals. The slot name does the sorting, so
-mis-filing stops at the point of writing rather than at review.
+Three of the six are not instrument limits at all. The slot name does the
+sorting, so mis-filing stops at the point of writing rather than at review.
 
 The gate follows the routing: an uncovered cell without both a guard and a
 record fails it — the record being the mark's reason or `issue #N` — and a
@@ -3815,9 +3815,9 @@ transition stays visible in the diff.
 **Every reference a ledger writes resolves.** A ledger names things — a
 test id, a tracked file, a module attribute — and a name goes stale in
 silence: a rename moves a test out from under the row citing it, and the
-row goes on reading as authoritative forever. Deleting the coverage rows
-concentrates rather than removes this hazard, because what survives in
-`registry:` is locators, and a locator's whole value is that it resolves.
+row goes on reading as authoritative forever. A format with no coverage row concentrates
+rather than removes this hazard, because the weight it does carry is
+locators, and a locator's whole value is that it resolves.
 `tests/test_ledger_referents.py` sweeps every completeness ledger in the
 tree and holds every reference, in every row, to resolving. What no matcher
 reaches is a row naming a real test that does not test what the row says;
@@ -3826,14 +3826,13 @@ rather than leaving it implied.
 
 No mechanism polices the prose of the surviving rows, and the reason is
 measured rather than assumed. Requiring a quantified sentence to name its
-set beside it — the rule the deleted `covered:` row carried — fires only on
-ordinary English once that row is gone: re-pointed at any other row it
-flags eight sentences across the tree, all eight of them correct prose
-(measured 2026-08-20, 90 ledgers). Prose written to satisfy a matcher is
+set beside it fires only on ordinary English here: pointed at any row of
+this format it flags eight sentences across the tree, all eight of them
+correct prose (measured 2026-08-20, 90 ledgers). Prose written to satisfy a matcher is
 worse prose, and a row naming its set in good English is the goal, not the
 violation. The class ledger keeps its own `covered:` row and the rule with
-it — there `members:` is the named set, derived on the line above — but the
-completeness ledger has no row left that a matcher should read.
+it — there `members:` is the named set, derived on the line above. The
+completeness ledger holds no row a matcher should read.
 
 **Prose names the registry, never the cardinality.** A ledger row — or any
 spec sentence — states what it quantifies over, not how many members that

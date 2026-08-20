@@ -127,12 +127,12 @@ does not prove:  a green here does not mean a ledger is TRUE. The forms
                  `CENSUS_RESIDUE`, 1575 unresolvable; 1330 of the candidates
                  sit in a code span and 809 bare.
 
-The quantifier rule this module also carried retired with the `covered:` row
-that gave it a law. Re-pointed at any surviving row it flags eight sentences
-across the tree, all eight of them correct English (measured 2026-08-20, 90
-ledgers), so the form was deleted rather than re-aimed: a matcher with no
-doctrine behind it enforces its author's taste. decisions.md "Every reference
-a ledger writes resolves" owns what is left.
+No form here reads the PROSE of a row, only the names in it. A matcher
+holding a quantified sentence to naming its set beside it flags eight
+sentences across this tree, all eight of them correct English (measured
+2026-08-20, 90 ledgers) -- and a matcher with no doctrine behind it enforces
+its author's taste. decisions.md "Every reference a ledger writes resolves"
+owns the rule this module mechanizes.
 
 red under: revert the citation in `tests/test_domain_registry.py` to the
     truncated form it carried before this change -- the row is row-agnostic
