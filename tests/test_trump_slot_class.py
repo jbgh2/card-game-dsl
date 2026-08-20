@@ -120,14 +120,16 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             `test_game_trump_value` over every deck's `deck_suits` are its
             executed pin.
             (2) A Primitive winner named in a game whose deck its OWN
-            order table cannot rank (`tarot_trick_winner`'s `int(rank)` on a
-            non-numeral led card) dies on a bare ValueError -- a game-LOCAL
-            order table, not the declared ranking, so outside this class.
-            Guard: the crash is loud (never silent-wrong); record: issue
-            #364, which also holds the sibling this grid no longer reaches:
-            Belote's `_TRUMP_HEIGHT` lookup and its `_round_state`'s missing
-            `"trump"` key were the second and third instances, and both
-            retired with the winner (issue #250 PR 4).
+            order table cannot rank dies on a bare KeyError/ValueError -- a
+            game-LOCAL order table, not the declared ranking, so outside this
+            class. NO instance remains: Belote's `_TRUMP_HEIGHT` lookup and
+            its `_round_state`'s missing `"trump"` key retired with issue #250
+            PR 4, and Tarot's `int(rank)` on a non-numeral led card retired
+            with PR 5, which emptied `PRIMITIVE_TRICK_WINNERS`. Issue #364
+            holds the record for the shape a future game-local winner would
+            revive; the guard it names (the crash is loud, never
+            silent-wrong) is a property of such a winner's body, not of
+            anything in the tree today.
             (3) A static guard for the rank-to-order class was weighed and
             not built: refusing a partial `ranking:` breaks a pinned
             feature (test_ranking_guard.py, Canasta), and refusing
@@ -316,9 +318,8 @@ WINNERS: tuple[str, ...] = tuple(
 
 # --- the executed body partition ---------------------------------------------
 #
-# One pile, ranks every winner body can evaluate (numerals for
-# tarot_trick_winner, ranked here for the two Builtins): the leader plays
-# 9 of clubs, the second player 8 of hearts.
+# One pile, ranks every winner body can evaluate: the leader plays 9 of clubs,
+# the second player 8 of hearts.
 # Under no trump the 9 of clubs wins; under trump hearts a winner that reads
 # its trump argument names the second player. The difference IS the
 # classification -- computed from the runtime body, not read off a registry.
@@ -378,24 +379,26 @@ def test_trump_reading_registry_matches_the_bodies() -> None:
     must be equal, and a divergence is answered by a second witness pile
     that reaches the read (or, for a winner that provably reads its trump
     only to ignore it, a per-member disposition recorded here) -- never by
-    weakening this assertion. Red under (executed 2026-08-18, on the tree
-    that still had `belote_trick_winner`): make `reads_trump` return False
-    for belote's winner AND drop belote from the registry -- the shape a
-    future author produces when the one pile misses a read -- so
-    `registry == executed` still holds and belote sits in `static` alone:
-    this fired with `static-only=['belote_trick_winner']`, where the subset
-    form stayed green. That winner retired with issue #250 PR 4, so the plant
-    is RE-ANCHORED onto a live member and re-run rather than recorded as
-    history: `_planted_unused = trump` added to `tarot_trick_winner`'s body
-    puts a trump-blind winner in `static` alone, and this assertion reddens in
-    its own channel -- "the static and executed trump-reader oracles disagree
-    ... static-only=['tarot_trick_winner'] executed-only=[]" (executed
-    2026-08-19). Note the re-anchor goes on the winner and NOT on the
-    registry: `TRUMP_READING_WINNERS` now has a single member, so emptying it
-    to plant the old shape trips a `min()` on an empty set in the diagnostic
-    below and reddens through the wrong channel. (A single-site plant on
-    `_PILE` cannot witness it either: it trips the no-trump control or the
-    registry pin first.)"""
+    weakening this assertion. Red under, on a LIVE member each time the
+    previous anchor retired -- twice now, which is what a witness costs in a
+    shrinking registry, and cheaper than letting the record become history.
+    Originally (2026-08-18) `belote_trick_winner`: make `reads_trump` return
+    False for it AND drop it from the registry -- the shape a future author
+    produces when the one pile misses a read -- so `registry == executed`
+    still holds and it sits in `static` alone; that fired with
+    `static-only=['belote_trick_winner']` where the subset form stayed green.
+    It retired with issue #250 PR 4 and the plant moved to
+    `tarot_trick_winner`; that retired with PR 5. The plant now sits on
+    `highest_of_led_suit`, the surviving trump-blind winner:
+    `_planted_unused = trump` added to its body puts it in `static` alone and
+    this assertion reddens in its own channel -- "the static and executed
+    trump-reader oracles disagree ... static-only=['highest_of_led_suit']
+    executed-only=[]" (executed 2026-08-19). Note the re-anchor goes on the
+    winner and NOT on the registry: `TRUMP_READING_WINNERS` has a single
+    member, so emptying it to plant the old shape trips a `min()` on an empty
+    set in the diagnostic below and reddens through the wrong channel. (A
+    single-site plant on `_PILE` cannot witness it either: it trips the
+    no-trump control or the registry pin first.)"""
     assert F.TRUMP_READING_WINNERS <= F.TRICK_WINNER_NAMES
     executed = {w for w in WINNERS if reads_trump(w)}
     assert F.TRUMP_READING_WINNERS == executed

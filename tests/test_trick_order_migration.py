@@ -87,9 +87,31 @@ covered:    `test_stream_hash_is_byte_identical` (every game x every seed);
 sampled:    nothing -- the pin is exact. The two trace-claim tests run one
             seed per row: a trace emitted from a trick site fires in every
             seed that plays a trick, so a second seed adds no cell.
+            A row that excludes NOTHING contributes zero cells to BOTH
+            exclusion tests, which is french-tarot's case and is stated at
+            that row: an empty exclusion is the claim "this migration moves
+            no trace", and what executes it is the primary pin, which then
+            hashes the whole trace channel rather than a subset of it. Not a
+            gap in the domain -- the domain is `MIGRATIONS` x each row's
+            declared exclusions, and this row declares none.
+            The THIRD claim test, `test_the_two_exclusion_halves_are_disjoint`,
+            is vacuous for EVERY row rather than for tarot's alone: an
+            intersection needs both halves populated, and no row populates
+            both (rows 1-3 declare no reshaping, belote no retirement, tarot
+            neither). It is a guard against a shape the registry has never
+            held, kept because the shape it refuses is what would make one of
+            the other two claims unfalsifiable -- and its capacity to fail is
+            recorded, not assumed: the born-green mutation below moves
+            belote's `trick_end` into both halves and reddens it.
 residual:   (1) the information-state string, moved BY DESIGN and owned by
             the openspiel_ready proof modules (above); R4, this ledger owns
-            the record. (2) A row could under-declare -- omit a trace the
+            the record. It moves only where a migration retires or hoists a
+            state variable, so a row that does neither can close it by
+            MEASUREMENT rather than by argument -- french-tarot did: the
+            rendering is byte-identical base-to-head over the five manifest
+            seeds x four observers, both at the swap proof's depth 3 and at
+            depth 15 with a card down in the trick pile (executed
+            2026-08-19). (2) A row could under-declare -- omit a trace the
             migration really does retire -- which no pin here catches,
             because the hash then simply moves and
             `test_stream_hash_is_byte_identical` reports it as the
@@ -152,14 +174,17 @@ a row could sit green over a hash nothing can move:
   CANDIDATES compare equal, which needs two identical cards in one trick --
   a doubled pack. Measured over three seeds per game (2026-08-19): of the
   winner calls whose candidate set holds an equal-strength pair, Doppelkopf
-  36 of 144, Skat 0 of 960, Five Hundred 0 of 30, Belote 0 of 1887. So:
+  36 of 144, Skat 0 of 960, Five Hundred 0 of 30, Belote 0 of 1887, French
+  Tarot 0 of 1944 -- and Tarot's zero is structural rather than lucky, since
+  its `card_strength:` row is injective within any one candidate set (the
+  atouts are 101-121, and a plain candidate set is one suit's 1-14). So:
     - doppelkopf: pre-migration, `doko.py`'s trump comparison flipped -- 33
       of the first 40 seeds moved (`33 failed, 8 passed`, the not-slow
       selection); post-migration, the same flip in the kernel --
       `200 failed, 409 deselected`.
-    - skat, five-hundred, belote: the SAME kernel flip leaves all three rows
-      `200 passed` (executed 2026-08-19). That is the pack, not a dead row,
-      and the witnesses below prove it.
+    - skat, five-hundred, belote, french-tarot: the SAME kernel flip leaves
+      all four rows `200 passed` (executed 2026-08-19). That is the pack, not
+      a dead row, and the witnesses below prove it.
 * A KERNEL WITNESS, AND IT IS NOT ONE MUTATION FOR EVERY ROW.
   `winners.follows_lead_lazily`'s class comparison inverted (`==` to `!=`)
   reaches every row whose game filters through `follows_lead`: doppelkopf
@@ -175,12 +200,18 @@ a row could sit green over a hash nothing can move:
   winner reads have come apart ("P2 was offered [six cards] ... give ['J♣',
   'K♣'] (must-trump)"). So a future remap cannot land beside the library
   rule in silence (executed 2026-08-19). The
-  mutation that reaches ALL FOUR is therefore in the winner:
+  It reaches FRENCH TAROT, whose follow demand is `follows_lead` over the
+  whole cascade: `200 failed` (2026-08-19). The
+  mutation that reaches ALL FIVE is therefore in the winner:
   `winners.highest_by_trick_order`'s trump-candidate filter inverted
   (`if a.is_trump` -> `if not a.is_trump`) -- doppelkopf `200 failed`, skat
   `200 failed`, five-hundred `186 failed, 14 passed` (the 14 are no-trump
   and misere contracts, where the filter selects nothing either way),
-  belote `200 failed` (2026-08-19).
+  belote `200 failed`, french-tarot `202 failed, 2 passed` (2026-08-19) --
+  where Tarot's two EXTRA failures are the row's own trace-claim tests, which
+  play a game and meet the winner's "no card can win" Owner Guard once the
+  filter selects the class-less Excuse: a louder red than the hash, through a
+  second channel, and recorded as such rather than counted as the same one.
 * PER-ROW ORDER WITNESSES, each in that game's own declaration, so a row
   cannot be green over a game file nothing in it matters to:
     - doppelkopf.cardlang, the queen band reversed
@@ -195,6 +226,11 @@ a row could sit green over a hash nothing can move:
       (108 <-> 107, the jack under the nine): `200 failed` -- every seed,
       because a Belote game runs to 1000 over many hands and the trump band
       decides a trick in all of them.
+    - french-tarot.cardlang, the atout band reversed inside its own row
+      (`100 + numeral(card)` -> `100 - numeral(card)`, which keeps the band
+      above the plain suits and only inverts the order within it):
+      `200 failed` -- every seed, since a Tarot match is 36 hands of 18
+      atout-trump tricks.
 """
 
 from __future__ import annotations
@@ -281,6 +317,22 @@ MIGRATIONS: tuple[Migration, ...] = (
         "belote_stream_hashes.json",
         reshaped_traces=frozenset({"trick_end"}),
     ),
+    # French Tarot excludes NOTHING, in either half, and that is the row's own
+    # claim rather than an omission. Its tricks are a `round`, so `play`,
+    # `trick` and `trick_end` all come from `runtime/mechanics.py` and outlive
+    # `tarot_trick_winner` -- which was a winner CALLBACK and never an emitter.
+    # Belote's one reshaping does not recur either: `trick_end` echoes the
+    # ROUND's `trump` clause, and Tarot's trick round has never carried one
+    # (the pre-migration golden IR reads `"trump": null` at both the game and
+    # the round), so the field that moved for Belote is already `null` here.
+    #
+    # Both exclusion tests are therefore VACUOUS for this row -- an empty set
+    # intersects nothing -- and the coverage that buys is the maximum, not the
+    # minimum: with no name excluded, `_stream_digest` hashes the WHOLE trace
+    # channel, so every event those two tests would have argued about sits
+    # inside the primary pin instead. The tests exist for the rows that DO
+    # exclude; this row is what they look like when a migration moves nothing.
+    Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
 )
 
 SEEDS: tuple[int, ...] = tuple(range(200))

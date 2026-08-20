@@ -84,8 +84,6 @@ CALL_SIGS: dict[str, Sig] = {
     "top_of": Sig((TCollection(TCard()),), TCard()),
     "bottom_of": Sig((TCollection(TCard()),), TCard()),
     "pinochle_meld_value": Sig((TPlayer(),), TInteger()),  # Pinochle: a hand's meld under trump
-    "tarot_led_suit": Sig((), TEnum("Suit")),  # French Tarot: the effective led suit
-    "tarot_trump_height": Sig((TCard(),), TInteger()),  # French Tarot: an atout's rank strength
     "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
     "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
     # The standard trump-game trick winner over a fully public pile's Arrival
@@ -166,7 +164,6 @@ VALUE_SIGS: dict[str, Type] = {
     "highest_of_led_suit": TAny(),
     "highest_trump_or_led_suit": TAny(),
     "highest_by_trick_order": TAny(),  # trick winner under the game's `trick_order { }`
-    "tarot_trick_winner": TAny(),  # trick winner; the Excuse never wins
     "bridge_auction_outcome": TAny(),  # auction form: produces the typed outcome
     "pinochle_auction_outcome": TAny(),  # auction form: produces bid_won
     "tarot_auction_outcome": TAny(),  # auction form: produces taken | thrown_in

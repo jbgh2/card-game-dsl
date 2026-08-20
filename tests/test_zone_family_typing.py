@@ -99,6 +99,7 @@ def _game(
     ranking: str = "ranking: A K Q J 10 9 8 7 6 5 4 3 2",
     extra_zones: str = "",
     extra_state: str = "",
+    clauses: str = "",
 ) -> str:
     return f"""
 game Mini {{
@@ -106,6 +107,7 @@ game Mini {{
   max_length: 1000
   cards: standard52
   {ranking}
+  {clauses}
   zones {{ deck : Deck  hand[player] : Hand<player>  bid[player] : HiddenPile<player>  pile : TrickPile {extra_zones} }}
   state {{ score[player] : Integer = 0 {extra_state} }}
   phase p {{
@@ -399,9 +401,12 @@ def test_ranking_gate_fires_in_a_movement_filter_too() -> None:
 # callback whose evaluation reads rank_index — and each member's disposition
 # live with the registries in cardlang/typecheck.py; the cells below cross
 # every gated member with {no ranking -> rejected, ranking -> accepted}, plus
-# the load-bearing NON-member cells: tarot_trick_winner ignores rank_index in
-# its body (atout numerals + its own suit table), which is exactly what keeps
-# french-tarot — a no-`ranking:` corpus game with a trick round — legal.
+# the load-bearing NON-member cell: `highest_by_trick_order` reads the game's
+# `card_strength:` row and never `rank_index`, which is exactly what keeps
+# french-tarot — a no-`ranking:` corpus game with a trick round — legal. That
+# cell used to be `tarot_trick_winner` (a Primitive ranking atouts by their
+# numerals); it retired INTO the block the cell now names (issue #250 PR 5),
+# so the property did not move, only its spelling.
 
 
 def test_rejects_the_pile_winner_call_with_no_declared_ranking() -> None:
@@ -479,10 +484,34 @@ def test_accepts_the_trump_winner_slot_with_a_declared_ranking() -> None:
     _accepts(_game(_TRICK_ROUND.format(winner="highest_trump_or_led_suit")))
 
 
-def test_accepts_the_rank_free_tarot_winner_with_no_declared_ranking() -> None:
-    # The NON-member cell that keeps french-tarot legal: tarot_trick_winner's
-    # body reads atout numerals and its own suit table, never rank_index.
-    _accepts(_game(_TRICK_ROUND.format(winner="tarot_trick_winner"), ranking=""))
+def test_accepts_the_trick_order_winner_with_no_declared_ranking() -> None:
+    # The NON-member cell that keeps french-tarot legal: the Trick Order
+    # winner's strengths are the block's `card_strength:` row, never
+    # `rank_index`. A DECLARED row, deliberately -- an omitted one defaults to
+    # `rank_value(card)` and is refused without a `ranking:` by
+    # `_check_trick_order`'s own gate, which is a different guard and has its
+    # own cells in tests/test_trick_order.py.
+    _accepts(
+        _game(
+            _TRICK_ROUND.format(winner="highest_by_trick_order"),
+            ranking="",
+            clauses="trick_order { trump: card.suit is hearts  card_strength: 1 }",
+        )
+    )
+
+
+def test_rejects_the_trick_order_winner_when_the_strength_row_is_omitted() -> None:
+    # The other side of the same cell: with no `card_strength:` row the
+    # strength IS `rank_value(card)`, so the game needs a `ranking:` after all
+    # -- and the refusal comes from the block's own gate, naming the row.
+    _rejects(
+        _game(
+            _TRICK_ROUND.format(winner="highest_by_trick_order"),
+            ranking="",
+            clauses="trick_order { trump: card.suit is hearts }",
+        ),
+        "declares no `card_strength:` row",
+    )
 
 
 _CLIMB_ROUND = (

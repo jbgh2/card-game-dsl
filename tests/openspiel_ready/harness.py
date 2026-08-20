@@ -37,6 +37,7 @@ game's dedicated observational tests.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -284,11 +285,36 @@ class GameSpec:
                 derived.add(arg.obj.name)
         return tuple(sorted(derived))
 
-    # Where the provenance walk starts. The proof walks 40 greedy nodes from
-    # here and REFUSES a run that compared zero record entries, so a game
-    # whose line reaches its first play late must say so: Skat's greedy line
-    # climbs the whole Reizen ladder and first plays to the trick at step
-    # 127 on every manifest seed (measured 2026-08-15).
+    # Named moves the PROVENANCE walk plays before it goes greedy, for the
+    # game whose greedy line provably never reaches the zone at all — not
+    # merely late (that is `provenance_depth` below), but never.
+    #
+    # French Tarot is the case and the reason this field exists: `pass` sorts
+    # below every bid, so `legal[0]` throws every one of the 36 hands in at
+    # four actions and no card is ever played (measured: 144 steps to
+    # terminal, zero arrivals in `trick_pile`, on every manifest seed). No
+    # depth reaches a node the line does not contain. One `bid_petite` at the
+    # opener's turn puts the same line into a contract, after which greedy
+    # takes it through the chien discard and into the tricks.
+    #
+    # Scoped to the provenance walk ALONE, deliberately: the swap and rng
+    # proofs pause at `depth`, whose per-game value is reasoned about the
+    # greedy line as it stands (Tarot's depth-3 sits inside the still-open
+    # first auction, before the thrown-in hand's reshuffle), and an opening
+    # would silently move that pause. Every other spec leaves this empty.
+    #
+    # A wrong opening cannot degrade to a plain greedy walk: each move is
+    # encoded through the action space and asserted legal at its own turn, so
+    # a name the game does not have, or a move illegal where it is played,
+    # fails naming itself.
+    provenance_opening: tuple[tuple[str, str | None], ...] = ()
+
+    # Where the provenance walk starts, counted in greedy steps AFTER any
+    # `provenance_opening`. The proof walks 40 greedy nodes from here and
+    # REFUSES a run that compared zero record entries, so a game whose line
+    # reaches its first play late must say so: Skat's greedy line climbs the
+    # whole Reizen ladder and first plays to the trick at step 127 on every
+    # manifest seed (measured 2026-08-15).
     provenance_depth: int = 0
 
     # Total greedy (legal[0]) steps within which this game's line reaches
@@ -518,18 +544,154 @@ def pin_failures(spec: GameSpec, declared: frozenset[str]) -> list[str]:
     return out
 
 
-def _advance(path: str, seed: int, depth: int) -> tuple[list[int], DecisionNode]:
+def render_opening(spec: GameSpec) -> str:
+    """A spec's `provenance_opening` as the citable record writes it. The
+    MOVES, not their count: a legal-but-wrong opening passes every guard here
+    (it is legal, and it reaches the zone), so what the record has to carry is
+    which line was certified -- the swap record's precedent, which stores the
+    pairs it swapped rather than how many."""
+    return ",".join(
+        name if param is None else f"{name}({param})"
+        for name, param in spec.provenance_opening
+    )
+
+
+def opening_status(needed: bool, declared: bool) -> str:
+    """Whether a spec's `provenance_opening` corresponds to what the greedy
+    line actually does — the classifier the grid's cells read
+    (test_provenance_openings.py), in the shape `verb_status` above already
+    uses for the conformance pin's declarations.
+
+    `needed` is the measured fact: the plain greedy line compares ZERO Arrival
+    Record entries, so without an opening the provenance certificate would be
+    vacuous. `declared` is the authored judgment. The two disagree in both
+    directions, and only one of them is loud already: a NEEDED opening nobody
+    declared reddens the proof's own vacuity guard, while a declared opening
+    that stopped being needed stays green forever -- which is the direction
+    every other declaration in this package is tight in and this field was
+    not."""
+    if declared:
+        return "covered" if needed else "stale"
+    return "missing" if needed else "none"
+
+
+def opening_actions(spec: GameSpec, seed: int) -> list[int]:
+    """A spec's `provenance_opening` as action ids, each asserted legal where
+    it is played.
+
+    Two loud refusals rather than a quiet fall-back to the greedy line, which
+    is the only way this knob could weaken a proof: an unknown move name
+    raises out of the action space's own encode, and a move that is not legal
+    at its turn fails naming the move and the game. Both executed 2026-08-19,
+    reverted -- `("bid_nonesuch", None)`: "KeyError: ('bid_nonesuch', None)";
+    a second `("bid_petite", None)`, illegal once a bid stands: "opening move
+    ('bid_petite', None) is not legal at P1's turn 1"."""
+    if not spec.provenance_opening:
+        return []
+    _game, space = load(spec.path)
     history: list[int] = []
-    r = run(path, seed, ())
+    for move in spec.provenance_opening:
+        r = run(spec.path, seed, tuple(history))
+        assert isinstance(r, DecisionNode), (
+            f"{spec.short_name}: the game ended after {len(history)} of the "
+            f"{len(spec.provenance_opening)} opening moves"
+        )
+        try:
+            action = space.encode(move)
+        except (KeyError, ValueError) as exc:
+            # The action space's own channel, but carrying this package's
+            # voice: every other failure here names the game and the field,
+            # and a bare `KeyError: ('bid_nonesuch', None)` named neither.
+            raise KeyError(
+                f"{spec.short_name}: `provenance_opening` names {move}, which "
+                f"this game's action space does not encode"
+            ) from exc
+        assert action in r.legal, (
+            f"{spec.short_name}: opening move {move} is not legal at P"
+            f"{r.player}'s turn {len(history)} — re-derive "
+            f"`provenance_opening`"
+        )
+        history.append(action)
+    return history
+
+
+def _advance(
+    path: str, seed: int, depth: int, opening: list[int] | None = None
+) -> tuple[list[int], DecisionNode]:
+    history: list[int] = list(opening or ())
+    base = len(history)
+    r = run(path, seed, tuple(history))
     assert isinstance(r, DecisionNode)
-    while len(history) < depth:
+    while len(history) - base < depth:
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
-        if not isinstance(nxt, DecisionNode):  # short game: back off one step
+        if not isinstance(nxt, DecisionNode):
+            # Short game: back off the greedy move appended two lines above.
+            # It can never reach into a declared `provenance_opening`, by
+            # construction rather than by any game's decision count — the
+            # append and this pop are the same iteration, so the element
+            # removed is always the one this loop put there.
             history.pop()
             break
         r = nxt
     return history, r
+
+
+@dataclass(frozen=True)
+class ProvenanceWalk:
+    """What one provenance line reached: how many [[arrival-record]] entries
+    the walk compared, and over how many nodes."""
+
+    entries_compared: int
+    nodes: int
+
+
+PROVENANCE_NODES = 40
+
+
+def provenance_walk(
+    spec: GameSpec,
+    seed: int,
+    zones: tuple[str, ...],
+    opening: list[int],
+    certify: Callable[[int, str, list[tuple[Any, str]], DecisionNode], None]
+    | None = None,
+) -> ProvenanceWalk:
+    """One provenance line, walked and counted — the proof's own loop, lifted
+    so the proof and the grid that judges its `provenance_opening`
+    (test_provenance_openings.py) run the SAME walk. A second implementation
+    for the grid would let the two disagree about what a line reaches, which
+    is the question the grid exists to settle.
+
+    `certify` is called per node per zone instance with the engine's record;
+    the proof passes its per-observer comparison, the grid passes nothing
+    because it is asking only how far the line got.
+
+    A declared zone may be a FAMILY (`highest_by_trick_order(piles[p])` is
+    designed surface), and the AST derivation can only see the family's name —
+    which instance a call reads is a runtime value. So the expansion happens
+    here, where the live instances exist, and the comparison is per instance:
+    treating the family as one label would derive [] and certify nothing."""
+    history, r0 = _advance(spec.path, seed, spec.provenance_depth, opening)
+    r: DecisionNode | Any = r0
+    entries_compared = 0
+    nodes = 0
+    while isinstance(r, DecisionNode) and nodes < PROVENANCE_NODES:
+        for zone_label in _instance_labels(r.rs, zones):
+            name, _, key = zone_label.partition("[")
+            zone = (
+                r.rs.zones.instance(name, _instance_key(r.rs, name, key[:-1]))
+                if key
+                else r.rs.zones.single(name)
+            )
+            engine = [(a.actor, str(a.card)) for a in zone.arrivals]
+            entries_compared += len(engine)
+            if certify is not None:
+                certify(nodes, zone_label, engine, r)
+        history.append(r.legal[0])
+        r = run(spec.path, seed, tuple(history))
+        nodes += 1
+    return ProvenanceWalk(entries_compared, nodes)
 
 
 def _side_zone(rs: Any, side: tuple[str, int | None]) -> Any:
@@ -825,42 +987,27 @@ class ReadinessProofs:
         # entries actually compared: one pause can legitimately catch the
         # pile empty (doppelkopf's opening announcement lap), and an
         # empty-vs-empty comparison certifies nothing — the count below is
-        # the proof's own vacuity guard. The walk starts at the spec's
-        # provenance_depth (Skat's first play sits past its whole auction).
-        history, r0 = _advance(spec.path, seed, spec.provenance_depth)
-        r: DecisionNode | Any = r0
-        entries_compared = 0
-        nodes = 0
-        while isinstance(r, DecisionNode) and nodes < 40:
-            # A declared zone may be a FAMILY (`highest_by_trick_order(piles[p])`
-            # is designed surface), and the AST derivation can only see the
-            # family's name — which instance a call reads is a runtime value.
-            # So expand here, where the live instances exist, and compare per
-            # instance. Comparing the family as one label would derive [] and
-            # certify nothing.
-            for zone_label in _instance_labels(r.rs, zones):
-                name, _, key = zone_label.partition("[")
-                zone = (
-                    r.rs.zones.instance(name, _instance_key(r.rs, name, key[:-1]))
-                    if key
-                    else r.rs.zones.single(name)
+        # the proof's own vacuity guard. The walk starts after the spec's
+        # `provenance_opening` (French Tarot's greedy line never plays a card
+        # at all) and its provenance_depth (Skat's first play sits past its
+        # whole auction).
+        def certify(
+            node: int, label: str, engine: list[tuple[Any, str]], r: DecisionNode
+        ) -> None:
+            for observer in range(len(r.obs_logs)):
+                derived = derive_arrivals(r.rs, r.obs_logs[observer], label)
+                assert derived == engine, (
+                    f"{spec.short_name}: step {node}: P{observer}'s "
+                    f"stream derives {derived} for '{label}' but "
+                    f"the engine record holds {engine} — the record "
+                    f"exposes provenance observation does not entail "
+                    f"(or the emission lost a fact)"
                 )
-                engine = [(a.actor, str(a.card)) for a in zone.arrivals]
-                entries_compared += len(engine)
-                for observer in range(len(r.obs_logs)):
-                    derived = derive_arrivals(
-                        r.rs, r.obs_logs[observer], zone_label
-                    )
-                    assert derived == engine, (
-                        f"{spec.short_name}: step {nodes}: P{observer}'s "
-                        f"stream derives {derived} for '{zone_label}' but "
-                        f"the engine record holds {engine} — the record "
-                        f"exposes provenance observation does not entail "
-                        f"(or the emission lost a fact)"
-                    )
-            history.append(r.legal[0])
-            r = run(spec.path, seed, tuple(history))
-            nodes += 1
+
+        walk = provenance_walk(
+            spec, seed, zones, opening_actions(spec, seed), certify
+        )
+        entries_compared, nodes = walk.entries_compared, walk.nodes
         assert entries_compared > 0, (
             f"{spec.short_name}: the greedy line never put a card in "
             f"{zones} within {nodes} steps — the certificate "
@@ -871,6 +1018,8 @@ class ReadinessProofs:
             "provenance",
             seed=seed,
             zones=len(zones),
+            opening=render_opening(spec) or "-",
+            depth=spec.provenance_depth,
             nodes=nodes,
             entries_compared=entries_compared,
             vacuous=False,

@@ -56,7 +56,7 @@ residual:   A label at a DISTANCE from the name it governs is out of the
             only rather than a reach it does not have.
 
 red under: relabel a known name -- e.g. in `docs/library.md` change
-    "the Primitive `tarot_led_suit()`" to "the Builtin `tarot_led_suit()`"
+    "the Primitive `tarot_per_opp()`" to "the Builtin `tarot_per_opp()`"
     (its real home is `PRIMITIVE_CALL_FUNCS`), or in `docs/building.md`
     change "(Builtin query)" after `player_holding` to "(Primitive query)".
     Either was a shipped defect Codex caught on PR #332; both fail here.
@@ -127,7 +127,7 @@ def test_the_derived_universe_holds_every_home_registry() -> None:
 _NAME = r"`(?P<name>[a-z_][a-z0-9_]*)[^`\n]*`"
 _LABEL = r"(?P<label>Builtin|Primitive)s?"
 _ADJACENCY: tuple[tuple[str, str], ...] = (
-    # "the Builtin `tarot_led_suit()`" / "a Primitive query `f`"
+    # "the Builtin `tarot_per_opp()`" / "a Primitive query `f`"
     ("label-then-name", rf"{_LABEL}\s+(?:\w+\s+)?{_NAME}"),
     # "`player_holding(Card) -> Player` (Builtin query)"
     ("name-then-parenthetical", rf"{_NAME}[^`\n]{{0,40}}\(\s*{_LABEL}\b[^)\n]*\)"),
@@ -245,10 +245,10 @@ def test_no_prose_mislabels_a_native_function() -> None:
 @pytest.mark.parametrize(
     "form,probe,name,label",
     [
-        ("label-then-name", "reads the Builtin `tarot_led_suit()` first", "tarot_led_suit", "Builtin"),
+        ("label-then-name", "reads the Builtin `tarot_per_opp()` first", "tarot_per_opp", "Builtin"),
         ("label-then-name", "a Primitive query `player_holding` here", "player_holding", "Primitive"),
         ("name-then-parenthetical", "`player_holding(Card) -> Player` (Primitive query)", "player_holding", "Primitive"),
-        ("name-then-copula", "`tarot_led_suit` is a Builtin over the pile", "tarot_led_suit", "Builtin"),
+        ("name-then-copula", "`tarot_per_opp` is a Builtin over the pile", "tarot_per_opp", "Builtin"),
     ],
 )
 def test_each_adjacency_form_is_matched(form: str, probe: str, name: str, label: str) -> None:
@@ -258,8 +258,12 @@ def test_each_adjacency_form_is_matched(form: str, probe: str, name: str, label:
     green because it had stopped looking, which is the failure this repo ranks
     with accepted-but-ignored.
 
-    Every probe here is a real shipped defect from the PR #332 review rounds,
-    not an invented sentence.
+    Every probe here is a real shipped defect from the PR #332 review rounds.
+    The tarot probes are RE-ANCHORED rather than retired: the defect was
+    written on `tarot_led_suit`, which retired with issue #250 PR 5, so the
+    same sentence now carries `tarot_per_opp` -- a live Primitive of the same
+    game. Re-anchoring keeps the form under test; dropping the probe would
+    have left the form matched by one sentence instead of two.
 
     red under: break the named form's pattern in `_ADJACENCY`.
     """
@@ -276,7 +280,7 @@ def test_a_correct_label_is_not_flagged() -> None:
 
     red under: swap the two registry lookups in `_mislabels`.
     """
-    assert not _mislabels("reads the Primitive `tarot_led_suit()` first")
+    assert not _mislabels("reads the Primitive `tarot_per_opp()` first")
     assert not _mislabels("`player_holding(Card) -> Player` (Builtin query)")
 
 

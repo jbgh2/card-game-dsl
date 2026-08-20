@@ -75,9 +75,10 @@ _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 # DISPATCHER's file, not the CLASSIFICATION of the names it keys:
 # `value_function` dispatches both the Builtin winners
 # (`BUILTIN_TRICK_WINNERS`, reached through the neutral `runtime/winners.py`)
-# and the Primitive ones (game-local modules) — one match, one file. Splitting
-# it by home would mint a second dispatcher for two names and put nothing in
-# the right place that is not already there; the classification of what it
+# and any game-local winner (`PRIMITIVE_TRICK_WINNERS`, whose members reach
+# their own modules) — one match, one file. Splitting it by home would mint a
+# second dispatcher per home and put nothing in the right place that is not
+# already there; the classification of what it
 # keys is `cardlang/builtins/functions.py`'s statement, pinned by
 # tests/test_native_classification_prose.py, and the elimination metric is
 # `PRIMITIVE_CALL_FUNCS` (the call arms below) plus the epic scoreboard,

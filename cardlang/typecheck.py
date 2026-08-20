@@ -168,13 +168,12 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #     (cribbage.py show/run scoring orders).
 #   winner callbacks, gated via RANKING_GATED_WINNERS at the trick round's
 #     `winner` slot: highest_of_led_suit, highest_trump_or_led_suit
-#     (winners.py). NON-members: tarot_trick_winner — its body ranks atouts
-#     by their numerals and plain suits by its own table, never rank_index,
-#     which is what keeps french-tarot (a no-`ranking:` corpus game with
-#     trick rounds) legal — and highest_by_trick_order, whose strengths are
-#     the game's `card_strength:` row; an OMITTED row defaults to
-#     `rank_value(card)` and is gated by `_check_trick_order`'s own ranking
-#     guard, which is where a Trick Order game meets this rule.
+#     (winners.py). NON-member: highest_by_trick_order, whose strengths are
+#     the game's `card_strength:` row rather than its `ranking:` — which is
+#     what keeps french-tarot (a no-`ranking:` corpus game with trick rounds)
+#     legal. An OMITTED `card_strength:` row defaults to `rank_value(card)`
+#     and is gated by `_check_trick_order`'s own ranking guard, which is where
+#     a Trick Order game meets this rule.
 #   climb queries, gated via RANKING_GATED_CLIMB_QUERIES at the climb
 #     round's `combinations`/`follows` slots: president_lead_options,
 #     president_follows (president.py reads facts.rank_index). NON-members:

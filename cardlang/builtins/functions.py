@@ -54,16 +54,19 @@ BUILTIN_TRICK_WINNERS: frozenset[str] = frozenset(
         "highest_by_trick_order",  # the winner of a game's declared Trick Order
     }
 )
-PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
-    {
-        "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
-    }
-)
+# EMPTY, and kept: the last member (`tarot_trick_winner`) retired with issue
+# #250 PR 5, so no corpus game names a game-local trick winner any more. The
+# set stays because the SPLIT is the classification rule above, not a count —
+# the winner slot's namespace is a union of two homes, and collapsing it to
+# one would say a winner can only ever be generic, which is the opposite of
+# what the rule says. A game whose winner genuinely cannot be spelled by a
+# declaration files here.
+PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset()
 # The winner slot's namespace: what a `round … winner <name>` may name.
 TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS
 # The winners whose BODY reads the `trump` argument of the winner contract
 # above. The other half accepts the argument and ignores it (a no-trump
-# winner, and Tarot's, whose atouts are its own suit), so a `trump` clause
+# winner), so a `trump` clause
 # on one of those -- the round's own, or the game-level `trump:` it would
 # inherit -- would be accepted and silently dropped: resolve refuses both
 # shapes against this set (the winner-slot arm of `_validate_refs`, and
@@ -193,8 +196,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
         "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
-        "tarot_led_suit",  # French Tarot: the effective led suit (first non-Excuse card) in play
-        "tarot_trump_height",  # French Tarot: an atout's rank strength (0 for a non-atout)
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
@@ -435,9 +436,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "strain_index",
         "suit_of",
         "tarot_excuse_player",
-        "tarot_led_suit",
         "tarot_per_opp",
-        "tarot_trump_height",
         "tichu_dragon_won",
     }
 )
