@@ -57,7 +57,8 @@ registry:   the range check is `_check_role_literal`, called from the ONE choke
             `TypeEnv.max_teams` (`len(game.teams)`), threaded in
             `env_from_game`.
 covered:    the grid below -- `_PLAYER_BUILDERS` x {over high rejected, in range
-            accepted} (`test_choke_point_rejects/accepts_..._player`) and
+            accepted} (`test_choke_point_rejects_out_of_range_player`,
+            `test_choke_point_accepts_in_range_player`) and
             `_TEAM_BUILDERS` likewise; a negative literal rejected (`score[-1]`,
             the lower bound); the range-count boundary; the formerly-untyped
             clauses additionally rejecting a non-player String

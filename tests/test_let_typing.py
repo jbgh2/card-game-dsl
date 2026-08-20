@@ -18,7 +18,7 @@ property:   a `let`-bound name carries its initializer's inferred type into
 domain:     statement context {phase body, nested phase via items fold, hook
             body, if/repeat body, move effect, define body, produces arm,
             procedure body} × representative guard (the guards themselves are
-            matrix-tested in test_operator_guards.py / test_procedures.py /
+            matrix-tested in test_operator_guards.py, test_procedures.py and
             test_movement_endpoints.py; this module pins the THREADING) —
             plus the form axis {plain let, chained let-of-let, indexed let}
 covered:    every context below with an executed laundering probe; the

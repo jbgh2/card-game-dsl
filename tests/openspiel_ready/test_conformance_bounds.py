@@ -35,8 +35,9 @@ registry:  `cardlang.openspiel.encoding.ActionSpace` — `verbs()` is computed
 covered:   the grid IS the coverage — one parametrized cell per (game, verb)
            pair, plus one per game for the pin's own well-formedness and for
            the bound mode. `harness.verb_status` is total over the 2x2 of
-           (applied, recorded-unreached) and all four of its cells are probed
-           below. Every unreached cell carries its reason IN the spec, checked
+           (applied, recorded-unreached), and every cell of
+           `harness.verb_status` is probed below. Every unreached cell of
+           `harness.verb_status` carries its reason IN the spec, checked
            non-empty, so no cell can be dark.
 sampled:   the claim is made on ONE line — the walk's pinned `Random(7)`. A
            verb reachable on other lines but not this one reads as unreached
