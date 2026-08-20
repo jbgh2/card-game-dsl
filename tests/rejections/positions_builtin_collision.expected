@@ -1,1 +1,1 @@
-positions_builtin_collision.cardlang:14:15: error: position domain 'player' collides with a built-in domain, a zone type, or a declared type name — pick another name
+positions_builtin_collision.cardlang:15:15: error: position domain 'player' collides with a built-in domain id — pick another name

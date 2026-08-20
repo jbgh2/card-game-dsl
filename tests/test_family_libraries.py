@@ -2747,7 +2747,7 @@ def test_an_author_may_not_take_a_zone_type_name(kind: str) -> None:
     Free against the corpus: no game declares a struct type at all, and every
     position domain is lowercase (`cell`, `column`, `fslot`).
 
-    red under: drop `LIBRARY_ZONE_TYPES` from `resolve._reserved_domain_names`."""
+    red under: drop the zone-type row from `resolve.POSITION_NAME_SOURCES`."""
     inside = "positions { Hand : 1..5 }" if kind == "position" else ""
     # A `type` is a TOP-LEVEL item, beside the game rather than inside it.
     outside = "type Hand = { n : Integer }" if kind == "type" else ""

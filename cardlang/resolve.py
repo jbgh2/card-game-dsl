@@ -1182,7 +1182,7 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     `LIBRARY_ZONE_TYPES` are disjoint, and the two author-chosen namespaces that
     could have collided with either — a game's `positions { }` and a library's
     own `type`s — are refused the zone spellings where they are DECLARED
-    (`_reserved_domain_names`, `_check_zone_type_names_are_not_taken`). Without
+    (`POSITION_NAME_SOURCES`, `_check_zone_type_names_are_not_taken`). Without
     those Owner Guards this function would be picking one meaning of an ambiguous name
     with nowhere to record the choice."""
     return want.type_name in LIBRARY_ZONE_TYPES
@@ -3276,7 +3276,7 @@ def _check_zone_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> No
     DECLARED, so the ambiguity cannot be built, rather than disambiguated at
     each use by a precedence nobody wrote down.
 
-    The mirror for position domains is `_reserved_domain_names`, which reserves
+    The mirror for position domains is `POSITION_NAME_SOURCES`, which reserves
     the same set: the two declaration sites that could take a zone-type
     spelling, refused against one registry.
 
@@ -3294,41 +3294,152 @@ def _check_zone_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> No
             )
 
 
-def _reserved_domain_names(game: n.Game) -> frozenset[str]:
-    """Built-in spellings a per-game position domain (declared or board-minted)
-    may not reuse: the domain ids (`player`, `suit`, …), their declared-type
-    forms (`Player`, `Suit`, …, via KNOWN_TYPE_NAMES), the value-position
-    enum/type names, and the game's own declared type names. The pin test
-    (tests/test_positions.py) reconciles the built-in union against the two
-    source registries so neither can grow past it silently. Shared by
-    `_resolve_positions` (declared names) and `_resolve_board` (the minted
-    `cell` name), so the two definition sites reject against one set.
+# The sites that reserve a name against the sources below. A position domain
+# reaches the language from three places and the reservation is asked once per
+# place: the author's `positions { }` block, and the two domains a `board:`
+# clause mints. Named here so the set can be enumerated — the sources'
+# accumulation is one axis of this guard, and its consumers are the other;
+# tests/test_positions.py crosses them and scrapes the call sites, so a fourth
+# consumer cannot join in silence any more than a fifth source can.
+DECLARED_POSITION_SITE = "declared"
+MINTED_CELL_SITE = "board-minted cell"
+MINTED_DIRECTION_SITE = "board-minted dir"
+RESERVATION_SITES: tuple[str, ...] = (
+    DECLARED_POSITION_SITE,
+    MINTED_CELL_SITE,
+    MINTED_DIRECTION_SITE,
+)
 
-    The declared type names are reserved because every position that admits a
-    position domain also admits a declared type, and name resolution answers
-    positions first, so a shared spelling would silently read the struct as the
-    position's Integer -- a name may not mean two things; the collision is
-    rejected where it is declared rather than disambiguated at each use."""
-    return (
-        frozenset(role_names(_ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES))
-        | KNOWN_TYPE_NAMES
-        | frozenset(LIBRARY_ZONE_TYPES)
-        | {t.name for t in game.types}
-    )
+
+@dataclass(frozen=True)
+class ReservedNameSource:
+    """One namespace a position domain's name is reserved against.
+
+    The registry below is the AXIS of the reservation. Its domain is "every
+    namespace whose names a position domain must not collide with", and those
+    accumulate silently: three sources were unioned inline with `|` when review
+    found `positions { R : 1..4 }` beside `type R` reading the struct as the
+    position's Integer, and a fourth (the zone types) was added the same way
+    afterwards. An inline union has nothing to enumerate, so the sweep in
+    tests/test_positions.py could derive from each source it already knew and
+    still be blind to the next one — which is how the fifth (the collection
+    nouns) stayed invisible. A table can be iterated: by the guard below, by
+    the diagnostic that names which source matched, and by the grid that
+    crosses the sources against `RESERVATION_SITES`.
+
+    `names` takes the game because the sources are not homogeneous: some are
+    static registries, fixed for every game, and one is the game's own `type`
+    declarations. A source that ignores the argument is answering "the same
+    names for every game", which is a fact about that source, not a reason to
+    split the table.
+
+    A source that reserves a name only under some condition expresses that in
+    `names` — an empty answer for a game where the ambiguity cannot arise —
+    rather than by being consulted at some sites and not others. Every
+    reservation site asks every source, so a new site inherits the whole
+    registry and a new source reaches every site.
+    """
+
+    label: str
+    names: Callable[[n.Game], frozenset[str]]
+
+
+#: Every namespace a position domain's name is reserved against.
+#: ORDERED: `_reserved_domain_source` reports the first match, so a spelling
+#: reachable from two sources names one of them deterministically.
+POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
+    ReservedNameSource(
+        "a built-in domain id",
+        lambda game: frozenset(
+            role_names(_ITERATION_ROLES | SIMULTANEOUS_ROLES | ZONE_INDEX_ROLES)
+        ),
+    ),
+    ReservedNameSource("a built-in type name", lambda game: KNOWN_TYPE_NAMES),
+    ReservedNameSource("a zone type", lambda game: frozenset(LIBRARY_ZONE_TYPES)),
+    ReservedNameSource(
+        "a declared type name", lambda game: frozenset(t.name for t in game.types)
+    ),
+    # The fifth, found by crossing the sources against the slots that read
+    # them. `DomainQuery.binder` carries ONE name resolved against two
+    # namespaces, and the optional `in <collection>` clause is what picks: bare
+    # reads `game.positions`, the collection form reads `_COLLECTION_NOUNS`. So
+    # in a board game `positions { line : 1..3 }` turns `any line where ...` —
+    # rejected in every other board game, with a diagnostic pointing at the
+    # collection form — into an accepted quantifier over the declared integer
+    # domain, while `any line in lines(3)` in the SAME game still means board
+    # lines. One spelling, two meanings, no diagnostic: the
+    # `positions { R } / type R` defect at a different pair of slots.
+    #
+    # Two derived narrowings, each closing what would otherwise be an
+    # over-reservation the corpus refutes:
+    #  * BOARD GAMES ONLY. The collection form needs a `TLine`, which only
+    #    `lines(k)` produces and which is board-only, so in a boardless game
+    #    the noun has exactly one meaning and reserving it would take a name
+    #    nothing else can claim.
+    #  * MINUS the board's minted domain. `cell` is a collection noun AND the
+    #    name the board mints, on purpose — `all cells in <line>` iterates
+    #    exactly those members. A declared `cell` beside a board is refused by
+    #    `_resolve_board`, whose message names both sites; reserving it here
+    #    too would answer the same mistake twice and less well. FreeCell's
+    #    `positions { cell : 1..4 }` — boardless — stays legal under both
+    #    narrowings.
+    # `_COLLECTION_NOUNS` is defined below, beside the guard that reads it; the
+    # lambda resolves it at call time.
+    ReservedNameSource(
+        "a collection noun",
+        lambda game: (
+            _COLLECTION_NOUNS - {BOARD_DOMAIN}
+            if game.board is not None
+            else frozenset()
+        ),
+    ),
+)
+
+
+def _reserved_domain_source(game: n.Game, name: str, site: str) -> str | None:
+    """The label of the first source reserving `name`, or None if it is free.
+
+    The diagnostic says WHICH namespace a name was already taken from rather
+    than listing the namespaces it might have come from: a message that
+    enumerates the sources in prose goes stale the moment the registry above
+    grows, and a stale enumeration reads exactly like a fresh one.
+
+    `site` does not select sources — every site asks the whole registry, and a
+    source that reserves conditionally says so in its own `names`. It is taken
+    so each call NAMES which reservation it is, which is what lets
+    tests/test_positions.py derive the consumer axis from the calls instead of
+    from a list someone has to remember to extend.
+    """
+    assert site in RESERVATION_SITES, f"unknown reservation site {site!r}"
+    for source in POSITION_NAME_SOURCES:
+        if name in source.names(game):
+            return source.label
+    return None
 
 
 def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
     """Validate the `positions { }` block (decisions.md "Position domains and
-    positional zones"): static, non-empty, bounded ranges, and names that can
-    never collide with a built-in domain id or declared-type spelling — the
-    reconciliation between the two definition sites (the closed
-    `cardlang.domains` registry and the per-game block) is rejection, so a
-    lookup that consults positions first can never shadow a built-in row.
-    Duplicates are rejected by `_check_duplicate_names`, with every other
-    declaration namespace. Returns the declared names for the consumers
-    (zone indexes, move parameters, the bare-reference Owner Guard)."""
-    taken = _reserved_domain_names(game)
-    for p in game.positions:
+    positional zones"): static, non-empty, bounded ranges, and names reserved
+    against every namespace in `POSITION_NAME_SOURCES` — the reconciliation
+    between a definition site the author owns and the ones the kernel owns is
+    rejection, so a lookup that consults positions first can never shadow a
+    kernel row. Duplicates are rejected by `_check_duplicate_names`, with every
+    other declaration namespace. Returns the declared names for the consumers
+    (zone indexes, move parameters, the bare-reference Owner Guard).
+
+    AUTHOR-DECLARED entries only. A re-resolve of an already-resolved game
+    sees the board's minted `cell` beside them (`_resolve_board` appends it to
+    `game.positions`), and the mint is not a declaration: its bounds are
+    unread, and the kernel is entitled to its own spellings — the two guards in
+    `_resolve_board` are what reconcile a minted name, at their own sites.
+
+    The member ceiling is not lost by that skip. A minted domain's member count
+    is bounded where the mint is: `board_entry` refuses a family argument
+    outside its declared range, so the widest board a designer can write mints
+    no more cells than `_POSITION_MEMBER_CEILING` admits. That is an agreement
+    between two registries rather than one rule, so it is crossed rather than
+    assumed — tests/test_positions.py."""
+    for p in (p for p in game.positions if p.members_named is None):
         if p.lo > p.hi:
             bag.error(
                 f"position domain '{p.name}' declares an empty range "
@@ -3344,10 +3455,11 @@ def _resolve_positions(game: n.Game, bag: DiagnosticBag) -> frozenset[str]:
                 f"space ids, so a runaway range is a declaration error",
                 p.span,
             )
-        if p.name in taken:
+        source = _reserved_domain_source(game, p.name, DECLARED_POSITION_SITE)
+        if source is not None:
             bag.error(
-                f"position domain '{p.name}' collides with a built-in domain, "
-                f"a zone type, or a declared type name — pick another name",
+                f"position domain '{p.name}' collides with {source} — "
+                f"pick another name",
                 p.span,
             )
     return frozenset(p.name for p in game.positions)
@@ -3405,10 +3517,11 @@ def _resolve_board(
             game.board.span,
         )
         return game
-    if BOARD_DOMAIN in _reserved_domain_names(game):
+    minted_clash = _reserved_domain_source(game, BOARD_DOMAIN, MINTED_CELL_SITE)
+    if minted_clash is not None:
         bag.error(
             f"the board mints a position domain named '{BOARD_DOMAIN}', which "
-            f"collides with a built-in domain or type name",
+            f"collides with {minted_clash}",
             game.board.span,
         )
         return game
@@ -3432,11 +3545,14 @@ def _resolve_board(
     # check, or a `type dir = { … }` would resolve clean while `along : dir`
     # silently read as the minted domain (direction lookup precedes struct
     # lookup) -- one spelling, two meanings.
-    if DIRECTION_DOMAIN in _reserved_domain_names(game):
+    direction_clash = _reserved_domain_source(
+        game, DIRECTION_DOMAIN, MINTED_DIRECTION_SITE
+    )
+    if direction_clash is not None:
         bag.error(
             f"the board mints a movement-direction domain named "
-            f"'{DIRECTION_DOMAIN}', which collides with a built-in domain or "
-            f"type name — rename the declared type (a board already provides "
+            f"'{DIRECTION_DOMAIN}', which collides with {direction_clash} — "
+            f"rename the declared type (a board already provides "
             f"'{DIRECTION_DOMAIN}')",
             game.board.span,
         )

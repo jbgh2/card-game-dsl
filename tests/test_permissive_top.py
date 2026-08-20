@@ -1,6 +1,6 @@
 """`TAny` means the top, never a failed lookup.
 
-`TAny` is the type checker's top type: `types.assignable` returns true whenever
+`TAny` is the type checker's top type: `types.coercible` returns true whenever
 either side is `TAny`, and ~20 sites in `typecheck.py` short-circuit their
 check on it. A value typed `TAny` therefore satisfies EVERY constraint —
 correct for a genuine top type, catastrophic for a value the checker merely
@@ -47,13 +47,14 @@ covered:    the registry-closure pins below (each proves the corresponding
             variant_payload}.cardlang; and the position x name-source grid in
             tests/test_type_name_positions.py, which crosses all NINE
             declaring positions against every source a name can come from;
-            and the relation x wrapper grid over the nominal-struct rule
-            (`test_the_nominal_struct_rule_reaches_through_every_wrapper`),
-            which crosses `unify`/`assignable` against bare, optional and
-            collection shapes so the rule cannot hold only at the top level;
+            and, in tests/test_nominal_type_identity.py, the position x
+            relation x order x member grid over the nominal rule, whose shape
+            axis is DERIVED from the `Type` union rather than hand-listed so
+            the rule cannot hold only at the top level (that module carries
+            its own ledger);
             and the fail-closed pin over the `Type` CONSUMERS
             (`test_every_type_consumer_fails_closed_on_an_unfamiliar_type`),
-            which probes `subscriptable`/`assignable`/`unify`/`_type_name` with
+            which probes `subscriptable`/`coercible`/`join`/`_type_name` with
             a type outside the union — the way a newly declared, not-yet-
             threaded type behaves — and pins that each refuses it by
             construction (allow-lists) rather than falling through to
@@ -70,7 +71,7 @@ sampled:    the audited-top set is a COUNT per module, not an enumeration of
             procedure `_env_miss`, and the non-settling fixpoint refusal — have
             registry-closure pins but no direct behaviour test, because each is
             reachable only by mutating the registry it guards.
-residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
+residual:   (1) MERGE-failure top: `join` returning None in `IfExpr`/`ListLit`
             falls to `TAny` (`if c then 1 else hearts` types as the top and goes
             permissive). A distinct population from the lookup misses this
             module closes — guard recorded in issue #116.
@@ -93,7 +94,7 @@ residual:   (1) MERGE-failure top: `unify` returning None in `IfExpr`/`ListLit`
             versions each shipped a defect an adversarial probe caught and the
             green suite did not: unequal `TStruct`s for one nominal type
             (`expects R, got R`, now closed by nominal struct comparison in
-            `types.assignable`/`unify`), and a derived field frozen at the top
+            `types.coercible`/`join`), and a derived field frozen at the top
             when its type flowed through a function return (a LOST GUARD --
             `score[p] := s.flag` accepted a Boolean into an Integer state
             variable). Both are pinned below. Corpus exposure is zero: no game
@@ -133,7 +134,7 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import CALL_FUNCS
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
-from cardlang.domains import BY_ID, SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES, role_type
+from cardlang.domains import BY_ID, SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
 from cardlang.pipeline import check_dsl
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import TypeEnv, infer
@@ -144,8 +145,6 @@ from cardlang.types import (
     TCollection,
     TEnum,
     TInteger,
-    TOptional,
-    TStruct,
     coercible,
     join,
 )
@@ -248,50 +247,6 @@ def test_every_role_carries_a_row() -> None:
     module-level assert in `cardlang/domains.py` fires at import, so the whole
     suite reddens, not just this test — which is the point)."""
     assert set(BY_ID) == set(domains.Role)
-
-
-@pytest.mark.parametrize("wrapper", ["bare", "optional", "collection"])
-@pytest.mark.parametrize("relation", ["unify", "assignable"])
-def test_the_nominal_struct_rule_reaches_through_every_wrapper(
-    relation: str, wrapper: str
-) -> None:
-    """A declared type is nominal at EVERY depth, not just at the top.
-
-    `TStruct` carries its fields, so dataclass equality is structural: two
-    snapshots of one nominal type that disagree about a derived field compare
-    unequal. The nominal rule fixes that for a bare struct — but a rule applied
-    only at the outer layer is a top-level special case, and both wrappers had
-    a hole in opposite directions: `unify` returned None for two `R?` (sending
-    an `IfExpr` over them to the permissive top, which is the silent-subtree
-    defect the rule exists to prevent), while `assignable` compared collection
-    elements with `==` and judged two `Collection<R>` disjoint.
-
-    The grid is relation x wrapper, so a new wrapper shape or a new relation
-    arrives as uncovered cells rather than as silence.
-
-    red under: in `types.unify`, delete the `TOptional`/`TOptional` arm; or in
-    `types.assignable`, restore `src.element == dst.element` in the collection
-    arm.
-    """
-    wrap = {"bare": lambda t: t, "optional": TOptional, "collection": TCollection}[
-        wrapper
-    ]
-    stale = TStruct(name="R", fields={"a": TAny()}, derived=frozenset())
-    settled = TStruct(name="R", fields={"a": TInteger()}, derived=frozenset())
-    unrelated = TStruct(name="S", fields={"a": TInteger()}, derived=frozenset())
-
-    if relation == "unify":
-        assert join(wrap(stale), wrap(settled)) is not None, (
-            "two snapshots of one nominal type must unify; None sends an "
-            "IfExpr over them to the permissive top"
-        )
-        assert join(wrap(stale), wrap(unrelated)) is None, (
-            "different names are different types — the rule must not buy "
-            "compatibility with permissiveness"
-        )
-    else:
-        assert coercible(wrap(stale), wrap(settled))
-        assert not coercible(wrap(stale), wrap(unrelated))
 
 
 def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
@@ -553,8 +508,8 @@ def test_a_struct_type_is_nominal_not_structural() -> None:
     structural — and while the registries were built in a fixed number of
     passes, two of them could disagree about one derived field and yield two
     unequal `R`s. That produced diagnostics reading `expects R, got R` at eight
-    separate sites and made well-typed programs unwritable. `types.assignable`
-    and `types.unify` compare structs by NAME, so the class is closed at the
+    separate sites and made well-typed programs unwritable. `types.coercible`
+    and `types.join` compare structs by NAME, so the class is closed at the
     layer every comparison consults rather than site by site."""
     src = (
         "type R = { a : Integer } derived { made = a > 0 }\n"
@@ -903,14 +858,14 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #     `_check_domain_query` validated the noun. Each is reached only with an
 #     error already in the bag, or with a top receiver.
 #   recorded residual, merge failure — 3: `ListLit` and the two `IfExpr` arms,
-#     where `unify` returns None (ledger residual 1).
+#     where `join` returns None (ledger residual 1).
 #   recorded residual, precision — 1: `max`/`min` (ledger residual 2).
 #   deliberate, cycle-breaking — 1: `_provisional_structs` types derived
 #     fields as the top so function signatures can be built before them (ledger
 #     residual 4). Written at the site that introduces it, not reached as
 #     a fallback.
 # types.py (2)
-#   `unify`'s top absorption, and the sticky-key merge — both ARE the top
+#   `join`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
 # builtins/signatures.py (13)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument, the
@@ -1031,7 +986,7 @@ def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
     The distinction is the whole reason the Member arm was the one that leaked:
     it enumerated what to REJECT, so an unenumerated type reached no arm and
     inferred the permissive top with no diagnostic. `subscriptable`,
-    `assignable` and `unify` instead enumerate what to ACCEPT, so an unfamiliar
+    `coercible` and `join` instead enumerate what to ACCEPT, so an unfamiliar
     type is refused by construction -- no arm to forget. Equality still carries
     the same-type cases, so failing closed costs them no legitimate answer.
 
@@ -1044,9 +999,9 @@ def test_every_type_consumer_fails_closed_on_an_unfamiliar_type() -> None:
     red under: three, each run and observed, then reverted --
       * `subscriptable` given a permissive default
         (`return not isinstance(t, (TInteger, TBoolean))`);
-      * `assignable`'s FINAL `return False` flipped to `return True`;
-      * `unify`'s FINAL `return None` flipped to `return a`.
-    "Final" is load-bearing in the last two: `unify` has an earlier `return
+      * `coercible`'s FINAL `return False` flipped to `return True`;
+      * `join`'s FINAL `return None` flipped to `return a`.
+    "Final" is load-bearing in the last two: `join` has an earlier `return
     None` inside its optional branch, and mutating THAT leaves this pin green --
     a plant that never armed. A replay must hit the fall-through (the last
     `return` in the function), or it proves nothing.
