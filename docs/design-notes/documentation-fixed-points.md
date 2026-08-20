@@ -45,9 +45,11 @@ problem.** Section 4 tests that rationale rather than assuming it.
 
 ## 2. Churn — measured
 
-All rows share one window: every commit since 2026-07-20 (572 commits).
-Rewrite ratio is lines deleted per line added — how much existing text is
-rewritten rather than appended.
+All rows share one window and one measurement point: every commit since
+2026-07-20 reachable from `main` at `c0c668a` (580 commits). Rewrite ratio is
+lines deleted per line added — how much existing text is rewritten rather than
+appended. Re-measure the whole table when you refresh it; a row carried over
+from a different window is the defect this note is about.
 
 | region | rewrite |
 |---|---|
@@ -56,13 +58,18 @@ rewritten rather than appended.
 | settled specs (decisions, model, principles, library, glossary) | **0.30** |
 | CLAUDE.md | 0.32 |
 | `cardlang/` — the baseline | **0.47** |
-| `tests/` | 0.58 |
-| **process/meta** (harness, maintaining, building, implementation, roadmap, kernel-migration) | **1.59** |
+| `tests/` | 0.57 |
+| **process/meta** (harness, maintaining, building, implementation, roadmap, kernel-migration) | **1.63** |
 
 Every documentation category that describes the language is more stable than
-the engine. An unpartitioned figure for `docs/` is 0.68 and is an artifact of
-mixing these categories — dominated by the corpus, which `maintaining.md`
-rule 2 *requires* to change in lockstep.
+the engine — and so is `docs/` unpartitioned, which comes to 0.31 on this
+window, in line with its parts. The partition is what shows process/meta as
+the outlier, not what rescues the aggregate.
+
+One trap in reproducing this: `git log -N -- <path>` counts the last N commits
+*touching that path*, so it reaches further back for paths touched less often
+than `tests/` and inflates their ratio — `docs/` reads 0.68 that way. Use a
+single revision range for every row, as above.
 
 **Ledger churn specifically:** 87 modules carry one; 76 of 87 were rewritten
 after creation; ledger prose changed on 49% of the 757 follow-up commits.
@@ -133,8 +140,9 @@ cautions — arm A put them in `sampled:`/`residual:` ("the audited-top set is
 a COUNT per module, not an enumeration"; "that argument is not pinned here";
 "Record: OWED"). The format changed where the caution goes, not whether it is
 written. And whether the format reduces *unbacked* claims was never measured;
-all three arms self-corrected claims mid-run via the existing framing check,
-which may be doing that work in both arms regardless of format.
+three of the six agents self-corrected claims mid-run via the existing framing
+check — two in arm A, one in arm B — which may be doing that work regardless of
+format.
 
 **Why delete rather than generate.** A generated `covered:` would be accurate
 and could not poison, which on paper dominates deletion. Three things decide
