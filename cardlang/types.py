@@ -220,9 +220,13 @@ def join(a: Type, b: Type) -> Type | None:
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
-    if isinstance(a, TStruct) and isinstance(b, TStruct):
+    if isinstance(a, (TStruct, TOutcome)) and isinstance(b, (TStruct, TOutcome)):
         # Nominal, for the reason `coercible` gives: same name, same type.
-        return a if a.name == b.name else None
+        # `type(a) is type(b)` because the rule is same NAME AND same
+        # constructor: `type R` and `define R` live in different namespaces,
+        # so one spelling can name both, and merging them would let a produce
+        # of the outcome type satisfy a position expecting the struct.
+        return a if type(a) is type(b) and a.name == b.name else None
     if isinstance(a, TCollection) and isinstance(b, TCollection):
         element = join(a.element, b.element)
         if element is None:
@@ -287,15 +291,20 @@ def coercible(src: Type, dst: Type) -> bool:
         return True
     if isinstance(src, TNull):
         return isinstance(dst, TOptional)  # `none` only fits an optional
-    if isinstance(src, TStruct) and isinstance(dst, TStruct):
-        # A declared `type` is NOMINAL: two `R`s are the same type because they
-        # are both named R, not because their field mappings happen to match.
-        # `TStruct` carries its fields, so dataclass equality is structural —
-        # and any two registries that disagreed about one derived field's type
-        # then produced two unequal `R`s, which surfaced as diagnostics reading
+    if isinstance(src, (TStruct, TOutcome)) and isinstance(dst, (TStruct, TOutcome)):
+        # A declared type is NOMINAL: two `R`s are the same type because they
+        # are both named R, not because their payloads happen to match. Both
+        # nominal members of the union, not the struct alone: each carries a
+        # structural payload beside its declared name (a field map, a case
+        # map) and is a frozen dataclass, so equality is structural — and any
+        # two registries that disagreed about one derived field's type then
+        # produced two unequal `R`s, which surfaced as diagnostics reading
         # `expects R, got R` and made well-typed programs unwritable. Identity
-        # belongs to the name; the fields are what the name resolves TO.
-        return src.name == dst.name
+        # belongs to the name; the payload is what the name resolves TO.
+        # `type(src) is type(dst)` keeps the two members apart: `type R` and
+        # `define R` occupy different namespaces, so one spelling can name
+        # both and they must stay distinct types.
+        return type(src) is type(dst) and src.name == dst.name
     if src == dst:
         return True
     if isinstance(dst, TOptional):

@@ -1,11 +1,12 @@
 // Guard: resolve.py `_resolve_positions`. A declared position may not
-// reuse a built-in domain id or type spelling, nor a name the game
-// declares as a `type`: the reconciliation between those sources and
-// the per-game block is rejection, so lookups that consult positions
-// first can never shadow a row or a struct. Three sources, one guard —
-// the declared-type source was added after a review found `positions
-// { R : 1..4 }` beside `type R` silently reading the struct as the
-// position's Integer.
+// reuse a name from any namespace in `POSITION_NAME_SOURCES`: the
+// reconciliation between those sources and the per-game block is
+// rejection, so lookups that consult positions first can never shadow a
+// row, a zone type, a struct or a quantifier noun. The diagnostic names
+// the source that was hit rather than listing the namespaces it might
+// have been — the sources accumulate, and a prose list of them goes
+// stale silently. The whole registry is swept in tests/test_positions.py;
+// this case pins the rendering.
 game PositionsBuiltinCollision {
   players: 1
   direction: clockwise

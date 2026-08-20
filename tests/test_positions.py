@@ -15,11 +15,20 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             reference; (b) the declaration's own value space (bounds,
             duplicates, name collisions); (c) the consumers of the domain
             (ZoneStore keys, observation ownership, runtime candidate
-            enumeration, static vocab enumeration).
+            enumeration, static vocab enumeration); (d) the name reservation
+            as a PRODUCT — every namespace a position name is reserved
+            against, crossed with every site that mints or declares one.
+            (d) is its own axis because both halves accumulate silently: the
+            sources were unioned inline with `|` until a fifth (the collection
+            nouns) was found by crossing them against the slots that read
+            them, and the sites grew from one to three when `board:` landed.
 registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
-            n.Game.positions; the collision guard `_resolve_positions` is the
-            reconciliation between the two definition sites — swept here
-            registry-derived, so neither source can grow past it.
+            n.Game.positions; and, for the reservation product,
+            cardlang/resolve.py's `POSITION_NAME_SOURCES` (the namespaces,
+            each carrying its own `names(game)`) x `RESERVATION_SITES` (the
+            declaring/minting sites). The sweep reads the SOURCE, never the
+            guard's own set, so a registry that grows is swept without anyone
+            editing this module.
 covered:    zone index + type arg — a position works as either (Klondike/
             FreeCell corpus + this module), and a type arg naming a domain
             OTHER than the index is rejected (the owner==index guard:
@@ -30,10 +39,31 @@ covered:    zone index + type arg — a position works as either (Klondike/
             vocab-order pin below) and their TYPING in guards/effects (a
             position param types as its integer member, not TAny, so a
             wrong-domain use like `src is hearts` is caught —
-            test_position_move_param_types_as_integer_not_any); the
-            collision sweep (every built-in id and spelling, derived from
-            the registries); bounds guards incl. the 256-member ceiling
-            boundary; unowned ownership (`zone_observer_key` -> None,
+            test_position_move_param_types_as_integer_not_any);
+            the name reservation, as three grids over the product in (d) —
+            `test_every_reserved_name_is_refused_as_a_declared_position_domain`
+            (one cell per NAME every source reserves, each asserting the
+            diagnostic names that source),
+            `test_every_reservation_site_asks_every_name_source` (source x
+            site over the guard, pinning that the matrix is full) and
+            `test_every_reservation_site_passes_its_own_id` (the site axis
+            scraped from the calls, so a fourth consumer cannot join in
+            silence); with
+            `test_a_declared_type_may_not_take_a_minted_domains_spelling` as
+            the two board sites' end-to-end cells, and three cells holding the
+            collection-noun source's two narrowings to their PREMISES rather
+            than their motive — `test_the_board_keeps_its_own_minted_spellings`
+            (the kernel and FreeCell keep their spellings),
+            `test_excluding_the_minted_domain_leaves_its_own_guard_standing`
+            (excluding `cell` deferred to a better-placed guard, it did not
+            remove a wall) and
+            `test_the_collection_quantifier_form_is_unwritable_without_a_board`
+            (both legs of the board gating);
+            bounds guards incl. the 256-member ceiling boundary AND the second
+            site that definition now rests on, the board families' argument
+            ranges, crossed by
+            `test_no_board_family_can_mint_past_the_member_ceiling`;
+            unowned ownership (`zone_observer_key` -> None,
             hence the `others` projection for every observer — pinned in
             the proof modules' fact matrices); bare-family references
             (rejection corpus + the runtime Shadow Guard probe below); state
@@ -45,11 +75,55 @@ covered:    zone index + type arg — a position works as either (Klondike/
 sampled:    the canonical gather over a position family (order-preserving
             per the canonical zone-collection rule; no corpus game gathers
             one — decisions.md states the interaction explicitly).
+            For the reservation product, the source x site grid asks each
+            source with ONE of its names rather than all of them; which name
+            is asked cannot matter, because the guard tests membership in the
+            source's own set and the per-NAME sweep above already runs the
+            whole set at the declared site.
 residual:   `for each <position>` and position-indexed state stores are
             guarded with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
             a non-identity zone is policed per game by the openspiel_ready
             legal-action-agreement proofs, not statically (same roadmap
             entry).
+            One class, three members, no row in `POSITION_NAME_SOURCES`:
+            namespaces a position name can be reused from where the two
+            spellings land in ADJACENT slots rather than one slot resolving
+            both. The reservation defends against a single slot with two
+            meanings, so a slot partition is outside it as stated — but the
+            partition is what the collection nouns looked like until the
+            `in <collection>` clause turned out to select between them, which
+            is why the class is recorded rather than dismissed. R2 for the
+            first two (a designer can declare each, all three verified
+            accepted by execution), R4 for the third.
+              * deck value names (suits, ranks, a piece axis's values) and
+                the seat directions — `positions { hearts : 1..3 }` declares
+                clean; `pile[hearts]` is then the domain and `card.suit is
+                hearts` still the suit. Guard: the keyed-map Owner Guard
+                refuses `score[hearts]` at the one slot that reads both.
+                `resolve._game_bindings` ALREADY unions these with the
+                position domains when a LIBRARY injects a name, so the two
+                directions disagree — the sharpest form of the finding.
+              * `RESERVED_VALUE_NAMES` (the pronouns, `none`/`true`/`false`,
+                `outcome`) — `positions { state : 1..3 }` declares clean and
+                works as a zone index and a move-parameter domain. Guard:
+                `_check_reserved_binders` refuses the USE as a quantifier
+                binder, so the half that could shadow a pronoun is walled and
+                the half that cannot is not.
+              * the other declaration namespaces (move types, defines,
+                functions, procedures, rules, zones, state variables, phases,
+                modes) — `_check_duplicate_names` keeps each unique within
+                itself and none shares a slot with a position name. Guard:
+                none needed on the evidence today.
+            guard: each member carries one, named above — no member is a
+            silent gap, and none is a live wrong answer today. The issue is for
+            CLOSING the class (deciding whether a slot partition should reserve
+            at all, and settling the `_game_bindings` disagreement), not for
+            stopping a defect in flight.
+            record: OWED — one tracker issue covers the class. It was not filed
+            with this change, which was made without tracker access. This row
+            is the whole of what that issue must carry, so the gap is stated
+            where a reader of the guard meets it rather than only in a commit
+            message.
 
 `top_of`/`bottom_of` share this module: the sequence-orientation pin
 (top = the sequence end, bottom = the front) is what the positional games'
@@ -58,23 +132,33 @@ movement semantics rest on.
 
 from __future__ import annotations
 
+import ast
 import random
+from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
+from cardlang import resolve as resolve_mod
+from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
 from cardlang.domains import (
-    DOMAINS,
     DomainSources,
     enumerate_domain,
     zone_observer_key,
 )
 from cardlang.ir import emit
+from cardlang.parse import parse_text
 from cardlang.pipeline import check_dsl
+from cardlang.resolve import (
+    POSITION_NAME_SOURCES,
+    RESERVATION_SITES,
+    _POSITION_MEMBER_CEILING,
+)
+from cardlang.stdlib.boards import BOARD_FAMILIES, board_entry
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.mechanics import param_domain
-from cardlang.typecheck import KNOWN_TYPE_NAMES
 
 
 def _game(
@@ -128,47 +212,374 @@ def test_member_ceiling_boundary() -> None:
         check_dsl(_game(positions="positions { column : 1..257 }"), "t")
 
 
-def test_every_builtin_domain_id_and_type_spelling_is_a_rejected_position_name() -> None:
-    """The reconciliation sweep, derived from BOTH source registries (never
-    from the guard's own set): every domain id, every declared-type spelling,
-    and every KNOWN_TYPE_NAMES member must be rejected as a position name —
-    the two definition sites can never disagree about a spelling."""
-    spellings = (
-        {d.id.value for d in DOMAINS}
-        | {d.type_name for d in DOMAINS}
-        | set(KNOWN_TYPE_NAMES)
+def test_no_board_family_can_mint_past_the_member_ceiling() -> None:
+    """The ceiling's second definition site, reconciled.
+
+    `_resolve_positions` runs the ceiling check on AUTHOR-DECLARED domains
+    only: a minted domain's member count comes from the board family, not from
+    bounds the author wrote. That leaves the ceiling resting on the family
+    registry's argument range — a different registry with a different
+    maintainer — so the two are crossed here rather than assumed to agree.
+    Every member mints action-space ids, which is what the ceiling counts.
+
+    Measured 2026-08-20: the widest family (`grid`, arguments 1..16) mints 256
+    cells against a ceiling of 256 — agreement with no margin, which is exactly
+    the shape that breaks in silence when someone widens an argument range.
+
+    red under: lower `_POSITION_MEMBER_CEILING` to 255 (run: "board family
+    'grid' at its widest mints 256 cells, past the 255-member ceiling").
+    Widening a family's `hi` instead reddens this too, but on an `IndexError`
+    from `_cell_name` — `_FILES` runs out of file letters at 16, so a family
+    range widened past its own coordinate alphabet fails before the ceiling is
+    reached. Recorded because a reddening edit that lands on a neighbouring
+    wall proves nothing about this one.
+    """
+    assert BOARD_FAMILIES, "the board-family registry derived to nothing"
+    for name, family in sorted(BOARD_FAMILIES.items()):
+        widest = board_entry(name, (family.hi,) * family.arity)
+        assert len(widest.cells) <= _POSITION_MEMBER_CEILING, (
+            f"board family '{name}' at its widest mints {len(widest.cells)} "
+            f"cells, past the {_POSITION_MEMBER_CEILING}-member ceiling a "
+            f"DECLARED domain is held to — one registry grew past the other"
+        )
+
+
+# --- the name-source x reservation-site grid ---------------------------------
+
+
+def _board_game(positions: str = "", zones: str = "", extra: str = "") -> str:
+    """A minimal piece-and-board game — the shape the board-only sources need.
+
+    A board mints `cell` and `dir`, and makes `lines(k)` (hence the collection
+    quantifier form) writable; a card game reaches none of that, so a probe
+    that only ever uses `_game()` cannot see the board-gated sources at all.
+    """
+    return (
+        "game B {\n"
+        "  players: 2\n"
+        "  max_length: 20\n"
+        "  board: grid(3, 3)\n"
+        "  pieces: xo_marks\n"
+        f"  {positions}\n"
+        "  zones { box : Deck  reserve[player] : PlayerPile<player>\n"
+        f"          square[cell] : Cell<cell>  {zones} }}\n"
+        "  state { result[player] : Integer = 0 }\n"
+        "  phase play { move all pieces from box where piece.side is x "
+        "to reserve[0] }\n"
+        "  winner: highest result\n"
+        "}\n"
+    ) + extra
+
+
+@dataclass(frozen=True)
+class _SourceProbe:
+    """How to give one `ReservedNameSource` something to reserve.
+
+    Only the SETUP lives here: the names themselves are read off the source,
+    never listed, so a probe cannot narrow the sweep to the spellings its
+    author happened to think of.
+
+    `extra` is the top-level text a game needs before the source holds any
+    names at all — empty for the static registries, a `type` declaration for
+    the per-game one. `board` says the source answers empty for a card game,
+    so the sweep must build the probe on a board fixture or run its cells over
+    nothing — the vacuously-green shape this whole grid exists to avoid.
+    """
+
+    extra: str = ""
+    board: bool = False
+
+    def source_text(self, positions: str = "", zones: str = "") -> str:
+        build = _board_game if self.board else _game
+        return build(positions=positions, zones=zones) + self.extra
+
+    def zone_type(self) -> str:
+        """The zone type a probe indexes by the offending name.
+
+        A board game holds pieces, so its positional family must be a piece
+        zone; a card game's must be a card zone. The declared-site sweep needs
+        one, because a position domain no zone indexes is not a witness.
+        """
+        return "Cell" if self.board else "Cascade"
+
+
+_SOURCE_PROBES: dict[str, _SourceProbe] = {
+    "a built-in domain id": _SourceProbe(),
+    "a built-in type name": _SourceProbe(),
+    "a zone type": _SourceProbe(),
+    "a declared type name": _SourceProbe(extra="type R = { a : Integer }\n"),
+    "a collection noun": _SourceProbe(board=True),
+}
+
+assert _SOURCE_PROBES.keys() == {s.label for s in POSITION_NAME_SOURCES}, (
+    "a name source has no probe recipe (or a recipe outlived its source). The "
+    "sweep below derives its names from the registry, so an unprobed source is "
+    "an unswept namespace — write the recipe rather than shrinking the grid."
+)
+
+
+def _probe_game(label: str) -> n.Game:
+    """A parsed game on which the named source holds names.
+
+    Parsed, not resolved: the probe games are deliberately ill-formed (that is
+    what they test), and a source's `names` reads declarations the parser has
+    already produced.
+    """
+    return parse_text(_SOURCE_PROBES[label].source_text(), "probe.cardlang")
+
+
+def _declared_site_cells() -> list[tuple[str, str]]:
+    """(source label, reserved name) for every name any source reserves — one
+    cell per NAME, derived from the source, so a registry that grows is swept
+    without anyone editing this module.
+
+    Every source contributes: a source that reserves only in a board game is
+    probed on a board game, so no row runs over an empty name set.
+    """
+    cells: list[tuple[str, str]] = []
+    for source in POSITION_NAME_SOURCES:
+        game = _probe_game(source.label)
+        names = sorted(source.names(game))
+        assert names, (
+            f"{source.label} reserves nothing on its probe game, so its cells "
+            f"would not exist — fix the probe recipe, not the sweep"
+        )
+        cells += [(source.label, name) for name in names]
+    return cells
+
+
+@pytest.mark.parametrize("label,name", _declared_site_cells())
+def test_every_reserved_name_is_refused_as_a_declared_position_domain(
+    label: str, name: str
+) -> None:
+    """The reconciliation sweep, derived from the SOURCE REGISTRY rather than
+    from the guard's own set: every name every source reserves is refused where
+    a position domain is declared, and the diagnostic names the source it came
+    from.
+
+    Naming the source is what makes the registry load-bearing at runtime and
+    not only in this test. The message used to list three namespaces in prose
+    while the union already held four — a stale enumeration reads exactly like
+    a fresh one, and a designer told "a built-in domain, a zone type, or a
+    declared type name" cannot tell which of them they hit.
+
+    Name resolution answers positions BEFORE the other namespaces, so a shared
+    spelling does not merely tie: the position wins and the other name becomes
+    unreachable at that slot. `function f(x : R) = x.a` then fails with "cannot
+    read field 'a' of Integer" — a message about a type the author never wrote.
+
+    red under: return a fixed `"a built-in domain id"` from
+    `_reserved_domain_source` instead of `source.label` — every other source's
+    cells go red on the label (run: 27 failed, 4 passed).
+
+    A DROPPED source cannot redden a cell here, and that is the point rather
+    than a gap: the cells are derived from the registry, so a shrinking
+    registry shrinks the grid. What refuses to shrink quietly is
+    `_SOURCE_PROBES`' coverage assert above, which fails collection on the
+    dropped row — the grid and its probe recipes are held to the registry from
+    both sides.
+    """
+    probe = _SOURCE_PROBES[label]
+    with pytest.raises(DiagnosticError, match="collides with") as ei:
+        check_dsl(
+            probe.source_text(
+                positions=f"positions {{ {name} : 1..3 }}",
+                zones=f"pile[{name}] : {probe.zone_type()}<{name}>",
+            ),
+            "t",
+        )
+    assert label in str(ei.value), (
+        f"'{name}' was refused, but the diagnostic did not name {label!r}: "
+        f"{ei.value}"
     )
-    assert "Card" in spellings and "player" in spellings  # the sweep is real
-    for name in sorted(spellings):
-        with pytest.raises(DiagnosticError, match="collides with a built-in"):
+
+
+@pytest.mark.parametrize("site", RESERVATION_SITES, ids=lambda s: s.replace(" ", "-"))
+@pytest.mark.parametrize(
+    "label", [s.label for s in POSITION_NAME_SOURCES], ids=lambda s: s.replace(" ", "-")
+)
+def test_every_reservation_site_asks_every_name_source(label: str, site: str) -> None:
+    """source x site, over the guard itself.
+
+    The matrix is FULL: every reservation site asks the whole registry, and a
+    source that reserves only under some condition says so in its own `names`
+    rather than by being consulted at some sites and not others. That is the
+    property this grid holds the guard to — a per-site source list would be a
+    second place for the axis to accumulate, which is the defect the registry
+    exists to end, one level up.
+
+    The board fixture is what makes the collection-noun row non-vacuous here:
+    that source answers empty for a card game, so asking it with a board game
+    is the only way its cells can fail.
+
+    red under: give `_reserved_domain_source` a per-site source filter (any
+    source it skips reddens that site's cells).
+    """
+    source = next(s for s in POSITION_NAME_SOURCES if s.label == label)
+    board = parse_text(
+        _board_game() + _SOURCE_PROBES[label].extra, "probe.cardlang"
+    )
+    names = sorted(source.names(board))
+    assert names, (
+        f"{label} reserves nothing even in a board game, so its cells here "
+        f"cannot fail — give the probe a game where the source holds a name"
+    )
+    reported = resolve_mod._reserved_domain_source(board, names[0], site)
+    assert reported == label, (
+        f"{site} did not consult {label!r}: '{names[0]}' was reported as "
+        f"{reported!r}"
+    )
+
+
+def test_every_reservation_site_passes_its_own_id() -> None:
+    """The site axis is derived from the calls, not from this module's memory.
+
+    `RESERVATION_SITES` says how many sites exist; this scrape says which
+    call sites actually pass one. A fourth reservation site added without a
+    row in `RESERVATION_SITES` — or a row nobody consults — is exactly the
+    silent accumulation the source table was built to end, one axis over.
+
+    red under: add a fourth `_reserved_domain_source(game, X, SOME_SITE)` call
+    to `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
+    """
+    tree = ast.parse(Path(resolve_mod.__file__).read_text())
+    passed: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Name) and func.id == "_reserved_domain_source"):
+            continue
+        assert len(node.args) == 3, (
+            "a reservation call no longer passes its site — the matrix above "
+            "cannot see it"
+        )
+        site_arg = node.args[2]
+        assert isinstance(site_arg, ast.Name), (
+            "a reservation call passes a computed site rather than one of the "
+            "module's site constants, so the scrape cannot classify it"
+        )
+        passed.add(getattr(resolve_mod, site_arg.id))
+    assert passed == set(RESERVATION_SITES), (
+        f"the call sites pass {sorted(passed)} but the registry declares "
+        f"{sorted(RESERVATION_SITES)}"
+    )
+
+
+def test_the_board_keeps_its_own_minted_spellings() -> None:
+    """The exemption, end to end rather than only on the guard.
+
+    A plain board game mints `cell` — a collection noun — and must still
+    resolve, and FreeCell declares `positions { cell : 1..4 }` with no board at
+    all. This is the negative control for the collection-noun source: read
+    without its two narrowings (board games only, minus the board's own minted
+    domain) the source refuses the kernel and the corpus their own names, which
+    is a far louder failure than the gap it closes.
+
+    Both narrowings are pinned here, one assertion each — the source is
+    narrowed twice and a control that only exercises one of them leaves the
+    other free to be widened in silence.
+
+    red under: drop the `- {BOARD_DOMAIN}` narrowing (the board's own mint is
+    refused), or drop the `game.board is not None` gating (FreeCell's shape and
+    a boardless `line` are refused). Both run and observed, each reddening its
+    own assertion.
+    """
+    check_dsl(_board_game(), "t")  # the kernel keeps its minted `cell`
+    # FreeCell's shape: a boardless `cell` domain, which no collection form can
+    # be written against.
+    check_dsl(
+        _game(
+            positions="positions { cell : 1..4 }",
+            zones="pile[cell] : Cascade<cell>",
+        ),
+        "t",
+    )
+    # ...and the same for `line`, the noun with no minted twin: boardless, it
+    # means one thing, so the source must not claim it.
+    check_dsl(
+        _game(
+            positions="positions { line : 1..3 }",
+            zones="pile[line] : Cascade<line>",
+        ),
+        "t",
+    )
+
+
+def test_excluding_the_minted_domain_leaves_its_own_guard_standing() -> None:
+    """The other half of that exemption: excluding `cell` from the
+    collection-noun source must not remove a wall.
+
+    A declared `positions { cell : ... }` beside a board is still refused — by
+    `_resolve_board`, whose message names BOTH sites and tells the author which
+    one to rename. That is the reason for the exclusion, so it is asserted
+    rather than assumed: without this cell, narrowing the source reads as a way
+    to make a corpus game pass rather than as a deferral to a better-placed
+    guard.
+
+    red under: delete the `BOARD_DOMAIN in declared_positions` (or
+    `DIRECTION_DOMAIN in declared_positions`) arm from `resolve._resolve_board`.
+    """
+    for minted in ("cell", "dir"):
+        with pytest.raises(DiagnosticError, match="rename the declared domain"):
             check_dsl(
-                _game(positions=f"positions {{ {name} : 1..3 }}",
-                      zones=f"pile[{name}] : Cascade<{name}>"),
+                _board_game(
+                    positions=f"positions {{ {minted} : 1..3 }}",
+                    zones=f"strip[{minted}] : Cell<{minted}>",
+                ),
                 "t",
             )
 
 
-def test_a_declared_type_name_is_a_rejected_position_name() -> None:
-    """The third source of names a position may not reuse: the game's own
-    `type` declarations.
+@pytest.mark.parametrize(
+    "source,message",
+    [("lines(3)", "reads the board"), ("box", "iterates a collection of lines")],
+)
+def test_the_collection_quantifier_form_is_unwritable_without_a_board(
+    source: str, message: str
+) -> None:
+    """Why the collection-noun source reserves in board games ONLY.
 
-    Name resolution answers positions BEFORE declared types, so a shared
-    spelling does not merely tie — the position wins and the struct becomes
-    unreachable. `function f(x : R) = x.a` then fails with "cannot read field
-    'a' of Integer", a message about a type the author never wrote. The
-    collision is rejected at the declaration, so neither name is silently
-    reinterpreted at its uses.
+    The narrowing rests on a claim about REACH: in a boardless game the
+    collection form cannot be written, so the noun carries one meaning and
+    reserving it would take a name — FreeCell's `cell` — that nothing else can
+    claim. The claim has two legs and both are run, because a source narrowed
+    on an unchecked premise is the same defect as an axis listed by hand:
+    `lines(k)` is board-only, and no other expression types as the collection
+    of lines the form demands.
 
-    red under: drop `{t.name for t in game.types}` from `_resolve_positions`'s
-    `taken` set.
+    red under: drop `lines` from `builtins.functions.BOARD_ONLY_CALL_FUNCS`, or
+    give `typecheck._COLLECTION_BINDER_TYPES` an arm accepting a card
+    collection.
     """
-    with pytest.raises(DiagnosticError, match="collides with a built-in"):
+    with pytest.raises(DiagnosticError, match=message):
         check_dsl(
-            _game(positions="positions { R : 1..3 }",
-                  zones="pile[R] : Cascade<R>")
-            + "\ntype R = { a : Integer }\n",
+            _game(
+                positions="positions { line : 1..3 }",
+                zones="pile[line] : Cascade<line>  box : Deck",
+                stmt=f"if any line in {source} where true {{ resigned := true }}",
+            ),
             "t",
         )
+
+
+@pytest.mark.parametrize("minted", ["cell", "dir"])
+def test_a_declared_type_may_not_take_a_minted_domains_spelling(minted: str) -> None:
+    """The two board sites, exercised through the source that can reach them.
+
+    Only the per-game source can hold `cell` or `dir`: no built-in id, type
+    name or zone type is spelled that way, so those cells of the matrix have no
+    name to collide with and are recorded in the ledger rather than asserted
+    here. A `type dir = { … }` beside a board would otherwise resolve clean
+    while `along : dir` silently read the minted domain — direction lookup
+    precedes struct lookup — which is one spelling meaning two things.
+
+    red under: replace `minted_clash` (or `direction_clash`) in
+    `resolve._resolve_board` with `None` — run, and each plant reddens its own
+    cell alone (1 failed, 1 passed).
+    """
+    with pytest.raises(DiagnosticError, match="collides with a declared type name"):
+        check_dsl(_board_game(extra=f"type {minted} = {{ a : Integer }}\n"), "t")
 
 
 # --- enumeration agreement (runtime = static) --------------------------------
