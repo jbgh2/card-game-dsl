@@ -244,14 +244,17 @@ residual:   (a) SEMANTIC overclaim -- a `covered:` row naming a real test that
             which is (c) and (e) restated as a number. Asserting an exact
             figure would redden on ordinary ledger edits while proving
             nothing, so what is asserted is the RESOLVING bucket, as a set.
-            Bucket sizes are MEASUREMENTS, not pins (2026-08-20, 89 ledgers):
-            2115 compound candidates, 538 claimed, 13 resolving-but-unclaimed
-            over the 3 tokens in `CENSUS_RESIDUE`, 1564 unresolvable; 1308 of
-            the candidates sit in a code span and 807 bare. Against the
-            pre-review matcher the resolving bucket held 249 occurrences over
-            228 distinct tokens -- that delta is the defect this round fixed,
-            and it is the census's own witness that the bucket is the right
-            one. Single-word tokens are outside the candidate population by
+            Bucket sizes are MEASUREMENTS, not pins -- a dated snapshot that
+            moves whenever any ledger is edited, this module's own included,
+            which is the reason the assertion is the SET and not these figures
+            (2026-08-20, 89 ledgers): 2139 compound candidates, 551 claimed,
+            13 resolving-but-unclaimed over the 3 tokens in `CENSUS_RESIDUE`,
+            1575 unresolvable; 1330 of the candidates sit in a code span and
+            809 bare. Run against the pre-review matcher on this same tree,
+            the resolving bucket holds 259 occurrences over 235 distinct
+            tokens -- that delta is the defect this round fixed, and it is the
+            census's own witness that the bucket is the right one.
+            Single-word tokens are outside the candidate population by
             construction, which is (c)'s population; R4, issue #110.
             (h) A bare COUNT of candidates cannot distinguish the census
             tokenizer narrowing from the ledgers shrinking. What guards that
@@ -436,16 +439,27 @@ def _law_quantifiers() -> tuple[str, ...]:
 
 
 # The rule's own four words, so the matcher's vocabulary cannot narrow below
-# the law's in silence. `no` costs nothing measurable -- zero extra matches
-# over the 87 ledgers (2026-08-20) -- and its reach is probed like the rest.
+# the law's in silence. `no` costs nothing measurable -- re-measured on the
+# final matcher, the whole tree yields ONE quantified match, on `every`
+# (2026-08-20) -- and its reach is probed like the rest.
 QUANTIFIER_WORDS: tuple[str, ...] = _law_quantifiers()
 _QUANTIFIER = f"(?:{'|'.join(QUANTIFIER_WORDS)})"
 # The coverage nouns and frames these ledgers actually use. Hand-listed, like
 # `_ADJACENCY`; each form carries its own reach probe below, and the
 # unmatched population is recorded in `residual` (b) rather than implied.
+#
+# These are STEMS, matched as prefixes: there is no trailing `\b`, so `probe`
+# reaches "probes" and "probed" without the list enumerating them. It reaches
+# exactly the inflections that KEEP the stem's spelling, which is why "probing"
+# is out (the `-ing` form drops the `e`) while "pinning" is in. That is
+# deliberate and `test_a_coverage_stem_reaches_its_inflections` holds it; the
+# redundant `-ed` spellings a word-boundary reading would have needed are
+# gone, so the list now describes what it matches. A stem short enough to sit
+# inside an unrelated word ("guardrail") can only fire behind a coverage
+# frame, and the whole-tree match count above bounds what that is worth.
 _COVERAGE_NOUN = (
-    r"(?:probe|probed|pin|pinned|row|cell|test|tested|guard|guarded|witness"
-    r"|cover|covered|exercised|reconciled|enumerated|checked|parametrized)"
+    r"(?:probe|pin|row|cell|test|guard|witness"
+    r"|cover|exercised|reconciled|enumerated|checked|parametrized)"
 )
 _COVERAGE_FRAME = (
     rf"(?:has|have|gets?|carr(?:ies|y))\s+(?:an?\s+|its\s+|their\s+|one\s+)?{_COVERAGE_NOUN}"
@@ -757,6 +771,30 @@ def test_each_form_is_matched(form: str, marked: bool) -> None:
     assert any(f.form == form for f in findings), (
         f"the {form!r} form matched nothing in {sentence!r} -- got {findings}"
     )
+
+
+@pytest.mark.parametrize(
+    "inflection", ("is probed", "has probes", "is pinning", "are pinned",
+                   "carries its witnesses", "are covered", "is tested",
+                   "are guarded")
+)
+def test_a_coverage_stem_reaches_its_inflections(inflection: str) -> None:
+    """`_COVERAGE_NOUN` holds stems and matches them as prefixes, so one entry
+    covers the inflections that keep its spelling. Stated because the
+    alternation LOOKS like a word list: a reader who assumed word boundaries
+    would read the vocabulary as narrower than it is, and
+    `test_each_coverage_frame_is_matched` probes only listed spellings, so it
+    cannot tell the two readings apart. The bound is real -- an inflection
+    that RESPELLS the stem is out, so "is probing" does not match while "is
+    pinning" does -- and that is residual (b)'s population, not a promise
+    made here.
+
+    red under: add a trailing `\\b` to `_COVERAGE_NOUN`; the inflections with
+        no listed spelling of their own stop matching.
+    """
+    assert [f.form for f in unresolved("covered", f"every refusal arm {inflection}")] == [
+        "quantified-claim"
+    ], inflection
 
 
 def test_no_reference_form_names_a_backtick() -> None:
