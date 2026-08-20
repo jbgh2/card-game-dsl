@@ -31,11 +31,14 @@ property:   a reference written inside a completeness ledger resolves to
 domain:     every ledger docstring in the tree, crossed with every reference
             form in `REFERENCE_FORMS` and with the row the reference sits in.
             The row axis is total by construction -- a row label outside the
-            derived set is not a ledger row and its prose is not read. Rows
-            are MUST-EXIST prose only: `red under:` states the mutation that
-            has deliberately NOT been made, so its referents must not
-            resolve, and `_rows` cuts it -- as a block and inline, because it
-            runs on inside a row in eight modules.
+            derived set is not a ledger row and its prose is not read. The
+            row axis carries the class-ledger labels because the skill's
+            template defines them, not because any docstring holds one: the
+            census found zero class ledgers in docstrings, so those three
+            grid cells are forward coverage. Rows are MUST-EXIST prose:
+            a `red under:` BLOCK states the mutation deliberately not made,
+            so it ends the row (`_RED_UNDER`); an inline one is left in
+            domain on purpose, measured, in `_RED_UNDER`'s note.
 registry:   the row axis is DERIVED by `_fence_labels` from the two templates
             that define it, the `decisions.md` fence under "the **completeness
             ledger** in the grid module's docstring:" and the
@@ -58,10 +61,12 @@ covered:    the grid IS the coverage -- `test_grid` over `_cells`, which
             passed, 2026-08-20). `test_each_form_is_matched` adds one row
             per member of `REFERENCE_FORMS`, on a sentence carrying a
             KNOWN-bad referent, so a drifted pattern cannot leave the sweep
-            reporting clean. The polarity cut has both its shapes probed
-            (`test_red_under_prose_is_not_read_as_a_reference`) and its
-            over-reach probed against
-            (`test_the_red_under_cut_does_not_swallow_the_row`).
+            reporting clean. The polarity cut carries all three of its
+            decisions as rows: the block is cut
+            (`test_a_red_under_block_is_not_read_as_a_reference`), the row it
+            ends survives it (`test_the_red_under_cut_keeps_the_row_it_ends`),
+            and the inline form is deliberately NOT cut
+            (`test_an_inline_red_under_stays_in_domain`).
             `test_every_ledger_reference_resolves` runs the matcher over
             every ledger `_ledgers` finds; its vacuity is guarded by
             `test_the_walk_sees_this_module`,
@@ -395,11 +400,21 @@ def _join_rows(parts: list[str]) -> str:
 
 # `red under:` prose has the OPPOSITE polarity: it names the mutation that has
 # deliberately NOT been made, so its referents must not resolve. It is not a
-# ledger row (the space defeats the row pattern) but it runs on inside one in
-# eight modules, inline and as an unseparated block. Reading it would make a
+# ledger row (the space defeats the row pattern), but a `red under:` BLOCK
+# runs straight on from a row in eight modules with no blank line between, so
+# it ends the row exactly as a blank line does. Reading it would make a
 # well-written reddening witness the thing that reddens this sweep.
+#
+# The cut is the block form ONLY. An INLINE "red under" is deliberately left
+# in domain: measured over the 87 ledgers, cutting from an inline occurrence
+# to the end of the row removes 1.5% of all ledger prose and up to 90% of one
+# row (`tests/test_zone_capacity.py`'s `covered:`, 944 characters to 87), it
+# fires on four rows where "red under" is ordinary prose ("proven red under
+# `xfail(strict=True)`"), and it changes no finding -- zero, either way
+# (measured 2026-08-20). A cut that removes prose and catches nothing is this
+# sweep going quiet, which is the direction that fails silently; an inline
+# `red under:` naming something absent will redden here instead, loudly.
 _RED_UNDER = re.compile(r"^[ \t]*red under\b", re.I)
-_RED_UNDER_INLINE = re.compile(r"\bred under\b.*$", re.I | re.S)
 
 
 def _rows(doc: str) -> dict[str, str]:
@@ -418,9 +433,7 @@ def _rows(doc: str) -> dict[str, str]:
                 current = None
             else:
                 collected[current].append(line.strip())
-    return {
-        k: _RED_UNDER_INLINE.sub("", _join_rows(v)) for k, v in collected.items()
-    }
+    return {k: _join_rows(v) for k, v in collected.items()}
 
 
 @functools.cache
@@ -605,41 +618,58 @@ def test_a_wrapped_reference_can_still_dangle() -> None:
     assert unresolved("covered", rows["covered"])
 
 
-def test_red_under_prose_is_not_read_as_a_reference() -> None:
-    """`red under:` names the mutation that has NOT been made, so its
-    referents must not resolve -- the opposite polarity from every ledger
-    row. It is not a row, but it runs on inside one in eight modules, both
-    inline and as an unseparated block, so both shapes are cut.
+def test_a_red_under_block_is_not_read_as_a_reference() -> None:
+    """A `red under:` block runs on from a row with no blank line between in
+    eight modules, and it names the mutation that has NOT been made -- the
+    opposite polarity from every ledger row. It ends the row.
 
-    red under: drop the `_RED_UNDER` / `_RED_UNDER_INLINE` cuts in `_rows`.
+    red under: drop the `_RED_UNDER` cut from `_rows`.
     """
-    block = _rows(
+    rows = _rows(
         "property:   x\n"
         "covered:    proven by test_the_walk_sees_this_module\n"
         "red under: rename it to test_the_walk_sees_no_such_module_at_all\n"
     )
-    assert not unresolved("covered", block["covered"])
-    inline = _rows(
+    assert not unresolved("covered", rows["covered"])
+
+
+def test_the_red_under_cut_keeps_the_row_it_ends() -> None:
+    """The cut ends the row and removes nothing from it, or a reference
+    already written would vanish along with the mutation prose.
+
+    red under: replace the `continue` in `_rows`' `_RED_UNDER` arm with a
+        `break`, which drops every later row too.
+    """
+    rows = _rows(
+        "property:   x\n"
+        "covered:    proven by test_no_such_test_was_ever_written\n"
+        "red under: rename test_the_walk_sees_this_module\n"
+        "residual:   none\n"
+    )
+    assert [f.token for f in unresolved("covered", rows["covered"])] == [
+        "test_no_such_test_was_ever_written"
+    ]
+    assert rows["residual"] == "none"
+
+
+def test_an_inline_red_under_stays_in_domain() -> None:
+    """The deliberate half of the polarity decision, pinned so it is not
+    quietly "fixed" into a cut. Cutting from an inline "red under" to the end
+    of the row removes up to 90% of one real row and fires on four rows using
+    the words as ordinary prose, while changing no finding (see `_RED_UNDER`'s
+    note). So an inline mutation name is read, and reddens.
+
+    red under: restore an inline cut -- `re.sub(r"\\bred under\\b.*$", "", ...)`
+        over each joined row in `_rows`.
+    """
+    rows = _rows(
         "property:   x\n"
         "covered:    the pin -- NOT vacuous: red under: rename it to\n"
         "            test_the_walk_sees_no_such_module_at_all\n"
     )
-    assert not unresolved("covered", inline["covered"])
-
-
-def test_the_red_under_cut_does_not_swallow_the_row() -> None:
-    """The cut must remove the mutation prose and nothing before it, or a
-    dangling reference could hide behind a later `red under:`.
-
-    red under: make `_RED_UNDER_INLINE` match from the start of the row.
-    """
-    rows = _rows(
-        "property:   x\n"
-        "covered:    proven by test_no_such_test_was_ever_written; red under:\n"
-        "            rename test_the_walk_sees_this_module\n"
-    )
-    found = unresolved("covered", rows["covered"])
-    assert [f.token for f in found] == ["test_no_such_test_was_ever_written"]
+    assert [f.token for f in unresolved("covered", rows["covered"])] == [
+        "test_the_walk_sees_no_such_module_at_all"
+    ]
 
 
 def test_the_quantified_form_does_not_match_inside_an_identifier() -> None:
