@@ -201,8 +201,8 @@ implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's failure channel), and the
 **completeness ledger** (the judgment the grid cannot state itself, in the
 grid module's docstring — the grid IS the coverage record and no row
-restates it; an uncovered cell is an `xfail` naming its reason, with a
-tracker issue cited as `issue #N`, or the `xfail` reason alone for an R4
+restates it; an uncovered cell is a `skip` or `xfail` naming its reason,
+with a tracker issue cited as `issue #N`, or the mark's reason alone for an R4
 auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
 "Reachability ranks the work"); born-green pins name their reddening
 mutation). A green suite must never stand in for this gate: the suite proves

@@ -99,7 +99,7 @@ acceptance. Tell the subagent that unsure candidates are welcome — an
 axis it half-suspects goes on the list, because the diff sorts
 over-report cheaply and an under-report never surfaces. The same
 permission runs through this whole process: unsure is a legal state with
-a named route (an `xfail` cell, the tracker, open-questions); the silent guess is
+a named route (a marked cell, the tracker, open-questions); the silent guess is
 the only illegal move.
 The definition-source set is itself an axis and gets no author-side
 selection: it comes from the pinned registry-module manifest (a
@@ -122,7 +122,7 @@ or reject with a named diagnostic. A genuinely undecided cell is never
 guessed into the grid to complete the parametrization: a guess pinned by a
 passing row carries the authority of an executed decision nobody made, and
 the next author reads its flip as a regression rather than as an open
-question surfacing. An undecided cell goes to `xfail` naming the reason,
+question surfacing. An undecided cell goes to `skip` naming the reason,
 with the same guard and tracker record any uncovered cell carries — the
 gate still applies, so this is no cheap out. The grid pins decisions that have been
 made; it is not a device for making them. Then run it. The red cells are the work list, and the red run is the proof the grid
@@ -145,7 +145,14 @@ crash, an import error, a broken fixture all masquerade as design-red
 and exit 0. Red-for-the-wrong-reason is the vacuously-green class
 wearing red. CI stays green, the implementation removes the marks, and
 strict turns a leftover mark on a now-passing cell into a loud failure,
-so a flip cannot be forgotten. The red-to-green transition is then
+so a flip cannot be forgotten.
+
+`xfail` is for a cell whose red is DESIGNED — you know the failure and can
+name it. A cell whose correct outcome is not yet decided has no designed
+failure to name, so it is `skip` with its reason: reaching for `raises=`
+there means inventing the answer, which is the guess this order exists to
+prevent, and dropping `strict` to avoid inventing it turns the mark into
+the unconstrained kind above. The red-to-green transition is then
 visible in the diff. Structure the grid so its derived cell table is
 exportable as data: the review replays the HEAD-derived cells against the
 merge base (the cells that fail there, plus the cells that cannot exist
@@ -198,7 +205,7 @@ genuinely deferred.
 Step 1's grid produces cells; a cell is covered when it IS a row the grid
 runs. "Covered by the same code path", "covered by symmetry", and a prose
 pointer to a test nothing walks are assumption, not coverage — the cell is
-`xfail` with its reason, or it is an issue. This applies with full force to the pairwise-interaction cells
+`skip` or `xfail` with its reason, or it is an issue. This applies with full force to the pairwise-interaction cells
 (new value shape × existing operation): enumerating them and then running
 none is the most common way this audit goes vacuously green.
 
@@ -333,7 +340,7 @@ good English is the goal — "all 28 French cells (7 decks x 4 conventions,
 frozen expected tuples)" is exactly right and must never be reddened.
 
 The gate follows the routing: **an uncovered cell without both a guard and
-a record fails the audit** — the record being an `xfail` reason or `issue
+a record fails the audit** — the record being the mark's reason or `issue
 #N` — **and a `does not prove:` row holding deferred work fails it
 equally.** "No corpus witness" is never by itself a reason to leave a cell
 silent — corpus-first governs which mechanisms exist, not how completely a

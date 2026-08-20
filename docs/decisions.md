@@ -3726,14 +3726,14 @@ uncommanded is a regression caught at write time, and a commanded cell that
 stays green means the test does not reach the behavior. A cell whose
 correct outcome is not yet decided is never guessed into the grid — a
 guess pinned by a passing row carries the authority of a decision nobody
-made; it goes to an `xfail` cell naming the reason, or to the tracker.
+made; it goes to a `skip` cell naming the reason, or to the tracker.
 The grid pins decisions that have been made; it is not a device for making
 them. The grid IS the coverage record, so no row of the ledger restates
 what it runs.
 
 **Unsure is a legal state everywhere in this process; the silent guess is
 not.** Every mandate above names its uncertainty exit: an undecided cell
-goes to an `xfail` cell with its reason, an open design question to its
+goes to a `skip` cell with its reason, an open design question to its
 open-questions/ file, a
 guard that cannot be classified does not land until it can, a review
 claim rests at PLAUSIBLE without executed evidence. The imperatives here
@@ -3792,7 +3792,7 @@ Three of the six were never residuals. The slot name does the sorting, so
 mis-filing stops at the point of writing rather than at review.
 
 The gate follows the routing: an uncovered cell without both a guard and a
-record fails it — the record being an `xfail` reason or `issue #N` — and a
+record fails it — the record being the mark's reason or `issue #N` — and a
 `does not prove:` row holding deferred work fails it equally, because the
 row's name is the thing that was supposed to stop that. "No corpus witness"
 is never by itself a reason to leave a cell silent, because corpus-first
@@ -4173,7 +4173,7 @@ waits, so R4 is a fact about who can meet the cell, never a demotion of
 the work that closes it.
 
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
-kind; R3 is an `xfail` cell with its guard and its record, per the gate
+kind; R3 is a marked cell with its guard and its record, per the gate
 above; R4 is recorded in the owning ledger and files an issue only when the
 guarded guarantee is rigor-critical. And effort follows it the same way:
 a fix whose size is out of proportion to its reachability routes to
