@@ -19,13 +19,14 @@ the spec.
   corpus game carries `blocked:needs-witness` and names that game in its body;
   `epic` issues are checklist containers for multi-stage workstreams.
 
-A deferred cell recorded in a completeness ledger cites its issue as
-`issue #N` (decisions.md "Closed-domain completeness"). Every issue's
+A deferred cell cites its issue as `issue #N` beside the guard that makes it
+loud (decisions.md "Closed-domain completeness"). Every issue's
 `## Provenance` line names the roadmap item it came from.
 
-One carve-out: a residual that is *not work* — a recorded constraint or trap,
-deliberately not-to-be-fixed — records in its own test-module ledger rather
-than in an issue, and that ledger says so. See CLAUDE.md, "The tracker".
+One carve-out: a *designed constraint* — a recorded trap, deliberately
+not-to-be-fixed — is not work and records at the construct it constrains
+rather than in an issue, saying that it is designed. See CLAUDE.md, "The
+tracker".
 
 ## Out of scope
 

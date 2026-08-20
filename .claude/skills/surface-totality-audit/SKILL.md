@@ -20,7 +20,7 @@ converts the prose into artifacts, under one law: **an author-filled
 artifact inherits the author's blind spot.** Every completeness claim this
 repo lodged in prose drifted; every claim lodged in a check that runs held.
 So coverage evidence is computed from the repo, never asserted about it —
-prose is reserved for the judgment columns (sampled, residual).
+prose is reserved for the judgment the grid cannot state itself.
 
 ## Step 1 — Materialize the grid, red, before implementing
 
@@ -38,8 +38,9 @@ the type registry, the declaration-position axis from the grammar
 productions that reference the position's nonterminal (every production
 naming `type_name` or `payload_type`, not the ones the change happens to
 touch). Never derive an axis from the Owner Guard's existing coverage:
-**a ledger whose `domain` rows match its `covered` rows exactly is the tell**
-that the domain was read off the implementation instead of the registry —
+**a `domain:` row that is just the grid's parametrization spelled out in
+English is the tell** that the domain was read off the implementation
+instead of the registry —
 the audit is then measuring the Owner Guard against itself.
 
 **An axis with no defining site in code gets one as the change's first
@@ -57,7 +58,7 @@ deck-derived namespace beside a declared ordering, a new registry beside an
 old declaration list), the sources' reconciliation IS part of the domain:
 enumerate what happens when they disagree, and either guard the disagreement
 at resolve time or record it. Two sources with no reconciliation check is a
-residual row, not background.
+`does not prove:` row, not background.
 
 Enumerate at **every consuming layer**, not only the grammar. A combination
 made inexpressible at the grammar layer can still reach a semantic pass that
@@ -98,7 +99,7 @@ acceptance. Tell the subagent that unsure candidates are welcome — an
 axis it half-suspects goes on the list, because the diff sorts
 over-report cheaply and an under-report never surfaces. The same
 permission runs through this whole process: unsure is a legal state with
-a named route (residual, roadmap, open-questions); the silent guess is
+a named route (an `xfail` cell, the tracker, open-questions); the silent guess is
 the only illegal move.
 The definition-source set is itself an axis and gets no author-side
 selection: it comes from the pinned registry-module manifest (a
@@ -107,7 +108,7 @@ constants — tracked as issue #108 until it lands), and until that
 manifest exists the subagent gets the ENTIRE `cardlang/` package.
 Completeness by superset, never by judgment: a hand-picked subset
 smuggles your framing back in through the input list. Diff its list against yours: every discrepancy is a new axis for the
-grid or a recorded residual. The context that produced an implementation
+grid or a recorded gap. The context that produced an implementation
 plan frames the domain as the implementation's shape (a change statement
 reading "validates function-param and variant-payload type names" has
 already narrowed a five-position axis to the two positions it guards); a
@@ -121,9 +122,9 @@ or reject with a named diagnostic. A genuinely undecided cell is never
 guessed into the grid to complete the parametrization: a guess pinned by a
 passing row carries the authority of an executed decision nobody made, and
 the next author reads its flip as a regression rather than as an open
-question surfacing. Undecided cells go to `residual` with the same guard
-and roadmap record as an uncovered cell — the symmetric gate still
-applies, so this is no cheap out. The grid pins decisions that have been
+question surfacing. An undecided cell goes to `xfail` naming the reason,
+with the same guard and tracker record any uncovered cell carries — the
+gate still applies, so this is no cheap out. The grid pins decisions that have been
 made; it is not a device for making them. Then run it. The red cells are the work list, and the red run is the proof the grid
 can fail. Cells meant to keep current behavior may capture it from the
 pre-change tree, but a captured value is reviewed as a decision — a
@@ -193,11 +194,11 @@ Probes that reveal a silent misread or a wrong-channel failure are defects
 to fix before the change ships — or loud guards plus a roadmap record if
 genuinely deferred.
 
-**A cell without an executed row is residual by definition.** Step 1's grid
-produces cells; `covered` means the cell IS a row the grid runs — "covered
-by the same code path", "covered by symmetry", and a prose pointer to a
-test nothing walks are assumption, not coverage, and go in `sampled` or
-`residual`. This applies with full force to the pairwise-interaction cells
+**A cell without an executed row is not covered, whatever the prose says.**
+Step 1's grid produces cells; a cell is covered when it IS a row the grid
+runs. "Covered by the same code path", "covered by symmetry", and a prose
+pointer to a test nothing walks are assumption, not coverage — the cell is
+`xfail` with its reason, or it is an issue. This applies with full force to the pairwise-interaction cells
 (new value shape × existing operation): enumerating them and then running
 none is the most common way this audit goes vacuously green.
 
@@ -265,66 +266,80 @@ outcome; an unexamined one is not.
 
 ## Step 3 — The completeness ledger
 
-The `covered` column is not prose — it is the grid: Step 1's executable
-rows, named by module and parametrization. Prose is the medium that drifts
-(a header claiming 13 sites over a dict pinning 14; a `covered:` row no
-test walks); a row that runs is the medium that holds. The table survives
-for the judgment columns, and lives in the docstring of the grid's test
+The grid IS the coverage record. No row of the ledger restates what the
+grid runs — prose is the medium that drifts (a header claiming 13 sites
+over a dict pinning 14; a coverage row no test walks), and a row that runs
+is the medium that holds. What the table carries is the judgment the grid
+cannot state itself, and it lives in the docstring of the grid's test
 module — next to the code it describes, nowhere else:
 
 ```
-property:   <the guarantee, one line>
-domain:     <what is quantified over>
-registry:   <where each axis is derived in code — the grid reads these>
-covered:    <the grid: module + parametrization, not a prose cell list>
-sampled:    <cells covered by example only, and why that is enough>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
-             its guard, its reachability (R1–R4, decisions.md "Reachability
-             ranks the work"), and its tracker record (issue #N; R4 records
-             here and needs no issue unless the guarantee is rigor-critical)>
+property:        <the guarantee, one line>
+domain:          <what is quantified over, and what is deliberately
+                  outside it — the boundary stated positively>
+registry:        <where each axis is derived in code, and where a property
+                  this module leans on is proven elsewhere — locators only>
+does not prove:  <what a green here does NOT establish, and why>
 ```
 
-(`registry` names the derivation sites the grid reads; `covered` names the
-executed parametrization that crosses them — complementary rows, not
-restatements.)
+**`registry:` is the locator row; the other three are claim rows.** Nothing
+in it asserts coverage. Two kinds of locator go there: where each axis is
+derived, and — when a property this module depends on is pinned in another
+module — that module's test id. The second is how you pay CLAUDE.md rule 4:
+cite the sibling pin instead of re-copying its enumeration. Write it in
+locator register, a label and the id, no assertion verb. "The partition is
+pinned at X" is a coverage claim wearing a pointer's clothes; `partition:
+tests/test_signatures.py::test_deck_only_classification_partitions_call_funcs`
+is a locator.
 
-**Then read back every `covered` sentence that quantifies, and name its
-set.** This is a write-time step with a one-sentence test, and it exists
-because the rows above define only two of the three kinds of sentence a
-ledger holds. `covered` is an executed row; `sampled` and `residual` are
-judgment; the claim that needs a *separate verifier* has no row of its own,
-so it goes into `covered` and inherits that row's authority for free. That
-is where completeness claims nobody ever backed have historically been
-found (issue #389). So:
+Rank the rows by failure mode, not by how likely they are to be wrong: what
+does being wrong license the reader **not to do?** A claim that something
+is tested licenses not testing it, so a stale one leaves a gap open and
+says it is closed. A stale locator sends the reader somewhere that is not
+there, and `tests/test_ledger_referents.py` reddens on it.
 
-> A `covered` sentence that quantifies — every, all, each, no — names the
-> set it quantifies over, and the reconciliation against that set is
-> written. If the set cannot be named, the sentence is a judgment: it moves
-> to `sampled` or `residual`, where the register warns the reader.
+**Route what is left; do not pour it into the last row.** Only an
+instrument limit is a `does not prove:` row. The other five things that
+used to collect in a catch-all have homes that act on them:
 
-Applied: "every arm of `opening_actions` has a probe in `_PROBED_ARMS`" is
-a claim whose reconciliation is two lines in both directions — write it,
-and cite it. "Every refusal arm has a probe" names no set, so nothing can
-check it and nothing will; it is a judgment and it moves rows. The point is
-not to catch a typo — it is that the sentence becomes unwritable in
-`covered` unless its check is writable, which is where the regress
-terminates. Do not reach for a marker vocabulary (`covered [derived]:`):
-markers are a closed domain needing their own guard, nothing checks that a
-marker is right, and naming the middle kind legitimizes it.
+| what you have | where it goes | a row? |
+|---|---|---|
+| Deferred work | the tracker: `issue #N`, plus one line | no |
+| An uncovered cell | `skip`/`xfail` in the grid, with its reason | no |
+| A domain boundary — nothing missing | `domain:`, stated positively | no |
+| A designed constraint — never to be fixed | the spec, or a comment at the construct | no |
+| An instrument limit — what a green does *not* prove | `does not prove:` | **yes** |
+| Nothing | nothing; omit the row | no |
+
+If you are about to write "not covered here" — stop and ask which of the
+six it is. Three of them are not instrument limits at all, and the row's
+name is what should have stopped you.
+
+A boundary goes in `domain:` **positively**: "every French deck, 7 x 4,
+frozen expected tuples; tarot decks are out of scope and rejected at
+`_deck_entry`" — not "tarot is not covered". The positive form states what
+holds; the negative form reads as a gap and sends the reader looking for
+work that does not exist.
 
 `tests/test_ledger_referents.py` sweeps the tree for the half a matcher
-reaches — every reference a ledger writes must resolve, and a quantified
-completeness claim must name its set. Two things it cannot see, and they
-stay yours: a quantifier at a distance from its set, and a `covered` row
-naming a real test that does not test what the row says.
+reaches: every reference a ledger writes, in every row, must resolve. Two
+things it cannot see, and they stay yours — a row naming a real test that
+does not test what the row says, and a `does not prove:` row that is really
+deferred work in disguise.
 
-The gate is symmetric: **a residual row without both a guard and a record
-fails the audit, and a `covered` claim without an executed grid row fails
-it equally.** "No corpus witness" is never by itself a reason to leave a
-residual cell silent — corpus-first governs which mechanisms exist, not how
-completely a mechanism covers its own domain (decisions.md "Closed-domain
+No matcher reads the prose of these rows, and that is deliberate. Prose
+written to satisfy a matcher is worse prose, and a row naming its set in
+good English is the goal — "all 28 French cells (7 decks x 4 conventions,
+frozen expected tuples)" is exactly right and must never be reddened.
+
+The gate follows the routing: **an uncovered cell without both a guard and
+a record fails the audit** — the record being an `xfail` reason or `issue
+#N` — **and a `does not prove:` row holding deferred work fails it
+equally.** "No corpus witness" is never by itself a reason to leave a cell
+silent — corpus-first governs which mechanisms exist, not how completely a
+mechanism covers its own domain (decisions.md "Closed-domain
 completeness"). When you notice a gap and defer it: write the guard or write
-the roadmap line — never neither. And when the construct itself has no
+the tracker line — never neither. And when the construct itself has no
 corpus witness, the change ships a minimal witness fixture — a complete
 game exercising it end to end — because a corpus hole is an integration
 blind spot, not an exemption (two of this repo's worst self-inflicted

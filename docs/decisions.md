@@ -2781,7 +2781,7 @@ Shadow Guards):
 **`for each cell` and cell membership.** Setup that fills a region
 iterates it: `for each cell c: <stmt>` runs the body once per board cell,
 binding `c` as a `TCell`, and a membership guard narrows it to a region.
-This lifts the `for each <position>` residual for a board's named-member
+This lifts the `for each <position>` gap for a board's named-member
 domain only — an integer `positions { }` domain (`for each column`) stays
 guarded, the split being named-member versus integer:
 
@@ -3726,14 +3726,15 @@ uncommanded is a regression caught at write time, and a commanded cell that
 stays green means the test does not reach the behavior. A cell whose
 correct outcome is not yet decided is never guessed into the grid — a
 guess pinned by a passing row carries the authority of a decision nobody
-made; it goes to residual with its guard and its record. The grid pins
-decisions that have been made; it is not a device for making them.
-`covered` means an executed grid row; prose describes only what the grid
-does not run.
+made; it goes to an `xfail` cell naming the reason, or to the tracker.
+The grid pins decisions that have been made; it is not a device for making
+them. The grid IS the coverage record, so no row of the ledger restates
+what it runs.
 
 **Unsure is a legal state everywhere in this process; the silent guess is
 not.** Every mandate above names its uncertainty exit: an undecided cell
-goes to residual, an open design question to its open-questions/ file, a
+goes to an `xfail` cell with its reason, an open design question to its
+open-questions/ file, a
 guard that cannot be classified does not land until it can, a review
 claim rests at PLAUSIBLE without executed evidence. The imperatives here
 prohibit manufactured certainty, never hesitation — a stated "not
@@ -3745,21 +3746,57 @@ judgment columns ship as the **completeness ledger** in the grid module's
 docstring:
 
 ```text
-property:   <the guarantee, one line>
-domain:     <what is quantified over>
-registry:   <where each axis is derived in code — the grid reads these>
-covered:    <the grid: module + parametrization, not a prose cell list>
-sampled:    <cells covered by example only, and why that suffices>
-residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
-             its guard, its reachability (R1–R4, "Reachability ranks the
-             work"), and its tracker record (issue #N; R4 records here and
-             needs no issue unless the guarantee is rigor-critical)>
+property:        <the guarantee, one line>
+domain:          <what is quantified over, and what is deliberately
+                  outside it — the boundary stated positively>
+registry:        <where each axis is derived in code, and where a property
+                  this module leans on is proven elsewhere — locators only>
+does not prove:  <what a green here does NOT establish, and why>
 ```
 
-The gate is symmetric: a residual row without both a guard and a record
-fails it, and a `covered` claim without an executed grid row fails it
-equally. "No corpus witness" is never by itself a reason to leave a
-residual cell silent, because corpus-first governs which mechanisms exist,
+**`registry:` is the locator row; the other three are claim rows.** Every
+entry in it points into code and none of them asserts coverage. Two kinds
+of locator live there: where each axis is derived, and — when a property
+this module depends on is pinned in another module — that module's test id.
+The second is what keeps [maintaining.md](maintaining.md)'s
+cross-reference-don't-duplicate rule payable at all: cite the sibling pin
+rather than re-copying its enumeration, which is the duplication that
+drifts. Write it in locator register, a label and the id with no assertion
+verb, because "the partition is pinned at X" is a coverage claim wearing a
+pointer's clothes and a coverage claim is what this format removed.
+
+The division is by failure mode, which is how prose should be ranked: not
+by how likely it is to be wrong but by **what being wrong licenses a reader
+not to do.** A wrong claim licenses inaction — a row asserting something is
+tested is a reason not to test it, so a stale one leaves a gap open and
+says it is closed. A wrong locator sends the reader to a place that is not
+there, and `tests/test_ledger_referents.py` reddens on it.
+
+**Four rows, and only the last is a judgment.** An earlier format carried a
+catch-all residual row, and a catch-all noun catches all: deferred work,
+uncovered cells, domain boundaries and designed constraints were filed into
+it beside genuine instrument limits, where a reader could not tell which
+demanded action. Each has a home that acts on it, and a slot named for what
+it holds cannot take the others:
+
+| what you have | where it goes | a row? |
+|---|---|---|
+| Deferred work | the tracker: `issue #N`, plus one line | no |
+| An uncovered cell | `skip`/`xfail` in the grid, with its reason | no |
+| A domain boundary — nothing missing | `domain:`, stated positively | no |
+| A designed constraint — never to be fixed | the spec, or a comment at the construct | no |
+| An instrument limit — what a green does *not* prove | `does not prove:` | **yes** |
+| Nothing | nothing; omit the row | no |
+
+Three of the six were never residuals. The slot name does the sorting, so
+mis-filing stops at the point of writing rather than at review.
+
+The gate follows the routing: an uncovered cell without both a guard and a
+record fails it — the record being an `xfail` reason or `issue #N` — and a
+`does not prove:` row holding deferred work fails it equally, because the
+row's name is the thing that was supposed to stop that. "No corpus witness"
+is never by itself a reason to leave a cell silent, because corpus-first
+governs which mechanisms exist,
 not how completely a mechanism covers its own domain — and when the
 construct itself has no corpus witness, the change ships a minimal witness
 fixture (a complete game exercising the construct end to end): a corpus
@@ -3775,41 +3812,28 @@ cell's designed failure, so a harness crash cannot impersonate the red
 run — that keeps the pre-push checks green while the red-to-green
 transition stays visible in the diff.
 
-**A quantified `covered` sentence names its set.** The rows above define
-two of the three kinds of sentence a ledger holds: `covered` is an executed
-grid row, and `sampled` and `residual` are judgment. The kind with nowhere
-legal to go is the third — a completeness claim that needs a *separate*
-verifier, and can therefore drift from it. Having no row of its own it gets
-written into `covered`, where the row's definition makes it read as backed,
-and a claim someone forgot to back becomes indistinguishable from a
-judgment that could never be backed. The rule dissolves that middle kind
-rather than housing it:
+**Every reference a ledger writes resolves.** A ledger names things — a
+test id, a tracked file, a module attribute — and a name goes stale in
+silence: a rename moves a test out from under the row citing it, and the
+row goes on reading as authoritative forever. Deleting the coverage rows
+concentrates rather than removes this hazard, because what survives in
+`registry:` is locators, and a locator's whole value is that it resolves.
+`tests/test_ledger_referents.py` sweeps every completeness ledger in the
+tree and holds every reference, in every row, to resolving. What no matcher
+reaches is a row naming a real test that does not test what the row says;
+that stays the reviewer's, and that module's own ledger records the reach
+rather than leaving it implied.
 
-> A `covered` sentence that quantifies — every, all, each, no — names the
-> set it quantifies over, and the reconciliation against that set is
-> written. If the set cannot be named, the sentence is a judgment: it moves
-> to `sampled` or `residual`, where the register warns the reader.
-
-Naming the set is what makes the reconciliation writable at all. "Every arm
-of `opening_actions` has a probe in `_PROBED_ARMS`" reconciles in two lines
-and in both directions; "every refusal arm has a probe" cannot be checked by
-anything — which is exactly why it reads as though something had. This is
-"prose names the registry, never the cardinality" (below) turned on the one
-row that is not allowed to be prose, and it makes the claim unwritable
-unless the check is writable, rather than adding a check beside the claim.
-Marking the three kinds apart with a vocabulary was weighed and refused: the
-markers would be a closed domain needing their own guard, nothing would
-check that a marker is *correct*, and giving the middle kind a name would
-legitimize it.
-
-Prose alone did not hold this rule either, so it carries an artifact for
-the half a matcher reaches. `tests/test_ledger_referents.py` sweeps every
-completeness ledger in the tree and holds every reference a ledger writes —
-a test id, a tracked file, a module attribute — to resolving, and holds a
-quantified completeness claim to naming its set. What no matcher reaches is
-a quantifier at a distance from its set, and a row naming a real test that
-does not test what the row says; both stay the reviewer's, and that module's
-own ledger records them rather than leaving the reach implied.
+No mechanism polices the prose of the surviving rows, and the reason is
+measured rather than assumed. Requiring a quantified sentence to name its
+set beside it — the rule the deleted `covered:` row carried — fires only on
+ordinary English once that row is gone: re-pointed at any other row it
+flags eight sentences across the tree, all eight of them correct prose
+(measured 2026-08-20, 90 ledgers). Prose written to satisfy a matcher is
+worse prose, and a row naming its set in good English is the goal, not the
+violation. The class ledger keeps its own `covered:` row and the rule with
+it — there `members:` is the named set, derived on the line above — but the
+completeness ledger has no row left that a matcher should read.
 
 **Prose names the registry, never the cardinality.** A ledger row — or any
 spec sentence — states what it quantifies over, not how many members that
@@ -3817,8 +3841,8 @@ set holds today. "Every registry with a signature table" stays true as
 registries are added; "the four registries" is false the moment one is,
 and a stale tally is indistinguishable from a fresh one, so it rots in
 silence where a broken path or a failing pin would announce itself. That
-silence is what makes it the same defect as an overclaiming `covered`,
-one layer out: the count is a second statement of a fact the code already
+silence is what makes it the same defect as a row claiming coverage it
+does not have, one layer out: the count is a second statement of a fact the code already
 holds, and the two drift (`decisions.md` is not exempt from
 [maintaining.md](maintaining.md)'s cross-reference-don't-duplicate rule).
 Where the set is worth naming, name the registry that defines it — the
@@ -3876,7 +3900,7 @@ else. Either tell stops the edit — the fix is upstream, not local. Before
 it lands, the check is classified as exactly one of three things: an
 **Owner Guard** (it moves to the layer that owns the class, in that layer's
 failure channel, with a test), a **Shadow Guard** (it stays, and its comment names
-the Owner Guard it shadows — and the recorded residual that makes it reachable,
+the Owner Guard it shadows — and the recorded gap that makes it reachable,
 if one exists), or a **missing Owner Guard** (the Owner Guard is built at the owning
 layer, and the local site becomes a Shadow Guard citing it). A guard that
 cannot say which of the three it is does not land. Each pass states its
@@ -4121,7 +4145,7 @@ is caught the way scaffolding is guarded: when it bites.
 ### Reachability ranks the work
 
 Severity says what kind of defect; reachability says who can meet it.
-Every finding, residual cell, and tracker issue states one:
+Every finding, uncovered cell, and tracker issue states one:
 
 - **R1 — corpus-reachable.** A game in `docs/games/` (or anything trained
   or proven against one) meets it today.
@@ -4149,8 +4173,8 @@ waits, so R4 is a fact about who can meet the cell, never a demotion of
 the work that closes it.
 
 Disposition follows the tag: R1 is fixed now; R2 is fixed or filed with a
-kind; R3 is a residual with its guard and its record, per the symmetric
-gate; R4 is recorded in the owning ledger and files an issue only when the
+kind; R3 is an `xfail` cell with its guard and its record, per the gate
+above; R4 is recorded in the owning ledger and files an issue only when the
 guarded guarantee is rigor-critical. And effort follows it the same way:
 a fix whose size is out of proportion to its reachability routes to
 record-and-file, not to fix-now — the proportionality call is made in
@@ -4329,8 +4353,7 @@ requirements inside `phase play`. That is weaker than "the library's definitions
 can read it where they run" — a declaration in a phase the library never runs in
 satisfies the contract and then fails at play time — and the shortfall is not the
 import tier's to close: a plain game with no library reproduces it, one phase
-declaring what another reads. It is recorded as a residual in
-issue #138.
+declaring what another reads. It is recorded in issue #138.
 
 Cross-block shadowing is legal for game-private state and refused for a
 `requires`d name: the two shadowed declarations answer different questions, and

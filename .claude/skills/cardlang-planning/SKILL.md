@@ -86,9 +86,10 @@ Before the task list: state the change's reachability (R1–R4, decisions.md
 "Reachability ranks the work") — who meets the defect it fixes or the
 surface it adds — and check the effort against it. An R1/R2 defect
 justifies what it costs. An R3/R4 whose fix is more than small routes to
-record-and-file: the guard, the ledger row, and the record its tag calls
-for — an issue for R3, the ledger alone for a non-rigor-critical R4
-(decisions.md, "Reachability ranks the work") — not the fix. This
+record-and-file: the guard, the `xfail` cell naming its reason, and the
+record its tag calls for — an issue for R3, the `xfail` reason alone for a
+non-rigor-critical R4 (decisions.md, "Reachability ranks the work") — not
+the fix. This
 gate exists because locally-correct choices compound: each finding
 honestly pursued, each class honestly swept, and the portfolio quietly
 reallocates itself toward the machinery and away from the games. The
