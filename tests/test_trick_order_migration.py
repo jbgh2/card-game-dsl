@@ -94,6 +94,15 @@ sampled:    nothing -- the pin is exact. The two trace-claim tests run one
             hashes the whole trace channel rather than a subset of it. Not a
             gap in the domain -- the domain is `MIGRATIONS` x each row's
             declared exclusions, and this row declares none.
+            The THIRD claim test, `test_the_two_exclusion_halves_are_disjoint`,
+            is vacuous for EVERY row rather than for tarot's alone: an
+            intersection needs both halves populated, and no row populates
+            both (rows 1-3 declare no reshaping, belote no retirement, tarot
+            neither). It is a guard against a shape the registry has never
+            held, kept because the shape it refuses is what would make one of
+            the other two claims unfalsifiable -- and its capacity to fail is
+            recorded, not assumed: the born-green mutation below moves
+            belote's `trick_end` into both halves and reddens it.
 residual:   (1) the information-state string, moved BY DESIGN and owned by
             the openspiel_ready proof modules (above); R4, this ledger owns
             the record. It moves only where a migration retires or hoists a

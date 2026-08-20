@@ -264,9 +264,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 # The Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
 # `runtime/winners.py` — both dispatch halves consume them and may not import
 # each other. `value_function` below is the ONE winner-slot dispatcher and
-# keys both homes' winners (the Builtins through winners.py, the game-local
-# pair through their modules); its file is the dispatcher's home, not a
-# classification of what it keys (tests/test_native_dispatch_split.py).
+# keys both homes' winners: the Builtins through winners.py, and any
+# game-local winner (`PRIMITIVE_TRICK_WINNERS`) through its own module. Its
+# file is the dispatcher's home, not a classification of what it keys
+# (tests/test_native_dispatch_split.py).
 #
 # It returns callables under one of TWO contracts, keyed by
 # `TRICK_ORDER_GATED_WINNERS` (cardlang/builtins/functions.py):
