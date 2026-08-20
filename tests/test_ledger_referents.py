@@ -49,10 +49,14 @@ registry:   the row axis is DERIVED by `_fence_labels` from the two templates
             not listed: `_defined_test_names` walks every tracked `.py` for
             `test*` functions, `_tracked` is `git ls-files`, and
             `_top_level_dirs` is that walk's own first path segments. The
-            reference forms are `REFERENCE_FORMS`, hand-listed and defended by
-            a reach probe per form rather than by derivation -- the same
-            structure, and the same reason, as `_ADJACENCY` in
-            `tests/test_native_classification_prose.py`.
+            quantifier vocabulary is DERIVED from the rule's own sentence by
+            `_law_quantifiers`, so the matcher cannot enforce a subset of the
+            law in silence -- and so the probe row survives the word being
+            taken away, which a hand-list cannot do. The reference forms and
+            the coverage frames (`REFERENCE_FORMS`, `_COVERAGE_FRAME`) are
+            hand-listed and defended by a reach probe each rather than by
+            derivation -- the same structure, and the same reason, as
+            `_ADJACENCY` in `tests/test_native_classification_prose.py`.
 covered:    the grid IS the coverage -- `test_grid` over `_cells`, which
             crosses `REFERENCE_FORMS` x `LEDGER_ROWS` x {resolving,
             dangling} in code, reading its sentences from `_GOOD` and `_BAD`
@@ -61,7 +65,11 @@ covered:    the grid IS the coverage -- `test_grid` over `_cells`, which
             passed, 2026-08-20). `test_each_form_is_matched` adds one row
             per member of `REFERENCE_FORMS`, on a sentence carrying a
             KNOWN-bad referent, so a drifted pattern cannot leave the sweep
-            reporting clean. The polarity cut carries all three of its
+            reporting clean. `test_each_quantifier_word_is_matched` does the
+            same over `QUANTIFIER_WORDS` and
+            `test_each_coverage_frame_is_matched` over the frame shapes, so
+            the vocabularies inside the `quantified-claim` form are reached
+            rather than assumed. The polarity cut carries all three of its
             decisions as rows: the block is cut
             (`test_a_red_under_block_is_not_read_as_a_reference`), the row it
             ends survives it (`test_the_red_under_cut_keeps_the_row_it_ends`),
@@ -253,7 +261,25 @@ def _module_stems() -> frozenset[str]:
 
 # --- the reference forms ----------------------------------------------------
 
-_QUANTIFIER = r"(?:every|each|all)"
+def _law_quantifiers() -> tuple[str, ...]:
+    """The quantifier words the RULE names, read from the rule. Hand-listing
+    them here would let the matcher enforce a subset of the law and say
+    nothing -- and a hand-list is also unreddenable, because a parametrization
+    derived from it loses the row along with the word."""
+    text = (ROOT / _DECISIONS).read_text()
+    said = re.search(r"quantifies\s*—\s*([^—]+?)\s*—\s*names", text)
+    assert said is not None, (
+        "the quantifier rule's word list is not where this scrape looks; "
+        "decisions.md \"A quantified `covered` sentence names its set\" owns it"
+    )
+    return tuple(w.strip() for w in said.group(1).split(",") if w.strip())
+
+
+# The rule's own four words, so the matcher's vocabulary cannot narrow below
+# the law's in silence. `no` costs nothing measurable -- zero extra matches
+# over the 87 ledgers (2026-08-20) -- and its reach is probed like the rest.
+QUANTIFIER_WORDS: tuple[str, ...] = _law_quantifiers()
+_QUANTIFIER = f"(?:{'|'.join(QUANTIFIER_WORDS)})"
 # The coverage nouns and frames these ledgers actually use. Hand-listed, like
 # `_ADJACENCY`; each form carries its own reach probe below, and the
 # unmatched population is recorded in `residual` (b) rather than implied.
@@ -670,6 +696,43 @@ def test_an_inline_red_under_stays_in_domain() -> None:
     assert [f.token for f in unresolved("covered", rows["covered"])] == [
         "test_the_walk_sees_no_such_module_at_all"
     ]
+
+
+@pytest.mark.parametrize("word", QUANTIFIER_WORDS)
+def test_each_quantifier_word_is_matched(word: str) -> None:
+    """The axis is `_law_quantifiers`, read from the rule in decisions.md, so
+    a matcher covering fewer words than the law names fails here rather than
+    quietly enforcing a subset. `every` currently has no live instance in the
+    tree -- it is the primary word, so its reach is proven here rather than
+    by the population.
+
+    red under: narrow `_QUANTIFIER` to a literal `(?:every|all|each)` while
+        the rule still names four -- the axis stays four rows and the `no`
+        row goes red. (Deleting a word from the LAW instead is not a
+        reddening edit: the row disappears with it, which is why the axis is
+        derived rather than listed.)
+    """
+    findings = unresolved("covered", f"{word} refusal arm has a probe")
+    assert [f.form for f in findings] == ["quantified-claim"]
+
+
+@pytest.mark.parametrize(
+    "frame,probe",
+    [
+        ("has-a-noun", "every refusal arm has a probe"),
+        ("carries-its-noun", "every refusal arm carries its witness"),
+        ("is-noun", "every refusal arm is probed"),
+        ("are-noun", "all refusal arms are covered"),
+    ],
+)
+def test_each_coverage_frame_is_matched(frame: str, probe: str) -> None:
+    """`_COVERAGE_FRAME` is two alternatives with several fillers, hand-listed
+    like `_ADJACENCY`. Each shape is proven to fire, so one drifting cannot
+    leave the sweep looking clean on claims it stopped reading.
+
+    red under: delete the named alternative from `_COVERAGE_FRAME`.
+    """
+    assert [f.form for f in unresolved("covered", probe)] == ["quantified-claim"]
 
 
 def test_the_quantified_form_does_not_match_inside_an_identifier() -> None:
