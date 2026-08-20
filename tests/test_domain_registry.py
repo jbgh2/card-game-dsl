@@ -47,8 +47,9 @@ Completeness ledger
     covered:    Exhaustive over A x B — 4 rows x (2 quantifier forms + `for each`
                 + `each … simultaneously` + 2 move-param spellings) = 24 cells,
                 every one executed as a probe below, plus:
-                  - quantifier: all 8 productions accepted (`test_every_row_is_
-                    quantifiable`), and each row's BINDER TYPE witnessed by a
+                  - quantifier: all 8 productions accepted
+                    (`test_every_row_is_quantifiable_in_both_forms`), and
+                    each row's BINDER TYPE witnessed by a
                     cross-typed predicate that must be guarded by the type layer
                     (`test_a_quantifier_binder_types_as_its_rows_binder_type`) —
                     a binder typed `TAny` would let those through.
