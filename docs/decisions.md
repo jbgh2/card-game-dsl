@@ -3775,6 +3775,42 @@ cell's designed failure, so a harness crash cannot impersonate the red
 run — that keeps the pre-push checks green while the red-to-green
 transition stays visible in the diff.
 
+**A quantified `covered` sentence names its set.** The rows above define
+two of the three kinds of sentence a ledger holds: `covered` is an executed
+grid row, and `sampled` and `residual` are judgment. The kind with nowhere
+legal to go is the third — a completeness claim that needs a *separate*
+verifier, and can therefore drift from it. Having no row of its own it gets
+written into `covered`, where the row's definition makes it read as backed,
+and a claim someone forgot to back becomes indistinguishable from a
+judgment that could never be backed. The rule dissolves that middle kind
+rather than housing it:
+
+> A `covered` sentence that quantifies — every, all, each, no — names the
+> set it quantifies over, and the reconciliation against that set is
+> written. If the set cannot be named, the sentence is a judgment: it moves
+> to `sampled` or `residual`, where the register warns the reader.
+
+Naming the set is what makes the reconciliation writable at all. "Every arm
+of `opening_actions` has a probe in `_PROBED_ARMS`" reconciles in two lines
+and in both directions; "every refusal arm has a probe" cannot be checked by
+anything — which is exactly why it reads as though something had. This is
+"prose names the registry, never the cardinality" (below) turned on the one
+row that is not allowed to be prose, and it makes the claim unwritable
+unless the check is writable, rather than adding a check beside the claim.
+Marking the three kinds apart with a vocabulary was weighed and refused: the
+markers would be a closed domain needing their own guard, nothing would
+check that a marker is *correct*, and giving the middle kind a name would
+legitimize it.
+
+Prose alone did not hold this rule either, so it carries an artifact for
+the half a matcher reaches. `tests/test_ledger_referents.py` sweeps every
+completeness ledger in the tree and holds every reference a ledger writes —
+a test id, a tracked file, a module attribute — to resolving, and holds a
+quantified completeness claim to naming its set. What no matcher reaches is
+a quantifier at a distance from its set, and a row naming a real test that
+does not test what the row says; both stay the reviewer's, and that module's
+own ledger records them rather than leaving the reach implied.
+
 **Prose names the registry, never the cardinality.** A ledger row — or any
 spec sentence — states what it quantifies over, not how many members that
 set holds today. "Every registry with a signature table" stays true as

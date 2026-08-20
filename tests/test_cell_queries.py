@@ -48,7 +48,7 @@ registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
 covered:    grammar precedence — every fixed keyword form (any player/all
             suits/any rank/any team/any card in) still routes to its OWN
             production, zero Earley ambiguity, alongside the five new QNOUN
-            productions, also zero ambiguity (test_grammar_precedence.py's
+            productions, also zero ambiguity (test_grammar_ambiguity.py's
             method, reproduced locally);
             bare form, board member (TCell) — `all cells where …` / `number
             of cells where …` exact at 0/3/8/9 filled, both by direct
