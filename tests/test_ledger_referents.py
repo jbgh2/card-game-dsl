@@ -134,14 +134,15 @@ ledgers), so the form was deleted rather than re-aimed: a matcher with no
 doctrine behind it enforces its author's taste. decisions.md "Every reference
 a ledger writes resolves" owns what is left.
 
-red under: revert the `registry:` row of `tests/test_domain_registry.py` to the
-    truncated citation it carried before this change -- `test_every_row_is_`
+red under: revert the citation in `tests/test_domain_registry.py` to the
+    truncated form it carried before this change -- the row is row-agnostic
+    here, as the sweep is, and that module has not migrated yet -- `test_every_row_is_`
     plus `quantifiable`, wrapping across two lines inside one code span, where
     the function is `test_every_row_is_quantifiable_in_both_forms`. It was
     invisible to every form for as long as it sat in backticks.
     `test_every_ledger_reference_resolves` names it, and its `assert not
-    found` is the assertion that reddens -- alone, 1 failed of 219.
-    Executed 2026-08-20.
+    found` is the assertion that reddens -- alone, 1 failed of 167, naming
+    the truncated token. Re-executed 2026-08-20 against this format.
 """
 
 from __future__ import annotations
