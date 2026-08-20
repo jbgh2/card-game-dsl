@@ -38,6 +38,243 @@
     ],
     "else_value": 1
   },
+  "trick_order": {
+    "kind": "trick_order",
+    "rows": [
+      {
+        "kind": "trick_order_row",
+        "key": "trump",
+        "body": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "card",
+              "ref": "local"
+            },
+            "field": "suit"
+          },
+          "right": {
+            "kind": "name",
+            "name": "atouts",
+            "ref": "enum_value"
+          }
+        }
+      },
+      {
+        "kind": "trick_order_row",
+        "key": "follow_class",
+        "body": {
+          "kind": "if_expr",
+          "cond": {
+            "kind": "binop",
+            "op": "is",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "excuse",
+              "ref": "enum_value"
+            }
+          },
+          "then": {
+            "kind": "name",
+            "name": "none",
+            "ref": "null"
+          },
+          "elifs": [],
+          "otherwise": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "card",
+              "ref": "local"
+            },
+            "field": "suit"
+          }
+        }
+      },
+      {
+        "kind": "trick_order_row",
+        "key": "card_strength",
+        "body": {
+          "kind": "if_expr",
+          "cond": {
+            "kind": "binop",
+            "op": "is",
+            "left": {
+              "kind": "member",
+              "obj": {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              },
+              "field": "suit"
+            },
+            "right": {
+              "kind": "name",
+              "name": "excuse",
+              "ref": "enum_value"
+            }
+          },
+          "then": {
+            "kind": "int",
+            "value": 0
+          },
+          "elifs": [
+            [
+              {
+                "kind": "call",
+                "func": "is_trump",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  }
+                ]
+              },
+              {
+                "kind": "binop",
+                "op": "+",
+                "left": {
+                  "kind": "int",
+                  "value": 100
+                },
+                "right": {
+                  "kind": "call",
+                  "func": "numeral",
+                  "args": [
+                    {
+                      "kind": "name",
+                      "name": "card",
+                      "ref": "local"
+                    }
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "kind": "binop",
+                "op": "is",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  },
+                  "field": "rank"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "K",
+                  "ref": "enum_value"
+                }
+              },
+              {
+                "kind": "int",
+                "value": 14
+              }
+            ],
+            [
+              {
+                "kind": "binop",
+                "op": "is",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  },
+                  "field": "rank"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "Q",
+                  "ref": "enum_value"
+                }
+              },
+              {
+                "kind": "int",
+                "value": 13
+              }
+            ],
+            [
+              {
+                "kind": "binop",
+                "op": "is",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  },
+                  "field": "rank"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "C",
+                  "ref": "enum_value"
+                }
+              },
+              {
+                "kind": "int",
+                "value": 12
+              }
+            ],
+            [
+              {
+                "kind": "binop",
+                "op": "is",
+                "left": {
+                  "kind": "member",
+                  "obj": {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  },
+                  "field": "rank"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "J",
+                  "ref": "enum_value"
+                }
+              },
+              {
+                "kind": "int",
+                "value": 11
+              }
+            ]
+          ],
+          "otherwise": {
+            "kind": "call",
+            "func": "numeral",
+            "args": [
+              {
+                "kind": "name",
+                "name": "card",
+                "ref": "local"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
   "trump": null,
   "teams": [],
   "positions": [],
@@ -833,7 +1070,7 @@
                   },
                   "source_zone": "hand",
                   "play_zone": "trick_pile",
-                  "winner_fn": "tarot_trick_winner",
+                  "winner_fn": "highest_by_trick_order",
                   "trump": null,
                   "early_termination": null
                 },
@@ -1438,22 +1675,20 @@
             "ref": "zone"
           },
           "where": {
-            "kind": "binop",
-            "op": "is",
-            "left": {
-              "kind": "member",
-              "obj": {
+            "kind": "call",
+            "func": "follows_lead",
+            "args": [
+              {
                 "kind": "name",
                 "name": "card",
                 "ref": "local"
               },
-              "field": "suit"
-            },
-            "right": {
-              "kind": "call",
-              "func": "tarot_led_suit",
-              "args": []
-            }
+              {
+                "kind": "name",
+                "name": "trick_pile",
+                "ref": "zone"
+              }
+            ]
           }
         }
       },
@@ -1496,22 +1731,15 @@
             "ref": "zone"
           },
           "where": {
-            "kind": "binop",
-            "op": "is",
-            "left": {
-              "kind": "member",
-              "obj": {
+            "kind": "call",
+            "func": "is_trump",
+            "args": [
+              {
                 "kind": "name",
                 "name": "card",
                 "ref": "local"
-              },
-              "field": "suit"
-            },
-            "right": {
-              "kind": "name",
-              "name": "atouts",
-              "ref": "enum_value"
-            }
+              }
+            ]
           }
         }
       },
@@ -1553,22 +1781,15 @@
               "ref": "zone"
             },
             "where": {
-              "kind": "binop",
-              "op": "is",
-              "left": {
-                "kind": "member",
-                "obj": {
+              "kind": "call",
+              "func": "is_trump",
+              "args": [
+                {
                   "kind": "name",
                   "name": "card",
                   "ref": "local"
-                },
-                "field": "suit"
-              },
-              "right": {
-                "kind": "name",
-                "name": "atouts",
-                "ref": "enum_value"
-              }
+                }
+              ]
             }
           }
         }
@@ -1589,7 +1810,7 @@
             "op": ">",
             "left": {
               "kind": "call",
-              "func": "tarot_trump_height",
+              "func": "card_strength",
               "args": [
                 {
                   "kind": "name",
@@ -1609,7 +1830,7 @@
               "binder": "card",
               "body": {
                 "kind": "call",
-                "func": "tarot_trump_height",
+                "func": "card_strength",
                 "args": [
                   {
                     "kind": "name",
@@ -2046,6 +2267,506 @@
             "name": "K",
             "ref": "enum_value"
           }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "numeral",
+      "params": [
+        {
+          "name": "c",
+          "type_name": "Card"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "member",
+            "obj": {
+              "kind": "name",
+              "name": "c",
+              "ref": "local"
+            },
+            "field": "rank"
+          },
+          "right": {
+            "kind": "str",
+            "value": "1"
+          }
+        },
+        "then": {
+          "kind": "int",
+          "value": 1
+        },
+        "elifs": [
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "2"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 2
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "3"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 3
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "4"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 4
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "5"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 5
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "6"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 6
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "7"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 7
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "8"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 8
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "9"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 9
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "10"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 10
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "11"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 11
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "12"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 12
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "13"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 13
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "14"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 14
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "15"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 15
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "16"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 16
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "17"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 17
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "18"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 18
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "19"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 19
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "20"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 20
+            }
+          ],
+          [
+            {
+              "kind": "binop",
+              "op": "is",
+              "left": {
+                "kind": "member",
+                "obj": {
+                  "kind": "name",
+                  "name": "c",
+                  "ref": "local"
+                },
+                "field": "rank"
+              },
+              "right": {
+                "kind": "str",
+                "value": "21"
+              }
+            },
+            {
+              "kind": "int",
+              "value": 21
+            }
+          ]
+        ],
+        "otherwise": {
+          "kind": "int",
+          "value": 0
         }
       }
     }
