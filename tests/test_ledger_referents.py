@@ -4,9 +4,9 @@ A completeness ledger (decisions.md "Closed-domain completeness") is prose
 asserting facts about code, and its `covered:` row is defined as an executed
 grid row -- so every sentence in it reads as backed. Nothing checked that the
 things those sentences NAME still exist. `tests/test_movement_verbs.py` cited
-a test that had been renamed out from under it and read as authoritative for
-five months; `tests/test_cell_queries.py` cited a module by a name no file has
-ever carried.
+a test its own rename had moved out from under it (commit 568297f) and went on
+reading as authoritative; `tests/test_cell_queries.py` cited a module by a name
+no file has ever carried.
 
 This module holds the half of decisions.md "A quantified `covered` sentence
 names its set" that a matcher reaches: a reference must resolve, and a
@@ -45,7 +45,7 @@ registry:   the row axis is DERIVED by `_fence_labels` from the two templates
             an edit here). The resolution universes are derived from the tree,
             not listed: `_defined_test_names` walks every tracked `.py` for
             `test*` functions, `_tracked` is `git ls-files`, and
-            `_TOP_LEVEL_DIRS` is that walk's own first path segments. The
+            `_top_level_dirs` is that walk's own first path segments. The
             reference forms are `REFERENCE_FORMS`, hand-listed and defended by
             a reach probe per form rather than by derivation -- the same
             structure, and the same reason, as `_ADJACENCY` in
@@ -84,10 +84,12 @@ residual:   (a) SEMANTIC overclaim -- a `covered:` row naming a real test that
             `surface-totality-audit` skill's Step 3. R3, this ledger owns the
             record: the guard is the skill step, and the reachability is the
             same as #389's.
-            (b) A quantifier at a DISTANCE from its set -- "the arms are
-            enumerated below, and every one is probed" -- is out of the
-            `quantified-claim` form, which matches a quantifier, its noun
-            phrase and a coverage predicate in one span. Matching the
+            (b) A quantifier at a DISTANCE from its set -- named a sentence
+            away, as "the arms are enumerated below. Every one is probed" --
+            is out of the `quantified-claim` form: the form matches a
+            quantifier, its noun phrase and a coverage predicate in one span,
+            and `_sentence_at` then looks for the set across the sentence
+            that span sits in, no further. Matching the
             unnamed-quantifier population generally was measured and refused:
             `covered:` rows carry 299 quantifier occurrences over 87 ledgers,
             and requiring a nearby identifier flags 40 to 76 modules depending
