@@ -585,7 +585,12 @@ def _advance(
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
         if not isinstance(nxt, DecisionNode):  # short game: back off one step
-            history.pop()
+            # Never past `base`: the opening is a DECLARED prefix, and popping
+            # into it would silently hand the caller a line its spec did not
+            # ask for. Unreachable today (Tarot's opening is followed by nine
+            # decisions), which is why it is a bound rather than a raise.
+            if len(history) > base:
+                history.pop()
             break
         r = nxt
     return history, r

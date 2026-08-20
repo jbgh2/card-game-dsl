@@ -96,7 +96,13 @@ sampled:    nothing -- the pin is exact. The two trace-claim tests run one
             declared exclusions, and this row declares none.
 residual:   (1) the information-state string, moved BY DESIGN and owned by
             the openspiel_ready proof modules (above); R4, this ledger owns
-            the record. (2) A row could under-declare -- omit a trace the
+            the record. It moves only where a migration retires or hoists a
+            state variable, so a row that does neither can close it by
+            MEASUREMENT rather than by argument -- french-tarot did: the
+            rendering is byte-identical base-to-head over the five manifest
+            seeds x four observers, both at the swap proof's depth 3 and at
+            depth 15 with a card down in the trick pile (executed
+            2026-08-19). (2) A row could under-declare -- omit a trace the
             migration really does retire -- which no pin here catches,
             because the hash then simply moves and
             `test_stream_hash_is_byte_identical` reports it as the
