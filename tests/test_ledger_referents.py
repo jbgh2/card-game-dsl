@@ -111,9 +111,16 @@ residual:   (a) SEMANTIC overclaim -- a `covered:` row naming a real test that
             its set in English ("all 28 French cells (7 decks x 4 conventions,
             frozen expected tuples)"). A matcher that reddens those is
             stricter than the law it mechanizes (measured 2026-08-20, `main`
-            at `591e44f`). R3, guarded by the same skill step as (a); the
-            standing question of whether `covered:` may hold navigational
-            prose at all is issue #392.
+            at `591e44f`). The frame vocabulary bounds the form the same way:
+            `tests/openspiel_ready/test_provenance_openings.py` writes two
+            claims outside it -- a participle ("each asserting its needle
+            from that table") and a negated adjective ("no scraped message is
+            needle-free") -- which `_COVERAGE_FRAME` does not match. Both
+            name their sets, so the rule holds and a match would change
+            nothing; the reach limit is real anyway, and the same phrasing
+            over an UNNAMED set would pass unseen. R3, guarded by the same
+            skill step as (a); the standing question of whether `covered:`
+            may hold navigational prose at all is issue #392.
             (c) A bare UPPERCASE identifier in backticks (`ZONE_INDEX_ROLES`,
             `RANK_DIR`) is not resolved here. Measured over these ledgers,
             those tokens span at least four namespaces -- Python constants,
