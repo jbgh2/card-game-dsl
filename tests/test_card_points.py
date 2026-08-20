@@ -37,7 +37,8 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            being read as a struct literal).
 registry:  the clause axis derives from the grammar's `?game_item`
            alternation and the `card_points_table` production (scraped from
-           cardlang.lark by test_clause_axes_are_pinned below); the key
+           cardlang.lark by test_clause_axes_are_pinned_by_grammar_and_
+           registries below); the key
            terminal's `else` exclusion from CARD_POINTS_KEY; the Builtin's
            home from BUILTIN_CALL_FUNCS / CALL_SIGS; the key-validity set
            from the deck registry via `rank_names`; the migration tables

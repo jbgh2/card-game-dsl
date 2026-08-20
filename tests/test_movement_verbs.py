@@ -60,7 +60,8 @@ covered:    the grid below, each a running row --
             positive evaluate: test_verb_evaluates_to_expected_value -- 16
             cells over both player frames and edge cells, values hand-computed
             from BoardEntry's offsets;
-            neighbor total-with-Shadow Guard: test_neighbor_offboard_backstop_raises;
+            neighbor total-with-Shadow Guard: test_neighbor_offboard_
+            shadow_guard_raises;
             boardless reject (resolve): test_verb_in_boardless_game_is_rejected
             (all five) + message goldens tests/rejections/{neighbor,has_step,
             is_diagonal,home,far_row}_boardless;
@@ -107,8 +108,9 @@ sampled:    the geometry values -- representative cells per verb (a1/d4/h8 +
             empty` and membership `c in home(p)` both typecheck AND evaluate
             correctly end to end (runtime `in` is `left in elements(right)`,
             `elements` yields the cell tuple); the value cells pin the produced
-            tuple, `for each cell` iteration and membership's own dedicated
-            coverage are Task 4.
+            tuple, `for each cell` iteration lifted at rung 2 and is covered by
+            tests/test_cell_iteration.py, and membership's own dedicated
+            coverage is Task 4.
 residual:   FIELD ACCESS on a position/board type is a SILENT permissive
             fall-through: `.field` on a TCell/TDir/TLine receiver (a `cell`/
             `dir` binder, or `neighbor`'s TCell return) infers TAny with NO
@@ -125,10 +127,11 @@ residual:   FIELD ACCESS on a position/board type is a SILENT permissive
             pre-existing for ALL positional collections, benign; same roadmap
             bullet class.
             Cell/region CONSUMPTION beyond membership + is-empty -- `for each
-            cell` iteration over a region is Task 4 (guarded today by
-            _ITERATION_ROLES, tests/test_cell_queries.py::
-            test_for_each_cell_stays_rejected); membership `c in home(p)`
-            already works (sampled above).
+            cell` iteration over a region LIFTED at rung 2, admitted through
+            _ITERATION_ROLES; its grid is tests/test_cell_iteration.py, and
+            what did NOT lift with it is the integer-position domain
+            (test_for_each_over_an_integer_position_domain_is_rejected).
+            Membership `c in home(p)` already works (sampled above).
             State persistence of a cell/region -- `state { x : cell }` /
             `{ x : dir }` is REJECTED at resolve (the StateDecl type-name guard;
             cell/dir are not KNOWN_TYPE_NAMES), so there is no silent-TAny

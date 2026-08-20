@@ -288,6 +288,36 @@ residual:   <cells NOT in the grid, uncovered or not-yet-decided — each with
 executed parametrization that crosses them — complementary rows, not
 restatements.)
 
+**Then read back every `covered` sentence that quantifies, and name its
+set.** This is a write-time step with a one-sentence test, and it exists
+because the rows above define only two of the three kinds of sentence a
+ledger holds. `covered` is an executed row; `sampled` and `residual` are
+judgment; the claim that needs a *separate verifier* has no row of its own,
+so it goes into `covered` and inherits that row's authority for free. That
+is where completeness claims nobody ever backed have historically been
+found (issue #389). So:
+
+> A `covered` sentence that quantifies — every, all, each, no — names the
+> set it quantifies over, and the reconciliation against that set is
+> written. If the set cannot be named, the sentence is a judgment: it moves
+> to `sampled` or `residual`, where the register warns the reader.
+
+Applied: "every arm of `opening_actions` has a probe in `_PROBED_ARMS`" is
+a claim whose reconciliation is two lines in both directions — write it,
+and cite it. "Every refusal arm has a probe" names no set, so nothing can
+check it and nothing will; it is a judgment and it moves rows. The point is
+not to catch a typo — it is that the sentence becomes unwritable in
+`covered` unless its check is writable, which is where the regress
+terminates. Do not reach for a marker vocabulary (`covered [derived]:`):
+markers are a closed domain needing their own guard, nothing checks that a
+marker is right, and naming the middle kind legitimizes it.
+
+`tests/test_ledger_referents.py` sweeps the tree for the half a matcher
+reaches — every reference a ledger writes must resolve, and a quantified
+completeness claim must name its set. Two things it cannot see, and they
+stay yours: a quantifier at a distance from its set, and a `covered` row
+naming a real test that does not test what the row says.
+
 The gate is symmetric: **a residual row without both a guard and a record
 fails the audit, and a `covered` claim without an executed grid row fails
 it equally.** "No corpus witness" is never by itself a reason to leave a

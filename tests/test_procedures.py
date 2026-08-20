@@ -41,16 +41,28 @@ procedures", "Surface totality", "Closed-domain completeness").
                     until it is classified. `Produces` is accepted with a SPLIT: over
                     a `define` (safe — invoked fresh at each site) but not over a
                     phase outcome (see residual).
-                C — exhaustive: all 10 sequence sites and both single-statement
-                    slots are exercised; the slots are probed at body length 1
-                    (splices) and >1 (guarded).
-                Hygiene — closed BY CONSTRUCTION, not by guards, and each former
-                    defect is pinned as a behaviour: an argument is evaluated once
-                    in the caller's context (so one written decision stays one
-                    decision; an unused parameter still evaluates its argument; an
-                    argument is not re-read after the body mutates it; an argument
-                    naming the actor survives an actor-rebinding body), and the body
-                    runs in a block (so its bindings do not leak into the caller).
+                C — the sequence contexts are exercised by
+                    `test_run_expands_in_every_statement_sequence_context`
+                    (phase body, if/else, repeat until) and
+                    `test_run_expands_in_a_move_type_effect`; the two
+                    single-statement slots by
+                    `test_any_procedure_fits_a_for_each_slot` and
+                    `test_each_simultaneously_body_shapes`, probed at body
+                    length 1 (splices) and, in
+                    `test_a_run_in_a_single_statement_slot_still_runs_the_
+                    whole_body`, >1 (guarded). Whether those are ALL of the
+                    grammar's `statement*` sites is not reconciled against the
+                    grammar — see residual.
+                Hygiene — closed BY CONSTRUCTION, not by guards, and the former
+                    defects are pinned as behaviours, one test each:
+                    `test_one_written_decision_stays_one_decision`,
+                    `test_an_unused_parameter_still_evaluates_its_argument`,
+                    `test_an_argument_is_not_re_read_after_the_body_mutates_it`,
+                    `test_an_argument_naming_the_actor_survives_an_actor_
+                    rebinding_body`, and
+                    `test_a_body_binding_does_not_leak_into_the_caller` — an
+                    argument is evaluated once in the caller's context, and the
+                    body runs in a block.
                     The single remaining guard — a body binder shadowing a PARAMETER
                     name, which classification cannot disambiguate — is tested.
                 Downstream — `game.procedures` empty after the pipeline; no
@@ -65,7 +77,15 @@ procedures", "Surface totality", "Closed-domain completeness").
                 the coins, the alive vector and the winner fixed over 40 seeds —
                 but it is one game, so it is sampled, not covered.
 
-    residual:   Every cell below is REJECTED (never silently accepted), and each
+    residual:   Axis C is the one axis of the three with no defining site in
+                code: A crosses `KNOWN_TYPE_NAMES` and B pins the `Stmt` union,
+                so a new member of either fails until it is classified, but the
+                grammar's `statement*` sites are not scraped and a new one
+                would join unprobed while this ledger still read exhaustive.
+                Guard: none beyond the named tests above, which is why the row
+                says what runs rather than claiming the set. R3, issue #393.
+
+                Every cell below is REJECTED (never silently accepted), and each
                 has a tracker record under issue #134:
                   - `Zone` parameters. The design note guessed the corpus would
                     need them; it does not (a Player parameter already carries its
