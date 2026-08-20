@@ -83,12 +83,11 @@ residual:  (a) An opening of length >= 2, and the `provenance_depth` offset it
            that the provenance proof is the only function in `harness.py`
            calling `render_opening`, so a call that moves or vanishes reddens
            -- a rendered value that stops reaching `record(..., opening=...)`
-           from inside that proof does not, and by (e) nothing else catches it
-           either. Measured, not argued: dropping the `opening=` key while
-           leaving the call in the proof's body left this module,
-           `test_coverage.py` and `test_partition_record_modes.py` green
-           (2026-08-20). R4; this ledger owns the declined case, issue #390
-           owns the guard's narrowness.
+           from inside that proof does not. Measured, not argued: dropping the
+           `opening=` key while leaving the call in the proof's body left this
+           module, `test_coverage.py` and `test_partition_record_modes.py`
+           green (2026-08-20). R4; this ledger owns the declined case, issue
+           #390 owns the guard's narrowness.
            (c) The opening-prefixed line is walked by the DSL replay only; the
            adapter-agreement proof walks the plain greedy line, so for a game
            whose greedy line never plays a card the DSL/pyspiel agreement is
