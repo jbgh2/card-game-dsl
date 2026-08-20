@@ -26,16 +26,16 @@ import random
 from pathlib import Path
 
 from cardlang.pipeline import check_source
-from cardlang.runtime import reads, narrowing
+from cardlang.runtime import narrowing, reads
 from cardlang.runtime.driver import declared_trick_order
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-from cardlang.runtime.trick_order import TrickOrderTable
 from cardlang.runtime.tarot import (
     ROW,
     tarot_card_points,
     tarot_excuse_player,
     tarot_per_opp,
 )
+from cardlang.runtime.trick_order import TrickOrderTable
 from cardlang.runtime.values import Card, Seating, build_deck
 
 EXCUSE = Card("Excuse", "excuse")

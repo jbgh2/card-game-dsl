@@ -37,10 +37,10 @@ game's dedicated observational tests.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any, ClassVar, Literal
 
 import pytest
@@ -544,6 +544,37 @@ def pin_failures(spec: GameSpec, declared: frozenset[str]) -> list[str]:
     return out
 
 
+def render_opening(spec: GameSpec) -> str:
+    """A spec's `provenance_opening` as the citable record writes it. The
+    MOVES, not their count: a legal-but-wrong opening passes every guard here
+    (it is legal, and it reaches the zone), so what the record has to carry is
+    which line was certified -- the swap record's precedent, which stores the
+    pairs it swapped rather than how many."""
+    return ",".join(
+        name if param is None else f"{name}({param})"
+        for name, param in spec.provenance_opening
+    )
+
+
+def opening_status(needed: bool, declared: bool) -> str:
+    """Whether a spec's `provenance_opening` corresponds to what the greedy
+    line actually does — the classifier the grid's cells read
+    (test_provenance_openings.py), in the shape `verb_status` above already
+    uses for the conformance pin's declarations.
+
+    `needed` is the measured fact: the plain greedy line compares ZERO Arrival
+    Record entries, so without an opening the provenance certificate would be
+    vacuous. `declared` is the authored judgment. The two disagree in both
+    directions, and only one of them is loud already: a NEEDED opening nobody
+    declared reddens the proof's own vacuity guard, while a declared opening
+    that stopped being needed stays green forever -- which is the direction
+    every other declaration in this package is tight in and this field was
+    not."""
+    if declared:
+        return "covered" if needed else "stale"
+    return "missing" if needed else "none"
+
+
 def opening_actions(spec: GameSpec, seed: int) -> list[int]:
     """A spec's `provenance_opening` as action ids, each asserted legal where
     it is played.
@@ -565,7 +596,16 @@ def opening_actions(spec: GameSpec, seed: int) -> list[int]:
             f"{spec.short_name}: the game ended after {len(history)} of the "
             f"{len(spec.provenance_opening)} opening moves"
         )
-        action = space.encode(move)
+        try:
+            action = space.encode(move)
+        except (KeyError, ValueError) as exc:
+            # The action space's own channel, but carrying this package's
+            # voice: every other failure here names the game and the field,
+            # and a bare `KeyError: ('bid_nonesuch', None)` named neither.
+            raise KeyError(
+                f"{spec.short_name}: `provenance_opening` names {move}, which "
+                f"this game's action space does not encode"
+            ) from exc
         assert action in r.legal, (
             f"{spec.short_name}: opening move {move} is not legal at P"
             f"{r.player}'s turn {len(history)} — re-derive "
@@ -978,7 +1018,8 @@ class ReadinessProofs:
             "provenance",
             seed=seed,
             zones=len(zones),
-            opening=len(spec.provenance_opening),
+            opening=render_opening(spec) or "-",
+            depth=spec.provenance_depth,
             nodes=nodes,
             entries_compared=entries_compared,
             vacuous=False,
