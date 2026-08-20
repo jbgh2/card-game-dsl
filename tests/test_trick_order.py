@@ -1204,10 +1204,7 @@ def test_gated_registries_match_the_grid() -> None:
     excluded = _reg("TRICK_ORDER_EXCLUDED_WINNERS")
     assert excluded | _reg("TRICK_ORDER_GATED_WINNERS") == F.TRICK_WINNER_NAMES
     assert not (excluded & _reg("TRICK_ORDER_GATED_WINNERS"))
-    assert excluded == {
-        "highest_of_led_suit", "highest_trump_or_led_suit",
-        "tarot_trick_winner",
-    }
+    assert excluded == {"highest_of_led_suit", "highest_trump_or_led_suit"}
     assert _reg("TRICK_ORDER_EXCLUDED_FUNCS") == {"highest_trump_or_led_suit"}
     assert _reg("TRICK_ORDER_EARLY_PREDICATES") == frozenset()
     assert dict(_reg("ARRIVAL_RECORD_CALLS")) == _ARRIVAL_RECORD_CALLS

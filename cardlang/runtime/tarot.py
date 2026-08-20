@@ -4,20 +4,15 @@ The whole hand — the four-level bid (the auction [[form]] of the kernel
 [[round]]), the chien handling by bid level, the eighteen atout-trump
 [[trick]]s with the Excuse's special routing and the
 must-follow/must-trump/must-over-trump obligations (the
-`ExcuseIsExempt`/`MustFollowSuit`/`MustTrumpIfVoid`/`MustOverTrump` [[rule]]
-cascade), and the bouts-conditional threshold scoring all
-run in the DSL (docs/games/french-tarot.cardlang). This module holds only what
-is not expressible there:
+`ExcuseIsExempt`/`MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump`
+[[rule]] cascade), and the bouts-conditional threshold scoring all
+run in the DSL (docs/games/french-tarot.cardlang). The trick order itself —
+which cards are trumps, which class a card follows as, how strong it is, and
+that the Excuse belongs to no class at all — is the game's own
+`trick_order { }` declaration, so the winner, the follow demand and the
+over-trump comparison read one declaration and no Python (issue #250 PR 5).
+This module holds only what is not expressible there:
 
-- `tarot_trump_height` — a per-card pure query (the trump rank strength for
-  the over-trump comparison).
-- `tarot_led_suit` — the effective led suit over the live `trick_pile` (the
-  first non-Excuse card's suit, or "excuse" if only the Excuse has been played
-  so far) — distinct from the kernel's own `state.led_suit` (the literal first
-  card played, "excuse" included), which gates the rules' `applies_when`.
-- `tarot_trick_winner` — the trick round's `outcome` function: highest atout
-  if any was played, else highest of the effective led suit; the Excuse never
-  wins.
 - `tarot_excuse_player` — which player (if any) played the Excuse in the trick
   that just completed, read off the round's exposed terminal state.
 - `tarot_per_opp` — the zero-sum per-opponent settlement amount: the
@@ -50,8 +45,6 @@ ROW = reads.row("cardlang/runtime/tarot.py", "french-tarot.cardlang")
 # Bid levels, ascending, with their scoring multipliers.
 _LEVELS = ("petite", "garde", "garde_sans", "garde_contre")
 _MULT = {"petite": 1, "garde": 2, "garde_sans": 4, "garde_contre": 6}
-# Non-trump in-suit strength: K > Q > Cavalier > J > 10 > ... > 1.
-_SUIT_STR = {"K": 14, "Q": 13, "C": 12, "J": 11}
 
 
 def tarot_card_points(c: Card) -> int:
@@ -68,52 +61,6 @@ def _is_bout(c: Card) -> bool:
     DSL's own `is_bout` function (french-tarot.cardlang) computes the same
     predicate independently for the discard filter, mirroring this."""
     return c.suit == "excuse" or (c.suit == "atouts" and c.rank in ("1", "21"))
-
-
-def _suit_strength(c: Card) -> int:
-    return _SUIT_STR.get(c.rank, 0) or int(c.rank)
-
-
-def _led_suit(cards: list[Card]) -> str:
-    """The suit to follow: the first non-Excuse card's suit."""
-    for c in cards:
-        if c.suit != "excuse":
-            return c.suit
-    return "excuse"  # only the Excuse played so far
-
-
-def tarot_led_suit(facts: EngineFacts, gr: reads.GameReads) -> str:
-    """The effective led suit for the live trick, read off the `trick_pile`
-    zone (the follow-suit demand's own view — distinct from the kernel's
-    `state.led_suit`, the literal first card's suit, which gates a rule's
-    `applies_when` instead)."""
-    return _led_suit(list(gr.singles["trick_pile"]))
-
-
-def tarot_trump_height(c: Card) -> int:
-    """Trump strength for the over-trump comparison: an atout's rank as an
-    int (1..21); 0 for a non-atout (never subject to, or able to satisfy, an
-    over-trump demand)."""
-    return int(c.rank) if c.suit == "atouts" else 0
-
-
-def tarot_trick_winner(
-    played: list[tuple[Player, Card]],
-    led_suit: str,
-    trump: str | None,
-    rank_index: dict[str, int],
-) -> Player:
-    """The trick outcome: highest atout if any was played; else highest of the
-    effective led suit (the first non-Excuse card's suit — recomputed here,
-    never the raw `led_suit` arg, which the kernel sets from the literal
-    first-played card and can be "excuse"). The Excuse itself never wins.
-    Ignores `led_suit`/`trump`/`rank_index` (the OutcomeFn interface)."""
-    atouts = [(p, c) for p, c in played if c.suit == "atouts"]
-    if atouts:
-        return max(atouts, key=lambda pc: int(pc[1].rank))[0]
-    led = _led_suit([c for _, c in played])
-    of_led = [(p, c) for p, c in played if c.suit == led]
-    return max(of_led, key=lambda pc: _suit_strength(pc[1]))[0]
 
 
 def tarot_excuse_player(

@@ -14,8 +14,9 @@
 // HIDDEN `discard[player]` (preferring non-trump non-King cards, never a bout)
 // — genuinely concealed from the opponents, not folded into the public captured
 // pile; the tricks run on the trick form of `round`, legality narrowed by the
-// ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade (the
-// Excuse is exempt from every obligation and never wins); the Excuse's special
+// ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade,
+// over the game's declared `trick_order { }` (the Excuse is exempt from every
+// obligation, and belongs to no class, so it never wins); the Excuse's special
 // routing (it stays with its own side, repaying the trick winner a low card) is
 // ordinary body movements after the round. Card points are kept in doubled
 // integer units (the 78 cards sum to 182). Real FFT forces the taker to

@@ -1,5 +1,6 @@
 """Known-value tests for French Tarot's Primitives
-(cardlang/runtime/tarot.py) and the `Card.__str__` glyph fix they depend on.
+(cardlang/runtime/tarot.py), its declared [[trick-order]], and the
+`Card.__str__` glyph fix they depend on.
 
 The playout invariants (test_playout_french_tarot.py) cannot catch a misvalued
 primitive on their own — a wrong `tarot_per_opp` could still zero-sum by
@@ -8,22 +9,32 @@ test_stud_settle.py precedent for a migrated game's pure-primitive module.
 `tarot_per_opp`'s synthetic `_scoring_ctx` also declares the fidelity stage's
 `discard[player]` zone, so a hand with (or without) taker discards can be
 constructed directly.
+
+The trick-order section is where the three retired Primitives'
+(`tarot_trump_height`, `tarot_led_suit`, `tarot_trick_winner`) known values
+went when the game migrated onto `trick_order { }` (issue #250 PR 5): the
+declaration's rows are read off the same materialized table every consumer
+reads, over the whole pack rather than at sampled cards. The CONSTRUCT's own
+cells (what a row may read, which names it gates, the winner's comparison)
+belong to tests/test_trick_order.py's grid; what belongs here is French
+Tarot's numbers.
 """
 
 from __future__ import annotations
 
 import random
+from pathlib import Path
 
+from cardlang.pipeline import check_source
 from cardlang.runtime import reads, narrowing
-from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.driver import declared_trick_order
+from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.trick_order import TrickOrderTable
 from cardlang.runtime.tarot import (
     ROW,
     tarot_card_points,
     tarot_excuse_player,
-    tarot_led_suit,
     tarot_per_opp,
-    tarot_trick_winner,
-    tarot_trump_height,
 )
 from cardlang.runtime.values import Card, Seating, build_deck
 
@@ -54,25 +65,21 @@ def test_card_points_known_values() -> None:
     assert tarot_card_points(Card("2", "clubs")) == 1
 
 
-# --- tarot_trump_height ---
-
-
-def test_trump_height_is_the_atout_rank_int() -> None:
-    assert tarot_trump_height(_atout("1")) == 1
-    assert tarot_trump_height(_atout("21")) == 21
-    assert tarot_trump_height(_atout("14")) == 14
-
-
-def test_trump_height_is_zero_for_non_atouts() -> None:
-    assert tarot_trump_height(Card("K", "clubs")) == 0
-    assert tarot_trump_height(EXCUSE) == 0
-
+# --- the declared Trick Order ---
+#
+# `tarot_trump_height`, `tarot_led_suit` and `tarot_trick_winner` retired into
+# the game's own `trick_order { }` block (issue #250 PR 5). Their published
+# values became the block's, so the known-value pin moves here rather than
+# being dropped -- and it is DERIVED over the pack instead of sampled, because
+# the row that replaced the height Primitive is the corpus's first with a
+# per-rank chain, where a single wrong arm is exactly what a handful of
+# examples misses.
 
 
 # The bundle materialises tarot.py's WHOLE declared row (taker, bid_level;
-# captured, discard; trick_pile, chien), so every fixture declares all of it —
-# a partial fixture is indistinguishable from the game file and the module
-# having drifted apart, which is exactly what the registry refuses.
+# captured, discard; chien), so every fixture declares all of it -- a partial
+# fixture is indistinguishable from the game file and the module having
+# drifted apart, which is exactly what the registry refuses.
 _Bundles = tuple[narrowing.EngineFacts, reads.GameReads]
 
 
@@ -96,58 +103,71 @@ def _tarot_rs() -> RuntimeState:
     return rs
 
 
-# --- tarot_led_suit ---
+TAROT = Path(__file__).parent.parent / "docs" / "games" / "french-tarot.cardlang"
 
 
-def _pile_ctx(cards: list[Card]) -> _Bundles:
+def _trick_order_ctx() -> tuple[TrickOrderTable, Ctx]:
+    """The game's materialized Trick Order, and a context its rows can be
+    asked under -- the same table every consumer reads, built by the driver's
+    one load site."""
     rs = _tarot_rs()
-    rs.zones.single("trick_pile").add_all(cards)
-    return narrowing.bind(rs, None, ROW)
+    game = check_source(TAROT)
+    table = declared_trick_order(game)
+    assert table is not None, "french-tarot declares a `trick_order { }` block"
+    rs.trick_order = table
+    # The `card_strength:` row reaches the game's own `numeral` function, so
+    # the fixture loads the function index exactly as the driver does.
+    rs.function_index = {f.name: f for f in game.functions}
+    return table, Ctx(rs=rs, chooser=lambda p, cands, n: list(cands)[:n])
 
 
-def test_led_suit_is_the_first_non_excuse_card() -> None:
-    ctx = _pile_ctx([Card("5", "hearts"), Card("K", "clubs")])
-    assert tarot_led_suit(*ctx) == "hearts"
+def _expected_strength(c: Card) -> int:
+    """The row's value, written from the game file's prose rather than its
+    expression: the Excuse is class-less and sits under everything, the
+    twenty-one atouts band above every plain card, and a plain card keeps
+    K > Q > Cavalier > J > 10 > ... > 1."""
+    if c.suit == "excuse":
+        return 0
+    if c.suit == "atouts":
+        return 100 + int(c.rank)
+    return {"K": 14, "Q": 13, "C": 12, "J": 11}.get(c.rank) or int(c.rank)
 
 
-def test_led_suit_when_the_excuse_is_led() -> None:
-    # The Excuse alone: no non-Excuse card yet -> "excuse" (the quirk that
-    # forces the second player to trump if able).
-    ctx = _pile_ctx([EXCUSE])
-    assert tarot_led_suit(*ctx) == "excuse"
+def test_the_three_rows_value_every_card_of_the_pack() -> None:
+    table, ctx = _trick_order_ctx()
+    for c in build_deck("tarot78"):
+        assert table.is_trump(c, ctx) == (c.suit == "atouts"), c
+        assert table.follow_class(c, ctx) == (
+            None if c.suit == "excuse" else c.suit
+        ), c
+        assert table.card_strength(c, ctx) == _expected_strength(c), c
 
 
-def test_led_suit_skips_the_excuse_when_led_then_a_real_card_follows() -> None:
-    ctx = _pile_ctx([EXCUSE, Card("9", "atouts")])
-    assert tarot_led_suit(*ctx) == "atouts"
-
-
-# --- tarot_trick_winner ---
-
-
-def test_trick_winner_highest_atout_wins() -> None:
-    played = [
-        (0, Card("K", "clubs")),
-        (1, _atout("5")),
-        (2, _atout("14")),
-        (3, _atout("2")),
+def test_the_excuse_is_the_pack_s_only_class_less_card() -> None:
+    """What makes "the Excuse never wins" fall out of the kernel rather than
+    being asserted anywhere: a card that is neither a trump nor of the
+    effective lead's class is never a candidate, and the Excuse is the only
+    card in the pack with no class at all."""
+    table, ctx = _trick_order_ctx()
+    class_less = [
+        c
+        for c in build_deck("tarot78")
+        if not table.is_trump(c, ctx) and table.follow_class(c, ctx) is None
     ]
-    assert tarot_trick_winner(played, "clubs", "atouts", {}) == 2
+    assert class_less == [Card("Excuse", "excuse")]
 
 
-def test_trick_winner_no_atout_highest_of_led_suit() -> None:
-    played = [(0, Card("Q", "hearts")), (1, Card("K", "hearts")), (2, Card("5", "clubs"))]
-    assert tarot_trick_winner(played, "hearts", "atouts", {}) == 1  # K > Q in-suit
-
-
-def test_excuse_never_wins_even_when_led() -> None:
-    played = [(0, EXCUSE), (1, Card("2", "hearts"))]
-    assert tarot_trick_winner(played, "excuse", "atouts", {}) == 1
-
-
-def test_excuse_never_wins_against_a_lone_atout() -> None:
-    played = [(0, EXCUSE), (1, _atout("1"))]
-    assert tarot_trick_winner(played, "excuse", "atouts", {}) == 1
+def test_every_atout_outranks_every_plain_card_and_the_excuse() -> None:
+    """The band `MustOverTrump` rests on. That rule compares a candidate
+    against the pile's BEST card without first asking whether that card is a
+    trump, which is sound only while no plain card and no Excuse can outrank
+    an atout -- so the banding is load-bearing legality, not presentation."""
+    table, ctx = _trick_order_ctx()
+    atouts = [c for c in build_deck("tarot78") if c.suit == "atouts"]
+    others = [c for c in build_deck("tarot78") if c.suit != "atouts"]
+    assert min(table.card_strength(c, ctx) for c in atouts) > max(
+        table.card_strength(c, ctx) for c in others
+    )
 
 
 # --- tarot_excuse_player ---
