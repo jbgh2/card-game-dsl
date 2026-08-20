@@ -132,14 +132,14 @@ it was an experiment. Metrics fixed in writing beforehand.
 
 Ledger lines each agent **authored** — per agent, so the means can be checked:
 
-| run | arm | revision | mirror (`covered`/`sampled`) | judgment | frame | total |
-|---|---|---|---|---|---|---|
-| armA-r1 | A | `06614b4` | 64 | 76 | 36 | 176 |
-| armA-r2 | A | `487effc` | 77 | 88 | 66 | 231 |
-| armA-r3 | A | `6058a9c` | 49 | 45 | 37 | 131 |
-| armB-r1 | B | `224034a` | 9 | 67 | 56 | 132 |
-| armB-r2 | B | `fd234fd` | 10 | 49 | 77 | 136 |
-| armB-r3 | B | `04e2b39` | 7 | 40 | 72 | 119 |
+| run | arm | mirror (`covered`/`sampled`) | judgment | frame | total |
+|---|---|---|---|---|---|
+| armA-r1 | A | 64 | 76 | 36 | 176 |
+| armA-r2 | A | 77 | 88 | 66 | 231 |
+| armA-r3 | A | 49 | 45 | 37 | 131 |
+| armB-r1 | B | 9 | 67 | 56 | 132 |
+| armB-r2 | B | 10 | 49 | 77 | 136 |
+| armB-r3 | B | 7 | 40 | 72 | 119 |
 | **mean A** | | | **63.3** (49-77) | 69.7 | 46.3 | 179.3 |
 | **mean B** | | | **8.7** (7-10) | 52.0 | 68.3 | 129.0 |
 
@@ -157,9 +157,12 @@ them, with a stated discard condition if implementation quality differed by
 arm. The prediction failed; the discard condition did not trigger. Recording
 this because a prediction reported only after it succeeds is not evidence.
 
-**The six revisions are local branches (`experiment/*`), not pushed.** A reader
-without them can reproduce the method above but not the counts. That is a real
-limit on this section.
+**The six revisions were not preserved.** One survives as the base of
+`ben/derived-type-and-name-axes-113` (PR #396, the armA-r1 run); the other five
+were ephemeral worktree branches and are gone. So the per-agent counts above are
+the record, and a reader can reproduce the method but not re-derive the counts
+from source. That is a real limit on this section, and the reason the counts are
+tabulated per agent rather than reported only as means.
 
 **Supports the rationale.** The reduction lands exactly on the dangerous
 rows: mirror prose falls ~86%, ranges non-overlapping. Total ledger size
