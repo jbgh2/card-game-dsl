@@ -307,7 +307,7 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="french-tarot.cardlang",
         state_vars=_fs("taker", "bid_level"),
         zone_families=_fs("captured", "discard"),
-        single_zones=_fs("trick_pile", "chien"),
+        single_zones=_fs("chien"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/belote.py",

@@ -28,7 +28,7 @@ the readiness proofs green (`tests/openspiel_ready/`).
 The per-game `runtime/*.py` modules that remain hold no mechanic — only pure
 Primitives the DSL calls: Stud's poker evaluator, seat selectors, and
 `pot_share`; Big Two's combination engine; Pinochle's meld evaluator; Tarot's
-per-card queries and settlement arithmetic; Cribbage's pegging/show scorers
+completed-trick Excuse query and settlement arithmetic; Cribbage's pegging/show scorers
 and provenance decoder; Skat's bid
 ladder, matador count, and overbid arithmetic; 500's bid ladder and contract
 values; Tichu's climb queries over the shared `combinations.py` engine,
@@ -38,12 +38,14 @@ trick resolution is the `highest_trump_or_led_suit` call form over the
 kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout
 harness derives its trick facts from observation events. Where a game's trick
-order is not the printed one — Doppelkopf, Skat, 500, Belote — follow
-legality and the winner are its declared `trick_order { }` block, read by
-`follows_lead` and `highest_by_trick_order`, not a game-local Primitive; in
+order is not the printed one — Doppelkopf, Skat, 500, Belote, French Tarot —
+follow legality and the winner are its declared `trick_order { }` block, read
+by `follows_lead` and `highest_by_trick_order`, not a game-local Primitive; in
 Belote the same block also answers the rule cascade's head/over-trump
 comparisons and the team-relative gate that asks who is winning the
-partial trick.
+partial trick, and in French Tarot the block's class-less Excuse is what makes
+"the Excuse never wins" and "a led Excuse sets no suit" facts of the kernel
+rather than rules.
 
 The stage-done checklist holds: no per-game branch anywhere outside the
 Primitive registries; every `tests/test_playout_*.py` green with
@@ -175,7 +177,8 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   cards before the selection draws from it (preferring non-trump non-King
   cards, falling back to any non-bout) — and the eighteen atout-trump tricks
   run on the trick form of `round` under a new `ExcuseIsExempt`/
-  `MustFollowSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade. The Excuse's
+  `MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade,
+  whose three demands now read the game's declared `trick_order { }`. The Excuse's
   exemption needed a second new axis — a rule `exempts:` clause: cards it
   selects (when the rule's `applies_when` holds) sit outside the demand
   cascade entirely and are appended after every other legal card, in hand

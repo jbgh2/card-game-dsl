@@ -264,11 +264,29 @@ cost:       the legality path evaluates a row per candidate per decision.
             narrowed-Primitive bundle materializations: `belote_opp_winning`
             bound and deep-froze its whole declared reads row on every gated
             `applies_when`.
-            WHAT THE FOUR MEASUREMENTS SUPPORT, stated no wider. At the row
+            RE-MEASURED again on French Tarot (issue #250 PR 5, the same
+            method: three alternating reps of 6 games, medians): base 1630.6
+            ms/game, head 955.3 -- **0.59x**, the construct paying for itself
+            outright, and the sharpest test of the paragraph below rather than
+            an exception to it. Tarot writes the HEAVIEST row in the corpus (a
+            seven-branch `card_strength:` reaching a twenty-one-branch
+            `numeral` designer function, since no one `ranking:` can serve a
+            deck where rank "1" is both the petit and a plain ace) and asks it
+            far more often: 392,784 row evaluations over three games (248,353
+            `trump:`, 79,391 `follow_class:`, 65,040 `card_strength:` -- and
+            note the third is NOT near-zero here, because `MustOverTrump`
+            reads strength over the pile per candidate) against 115,057
+            Primitive calls before, 3.4x the per-card work. It still got
+            faster, because each of those 115,057 was `tarot_led_suit` or
+            `tarot_trump_height` crossing the narrowing boundary, and
+            `tarot_led_suit` deep-froze its whole declared reads row -- the
+            `trick_pile` zone included -- on every ask.
+            WHAT THE FIVE MEASUREMENTS SUPPORT, stated no wider. At the row
             weights the corpus actually writes, the count of BOUNDARY
             CROSSINGS dominates and per-row weight does not track the ratio:
-            500's rows are the heaviest in the corpus and its ratio is the
-            joint-lowest. That is not the same as "weight is noise", and the
+            500's rows were the heaviest in the corpus when its ratio came in
+            joint-lowest, and Tarot's are heavier still at the lowest ratio of
+            the five. That is not the same as "weight is noise", and the
             counter-measurement is named rather than left for a reader to
             find: padding Belote's `card_strength:` else-branch with 60 no-op
             `+ 0` terms, at an UNCHANGED crossing count, costs 182.3 -> 202.8
@@ -1204,10 +1222,7 @@ def test_gated_registries_match_the_grid() -> None:
     excluded = _reg("TRICK_ORDER_EXCLUDED_WINNERS")
     assert excluded | _reg("TRICK_ORDER_GATED_WINNERS") == F.TRICK_WINNER_NAMES
     assert not (excluded & _reg("TRICK_ORDER_GATED_WINNERS"))
-    assert excluded == {
-        "highest_of_led_suit", "highest_trump_or_led_suit",
-        "tarot_trick_winner",
-    }
+    assert excluded == {"highest_of_led_suit", "highest_trump_or_led_suit"}
     assert _reg("TRICK_ORDER_EXCLUDED_FUNCS") == {"highest_trump_or_led_suit"}
     assert _reg("TRICK_ORDER_EARLY_PREDICATES") == frozenset()
     assert dict(_reg("ARRIVAL_RECORD_CALLS")) == _ARRIVAL_RECORD_CALLS

@@ -4902,8 +4902,10 @@ def _resolve_trump(game: n.Game, bag: DiagnosticBag) -> None:
     winner ignores its trump (`TRUMP_READING_WINNERS`' complement); every
     reading round overrides with its own clause — is accepted-but-ignored,
     the class this repo ranks worst, and is refused naming what would read
-    it. French Tarot's `trump: atouts` beside `winner tarot_trick_winner`
-    was the corpus instance.
+    it. No corpus game holds the shape: French Tarot's `trump: atouts` beside
+    a trump-blind winner was the instance, and it retired with the game's
+    Trick Order (issue #250 PR 5), which refuses a game-level `trump:` beside
+    a block outright.
 
     Consumption counts the rounds the game RUNS, not the rounds its text
     holds: a `round` is a `statement`, and the three definition forms hold

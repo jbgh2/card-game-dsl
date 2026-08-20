@@ -50,8 +50,8 @@ Key design notes:
   (a suit, or `none` for no trump), and only a winner whose body reads a trump
   may carry the clause — `highest_trump_or_led_suit`
   (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
-  `highest_of_led_suit` or `tarot_trick_winner` it would be silently ignored,
-  so the checker refuses it. Beside a `trick_order { }` block the clause is
+  `highest_of_led_suit` it would be silently ignored, so the checker refuses
+  it. Beside a `trick_order { }` block the clause is
   refused outright, whatever the winner: the block's `trump:` row is the
   trump. The same rule holds the game-level `trump:` to a
   suit of the declared deck, and to being READ: a `trump:` that no trick round
@@ -198,9 +198,10 @@ The library:
   rule (Hearts, Getaway, Spades, Bridge, Oh Hell, Pinochle, Belote).
   French Tarot's
   follow rule is game-local under its own name (`MustFollowEffectiveSuit`):
-  its demand reads `tarot_led_suit()`, the effective led suit, not the raw
-  `state.led_suit` — a genuinely different body, so it does not share this
-  definition (see below).
+  its demand reads `follows_lead(card, trick_pile)`, the Trick Order's own
+  candidate test over the [[effective-lead]], not the raw `state.led_suit` —
+  a genuinely different body, so it does not share this definition (see
+  below).
 - `NoLeadingSuitUntilBroken(suit: Suit)` — constrains `play_to_trick`; no
   leading the named suit until it has been played to a trick
   (Hearts activates `(hearts)`, Spades `(spades)`).
@@ -210,11 +211,12 @@ Game-local rules that recur as *names* but not as bodies:
 - `MustHeadTrick` — constrains `play_to_trick`; must beat the highest card of
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
-  led suit (Pinochle, French Tarot — the bodies differ: `trump_suit` vs the
-  `atouts` rank-set)
+  led suit (Pinochle, French Tarot — the bodies differ: Pinochle's declared
+  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
   played so far when trumping (Pinochle, French Tarot — the bodies differ:
-  `rank_value` within the trump suit vs `tarot_trump_height()`)
+  `rank_value` within the trump suit vs Tarot's `card_strength(card)` over
+  the whole pile, which its atout band makes exact)
 - `ExcuseIsExempt` — constrains `play_to_trick`; `exempts:` the Excuse from
   every obligation in the cascade (French Tarot). The corpus's first use of
   the rule `exempts:` clause ([decisions.md](decisions.md) "Rule exemption (`exempts:`)");
@@ -257,13 +259,16 @@ with one addition: `ExcuseIsExempt`'s `exempts:` clause removes the Excuse
 from the cascade before the other three rules run, and appends it after every
 other legal card once they've narrowed the rest — the Excuse is never subject
 to follow-suit/trump/over-trump and never counts toward satisfying them.
-`MustFollowEffectiveSuit`'s demand reads the Primitive `tarot_led_suit()` (the first
-non-Excuse card played, or "excuse" if only the Excuse has been played so
-far) rather than the kernel's own `state.led_suit` (the literal first card,
-"excuse" included) — the split that reproduces the reference rule exactly:
-when the Excuse is led, the next player faces "void in the led suit" (since
-`tarot_led_suit()` is still "excuse", which nobody's non-Excuse cards can
-match) and so must trump if able, a quirk the split preserves precisely.
+`MustFollowEffectiveSuit`'s demand reads the Builtin `follows_lead(card,
+trick_pile)` — the [[effective-lead]]'s own candidate test — rather than the
+kernel's own `state.led_suit` (the literal first card, "excuse" included).
+The Excuse carries no follow class, so a trick led with it has no effective
+lead at all and nothing follows: the next player faces "void in the led suit"
+and must trump if able. That narrowing is a KNOWN divergence from Pagat,
+which lets the second player play any card — [issue
+#357](https://github.com/jbgh2/card-game-dsl/issues/357) owns the correction,
+and tests/test_playout_french_tarot.py pins the current behaviour so a
+migration cannot change it by accident.
 
 ## Winner functions
 
@@ -275,10 +280,6 @@ slot (a name's home is its classification, never its syntactic position):
 - `highest_trump_or_led_suit` — the Builtin with-trump winner (the round's
   `trump` clause, else the game's declared trump); the same Builtin is also
   callable over a public pile's Arrival Record (see "Native functions")
-- `tarot_trick_winner` — the Primitive for French Tarot: highest atout, else
-  highest of the effective led suit (`tarot_led_suit()`); the Excuse never
-  wins (reads no trump — the atouts are its own suit; a `trump` clause on it
-  is refused)
 - `highest_by_trick_order` — the Builtin winner of a game's declared Trick
   Order (decisions.md "Trick Order"): the strongest trump if any, else the
   strongest card of the Effective Lead's class, all three facts read from the
@@ -983,16 +984,6 @@ bout layer (`if is_bout(card) then 9 else card_points(card)` — doubled
 integer units, the 78 cards summing to 182; a rank-keyed table cannot carry
 the petit, whose rank "1" is 9 in atouts and 1 in the plain suits):
 
-- `tarot_trump_height(card: Card) → Integer` — an atout's rank as an int
-  (1..21) for the over-trump comparison; 0 for a non-atout.
-- `tarot_led_suit() → Suit` — the effective led suit of the live trick: the
-  first non-Excuse card played so far, or "excuse" if only the Excuse has
-  been played — distinct from the kernel's own `state.led_suit` (the literal
-  first card, "excuse" included), which gates the rules' `applies_when`
-  instead of naming the follow-suit demand (see the Rules section above).
-- `tarot_trick_winner` — a **winner function** (named on `round …
-  winner tarot_trick_winner`, not called with parens): highest atout if any
-  was played, else highest of the effective led suit; the Excuse never wins.
 - `tarot_excuse_player() → Player?` — which player (if any) played the Excuse
   in the trick that just completed, read off the round's exposed terminal
   state (`state.played`) the same way the `state` pronoun is.

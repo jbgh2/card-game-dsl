@@ -88,6 +88,12 @@ def test_tables_reconcile_with_name_sets() -> None:
     assert TRICK_WINNER_NAMES | PRIMITIVE_AUCTION_OUTCOMES == VALUE_NAMES
     assert TRICK_WINNER_NAMES.isdisjoint(PRIMITIVE_AUCTION_OUTCOMES)
     assert BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WINNERS == TRICK_WINNER_NAMES
+    # The disjointness reads an EMPTY right operand since issue #250 PR 5
+    # retired the last game-local winner, so it can no longer fail on the
+    # corpus. It still fails on its own named mutation -- filing a Builtin
+    # winner in `PRIMITIVE_TRICK_WINNERS` as well: "AssertionError: assert
+    # False ... isdisjoint(frozenset({'highest_of_led_suit'}))" (executed
+    # 2026-08-19, reverted). Kept for the day a game registers one.
     assert BUILTIN_TRICK_WINNERS.isdisjoint(PRIMITIVE_TRICK_WINNERS)
 
 

@@ -116,12 +116,13 @@ def test_no_proof_module_without_a_registered_game() -> None:
     here = Path(__file__).resolve().parent
     # The package-wide modules, which target the registry itself rather than
     # any one game: this completeness guard, the bound-coverage grid, the
-    # action-rendering purity pin, and the Arrival Record's copy-purity pin
-    # (whose game axis derives from the component registry, not one game —
-    # issue #256).
+    # provenance-opening grid, the action-rendering purity pin, and the
+    # Arrival Record's copy-purity pin (whose game axis derives from the
+    # component registry, not one game — issue #256).
     modules = {p.stem for p in here.glob("test_*.py")} - {
         "test_coverage",
         "test_conformance_bounds",
+        "test_provenance_openings",
         "test_action_strings",
         "test_arrival_purity",
     }

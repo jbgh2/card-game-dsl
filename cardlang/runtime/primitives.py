@@ -90,14 +90,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
             return pinochle_meld_value(*_bind(ctx, ROW), args[0])
-        case "tarot_led_suit":
-            from cardlang.runtime.tarot import ROW, tarot_led_suit
-
-            return tarot_led_suit(*_bind(ctx, ROW))
-        case "tarot_trump_height":
-            from cardlang.runtime.tarot import tarot_trump_height
-
-            return tarot_trump_height(args[0])
         case "tarot_excuse_player":
             from cardlang.runtime.tarot import ROW, tarot_excuse_player
 
@@ -272,9 +264,10 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 # The Builtin winner comparisons (`BUILTIN_TRICK_WINNERS`) live in
 # `runtime/winners.py` — both dispatch halves consume them and may not import
 # each other. `value_function` below is the ONE winner-slot dispatcher and
-# keys both homes' winners (the Builtins through winners.py, the game-local
-# pair through their modules); its file is the dispatcher's home, not a
-# classification of what it keys (tests/test_native_dispatch_split.py).
+# keys both homes' winners: the Builtins through winners.py, and any
+# game-local winner (`PRIMITIVE_TRICK_WINNERS`) through its own module. Its
+# file is the dispatcher's home, not a classification of what it keys
+# (tests/test_native_dispatch_split.py).
 #
 # It returns callables under one of TWO contracts, keyed by
 # `TRICK_ORDER_GATED_WINNERS` (cardlang/builtins/functions.py):
@@ -307,10 +300,6 @@ def value_function(name: str) -> Callable[..., Any]:
             return TrickOrderWinner()
         case "on_play_off_led_suit":
             return on_play_off_led_suit
-        case "tarot_trick_winner":
-            from cardlang.runtime.tarot import tarot_trick_winner
-
-            return tarot_trick_winner
         case _:
             raise AssertionError(f"unknown Primitive value callback '{name}'")
 

@@ -56,9 +56,10 @@ direction rather than picking a new one.
   instantiate with arguments ([library.md](../library.md) "Rules").
   `MustFollowSuit` folded six byte-identical pastes;
   `NoLeadingSuitUntilBroken(suit)` folded the Hearts/Spades pair. French
-  Tarot's follow rule genuinely differs (`tarot_led_suit()`) and keeps its
-  own name (`MustFollowEffectiveSuit`) — shadowing a library name is
-  rejected.
+  Tarot's follow rule genuinely differs (it demands `follows_lead(card,
+  trick_pile)`, the Trick Order's own candidate test, where the library rule
+  demands the literal `state.led_suit`) and keeps its own name
+  (`MustFollowEffectiveSuit`) — shadowing a library name is rejected.
 - **Domain completion** — negative Integer literals; deck-derived rank
   values with the enum-comparison Owner Guard; suit/rank quantifier and `for each`
   domains; membership `in` with list literals

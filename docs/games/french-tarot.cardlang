@@ -14,8 +14,9 @@
 // HIDDEN `discard[player]` (preferring non-trump non-King cards, never a bout)
 // — genuinely concealed from the opponents, not folded into the public captured
 // pile; the tricks run on the trick form of `round`, legality narrowed by the
-// ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade (the
-// Excuse is exempt from every obligation and never wins); the Excuse's special
+// ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade,
+// over the game's declared `trick_order { }` (the Excuse is exempt from every
+// obligation, and belongs to no class, so it never wins); the Excuse's special
 // routing (it stays with its own side, repaying the trick winner a low card) is
 // ordinary body movements after the round. Card points are kept in doubled
 // integer units (the 78 cards sum to 182). Real FFT forces the taker to
@@ -39,6 +40,32 @@ game FrenchTarot {
   // cannot carry the petit, whose rank "1" is 4.5 in atouts and half a
   // point in the plain suits: `if is_bout(card) then 9 else card_points(card)`.
   card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }
+
+  // The trick order. The atouts are the trump class; the Excuse belongs to no
+  // class at all, which is what makes "the Excuse never wins" fall out of the
+  // kernel rather than being restated here — a card that is neither a trump
+  // nor of the effective led class is never a candidate, so no rule has to
+  // say it cannot win, and no rule has to say it does not set the suit when
+  // it is led.
+  //
+  // Strength carries its own arithmetic because this game declares no
+  // `ranking:` and no single one could serve: rank "1" is the petit at the top
+  // band of the atouts and the lowest card of a plain suit. Plain cards keep
+  // K > Q > Cavalier > J > 10 > ... > 1 (11-14 over 1-10); the twenty-one
+  // atouts sit as one band above every plain card (101-121), which is what
+  // lets `MustOverTrump` compare a candidate against the pile's best card
+  // without first asking whether that card is a trump.
+  trick_order {
+    trump:         card.suit is atouts
+    follow_class:  if card.suit is excuse then none else card.suit
+    card_strength: if card.suit is excuse then 0
+                   elif is_trump(card) then 100 + numeral(card)
+                   elif card.rank is K then 14
+                   elif card.rank is Q then 13
+                   elif card.rank is C then 12
+                   elif card.rank is J then 11
+                   else numeral(card)
+  }
 
   zones {
     deck             : Deck
@@ -118,12 +145,13 @@ game FrenchTarot {
       }
 
       // Eighteen tricks, counterclockwise; the player to the dealer's right
-      // leads the first. The Excuse is exempt from every obligation and never
-      // wins (tarot_trick_winner).
+      // leads the first. The Excuse is exempt from every obligation (the
+      // `exempts:` rule below) and never wins — the trick order gives it no
+      // class, so it is never a candidate.
       leader := dealer offset_by right
       repeat until (all players where hand[player] is empty) {
         round play_to_trick from leader over all players source hand into trick_pile
-              winner tarot_trick_winner
+              winner highest_by_trick_order
         petit_in_last := any card in trick_pile
                            where card.suit is atouts and card.rank is "1"
         let xp = tarot_excuse_player()
@@ -184,16 +212,32 @@ function is_bout(c : Card) =
 function is_pref_discard(c : Card) =
   c.suit is not atouts and c.suit is not excuse and c.rank is not K
 
+// The number a rank spells, and 0 for a rank that spells a letter — the
+// arithmetic the `card_strength:` row carries because no `ranking:` can serve
+// two orders at once. Covers 1-21 so one function serves both the plain suits'
+// pip cards and the whole atout band.
+function numeral(c : Card) =
+  if c.rank is "1" then 1 elif c.rank is "2" then 2 elif c.rank is "3" then 3
+  elif c.rank is "4" then 4 elif c.rank is "5" then 5 elif c.rank is "6" then 6
+  elif c.rank is "7" then 7 elif c.rank is "8" then 8 elif c.rank is "9" then 9
+  elif c.rank is "10" then 10 elif c.rank is "11" then 11
+  elif c.rank is "12" then 12 elif c.rank is "13" then 13
+  elif c.rank is "14" then 14 elif c.rank is "15" then 15
+  elif c.rank is "16" then 16 elif c.rank is "17" then 17
+  elif c.rank is "18" then 18 elif c.rank is "19" then 19
+  elif c.rank is "20" then 20 elif c.rank is "21" then 21
+  else 0
+
 // === Tarot strict-trick legality (rule DSL) ===
 //
 // The Excuse is exempt: never subject to an obligation, never satisfies one,
 // and offered AFTER the constrained cards (rules.legal_cards appends every
 // exempt card last, in hand order) — reproducing the historical mechanic's
 // candidate order, which the RNG stream depends on. The three demand rules
-// run the running-intersection cascade: follow the effective led suit
-// (`tarot_led_suit()` — the first non-Excuse card; when the Excuse is led,
-// the next player's card sets the suit); if void, trump; over-trump the
-// pile's best atout when able.
+// run the running-intersection cascade over the game's trick order: follow
+// what the trick was effectively led (the first card with a follow class —
+// when the Excuse is led it has none, so the next player's card sets the
+// class); if void, trump; over-trump the pile's best atout when able.
 
 rule ExcuseIsExempt {
   constrains: play_to_trick
@@ -201,28 +245,29 @@ rule ExcuseIsExempt {
   exempts: cards in hand where card.rank is Excuse
 }
 
-// Not the library MustFollowSuit: the demand reads the EFFECTIVE led suit
-// (`tarot_led_suit()` — the first non-Excuse card), not the raw
-// `state.led_suit`, so the rule is Tarot's own under its own name.
+// Not the library MustFollowSuit: that one demands the raw `state.led_suit`,
+// the LITERAL first card's suit, which is "excuse" when the Excuse is led.
+// This demands `follows_lead`, the trick order's own candidate test over the
+// EFFECTIVE lead, so the rule is Tarot's own under its own name.
 rule MustFollowEffectiveSuit {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: cards in hand where card.suit is tarot_led_suit()
+  demands: cards in hand where follows_lead(card, trick_pile)
   if_impossible: hand   // void in the effective led suit
 }
 
 rule MustTrumpIfVoid {
   constrains: play_to_trick
   applies_when: state.led_suit is not none
-  demands: cards in hand where card.suit is atouts
+  demands: cards in hand where is_trump(card)
   if_impossible: hand   // holds the led suit, or has no trump
 }
 
 rule MustOverTrump {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and
-                (any card in trick_pile where card.suit is atouts)
-  demands: cards in hand where tarot_trump_height(card) >
-             (highest tarot_trump_height(card) over cards in trick_pile or 0)
+                (any card in trick_pile where is_trump(card))
+  demands: cards in hand where card_strength(card) >
+             (highest card_strength(card) over cards in trick_pile or 0)
   if_impossible: hand   // cannot over-trump: any trump (or the prior set) stands
 }
