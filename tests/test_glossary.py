@@ -411,18 +411,18 @@ def test_a_retired_spelling_is_actually_retired() -> None:
 
     The instance that motivated this: Card Strength listed
     `belote_trump_height` / `tarot_trump_height` as retired while two corpus
-    games called them (they retire when those games migrate, issue #250 PRs
-    4-5). A retired-spelling claim a reader trusts is how a rename gets
-    declared finished before it is.
+    games called them. Belote's has since actually retired (issue #250 PR 4);
+    Tarot's is still live and retires with PR 5. A retired-spelling claim a
+    reader trusts is how a rename gets declared finished before it is.
 
     Scope: a spelling that looks like a code identifier (no spaces) must not
     survive as a NAME the engine or the corpus still uses. Prose spellings
     (retired English phrasings) are not identifiers and are skipped -- they
     have no tree to check against.
 
-    red under (executed, reverted): restore either height Primitive to Card
-    Strength's `retired_spellings` -- this fails naming it and the corpus
-    files that still call it."""
+    red under (executed 2026-08-19, reverted): add `tarot_trump_height` to
+    Card Strength's `retired_spellings` -- this fails naming it and the
+    corpus files that still call it."""
     import re
     from pathlib import Path as _P
 

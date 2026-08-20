@@ -19,27 +19,43 @@ not stated:
 * The existing per-seed score goldens (`tests/golden/<game>_scores.json`,
   owned by each game's playout module) stay byte-identical -- pinned there.
 
-What the hash deliberately does NOT cover: the TRACE events a migration
-retires -- the retiring Primitive winners were their only emitters in the
-hand-rolled games and the kernel's call form emits none (Architect counsel,
-#250 PR 1, Q7) -- and the OpenSpiel information-state string, which renders
-every public state variable and therefore moves by the variables a migration
-retires (Doppelkopf: `led_trump`, `led_suit`); the openspiel_ready proof
+What the hash deliberately does NOT cover: the TRACE events a migration moves
+(below) -- and the OpenSpiel information-state string, which renders every
+public state variable and therefore moves by the variables a migration retires
+or hoists (Doppelkopf: `led_trump`, `led_suit`); the openspiel_ready proof
 modules own that surface per manifest seed. The playout oracles
 (`tests/test_playout_<game>.py`) are the INDEPENDENT recomputation of the
 rules; this module is the regression pin that the engine's answer did not
 move.
 
-WHICH trace events those are is a per-game fact, not a global one, so it is
-declared per row (`Migration.retired_traces`) over the pair every hand-rolled
-winner emitted (`_BASE_RETIRED_TRACES`). Skat's Primitive also emitted
-`trick_end` carrying the contract, and was the game's only emitter of it; the
-round form emits `trick_end` too (`runtime/mechanics.py`), so a game migrating
-ONTO a round form keeps it. Excluding it globally would therefore stop
-covering a trace that, in some other game, did not move -- the silencer
-failure mode. An exclusion is a CLAIM that the event is gone, and
-`test_retired_traces_are_actually_gone` executes that claim: a row naming a
-trace the migrated game still emits is red.
+WHICH trace events a migration moves, and HOW, are both per-game facts, so
+each row declares them and each half carries the OPPOSITE executed claim:
+
+* `retired_traces` -- events the migrated game no longer emits at all. In a
+  game whose tricks are hand-rolled movements, the retiring Primitive winner
+  was the only emitter of `play` and `trick`, and the kernel's call form emits
+  none (Architect counsel, #250 PR 1, Q7); Skat's and 500's also carried
+  `trick_end` with the contract. `test_retired_traces_are_actually_gone`
+  executes the claim: a row naming a trace the migrated game STILL emits is
+  red, so an exclusion cannot silence a live event.
+* `reshaped_traces` -- events the migrated game still emits with a moved
+  PAYLOAD. Belote's tricks are a `round`, so `play`, `trick` and `trick_end`
+  all come from `runtime/mechanics.py` and none of them retires; what moves is
+  the one field `trick_end` echoes from the ROUND's configuration, because a
+  block game has no round `trump` clause to echo (`{"trump": "diamonds"}` ->
+  `{"trump": null}`; measured 2026-08-19 over seeds 0-2: 96/72/72 of 1042/787/790
+  trace events differ, all of them `trick_end`, and the per-observer
+  observation stream is identical). No info-set consequence -- the trace
+  channel is HARNESS-only and distinct from `observe`, which is the ruling
+  tests/test_trump_slot_class.py's residual (7) already made for french-tarot's
+  identical `"atouts"` -> `null` move. `test_reshaped_traces_are_still_emitted`
+  executes THIS claim: a row calling a retirement a reshaping is red.
+
+There is no global base. A `_BASE_RETIRED_TRACES` union over `play`/`trick`
+held only while every migrated game hand-rolled its tricks; Belote is the
+first to migrate a `round` trick form, where both events survive, and the
+union would have silenced two live ones -- the silencer failure mode, in the
+registry that exists to prevent it.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -48,24 +64,29 @@ property:   a migrated game's per-observer observation stream, decision
             tree on every seed of the pin.
 domain:     `MIGRATIONS` x `SEEDS` (200 seeds: the coverage-manifest head
             plus the long tail; the first 40 coincide with the score golden's
-            seeds), and `MIGRATIONS` x each row's declared `retired_traces`.
+            seeds), and `MIGRATIONS` x each row's declared exclusions, in
+            BOTH halves (`retired_traces`, `reshaped_traces`).
 registry:   `MIGRATIONS` below -- one row per migrated game, keyed by its
             hash file; the row is added in the PR that migrates the game and
-            its hash file is captured on the parent commit. Each row's
-            `retired_traces` is that game's own widening of
-            `_BASE_RETIRED_TRACES`.
+            its hash file is captured on the parent commit. Each row declares
+            its own exclusions outright, in the half that says what happened
+            to the event; there is no shared base to widen.
 covered:    `test_stream_hash_is_byte_identical` (every game x every seed);
             `test_hash_file_covers_every_seed` (a hash file with a missing
             or extra seed is a stale capture, not a pass);
             `test_retired_traces_are_actually_gone` (every row x every trace
             it claims to retire -- the claim executed, so an exclusion
             cannot silence a live event);
-            `test_retired_traces_do_not_restate_the_base` (a row widening by
-            a name the base already holds would read as a widening while
-            covering nothing new).
-sampled:    nothing -- the pin is exact. `test_retired_traces_are_actually_gone`
-            runs one seed per row: a trace emitted from a trick site fires in
-            every seed that plays a trick, so a second seed adds no cell.
+            `test_reshaped_traces_are_still_emitted` (every row x every trace
+            it claims merely moved -- the opposite claim, executed, so a row
+            cannot label a retirement a reshaping and cover strictly less
+            than it says);
+            `test_the_two_exclusion_halves_are_disjoint` (an event is gone or
+            it is not; a name in both halves would make one of the two claims
+            unfalsifiable).
+sampled:    nothing -- the pin is exact. The two trace-claim tests run one
+            seed per row: a trace emitted from a trick site fires in every
+            seed that plays a trick, so a second seed adds no cell.
 residual:   (1) the information-state string, moved BY DESIGN and owned by
             the openspiel_ready proof modules (above); R4, this ledger owns
             the record. (2) A row could under-declare -- omit a trace the
@@ -75,7 +96,15 @@ residual:   (1) the information-state string, moved BY DESIGN and owned by
             byte-identity failure it is. That is the wanted direction: the
             unsafe error (silencing a live event) is guarded, the safe one
             (forgetting an exclusion) is loud through the primary pin. R4,
-            this ledger owns the record.
+            this ledger owns the record. (3) A `reshaped_traces` row excludes
+            a WHOLE event, where what moved is one field of its payload, so a
+            second, unrelated change to a reshaped event's payload would ride
+            along unseen. Bounded and measured rather than guarded: the
+            excluded event is `trick_end`, whose payload is two fields, and
+            the other (`early`) is constant for a game that declares no
+            `early` predicate -- which the presence partition REFUSES beside a
+            block (`TRICK_ORDER_EARLY_PREDICATES`, empty), so no row here can
+            have a moving one. R4, this ledger owns the record.
 
 A HAZARD EVERY MIGRATION AFTER THE FIRST INHERITS, stated once here because
 the next row added will meet it. A `trick_order` block is a game clause and
@@ -99,6 +128,20 @@ pre-migration tree, so every row is GREEN at its own commit by construction;
 capacity to fail is proven per row by the planted mutations recorded below.
 Nothing here was ever re-blessed.
 
+The two trace-claim tests are born green for every row -- each asserts what
+the tree already does -- so their reddening mutations are recorded here
+instead, executed 2026-08-19 on the pre-migration tree:
+* belote's `trick_end` moved from `reshaped_traces` into `retired_traces`:
+  `test_retired_traces_are_actually_gone[belote.cardlang]` -- "belote.cardlang
+  still emits ['trick_end'], which its `Migration` row excludes as RETIRED".
+* skat's `trick_end` moved the other way, into `reshaped_traces`:
+  `test_reshaped_traces_are_still_emitted[skat.cardlang]` -- "skat.cardlang
+  does not emit ['trick_end'] ... excludes as merely RESHAPED".
+* belote's `trick_end` declared in BOTH halves:
+  `test_the_two_exclusion_halves_are_disjoint[belote.cardlang]` --
+  "['trick_end'] claimed retired AND reshaped", alongside the retirement cell,
+  which is the point: a name in both halves makes one claim unfalsifiable.
+
 red under, PER ROW -- because a mutation that reddens one row does not
 thereby redden another, and reading one row's witness as the module's is how
 a row could sit green over a hash nothing can move:
@@ -109,19 +152,35 @@ a row could sit green over a hash nothing can move:
   CANDIDATES compare equal, which needs two identical cards in one trick --
   a doubled pack. Measured over three seeds per game (2026-08-19): of the
   winner calls whose candidate set holds an equal-strength pair, Doppelkopf
-  36 of 144, Skat 0 of 960, Five Hundred 0 of 30. So:
+  36 of 144, Skat 0 of 960, Five Hundred 0 of 30, Belote 0 of 1887. So:
     - doppelkopf: pre-migration, `doko.py`'s trump comparison flipped -- 33
       of the first 40 seeds moved (`33 failed, 8 passed`, the not-slow
       selection); post-migration, the same flip in the kernel --
       `200 failed, 409 deselected`.
-    - skat, five-hundred: the SAME kernel flip leaves both rows
+    - skat, five-hundred, belote: the SAME kernel flip leaves all three rows
       `200 passed` (executed 2026-08-19). That is the pack, not a dead row,
       and the witnesses below prove it.
-* A KERNEL WITNESS EVERY ROW ANSWERS TO. `winners.follows_lead_lazily`'s
-  class comparison inverted (`==` to `!=`), which every follow filter routes
-  through whatever the pack: doppelkopf `200 failed`, skat `200 failed`,
-  five-hundred `200 failed` (2026-08-19). This is the mutation that shows
-  all three rows live over shared machinery.
+* A KERNEL WITNESS, AND IT IS NOT ONE MUTATION FOR EVERY ROW.
+  `winners.follows_lead_lazily`'s class comparison inverted (`==` to `!=`)
+  reaches every row whose game filters through `follows_lead`: doppelkopf
+  `200 failed`, skat `200 failed`, five-hundred `200 failed` (2026-08-19).
+  It leaves BELOTE `200 passed`, and that is the row being different rather
+  than dead: Belote's follow filter is the library rule `MustFollowSuit`
+  over the literal `state.led_suit`, so its only consumer of the block is
+  the winner. That is sound because Belote declares no `follow_class:` remap
+  and holds no class-less card, and the soundness is EXECUTED rather than
+  argued -- adding a remap (`if card.rank is J then trump_suit else
+  card.suit`) reds this row `200 failed` AND the playout oracle at seed 0
+  hand 2 trick 2, where the legality the rule computed and the classes the
+  winner reads have come apart ("P2 was offered [six cards] ... give ['J♣',
+  'K♣'] (must-trump)"). So a future remap cannot land beside the library
+  rule in silence (executed 2026-08-19). The
+  mutation that reaches ALL FOUR is therefore in the winner:
+  `winners.highest_by_trick_order`'s trump-candidate filter inverted
+  (`if a.is_trump` -> `if not a.is_trump`) -- doppelkopf `200 failed`, skat
+  `200 failed`, five-hundred `186 failed, 14 passed` (the 14 are no-trump
+  and misere contracts, where the filter selects nothing either way),
+  belote `200 failed` (2026-08-19).
 * PER-ROW ORDER WITNESSES, each in that game's own declaration, so a row
   cannot be green over a game file nothing in it matters to:
     - doppelkopf.cardlang, the queen band reversed
@@ -132,6 +191,10 @@ a row could sit green over a hash nothing can move:
       (101 <-> 100): `3 failed, 197 passed` -- fewer seeds because a 500 game
       is one to three hands and only some deals put a bower in a decided
       trick, which is the reachability the count reports rather than hides.
+    - belote.cardlang, the top two trumps swapped in `card_strength:`
+      (108 <-> 107, the jack under the nine): `200 failed` -- every seed,
+      because a Belote game runs to 1000 over many hands and the trump band
+      decides a trick in all of them.
 """
 
 from __future__ import annotations
@@ -156,50 +219,67 @@ GOLDEN = Path(__file__).parent / "golden"
 
 BLESS = os.environ.get("CARDLANG_STREAM_BLESS") == "1"
 
-# The two trace events EVERY hand-rolled trick winner emitted, which the
-# kernel's call form emits from nowhere; every migration retires both.
-_BASE_RETIRED_TRACES = frozenset({"play", "trick"})
-
-
 @dataclass(frozen=True)
 class Migration:
     """One migrated game's pin. The hash file is captured on the commit
     BEFORE the migration lands, so its provenance is the git log.
 
-    `retired_traces` is this game's own widening of `_BASE_RETIRED_TRACES` --
-    the trace events its RETIRING Primitive was the game's only emitter of.
-    It is a claim about the post-migration tree, executed by
-    `test_retired_traces_are_actually_gone`, never a way to quiet a diff."""
+    The two exclusion halves are claims about the post-migration tree, each
+    executed by its own test, and never a way to quiet a diff:
+    `retired_traces` says the migrated game no longer emits the event at all;
+    `reshaped_traces` says it still does, with a payload the migration moved.
+    Which half a name goes in is what makes the exclusion falsifiable, so
+    there is no combined field to declare and no shared base to widen."""
 
     game_file: str
     hash_file: str
     retired_traces: frozenset[str] = frozenset()
+    reshaped_traces: frozenset[str] = frozenset()
 
     @property
     def excluded_traces(self) -> frozenset[str]:
-        return _BASE_RETIRED_TRACES | self.retired_traces
+        return self.retired_traces | self.reshaped_traces
 
 
 # One row per migrated game.
+_HAND_ROLLED_TRICK = frozenset({"play", "trick"})
+
+
 MIGRATIONS: tuple[Migration, ...] = (
-    Migration("doppelkopf.cardlang", "doppelkopf_stream_hashes.json"),
+    # `doko_trick_winner` was the only emitter of `play` and `trick`: the
+    # tricks are hand-rolled movements, and the kernel's call form emits
+    # neither.
+    Migration(
+        "doppelkopf.cardlang",
+        "doppelkopf_stream_hashes.json",
+        retired_traces=_HAND_ROLLED_TRICK,
+    ),
     # `skat_trick_winner` emitted `trick_end` carrying the declared contract
-    # ({game_type, trump}) and was Skat's only emitter of it -- the ten tricks
-    # are hand-rolled movements, not a trick `round`, so no round form emits
-    # one here.
+    # ({game_type, trump}) as well, and was Skat's only emitter of it -- the
+    # ten tricks are hand-rolled movements, not a trick `round`, so no round
+    # form emits one here.
     Migration(
         "skat.cardlang",
         "skat_stream_hashes.json",
-        retired_traces=frozenset({"trick_end"}),
+        retired_traces=_HAND_ROLLED_TRICK | {"trick_end"},
     ),
-    # `five_hundred_trick_winner` emitted `trick_end` carrying the declared
-    # contract ({trump, misere, joker_suit}) and was 500's only emitter of it:
-    # the ten tricks are hand-rolled movements and the game's one `round` is
-    # the auction, which emits no trick.
+    # `five_hundred_trick_winner` likewise emitted `trick_end` carrying the
+    # declared contract ({trump, misere, joker_suit}): the ten tricks are
+    # hand-rolled movements and the game's one `round` is the auction, which
+    # emits no trick.
     Migration(
         "five-hundred.cardlang",
         "five_hundred_stream_hashes.json",
-        retired_traces=frozenset({"trick_end"}),
+        retired_traces=_HAND_ROLLED_TRICK | {"trick_end"},
+    ),
+    # Belote retires NOTHING: its tricks are a `round`, so `play`, `trick` and
+    # `trick_end` all come from `runtime/mechanics.py` and outlive
+    # `belote_trick_winner`. What moves is one FIELD of `trick_end` -- the
+    # round's `trump` clause, which a block game may not carry.
+    Migration(
+        "belote.cardlang",
+        "belote_stream_hashes.json",
+        reshaped_traces=frozenset({"trick_end"}),
     ),
 )
 
@@ -286,34 +366,55 @@ def test_stream_hash_is_byte_identical(migration: Migration, seed: int) -> None:
 
 
 @pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
-def test_retired_traces_do_not_restate_the_base(migration: Migration) -> None:
-    """A row widens the exclusion or it does not. Restating a base name would
-    read as a widening while covering nothing new -- the shape a reviewer
-    would take at face value."""
-    assert not (migration.retired_traces & _BASE_RETIRED_TRACES), migration.game_file
+def test_the_two_exclusion_halves_are_disjoint(migration: Migration) -> None:
+    """An event is gone or it is not. A name in both halves would satisfy one
+    of the two claim tests vacuously -- and which half a name sits in is the
+    whole reason the exclusion is falsifiable."""
+    both = sorted(migration.retired_traces & migration.reshaped_traces)
+    assert not both, f"{migration.game_file}: {both} claimed retired AND reshaped"
+
+
+def _emitted(game_file: str) -> set[str]:
+    """The trace names one seeded playout of the MIGRATED game emits."""
+    seen: set[str] = set()
+    game = check_source(GAMES / game_file)
+    rng = random.Random(0)
+    play_game(game, rng, lambda name, data: seen.add(name), random_chooser(rng))
+    return seen
 
 
 @pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
 def test_retired_traces_are_actually_gone(migration: Migration) -> None:
-    """A row's exclusion is a CLAIM -- "the migration retired this event" --
-    and this executes it: one seeded playout of the MIGRATED game, and every
-    excluded name must be absent from the trace channel.
+    """A row's `retired_traces` is a CLAIM -- "the migration retired this
+    event" -- and this executes it: every name must be absent from the trace
+    channel of the migrated game.
 
     Without this, an exclusion is a silencer: naming an event that still
     fires would drop it from the hashed rendering, and the pin would go on
     passing while covering strictly less than its docstring says. That is
     the vacuously-green class, in the one place this module could grow it."""
-    seen: set[str] = set()
-
-    def tracer(name: str, data: Any) -> None:
-        seen.add(name)
-
-    game = check_source(GAMES / migration.game_file)
-    rng = random.Random(0)
-    play_game(game, rng, tracer, random_chooser(rng))
-    still_emitted = sorted(migration.excluded_traces & seen)
+    still_emitted = sorted(migration.retired_traces & _emitted(migration.game_file))
     assert not still_emitted, (
         f"{migration.game_file} still emits {still_emitted}, which its "
-        f"`Migration` row excludes from the hashed rendering: the exclusion "
-        f"is silencing a live event rather than recording a retired one"
+        f"`Migration` row excludes as RETIRED: the exclusion is silencing a "
+        f"live event rather than recording a retired one -- if the event "
+        f"survives with a moved payload, it belongs in `reshaped_traces`"
+    )
+
+
+@pytest.mark.parametrize("migration", MIGRATIONS, ids=_IDS)
+def test_reshaped_traces_are_still_emitted(migration: Migration) -> None:
+    """The OPPOSITE claim, executed: a `reshaped_traces` name says the
+    migrated game still emits the event and only its payload moved, so the
+    event must actually be there.
+
+    A row that labelled a RETIREMENT a reshaping would read as the weaker,
+    better-covered case while covering the same nothing -- and would carry no
+    record that the emitter had gone. Absent here means the row is wrong about
+    its own migration, whichever way."""
+    absent = sorted(migration.reshaped_traces - _emitted(migration.game_file))
+    assert not absent, (
+        f"{migration.game_file} does not emit {absent}, which its `Migration` "
+        f"row excludes as merely RESHAPED: the event retired, so the row "
+        f"belongs in `retired_traces`"
     )

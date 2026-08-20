@@ -284,7 +284,7 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # Belote postdates the migration (born on the convention): its row
     # freezes the expansion it was written against — the plain-suit play
     # order; the within-trump J-9 reorder is suit-contextual, outside
-    # `ranking:`'s scope, and lives in the belote_* primitives.
+    # `ranking:`'s scope, and is the game's `trick_order { }` block.
     "belote": ("ace-ten", "skat32", ("A", "10", "K", "Q", "J", "9", "8", "7")),
     "doppelkopf": ("ace-ten", "doppelkopf48", ("A", "10", "K", "Q", "J", "9")),
     "pinochle": ("ace-ten", "pinochle48", ("A", "10", "K", "Q", "J", "9")),

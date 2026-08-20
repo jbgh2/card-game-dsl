@@ -912,7 +912,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # types.py (2)
 #   `unify`'s top absorption, and the sticky-key merge — both ARE the top
 #   semantics, not lookups.
-# builtins/signatures.py (15)
+# builtins/signatures.py (14)
 #   the audited dynamic-signature set: `suit_of`'s polymorphic argument, the
 #   ZONE argument of all three Arrival-Record calls — `highest_trump_or_led_suit`
 #   (issue #256), and `highest_by_trick_order` / `follows_lead` (issue #250) —
@@ -928,7 +928,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 AUDITED_TOP_SITES: dict[str, int] = {
     "typecheck.py": 16,
     "types.py": 2,
-    "builtins/signatures.py": 15,
+    "builtins/signatures.py": 14,
 }
 
 

@@ -57,7 +57,6 @@ BUILTIN_TRICK_WINNERS: frozenset[str] = frozenset(
 PRIMITIVE_TRICK_WINNERS: frozenset[str] = frozenset(
     {
         "tarot_trick_winner",  # French Tarot: highest atout else led suit; Excuse never wins
-        "belote_trick_winner",  # Belote: highest trump under the J-9 trump order, else led suit
     }
 )
 # The winner slot's namespace: what a `round … winner <name>` may name.
@@ -80,9 +79,7 @@ TRICK_WINNER_NAMES: frozenset[str] = BUILTIN_TRICK_WINNERS | PRIMITIVE_TRICK_WIN
 # it is refused by the presence partition (`_check_trick_order_partition`, R2),
 # whose message names the block -- so the two guards divide the case rather
 # than co-reporting on it.
-TRUMP_READING_WINNERS: frozenset[str] = frozenset(
-    {"highest_trump_or_led_suit", "belote_trick_winner"}
-)
+TRUMP_READING_WINNERS: frozenset[str] = frozenset({"highest_trump_or_led_suit"})
 
 PRIMITIVE_AUCTION_OUTCOMES: frozenset[str] = frozenset(
     {
@@ -222,8 +219,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_next_bid",  # 500: cheapest bid ordinal in a strain beating the standing bid
         "five_hundred_bid_value",  # 500: a contract ordinal's score value (misère 250, open 500)
         "five_hundred_bid_level",  # 500: a suit/NT contract ordinal's trick target (6..10)
-        "belote_trump_height",  # Belote: a rank's strength within trump (J > 9 > A > 10 > K > Q > 8 > 7)
-        "belote_opp_winning",  # Belote: is the live trick's current winner an opponent of the actor?
         "belote_royal_player",  # Belote: who played a trump K/Q in the trick just completed
         "belote_best_is",  # Belote: is the stated (class, rank, trump) the actor's best combination?
         "belote_decl_points",  # Belote: the best combination's points under trump
@@ -399,9 +394,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_decl_size",
         "belote_decl_slot",
         "belote_decl_trump",
-        "belote_opp_winning",
         "belote_royal_player",
-        "belote_trump_height",
         "bring_in_seat",
         "canasta_can_start",
         "canasta_can_take_pile",

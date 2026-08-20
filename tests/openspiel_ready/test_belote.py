@@ -39,6 +39,42 @@ Per-game caveats (recorded, not hidden):
   That is WHY Belote's announcements carry their whole content in the move
   name and Rank parameter: the announce event in each observer's log is
   the derivation channel, and the declaration-line test pins it.
+
+What Belote's information state PUBLISHES, and why that is entitled
+-------------------------------------------------------------------
+Scope decides publication: game-scoped state renders into the information
+state where phase-scoped state does not. Belote's Trick Order rows read the
+made trump, and a `trick_order` block is a game clause, so `trump_suit` is
+game-level -- and therefore public -- where it used to be phase-level and
+invisible. The soundness matrix's `state_vars` count is 8 against 4 before
+(two game variables for each of four observers), and the new one is perturbed
+and proven visible there.
+
+The information-set PARTITION did not move. Half of that claim is EXECUTED
+here and half is a recorded RESIDUAL, and the two are not mixed together:
+
+* executed -- `test_the_published_trump_derives_from_each_observers_log`
+  below. Every rendered value re-derives from the reading observer's OWN log,
+  because the trump is what the trump-making ANNOUNCED: round one's `take`
+  means the turn-up's suit, which is public identity (`turnup : Discard`,
+  identity to every observer) and is exactly what lets a parameterless move
+  name a suit; round two's `take_suit(s)` names its own. Both arms are
+  asserted reached -- the greedy line takes the turn-up, and a driven line
+  passes it round to reach `take_suit`.
+* residual -- the base-to-head comparison. Measured while the migration
+  landed (issue #250 PR 4): over 800 states (40 greedy-line nodes x 4
+  observers x 5 manifest seeds) every observer's zone views and observation
+  log were byte-identical to the PRE-migration tree, `trump_suit` the only
+  key differing in the rendering, at every one of the 800. It cannot become a
+  test in this tree -- it needs the pre-migration game file to compare
+  against -- so it is a one-shot measurement whose provenance is the commit
+  that made it, the same standing as `tests/test_trick_order_migration.py`'s
+  own captures. R4, THIS LEDGER ROW owns the record.
+
+So the one variable carries no fact an observer could not already compute,
+and no observer's states merge or split. The pre/post byte-identity of PLAY
+itself is `tests/test_trick_order_migration.py`, whose ledger delegates this
+surface here.
 """
 
 from __future__ import annotations
@@ -257,3 +293,195 @@ def test_declined_window_reveals_nothing() -> None:
         assert not any(e[0] == "reveal" for e in log), (
             f"player {q} saw a reveal on a fully-declined line"
         )
+
+
+# --- the published trump, re-derived from each observer's own log ----------
+
+_TAKE_SUIT = "take_suit("
+_SUIT_GLYPH = {"♣": "clubs", "♦": "diamonds", "♥": "hearts", "♠": "spades"}
+
+
+def _trump_from_log(log: list[tuple[Any, ...]]) -> tuple[str | None, str, int]:
+    """The made trump as a seat at the table would write it down from what it
+    HEARD, which arm named it, and which hand is running. A hand begins at its
+    turn-up (`deck -> turnup`, one per hand and the only movement into that
+    zone); `take` means that card's suit, and `take_suit(s)` names its own.
+    Reads no engine state and no other seat's view -- that is the whole point.
+
+    The hand INDEX is what makes the pre-take arm worth counting: a first
+    hand's auction renders `none` with nothing behind it to be stale, so only
+    a LATER hand's auction is the shape the phase's `trump_suit := none`
+    protects."""
+    trump: str | None = None
+    arm = "none"
+    turnup: str | None = None
+    hand = -1
+    for e in log:
+        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup":
+            turnup = _SUIT_GLYPH[str(e[4][0])[-1]]
+            trump, arm = None, "none"
+            hand += 1
+        elif e[0] == "announce":
+            said = str(e[2])
+            if said == "take":
+                trump, arm = turnup, "take"
+            elif said.startswith(_TAKE_SUIT):
+                trump, arm = said[len(_TAKE_SUIT) : -1], "take_suit"
+    return trump, arm, hand
+
+
+def _check_line(
+    seed: int, history: tuple[int, ...], limit: int, prefer: str | None = None
+) -> Any:
+    """Walk from `history`, comparing the published trump against each
+    observer's own derivation at every node. Returns (facts checked, per-arm
+    counts, failures).
+
+    The line is greedy (`legal[0]`) unless `prefer` names an action string
+    still on offer -- passing `"pass"` keeps an auction OPEN instead of
+    ending it on the first take, which is how the pre-take arm is reached
+    more than one node deep."""
+    checked = 0
+    arms: dict[str, int] = {}
+    failures: list[str] = []
+    hist = list(history)
+    r = run(PATH, seed, tuple(hist))
+    while isinstance(r, DecisionNode) and len(hist) - len(history) < limit:
+        for q in sorted(r.obs_logs):
+            rendered = dict(
+                kv.split("=", 1)
+                for kv in information_state(q, r.rs, r.obs_logs[q])
+                .split("|", 3)[2]
+                .split(";")
+                if "=" in kv
+            )
+            trump, arm, hand = _trump_from_log(r.obs_logs[q])
+            want = "None" if trump is None else trump
+            checked += 1
+            arms[arm] = arms.get(arm, 0) + 1
+            if arm == "none" and hand > 0:
+                arms["none_after_a_hand"] = arms.get("none_after_a_hand", 0) + 1
+            if rendered.get("trump_suit") != want:
+                failures.append(
+                    f"seed {seed} step {len(hist)} P{q}: the state renders "
+                    f"trump_suit={rendered.get('trump_suit')}, but P{q}'s own "
+                    f"log derives {want} (via {arm})"
+                )
+        chosen = r.legal[0]
+        if prefer is not None:
+            _game, space = load(PATH)
+            chosen = next(
+                (a for a in r.legal if space.to_string(a) == prefer), chosen
+            )
+        hist.append(chosen)
+        nxt = run(PATH, seed, tuple(hist))
+        if not isinstance(nxt, DecisionNode):
+            break
+        r = nxt
+    return checked, arms, failures
+
+
+def _turnups(log: list[tuple[Any, ...]]) -> int:
+    return sum(
+        1
+        for e in log
+        if e[0] == "move" and str(e[1]) == "deck" and str(e[3]) == "turnup"
+    )
+
+
+def _drive_to_the_second_auction(seed: int, cap: int = 80) -> tuple[int, ...]:
+    """The greedy line up to the SECOND hand's turn-up, then `pass` while it
+    is legal — so the second auction runs several decisions deep instead of
+    ending on its first `take`.
+
+    That depth is the point. A first hand's auction renders `trump_suit=None`
+    with nothing behind it to be stale, so the arm that witnesses `phase
+    play`'s `trump_suit := none` is a LATER hand's auction — and on the greedy
+    line that arm is one node wide, close enough to any depth cap that a deal
+    shift would drop it silently."""
+    _game, space = load(PATH)
+    passing = space.encode(("pass", None))
+    hist: list[int] = []
+    r = run(PATH, seed, ())
+    for _ in range(cap):
+        assert isinstance(r, DecisionNode), "the game ended before the second deal"
+        if _turnups(r.obs_logs[0]) >= 2:
+            for _ in range(2):  # open the second auction, then let the walk pass
+                if passing not in r.legal:
+                    break
+                hist.append(passing)
+                nxt = run(PATH, seed, tuple(hist))
+                if not isinstance(nxt, DecisionNode):
+                    break
+                r = nxt
+            return tuple(hist)
+        hist.append(r.legal[0])
+        r = run(PATH, seed, tuple(hist))
+    raise AssertionError(
+        f"seed {seed}: no second hand within {cap} steps — re-pin the seed"
+    )
+
+
+def test_the_published_trump_derives_from_each_observers_log() -> None:
+    """`trump_suit` is game-scoped and therefore RENDERS into every
+    information state (module docstring). This is the entitlement half: the
+    rendered value is a function of what that observer already heard, so
+    publishing it merges and splits nothing.
+
+    Both naming arms are asserted reached, and that guard is load-bearing in
+    one direction: the greedy line takes the turn-up in round one on every
+    manifest seed, so `take_suit` would be zero without the driven line below
+    -- and a `take_suit` whose suit the log could not name would be exactly
+    the leak this test exists to refuse. The `none` arm is the auction before
+    anyone takes, which is where a stale trump from the previous hand would
+    show."""
+    checked = 0
+    arms: dict[str, int] = {}
+    failures: list[str] = []
+    for seed in (3, 5, 14, 15, 18):
+        c, a, f = _check_line(seed, (), 40)
+        checked += c
+        for k, v in a.items():
+            arms[k] = arms.get(k, 0) + v
+        failures += f
+
+    # The driven second-round line: everyone passes the turn-up, then the
+    # first speaker of round two names a suit.
+    _game, space = load(PATH)
+    hist = [space.encode(("pass", None))] * 4
+    r = run(PATH, 3, tuple(hist))
+    assert isinstance(r, DecisionNode)
+    named = next(
+        a for a in r.legal if space.to_string(a).startswith("take_suit(")
+    )
+    hist.append(named)
+    c, a, f = _check_line(3, tuple(hist), 20)
+    checked += c
+    for k, v in a.items():
+        arms[k] = arms.get(k, 0) + v
+    failures += f
+
+    # The driven SECOND-hand auction: the arm a stale trump would show in,
+    # several decisions deep rather than the one node the greedy line reaches.
+    for seed in (3, 5):
+        c, a, f = _check_line(
+            seed, _drive_to_the_second_auction(seed), 8, prefer="pass"
+        )
+        checked += c
+        for k, v in a.items():
+            arms[k] = arms.get(k, 0) + v
+        failures += f
+
+    assert not failures, "\n".join(failures[:6])
+    assert checked > 0 and arms.get("take", 0) > 0, arms
+    assert arms.get("take_suit", 0) > 0, (
+        f"no state ever rendered a round-two named trump ({arms}) — the "
+        f"driven line above stopped reaching `take_suit`, so that arm is "
+        f"unproven"
+    )
+    assert arms.get("none_after_a_hand", 0) > 0, (
+        f"no state was rendered during a LATER hand's auction ({arms}) — a "
+        f"first hand's `none` has nothing behind it to be stale, so this "
+        f"proof would no longer reach the shape `phase play`'s "
+        f"`trump_suit := none` protects; deepen the walk"
+    )

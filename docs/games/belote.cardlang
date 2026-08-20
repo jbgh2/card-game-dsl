@@ -14,7 +14,7 @@
 // the trick form of `round`, legality narrowed by the five-rule cascade
 // below — the corpus's richest constrained-follow instance: the trump and
 // over-trump obligations are GATED team-relatively (they bind only
-// while an OPPONENT is winning the trick, via `belote_opp_winning()`), the
+// while an OPPONENT is winning the trick, via `opp_winning(actor)`), the
 // over-trump target is the best trump in the trick from either side, and
 // trump leads must be beaten regardless of who is winning. The mid-play
 // knowledge events COMPOSE existing ops (belote.md, "Declarations"):
@@ -23,10 +23,18 @@
 // what observers' information sets derive from), the Belote-Rebelote
 // window is an `offer` whose acceptance publicly `reveal`s the partner
 // card still in hand, and the entitled side's showing is a loop of
-// one-card `reveal`s over the best combination's cards. Plain-suit
-// ranking is `ace-ten`; the within-trump reorder
-// (J > 9 > A > 10 > K > Q > 8 > 7) is outside `ranking:`'s scope
-// (decisions.md) and lives in the belote_* primitives.
+// one-card `reveal`s over the best combination's cards.
+//
+// The order a trick is decided by is declared as the game's Trick Order, so
+// the winner, the head/over-trump comparisons and the team-relative gates
+// all read ONE declaration instead of a Primitive they had to agree with.
+// The block OWNS the within-trump reorder and DELEGATES the plain-suit
+// order to `ranking: ace-ten` (the strength row's else-branch is
+// `rank_value(card)`). The declaration classes carry their own two orders —
+// the natural A K Q J 10 9 8 7 a sequence runs in, and the carré strength
+// J > 9 > A > 10 > K > Q — which are facts about COMBINATIONS, are never
+// consulted by a trick, and stay in the belote_decl_* primitives
+// (issue #254).
 
 game Belote {
 
@@ -37,6 +45,29 @@ game Belote {
 
   cards: skat32
   ranking: ace-ten                 // plain-suit order A 10 K Q J 9 8 7
+
+  // The trump-making decides the order, so the rows read what it wrote onto
+  // the public state (`trump_suit`).
+  //
+  // Belote's order is the simplest shape the block has: the trump suit is the
+  // trumps, every other card follows as its printed suit (the omitted
+  // `follow_class:` row's default — no card changes class, and none is
+  // class-less), and only the STRENGTH is contract-dependent. Within the
+  // trump suit the reorder J > 9 > A > 10 > K > Q > 8 > 7 replaces the
+  // declared `ace-ten`; outside it `rank_value` reads `ranking:` unchanged.
+  // The trump band sits above every plain strength, which no comparison here
+  // needs (the winner ranks trumps against trumps, and the head/over-trump
+  // demands filter to trumps first) but is what the numbers MEAN: a trump
+  // beats a plain card.
+  trick_order {
+    trump:         card.suit is trump_suit
+    card_strength: if is_trump(card)
+                   then (if card.rank is J then 108 elif card.rank is "9" then 107
+                         elif card.rank is A then 106 elif card.rank is "10" then 105
+                         elif card.rank is K then 104 elif card.rank is Q then 103
+                         elif card.rank is "8" then 102 else 101)
+                   else rank_value(card)
+  }
 
   zones {
     deck           : Deck
@@ -49,6 +80,11 @@ game Belote {
   state {
     // Game-level: persists across hands.
     score[team] : Integer = 0
+    // The made trump. Game-level because the Trick Order rows read it and a
+    // `trick_order` block is a game clause — not because it outlives a hand:
+    // `phase play` clears it on entry, where the phase's own state block
+    // would otherwise have re-declared it.
+    trump_suit  : Suit? = none
   }
 
   phase hand_sequence repeat until (any team where score[team] >= 1000) {
@@ -68,7 +104,6 @@ game Belote {
       state {
         // Trump-making.
         taker         : Player? = none
-        trump_suit    : Suit?   = none
         acted[player] : Boolean = false
         // Tricks.
         leader           : Player? = none
@@ -96,6 +131,28 @@ game Belote {
         meld_score[team] : Integer = 0   // the entitled side's declarations
         total[team]      : Integer = 0
       }
+
+      // The made trump is game-level (the Trick Order rows read it); clearing
+      // it here is what the phase's own state block did. Being game-level,
+      // nothing resets it between hands but this line — and what it protects
+      // is the INFORMATION STATE, not the play.
+      //
+      // No playout reaches it: every seat that takes assigns `trump_suit` in
+      // the same move, so a hand that reaches a trick has always overwritten
+      // it, and a hand where all eight announcements are passes throws in
+      // below without playing a card. Measured over seeds 0-599 (2026-08-19):
+      // deleting this line leaves every score and hand count identical.
+      // Game-scoped state is PUBLISHED, though, so without it every auction
+      // from the second hand on renders the PREVIOUS hand's trump as its own
+      // while its trump-making runs — a fact no observer's log derives about
+      // the hand being played. The witness is
+      // tests/openspiel_ready/test_belote.py,
+      // `test_the_published_trump_derives_from_each_observers_log`, which
+      // DRIVES a second hand's auction rather than relying on the greedy line
+      // to reach one: deleted, it reddens 32 times on that driven line alone
+      // (seed 3 from step 40, all four observers) with "the state renders
+      // trump_suit=clubs, but P0's own log derives None".
+      trump_suit := none
 
       // The cascade constrains only `play_to_trick`, so the game-defined
       // trump-making, declaration, and Belote-Rebelote vocabularies below
@@ -146,7 +203,7 @@ game Belote {
       repeat until (all players where hand[player] is empty) {
         trick_no += 1
         round play_to_trick from leader over all players source hand into trick_pile
-              winner belote_trick_winner trump trump_suit
+              winner highest_by_trick_order
 
         // Belote-Rebelote window: fires once, at the close of the trick
         // where the first trump K/Q was played — a PUBLIC gate (the play was
@@ -412,6 +469,29 @@ move_type no_belote {
 
 // === Functions ===
 
+// Is the seat currently winning the live, partial trick an OPPONENT of `p`?
+// False while nothing has been played -- the team-relative gate on the trump
+// and over-trump obligations ("if an opponent is currently winning the trick,
+// he must trump if he can ... if his partner is currently winning he is
+// free").
+//
+// `highest_by_trick_order` over a partial pile is the winner SO FAR (issue
+// #350, designed surface), which is exactly the question the gate asks, so
+// legality and the trick's outcome read one declaration rather than a winner
+// Primitive and a live-trick recomputation that had to agree with it.
+//
+// The emptiness test is DEFENSIVE and no call reaches it: naming a winner
+// over an empty pile is an error rather than the value `none`, but all three
+// rules below test `state.led_suit is not none` first and `and`
+// short-circuits, and during a trick the led suit is set exactly when the
+// pile is non-empty. Executed 2026-08-19: deleting the test leaves the game
+// byte-identical. It stays because this function is the game's, callable
+// from a rule that does not test the lead, and because it is what makes the
+// function total on its own terms rather than on its callers'.
+function opp_winning(p : Player) =
+  trick_pile is not empty and
+  team_of(highest_by_trick_order(trick_pile)) is not team_of(p)
+
 // A trump royal: the King or Queen of the trump suit.
 function is_royal(c : Card) =
   c.suit is trump_suit and (c.rank is K or c.rank is Q)
@@ -453,44 +533,58 @@ function belote20(t : Team) =
 // rule's `if_impossible: hand` intersects the running set with the whole
 // hand — "keep the prior narrowing" — so an inapplicable obligation falls
 // through (rules.legal_cards).
+//
+// The four rules below read the Trick Order directly: `is_trump(card)` is the
+// block's `trump:` row and `card_strength(card)` its `card_strength:` row, so
+// what may be played and what wins are one declaration.
 
-// MustFollowSuit is the standard-library rule (library.md "Rules").
+// MustFollowSuit is the standard-library rule (library.md "Rules"), and it is
+// deliberately NOT rewritten onto `follows_lead`. Its demand is
+// `card.suit is state.led_suit` — the LITERAL first card's suit — where
+// `follows_lead` compares the effective lead's follow CLASS. The two coincide
+// here, and only here: Belote declares no `follow_class:` remap and holds no
+// class-less card, so every card's class is its printed suit and the
+// effective lead is always the first play. (A trump lead is the same
+// comparison from the other side: a card of the led suit IS a trump exactly
+// when the led suit is the trump suit.) Games whose classes differ from their
+// printed suits — Skat's jacks, 500's left bower — cannot use the library
+// rule and write their own `follows_lead` filter instead.
 
 rule MustHeadTrumpLead {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and state.led_suit is trump_suit
-  demands: cards in hand where card.suit is trump_suit and
-             belote_trump_height(card) > (highest belote_trump_height(card)
-               over cards in trick_pile where card.suit is trump_suit or 0)
+  demands: cards in hand where is_trump(card) and
+             card_strength(card) > (highest card_strength(card)
+               over cards in trick_pile where is_trump(card) or 0)
   if_impossible: hand   // cannot over-trump: any trump (or a void hand) stands
 }
 
 rule MustTrumpIfVoidVsOpponents {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and state.led_suit is not trump_suit
-                and belote_opp_winning()
-  demands: cards in hand where card.suit is trump_suit
+                and opp_winning(actor)
+  demands: cards in hand where is_trump(card)
   if_impossible: hand   // holds the led suit, or has no trump
 }
 
 rule MustOverTrumpVsOpponents {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and state.led_suit is not trump_suit
-                and belote_opp_winning()
-                and (any card in trick_pile where card.suit is trump_suit)
-  demands: cards in hand where card.suit is trump_suit and
-             belote_trump_height(card) > (highest belote_trump_height(card)
-               over cards in trick_pile where card.suit is trump_suit or 0)
+                and opp_winning(actor)
+                and (any card in trick_pile where is_trump(card))
+  demands: cards in hand where is_trump(card) and
+             card_strength(card) > (highest card_strength(card)
+               over cards in trick_pile where is_trump(card) or 0)
   if_impossible: hand   // cannot over-trump: the trump narrowing stands (under-trump)
 }
 
 rule NoUnderTrumpVsPartner {
   constrains: play_to_trick
   applies_when: state.led_suit is not none and state.led_suit is not trump_suit
-                and (not belote_opp_winning())
-                and (any card in trick_pile where card.suit is trump_suit)
-  demands: cards in hand where card.suit is not trump_suit or
-             belote_trump_height(card) > (highest belote_trump_height(card)
-               over cards in trick_pile where card.suit is trump_suit or 0)
+                and (not opp_winning(actor))
+                and (any card in trick_pile where is_trump(card))
+  demands: cards in hand where not is_trump(card) or
+             card_strength(card) > (highest card_strength(card)
+               over cards in trick_pile where is_trump(card) or 0)
   if_impossible: hand   // only under-trumps left: one must be played
 }

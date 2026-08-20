@@ -204,14 +204,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.five_hundred import five_hundred_bid_level
 
             return five_hundred_bid_level(args[0])
-        case "belote_trump_height":
-            from cardlang.runtime.belote import belote_trump_height
-
-            return belote_trump_height(args[0])
-        case "belote_opp_winning":
-            from cardlang.runtime.belote import ROW, belote_opp_winning
-
-            return belote_opp_winning(*_bind(ctx, ROW))
         case "belote_royal_player":
             from cardlang.runtime.belote import ROW, belote_royal_player
 
@@ -319,10 +311,6 @@ def value_function(name: str) -> Callable[..., Any]:
             from cardlang.runtime.tarot import tarot_trick_winner
 
             return tarot_trick_winner
-        case "belote_trick_winner":
-            from cardlang.runtime.belote import belote_trick_winner
-
-            return belote_trick_winner
         case _:
             raise AssertionError(f"unknown Primitive value callback '{name}'")
 

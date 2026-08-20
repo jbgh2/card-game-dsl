@@ -120,19 +120,14 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             `test_game_trump_value` over every deck's `deck_suits` are its
             executed pin.
             (2) A Primitive winner named in a game whose deck its OWN
-            order table cannot rank (`belote_trick_winner`'s
-            `_TRUMP_HEIGHT[...]` on a non-skat32 trump,
-            `tarot_trick_winner`'s `int(rank)` on a non-numeral led card)
-            dies on a bare KeyError/ValueError -- a game-LOCAL order table,
-            not the declared ranking, so outside this class. Guard: the
-            crash is loud (never silent-wrong); record: issue #364.
-            The same issue holds a sibling this grid reaches through
-            `_drive_belote_opp_winning`: `belote.py`'s `_round_state` guards
-            only `round_state is None`, so under a climb or auction round it
-            finds a round state with no `"trump"` key and yields a bare
-            KeyError rather than its typed voice. Pre-existing, same class
-            (a game-local Primitive called outside its home dies bare), same
-            record: issue #364.
+            order table cannot rank (`tarot_trick_winner`'s `int(rank)` on a
+            non-numeral led card) dies on a bare ValueError -- a game-LOCAL
+            order table, not the declared ranking, so outside this class.
+            Guard: the crash is loud (never silent-wrong); record: issue
+            #364, which also holds the sibling this grid no longer reaches:
+            Belote's `_TRUMP_HEIGHT` lookup and its `_round_state`'s missing
+            `"trump"` key were the second and third instances, and both
+            retired with the winner (issue #250 PR 4).
             (3) A static guard for the rank-to-order class was weighed and
             not built: refusing a partial `ranking:` breaks a pinned
             feature (test_ranking_guard.py, Canasta), and refusing
@@ -152,16 +147,17 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             exactly this reason.
             (5) The consumption guard's reader model is the TRICK FORM's
             inheritance, but `rs.trump` is not read only there: the form
-            publishes `state["trump"]` (runtime/mechanics.py), which the
-            game-local Primitives `belote_opp_winning` and
-            `belote_royal_player` (runtime/belote.py) read back, and
-            `TRUMP_READING_WINNERS` cannot see them. Both sit BEHIND a trick
-            round, so every corpus shape stays correct; the residual is a
-            game whose ONLY reader is such a Primitive under a blind winner
-            -- a FALSE REFUSAL, over-reach in the safe direction, never a
-            miss. Not corpus-shaped: reaching it needs a never-read
-            `trump_suit` state variable to satisfy Belote's sidecar row.
-            Retires when issue #250 PR 4 migrates Belote; record: issue #250.
+            publishes `state["trump"]` (runtime/mechanics.py), a channel a
+            game-local Primitive behind a trick round can read back and
+            `TRUMP_READING_WINNERS` cannot see. NO corpus game does today --
+            Belote's `belote_opp_winning` and `belote_royal_player` were the
+            instance, and the Trick Order migration closed both differently
+            (issue #250 PR 4): the first RETIRED, the second STAYED and
+            repointed onto the game's own `trump_suit` state variable, which
+            is a game clause the guard's model does cover. The residual is
+            what a future one would meet: a game whose ONLY reader is such a Primitive under a
+            blind winner is refused -- a FALSE REFUSAL, over-reach in the
+            safe direction, never a miss. Not work; this ledger owns it.
             (6) The reachability filter is the CONSUMPTION guard's alone.
             Its three siblings need none and are not shadowing one: the
             membership guard reads `game.trump`, a game clause in no
@@ -177,21 +173,13 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             and distinct from `observe` (the per-observer projection the
             adapter reads), so nothing a player can see changed. Not work;
             this ledger owns the record.
-            (8) `belote_trick_winner`'s `reader` keeps a default where its
-            cribbage siblings (`run_score`, `show_score`) were made
-            required: the kernel calls every registered trick winner through
-            one uniform four-argument signature, so the kernel path cannot
-            pass a fifth. What a required parameter buys (drift reddens) is
-            bought instead by pinning the default against the function's own
-            `__name__` (tests/test_belote_primitives.py). Not work; the
-            pin owns the record.
-            (9) The library leak-sweep's `deck_suit` namespace is vacuous
+            (8) The library leak-sweep's `deck_suit` namespace is vacuous
             for the `(n.Game, "trump")` slot: `trump:` is a game clause
             with no library production. Recorded as a decision in
             resolve.py's `_LIBRARY_UNSWEPT` header comment (a swept
             namespace cannot carry an "unswept" row); the value's Owner
             Guard is `_resolve_trump`, over the game.
-            (10) The MIXED consumption shape -- a reachable phase round with
+            (9) The MIXED consumption shape -- a reachable phase round with
             a trump-blind winner AND a reading round stranded in an
             unreachable container -- has no cell of its own: the
             `test_dead_clause_counts_reachable_rounds` fixture puts a round
@@ -328,9 +316,9 @@ WINNERS: tuple[str, ...] = tuple(
 
 # --- the executed body partition ---------------------------------------------
 #
-# One pile, ranks every winner body can evaluate (skat32 ranks for
-# belote_trick_winner, numerals for tarot_trick_winner, ranked here for the
-# two Builtins): the leader plays 9 of clubs, the second player 8 of hearts.
+# One pile, ranks every winner body can evaluate (numerals for
+# tarot_trick_winner, ranked here for the two Builtins): the leader plays
+# 9 of clubs, the second player 8 of hearts.
 # Under no trump the 9 of clubs wins; under trump hearts a winner that reads
 # its trump argument names the second player. The difference IS the
 # classification -- computed from the runtime body, not read off a registry.
@@ -390,13 +378,24 @@ def test_trump_reading_registry_matches_the_bodies() -> None:
     must be equal, and a divergence is answered by a second witness pile
     that reaches the read (or, for a winner that provably reads its trump
     only to ignore it, a per-member disposition recorded here) -- never by
-    weakening this assertion. Red under (executed): make `reads_trump`
-    return False for belote's winner AND drop belote from the registry --
-    the shape a future author produces when the one pile misses a read --
-    so `registry == executed` still holds and belote sits in `static`
-    alone: this fires with `static-only=['belote_trick_winner']`, where the
-    subset form stayed green. (A single-site plant on `_PILE` cannot witness
-    it: it trips the no-trump control or the registry pin first.)"""
+    weakening this assertion. Red under (executed 2026-08-18, on the tree
+    that still had `belote_trick_winner`): make `reads_trump` return False
+    for belote's winner AND drop belote from the registry -- the shape a
+    future author produces when the one pile misses a read -- so
+    `registry == executed` still holds and belote sits in `static` alone:
+    this fired with `static-only=['belote_trick_winner']`, where the subset
+    form stayed green. That winner retired with issue #250 PR 4, so the plant
+    is RE-ANCHORED onto a live member and re-run rather than recorded as
+    history: `_planted_unused = trump` added to `tarot_trick_winner`'s body
+    puts a trump-blind winner in `static` alone, and this assertion reddens in
+    its own channel -- "the static and executed trump-reader oracles disagree
+    ... static-only=['tarot_trick_winner'] executed-only=[]" (executed
+    2026-08-19). Note the re-anchor goes on the winner and NOT on the
+    registry: `TRUMP_READING_WINNERS` now has a single member, so emptying it
+    to plant the old shape trips a `min()` on an empty set in the diagnostic
+    below and reddens through the wrong channel. (A single-site plant on
+    `_PILE` cannot witness it either: it trips the no-trump control or the
+    registry pin first.)"""
     assert F.TRUMP_READING_WINNERS <= F.TRICK_WINNER_NAMES
     executed = {w for w in WINNERS if reads_trump(w)}
     assert F.TRUMP_READING_WINNERS == executed
@@ -910,28 +909,6 @@ def _drive_call_form() -> None:
     )
 
 
-def _drive_belote_opp_winning() -> None:
-    from cardlang.runtime import belote, reads
-    from cardlang.runtime.narrowing import EngineFacts
-
-    facts = EngineFacts(
-        seating=Seating(4),
-        team_of=MappingProxyType({0: 0, 1: 1, 2: 0, 3: 1}),
-        rank_index=_PARTIAL,
-        round_state=MappingProxyType(
-            {"played": ((0, Card("2", "clubs")),), "trump": None}
-        ),
-        last_round_state=None,
-        actor=1,
-    )
-    gr = reads.GameReads(
-        state=MappingProxyType({}),
-        families=MappingProxyType({}),
-        singles=MappingProxyType({}),
-    )
-    belote.belote_opp_winning(facts, gr)
-
-
 def _drive_peg_run_points() -> None:
     from cardlang.runtime import cribbage
 
@@ -992,8 +969,6 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "rank_value": _drive_rank_value,
     "highest_of_led_suit": _drive_slot("highest_of_led_suit"),
     "highest_trump_or_led_suit": _drive_call_form,
-    "belote_trick_winner": _drive_slot("belote_trick_winner"),
-    "belote_opp_winning": _drive_belote_opp_winning,
     "peg_run_points": _drive_peg_run_points,
     "cribbage_show_value": _drive_cribbage_show(False),
     "cribbage_crib_value": _drive_cribbage_show(True),

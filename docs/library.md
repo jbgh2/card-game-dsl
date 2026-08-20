@@ -48,10 +48,12 @@ Key design notes:
   declaration (Spades); supplied, it overrides per hand (Oh Hell turns one up each
   deal; Bridge's contract sets it, none for no-trump). The expression is `Suit?`
   (a suit, or `none` for no trump), and only a winner whose body reads a trump
-  may carry the clause — `highest_trump_or_led_suit`, `belote_trick_winner`
+  may carry the clause — `highest_trump_or_led_suit`
   (`TRUMP_READING_WINNERS`, cardlang/builtins/functions.py); on
   `highest_of_led_suit` or `tarot_trick_winner` it would be silently ignored,
-  so the checker refuses it. The same rule holds the game-level `trump:` to a
+  so the checker refuses it. Beside a `trick_order { }` block the clause is
+  refused outright, whatever the winner: the block's `trump:` row is the
+  trump. The same rule holds the game-level `trump:` to a
   suit of the declared deck, and to being READ: a `trump:` that no trick round
   inherits (no round; every winner trump-blind; every reading round supplying
   its own clause) is refused as dead rather than accepted and dropped.
@@ -239,8 +241,9 @@ its bodies match neither: its cascade (`MustHeadTrumpLead` /
 `MustTrumpIfVoidVsOpponents` / `MustOverTrumpVsOpponents` /
 `NoUnderTrumpVsPartner`, [games/belote.cardlang](games/belote.cardlang)) is
 the corpus's richest — the trump and over-trump obligations are GATED
-team-relatively (`applies_when` reads `belote_opp_winning()`, the
-live trick's current winner against the actor's team), the
+team-relatively (`applies_when` reads the game's own `opp_winning(actor)`,
+which takes `highest_by_trick_order(trick_pile)` — the winner SO FAR of the
+live, partial trick — against the actor's team), the
 over-trump target is the trick's best trump from either side, trump leads
 must be beaten regardless of who is winning, and the fourth-player
 exception (partner winning on a trump: discard or over-trump, never
@@ -276,8 +279,6 @@ slot (a name's home is its classification, never its syntactic position):
   highest of the effective led suit (`tarot_led_suit()`); the Excuse never
   wins (reads no trump — the atouts are its own suit; a `trump` clause on it
   is refused)
-- `belote_trick_winner` — the Primitive for Belote: highest trump under the
-  J-9 trump order, else highest of the led suit under the ace-ten ranking
 - `highest_by_trick_order` — the Builtin winner of a game's declared Trick
   Order (decisions.md "Trick Order"): the strongest trump if any, else the
   strongest card of the Effective Lead's class, all three facts read from the
@@ -1002,23 +1003,13 @@ the petit, whose rank "1" is 9 in atouts and 1 in the plain suits):
   moved there, so it counts where it sits), the petit-au-bout adjustment
   `pb`, and the bid multiplier.
 
-Belote's within-trump rank reorder (J > 9 > A > 10 > K > Q > 8 > 7 —
-suit-contextual, so outside the `ranking:` declaration's scope; the
-plain-suit order is `ranking: ace-ten`), its team-gated obligations,
-and its declaration combinations need ten game-local primitives, all reading
+Belote's trick order — the within-trump reorder J > 9 > A > 10 > K > Q > 8 > 7
+over the plain-suit `ranking: ace-ten` — is the game's `trick_order { }`
+block, so the winner, the head/over-trump demands and the team-relative gate
+are all the language's. What stays game-local is the Belote-Rebelote window's
+aim and the declaration combinations, reading
 `cardlang/runtime/belote.py`:
 
-- `belote_trump_height(card: Card) → Integer` — a rank's strength within
-  the trump suit (1..8), the ordering the over-trump comparison uses (the demand
-  filters on `card.suit is trump_suit` itself).
-- `belote_trick_winner` — a **winner function** (named on `round …
-  winner belote_trick_winner`): highest trump under the J-9 trump order if
-  any was played, else highest of the led suit under the ace-ten
-  `rank_index`.
-- `belote_opp_winning() → Boolean` — is the live, partial trick's current
-  winner an opponent of the acting player? The team-relative gate on
-  the trump/over-trump obligations, read in the rules' `applies_when` off
-  the live round accumulator plus the actor `legal_cards` bound.
 - `belote_royal_player() → Player?` — who played a trump King or Queen in
   the trick that just completed (a pure read of public facts), aiming the
   Belote-Rebelote window's `offer`.

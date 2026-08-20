@@ -5,13 +5,18 @@ surface-totality artifacts (the audit's rejection tests and ledger).
 Completeness ledger (surface-totality-audit)
 --------------------------------------------
 property:   every Belote primitive computes its documented value over the
-            32-card pack, and every plausible misuse of the new stdlib
-            names fails loud in the owning layer's channel
-domain:     Belote's 10 CALL_FUNCS rows + 1 PRIMITIVE_TRICK_WINNERS
-            row x {name, arity, param types, dispatch arm,
-            reads row} + the primitives' own value domains (32 ranks x
-            4 suits, the decomposition's combination classes, the guard's
-            class argument)
+            32-card pack, and every plausible misuse of its native names
+            fails loud in the owning layer's channel
+domain:     every `belote_*` row of CALL_FUNCS (the registry is the axis;
+            no count is written here) x {name, arity, param types, dispatch
+            arm, reads row} + the primitives' own value domains (the
+            decomposition's combination classes over 32 ranks x 4 suits, the
+            guard's class argument). Belote holds no
+            PRIMITIVE_TRICK_WINNERS row: the trick order is the game's
+            `trick_order { }` block (issue #250 PR 4), so the winner, the
+            within-trump strength and the live-trick team gate are the
+            language's and are covered by tests/test_trick_order.py's grid
+            and tests/test_trick_order_migration.py's pin.
 registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             reconciled against the dispatch by tests/test_signatures.py),
             cardlang/runtime/reads.py (the declared-reads row, pinned both
@@ -19,31 +24,29 @@ registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             (glob-pinned by tests/test_typecheck_corpus.py)
 covered:    name/arity/type misuse at resolve/typecheck (the five probes
             below, each a DiagnosticError with a span); the trick/auction
-            outcome-namespace crossings both ways; the runtime guards
-            (non-pack rank, non-class guard argument) as typed errors;
-            decomposition known-values for every combination class, the
-            natural (non-play) sequence order, the carre-first overlap
-            rule, the top-five quinte cut, and the non-declarable 8/7
-            carres; trick-winner known-values for the J-9 trump reorder
-            and the ace-ten plain order
-sampled:    the ctx-reading accessors (belote_decl_* / opp_winning /
-            royal_player) are exercised end-to-end by the playout oracle
+            outcome-namespace crossings both ways; the runtime guard
+            (non-class guard argument) as a typed error; decomposition
+            known-values for every combination class, the natural
+            (non-play) sequence order, the carre-first overlap rule, the
+            top-five quinte cut, and the non-declarable 8/7 carres
+sampled:    the ctx-reading accessors (belote_decl_* / royal_player) are
+            exercised end-to-end by the playout oracle
             (tests/test_playout_belote.py recomputes every announcement,
-            window, and settlement from traces) and the proof module's
-            pinned lines (tests/openspiel_ready/test_belote.py) rather
-            than by synthetic RuntimeState fixtures here
-residual:   the premature-call guards (`belote_opp_winning` /
-            `belote_royal_player` outside any round; opp_winning with no
-            actor) are loud typed RuntimeErrors by construction (the
-            `_round_state` / actor guards) but reachable only from a game
-            file no corpus game resembles; they carry their guard in the
-            primitive itself and need no roadmap record (the guard exists;
-            only a synthetic-fixture probe is deferred)
+            window, and settlement from the table's own record, and pins
+            the window's aim against the first trump royal played) and the
+            proof module's pinned lines
+            (tests/openspiel_ready/test_belote.py) rather than by synthetic
+            RuntimeState fixtures here
+residual:   the premature-call guard (`belote_royal_player` outside any
+            round) is a loud typed RuntimeError by construction (the
+            `_round_state` guard) but reachable only from a game file no
+            corpus game resembles; it carries its guard in the primitive
+            itself and needs no roadmap record (the guard exists; only a
+            synthetic-fixture probe is deferred)
 """
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 from typing import cast
 
@@ -52,20 +55,11 @@ import pytest
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import narrowing, reads
-from cardlang.runtime.belote import (
-    belote_best_is,
-    belote_trick_winner,
-    belote_trump_height,
-    decomposition,
-)
+from cardlang.runtime.belote import belote_best_is, decomposition
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import Card
 
 BELOTE = Path(__file__).parent.parent / "docs" / "games" / "belote.cardlang"
-
-# The game's ace-ten rank_index (plain-suit play order), as the runtime
-# builds it from `ranking: ace-ten` on skat32: A > 10 > K > Q > J > 9 > 8 > 7.
-_ACE_TEN = {"7": 0, "8": 1, "9": 2, "J": 3, "Q": 4, "K": 5, "10": 6, "A": 7}
 
 
 def _c(spec: str) -> Card:
@@ -76,30 +70,6 @@ def _c(spec: str) -> Card:
 
 def _h(*specs: str) -> list[Card]:
     return [_c(s) for s in specs]
-
-
-# --- known values: the trump reorder and the trick winner ---
-
-
-def test_trump_heights_are_the_j9_reorder() -> None:
-    order = ["J", "9", "A", "10", "K", "Q", "8", "7"]
-    heights = [belote_trump_height(Card(r, "hearts")) for r in order]
-    assert heights == sorted(heights, reverse=True) == [8, 7, 6, 5, 4, 3, 2, 1]
-
-
-def test_trick_winner_trump_beats_plain_and_j_beats_9() -> None:
-    # Hearts trump: the 9H beats the AH; any trump beats a plain-suit ace.
-    played = [(0, _c("AS")), (1, _c("9H")), (2, _c("AH")), (3, _c("KS"))]
-    assert belote_trick_winner(played, "spades", "hearts", _ACE_TEN) == 1
-    played = [(0, _c("9H")), (1, _c("JH")), (2, _c("AH")), (3, _c("10H"))]
-    assert belote_trick_winner(played, "hearts", "hearts", _ACE_TEN) == 1
-
-
-def test_trick_winner_plain_suit_is_ace_ten() -> None:
-    # No trump played: the 10 of the led suit beats the K (ace-ten order),
-    # and an off-suit ace never wins.
-    played = [(0, _c("KS")), (1, _c("10S")), (2, _c("AD")), (3, _c("7S"))]
-    assert belote_trick_winner(played, "spades", "hearts", _ACE_TEN) == 1
 
 
 # --- known values: the canonical decomposition ---
@@ -161,11 +131,6 @@ def test_best_combination_ordering_class_then_height_then_trump() -> None:
 # --- the runtime guards (typed, at the cause) ---
 
 
-def test_trump_height_rejects_a_non_pack_rank() -> None:
-    with pytest.raises(OwnerGuardError, match="not a skat32 rank"):
-        belote_trump_height(Card("2", "hearts"))
-
-
 def test_best_is_rejects_a_non_class_argument() -> None:
     # The class guard fires before any bundle read, so no runtime state is
     # needed to probe it (the argument is a literal in the game file).
@@ -210,34 +175,21 @@ def test_probe_trick_winner_fn_on_an_auction_round_is_rejected() -> None:
     src = BELOTE.read_text()
     anchor = "until (number of players where not decl_acted[player]) is 0"
     text = src.replace(
-        anchor, anchor + "\n                outcome belote_trick_winner", 1
+        anchor, anchor + "\n                outcome highest_by_trick_order", 1
     )
     assert text != src
     _expect_rejected(
-        text, "auction round outcome 'belote_trick_winner' is not an auction outcome"
+        text,
+        "auction round outcome 'highest_by_trick_order' is not an auction outcome",
     )
 
 
 def test_probe_auction_outcome_on_the_trick_round_is_rejected() -> None:
     src = BELOTE.read_text()
     text = src.replace(
-        "winner belote_trick_winner trump trump_suit",
-        "winner tarot_auction_outcome trump trump_suit",
+        "winner highest_by_trick_order", "winner tarot_auction_outcome"
     )
     assert text != src
     _expect_rejected(
         text, "trick round winner 'tarot_auction_outcome' is not a trick winner function"
     )
-
-
-def test_the_trick_winners_reader_default_is_its_own_name() -> None:
-    """`belote_trick_winner.reader` keeps a default because the kernel calls
-    every registered trick winner through one uniform four-argument signature
-    and cannot pass a fifth — so the guard's label cannot be made a required
-    parameter the way its cribbage siblings were. What a required parameter
-    would have bought (mypy reddening on drift) is bought here instead: the
-    default must be the function's OWN name, so a rename that left the string
-    literal behind reddens rather than silently mislabelling every rank
-    diagnostic this winner raises."""
-    default = inspect.signature(belote_trick_winner).parameters["reader"].default
-    assert default == belote_trick_winner.__name__, default
