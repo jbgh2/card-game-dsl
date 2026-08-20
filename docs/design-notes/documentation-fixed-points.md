@@ -71,8 +71,17 @@ One trap in reproducing this: `git log -N -- <path>` counts the last N commits
 than `tests/` and inflates their ratio — `docs/` reads 0.68 that way. Use a
 single revision range for every row, as above.
 
-**Ledger churn specifically:** 87 modules carry one; 76 of 87 were rewritten
-after creation; ledger prose changed on 49% of the 757 follow-up commits.
+**Ledger churn specifically:** 88 modules carry a ledger in their module
+docstring, and `tests/test_signatures.py` carries one in a comment block — 89
+in all. That last one matters beyond the count: a census that reads module
+docstrings cannot see it, which is this note's own thesis landing on the note's
+own measurement. Quote 89 as the population and say how it was counted.
+
+Of the 88 docstring ledgers, 87 carry all six rows; `tests/test_state_default_type.py`
+has no `sampled:`. Row shares over the 6,497 lines in named rows, measured at
+`c0c668a`: `residual:` 39.0%, `covered:` 24.6%, `domain:` 10.4%, `sampled:`
+9.4%, `registry:` 9.0%, `property:` 7.5%. 76 were rewritten after creation;
+ledger prose changed on 49% of the 757 follow-up commits.
 
 ## 3. Poisoning — the sharper frame
 
@@ -121,12 +130,36 @@ Tested with six agents implementing issue #113 — three under each format,
 identical prompts but for the doctrine block, isolated worktrees, nobody told
 it was an experiment. Metrics fixed in writing beforehand.
 
-Ledger lines each agent **authored**:
+Ledger lines each agent **authored** — per agent, so the means can be checked:
 
-| arm | mirror (`covered`/`sampled`) | judgment | frame | total |
-|---|---|---|---|---|
-| A — six rows | **63.3** (49-77) | 69.7 | 46.3 | 179 |
-| B — four rows | **8.7** (7-10) | 52.0 | 68.3 | 129 |
+| run | arm | revision | mirror (`covered`/`sampled`) | judgment | frame | total |
+|---|---|---|---|---|---|---|
+| armA-r1 | A | `06614b4` | 64 | 76 | 36 | 176 |
+| armA-r2 | A | `487effc` | 77 | 88 | 66 | 231 |
+| armA-r3 | A | `6058a9c` | 49 | 45 | 37 | 131 |
+| armB-r1 | B | `224034a` | 9 | 67 | 56 | 132 |
+| armB-r2 | B | `fd234fd` | 10 | 49 | 77 | 136 |
+| armB-r3 | B | `04e2b39` | 7 | 40 | 72 | 119 |
+| **mean A** | | | **63.3** (49-77) | 69.7 | 46.3 | 179.3 |
+| **mean B** | | | **8.7** (7-10) | 52.0 | 68.3 | 129.0 |
+
+**How to reproduce.** For each revision, diff against its merge-base with
+`main` at `-U0`; collect the added line numbers per file; walk the post-image
+attributing each line to the ledger row it falls under (a row runs from its
+`<key>:` line to the next one); count only added lines in `tests/` files.
+`covered`/`sampled` are mirror, `residual`/`does not prove` are judgment,
+`property`/`domain`/`registry` are frame. Inherited rows in files an agent
+merely edited are excluded by construction, since only added lines count.
+
+**Metrics were fixed in writing before any output was seen** — the primary
+prediction was that arm B would surface instrument limits and arm A would bury
+them, with a stated discard condition if implementation quality differed by
+arm. The prediction failed; the discard condition did not trigger. Recording
+this because a prediction reported only after it succeeds is not evidence.
+
+**The six revisions are local branches (`experiment/*`), not pushed.** A reader
+without them can reproduce the method above but not the counts. That is a real
+limit on this section.
 
 **Supports the rationale.** The reduction lands exactly on the dangerous
 rows: mirror prose falls ~86%, ranges non-overlapping. Total ledger size
@@ -196,7 +229,7 @@ work is tracked" (the issue-citing rule and the not-work carve-out),
 `.github/pull_request_template.md` (Artifacts), and four skills — `cardlang-planning`, `cardlang-pr-description`,
 `cardlang-code-review`, `cardlang-direction-review`.
 
-**The 87 modules:** delete `covered:`/`sampled:`, route each `residual:` item
+**The 89 ledger modules:** delete `covered:`/`sampled:`, route each `residual:` item
 to one of six destinations, rename the remainder. The routing is judgment, not
 mechanism — this wants staging, not one PR.
 
