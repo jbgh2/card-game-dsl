@@ -87,6 +87,13 @@ covered:    `test_stream_hash_is_byte_identical` (every game x every seed);
 sampled:    nothing -- the pin is exact. The two trace-claim tests run one
             seed per row: a trace emitted from a trick site fires in every
             seed that plays a trick, so a second seed adds no cell.
+            A row that excludes NOTHING contributes zero cells to BOTH
+            exclusion tests, which is french-tarot's case and is stated at
+            that row: an empty exclusion is the claim "this migration moves
+            no trace", and what executes it is the primary pin, which then
+            hashes the whole trace channel rather than a subset of it. Not a
+            gap in the domain -- the domain is `MIGRATIONS` x each row's
+            declared exclusions, and this row declares none.
 residual:   (1) the information-state string, moved BY DESIGN and owned by
             the openspiel_ready proof modules (above); R4, this ledger owns
             the record. (2) A row could under-declare -- omit a trace the
@@ -281,6 +288,22 @@ MIGRATIONS: tuple[Migration, ...] = (
         "belote_stream_hashes.json",
         reshaped_traces=frozenset({"trick_end"}),
     ),
+    # French Tarot excludes NOTHING, in either half, and that is the row's own
+    # claim rather than an omission. Its tricks are a `round`, so `play`,
+    # `trick` and `trick_end` all come from `runtime/mechanics.py` and outlive
+    # `tarot_trick_winner` -- which was a winner CALLBACK and never an emitter.
+    # Belote's one reshaping does not recur either: `trick_end` echoes the
+    # ROUND's `trump` clause, and Tarot's trick round has never carried one
+    # (the pre-migration golden IR reads `"trump": null` at both the game and
+    # the round), so the field that moved for Belote is already `null` here.
+    #
+    # Both exclusion tests are therefore VACUOUS for this row -- an empty set
+    # intersects nothing -- and the coverage that buys is the maximum, not the
+    # minimum: with no name excluded, `_stream_digest` hashes the WHOLE trace
+    # channel, so every event those two tests would have argued about sits
+    # inside the primary pin instead. The tests exist for the rows that DO
+    # exclude; this row is what they look like when a migration moves nothing.
+    Migration("french-tarot.cardlang", "french_tarot_stream_hashes.json"),
 )
 
 SEEDS: tuple[int, ...] = tuple(range(200))
