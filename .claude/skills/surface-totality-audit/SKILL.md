@@ -275,7 +275,7 @@ outcome; an unexamined one is not.
 
 The grid IS the coverage record. No row of the ledger restates what the
 grid runs — prose is the medium that drifts (a header claiming 13 sites
-over a dict pinning 14; a coverage row no test walks), and a row that runs
+over a dict pinning 14; a citation no test walks), and a row that runs
 is the medium that holds. What the table carries is the judgment the grid
 cannot state itself, and it lives in the docstring of the grid's test
 module — next to the code it describes, nowhere else:
@@ -322,11 +322,15 @@ If you are about to write "not covered here" — stop and ask which of the
 six it is. Three of them are not instrument limits at all, and the row's
 name is what should have stopped you.
 
-A boundary goes in `domain:` **positively**: "every French deck, 7 x 4,
-frozen expected tuples; tarot decks are out of scope and rejected at
-`_deck_entry`" — not "tarot is not covered". The positive form states what
-holds; the negative form reads as a gap and sends the reader looking for
-work that does not exist.
+A boundary goes in `domain:` **positively** — name what holds, and what
+rejects the rest. "X is not covered" reads as a gap and sends the reader
+looking for work that does not exist.
+`tests/test_ranking_conventions.py` states a domain with no exclusion in it
+at all: every deck in `cardlang.runtime.values.DECKS` crossed with every
+convention in `cardlang.runtime.values.RANKING_CONVENTIONS`, split into the
+French cells, which carry frozen expected tuples, and the non-French ones,
+whose guard is probed through real source per deck and per convention. That
+names its set in good English, and no matcher should ever redden it.
 
 `tests/test_ledger_referents.py` sweeps the tree for the half a matcher
 reaches: every reference a ledger writes, in every row, must resolve. Two
