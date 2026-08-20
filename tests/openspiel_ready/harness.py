@@ -284,11 +284,36 @@ class GameSpec:
                 derived.add(arg.obj.name)
         return tuple(sorted(derived))
 
-    # Where the provenance walk starts. The proof walks 40 greedy nodes from
-    # here and REFUSES a run that compared zero record entries, so a game
-    # whose line reaches its first play late must say so: Skat's greedy line
-    # climbs the whole Reizen ladder and first plays to the trick at step
-    # 127 on every manifest seed (measured 2026-08-15).
+    # Named moves the PROVENANCE walk plays before it goes greedy, for the
+    # game whose greedy line provably never reaches the zone at all — not
+    # merely late (that is `provenance_depth` below), but never.
+    #
+    # French Tarot is the case and the reason this field exists: `pass` sorts
+    # below every bid, so `legal[0]` throws every one of the 36 hands in at
+    # four actions and no card is ever played (measured: 144 steps to
+    # terminal, zero arrivals in `trick_pile`, on every manifest seed). No
+    # depth reaches a node the line does not contain. One `bid_petite` at the
+    # opener's turn puts the same line into a contract, after which greedy
+    # takes it through the chien discard and into the tricks.
+    #
+    # Scoped to the provenance walk ALONE, deliberately: the swap and rng
+    # proofs pause at `depth`, whose per-game value is reasoned about the
+    # greedy line as it stands (Tarot's depth-3 sits inside the still-open
+    # first auction, before the thrown-in hand's reshuffle), and an opening
+    # would silently move that pause. Every other spec leaves this empty.
+    #
+    # A wrong opening cannot degrade to a plain greedy walk: each move is
+    # encoded through the action space and asserted legal at its own turn, so
+    # a name the game does not have, or a move illegal where it is played,
+    # fails naming itself.
+    provenance_opening: tuple[tuple[str, str | None], ...] = ()
+
+    # Where the provenance walk starts, counted in greedy steps AFTER any
+    # `provenance_opening`. The proof walks 40 greedy nodes from here and
+    # REFUSES a run that compared zero record entries, so a game whose line
+    # reaches its first play late must say so: Skat's greedy line climbs the
+    # whole Reizen ladder and first plays to the trick at step 127 on every
+    # manifest seed (measured 2026-08-15).
     provenance_depth: int = 0
 
     # Total greedy (legal[0]) steps within which this game's line reaches
@@ -518,11 +543,45 @@ def pin_failures(spec: GameSpec, declared: frozenset[str]) -> list[str]:
     return out
 
 
-def _advance(path: str, seed: int, depth: int) -> tuple[list[int], DecisionNode]:
+def _opening(spec: GameSpec, seed: int) -> list[int]:
+    """A spec's `provenance_opening` as action ids, each asserted legal where
+    it is played.
+
+    Two loud refusals rather than a quiet fall-back to the greedy line, which
+    is the only way this knob could weaken a proof: an unknown move name
+    raises out of the action space's own encode, and a move that is not legal
+    at its turn fails naming the move and the game. Both executed 2026-08-19,
+    reverted -- `("bid_nonesuch", None)`: "KeyError: ('bid_nonesuch', None)";
+    a second `("bid_petite", None)`, illegal once a bid stands: "opening move
+    ('bid_petite', None) is not legal at P1's turn 1"."""
+    if not spec.provenance_opening:
+        return []
+    _game, space = load(spec.path)
     history: list[int] = []
-    r = run(path, seed, ())
+    for move in spec.provenance_opening:
+        r = run(spec.path, seed, tuple(history))
+        assert isinstance(r, DecisionNode), (
+            f"{spec.short_name}: the game ended after {len(history)} of the "
+            f"{len(spec.provenance_opening)} opening moves"
+        )
+        action = space.encode(move)
+        assert action in r.legal, (
+            f"{spec.short_name}: opening move {move} is not legal at P"
+            f"{r.player}'s turn {len(history)} — re-derive "
+            f"`provenance_opening`"
+        )
+        history.append(action)
+    return history
+
+
+def _advance(
+    path: str, seed: int, depth: int, opening: list[int] | None = None
+) -> tuple[list[int], DecisionNode]:
+    history: list[int] = list(opening or ())
+    base = len(history)
+    r = run(path, seed, tuple(history))
     assert isinstance(r, DecisionNode)
-    while len(history) < depth:
+    while len(history) - base < depth:
         history.append(r.legal[0])
         nxt = run(path, seed, tuple(history))
         if not isinstance(nxt, DecisionNode):  # short game: back off one step
@@ -825,9 +884,13 @@ class ReadinessProofs:
         # entries actually compared: one pause can legitimately catch the
         # pile empty (doppelkopf's opening announcement lap), and an
         # empty-vs-empty comparison certifies nothing — the count below is
-        # the proof's own vacuity guard. The walk starts at the spec's
-        # provenance_depth (Skat's first play sits past its whole auction).
-        history, r0 = _advance(spec.path, seed, spec.provenance_depth)
+        # the proof's own vacuity guard. The walk starts after the spec's
+        # `provenance_opening` (French Tarot's greedy line never plays a card
+        # at all) and its provenance_depth (Skat's first play sits past its
+        # whole auction).
+        history, r0 = _advance(
+            spec.path, seed, spec.provenance_depth, _opening(spec, seed)
+        )
         r: DecisionNode | Any = r0
         entries_compared = 0
         nodes = 0
@@ -871,6 +934,7 @@ class ReadinessProofs:
             "provenance",
             seed=seed,
             zones=len(zones),
+            opening=len(spec.provenance_opening),
             nodes=nodes,
             entries_compared=entries_compared,
             vacuous=False,

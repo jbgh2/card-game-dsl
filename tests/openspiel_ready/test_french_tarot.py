@@ -25,6 +25,12 @@ class TestReadiness(ReadinessProofs):
         "cardlang_french_tarot",
         "french-tarot.cardlang",
         depth=3,
+        # The greedy line passes every hand into the throw-in, so the
+        # provenance walk needs one bid to reach a trick at all (see
+        # `GameSpec.provenance_opening`); the opener's `bid_petite` is legal
+        # at the very first decision on every manifest seed. After it, greedy
+        # takes three passes and the six discard picks and then leads.
+        provenance_opening=(("bid_petite", None),),
         conformance_steps=120,
         conformance_verbs_unreached=(
             ("bid_garde", ("the auction's higher levels are legal only over a "
@@ -132,3 +138,43 @@ def test_discard_derives_hidden_observations() -> None:
     taker_info = information_state(taker, r.rs, r.obs_logs[taker])
     assert f"discard[{taker}]=#6" not in taker_info
     assert f"discard[{taker}]=[" in taker_info
+
+
+def test_the_greedy_line_alone_never_reaches_the_trick_pile() -> None:
+    """The measurement `GameSpec.provenance_opening` exists for, executed here
+    rather than asserted in a comment.
+
+    `pass` (action id 78) sorts below every bid (79-82), so `legal[0]` throws
+    every hand in and the whole 36-hand match is 144 auction actions with no
+    card ever played. The provenance proof's own vacuity guard
+    (`entries_compared > 0`) is what reddens without the opening -- "the greedy
+    line never put a card in ('trick_pile',) within 40 steps" (executed
+    2026-08-19, with `provenance_opening` emptied) -- and this says WHY, so the
+    next reader does not try to fix it by deepening the walk.
+
+    Completeness of the knob (decisions.md "Closed-domain completeness"):
+    property -- a declared opening is legal at every one of its turns and its
+    line reaches the zone; domain -- the registered games x {opening, none};
+    covered -- `harness._opening`'s two assertions run on every provenance run
+    of a spec that declares one, `entries_compared > 0` runs on every spec with
+    a provenance domain, and this test covers the one game that declares one;
+    residual -- an opening declared where the greedy line already reached would
+    change WHICH line is certified without weakening the certificate, since the
+    walk certifies every node of whatever line it takes. R4, this ledger owns
+    the record.
+    """
+    from cardlang.openspiel.replay import DecisionNode
+
+    path = str(GAMES_DIR / "french-tarot.cardlang")
+    history: list[int] = []
+    r = run(path, 3, ())
+    steps = 0
+    while isinstance(r, DecisionNode) and steps < 400:
+        assert not r.rs.zones.single("trick_pile").arrivals, (
+            f"step {steps}: the greedy line reached a trick after all -- "
+            f"`provenance_opening` is no longer needed for this game"
+        )
+        history.append(r.legal[0])
+        r = run(path, 3, tuple(history))
+        steps += 1
+    assert steps == 144, f"the greedy line is {steps} actions, not 144"
