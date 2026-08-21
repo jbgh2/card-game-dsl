@@ -455,9 +455,25 @@ def _rows(doc: str) -> dict[str, str]:
             current = None
             continue
         head = re.match(rf"^[ \t]*{_ROW_LABEL}:(.*)$", line)
-        if head is not None and head.group(1) in LEDGER_ROWS:
+        if head is not None:
+            # EVERY labelled block is collected, not only the labels the
+            # templates define. Gating on `LEDGER_ROWS` made the sweep's reach
+            # depend on the row axis: a label the templates no longer print --
+            # a row mid-migration, or a typo (`registy:`) -- ended the previous
+            # row at its blank line and its prose was then read by nothing.
+            # Measured at the format change: 4 references over 3 modules fell
+            # out that way. Row identity is diagnostic only (nothing branches
+            # on it), so widening costs a little row attribution and buys the
+            # property the module claims -- every reference a ledger writes.
             current = head.group(1)
-            collected.setdefault(current, []).append(head.group(2).strip())
+            # A KNOWN label is structure, so the row's text is its content.
+            # An unknown one is prose that merely looks like a label -- a
+            # ledger writes `test_chained_offset_by_start: offset no-op` as
+            # an inline gloss, and that token is reference-shaped, so
+            # dropping the head would swallow the one thing this module
+            # exists to resolve. Widening the parse must not narrow the text.
+            keep = head.group(2) if current in LEDGER_ROWS else line
+            collected.setdefault(current, []).append(keep.strip())
         elif current is not None:
             if line.strip() == "":
                 current = None
@@ -747,6 +763,50 @@ def test_the_red_under_cut_keeps_the_row_it_ends() -> None:
         "test_no_such_test_was_ever_written"
     ]
     assert rows["residual"] == "none"
+
+
+def test_prose_under_an_unknown_label_is_still_swept() -> None:
+    """The sweep's reach must not depend on the ROW AXIS. While `_rows` would
+    start a row only for a label in `LEDGER_ROWS`, a label the templates do
+    not print -- a row mid-migration, or a typo (`registy:`) -- did not start
+    one, and the blank line before it had already ended the row above, so its
+    prose was read by nothing and a dangling reference in it passed.
+
+    Measured when this format landed: 4 references over 3 modules
+    (`tests/test_domain_registry.py`, `tests/test_procedures.py`,
+    `tests/test_winner_target.py`) sat outside the sweep exactly this way.
+
+    red under: restore the `head.group(1) in LEDGER_ROWS` condition on
+        STARTING a row; the blank line then orphans the unknown label's prose
+        and this finding disappears.
+    """
+    rows = _rows(
+        "property:   x\n"
+        "domain:     y\n"
+        "\n"
+        "sampled:    proven by test_no_such_test_was_ever_written\n"
+    )
+    found = [f.token for row, text in rows.items() for f in unresolved(row, text)]
+    assert found == ["test_no_such_test_was_ever_written"], rows
+
+
+def test_a_reference_shaped_label_is_not_swallowed_by_being_a_label() -> None:
+    """The other side of widening the parse: a ledger writes an inline gloss
+    keyed by a test name (`test_chained_offset_by_start: offset no-op`), and
+    that head is reference-shaped. Keeping only the tail of an unknown label's
+    line would drop the very token this module resolves -- widening what the
+    parse ADMITS must not narrow what it READS.
+
+    red under: store `head.group(2)` for an unknown label too, instead of the
+        whole line.
+    """
+    rows = _rows(
+        "property:   x\n"
+        "covered:    ok\n"
+        "test_no_such_test_was_ever_written: an inline gloss\n"
+    )
+    found = [f.token for row, text in rows.items() for f in unresolved(row, text)]
+    assert found == ["test_no_such_test_was_ever_written"], rows
 
 
 def test_an_inline_red_under_stays_in_domain() -> None:

@@ -3726,14 +3726,17 @@ uncommanded is a regression caught at write time, and a commanded cell that
 stays green means the test does not reach the behavior. A cell whose
 correct outcome is not yet decided is never guessed into the grid — a
 guess pinned by a passing row carries the authority of a decision nobody
-made; it goes to a `skip` cell naming the reason, or to the tracker.
+made; it goes to the tracker with its guard. An undecided outcome is an
+open question, not a coverage gap, and no mark can carry one — `xfail`
+asserts a failure nobody has decided on, and `skip` asserts nothing and
+goes on asserting nothing.
 The grid pins decisions that have been made; it is not a device for making
 them. The grid IS the coverage record, so no row of the ledger restates
 what it runs.
 
 **Unsure is a legal state everywhere in this process; the silent guess is
 not.** Every mandate above names its uncertainty exit: an undecided cell
-goes to a `skip` cell with its reason, an open design question to its
+goes to the tracker with its guard, an open design question to its
 open-questions/ file, a
 guard that cannot be classified does not land until it can, a review
 claim rests at PLAUSIBLE without executed evidence. The imperatives here
@@ -3790,6 +3793,17 @@ named for what it holds cannot take the others:
 
 Three of the six are not instrument limits at all. The slot name does the
 sorting, so mis-filing stops at the point of writing rather than at review.
+
+Between the two marks, prefer **`xfail(strict=True, raises=...)`**: strict
+reddens the moment the cell starts passing, so an implementation that
+satisfies the case cannot land unnoticed, and `raises=` keeps a harness
+crash from impersonating the designed red. **`skip` runs nothing and says
+nothing, forever** — a skipped cell is enumerated-but-never-run, the defect
+this section names, wearing a mark. Reserve it for a cell the harness
+genuinely *cannot* execute here (an absent optional dependency, a platform
+gate): that is a fact about the environment, and it belongs in `domain:`
+as a boundary as well. A cell that could run and is merely unwritten is
+`xfail`, or it is an issue.
 
 The gate follows the routing: an uncovered cell without both a guard and a
 record fails it — the record being the mark's reason or `issue #N` — and a

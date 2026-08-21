@@ -122,9 +122,9 @@ or reject with a named diagnostic. A genuinely undecided cell is never
 guessed into the grid to complete the parametrization: a guess pinned by a
 passing row carries the authority of an executed decision nobody made, and
 the next author reads its flip as a regression rather than as an open
-question surfacing. An undecided cell goes to `skip` naming the reason,
-with the same guard and tracker record any uncovered cell carries — the
-gate still applies, so this is no cheap out. The grid pins decisions that have been
+question surfacing. An undecided cell goes to the TRACKER with its guard,
+not into the grid: its outcome is an open question, and no mark states one
+— the gate still applies, so this is no cheap out. The grid pins decisions that have been
 made; it is not a device for making them. Then run it. The red cells are the work list, and the red run is the proof the grid
 can fail. Cells meant to keep current behavior may capture it from the
 pre-change tree, but a captured value is reviewed as a decision — a
@@ -148,11 +148,15 @@ strict turns a leftover mark on a now-passing cell into a loud failure,
 so a flip cannot be forgotten.
 
 `xfail` is for a cell whose red is DESIGNED — you know the failure and can
-name it. A cell whose correct outcome is not yet decided has no designed
-failure to name, so it is `skip` with its reason: reaching for `raises=`
-there means inventing the answer, which is the guess this order exists to
-prevent, and dropping `strict` to avoid inventing it turns the mark into
-the unconstrained kind above. The red-to-green transition is then
+name it. `skip` runs nothing and reports nothing, so a skipped cell is
+enumerated-but-never-run wearing a mark: a broken harness stays quiet, and
+so does an implementation that later satisfies the cell. Reserve `skip` for
+a cell this harness genuinely cannot execute (an absent optional
+dependency, a platform gate), and say so in `domain:` too. A cell whose
+correct outcome is nobody's decision yet is not a grid cell at all — it is
+an open question, and it goes to the tracker with its guard, because
+reaching for `raises=` there invents the answer this order exists to
+prevent. The red-to-green transition is then
 visible in the diff. Structure the grid so its derived cell table is
 exportable as data: the review replays the HEAD-derived cells against the
 merge base (the cells that fail there, plus the cells that cannot exist
