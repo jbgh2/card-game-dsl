@@ -27,11 +27,11 @@ domain:     every top-construction site in `cardlang/`, counted by
             `_count_top_constructions` under any spelling of the type's name,
             partitioned into: lookup-miss producers (raise), declared-type-name
             positions (guarded at resolve), and audited top.
-            Two things sit outside, and neither is a gap. Two of the former
-            five name-taking lookups now take a `domains.Role`, so their miss
-            branches are unreachable BY TYPE rather than by guard -- there is
-            no behaviour to probe, and the residue is the every-Role-has-a-row
-            pin beside them (`test_every_role_carries_a_row`). And a
+            Two things sit outside, and neither is a gap. A lookup taking a
+            `domains.Role` rather than a bare name cannot miss BY TYPE, so it
+            has no miss branch to probe and no behaviour to write a cell for;
+            what remains for those is the every-Role-has-a-row pin beside
+            them (`test_every_role_carries_a_row`). And a
             MERGE-failure top is a distinct population from the lookup misses
             this module closes: `join` returning None in `IfExpr`/`ListLit`
             falls to the top (`if c then 1 else hearts` goes permissive), and
@@ -39,7 +39,7 @@ domain:     every top-construction site in `cardlang/`, counted by
             already forces an Integer body -- a precision loss rather than a
             miss. Both are issue #116, and closing them is a guard this module
             does not own.
-registry:   the five role sets (`domains.Role` vs the parser's quantifier
+registry:   the role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
             `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
