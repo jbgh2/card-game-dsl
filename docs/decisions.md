@@ -3798,8 +3798,11 @@ A **history** is none of the six. A residual row often accumulates the
 story of how something came to be fixed -- which defects escaped, who found
 them, what the fix replaced -- and none of that describes the guarantee
 today. Route it the way the rest of the spec is routed: the design it argues
-for goes to the construct, in that construct's own words, and the narrative
-goes nowhere ([maintaining.md](maintaining.md), spec not history). It is
+for goes to the construct and is stated there as the design, in the present
+tense, never as the story of what it replaced -- a docstring says what the
+code does and why it is shaped that way, not what went wrong before. The
+narrative goes nowhere ([maintaining.md](maintaining.md), spec not
+history). It is
 specifically NOT an instrument limit. Writing "a green here is no evidence
 about X" because X once went wrong states something false the moment X is
 pinned, and the row that says so is read in the present tense.

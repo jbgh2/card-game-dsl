@@ -59,7 +59,10 @@ registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
             resolve and the runtime both read, so they cannot disagree).
             Earley ambiguity over the corpus:
             tests/test_grammar_ambiguity.py::test_corpus_game_parses_with_zero_ambiguity.
-            TCell operand legality: tests/test_board_clause.py.
+            TCell operand legality: tests/test_board_clause.py
+            (`test_cell_equality_with_integer_is_rejected`,
+            `test_cell_ordering_is_rejected`,
+            `test_cell_arithmetic_is_rejected`).
             TInteger position-parameter typing:
             tests/test_positions.py::test_position_move_param_types_as_integer_not_any.
 does not prove:  that the quantifier register behaves the same for every

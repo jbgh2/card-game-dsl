@@ -41,8 +41,10 @@ registry:   cardlang/stdlib/boards.py::BOARD_FAMILIES (family/arity/bounds);
             surface (grammar + Expr/Stmt unions).
             Board member order:
             tests/test_boards_registry.py::test_grid_3x3_cell_order.
-            The cell/line quantifier register, and the standing `for each
-            cell` rejection: tests/test_cell_queries.py.
+            The cell/line quantifier register: tests/test_cell_queries.py.
+            `for each cell` iteration: tests/test_cell_iteration.py
+            (`test_for_each_cell_over_a_region_places_one_piece_per_cell`,
+            `test_for_each_cell_binder_is_a_cell`).
             The declared-type-name admit for an INTEGER position domain
             (`lane`/`column`, resolving to TInteger):
             tests/test_type_name_positions.py::test_the_type_name_grid.

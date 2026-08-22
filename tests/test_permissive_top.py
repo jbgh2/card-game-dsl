@@ -65,30 +65,14 @@ does not prove:  three things, and the third is why this module exists in
             test, because each is reachable only by mutating the registry it
             guards. That they cannot fire for a well-formed program is
             argued from closure, not observed.
-            And the struct paths are pinned here but never INTEGRATED: no
-            corpus game declares a struct, so every probe below builds its own
-            fixture and nothing exercises these paths through a real game.
-            The pins are direct, and each shape that once went wrong is
-            credited by NAMING its pin rather than its category, so a credit
-            cannot outlive the thing it credits: nominal identity
-            (`test_a_struct_type_is_nominal_not_structural`), a derived field
-            reached through a function
-            (`test_a_derived_field_reached_through_a_function_is_assignment_checked`),
-            derived bodies in an ambient environment
-            (`test_env_from_game_builds_derived_bodies_with_ambient_names`),
-            and struct depth both nested and recursive
-            (`test_a_nested_struct_field_is_typed_whatever_the_declaration_order`,
-            `test_a_recursive_struct_path_stays_typed_at_any_depth`). A green
-            does say those hold. Collection-facet nesting is a different
-            question, pinned in tests/test_types.py
+            And a green here is about the TYPE MACHINERY, not about a game:
+            every struct probe below builds its own fixture. The end-to-end
+            exercise is tests/test_struct_positions_witness.py
+            (`test_the_witness_checks_and_plays`,
+            `test_the_derived_field_reaches_the_score_it_computes`); the
+            collection-facet question is tests/test_types.py
             (`test_nested_facets_do_not_distinguish`,
-            `test_a_flag_bearing_collection_does_nest`) rather than here. What it does not say is
-            that they hold in a game, which is the exposure a corpus witness
-            would add and this module cannot. Every one of those four defects
-            was found by review or an adversarial probe rather than by the
-            suite, at a time when the pins did not yet exist; the designs
-            answering them live at `struct_and_function_registries` and
-            `_canonical` in cardlang/typecheck.py.
+            `test_a_flag_bearing_collection_does_nest`). Neither runs here.
 """
 
 from __future__ import annotations

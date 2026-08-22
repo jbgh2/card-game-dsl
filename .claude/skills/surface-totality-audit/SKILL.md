@@ -328,7 +328,9 @@ name is what should have stopped you.
 
 **A history is none of the six.** If the row tells you which defects
 escaped and how they were fixed, the design it argues for belongs at the
-construct in that construct's words, and the story belongs nowhere. Do not
+construct, written there as the design and in the present tense; the story
+belongs nowhere. A docstring is not a place to record what went wrong
+before. Do not
 put it in `does not prove:` because it sounds like a caution -- that row is
 read in the present tense, so "a green here is no evidence about X" becomes
 false the moment X is pinned, and it reads the existing pins out of
