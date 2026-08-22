@@ -1,277 +1,147 @@
 """Every reference a completeness ledger writes still resolves.
 
 A completeness ledger (decisions.md "Closed-domain completeness") is prose
-asserting facts about code, and its `covered:` row is defined as an executed
-grid row -- so every sentence in it reads as backed. Nothing checked that the
-things those sentences NAME still exist. `tests/test_movement_verbs.py` cited
-a test its own rename had moved out from under it (commit 568297f) and went on
-reading as authoritative; `tests/test_cell_queries.py` cited a module by a name
-no file has ever carried.
+asserting facts about code, and the things those sentences NAME go stale in
+silence. `tests/test_movement_verbs.py` cited a test its own rename had moved
+out from under it (commit 568297f) and went on reading as authoritative;
+`tests/test_cell_queries.py` cited a module by a name no file has ever
+carried.
 
-This module holds the half of decisions.md "A quantified `covered` sentence
-names its set" that a matcher reaches: a reference must resolve, and a
-quantified completeness claim must name the set it quantifies over. It does
-NOT reach the claim that names a real test which does not test what the row
-says -- see `residual`.
-
-The rule names `registry:` and `covered:`; the sweep here covers every row of
-both ledger templates. Restricting it to two would be a hand-picked subset of
-a class whose other members were already drifting (danglers were found in
-`domain:`, `sampled:` and `residual:` too) -- completeness by superset, never
-by judgment (CLAUDE.md).
+Deleting the coverage rows concentrates this hazard rather than removing it.
+What survives in `registry:` is locators, and a locator's whole value is that
+it resolves -- including the cross-module kind, where a module cites a
+sibling's pin instead of re-copying its enumeration.
 
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
-property:   a reference written inside a completeness ledger resolves to
-            something the tree holds -- a defined test, a tracked file, an
-            importable attribute -- and a quantified completeness claim in a
-            `covered:` row names its set POSITIONALLY, inside the phrase the
-            quantifier ranges over. A reference that stopped resolving fails
-            loudly, in the layer that owns ledger prose: this test. And what
-            the forms do not classify is counted rather than assumed, so the
-            reach of the module as a whole is a number that can move.
-domain:     every ledger docstring in the tree, crossed with every reference
-            form in `REFERENCE_FORMS`, with the row the reference sits in, and
-            with MARKUP -- whether the referent sits in a code span or bare.
-            The row axis is total by construction -- a row label outside the
-            derived set is not a ledger row and its prose is not read. The
-            row axis carries the class-ledger labels because the skill's
-            template defines them, not because any docstring holds one: the
-            walk finds zero class ledgers in docstrings, so those grid cells
-            are forward coverage. Markup is an axis because it was the defect:
-            three forms held three policies on a backtick and the disagreement
-            hid 218 referents. Rows are MUST-EXIST prose:
-            a `red under:` BLOCK states the mutation deliberately not made,
-            so it ends the row (`_RED_UNDER`); an inline one is left in
-            domain on purpose, measured, in `_RED_UNDER`'s note.
-registry:   the row axis is DERIVED by `_fence_labels` from the two templates
-            that define it, the `decisions.md` fence under "the **completeness
-            ledger** in the grid module's docstring:" and the
-            `surface-totality-audit` skill's two fences, reconciled by
-            `test_the_row_axis_is_derived_from_its_two_templates` (one domain,
-            three sites, and a row added to a template joins the sweep without
-            an edit here). The resolution universes are derived from the tree,
-            not listed: `_defined_test_names` walks every tracked `.py` for
-            `test*` functions, `_tracked` is `git ls-files`, and
-            `_top_level_dirs` is that walk's own first path segments. The
-            quantifier vocabulary is DERIVED from the rule's own sentence by
-            `_law_quantifiers`, so the matcher cannot enforce a subset of the
-            law in silence -- and so the probe row survives the word being
-            taken away, which a hand-list cannot do. `REFERENCE_FORMS` is
-            derived from `_FORMS`, the one table pairing each form's pattern
-            with its resolution oracle, so a form cannot be matched in one
-            place and forgotten in another, and `_references` is the single
-            answer to "what do the forms reach" that both the sweep and the
-            census read. A form's SHAPE stays hand-listed, defended by a reach
-            probe each rather than by derivation: calibrating citation shapes
-            on today's ledgers would be this module's own defect one level up.
-            The coverage frames (`_COVERAGE_FRAME`) are hand-listed on the
-            same terms, as `_ADJACENCY` is in
-            `tests/test_native_classification_prose.py`.
-covered:    the grid IS the coverage -- `test_grid` over `_cells`, which
-            crosses `REFERENCE_FORMS` x `LEDGER_ROWS` x {resolving, dangling}
-            x {bare, in a code span} in code, reading its sentences from
-            `_GOOD` and `_BAD` and its expected column from
-            `_expected_flagged`, authored from the law before the matcher
-            existed (run red: 43 failed, 60 passed, 2026-08-20). The markup
-            axis was added in the review round that found the three-policy
-            defect, so its red is MEASURED rather than historical: run against
-            the pre-review matcher, 27 of the 180 cells fail -- 18 in the
-            marked column, and 9 in the bare column, which is `module-attr`
-            failing in the opposite direction because it REQUIRED the markup
-            the others excluded (measured 2026-08-20).
-            The marked column is derived by wrapping the same referent
-            rather than written out again, so a cell cannot differ from its
-            twin in anything but markup. `test_each_form_is_matched` adds a
-            row per member of `REFERENCE_FORMS` in each markup column, on a
-            sentence carrying a KNOWN-bad referent, so a drifted pattern
-            cannot leave the sweep reporting clean.
-            `test_each_quantifier_word_is_matched` does the same over
-            `QUANTIFIER_WORDS` and `test_each_coverage_frame_is_matched` over
-            the frame shapes, so the vocabularies inside the
-            `quantified-claim` form are reached rather than assumed.
-            The markup policy carries both of its halves as rows:
-            no form may name a backtick
-            (`test_no_reference_form_names_a_backtick`, derived from `_FORMS`,
-            so a new form joins with no edit), and a code span is not prose
-            (`test_a_quantifier_inside_a_code_span_is_not_a_prose_quantifier`).
-            The positional bind carries both of its sides:
-            `test_an_identifier_outside_the_quantified_span_does_not_name_the_set`
-            parametrizes the five places an identifier can sit and be the
-            wrong one, and
-            `test_a_set_named_inside_the_quantified_span_is_not_flagged`
-            holds the other direction, backticked and bare.
-            The polarity cut carries all three of its
-            decisions as rows: the block is cut
-            (`test_a_red_under_block_is_not_read_as_a_reference`), the row it
-            ends survives it (`test_the_red_under_cut_keeps_the_row_it_ends`),
-            and the inline form is deliberately NOT cut
-            (`test_an_inline_red_under_stays_in_domain`).
-            `test_every_ledger_reference_resolves` runs the matcher over
-            every ledger `_ledgers` finds; its vacuity is guarded by
-            `test_the_walk_sees_this_module`,
-            `test_the_ledger_population_is_non_empty` and
-            `test_the_resolution_universes_are_non_empty`.
-            What the forms do NOT classify is the census: every compound token
-            in a ledger row lands in exactly one of {claimed, resolving-but-
-            unclaimed, unresolvable}. The middle bucket holds a token that one
-            of this module's own oracles resolves while no form of
-            `REFERENCE_FORMS` claimed it, and `CENSUS_RESIDUE` pins it as a
-            SET rather than a count -- `test_the_skipped_token_census_is_pinned`
-            names a new member instead of reporting a figure that shifted;
-            `test_the_census_sees_every_token_the_forms_claim` holds the
-            candidate population to covering every token `_references`
-            returns, and `test_the_census_population_is_non_empty` guards its
-            vacuity and keeps both markup columns live.
-sampled:    the line-wrap rejoin (`_join_rows`) is proven on two examples
-            rather than over a derived set of wrapping shapes:
-            `test_a_wrapped_reference_resolves` and
-            `test_a_wrapped_reference_can_still_dangle`. The wrapping shapes a
-            docstring can produce are a formatting space, not a registry; what
-            the two probes pin is the property that matters, that rejoining
-            neither invents a resolution nor hides a dangling one. The rejoin
-            covers the two continuation characters a reference is split on
-            here, `_` and `/`; a split elsewhere is residual (e). The `/` arm
-            is the weaker of the two and is now measured rather than assumed:
-            a `/` ending a line is read as a PATH continuation, so a prose
-            separator sitting there ("a.py / b.py" wrapping after the slash)
-            concatenates two filenames into one. The census found the one live
-            instance, in `tests/test_let_typing.py`, and the prose was
-            reflowed rather than the rejoin heuristic re-tuned on it -- the
-            failure is loud either way, as a dangling path in the sweep or as
-            a census-residue token, which is why the heuristic is left alone.
-residual:   (a) SEMANTIC overclaim -- a `covered:` row naming a real test that
-            does not test what the row says -- is out of domain. Every claim
-            this module makes about such a row is true. It is the shape that
-            issue #389 was filed over, and no matcher reaches it; the
-            mechanism is review, and the write-time step is the
-            `surface-totality-audit` skill's Step 3. R3, this ledger owns the
-            record: the guard is the skill step, and the reachability is the
-            same as #389's.
-            (b) A quantifier at a DISTANCE from its set -- named a sentence
-            away, as "the arms are enumerated below. Every one is probed" --
-            is out of the `quantified-claim` form, and so is a set named
-            elsewhere in the SAME sentence: the identifier must sit inside the
-            span running from the quantifier to the coverage predicate. That
-            bind is what makes the check able to fail at all. Sentence scope
-            was the earlier reading, and it could not fail: over 89 ledgers it
-            emitted zero findings, and it could not have fired even on the two
-            sentences it matched, because any identifier at all satisfied it
-            -- a row that cited its own verifier beside an unnamed set passed.
-            The five places an identifier can sit and be the wrong one are
-            parametrized in
-            `test_an_identifier_outside_the_quantified_span_does_not_name_the_set`,
-            where the sentences are executable rather than quoted here: a
-            ledger row illustrating a bad reference by writing one would be
-            inverted-polarity prose, which this module reads straight.
-            The law is not overreached by the
-            tightening: its own exemplar names the set inside the noun phrase
-            ("Every arm of `opening_actions` has a probe"), and its stated
-            purpose is that the claim be reconcilable, which a pronoun is not
-            without a reader to follow it. The tightening flagged exactly one
-            row in the tree (`tests/openspiel_ready/test_conformance_bounds.py`,
-            "all four of its cells"), which was rewritten to name its set --
-            and which was also stating a cardinality, against "Prose names the
-            registry, never the cardinality". Matching the
-            unnamed-quantifier population generally was measured and refused:
-            `covered:` rows carry 299 quantifier occurrences over 87 ledgers,
-            and requiring a nearby identifier flags 40 to 76 modules depending
-            on the window -- at the tightest positional anchoring, still 30
-            occurrences across 24 modules, nearly all correct prose that names
-            its set in English ("all 28 French cells (7 decks x 4 conventions,
-            frozen expected tuples)"). A matcher that reddens those is
-            stricter than the law it mechanizes (measured 2026-08-20, `main`
-            at `591e44f`). The frame vocabulary bounds the form the same way:
-            `tests/openspiel_ready/test_provenance_openings.py` writes two
-            claims outside it -- a participle ("each asserting its needle
-            from that table") and a negated adjective ("no scraped message is
-            needle-free") -- which `_COVERAGE_FRAME` does not match. Both
-            name their sets, so the rule holds and a match would change
-            nothing; the reach limit is real anyway, and the same phrasing
-            over an UNNAMED set would pass unseen. R3, guarded by the same
-            skill step as (a); the standing question of whether `covered:`
-            may hold navigational prose at all is issue #392.
-            (c) A bare identifier with no module prefix (`ZONE_INDEX_ROLES`,
-            `RANK_DIR`, `_ITERATION_ROLES`) is not resolved here -- because no
-            form has that SHAPE, which markup does not change: a name means the
-            same thing in a code span and out of one, and a form that read the
-            backtick as evidence would be inventing an oracle out of
-            typography. Measured over these ledgers,
-            those tokens span at least four namespaces -- Python constants,
-            `.lark` terminals, environment variables and prefix families like
-            `BUILTIN_` -- so 23 of them resolve to no Python name while being
-            correct prose. Admitting them needs the declared exception list
-            issue #110 designs, and building a second one here would give one
-            domain two definition sites. R4, issue #110.
-            (d) A file reference outside this tree -- pytest's own
-            `python.py`, a synthetic fixture path (`pkg/domains.py`), a
-            deliberately-retired path (`runtime/stdlib.py`) -- is out of
-            domain by `_claims`, which admits a path only under a tracked
-            top-level directory or a bare `test_*.py`. This is the same
-            forward-reference problem as (c) and has the same answer. R4,
-            issue #110.
-            (e) Reference SHAPES outside `REFERENCE_FORMS`, from the framing
-            check's inventory: a pytest node id (which needs collection, not
-            a scrape), `path:LINE`, a brace expansion, a glob or template
-            path, an elided-prefix continuation (`.board_entry` after
-            `BoardEntry`), a `.lark` terminal or production name, and a
-            `docs/` path. Each is a
-            distinct resolution oracle, and admitting one admits its
-            false-positive population with it; the forms here are the ones
-            whose oracle is a tracked file, a collected name or an import.
-            An ELIDED citation -- two test names compressed into one token by
-            sharing a prefix across a slash -- is in this class and fails LOUD
-            rather than silent: the head resolves to nothing and the sweep
-            names it, which is how the one live instance, in
-            `tests/test_player_literal_range.py`, was found and written out.
-            The largest known SILENT miss is a reference
-            wrapping a line break somewhere other than an underscore or a
-            slash -- a hyphenated path splitting at the hyphen can leave a
-            fragment that resolves to a DIFFERENT real file. R4, issue #110
-            owns the general scrape.
-            (f) Ledger prose in a FUNCTION or class docstring, and a class
-            ledger written into a commit message or PR body, are outside the
-            walk: the population is module-level ledgers, and 208 of the
-            tree's 231 `red under:` lines sit in function docstrings. Those
-            are the inverted-polarity prose this module cuts rather than
-            reads, so the exclusion loses no must-exist claim. R4, this
-            ledger owns the record.
-            (g) The census's UNRESOLVABLE bucket is counted, never pinned
-            equal. It is dominated by things that are not references at all --
-            DSL surface quoted in prose (`ranking:`, `for each cell`), type
-            names, `.lark` production names, English -- and no oracle here
-            separates a dangling reference sitting in it from correct prose,
-            which is (c) and (e) restated as a number. Asserting an exact
-            figure would redden on ordinary ledger edits while proving
-            nothing, so what is asserted is the RESOLVING bucket, as a set.
-            Bucket sizes are MEASUREMENTS, not pins -- a dated snapshot that
-            moves whenever any ledger is edited, this module's own included,
-            which is the reason the assertion is the SET and not these figures
-            (2026-08-20, 89 ledgers): 2139 compound candidates, 551 claimed,
-            13 resolving-but-unclaimed over the 3 tokens in `CENSUS_RESIDUE`,
-            1575 unresolvable; 1330 of the candidates sit in a code span and
-            809 bare. Run against the pre-review matcher on this same tree,
-            the resolving bucket holds 259 occurrences over 235 distinct
-            tokens -- that delta is the defect this round fixed, and it is the
-            census's own witness that the bucket is the right one.
-            Single-word tokens are outside the candidate population by
-            construction, which is (c)'s population; R4, issue #110.
-            (h) A bare COUNT of candidates cannot distinguish the census
-            tokenizer narrowing from the ledgers shrinking. What guards that
-            is `test_the_census_sees_every_token_the_forms_claim` (the
-            population covers everything `_references` returns) plus
-            `test_the_census_population_is_non_empty`; a tokenizer that stayed
-            wide but classified wrongly would still need review. R4, this
-            ledger owns the record.
+property:        a reference written inside a completeness ledger resolves to
+                 something the tree holds -- a defined test, a tracked file,
+                 an importable attribute. One that stopped resolving fails
+                 loudly, in the layer that owns ledger prose: this test. And
+                 what the forms do not classify is counted rather than
+                 assumed, so the reach of the module as a whole is a number
+                 that can move.
+domain:          every module-level ledger docstring in the tree, crossed
+                 with every reference form in `REFERENCE_FORMS`, with the row
+                 the reference sits in, and with MARKUP -- whether the
+                 referent sits in a code span or bare. The row axis is total
+                 by construction: a label outside the derived set is not a
+                 ledger row and its prose is not read. It carries the
+                 class-ledger labels because the skill's template defines
+                 them, not because any docstring holds one -- the walk finds
+                 zero class ledgers, so those cells are forward coverage.
+                 Markup is an axis because it was the defect: three forms held
+                 three policies on a backtick, and the disagreement hid
+                 referents in bulk. Rows are MUST-EXIST prose, so a `red under:` BLOCK
+                 -- which states a mutation deliberately NOT made -- ends the
+                 row it sits in (`_RED_UNDER`); an inline one stays in domain
+                 on purpose, measured, in `_RED_UNDER`'s note.
 
-red under: revert the `covered:` row of `tests/test_domain_registry.py` to the
-    truncated citation it carried before this change -- `test_every_row_is_`
+                 Four things sit deliberately outside, and each is a boundary
+                 rather than a gap. A reference form resolves against a
+                 tracked file, a collected name or an import, so a shape whose
+                 oracle is none of those is out: a single-word identifier with
+                 no module prefix (`ZONE_INDEX_ROLES`, `RANK_DIR`) -- markup
+                 does not change this, since a name means the same thing in a
+                 code span and out of one, and a form reading the backtick as
+                 evidence would be inventing an oracle out of typography; a
+                 path outside this tree, admitted only under a tracked
+                 top-level directory or as a bare `test_*.py` (`_claims`); and
+                 the shapes the framing check inventoried -- a pytest node id,
+                 `path:LINE`, a brace expansion, a glob or template path, an
+                 elided-prefix continuation, a `.lark` production name, a
+                 `docs/` path -- each of which is a distinct oracle that
+                 admits its own false-positive population. Widening to them
+                 needs the declared exception list issue #110 designs; a
+                 second one built here would give one domain two definition
+                 sites. Fourth, the population is MODULE-level ledgers.
+                 Nearly every `red under:` line in the tree sits in a
+                 function docstring, and those are the inverted-polarity
+                 prose this module cuts rather than reads, so the exclusion
+                 loses no must-exist claim.
+registry:        the row axis is DERIVED by `_fence_labels` from the two
+                 templates that define it, the `decisions.md` fence under "the
+                 **completeness ledger** in the grid module's docstring:" and
+                 the `surface-totality-audit` skill's two fences -- reconciled
+                 by `test_the_row_axis_is_derived_from_its_two_templates` and
+                 pinned as a SET by
+                 `test_the_row_axis_is_the_set_the_templates_print`, so a row
+                 added to a template joins the sweep with no edit here and a
+                 row dropped from both cannot shrink it in silence. The
+                 label pattern is `_ROW_LABEL`, one definition read by both
+                 the fence scrape and `_rows`. The resolution universes are
+                 derived from the tree, not listed: `_defined_test_names`
+                 walks every tracked `.py` for `test*` functions, `_tracked`
+                 is `git ls-files`, and `_top_level_dirs` is that walk's own
+                 first path segments. `REFERENCE_FORMS` is derived from
+                 `_FORMS`, the one table pairing each form's pattern with its
+                 resolution oracle, so a form cannot be matched in one place
+                 and forgotten in another; `_references` is the single answer
+                 to "what do the forms reach" that both the sweep and the
+                 census read. A form's SHAPE stays hand-listed, defended by a
+                 reach probe each rather than by derivation: calibrating
+                 citation shapes on today's ledgers would be this module's own
+                 defect one level up.
+does not prove:  a green here does not mean a ledger is TRUE. The forms
+                 resolve names; nothing reads what a row asserts. A row naming
+                 a real test that does not test what the row says passes
+                 every check in this module -- that is the shape issue #389
+                 was filed over, no matcher reaches it, and the mechanism is
+                 review at the `surface-totality-audit` skill's Step 3.
+                 Likewise a `does not prove:` row holding deferred work in
+                 disguise: the row's name is the only thing standing there.
+
+                 The line-wrap rejoin (`_join_rows`) is proven on two
+                 examples, not over a derived set of wrapping shapes -- the
+                 shapes a docstring can produce are a formatting space, not a
+                 registry. What the two probes pin is the property that
+                 matters, that rejoining neither invents a resolution nor
+                 hides a dangling one. The `/` arm is the weaker: a `/`
+                 ending a line is read as a PATH continuation, so a prose
+                 separator sitting there ("a.py / b.py" wrapping after the
+                 slash) concatenates two filenames into one. The census found
+                 the one live instance, in `tests/test_let_typing.py`, and the
+                 prose was reflowed rather than the heuristic re-tuned on it
+                 -- the failure is loud either way, as a dangling path or as a
+                 census-residue token, which is why the heuristic is left
+                 alone. The largest known SILENT miss is a reference wrapping
+                 at neither an underscore nor a slash: a hyphenated path
+                 splitting at the hyphen can leave a fragment that resolves to
+                 a DIFFERENT real file.
+
+                 The census's UNRESOLVABLE bucket is counted, never pinned
+                 equal, and a count cannot tell the tokenizer narrowing from
+                 the ledgers shrinking. It is dominated by things that are not
+                 references at all -- DSL surface quoted in prose
+                 (`ranking:`, `for each cell`), type names, `.lark`
+                 production names, English -- and no oracle here separates a
+                 dangling reference sitting in it from correct prose. So what
+                 is asserted is the RESOLVING bucket, as a set
+                 (`CENSUS_RESIDUE`), and the direction a bare count would miss
+                 is held instead by
+                 `test_the_census_sees_every_token_the_forms_claim` and
+                 `test_the_census_population_is_non_empty`. The bucket sizes
+                 are not written down anywhere: they move whenever any ledger
+                 is edited, this module's own included, so a figure here
+                 would be answering from memory a question `_census` answers
+                 from the tree. Run it.
+
+No form here reads the PROSE of a row, only the names in it. A matcher
+holding a quantified sentence to naming its set beside it flags eight
+sentences across this tree, all eight of them correct English (measured
+2026-08-20, 90 ledgers) -- and a matcher with no doctrine behind it enforces
+its author's taste. decisions.md "Every reference a ledger writes resolves"
+owns the rule this module mechanizes.
+
+red under: revert the citation in `tests/test_domain_registry.py` to the
+    truncated form it carried before this change -- the row is row-agnostic
+    here, as the sweep is, and that module has not migrated yet -- `test_every_row_is_`
     plus `quantifiable`, wrapping across two lines inside one code span, where
     the function is `test_every_row_is_quantifiable_in_both_forms`. It was
     invisible to every form for as long as it sat in backticks.
     `test_every_ledger_reference_resolves` names it, and its `assert not
-    found` is the assertion that reddens -- alone, 1 failed of 219.
-    Executed 2026-08-20.
+    found` is the assertion that reddens -- alone, and naming the truncated
+    token. Re-executed 2026-08-21 against this format.
 """
 
 from __future__ import annotations
@@ -293,8 +163,23 @@ _SELF = pathlib.Path(__file__).resolve()
 # --- the row axis, derived from the templates that define it ----------------
 
 
+# A row label is one or more lowercase words. The multi-word form is not
+# hypothetical -- `does not prove:` is a row -- and a single-token pattern
+# drops it SILENTLY: the fence scrape returns three labels instead of four,
+# `_rows` never collects the row, and every check keyed on the axis narrows
+# to fit while staying green. That is the empty-input-set class, and the
+# template edit that renamed the row is exactly the edit that triggers it.
+# So the pattern is defined once, read by both sites, and the resulting set
+# is pinned by `test_the_row_axis_is_the_set_the_templates_print`.
+_ROW_LABEL = r"([a-z][a-z _]*[a-z])"
+
+
 def _fence_labels(path: str, anchor: str) -> tuple[str, ...]:
-    """The `label:` lines of the first fenced block after `anchor`."""
+    """The `label:` lines of the first fenced block after `anchor`.
+
+    Anchored at the line start with no leading-whitespace class, which is
+    what keeps an indented CONTINUATION line out of the label set.
+    """
     text = (ROOT / path).read_text()
     at = text.index(anchor)
     block = re.search(r"```[a-z]*\n(.*?)\n```", text[at:], re.S)
@@ -302,7 +187,7 @@ def _fence_labels(path: str, anchor: str) -> tuple[str, ...]:
     return tuple(
         m.group(1)
         for line in block.group(1).splitlines()
-        if (m := re.match(r"^([a-z_]+):", line))
+        if (m := re.match(rf"^{_ROW_LABEL}:", line))
     )
 
 
@@ -321,10 +206,20 @@ CLASS_ROWS = _fence_labels(
 LEDGER_ROWS: tuple[str, ...] = tuple(sorted(set(COMPLETENESS_ROWS) | set(CLASS_ROWS)))
 
 # A ledger is recognized by the two rows every completeness ledger carries.
-# Measured: nothing in the tree sits just below this bar (no docstring carries
-# three or more completeness rows without both of these), so the signature is
+# `covered` was one of them until the format deleted that row; `domain` takes
+# its place because `domain` is in BOTH the old template and the new one, so
+# the population does not move while the modules migrate one at a time -- a
+# signature naming a row only one format carries would shrink the sweep on
+# every migration commit, which is the same silent narrowing one level up.
+# Re-measured under the new pair (2026-08-20): the same 90 ledgers, and
+# nothing in the tree sits just below the bar (no docstring carries three or
+# more completeness rows without both of these), so the signature is still
 # the population rather than a cut through it.
-_LEDGER_SIGNATURE = frozenset({"property", "covered"})
+_LEDGER_SIGNATURE = frozenset({"property", "domain"})
+
+# Prose that looks like a label but names no row. One bucket, so the sweep
+# reads it without inventing a row name for it.
+_OFF_ROW = "(not a ledger row)"
 
 
 # --- the tree the references resolve against --------------------------------
@@ -397,10 +292,10 @@ def _module_stems() -> frozenset[str]:
 #   guard against the mention coming back, and that is
 #   `test_no_reference_form_names_a_backtick`, derived from `_FORMS`.
 #
-#   A code span is NOT PROSE. The quantified-claim form reads sentence
-#   structure rather than tokens, so it runs on `_prose`, where each span is
-#   one opaque identifier-shaped atom. That view is load-bearing, and its
-#   probe is `test_a_quantifier_inside_a_code_span_is_not_a_prose_quantifier`.
+#   A code span is a BUCKET, not a boundary. The census reports each token as
+#   marked or bare, so `_code_spans` stays the one place that decides where a
+#   span is -- the same single fact the forms are silent about, read here for
+#   classification rather than for matching.
 
 _CODE_SPAN = re.compile(r"`[^`\n]*`")
 
@@ -410,74 +305,13 @@ def _code_spans(text: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in _CODE_SPAN.finditer(text)]
 
 
-def _prose(text: str) -> str:
-    """Each code span replaced by an underscore run of its own length -- an
-    identifier-shaped opaque atom. A quantifier inside quoted surface
-    (`each color simultaneously`) is then not a prose quantifier, and a code
-    span anywhere reads as a named set. Offset-preserving, so a match indexes
-    back into the original text."""
-    out = list(text)
-    for start, end in _code_spans(text):
-        out[start:end] = "_" * (end - start)
-    return "".join(out)
-
-
 # --- the reference forms ----------------------------------------------------
-
-def _law_quantifiers() -> tuple[str, ...]:
-    """The quantifier words the RULE names, read from the rule. Hand-listing
-    them here would let the matcher enforce a subset of the law and say
-    nothing -- and a hand-list is also unreddenable, because a parametrization
-    derived from it loses the row along with the word."""
-    text = (ROOT / _DECISIONS).read_text()
-    said = re.search(r"quantifies\s*—\s*([^—]+?)\s*—\s*names", text)
-    assert said is not None, (
-        "the quantifier rule's word list is not where this scrape looks; "
-        "decisions.md \"A quantified `covered` sentence names its set\" owns it"
-    )
-    return tuple(w.strip() for w in said.group(1).split(",") if w.strip())
-
-
-# The rule's own four words, so the matcher's vocabulary cannot narrow below
-# the law's in silence. `no` costs nothing measurable -- re-measured on the
-# final matcher, the whole tree yields ONE quantified match, on `every`
-# (2026-08-20) -- and its reach is probed like the rest.
-QUANTIFIER_WORDS: tuple[str, ...] = _law_quantifiers()
-_QUANTIFIER = f"(?:{'|'.join(QUANTIFIER_WORDS)})"
-# The coverage nouns and frames these ledgers actually use. Hand-listed, like
-# `_ADJACENCY`; each form carries its own reach probe below, and the
-# unmatched population is recorded in `residual` (b) rather than implied.
-#
-# These are STEMS, matched as prefixes: there is no trailing `\b`, so `probe`
-# reaches "probes" and "probed" without the list enumerating them. It reaches
-# exactly the inflections that KEEP the stem's spelling, which is why "probing"
-# is out (the `-ing` form drops the `e`) while "pinning" is in. That is
-# deliberate and `test_a_coverage_stem_reaches_its_inflections` holds it; the
-# redundant `-ed` spellings a word-boundary reading would have needed are
-# gone, so the list now describes what it matches. A stem short enough to sit
-# inside an unrelated word ("guardrail") can only fire behind a coverage
-# frame, and the whole-tree match count above bounds what that is worth.
-_COVERAGE_NOUN = (
-    r"(?:probe|pin|row|cell|test|guard|witness"
-    r"|cover|exercised|reconciled|enumerated|checked|parametrized)"
-)
-_COVERAGE_FRAME = (
-    rf"(?:has|have|gets?|carr(?:ies|y))\s+(?:an?\s+|its\s+|their\s+|one\s+)?{_COVERAGE_NOUN}"
-    rf"|(?:is|are)\s+(?:been\s+)?{_COVERAGE_NOUN}"
-)
-# An identifier a prose sentence can NAME a set with. On the `_prose` view a
-# code span is already an underscore run, so one alternative covers both a
-# backticked name and a bare snake_case one.
-_IDENTIFIER = r"\b[A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*\b"
 
 _MODULE_SHAPE = r"(?:cardlang|tests)(?:\.[A-Za-z_][A-Za-z0-9_]*)+"
 _TEST_REF = re.compile(r"(?<![\w./*-])(test_[A-Za-z0-9_]+)(?![\w*(]|\.[a-z])")
 _TEST_GLOB = re.compile(r"(?<![\w./-])(test_[A-Za-z0-9_]*)\*")
 _FILE_REF = re.compile(r"(?<![\w./-])((?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_-]+\.[a-z]+)\b")
 _MODULE_REF = re.compile(rf"(?<![\w.])({_MODULE_SHAPE})")
-_QUANTIFIED = re.compile(
-    rf"\b{_QUANTIFIER}\b[^.;\n]{{0,60}}?\b(?:{_COVERAGE_FRAME})", re.I
-)
 _FILE_SUFFIXES = frozenset({".py", ".lark", ".md", ".cardlang", ".yml", ".toml", ".sh"})
 
 
@@ -543,7 +377,7 @@ _FORMS: dict[str, tuple[re.Pattern[str], Callable[[str], bool], str]] = {
     "module-attr": (_MODULE_REF, _resolves_module,
                     "does not import, or the attribute is gone"),
 }
-REFERENCE_FORMS: tuple[str, ...] = (*_FORMS, "quantified-claim")
+REFERENCE_FORMS: tuple[str, ...] = tuple(_FORMS)
 
 
 def _claims(form: str, token: str) -> bool:
@@ -572,8 +406,7 @@ def _references(text: str) -> list[tuple[str, str]]:
 
 
 def unresolved(row: str, text: str) -> list[Finding]:
-    """Every reference in one ledger row that resolves to nothing, plus every
-    quantified completeness claim in a `covered:` row that names no set."""
+    """Every reference in one ledger row that resolves to nothing."""
     out: list[Finding] = []
     for form, token in _references(text):
         _, resolves, why = _FORMS[form]
@@ -582,20 +415,6 @@ def unresolved(row: str, text: str) -> list[Finding]:
             shown = token + "*" if form == "test-id-glob" else token
             out.append(Finding(form, row, shown, why))
 
-    if row == "covered":
-        prose = _prose(text)
-        for m in _QUANTIFIED.finditer(prose):
-            # The identifier must sit in the QUANTIFIED SPAN -- the quantifier,
-            # its noun phrase and the coverage predicate. An identifier
-            # elsewhere in the sentence is not the set being quantified over,
-            # and accepting one made this check unfailable: "`test_some_probe`
-            # proves every refusal arm has a probe" passed by citing its own
-            # verifier. The law's exemplar is positional too -- "Every arm of
-            # `opening_actions` has a probe" names the set inside the phrase.
-            if not re.search(_IDENTIFIER, m.group(0)):
-                out.append(Finding("quantified-claim", row,
-                                   text[m.start():m.end()].strip(),
-                                   "quantifies over a set it does not name"))
     return out
 
 
@@ -620,15 +439,53 @@ def _join_rows(parts: list[str]) -> str:
 # well-written reddening witness the thing that reddens this sweep.
 #
 # The cut is the block form ONLY. An INLINE "red under" is deliberately left
-# in domain: measured over the 87 ledgers, cutting from an inline occurrence
-# to the end of the row removes 1.5% of all ledger prose and up to 90% of one
-# row (`tests/test_zone_capacity.py`'s `covered:`, 944 characters to 87), it
-# fires on four rows where "red under" is ordinary prose ("proven red under
-# `xfail(strict=True)`"), and it changes no finding -- zero, either way
-# (measured 2026-08-20). A cut that removes prose and catches nothing is this
-# sweep going quiet, which is the direction that fails silently; an inline
+# in domain, and the reason is a PROPERTY rather than a figure: cutting from
+# an inline occurrence to the end of its row changes no finding, in either
+# direction, over every ledger in the tree. That is pinned by
+# `test_an_inline_cut_would_change_no_finding`, which recomputes it from the
+# ledgers each run. A cut that removes prose and catches nothing is this
+# sweep going quiet, which is the direction that fails silently.
+#
+# How much prose it would remove is deliberately NOT written here. It is a
+# tally over an accumulating set (decisions.md, "Prose names the registry,
+# never the cardinality"), and it rotted exactly as that rule predicts: the
+# figure was stated for one tree, restated for another, and two readers
+# recomputing it by hand got two more answers, because each was measuring a
+# slightly different thing. `_inline_cut_impact` is the one technique, in
+# code -- call it if you want the number for the tree in front of you.
+# An inline
 # `red under:` naming something absent will redden here instead, loudly.
 _RED_UNDER = re.compile(r"^[ \t]*red under\b", re.I)
+
+
+def _inline_cut_impact() -> tuple[int, int, int, int]:
+    """What an INLINE `red under` cut would do, computed from the ledgers.
+
+    Returns `(chars_cut, chars_total, rows_firing, findings_delta)` over every
+    row of every ledger, where the cut runs from the first inline "red under"
+    to the end of that row -- the same span the block cut takes, applied where
+    the doctrine deliberately does not apply it.
+
+    This exists so the question has ONE answer. The figure was prose for a
+    while, and prose over an accumulating set drifts: two readers recomputing
+    it by hand disagreed with the comment and with each other, because a hand
+    computation encodes its own definition of "row", "prose" and "cut" each
+    time. `findings_delta` is the half the decision rests on and the only half
+    pinned; the sizes are reported, never asserted.
+    """
+    cut = total = firing = 0
+    before = after = 0
+    for _, rows in _ledgers():
+        for row, text in rows.items():
+            total += len(text)
+            hit = re.search(r"\bred under\b", text, re.I)
+            trimmed = text[: hit.start()] if hit else text
+            if hit:
+                firing += 1
+                cut += len(text) - hit.start()
+            before += len(unresolved(row, text))
+            after += len(unresolved(row, trimmed))
+    return cut, total, firing, after - before
 
 
 def _rows(doc: str) -> dict[str, str]:
@@ -638,10 +495,35 @@ def _rows(doc: str) -> dict[str, str]:
         if _RED_UNDER.match(line):
             current = None
             continue
-        head = re.match(r"^[ \t]*([a-z_]+):(.*)$", line)
-        if head is not None and head.group(1) in LEDGER_ROWS:
-            current = head.group(1)
-            collected.setdefault(current, []).append(head.group(2).strip())
+        head = re.match(rf"^[ \t]*{_ROW_LABEL}:(.*)$", line)
+        if head is not None:
+            # EVERY labelled block is collected, not only the labels the
+            # templates define. Gating on `LEDGER_ROWS` made the sweep's reach
+            # depend on the row axis: a label the templates no longer print --
+            # a row mid-migration, or a typo (`registy:`) -- ended the previous
+            # row at its blank line and its prose was then read by nothing.
+            # Measured at the format change: 4 references over 3 modules fell
+            # out that way. Row identity is diagnostic only (nothing branches
+            # on it), so widening costs a little row attribution and buys the
+            # property the module claims -- every reference a ledger writes.
+            # A KNOWN label is structure: it names a row, and the row's text
+            # is its content. An unknown one is prose that merely LOOKS like
+            # a label, so it is read but never named -- everything that is
+            # not a ledger row shares `_OFF_ROW`. Naming them would put
+            # `guard stay covered:` and `only from an engine bug:` in reports
+            # as though the ledger had rows by those names, which is a
+            # coverage claim invented by a regex.
+            #
+            # The whole line is kept for an unknown label, because a ledger
+            # writes `test_chained_offset_by_start: offset no-op` as an
+            # inline gloss and that head is reference-shaped: dropping it
+            # would swallow the one thing this module exists to resolve.
+            # Widening what the parse ADMITS must not narrow what it READS.
+            known = head.group(1) in LEDGER_ROWS
+            current = head.group(1) if known else _OFF_ROW
+            collected.setdefault(current, []).append(
+                (head.group(2) if known else line).strip()
+            )
         elif current is not None:
             if line.strip() == "":
                 current = None
@@ -688,7 +570,6 @@ _GOOD: dict[str, tuple[str, str]] = {
     "test-id-glob": ("the family {} covers the rejoin", "test_a_wrapped_*"),
     "file-path": ("the walk is {}", "tests/test_ledger_referents.py"),
     "module-attr": ("the axis reads {}", "cardlang.builtins.functions"),
-    "quantified-claim": ("every row of {} has a probe", "LEDGER_ROWS"),
 }
 _BAD: dict[str, tuple[str, str]] = {
     "test-id": ("proven by {} below", "test_the_walk_sees_a_module_that_is_not_here"),
@@ -697,7 +578,6 @@ _BAD: dict[str, tuple[str, str]] = {
     "module-attr": ("the axis reads {}", "cardlang.builtins.no_such_attribute"),
     # No referent to mark: the claim is bad by naming nothing at all, so the
     # markup axis is a no-op here and the cell reads the same in both columns.
-    "quantified-claim": ("every refusal arm has a probe", ""),
 }
 
 
@@ -724,20 +604,14 @@ def _expected_flagged(form: str, row: str, bad: bool) -> bool:
     """The expected column, authored from the law.
 
     A resolving reference is never flagged. A dangling one is flagged in every
-    ledger row -- the class sweep, not the two rows the ruling named. Markup
+    ledger row -- the class sweep, not the two rows the rule named. Markup
     never appears here: that a referent reads the same inside and outside a
     code span IS the policy, so the axis crosses the grid without an arm of
-    its own. The `quantified-claim` form is the exception on the row axis:
-    decisions.md scopes the quantifier rule to `covered:`, so the same
-    sentence in `sampled:` or `residual:` is a judgment sitting where the
-    register warns the reader, and flagging it would be the mechanism
-    overreaching its own law.
+    its own. There is no longer an exception on the row axis: the one form
+    that carried one, `quantified-claim`, retired with the `covered:` row
+    whose definition gave it a law to enforce.
     """
-    if not bad:
-        return False
-    if form == "quantified-claim":
-        return row == "covered"
-    return True
+    return bad
 
 
 @pytest.mark.parametrize("form,row,bad,marked", _cells(), ids=lambda v: str(v))
@@ -773,30 +647,6 @@ def test_each_form_is_matched(form: str, marked: bool) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "inflection", ("is probed", "has probes", "is pinning", "are pinned",
-                   "carries its witnesses", "are covered", "is tested",
-                   "are guarded")
-)
-def test_a_coverage_stem_reaches_its_inflections(inflection: str) -> None:
-    """`_COVERAGE_NOUN` holds stems and matches them as prefixes, so one entry
-    covers the inflections that keep its spelling. Stated because the
-    alternation LOOKS like a word list: a reader who assumed word boundaries
-    would read the vocabulary as narrower than it is, and
-    `test_each_coverage_frame_is_matched` probes only listed spellings, so it
-    cannot tell the two readings apart. The bound is real -- an inflection
-    that RESPELLS the stem is out, so "is probing" does not match while "is
-    pinning" does -- and that is residual (b)'s population, not a promise
-    made here.
-
-    red under: add a trailing `\\b` to `_COVERAGE_NOUN`; the inflections with
-        no listed spelling of their own stop matching.
-    """
-    assert [f.form for f in unresolved("covered", f"every refusal arm {inflection}")] == [
-        "quantified-claim"
-    ], inflection
-
-
 def test_no_reference_form_names_a_backtick() -> None:
     """The markup policy, enforced where it is owned -- in `_FORMS`, over every
     form at once rather than at the site of whichever one drifted.
@@ -824,24 +674,6 @@ def test_no_reference_form_names_a_backtick() -> None:
     )
 
 
-def test_a_quantifier_inside_a_code_span_is_not_a_prose_quantifier() -> None:
-    """The other half of the markup policy. `tests/test_domain_registry.py`
-    quotes DSL surface -- "Non-row nouns (`for each color`, `each color
-    simultaneously`) are guarded against ..." -- and reading `each` there as a
-    prose quantifier made the sweep's one live match an accident: it went
-    clean only because the quoted phrase beside it counted as a named set.
-
-    red under: run `_QUANTIFIED` over `text` instead of `_prose(text)`.
-    """
-    quoted = "Non-row nouns (`for each color`, `each color simultaneously`) are guarded"
-    assert not [f for f in unresolved("covered", quoted)
-                if f.form == "quantified-claim"]
-    # ...and the same words as PROSE still match.
-    assert [f.form for f in unresolved("covered", "each color is guarded")] == [
-        "quantified-claim"
-    ]
-
-
 # --- self-defense -----------------------------------------------------------
 
 
@@ -862,6 +694,29 @@ def test_the_row_axis_is_derived_from_its_two_templates() -> None:
     assert _LEDGER_SIGNATURE <= set(COMPLETENESS_ROWS)
 
 
+def test_the_row_axis_is_the_set_the_templates_print() -> None:
+    """The row axis is DERIVED, which is what lets a doctrine edit re-scope
+    this module with no edit here -- and is also how the axis can shrink
+    without anything going red. A label dropped or renamed leaves
+    `COMPLETENESS_ROWS` shorter, `_rows` stops collecting that row, and every
+    check keyed on the axis quietly covers less: the empty-input-set class,
+    whose mark is that the narrowed check still passes.
+
+    The sibling above reconciles the two SITES against each other, which does
+    not reach this: two templates edited together agree with each other while
+    both being wrong. So the set itself is pinned, and `does not prove` is
+    the reason it had to be. It is the first multi-word label, and the
+    single-token pattern that predated it scraped three rows instead of four
+    -- no exception, no diagnostic, just a sweep that had stopped reading a
+    row.
+
+    red under: delete, rename or reorder any `label:` line in BOTH
+    completeness fences at once (one alone reddens the sibling).
+    """
+    assert COMPLETENESS_ROWS == ("property", "domain", "registry", "does not prove")
+    assert CLASS_ROWS == ("finding", "class", "members", "covered", "residual")
+
+
 def test_the_walk_sees_this_module() -> None:
     """`git ls-files` lists TRACKED files, so a pin of this shape can be blind
     to itself while it is still untracked -- and pass, three times, locally.
@@ -871,14 +726,32 @@ def test_the_walk_sees_this_module() -> None:
     assert str(_SELF.relative_to(ROOT)) in _tracked()
 
 
-def test_the_ledger_population_is_non_empty() -> None:
-    """The sweep's vacuity guard: a signature that matched nothing would make
-    every claim below pass over an empty set.
+def test_the_ledger_population_is_the_whole_tree() -> None:
+    """The sweep's vacuity guard, and it pins MAGNITUDE as well as presence.
+    Presence alone catches only total collapse: a signature matching under
+    half the ledgers passes, and that is the reachable failure while modules
+    migrate a batch at a time -- one batch dropping or misspelling the row the
+    signature names would take its modules out of the sweep, quietly, in the
+    direction that reads clean. A floor rather than an equality because
+    modules are legitimately added and removed, so the floor sits well
+    below the population rather than at it. Migration does not move the
+    count either way, since `_LEDGER_SIGNATURE` names a row both formats
+    carry.
 
-    red under: change `_LEDGER_SIGNATURE` to a label no template prints.
+    red under: narrow `_ledgers` to 40 entries while KEEPING this module's
+        own -- e.g. return this module's entry plus the first 39 others. The
+        plant has to keep it: a plain `[:10]` drops this module too and is
+        caught by the sibling assert below, so it proves nothing about the
+        floor. Executed 2026-08-21 both ways -- with the floor, 1 failed;
+        with the floor neutralized and the same plant, 1 passed.
     """
     ledgers = _ledgers()
     assert ledgers, "found no completeness ledger -- the sweep would be vacuous"
+    assert len(ledgers) > 80, (
+        f"the ledger population is {len(ledgers)}, far below what this tree "
+        "carries -- the signature has narrowed and the sweep is reading fewer "
+        "ledgers than it reports on"
+    )
     assert any(name == str(_SELF.relative_to(ROOT)) for name, _ in ledgers), (
         "this module's own ledger is not in the population, so the sweep does "
         "not hold this module to the rule it enforces"
@@ -960,6 +833,102 @@ def test_the_red_under_cut_keeps_the_row_it_ends() -> None:
     assert rows["residual"] == "none"
 
 
+def test_prose_under_an_unknown_label_is_still_swept() -> None:
+    """The sweep's reach must not depend on the ROW AXIS. While `_rows` would
+    start a row only for a label in `LEDGER_ROWS`, a label the templates do
+    not print -- a row mid-migration, or a typo (`registy:`) -- did not start
+    one, and the blank line before it had already ended the row above, so its
+    prose was read by nothing and a dangling reference in it passed.
+
+    Measured when this format landed: 4 references over 3 modules
+    (`tests/test_domain_registry.py`, `tests/test_procedures.py`,
+    `tests/test_winner_target.py`) sat outside the sweep exactly this way.
+
+    red under: restore the `head.group(1) in LEDGER_ROWS` condition on
+        STARTING a row; the blank line then orphans the unknown label's prose
+        and this finding disappears.
+    """
+    rows = _rows(
+        "property:   x\n"
+        "domain:     y\n"
+        "\n"
+        "sampled:    proven by test_no_such_test_was_ever_written\n"
+    )
+    found = [f.token for row, text in rows.items() for f in unresolved(row, text)]
+    assert found == ["test_no_such_test_was_ever_written"], rows
+
+
+def test_an_inline_cut_would_change_no_finding() -> None:
+    """The half the inline/block decision rests on, recomputed every run
+    instead of quoted. Cutting from an inline "red under" to the end of its
+    row must move the finding count by zero -- in EITHER direction. A cut
+    that hides a finding makes this sweep quieter than it reports; a cut that
+    reveals one would mean the prose after an inline mention is being read as
+    a claim, which is the block form's whole problem.
+
+    The size of the cut is deliberately not asserted. It is a tally over an
+    accumulating set, and it drifted through three different values in prose
+    before this test existed -- `_inline_cut_impact` reports it on demand.
+
+    red under: extend `_RED_UNDER` to match an inline occurrence, which makes
+        the two spans identical and the delta trivially zero -- so it does NOT
+        redden this, and that is the point: the test guards the CUT, not the
+        matcher. To redden it, make an inline mention hide a finding, e.g.
+        append a dangling ` test_no_such_test_was_ever_written` to a row that
+        already contains an inline "red under" and confirm the delta moves.
+        (Executed 2026-08-21 on `tests/test_first_player_from.py`: delta -1.)
+    """
+    cut, total, firing, delta = _inline_cut_impact()
+    assert firing, (
+        "no row carries an inline `red under` any more, so this pin has "
+        "stopped exercising the decision it guards -- check whether the "
+        "inline form still occurs before deleting it"
+    )
+    assert delta == 0, (
+        f"an inline cut moves the finding count by {delta}: it would remove "
+        f"{cut} of {total} characters over {firing} rows, and those "
+        "characters are not inert"
+    )
+
+
+def test_no_row_name_is_invented_by_the_parse() -> None:
+    """Reading prose that looks like a label must not NAME it. Admitting any
+    label so nothing goes unswept means lines like `guard stay covered:` and
+    `only from an engine bug:` match the head pattern; keyed by their own
+    text they would appear in every report as rows the ledger does not have,
+    which is a coverage claim invented by a regex. They share `_OFF_ROW`
+    instead: read, never named.
+
+    red under: key an unknown label by `head.group(1)` instead of `_OFF_ROW`.
+        (Executed 2026-08-21: three such labels appear across the tree.)
+    """
+    seen: set[str] = set()
+    for _, rows in _ledgers():
+        seen |= set(rows)
+    assert seen <= set(LEDGER_ROWS) | {_OFF_ROW}, (
+        f"the parse invented row names: {sorted(seen - set(LEDGER_ROWS) - {_OFF_ROW})}"
+    )
+
+
+def test_a_reference_shaped_label_is_not_swallowed_by_being_a_label() -> None:
+    """The other side of widening the parse: a ledger writes an inline gloss
+    keyed by a test name (`test_chained_offset_by_start: offset no-op`), and
+    that head is reference-shaped. Keeping only the tail of an unknown label's
+    line would drop the very token this module resolves -- widening what the
+    parse ADMITS must not narrow what it READS.
+
+    red under: store `head.group(2)` for an unknown label too, instead of the
+        whole line.
+    """
+    rows = _rows(
+        "property:   x\n"
+        "covered:    ok\n"
+        "test_no_such_test_was_ever_written: an inline gloss\n"
+    )
+    found = [f.token for row, text in rows.items() for f in unresolved(row, text)]
+    assert found == ["test_no_such_test_was_ever_written"], rows
+
+
 def test_an_inline_red_under_stays_in_domain() -> None:
     """The deliberate half of the polarity decision, pinned so it is not
     quietly "fixed" into a cut. Cutting from an inline "red under" to the end
@@ -978,114 +947,6 @@ def test_an_inline_red_under_stays_in_domain() -> None:
     assert [f.token for f in unresolved("covered", rows["covered"])] == [
         "test_the_walk_sees_no_such_module_at_all"
     ]
-
-
-@pytest.mark.parametrize("word", QUANTIFIER_WORDS)
-def test_each_quantifier_word_is_matched(word: str) -> None:
-    """The axis is `_law_quantifiers`, read from the rule in decisions.md, so
-    a matcher covering fewer words than the law names fails here rather than
-    quietly enforcing a subset. `every` currently has no live instance in the
-    tree -- it is the primary word, so its reach is proven here rather than
-    by the population.
-
-    red under: narrow `_QUANTIFIER` to a literal `(?:every|all|each)` while
-        the rule still names four -- the axis stays four rows and the `no`
-        row goes red. (Deleting a word from the LAW instead is not a
-        reddening edit: the row disappears with it, which is why the axis is
-        derived rather than listed.)
-    """
-    findings = unresolved("covered", f"{word} refusal arm has a probe")
-    assert [f.form for f in findings] == ["quantified-claim"]
-
-
-@pytest.mark.parametrize(
-    "frame,probe",
-    [
-        ("has-a-noun", "every refusal arm has a probe"),
-        ("carries-its-noun", "every refusal arm carries its witness"),
-        ("is-noun", "every refusal arm is probed"),
-        ("are-noun", "all refusal arms are covered"),
-    ],
-)
-def test_each_coverage_frame_is_matched(frame: str, probe: str) -> None:
-    """`_COVERAGE_FRAME` is two alternatives with several fillers, hand-listed
-    like `_ADJACENCY`. Each shape is proven to fire, so one drifting cannot
-    leave the sweep looking clean on claims it stopped reading.
-
-    red under: delete the named alternative from `_COVERAGE_FRAME`.
-    """
-    assert [f.form for f in unresolved("covered", probe)] == ["quantified-claim"]
-
-
-def test_the_quantified_form_does_not_match_inside_an_identifier() -> None:
-    """A compliant ledger cites the reconciliation it wrote, and that test's
-    NAME carries the quantifier: PR #388's row cites
-    `test_every_refusal_arm_of_opening_actions_has_a_probe`. Reading the
-    identifier as a quantified claim would flag the exact form the rule is
-    written to produce.
-
-    The property is pinned on `_QUANTIFIED` rather than through `unresolved`,
-    because at that level it is unfalsifiable: the cited identifier is itself
-    what `_IDENTIFIER` looks for, so the sentence names a set either way and
-    no mutation of the matcher can redden it. A pin with no reachable red is
-    the vacuously-green class (decisions.md), so this one is placed where its
-    red is reachable.
-
-    red under (executed 2026-08-20): widen every `\\s+` in `_COVERAGE_FRAME`
-        to `[\\s_]+` AND drop all three `\\b` from `_QUANTIFIED` (both around
-        `_QUANTIFIER` and the one before the frame group). No subset of those
-        reddens it -- the snake_case is unreachable while any one survives --
-        so the fault is planted as one edit to the matcher, never to this
-        assertion.
-    """
-    assert not _QUANTIFIED.search("test_every_refusal_arm_of_opening_actions_has_a_probe")
-    assert not _QUANTIFIED.search("each_cell_is_probed")
-    # ...and it still fires on the same words written as prose.
-    assert _QUANTIFIED.search("every refusal arm has a probe")
-
-
-@pytest.mark.parametrize(
-    "where,text",
-    [
-        ("a cited verifier", "`test_some_probe` proves every refusal arm has a probe"),
-        ("an earlier clause", "the grid reads `LEDGER_ROWS`; every refusal arm has a probe"),
-        ("a previous sentence", "the grid reads `LEDGER_ROWS`. Every refusal arm has a probe."),
-        ("an anaphor", "`harness.verb_status` is total, and all four of its cells are probed"),
-        ("the reconciliation", "every refusal arm has a probe in `_PROBED_ARMS`"),
-    ],
-)
-def test_an_identifier_outside_the_quantified_span_does_not_name_the_set(
-    where: str, text: str
-) -> None:
-    """The identifier must be POSITIONALLY bound to the quantified set. An
-    identifier merely present in the sentence is what made this check
-    unfailable: it emitted zero findings over 89 ledgers and could not have
-    fired even on the two sentences it matched, because citing the verifier
-    ("`test_some_probe` proves every refusal arm has a probe") satisfied it.
-
-    The law is served, not overreached. Its own exemplar is positional --
-    "Every arm of `opening_actions` has a probe in `_PROBED_ARMS`" names the
-    set INSIDE the noun phrase -- and its stated purpose is that the claim be
-    reconcilable, which "all four of its cells" is not without a reader to
-    follow the anaphor. A sentence flagged here is not condemned: the rule's
-    own remedy is to name the set, or to move the claim to `sampled`.
-
-    red under: search the sentence around the span instead of `m.group(0)`.
-    """
-    assert [f.form for f in unresolved("covered", text)
-            if f.form == "quantified-claim"] == ["quantified-claim"], where
-
-
-def test_a_set_named_inside_the_quantified_span_is_not_flagged() -> None:
-    """The other side of the same cut: named in the noun phrase, and clean --
-    backticked or bare, since markup is not what makes a name.
-
-    red under: require the identifier to follow the coverage frame.
-    """
-    for named in ("every cell of `harness.verb_status` is probed",
-                  "every cell of harness_verb_status is probed"):
-        assert not [f for f in unresolved("covered", named)
-                    if f.form == "quantified-claim"], named
 
 
 # --- the skipped-token census -----------------------------------------------

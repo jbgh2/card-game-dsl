@@ -67,8 +67,8 @@ criterion** — alongside "does it run" and "is it byte-identical":
   corpus-first but every deferral is a loud guard. "Vacuously green" — a
   check presented as a guarantee that cannot fail — is a defect class of
   equal rank to "accepted-but-ignored". Changes to rigor-critical machinery
-  ship with their completeness argument (property, domain, coverage,
-  residual). When a gap is found, sweep its whole class (the other members
+  ship with their completeness argument (property, domain, registry, and
+  what a green does not prove). When a gap is found, sweep its whole class (the other members
   of the same closed domain) before patching the instance. The rule is
   `docs/decisions.md`, "Closed-domain completeness".
 - **Stop-and-fix at write time.** Two tells mean you are losing information,
@@ -199,9 +199,10 @@ the **grid** (the crossed coverage domain as an executable parametrized
 test — axes derived in code, expected outcomes authored red BEFORE the
 implementation exists), misuse-probe **rejection tests** (the most plausible
 wrong sentences, each proven loud in the right layer's failure channel), and the
-**completeness ledger** (judgment columns in the grid module's docstring —
-`covered` IS the grid; no residual cell without both a guard and a record —
-a tracker issue cited as `issue #N`, or the ledger row alone for an R4
+**completeness ledger** (the judgment the grid cannot state itself, in the
+grid module's docstring — the grid IS the coverage record and no row
+restates it; an uncovered cell is a `skip` or `xfail` naming its reason,
+with a tracker issue cited as `issue #N`, or the mark's reason alone for an R4
 auditor-only cell guarding nothing rigor-critical (`docs/decisions.md`,
 "Reachability ranks the work"); born-green pins name their reddening
 mutation). A green suite must never stand in for this gate: the suite proves
@@ -213,18 +214,20 @@ Deferred **work** lives in GitHub issues
 (<https://github.com/jbgh2/card-game-dsl/issues>), not in `docs/`.
 Two sections stay behind, and neither is work: `docs/roadmap.md`, "Out of
 scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
-When you defer a cell, file an issue and cite it as `issue #N` in the
-completeness ledger — a residual with no record does not land. R4
-auditor-only residuals guarding nothing rigor-critical are the exception
-(`docs/decisions.md`, "Reachability ranks the work"): like the carve-out
-below, they record in the owning ledger and need no issue.
+When you defer a cell, file an issue and cite it as `issue #N` beside the
+cell's guard — a deferral with no record does not land. R4 auditor-only
+cells guarding nothing rigor-critical are the exception
+(`docs/decisions.md`, "Reachability ranks the work"): the mark's own reason
+is the record, and they need no issue.
 
-One carve-out, because it is what the repo actually does: a residual that is
-**not work** — a recorded constraint or trap, deliberately not-to-be-fixed
-(`hand[0]` coercing, `action`'s move-type-specific fields staying `TAny`) —
-records in its own ledger and needs no issue. The ledger must then SAY it owns
-the record, so "no issue" reads as a decision rather than an omission. If the
-cell is something anyone might one day build, it is work: file the issue.
+One carve-out, because it is what the repo actually does: a **designed
+constraint** — a recorded trap, deliberately not-to-be-fixed (`hand[0]`
+coercing, `action`'s move-type-specific fields staying `TAny`) — is not work
+and needs no issue. It records in the spec, or in a comment at the construct
+it constrains, where the next reader of that construct meets it; and it SAYS
+it is designed, so "no issue" reads as a decision rather than an omission. If
+the cell is something anyone might one day build, it is work: file the
+issue.
 
 Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
 `enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,

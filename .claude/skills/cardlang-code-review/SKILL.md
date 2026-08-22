@@ -30,8 +30,9 @@ loud failure is the system working; silence is the enemy.
    binder's type bound.
 4. **Vacuously-green** — a test or check presented as a guarantee that cannot
    fail: an assertion loop over nodes a retired construct can no longer
-   produce, a ledger row with no pinning test (decisions.md "Closed-domain
-   completeness").
+   produce, a grid cell enumerated but never run, a `does not prove:` row
+   holding deferred work under a name that says it is only an instrument
+   limit (decisions.md "Closed-domain completeness").
 5. **Wrong-channel failure** — the right rejection in the wrong shape or
    layer: a raw lark/Python exception where a located, bag-collected
    diagnostic belongs; a bare `assert`; a runtime crash for a statically
@@ -70,8 +71,8 @@ allocates backwards.
    must ship that skill's artifacts: the **grid** (the crossed coverage
    domain as an executable parametrized test — axes derived in code, born
    red before the implementation), misuse-probe **rejection tests**, and
-   the **completeness ledger** (judgment columns in the grid module's
-   docstring). Absence of any is a severity-2 finding reported first —
+   the **completeness ledger** (the judgment the grid cannot state itself,
+   in the grid module's docstring). Absence of any is a severity-2 finding reported first —
    never a below-the-fold conventions note. When the artifacts exist, use
    them:
    - **Run the grid against the merge base — with the HEAD-derived cell
