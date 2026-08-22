@@ -217,8 +217,8 @@ scope", and `docs/roadmap.md`, "Grammar surface deferred by the checker".
 When you defer a cell, file an issue and cite it as `issue #N` beside the
 cell's guard — a deferral with no record does not land. R4 auditor-only
 cells guarding nothing rigor-critical are the exception
-(`docs/decisions.md`, "Reachability ranks the work"): like the carve-out
-below, they record in the owning ledger and need no issue.
+(`docs/decisions.md`, "Reachability ranks the work"): the mark's own reason
+is the record, and they need no issue.
 
 One carve-out, because it is what the repo actually does: a **designed
 constraint** — a recorded trap, deliberately not-to-be-fixed (`hand[0]`

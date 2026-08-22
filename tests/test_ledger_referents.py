@@ -436,13 +436,15 @@ def _join_rows(parts: list[str]) -> str:
 # well-written reddening witness the thing that reddens this sweep.
 #
 # The cut is the block form ONLY. An INLINE "red under" is deliberately left
-# in domain: measured over the 87 ledgers, cutting from an inline occurrence
-# to the end of the row removes 1.5% of all ledger prose and up to 90% of one
-# row (`tests/test_zone_capacity.py`'s `covered:`, 944 characters to 87), it
-# fires on four rows where "red under" is ordinary prose ("proven red under
-# `xfail(strict=True)`"), and it changes no finding -- zero, either way
-# (measured 2026-08-20). A cut that removes prose and catches nothing is this
-# sweep going quiet, which is the direction that fails silently; an inline
+# in domain: re-measured over the 90 ledgers on this tree, cutting from an
+# inline occurrence to the end of the row removes 0.98% of all ledger prose
+# (3354 of 342081 characters), fires on ten rows where "red under" is
+# ordinary prose ("proven red under `xfail(strict=True)`"), takes the worst
+# row down 54% (`tests/test_first_player_from.py`'s `naming:`, 1663
+# characters to 760) -- and changes no finding, zero either way, which is the
+# half that decides it (all four measured 2026-08-21). A cut that removes
+# prose and catches nothing is this sweep going quiet, which is the direction
+# that fails silently; an inline
 # `red under:` naming something absent will redden here instead, loudly.
 _RED_UNDER = re.compile(r"^[ \t]*red under\b", re.I)
 
@@ -676,14 +678,31 @@ def test_the_walk_sees_this_module() -> None:
     assert str(_SELF.relative_to(ROOT)) in _tracked()
 
 
-def test_the_ledger_population_is_non_empty() -> None:
-    """The sweep's vacuity guard: a signature that matched nothing would make
-    every claim below pass over an empty set.
+def test_the_ledger_population_is_the_whole_tree() -> None:
+    """The sweep's vacuity guard, and it pins MAGNITUDE as well as presence.
+    Presence alone catches only total collapse: a signature matching 40 of 90
+    ledgers passes, and that is the reachable failure while the modules
+    migrate a batch at a time -- one batch dropping or misspelling the row the
+    signature names would take its modules out of the sweep, quietly, in the
+    direction that reads clean. A floor rather than an equality because
+    modules are legitimately added and removed; 90 today (2026-08-21), and
+    stage 2 does not change the count, since `_LEDGER_SIGNATURE` names a row
+    both formats carry.
 
-    red under: change `_LEDGER_SIGNATURE` to a label no template prints.
+    red under: narrow `_ledgers` to 40 entries while KEEPING this module's
+        own -- e.g. return this module's entry plus the first 39 others. The
+        plant has to keep it: a plain `[:10]` drops this module too and is
+        caught by the sibling assert below, so it proves nothing about the
+        floor. Executed 2026-08-21 both ways -- with the floor, 1 failed;
+        with the floor neutralized and the same plant, 1 passed.
     """
     ledgers = _ledgers()
     assert ledgers, "found no completeness ledger -- the sweep would be vacuous"
+    assert len(ledgers) > 80, (
+        f"the ledger population is {len(ledgers)}, well under the 90 this tree "
+        "carries -- the signature has narrowed and the sweep is reading fewer "
+        "ledgers than it reports on"
+    )
     assert any(name == str(_SELF.relative_to(ROOT)) for name, _ in ledgers), (
         "this module's own ledger is not in the population, so the sweep does "
         "not hold this module to the rule it enforces"
