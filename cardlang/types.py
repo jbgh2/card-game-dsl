@@ -123,11 +123,14 @@ class TCollection:
     per-player/per-team state variable, an indexed `let` — and ``None`` for
     positional collections and untracked shapes. It drives the
     subscript/indexed-assignment key checks and the keyed-membership Owner Guard.
-    Facets do not decide TOP-LEVEL compatibility: `coercible`'s collection
-    arm compares elements only, and `join` preserves facets the two sides
-    agree on rather than judging by them. (Nested collections compare
-    elements with full equality, so a facet mismatch one level down does
-    distinguish — no current value shape nests a flag-bearing collection.)
+    Facets do not decide compatibility at ANY depth: `coercible`'s collection
+    arm compares elements only, `join` preserves facets the two sides agree on
+    rather than judging by them, and both RECURSE — so a facet mismatch one
+    level down is as invisible as one at the top. Value shapes that nest a
+    flag-bearing collection do exist: a zone-family subscript keeps the flag
+    (`hand[p]` is a `Collection<Card>` with ``zone``), and an indexed `let`
+    wraps it, so `let probe[p] = hand[p]` is a `Collection<Collection<Card>>`
+    whose inner collection is a zone.
     The value space of `score[player]` IS `Collection<Integer>`; the key is a
     fact about how you may ADDRESS it, not about what it holds.
 
@@ -135,7 +138,24 @@ class TCollection:
     be PRESERVED by every site that rebuilds one — an obligation that already
     bit once (`join` dropped both facets; see its docstring). The promotion
     path to real nominal kinds (`TZone`, `TMap`), and the three named
-    triggers that would fire it, are recorded in issue #123."""
+    triggers that would fire it, are recorded in issue #123.
+
+    A facet mismatch does not distinguish, at the top or one level down:
+
+    >>> coercible(TCollection(TCard(), zone=True), TCollection(TCard(), zone=False))
+    True
+    >>> deep_zone = TCollection(TCollection(TCard(), zone=True))
+    >>> deep_plain = TCollection(TCollection(TCard(), zone=False))
+    >>> coercible(deep_zone, deep_plain)
+    True
+
+    ``join`` preserves a facet both sides agree on, and drops one they do not:
+
+    >>> join(TCollection(TCard(), zone=True), TCollection(TCard(), zone=True)).zone
+    True
+    >>> join(TCollection(TCard(), zone=True), TCollection(TCard(), zone=False)).zone
+    False
+    """
 
     element: Type
     key: Type | None = None
@@ -217,6 +237,17 @@ def join(a: Type, b: Type) -> Type | None:
     Owner Guard would MANUFACTURE a `can never be equal` diagnostic for a comparison
     whose only uncertainty is in the element. Gradual typing has to be gradual all
     the way down, or it is just a top-level special case.
+
+    >>> join(TInteger(), TInteger()) == TInteger()
+    True
+    >>> join(TAny(), TCard()) == TAny()
+    True
+    >>> join(TCollection(TAny()), TCollection(TCard())) is None
+    False
+    >>> join(TCard(), TOptional(TCard())) == TOptional(TCard())
+    True
+    >>> join(TInteger(), TCard()) is None
+    True
     """
     if isinstance(a, TAny) or isinstance(b, TAny):
         return TAny()
@@ -286,6 +317,15 @@ def coercible(src: Type, dst: Type) -> bool:
     `TAny` is compatible either way. A bare value fits its optional (`T` → `T?`).
     An `Integer` may stand for a `Player`/`Team` — both are 0-based int identities,
     so a player/team literal or default (`dealer : Player = 0`) is fine.
+
+    >>> coercible(TAny(), TCard()), coercible(TCard(), TAny())
+    (True, True)
+    >>> coercible(TCard(), TOptional(TCard()))
+    True
+    >>> coercible(TInteger(), TPlayer()), coercible(TInteger(), TTeam())
+    (True, True)
+    >>> coercible(TNull(), TOptional(TCard())), coercible(TNull(), TCard())
+    (True, False)
     """
     if isinstance(src, TAny) or isinstance(dst, TAny):
         return True
