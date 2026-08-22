@@ -70,8 +70,10 @@ does not prove:  three things, and the third is why this module exists in
             fixture and nothing exercises these paths through a real game.
             The pins are direct and they cover the shapes that once went wrong
             -- nominal identity, a derived field reached through a function,
-            derived bodies in an ambient environment, nested and recursive
-            depth -- so a green does say those hold. What it does not say is
+            derived bodies in an ambient environment, and nested and
+            recursive STRUCT depth -- so a green does say those hold.
+            Collection-facet nesting is a different question and has no pin
+            in this module. What it does not say is
             that they hold in a game, which is the exposure a corpus witness
             would add and this module cannot. Every one of those four defects
             was found by review or an adversarial probe rather than by the
