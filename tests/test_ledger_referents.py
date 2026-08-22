@@ -31,8 +31,8 @@ domain:          every module-level ledger docstring in the tree, crossed
                  them, not because any docstring holds one -- the walk finds
                  zero class ledgers, so those cells are forward coverage.
                  Markup is an axis because it was the defect: three forms held
-                 three policies on a backtick and the disagreement hid 218
-                 referents. Rows are MUST-EXIST prose, so a `red under:` BLOCK
+                 three policies on a backtick, and the disagreement hid
+                 referents in bulk. Rows are MUST-EXIST prose, so a `red under:` BLOCK
                  -- which states a mutation deliberately NOT made -- ends the
                  row it sits in (`_RED_UNDER`); an inline one stays in domain
                  on purpose, measured, in `_RED_UNDER`'s note.
@@ -54,10 +54,11 @@ domain:          every module-level ledger docstring in the tree, crossed
                  admits its own false-positive population. Widening to them
                  needs the declared exception list issue #110 designs; a
                  second one built here would give one domain two definition
-                 sites. Fourth, the population is MODULE-level ledgers: 208 of
-                 the tree's 231 `red under:` lines sit in function docstrings
-                 and are the inverted-polarity prose this module cuts rather
-                 than reads, so the exclusion loses no must-exist claim.
+                 sites. Fourth, the population is MODULE-level ledgers.
+                 Nearly every `red under:` line in the tree sits in a
+                 function docstring, and those are the inverted-polarity
+                 prose this module cuts rather than reads, so the exclusion
+                 loses no must-exist claim.
 registry:        the row axis is DERIVED by `_fence_labels` from the two
                  templates that define it, the `decisions.md` fence under "the
                  **completeness ledger** in the grid module's docstring:" and
@@ -119,13 +120,11 @@ does not prove:  a green here does not mean a ledger is TRUE. The forms
                  (`CENSUS_RESIDUE`), and the direction a bare count would miss
                  is held instead by
                  `test_the_census_sees_every_token_the_forms_claim` and
-                 `test_the_census_population_is_non_empty`. Bucket sizes are
-                 MEASUREMENTS, not pins -- a dated snapshot that moves
-                 whenever any ledger is edited, this module's own included
-                 (2026-08-20, 89 ledgers): 2139 compound candidates, 551
-                 claimed, 13 resolving-but-unclaimed over the 3 tokens in
-                 `CENSUS_RESIDUE`, 1575 unresolvable; 1330 of the candidates
-                 sit in a code span and 809 bare.
+                 `test_the_census_population_is_non_empty`. The bucket sizes
+                 are not written down anywhere: they move whenever any ledger
+                 is edited, this module's own included, so a figure here
+                 would be answering from memory a question `_census` answers
+                 from the tree. Run it.
 
 No form here reads the PROSE of a row, only the names in it. A matcher
 holding a quantified sentence to naming its set beside it flags eight
@@ -141,8 +140,8 @@ red under: revert the citation in `tests/test_domain_registry.py` to the
     the function is `test_every_row_is_quantifiable_in_both_forms`. It was
     invisible to every form for as long as it sat in backticks.
     `test_every_ledger_reference_resolves` names it, and its `assert not
-    found` is the assertion that reddens -- alone, 1 failed of 167, naming
-    the truncated token. Re-executed 2026-08-20 against this format.
+    found` is the assertion that reddens -- alone, and naming the truncated
+    token. Re-executed 2026-08-21 against this format.
 """
 
 from __future__ import annotations
@@ -729,14 +728,15 @@ def test_the_walk_sees_this_module() -> None:
 
 def test_the_ledger_population_is_the_whole_tree() -> None:
     """The sweep's vacuity guard, and it pins MAGNITUDE as well as presence.
-    Presence alone catches only total collapse: a signature matching 40 of 90
-    ledgers passes, and that is the reachable failure while the modules
+    Presence alone catches only total collapse: a signature matching under
+    half the ledgers passes, and that is the reachable failure while modules
     migrate a batch at a time -- one batch dropping or misspelling the row the
     signature names would take its modules out of the sweep, quietly, in the
     direction that reads clean. A floor rather than an equality because
-    modules are legitimately added and removed; 90 today (2026-08-21), and
-    stage 2 does not change the count, since `_LEDGER_SIGNATURE` names a row
-    both formats carry.
+    modules are legitimately added and removed, so the floor sits well
+    below the population rather than at it. Migration does not move the
+    count either way, since `_LEDGER_SIGNATURE` names a row both formats
+    carry.
 
     red under: narrow `_ledgers` to 40 entries while KEEPING this module's
         own -- e.g. return this module's entry plus the first 39 others. The
@@ -748,7 +748,7 @@ def test_the_ledger_population_is_the_whole_tree() -> None:
     ledgers = _ledgers()
     assert ledgers, "found no completeness ledger -- the sweep would be vacuous"
     assert len(ledgers) > 80, (
-        f"the ledger population is {len(ledgers)}, well under the 90 this tree "
+        f"the ledger population is {len(ledgers)}, far below what this tree "
         "carries -- the signature has narrowed and the sweep is reading fewer "
         "ledgers than it reports on"
     )

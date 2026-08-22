@@ -344,8 +344,9 @@ deferred work in disguise.
 
 No matcher reads the prose of these rows, and that is deliberate. Prose
 written to satisfy a matcher is worse prose, and a row naming its set in
-good English is the goal — "all 28 French cells (7 decks x 4 conventions,
-frozen expected tuples)" is exactly right and must never be reddened.
+good English is the goal — "every French deck crossed with every
+convention in `RANKING_CONVENTIONS`, frozen expected tuples" is exactly
+right and must never be reddened.
 
 The gate follows the routing: **an uncovered cell without both a guard and
 a record fails the audit** — the record being the mark's reason or `issue
