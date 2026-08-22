@@ -80,7 +80,9 @@ does not prove:  three things, and the third is why this module exists in
             (`test_a_nested_struct_field_is_typed_whatever_the_declaration_order`,
             `test_a_recursive_struct_path_stays_typed_at_any_depth`). A green
             does say those hold. Collection-facet nesting is a different
-            question and has no pin here. What it does not say is
+            question, pinned in tests/test_types.py
+            (`test_nested_facets_do_not_distinguish`,
+            `test_a_flag_bearing_collection_does_nest`) rather than here. What it does not say is
             that they hold in a game, which is the exposure a corpus witness
             would add and this module cannot. Every one of those four defects
             was found by review or an adversarial probe rather than by the
