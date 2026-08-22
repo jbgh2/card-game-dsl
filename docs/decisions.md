@@ -3784,7 +3784,7 @@ named for what it holds cannot take the others:
 
 | what you have | where it goes | a row? |
 |---|---|---|
-| Deferred work | the tracker: `issue #N`, plus one line | no |
+| Deferred work | the tracker: `issue #N`, cited beside the guard | no |
 | An uncovered cell | `skip`/`xfail` in the grid, with its reason | no |
 | A domain boundary — nothing missing | `domain:`, stated positively | no |
 | A designed constraint — never to be fixed | the spec, or a comment at the construct | no |
@@ -3793,6 +3793,16 @@ named for what it holds cannot take the others:
 
 Three of the six are not instrument limits at all. The slot name does the
 sorting, so mis-filing stops at the point of writing rather than at review.
+
+Deferred work records **beside the guard that makes it loud**, never in a
+row — the ledger is not where a reader learns that something is unbuilt, the
+refusal is. Where the deferral also *bounds what the module covers*, the
+boundary additionally gets its positive sentence in `domain:`, citing the
+same issue: a form that has not been written yet is a real limit on the
+domain today, and stating it there is not a duplicate of the guard but the
+scope it implies. Most deferred work bounds nothing — a cell that ought to
+be covered and is not — and inventing a boundary sentence for it would
+manufacture a scope limit that does not exist.
 
 Between the two marks, prefer **`xfail(strict=True, raises=...)`**: strict
 reddens the moment the cell starts passing, so an implementation that

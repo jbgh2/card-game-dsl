@@ -315,7 +315,7 @@ be holding have homes that act on them:
 
 | what you have | where it goes | a row? |
 |---|---|---|
-| Deferred work | the tracker: `issue #N`, plus one line | no |
+| Deferred work | the tracker: `issue #N`, cited beside the guard | no |
 | An uncovered cell | `skip`/`xfail` in the grid, with its reason | no |
 | A domain boundary — nothing missing | `domain:`, stated positively | no |
 | A designed constraint — never to be fixed | the spec, or a comment at the construct | no |
@@ -325,6 +325,13 @@ be holding have homes that act on them:
 If you are about to write "not covered here" — stop and ask which of the
 six it is. Three of them are not instrument limits at all, and the row's
 name is what should have stopped you.
+
+Deferred work goes **beside the guard**, never in a row: the refusal is
+where a reader meets it, not the ledger. Add a positive sentence in
+`domain:` too **only** when the deferral bounds what the module covers — an
+unwritten form is a real limit on the domain today. If the deferral bounds
+nothing, and most do not, writing a boundary sentence for it invents a scope
+limit that is not there.
 
 A boundary goes in `domain:` **positively** — name what holds, and what
 rejects the rest. "X is not covered" reads as a gap and sends the reader
