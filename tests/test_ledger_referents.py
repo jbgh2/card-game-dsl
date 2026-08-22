@@ -218,6 +218,10 @@ LEDGER_ROWS: tuple[str, ...] = tuple(sorted(set(COMPLETENESS_ROWS) | set(CLASS_R
 # the population rather than a cut through it.
 _LEDGER_SIGNATURE = frozenset({"property", "domain"})
 
+# Prose that looks like a label but names no row. One bucket, so the sweep
+# reads it without inventing a row name for it.
+_OFF_ROW = "(not a ledger row)"
+
 
 # --- the tree the references resolve against --------------------------------
 
@@ -436,17 +440,53 @@ def _join_rows(parts: list[str]) -> str:
 # well-written reddening witness the thing that reddens this sweep.
 #
 # The cut is the block form ONLY. An INLINE "red under" is deliberately left
-# in domain: re-measured over the 90 ledgers on this tree, cutting from an
-# inline occurrence to the end of the row removes 0.98% of all ledger prose
-# (3354 of 342081 characters), fires on ten rows where "red under" is
-# ordinary prose ("proven red under `xfail(strict=True)`"), takes the worst
-# row down 54% (`tests/test_first_player_from.py`'s `naming:`, 1663
-# characters to 760) -- and changes no finding, zero either way, which is the
-# half that decides it (all four measured 2026-08-21). A cut that removes
-# prose and catches nothing is this sweep going quiet, which is the direction
-# that fails silently; an inline
+# in domain, and the reason is a PROPERTY rather than a figure: cutting from
+# an inline occurrence to the end of its row changes no finding, in either
+# direction, over every ledger in the tree. That is pinned by
+# `test_an_inline_cut_would_change_no_finding`, which recomputes it from the
+# ledgers each run. A cut that removes prose and catches nothing is this
+# sweep going quiet, which is the direction that fails silently.
+#
+# How much prose it would remove is deliberately NOT written here. It is a
+# tally over an accumulating set (decisions.md, "Prose names the registry,
+# never the cardinality"), and it rotted exactly as that rule predicts: the
+# figure was stated for one tree, restated for another, and two readers
+# recomputing it by hand got two more answers, because each was measuring a
+# slightly different thing. `_inline_cut_impact` is the one technique, in
+# code -- call it if you want the number for the tree in front of you.
+# An inline
 # `red under:` naming something absent will redden here instead, loudly.
 _RED_UNDER = re.compile(r"^[ \t]*red under\b", re.I)
+
+
+def _inline_cut_impact() -> tuple[int, int, int, int]:
+    """What an INLINE `red under` cut would do, computed from the ledgers.
+
+    Returns `(chars_cut, chars_total, rows_firing, findings_delta)` over every
+    row of every ledger, where the cut runs from the first inline "red under"
+    to the end of that row -- the same span the block cut takes, applied where
+    the doctrine deliberately does not apply it.
+
+    This exists so the question has ONE answer. The figure was prose for a
+    while, and prose over an accumulating set drifts: two readers recomputing
+    it by hand disagreed with the comment and with each other, because a hand
+    computation encodes its own definition of "row", "prose" and "cut" each
+    time. `findings_delta` is the half the decision rests on and the only half
+    pinned; the sizes are reported, never asserted.
+    """
+    cut = total = firing = 0
+    before = after = 0
+    for _, rows in _ledgers():
+        for row, text in rows.items():
+            total += len(text)
+            hit = re.search(r"\bred under\b", text, re.I)
+            trimmed = text[: hit.start()] if hit else text
+            if hit:
+                firing += 1
+                cut += len(text) - hit.start()
+            before += len(unresolved(row, text))
+            after += len(unresolved(row, trimmed))
+    return cut, total, firing, after - before
 
 
 def _rows(doc: str) -> dict[str, str]:
@@ -467,15 +507,24 @@ def _rows(doc: str) -> dict[str, str]:
             # out that way. Row identity is diagnostic only (nothing branches
             # on it), so widening costs a little row attribution and buys the
             # property the module claims -- every reference a ledger writes.
-            current = head.group(1)
-            # A KNOWN label is structure, so the row's text is its content.
-            # An unknown one is prose that merely looks like a label -- a
-            # ledger writes `test_chained_offset_by_start: offset no-op` as
-            # an inline gloss, and that token is reference-shaped, so
-            # dropping the head would swallow the one thing this module
-            # exists to resolve. Widening the parse must not narrow the text.
-            keep = head.group(2) if current in LEDGER_ROWS else line
-            collected.setdefault(current, []).append(keep.strip())
+            # A KNOWN label is structure: it names a row, and the row's text
+            # is its content. An unknown one is prose that merely LOOKS like
+            # a label, so it is read but never named -- everything that is
+            # not a ledger row shares `_OFF_ROW`. Naming them would put
+            # `guard stay covered:` and `only from an engine bug:` in reports
+            # as though the ledger had rows by those names, which is a
+            # coverage claim invented by a regex.
+            #
+            # The whole line is kept for an unknown label, because a ledger
+            # writes `test_chained_offset_by_start: offset no-op` as an
+            # inline gloss and that head is reference-shaped: dropping it
+            # would swallow the one thing this module exists to resolve.
+            # Widening what the parse ADMITS must not narrow what it READS.
+            known = head.group(1) in LEDGER_ROWS
+            current = head.group(1) if known else _OFF_ROW
+            collected.setdefault(current, []).append(
+                (head.group(2) if known else line).strip()
+            )
         elif current is not None:
             if line.strip() == "":
                 current = None
@@ -807,6 +856,58 @@ def test_prose_under_an_unknown_label_is_still_swept() -> None:
     )
     found = [f.token for row, text in rows.items() for f in unresolved(row, text)]
     assert found == ["test_no_such_test_was_ever_written"], rows
+
+
+def test_an_inline_cut_would_change_no_finding() -> None:
+    """The half the inline/block decision rests on, recomputed every run
+    instead of quoted. Cutting from an inline "red under" to the end of its
+    row must move the finding count by zero -- in EITHER direction. A cut
+    that hides a finding makes this sweep quieter than it reports; a cut that
+    reveals one would mean the prose after an inline mention is being read as
+    a claim, which is the block form's whole problem.
+
+    The size of the cut is deliberately not asserted. It is a tally over an
+    accumulating set, and it drifted through three different values in prose
+    before this test existed -- `_inline_cut_impact` reports it on demand.
+
+    red under: extend `_RED_UNDER` to match an inline occurrence, which makes
+        the two spans identical and the delta trivially zero -- so it does NOT
+        redden this, and that is the point: the test guards the CUT, not the
+        matcher. To redden it, make an inline mention hide a finding, e.g.
+        append a dangling ` test_no_such_test_was_ever_written` to a row that
+        already contains an inline "red under" and confirm the delta moves.
+        (Executed 2026-08-21 on `tests/test_first_player_from.py`: delta -1.)
+    """
+    cut, total, firing, delta = _inline_cut_impact()
+    assert firing, (
+        "no row carries an inline `red under` any more, so this pin has "
+        "stopped exercising the decision it guards -- check whether the "
+        "inline form still occurs before deleting it"
+    )
+    assert delta == 0, (
+        f"an inline cut moves the finding count by {delta}: it would remove "
+        f"{cut} of {total} characters over {firing} rows, and those "
+        "characters are not inert"
+    )
+
+
+def test_no_row_name_is_invented_by_the_parse() -> None:
+    """Reading prose that looks like a label must not NAME it. Admitting any
+    label so nothing goes unswept means lines like `guard stay covered:` and
+    `only from an engine bug:` match the head pattern; keyed by their own
+    text they would appear in every report as rows the ledger does not have,
+    which is a coverage claim invented by a regex. They share `_OFF_ROW`
+    instead: read, never named.
+
+    red under: key an unknown label by `head.group(1)` instead of `_OFF_ROW`.
+        (Executed 2026-08-21: three such labels appear across the tree.)
+    """
+    seen: set[str] = set()
+    for _, rows in _ledgers():
+        seen |= set(rows)
+    assert seen <= set(LEDGER_ROWS) | {_OFF_ROW}, (
+        f"the parse invented row names: {sorted(seen - set(LEDGER_ROWS) - {_OFF_ROW})}"
+    )
 
 
 def test_a_reference_shaped_label_is_not_swallowed_by_being_a_label() -> None:
