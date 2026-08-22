@@ -23,101 +23,56 @@ property:   a name/registry lookup whose domain is closed never degrades to
             `AssertionError` naming the guard or builder that guarantees it),
             so an incomplete environment surfaces as a crash at the miss
             rather than as a silently-passing type check.
-domain:     every top-construction site in `cardlang/` (27 today, counted by
-            `_count_top_constructions` under any spelling of the type's name),
+domain:     every top-construction site in `cardlang/`, counted by
+            `_count_top_constructions` under any spelling of the type's name,
             partitioned into: lookup-miss producers (raise), declared-type-name
             positions (guarded at resolve), and audited top.
-registry:   the five role sets (`domains.Role` vs the parser's quantifier
+            Two things sit outside, and neither is a gap. A lookup taking a
+            `domains.Role` rather than a bare name cannot miss BY TYPE, so it
+            has no miss branch to probe and no behaviour to write a cell for;
+            what remains for those is the every-Role-has-a-row pin beside
+            them (`test_every_role_carries_a_row`). And a
+            MERGE-failure top is a distinct population from the lookup misses
+            this module closes: `join` returning None in `IfExpr`/`ListLit`
+            falls to the top (`if c then 1 else hearts` goes permissive), and
+            `max`/`min` comprehensions type as the top though `_check_agg_body`
+            already forces an Integer body -- a precision loss rather than a
+            miss. Both are issue #116, and closing them is a guard this module
+            does not own.
+registry:   the role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
             `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
             `NameRef.ref_kind` vs `_name_type`'s arms; `OP_CLASSES` vs
             `infer`'s BinOp arm (pinned in tests/test_operator_guards.py).
-covered:    the registry-closure pins below (each proves the corresponding
-            raise is unreachable for a well-formed program, so the raise is a
-            guard over a closed domain rather than a live failure mode); the
-            three NAME-taking registry lookups, exercised directly as one
-            class (`test_every_name_taking_registry_lookup_raises_on_an_
-            unknown_role`) — the other two of the former five now take a
-            `domains.Role`, so their miss branches are unreachable BY TYPE
-            and the residue is the every-Role-has-a-row pin beside them
-            (`test_every_role_carries_a_row`); the three
-            declared-type-name guards, as rendered-diagnostic goldens in
-            tests/rejections/unknown_type_{function_param,move_param,
-            variant_payload}.cardlang; and the position x name-source grid in
-            tests/test_type_name_positions.py, which crosses all NINE
-            declaring positions against every source a name can come from;
-            and, in tests/test_nominal_type_identity.py, the position x
-            relation x order x member grid over the nominal rule, whose shape
-            axis is DERIVED from the `Type` union rather than hand-listed so
-            the rule cannot hold only at the top level (that module carries
-            its own ledger);
-            and the fail-closed pin over the `Type` CONSUMERS
-            (`test_every_type_consumer_fails_closed_on_an_unfamiliar_type`),
-            which probes `subscriptable`/`coercible`/`join`/`_type_name` with
-            a type outside the union — the way a newly declared, not-yet-
-            threaded type behaves — and pins that each refuses it by
-            construction (allow-lists) rather than falling through to
-            acceptance. Its companion is the Member-arm classification pin in
-            tests/test_typecheck_errors.py, which covers the one consumer
-            shaped as a DENY-list and therefore the one that needs every union
-            member enumerated; that pin derives its domain from
-            `get_args(Type)`, so a new type fails it automatically.
-sampled:    the audited-top set is a COUNT per module, not an enumeration of
-            sites: a new construction fails this module until it is classified
-            in the ledger, but the count cannot say WHICH site moved, and a
-            change that adds one site while deleting another nets to zero.
-            Four raises — the zone-content and CALL_SIGS misses, the `run`-site
-            procedure `_env_miss`, and the non-settling fixpoint refusal — have
-            registry-closure pins but no direct behaviour test, because each is
-            reachable only by mutating the registry it guards.
-residual:   (1) MERGE-failure top: `join` returning None in `IfExpr`/`ListLit`
-            falls to `TAny` (`if c then 1 else hearts` types as the top and goes
-            permissive). A distinct population from the lookup misses this
-            module closes — guard recorded in issue #116.
-            (2) `max`/`min` comprehensions type as the top though `_check_agg_body`
-            already forces an Integer body — a precision loss, not a miss;
-            recorded in issue #116 alongside (1).
-            (3) CLOSED. A forward struct reference no longer reaches
-            `type_from_name`'s fallback: declared field types resolve through
-            the same merged registry map as derived bodies, so declaration
-            ORDER no longer decides a field's type or which guards fire
-            (`test_a_forward_struct_reference_types_the_same_in_either_order`).
-            The positions that reached the fallback with an INVALID name are
-            guarded at resolve, and a declared POSITION domain is admitted
-            rather than called unknown.
-            (4) none for the struct/function registries. They are mutually
-            dependent in both directions and at arbitrary depth, so
-            `struct_and_function_registries` iterates them to a FIXPOINT
-            (bounded, with a loud refusal if a round is non-monotone) rather
-            than running a fixed number of passes. Two earlier fixed-pass
-            versions each shipped a defect an adversarial probe caught and the
-            green suite did not: unequal `TStruct`s for one nominal type
-            (`expects R, got R`, now closed by nominal struct comparison in
-            `types.coercible`/`join`), and a derived field frozen at the top
-            when its type flowed through a function return (a LOST GUARD --
-            `score[p] := s.flag` accepted a Boolean into an Integer state
-            variable). Both are pinned below. Corpus exposure is zero: no game
-            declares a struct, which is exactly why the suite was silent.
-            A third, found in review: derived bodies were typed in a BARE
-            environment, so every name resolve legitimately scopes into one (a
-            state variable, a zone, an enum value, a struct literal of its own
-            or a later type) hit `_env_miss` and aborted the check. Swept as a
-            class, not patched at the reported instance, and pinned by the two
-            parametrized derived-body tests below. A fourth, also from review:
-            the convergence key reduced a NESTED struct to its bare name while
-            `infer`'s Member arm reads nested fields, and the loop tested
-            before assigning, so a stale nested struct survived and its field
-            reads typed as the top. The loop now always keeps the newer
-            registry, and -- after review showed a bounded-depth key was BOTH
-            unsound (a recursive path stays observable past any cutoff, so
-            `r.copy.copy.copy.flag` decayed to the top) and exponential on a
-            declaration DAG -- struct-typed field reads resolve through the
-            REGISTRY by name (`_canonical`) instead of off the embedded
-            snapshot. Nested snapshots are then never observed, so the
-            fingerprint is nominal and linear again. Every defect in this
-            group was found by review or adversarial probe, never by the
-            suite.
+            Declaring position x name source:
+            tests/test_type_name_positions.py::test_the_type_name_grid.
+            The nominal rule, shape axis derived from the `Type` union:
+            tests/test_nominal_type_identity.py, which carries its own ledger.
+            The `Type` consumer shaped as a DENY-list, its domain from
+            `get_args(Type)`:
+            tests/test_typecheck_errors.py::test_every_type_union_member_is_classified_by_the_member_arm.
+does not prove:  three things, and the third is why this module exists in
+            the shape it does.
+            The audited-top set is a COUNT per module, not an enumeration of
+            sites. A new construction fails this module until it is
+            classified, but the count cannot say WHICH site moved, and a
+            change that adds one site while deleting another nets to zero and
+            passes.
+            Four raises -- the zone-content and `CALL_SIGS` misses, the
+            `run`-site procedure `_env_miss`, and the non-settling fixpoint
+            refusal -- carry registry-closure pins but no direct behaviour
+            test, because each is reachable only by mutating the registry it
+            guards. That they cannot fire for a well-formed program is
+            argued from closure, not observed.
+            And a green here is about the TYPE MACHINERY, not about a game:
+            every struct probe below builds its own fixture. The end-to-end
+            exercise is tests/test_struct_positions_witness.py
+            (`test_the_witness_checks_and_plays`,
+            `test_the_derived_field_reaches_the_score_it_computes`); the
+            collection-facet question is tests/test_types.py
+            (`test_nested_facets_do_not_distinguish`,
+            `test_a_flag_bearing_collection_does_nest`). Neither runs here.
 """
 
 from __future__ import annotations

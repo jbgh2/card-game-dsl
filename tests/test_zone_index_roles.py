@@ -37,25 +37,20 @@ domain:     declaration site {zone index, zone owner arg, state index}
             × role {every domain-table row, plus an unknown name}; and, at the
             owner-argument site, the (owner domain, index domain) pair —
             {equal, unequal, index-absent}
-registry:   `cardlang.domains.DOMAINS` (the `zone_key_of` column) for roles;
-            `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES` (`takes_owner`) for
-            which types carry an owner; the three grammar sites for positions
-covered:    every role-validity cell: accepted roles are proven by corpus
-            games (bridge: `captured[team] : TeamPile<team>`, `score[team]`;
-            every game: `hand[player]`) and by the parametrized accepts below;
-            rejected roles by the parametrized rejects (each site × each
-            non-indexable row × unknown). Owner==index agreement: both unequal
-            role/role directions and the index-absent case rejected below; the
-            position directions (owner a different position, or a role) in
-            tests/test_positions.py and the rejection corpus
-            (tests/rejections/{zone_owner_arg_domain_mismatch,
-            positions_zone_owner_arg_mismatch, zone_owned_type_without_index})
-sampled:    the owner==index rule is uniform over domains, so the unequal case
-            is probed by representative pairs per category (role/role,
-            position/position, position/role, role/position), not every pair
-residual:   value-domain-indexed state (`x[rank]` as a per-rank tally) —
-            guarded here, recorded in
-            roadmap.md, "Grammar surface deferred by the checker"
+registry:   roles: `cardlang.domains.DOMAINS`, the `zone_key_of` column.
+            Owner-taking types: `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES`,
+            the `takes_owner` column. Positions: the three grammar sites.
+            Owner==index, position directions:
+            tests/test_positions.py::test_position_family_owner_arg_must_match_its_index
+            and ::test_role_indexed_family_may_not_take_a_position_owner_arg.
+does not prove:  that every unequal (owner, index) pair is rejected. The rule
+            is uniform over domains, so the unequal case is probed by one
+            representative pair per category — role/role, position/position,
+            position/role, role/position — and a pair inside a category but
+            outside its representative is not separately exercised. What the
+            probes establish is that the comparison consults both domains at
+            each of the four category shapes, not that it has seen every
+            pair the domain table can form.
 """
 
 from __future__ import annotations
@@ -147,6 +142,11 @@ def test_a_state_variable_may_not_be_indexed_by_a_value_domain(role: str) -> Non
     # The guard this file exists for: before it, `state { x[suit] }` checked
     # clean and ran as a per-PLAYER store (the driver's key-set dispatch
     # defaulted every non-team role to seats).
+    #
+    # Rejecting it is also what DEFERS it: a per-value tally (`x[rank]`) is
+    # surface the language does not have, and this refusal is where a designer
+    # meets that. Recorded in roadmap.md, "Grammar surface deferred by the
+    # checker".
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game("", f"x[{role}] : Integer = 0"), "probe.cardlang")
     assert f"indexed by '{role}'" in str(exc.value)

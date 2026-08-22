@@ -3794,6 +3794,19 @@ named for what it holds cannot take the others:
 Three of the six are not instrument limits at all. The slot name does the
 sorting, so mis-filing stops at the point of writing rather than at review.
 
+A **history** is none of the six. A residual row often accumulates the
+story of how something came to be fixed -- which defects escaped, who found
+them, what the fix replaced -- and none of that describes the guarantee
+today. Route it the way the rest of the spec is routed: the design it argues
+for goes to the construct and is stated there as the design, in the present
+tense, never as the story of what it replaced -- a docstring says what the
+code does and why it is shaped that way, not what went wrong before. The
+narrative goes nowhere ([maintaining.md](maintaining.md), spec not
+history). It is
+specifically NOT an instrument limit. Writing "a green here is no evidence
+about X" because X once went wrong states something false the moment X is
+pinned, and the row that says so is read in the present tense.
+
 Deferred work records **beside the guard that makes it loud**, never in a
 row — the ledger is not where a reader learns that something is unbuilt, the
 refusal is. Where the deferral also *bounds what the module covers*, the
