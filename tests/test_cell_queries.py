@@ -36,6 +36,18 @@ domain:     {bare, collection} x {kind: any, all, count (bare only)} x
             with `lines(k)`'s own axis {boardless, literal k in range,
             literal k out of range}; plus the grammar-precedence axis (does
             a QNOUN production capture a keyword-form noun).
+            The universe is closed where it says so, and that is a boundary
+            rather than a gap: {cell, line} is the whole collection-noun set,
+            and the `lines(k)` axis is LITERAL k only. A computed `k` is
+            outside the static domain by construction -- an out-of-range
+            value surfaces as a runtime refusal instead of a resolve
+            diagnostic -- and so are the collection forms the grammar does
+            not admit (`number of <noun> in <expr> where`, the
+            set-materializing `<noun>s in <expr> where`, and numeric
+            aggregation over a cell/line collection, `agg_query` staying
+            fixed to `"cards" "in" zone_expr`). Each is a syntax error or a
+            loud refusal where a designer meets it, and issue #111 carries
+            the four together.
 registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
             set, the admitting gate) pinned equal to its typing consumer
             cardlang/typecheck.py::_COLLECTION_BINDER_TYPES by
@@ -45,73 +57,21 @@ registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
             cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
             row); cardlang/stdlib/boards.py::BoardEntry.lines (the k bound
             resolve and the runtime both read, so they cannot disagree).
-covered:    grammar precedence — every fixed keyword form (any player/all
-            suits/any rank/any team/any card in) still routes to its OWN
-            production, zero Earley ambiguity, alongside the five new QNOUN
-            productions, also zero ambiguity (test_grammar_ambiguity.py's
-            method, reproduced locally);
-            bare form, board member (TCell) — `all cells where …` / `number
-            of cells where …` exact at 0/3/8/9 filled, both by direct
-            evaluation against constructed zone state AND (the 9-cell / "at
-            nine" claim) by a full scripted 9-move play_game draw, sampled
-            once before EVERY decision plus once after the game ends;
-            bare form, integer member (TInteger) — `any column where
-            cascade[column] is empty` legal and runtime-correct in a
-            FreeCell-shaped positions{}-declaring fixture (empty -> True,
-            full -> False) — the guard lift is one mechanism, both member
-            kinds;
-            collection form — `any line in lines(3) where all cells in line
-            where …` false on an empty/partial/draw board, true exactly when
-            a line completes, both by direct evaluation (X-line and O-line
-            configurations) and by a full scripted play_game integration
-            test using the exact Task-8-shaped predicate
-            (`top_of(square[cell]).side is top_of(square[at]).side`),
-            asserting `result` flips to [+1,-1] on the winning decision and
-            nowhere earlier;
-            nested collection binder shadowing — `any line in lines(3)
-            where (any line in lines(3) where …)` typechecks AND evaluates
-            using the INNER rebind (proven both ways it could land: an
-            empty-board probe that is only true under the inner reading,
-            and a full-board probe that is only false under the inner
-            reading — the existing lexical-shadow rule, not a new guard);
-            IR emission — the bare and collection forms both emit
-            `{"kind": "domain_query", ...}` with the documented key set;
-            rejections, each pinning the exact diagnostic and the layer
-            that raises it — unknown noun typo (resolve), missing plural
-            (resolve), boardless-and-positionless bare form for both `any`
-            and `number of` (resolve), noun/element mismatch `any cell in
-            lines(3) where` (typecheck), wrong-type collection source `all
-            cells in <zone> where` (typecheck), boardless `lines(3)`
-            (resolve, BOARD_ONLY_CALL_FUNCS), `lines(99)` on grid(3,3)
-            (resolve, the literal-k static bound), binder escape (resolve,
-            plain unresolved-name); the
-            missing collection-count form `number of cells in <expr> where
-            …` (grammar — tests/rejections/
-            cell_count_in_collection_not_admitted.cardlang); a cross-
-            reference probe that `any suit where` in a piece game still
-            hits Task 3's flavor guard (QNOUN's keyword exclusion routes it
-            to the FIXED `Quantifier` production, never `q_any_domain` — the
-            noun exclusion IS the guard, nothing new to test beyond routing).
-sampled:    the integer-domain positive row is one fixture (a FreeCell-
-            shaped `column` domain), not a sweep over every declared-
-            positions{} shape — Task 6's test_board_clause.py and
-            test_positions.py already sweep TCell-vs-TInteger operand
-            legality exhaustively; this module's job is the QUANTIFIER
-            register specifically, one representative member-kind pin
-            suffices given the bare-form evaluator reads `binder`/
-            `rs.position_domains[binder]` uniformly (`cardlang/runtime/
-            evaluate.py::_domain_query`), not branched by member kind.
-residual:   collection-noun quantifiers beyond {cell, line}; the missing
-            `number of <noun> in <expr> where …` / bare set-materializing
-            `<noun>s in <expr> where …` collection forms; numeric
-            aggregation over a cell/line collection (`sum of … over cells
-            in … where …` — `agg_query` stays fixed to `"cards" "in"
-            zone_expr`); the non-literal-`k` `lines(k)` static bound (only
-            a literal integer argument is resolve-guarded; a computed `k`'s
-            out-of-range value surfaces as a runtime `RuntimeError` instead)
-            — all four recorded in issue #111, each with the guard that makes it loud rather than
-            silent (a syntax error, or the runtime refusal) rather than a
-            TODO.
+            The Earley-ambiguity method: tests/test_grammar_ambiguity.py --
+            borrowed and re-run here, not deferred to.
+            TCell-versus-TInteger operand legality: tests/test_board_clause.py
+            and tests/test_positions.py sweep it, and this module reads that
+            rather than repeating it.
+does not prove:  that the quantifier register behaves the same for every
+            declared `positions {}` shape. The integer-member row runs on one
+            fixture, a FreeCell-shaped `column` domain, not a sweep over the
+            shapes a declaration can take. The reason one representative is
+            argued to suffice is that the bare-form evaluator reads
+            `binder` / `rs.position_domains[binder]` uniformly
+            (`cardlang/runtime/evaluate.py::_domain_query`) rather than
+            branching on member kind -- so a green here says the uniform path
+            works for both member kinds, and would keep saying it if some
+            future shape started taking a branch of its own.
 
 red under (aggregate fold): in `cardlang/runtime/evaluate.py::_domain_query`,
 changing `case "count": return sum(1 for ok in results if ok)` to `return 0`
