@@ -45,14 +45,13 @@ registry:   the role sets (`domains.Role` vs the parser's quantifier
             `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
             `NameRef.ref_kind` vs `_name_type`'s arms; `OP_CLASSES` vs
             `infer`'s BinOp arm (pinned in tests/test_operator_guards.py).
-            Declaring position x name source: tests/test_type_name_positions.py.
-            The nominal rule over position x relation x order x member, its
-            shape axis derived from the `Type` union:
+            Declaring position x name source:
+            tests/test_type_name_positions.py::test_the_type_name_grid.
+            The nominal rule, shape axis derived from the `Type` union:
             tests/test_nominal_type_identity.py, which carries its own ledger.
-            The one `Type` consumer shaped as a DENY-list, and so the one
-            needing every union member enumerated: the Member-arm pin in
-            tests/test_typecheck_errors.py, whose domain comes from
-            `get_args(Type)`.
+            The `Type` consumer shaped as a DENY-list, its domain from
+            `get_args(Type)`:
+            tests/test_typecheck_errors.py::test_every_type_union_member_is_classified_by_the_member_arm.
 does not prove:  three things, and the third is why this module exists in
             the shape it does.
             The audited-top set is a COUNT per module, not an enumeration of
@@ -66,16 +65,19 @@ does not prove:  three things, and the third is why this module exists in
             test, because each is reachable only by mutating the registry it
             guards. That they cannot fire for a well-formed program is
             argued from closure, not observed.
-            And a green here has never been evidence about the struct paths:
-            corpus exposure is zero, because no game declares a struct. That
-            is exactly why the suite stayed silent through four defects on
-            those paths -- a nominal-type mismatch, a derived field frozen at
-            the top, derived bodies typed in a bare environment, and a stale
-            nested snapshot -- every one of which was found by review or an
-            adversarial probe rather than by running the tests. The designs
-            that answer them are stated where they live, at
-            `struct_and_function_registries` and `_canonical` in
-            cardlang/typecheck.py, and pinned below.
+            And the struct paths are pinned here but never INTEGRATED: no
+            corpus game declares a struct, so every probe below builds its own
+            fixture and nothing exercises these paths through a real game.
+            The pins are direct and they cover the shapes that once went wrong
+            -- nominal identity, a derived field reached through a function,
+            derived bodies in an ambient environment, nested and recursive
+            depth -- so a green does say those hold. What it does not say is
+            that they hold in a game, which is the exposure a corpus witness
+            would add and this module cannot. Every one of those four defects
+            was found by review or an adversarial probe rather than by the
+            suite, at a time when the pins did not yet exist; the designs
+            answering them live at `struct_and_function_registries` and
+            `_canonical` in cardlang/typecheck.py.
 """
 
 from __future__ import annotations

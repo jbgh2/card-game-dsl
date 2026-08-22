@@ -40,9 +40,9 @@ domain:     declaration site {zone index, zone owner arg, state index}
 registry:   roles: `cardlang.domains.DOMAINS`, the `zone_key_of` column.
             Owner-taking types: `cardlang.stdlib.zones.LIBRARY_ZONE_TYPES`,
             the `takes_owner` column. Positions: the three grammar sites.
-            Owner==index over POSITIONS: tests/test_positions.py — that
-            module owns the position directions of the rule this one states,
-            and they are not re-run here.
+            Owner==index, position directions:
+            tests/test_positions.py::test_position_family_owner_arg_must_match_its_index
+            and ::test_role_indexed_family_may_not_take_a_position_owner_arg.
 does not prove:  that every unequal (owner, index) pair is rejected. The rule
             is uniform over domains, so the unequal case is probed by one
             representative pair per category — role/role, position/position,

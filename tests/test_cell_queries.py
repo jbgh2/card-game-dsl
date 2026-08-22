@@ -57,11 +57,11 @@ registry:   cardlang/resolve.py::_COLLECTION_NOUNS (the closed {cell, line}
             cardlang/builtins/functions.py::BOARD_ONLY_CALL_FUNCS (the `lines`
             row); cardlang/stdlib/boards.py::BoardEntry.lines (the k bound
             resolve and the runtime both read, so they cannot disagree).
-            The Earley-ambiguity method: tests/test_grammar_ambiguity.py --
-            borrowed and re-run here, not deferred to.
-            TCell-versus-TInteger operand legality: tests/test_board_clause.py
-            and tests/test_positions.py sweep it, and this module reads that
-            rather than repeating it.
+            Earley ambiguity over the corpus:
+            tests/test_grammar_ambiguity.py::test_corpus_game_parses_with_zero_ambiguity.
+            TCell operand legality: tests/test_board_clause.py.
+            TInteger position-parameter typing:
+            tests/test_positions.py::test_position_move_param_types_as_integer_not_any.
 does not prove:  that the quantifier register behaves the same for every
             declared `positions {}` shape. The integer-member row runs on one
             fixture, a FreeCell-shaped `column` domain, not a sweep over the

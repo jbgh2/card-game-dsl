@@ -39,12 +39,13 @@ domain:     {clause combinations} x {pipeline layers} UNION
 registry:   cardlang/stdlib/boards.py::BOARD_FAMILIES (family/arity/bounds);
             cardlang/domains.py (position substrate); the value-position
             surface (grammar + Expr/Stmt unions).
-            Member ORDER of a board family: tests/test_boards_registry.py.
+            Board member order:
+            tests/test_boards_registry.py::test_grid_3x3_cell_order.
             The cell/line quantifier register, and the standing `for each
             cell` rejection: tests/test_cell_queries.py.
-            The same admit at a function parameter or variant payload for an
-            INTEGER position domain (`lane`/`column`, resolving to TInteger):
-            tests/test_type_name_positions.py. Each is stated once, there.
+            The declared-type-name admit for an INTEGER position domain
+            (`lane`/`column`, resolving to TInteger):
+            tests/test_type_name_positions.py::test_the_type_name_grid.
 does not prove:  that the board machinery holds for boards other than the
             one it runs on. The action-space round trip is exercised on the
             nine `place` vocab ids of grid(3, 3), and members-in-order on

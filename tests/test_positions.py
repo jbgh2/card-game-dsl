@@ -39,13 +39,11 @@ registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             declaring/minting sites). The sweep reads the SOURCE, never the
             guard's own set, so a registry that grows is swept without anyone
             editing this module.
-            The owner==index rule in its GENERAL form:
-            tests/test_zone_index_roles.py -- that module states it over every
-            domain, and only the position directions run here.
+            Owner==index over roles:
+            tests/test_zone_index_roles.py::test_owned_zone_owner_arg_must_match_its_index.
             Unowned ownership, `zone_observer_key` -> None and hence the
             `others` projection for every observer:
-            tests/openspiel_ready/partition.py and the per-game fact matrices
-            that read it.
+            tests/openspiel_ready/partition.py.
 does not prove:  three things a green here leaves open, each with where it
             IS established if anywhere.
             (1) The canonical gather over a position family. No corpus game
