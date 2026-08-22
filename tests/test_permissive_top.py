@@ -68,12 +68,19 @@ does not prove:  three things, and the third is why this module exists in
             And the struct paths are pinned here but never INTEGRATED: no
             corpus game declares a struct, so every probe below builds its own
             fixture and nothing exercises these paths through a real game.
-            The pins are direct and they cover the shapes that once went wrong
-            -- nominal identity, a derived field reached through a function,
-            derived bodies in an ambient environment, and nested and
-            recursive STRUCT depth -- so a green does say those hold.
-            Collection-facet nesting is a different question and has no pin
-            in this module. What it does not say is
+            The pins are direct, and each shape that once went wrong is
+            credited by NAMING its pin rather than its category, so a credit
+            cannot outlive the thing it credits: nominal identity
+            (`test_a_struct_type_is_nominal_not_structural`), a derived field
+            reached through a function
+            (`test_a_derived_field_reached_through_a_function_is_assignment_checked`),
+            derived bodies in an ambient environment
+            (`test_env_from_game_builds_derived_bodies_with_ambient_names`),
+            and struct depth both nested and recursive
+            (`test_a_nested_struct_field_is_typed_whatever_the_declaration_order`,
+            `test_a_recursive_struct_path_stays_typed_at_any_depth`). A green
+            does say those hold. Collection-facet nesting is a different
+            question and has no pin here. What it does not say is
             that they hold in a game, which is the exposure a corpus witness
             would add and this module cannot. Every one of those four defects
             was found by review or an adversarial probe rather than by the
