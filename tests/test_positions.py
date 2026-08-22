@@ -22,6 +22,16 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             sources were unioned inline with `|` until a fifth (the collection
             nouns) was found by crossing them against the slots that read
             them, and the sites grew from one to three when `board:` landed.
+            Two things sit deliberately outside. A quantifier noun is
+            grammatically inexpressible as a domain id -- the quantifier
+            production is a closed alternative set -- so that slot is out by
+            construction rather than by guard, and there is no cell to cover.
+            And the reservation product reaches namespaces that share ONE
+            slot with a position name; where the two spellings land in
+            ADJACENT slots instead it does not reach, and is not meant to.
+            Every member of that class is guarded at the slot that reads both
+            meanings; whether a slot partition should reserve at all is
+            issue #403.
 registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             n.Game.positions; and, for the reservation product,
             cardlang/resolve.py's `POSITION_NAME_SOURCES` (the namespaces,
@@ -29,101 +39,31 @@ registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             declaring/minting sites). The sweep reads the SOURCE, never the
             guard's own set, so a registry that grows is swept without anyone
             editing this module.
-covered:    zone index + type arg — a position works as either (Klondike/
-            FreeCell corpus + this module), and a type arg naming a domain
-            OTHER than the index is rejected (the owner==index guard:
-            test_position_family_owner_arg_must_match_its_index +
-            tests/rejections/positions_zone_owner_arg_mismatch; the guard is
-            general, stated in tests/test_zone_index_roles.py);
-            move params — both the action-space vocab (both games + the
-            vocab-order pin below) and their TYPING in guards/effects (a
-            position param types as its integer member, not TAny, so a
-            wrong-domain use like `src is hearts` is caught —
-            test_position_move_param_types_as_integer_not_any);
-            the name reservation, as three grids over the product in (d) —
-            `test_every_reserved_name_is_refused_as_a_declared_position_domain`
-            (one cell per NAME every source reserves, each asserting the
-            diagnostic names that source),
-            `test_every_reservation_site_asks_every_name_source` (source x
-            site over the guard, pinning that the matrix is full) and
-            `test_every_reservation_site_passes_its_own_id` (the site axis
-            scraped from the calls, so a fourth consumer cannot join in
-            silence); with
-            `test_a_declared_type_may_not_take_a_minted_domains_spelling` as
-            the two board sites' end-to-end cells, and three cells holding the
-            collection-noun source's two narrowings to their PREMISES rather
-            than their motive — `test_the_board_keeps_its_own_minted_spellings`
-            (the kernel and FreeCell keep their spellings),
-            `test_excluding_the_minted_domain_leaves_its_own_guard_standing`
-            (excluding `cell` deferred to a better-placed guard, it did not
-            remove a wall) and
-            `test_the_collection_quantifier_form_is_unwritable_without_a_board`
-            (both legs of the board gating);
-            bounds guards incl. the 256-member ceiling boundary AND the second
-            site that definition now rests on, the board families' argument
-            ranges, crossed by
-            `test_no_board_family_can_mint_past_the_member_ceiling`;
-            unowned ownership (`zone_observer_key` -> None,
-            hence the `others` projection for every observer — pinned in
-            the proof modules' fact matrices); bare-family references
-            (rejection corpus + the runtime Shadow Guard probe below); state
-            index/type, for-each, simultaneous, param typos (rejection
-            corpus tests/rejections/positions_*); `to each` (existing
-            player-index guard, probed below); quantifier nouns
-            (grammatically inexpressible — the quantifier production is a
-            closed alternative set).
-sampled:    the canonical gather over a position family (order-preserving
-            per the canonical zone-collection rule; no corpus game gathers
-            one — decisions.md states the interaction explicitly).
-            For the reservation product, the source x site grid asks each
-            source with ONE of its names rather than all of them; which name
-            is asked cannot matter, because the guard tests membership in the
-            source's own set and the per-NAME sweep above already runs the
-            whole set at the declared site.
-residual:   `for each <position>` and position-indexed state stores are
-            guarded with diagnostics (issue #111); `top_of`/`bottom_of` in a move GUARD over
-            a non-identity zone is policed per game by the openspiel_ready
-            legal-action-agreement proofs, not statically (same roadmap
-            entry).
-            One class, three members, no row in `POSITION_NAME_SOURCES`:
-            namespaces a position name can be reused from where the two
-            spellings land in ADJACENT slots rather than one slot resolving
-            both. The reservation defends against a single slot with two
-            meanings, so a slot partition is outside it as stated — but the
-            partition is what the collection nouns looked like until the
-            `in <collection>` clause turned out to select between them, which
-            is why the class is recorded rather than dismissed. R2 for the
-            first two (a designer can declare each, all three verified
-            accepted by execution), R4 for the third.
-              * deck value names (suits, ranks, a piece axis's values) and
-                the seat directions — `positions { hearts : 1..3 }` declares
-                clean; `pile[hearts]` is then the domain and `card.suit is
-                hearts` still the suit. Guard: the keyed-map Owner Guard
-                refuses `score[hearts]` at the one slot that reads both.
-                `resolve._game_bindings` ALREADY unions these with the
-                position domains when a LIBRARY injects a name, so the two
-                directions disagree — the sharpest form of the finding.
-              * `RESERVED_VALUE_NAMES` (the pronouns, `none`/`true`/`false`,
-                `outcome`) — `positions { state : 1..3 }` declares clean and
-                works as a zone index and a move-parameter domain. Guard:
-                `_check_reserved_binders` refuses the USE as a quantifier
-                binder, so the half that could shadow a pronoun is walled and
-                the half that cannot is not.
-              * the other declaration namespaces (move types, defines,
-                functions, procedures, rules, zones, state variables, phases,
-                modes) — `_check_duplicate_names` keeps each unique within
-                itself and none shares a slot with a position name. Guard:
-                none needed on the evidence today.
-            guard: each member carries one, named above — no member is a
-            silent gap, and none is a live wrong answer today. The issue is for
-            CLOSING the class (deciding whether a slot partition should reserve
-            at all, and settling the `_game_bindings` disagreement), not for
-            stopping a defect in flight.
-            record: OWED — one tracker issue covers the class. It was not filed
-            with this change, which was made without tracker access. This row
-            is the whole of what that issue must carry, so the gap is stated
-            where a reader of the guard meets it rather than only in a commit
-            message.
+            The owner==index rule in its GENERAL form:
+            tests/test_zone_index_roles.py -- that module states it over every
+            domain, and only the position directions run here.
+            Unowned ownership, `zone_observer_key` -> None and hence the
+            `others` projection for every observer:
+            tests/openspiel_ready/partition.py and the per-game fact matrices
+            that read it.
+does not prove:  three things a green here leaves open, each with where it
+            IS established if anywhere.
+            (1) The canonical gather over a position family. No corpus game
+            gathers one, so the order-preserving interaction is stated in
+            decisions.md and reasoned about, never executed end to end -- the
+            rule is written down, and nothing here runs it.
+            (2) That every reserved NAME is refused at every site. The
+            source x site grid asks each source with one of its names, not
+            all of them. Which name is asked cannot change the answer,
+            because the guard tests membership in the source's own set and
+            the per-name sweep runs that whole set at the declared site --
+            but the product itself is sampled on that axis, and a source
+            whose membership test stopped being uniform over its own names
+            would pass here.
+            (3) `top_of`/`bottom_of` in a move GUARD over a non-identity
+            zone. Nothing static reaches it: it is policed per game, and
+            dynamically, by the openspiel_ready legal-action-agreement
+            proofs. A green in this module says nothing about that case.
 
 `top_of`/`bottom_of` share this module: the sequence-orientation pin
 (top = the sequence end, bottom = the front) is what the positional games'
