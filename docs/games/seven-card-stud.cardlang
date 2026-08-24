@@ -9,11 +9,10 @@
 // one player holds all the chips and declares that player the winner.
 //
 // The betting runs on the kernel `round`'s ring: the pointer advances past
-// whoever just acted, so a bet or raise re-opens the seats it has already
-// passed and the seats behind it — those yet to speak — decide first, the
-// re-opened ones answering once they have. `until` is checked before every
-// draw, so a street closes the moment nobody is pending rather than at the
-// end of a lap.
+// whoever just acted, so the seats behind the aggressor decide before the
+// seats its bet re-opened — poker's continuation order. `until` is checked
+// before every draw, so a street closes the moment nobody is pending rather
+// than at the end of a lap.
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
 // statements; the bring-in / first-to-act seat selectors and the `pot_share`
