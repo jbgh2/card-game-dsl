@@ -535,10 +535,11 @@ round offering [<move_type>, …] from <seat> over <ring>
 - **Order (`order`).** How the ring is traversed. One value exists — `ring`,
   which is also what an absent clause means: the pointer advances each turn, so
   after a player acts the next *seat* is offered, wrapping. That is poker's order
-  as much as an auction's, and the reason is the termination bullet below: `until`
-  is checked before each draw, so a bet or raise re-opens the seats it has already
-  passed, the seats *behind* the aggressor are the next ones the pointer reaches,
-  and the ring closes mid-lap the moment nobody is pending. Bridge's, Pinochle's
+  as much as an auction's, and each half of the claim is a neighboring bullet's:
+  the pointer advances, so the seats *behind* the aggressor are the next ones
+  reached; the participants filter is re-evaluated each turn, so the seats a bet
+  re-opened come back when the ring returns to them; and `until` is checked
+  before each draw, so the ring closes mid-lap the moment nobody is pending. Bridge's, Pinochle's
   and Tarot's auctions and every poker game's betting all run on it. The clause is
   kept although it holds a single value, as the docking point a further traversal
   arrives at: the axis is closed at `ring` alone; the next value arrives with the

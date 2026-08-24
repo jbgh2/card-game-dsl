@@ -349,10 +349,11 @@ class AuctionForm:
     - **order.** `next_actor` is the order axis refunctionalized, and one
       traversal stands: `ring` (equivalently, no `order` clause) advances the
       pointer each turn, so a seat that has acted is offered again only when the
-      ring wraps. That is also poker's continuation order, because `until` is
-      checked before every draw: a bet re-opens the seats it passed, the seats
-      behind the aggressor are the next ones the pointer reaches, and the round
-      closes mid-lap the moment nobody is pending. The participants clause and
+      ring wraps. That is also poker's continuation order, three mechanisms
+      jointly: the advancing pointer reaches the seats behind the aggressor
+      next; the participants filter, re-evaluated each turn, brings the seats a
+      bet re-opened back when the ring returns to them; and `until`, checked
+      before every draw, closes the round mid-lap the moment nobody is pending. The participants clause and
       the termination predicate must agree, so an empty ring with `until` still
       false is malformed, raised rather than silently ended.
     """
