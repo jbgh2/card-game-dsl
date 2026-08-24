@@ -82,7 +82,6 @@ game StudPartialBringIn {
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where not folded[player] and stack[player] > 0
                                 and (not acted[player] or bet_by[player] < bet_to_match)
-              order priority
               until (number of players where not folded[player] and stack[player] > 0
                        and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                  or ((number of players where not folded[player] and stack[player] > 0) <= 1
@@ -109,7 +108,6 @@ game StudPartialBringIn {
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
-                order priority
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
@@ -131,7 +129,6 @@ game StudPartialBringIn {
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
-                order priority
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
@@ -153,7 +150,6 @@ game StudPartialBringIn {
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
-                order priority
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1
@@ -175,7 +171,6 @@ game StudPartialBringIn {
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where not folded[player] and stack[player] > 0
                                   and (not acted[player] or bet_by[player] < bet_to_match)
-                order priority
                 until (number of players where not folded[player] and stack[player] > 0
                          and (not acted[player] or bet_by[player] < bet_to_match)) is 0
                    or ((number of players where not folded[player] and stack[player] > 0) <= 1

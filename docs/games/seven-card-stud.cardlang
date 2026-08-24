@@ -8,9 +8,11 @@
 // game with no overall winner; to give the runtime a terminal, this plays until
 // one player holds all the chips and declares that player the winner.
 //
-// The betting runs on the kernel `round` in PRIORITY order: each turn re-scans
-// the seat order from the leader and offers the first still-pending player (after
-// a raise re-opens earlier seats, action returns to the earliest owing seat).
+// The betting runs on the kernel `round`'s ring: the pointer advances past
+// whoever just acted, so a bet or raise that re-opens the seats behind it is
+// answered by them first and the seats it re-opened decide last — poker's
+// continuation order. `until` is checked before every draw, so a street closes
+// the moment nobody is pending rather than at the end of a lap.
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
 // statements; the bring-in / first-to-act seat selectors and the `pot_share`
@@ -108,7 +110,6 @@ game SevenCardStud {
         raises := 1
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
-              order priority
               until (number of players where pending(player)) is 0
                  or ((number of players where can_act(player)) <= 1
                      and (number of players where can_act(player) and owes(player)) is 0)
@@ -131,7 +132,6 @@ game SevenCardStud {
           run open_street(5)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
-                order priority
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
                        and (number of players where can_act(player) and owes(player)) is 0)
@@ -146,7 +146,6 @@ game SevenCardStud {
           run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
-                order priority
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
                        and (number of players where can_act(player) and owes(player)) is 0)
@@ -161,7 +160,6 @@ game SevenCardStud {
           run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
-                order priority
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
                        and (number of players where can_act(player) and owes(player)) is 0)
@@ -176,7 +174,6 @@ game SevenCardStud {
           run open_street(10)
           round offering [check, bet, call, fold, raise] from first_to_act_seat()
                 over players where pending(player)
-                order priority
                 until (number of players where pending(player)) is 0
                    or ((number of players where can_act(player)) <= 1
                        and (number of players where can_act(player) and owes(player)) is 0)

@@ -2,8 +2,8 @@
 
 The corpus's second side-pot game. Chips are integer state (a `stack` per
 player), not a resource-zone subsystem. The whole hand — blinds, the burn-and-
-deal sequence, the four betting streets on the kernel [[round]] in priority
-order, and the showdown (reveal, per-entrant pot collection, muck) — runs in
+deal sequence, the four betting streets on the kernel [[round]]'s ring, and the
+showdown (reveal, per-entrant pot collection, muck) — runs in
 the DSL (holdem.cardlang), and the seat-ring skip that resolves the button and
 the blinds past busted seats is the language's own ring search
 (`the first player from ... offset_by left where in_hand[player]`). This

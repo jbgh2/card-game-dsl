@@ -943,7 +943,7 @@
                       }
                     }
                   },
-                  "order_mode": "priority",
+                  "order_mode": null,
                   "outcome_fn": null
                 }
               ],
@@ -1326,7 +1326,7 @@
                           }
                         }
                       },
-                      "order_mode": "priority",
+                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -1712,7 +1712,7 @@
                           }
                         }
                       },
-                      "order_mode": "priority",
+                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -2098,7 +2098,7 @@
                           }
                         }
                       },
-                      "order_mode": "priority",
+                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],
@@ -2484,7 +2484,7 @@
                           }
                         }
                       },
-                      "order_mode": "priority",
+                      "order_mode": null,
                       "outcome_fn": null
                     }
                   ],

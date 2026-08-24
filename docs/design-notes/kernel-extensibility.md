@@ -92,8 +92,8 @@ construct. The historical tell is decisive: **value features were
 merged silently; mechanism features each spawned an open-question file
 or an explicit deferral.**
 
-Absorbed as values, no open question: Stud's `priority` betting order
-(a value on the order axis); Bridge's static ring and Pinochle/Tarot/
+Absorbed as values, no open question: Stud's betting order (the ring
+the order axis already held, no value of its own); Bridge's static ring and Pinochle/Tarot/
 Stud's shrinking ring (participant-filter values); Stud's betting
 accumulator ("ordinary phase state written by the move-type effects,"
 no construct); Tichu-vs-Big-Two shed-out termination (a value on the
@@ -192,7 +192,7 @@ def run_decision_round(F, state, ctx):
     while True:
         if F.terminated(state, ctx):              # predicate end (until/early/shed-out)
             break
-        actor = F.next_actor(state, ctx)          # ring / priority-rescan / came-back-to-last
+        actor = F.next_actor(state, ctx)          # ring / came-back-to-last
         if actor is None:                         # structural exhaustion
             break
         cands = F.candidates(actor, state, ctx)   # cards / move-vocab / combo query, canonically ordered
@@ -269,7 +269,7 @@ the horn where forms grow freely," which is the horn the corpus needs.
 
 | slot | trick | auction | betting | climb |
 |---|---|---|---|---|
-| `next_actor` | turn-order-from-leader, once each; exhaust ⇒ None | ring: advance pointer | priority re-scan from leader | ring; None when `turn == last`; skip shed-out |
+| `next_actor` | turn-order-from-leader, once each; exhaust ⇒ None | ring: advance pointer | *same as auction* | ring; None when `turn == last`; skip shed-out |
 | `candidates` | `legal_cards(p,"play_to_trick",…)` | move-vocab over domain + guard | *same as auction* | `lead_query` / `[*follow_query, "pass"]` |
 | draw | `chooser(p,cands,1)[0]` | *same* | *same* | *same* |
 | `terminated` | `early_term` | `until` predicate | *same* | shed-out predicate |
@@ -280,14 +280,13 @@ The mapping covers the four *sequential single-actor* forms exactly:
 every line of the three loop bodies lands in one slot. The clinching
 evidence for "values on slots, not new slots" is that **auction and
 betting are already one function**, `run_auction`, differing only in
-the *value* of the order slot and the *presence* of an outcome function
-— Stud's priority betting cost a new `next_actor` closure, a value on
-an existing slot. The value-vs-axis distinction made concrete in code.
+the *presence* of an outcome function — Stud's betting cost no
+`next_actor` closure at all, the ring's own advance being poker's
+continuation order. The value-vs-axis distinction made concrete in code.
 
 **The mapping is not exhaustive over the model's order axis, and the
-gap is instructive.** `decisions.md` names the order axis as "turn-
-from-a-seat / priority / **simultaneous**," and simultaneous is not a
-`Round.order_mode` value — `ROUND_ORDER_MODES` is `{ring, priority}` —
+gap is instructive.** Simultaneous resolution is not a
+`Round.order_mode` value — `ROUND_ORDER_MODES` holds the ring alone —
 but a *separate construct*, the `EachSimultaneous` AST node
 (`each <role> simultaneously: <stmt>`), whose contract is that
 "observers cannot infer any ordering among the moves." Simultaneous
@@ -692,6 +691,6 @@ The auction surface reads because it is **homogeneous** (one vocabulary, one rin
 
 **(4) Signature stability.** The paper-proof **passes the §9 step-1 gate**: Reizen adds only **new values** on the six hooks — no reshaped signature, no seventh slot, `outcome`'s `Player | (tag,payloads) | None` union already carries throw-in (`None`) and declarer (`Player`) with no change. Therefore **§9 step 2 (unify the four `run_*` forms behind the goldens) is unblocked and need not wait on a signature redesign.** One caveat to the "byte-identical / draw-for-draw" framing: the original short-circuits on ladder exhaustion (`skat.py:120` skips the chooser when no rung remains), but the fixed loop cannot return an empty candidate set, so the interpreter must emit a forced 1-element `["pass"]` node — one extra draw. It is unreachable in a real hand (requires bidding past 264) but, given the documented `PYTHONHASHSEED` score-sensitivity, is worth naming so nobody assumes the unify is draw-identical *in principle*.
 
-**(5) The contrast — where the interpreter boundary actually sits.** Reizen proves the loop absorbs asymmetric, reordering, role-vocabulary sequencing as *hook values*. Out-of-turn Tichu bombs sharpen the boundary from the other side. The permit-vs-constrain inversion they seem to introduce is a **front-end/model.md framing** concern, invisible to the loop: a `candidates` hook that unions in a bomb under a `bomb_window` predicate is indistinguishable to the shell from any other candidate. The one thing the one-draw-per-step loop *structurally forbids* is **true simultaneity** (`EachSimultaneous` — actors choosing without seeing each other), and bombs do **not** need it: bombs are reactive to the table, so serializing eligible bombers under a priority re-scan is faithful (a higher bomb over-bombs a lower one it sees on the table; highest stands, order-independent). The single arbitrary choice — two equal-strength bombs, resolved by reflex in real time — must be a flagged modeling decision (seat-order tiebreak), not a derived rule. So bombs are the *same mechanism as Reizen* (a `State` cursor driving function-valued `next_actor`/`candidates`), a **reshaped-hook value, not a seventh slot**; `EachSimultaneous` remains the genuine boundary the note already names.
+**(5) The contrast — where the interpreter boundary actually sits.** Reizen proves the loop absorbs asymmetric, reordering, role-vocabulary sequencing as *hook values*. Out-of-turn Tichu bombs sharpen the boundary from the other side. The permit-vs-constrain inversion they seem to introduce is a **front-end/model.md framing** concern, invisible to the loop: a `candidates` hook that unions in a bomb under a `bomb_window` predicate is indistinguishable to the shell from any other candidate. The one thing the one-draw-per-step loop *structurally forbids* is **true simultaneity** (`EachSimultaneous` — actors choosing without seeing each other), and bombs do **not** need it: bombs are reactive to the table, so serializing eligible bombers under a re-scan from the leader is faithful (a higher bomb over-bombs a lower one it sees on the table; highest stands, order-independent). The single arbitrary choice — two equal-strength bombs, resolved by reflex in real time — must be a flagged modeling decision (seat-order tiebreak), not a derived rule. So bombs are the *same mechanism as Reizen* (a `State` cursor driving function-valued `next_actor`/`candidates`), a **reshaped-hook value, not a seventh slot**; `EachSimultaneous` remains the genuine boundary the note already names.
 
 **(6) Bottom line.** Reizen is **not** a counterexample to the six-hook interpreter: its three "impossibilities" are artifacts of an enum order axis and dissolve the moment order and vocabulary are computed from a Reizen state machine in `State` — mechanism proven, signature stable, §9 step-1 gate passed, unify may proceed. The genuine §6 win is that the decision now emits the uniform `("decision",(actor,choice))` event that `run_skat_hand` does not today, so Skat's Reizen info-sets become derivable through the same path as every other form. But the lowering **relocates the monolith rather than abstracting it**: call-and-response cannot reuse the `offering` clause and a bespoke surface would transcribe the close-helper branch-for-branch on a single corpus instance — so absorb-as-hooks *yes*, promote-to-named-readable-form *no*, exactly as §5/§7 predict. The interpreter pays the runtime half; the surface half stays unpaid until a second call-and-response instance justifies it.

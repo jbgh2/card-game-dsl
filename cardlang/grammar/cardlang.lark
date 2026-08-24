@@ -451,10 +451,12 @@ round_stmt: _ROUND_KW NAME _FROM_KW expr _OVER_KW expr _SOURCE_KW NAME _INTO_KW 
 // (bids/passes/bets) don't move cards. (decisions.md "Interactive decisions: a kernel and an in-DSL standard library": the
 // same `round` kernel, configured along the offering, accumulator, and
 // termination axes.)
-// The optional `order` clause selects the ring-traversal model (the order axis):
-// absent / `order ring` is the continuous ring (each turn advances the pointer);
-// `order priority` re-scans the seat order from the leader each turn and offers the
-// first still-pending participant (betting, response windows).
+// The optional `order` clause names the ring-traversal model (the order axis).
+// The production admits any NAME; `ROUND_ORDER_MODES` bounds it to one value,
+// `ring`, which is also what an absent clause means — the continuous ring, each
+// turn advancing the pointer. A clause with one value equal to the default is
+// kept deliberately, as the docking point a second traversal arrives at
+// (decisions.md, "The auction form of `round`", under Order).
 auction_stmt: _ROUND_KW auction_moves _FROM_KW expr _OVER_KW expr [_ORDER_KW NAME] _UNTIL_KW expr [_OUTCOME_KW NAME]   -> auction_stmt
 auction_moves: _OFFERING_KW "[" NAME ("," NAME)* "]"
 // The climbing form of `round`: one combination-climbing trick (Big Two, Tichu).

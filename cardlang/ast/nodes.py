@@ -660,9 +660,8 @@ class AuctionRound:
     leader: Expr
     participants: Expr
     until: Expr
-    # The order axis: None / "ring" walks the ring (the pointer advances each
-    # turn); "priority" re-scans from the leader each turn and offers the first
-    # still-pending participant (betting, response windows).
+    # The order axis: None (the default) and "ring" both walk the ring, the
+    # pointer advancing each turn (decisions.md, "The auction form of `round`").
     order_mode: str | None = None
     outcome_fn: str | None = None
     span: Span | None = None
@@ -693,10 +692,12 @@ class ClimbRound:
     span: Span | None = None
 
 
-# The values `AuctionRound.order_mode` may take (None is treated as the default, ring).
+# The values `AuctionRound.order_mode` may take (None is treated as the default,
+# ring). One value stands: the clause is the docking point a second traversal
+# would arrive at, and the argument for keeping it is decisions.md, "The auction
+# form of `round`", under Order.
 ROUND_ORDER_RING = "ring"
-ROUND_ORDER_PRIORITY = "priority"
-ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING, ROUND_ORDER_PRIORITY})
+ROUND_ORDER_MODES = frozenset({ROUND_ORDER_RING})
 
 
 @dataclass(frozen=True, slots=True)

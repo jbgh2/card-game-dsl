@@ -37,10 +37,10 @@ The `.md` source is a cash game with no overall winner; to give the runtime a
 terminal, the executable plays until one player holds **all** the chips and names
 that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The whole hand runs in the
-DSL: the betting on the kernel `round` in **priority order** (each turn re-scans
-the seat order from the leader and offers the first still-pending player, so
-after a raise re-opens earlier seats action returns to the earliest owing seat),
-and the showdown as plain statements — a contested hand reveals the contenders'
+DSL: the betting on the kernel `round`'s **ring** (the pointer advances past
+whoever just acted, so a bet or raise that re-opens the seats behind it is
+answered by them first and the seats it re-opened decide last — poker's
+continuation order), and the showdown as plain statements — a contested hand reveals the contenders'
 hole cards, each entrant collects its side-pot share via `holdem_pot_share(p)`,
 and the hands leave play to the muck.
 
@@ -84,12 +84,7 @@ derived from the visible cards. Both fit `open_street(<size>)` followed by a
 forced post — the pattern Stud's bring-in established — so the library needed no
 change to take a fourth consumer of a new shape.
 
-**Simplifications.** After a bet or raise, the next player asked is the earliest
-owing seat from the street's opener rather than the player clockwise of the
-aggressor, so on a re-opened street the seats are asked in the wrong order. That
-is the kernel's `order priority` and it affects every poker game in the corpus
-(issue #198); it changes what a player has seen when they choose, and nothing but
-the information states can see it. The deal starts at seat 0 rather than left of the button.
+**Simplifications.** The deal starts at seat 0 rather than left of the button.
 Hold'em deals clockwise from the dealer's left, and since the button rotates every
 hand, that is a different seat each time; the language has no way to anchor a deal
 to a seat (issue #196), and Seven-Card Stud deals seat-0-first for the same reason.
@@ -179,7 +174,6 @@ game Holdem {
         round offering [check, bet, call, fold, raise]
               from the first player from big_blind offset_by left where in_hand[player]
               over players where pending(player)
-              order priority
               until (number of players where pending(player)) is 0
                  or ((number of players where can_act(player)) <= 1
                      and (number of players where can_act(player) and owes(player)) is 0)

@@ -78,8 +78,10 @@ library poker_betting {
   }
 
   // Betting-ring predicates. `pending` composes the others; the round's `over`
-  // filter and its `until` terminator must name the same set, or the priority
-  // ring will not close exactly when it empties.
+  // filter and its `until` terminator must name the same set, or the ring
+  // will not close exactly when it empties. `until` is checked before every
+  // draw, so a street closes the moment nobody is pending — mid-lap, and the
+  // seat behind the last aggressor is the next one asked.
   function can_act(p : Player) = not folded[p] and stack[p] > 0
   function owes(p : Player)    = bet_by[p] < bet_to_match
   function pending(p : Player) = can_act(p) and (not acted[p] or owes(p))

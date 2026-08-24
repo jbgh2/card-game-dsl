@@ -13,7 +13,8 @@ registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           `n.Round` split into its three forms by
                           `mechanics.build_form`'s field cascade and the
                           auction form split again by `n.ROUND_ORDER_MODES`
-                          (two distinct `next_actor` bodies). `turns` is a
+                          (one `next_actor` body per traversal the axis
+                          declares). `turns` is a
                           member of this class though it is NOT a `round`
                           form and does not go through `build_form` — the
                           class is the leader/participants shape, not the
@@ -26,13 +27,13 @@ registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           set empty, leader not a seat at all. Pinned by
                           `test_relationship_axis_is_total`.
 covered:    `test_leader_participants_grid`, the full
-            ACTING_PATHS x RELATIONSHIPS x DIRECTIONS cross (50 rows).
+            ACTING_PATHS x RELATIONSHIPS x DIRECTIONS cross.
 sampled:    none.
 residual:   The `participants_empty` column is CAPTURED per path, not
-            unified: the four paths fail four different ways (trick: no
+            unified: the paths fail different ways (trick: no
             actor, then the outcome function meets zero plays; auction-ring:
-            the 1000-step ring guard; auction-priority: its own
-            termination/participants-disagreement error; climb: the empty-ring
+            the termination/participants-disagreement error, whose message is
+            pinned in tests/test_ring_order.py; climb: the empty-ring
             error). The grid pins that each path is LOUD, which is the
             property that matters; it does not pin one shared message.
 
@@ -103,15 +104,12 @@ participant filter, so each needs its own mutation — RUN, not reasoned:
     True` (mechanics.py). Reddens both `trick-leader_out` rows.
   - auction-ring: `AuctionForm.next_actor`, `if player in participants` ->
     `if True` (mechanics.py). Reddens both `auction_ring-leader_out` rows.
-  - auction-priority: same method's priority branch, `next((p for p in order
-    if p in participants), None)` -> drop the `if` clause. Reddens both
-    `auction_priority-leader_out` rows.
   - turns: `_turns`, `next((p for p in candidate_seq if p in participants),
     None)` -> drop the `if` clause (execute.py). Reddens both
     `turns-leader_out` rows.
 Each mutation reddens ONLY its own path's rows, which is the point: one
-mutation reddening all four would mean the rows share a code path and three
-of them are decorative. The `climb` `leader_out` rows were born RED against
+mutation reddening every path would mean the rows share a code path and all
+but one of them are decorative. The `climb` `leader_out` rows were born RED against
 the pre-fix refusal, so their xfail run is their own witness.
 """
 
@@ -135,14 +133,13 @@ from cardlang.runtime.values import GAME_DIRECTIONS
 
 # --- the axes, each derived from the registry that defines it ---
 
-# The auction form is the only `round` form whose `next_actor` branches on the
-# order mode, so it contributes one path per mode; `turns` is not a `round`
-# form at all but carries the same `from`/`over` clauses, which is what the
-# class is defined by.
+# The auction form is the one `round` form whose `next_actor` is selected by the
+# order mode, so it contributes one path per mode the axis declares; `turns` is
+# not a `round` form at all but carries the same `from`/`over` clauses, which is
+# what the class is defined by.
 ACTING_PATHS: tuple[str, ...] = (
     "trick",
     "auction_ring",
-    "auction_priority",
     "climb",
     "turns",
 )
@@ -211,8 +208,8 @@ def test_acting_path_axis_is_derived_from_the_registries() -> None:
         assert form.__name__ in source, (
             f"{form.__name__} is not accounted for in build_form's cascade"
         )
-    assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING, n.ROUND_ORDER_PRIORITY}
-    # The 3 round forms, the auction one split by its 2 order modes, plus Turns.
+    assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}
+    # The round forms, the auction one split by its order modes, plus Turns.
     assert len(ACTING_PATHS) == (len(forms) - 1) + len(n.ROUND_ORDER_MODES) + 1
 
 
@@ -287,7 +284,7 @@ game G {{
   state {{ x[player] : Integer = 0 }}
   phase run {{
     round offering [step] from {leader} over players where {pred}
-{order}          until false
+          until false
   }}
   winner: highest x
 }}
@@ -343,8 +340,7 @@ def _source(path: str, relationship: str, direction: str) -> str:
         return CLIMB.format(dir=direction, leader=leader, pred=pred)
     if path == "turns":
         return TURNS.format(dir=direction, leader=leader, pred=pred)
-    order = "          order priority\n" if path == "auction_priority" else ""
-    return AUCTION.format(dir=direction, leader=leader, pred=pred, order=order)
+    return AUCTION.format(dir=direction, leader=leader, pred=pred)
 
 
 def _first_actor(src: str) -> int:

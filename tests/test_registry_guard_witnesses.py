@@ -113,11 +113,10 @@ residual:   FOUR:
             domain that pins itself against nothing — is not covered. It is
             not #149's class (there is no guard to witness), it is unbounded
             without its own framing check, and the census cannot see it: a
-            missing guard has no syntax. The one member found while deriving
-            this class is `runtime/mechanics.py`'s round-order dispatch, filed
-            as issue #165 rather than fixed here — R4, since reaching it means
-            widening `ROUND_ORDER_MODES`, and filed anyway because closed-domain
-            dispatch is rigor-critical.
+            missing guard has no syntax. So the class is bounded by nothing
+            and a member of it reaches neither the grid nor the band; only
+            reading a consumer against the registry it implements finds one.
+            R4, this ledger owns the record.
             (2) a witness proves a conjunct CAN fire; it cannot prove the
             message names the right remedy, which is prose. Each witness
             asserts on the message text, so a reworded message that stops
@@ -145,6 +144,7 @@ from cardlang.ast import nodes as n
 from cardlang.domains import Role
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import execute
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
 
@@ -367,6 +367,11 @@ _WITNESSES: dict[tuple[str, str, str], str] = {
         "_each_simultaneous",
         "role_of(stmt.role) is Role.PLAYER",
     ): "test_a_non_player_simultaneous_block_fails_the_executor",
+    (
+        "runtime/mechanics.py",
+        "__init__",
+        "n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}",
+    ): "test_widening_round_order_modes_fails_the_auction_form",
 }
 
 
@@ -509,6 +514,55 @@ def test_a_non_player_simultaneous_block_fails_the_executor() -> None:
     assert "names 'team'" in message, message
 
 
+_ONE_STEP_EACH = """
+game Auction {
+  players: 3
+  max_length: 1000
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck }
+  state { steps[player] : Integer = 0 }
+  phase run {
+    round offering [step] from 0 over players where steps[player] < 1
+          until (number of players where steps[player] < 1) is 0
+  }
+  winner: highest steps
+}
+move_type step { effect { steps[actor] := steps[actor] + 1 } }
+"""
+
+
+def test_widening_round_order_modes_fails_the_auction_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The auction form implements the ring row, and says so when the order axis
+    grows a second traversal.
+
+    The guard replaces a DENY-LIST: the form used to name one mode and let every
+    other fall through to the ring body, so a widened registry would have given
+    the new mode ring's traversal in silence. `ROUND_ORDER_MODES` holds one
+    member, so the conjunct is tautologically true against today's registry and
+    only widening it can be seen.
+
+    The registry is widened AFTER the front end has run, because resolve reads
+    the same constant to bound a declared `order` clause; the fixture declares
+    none, so what reaches the form is the default.
+
+    red under: delete the `assert n.ROUND_ORDER_MODES == ...` from
+    `runtime/mechanics.py::AuctionForm.__init__` — the widened registry then
+    plays the round out on the ring body with nothing said."""
+    game = check_dsl(_ONE_STEP_EACH, "auction.cardlang")
+    monkeypatch.setattr(
+        n, "ROUND_ORDER_MODES", frozenset({n.ROUND_ORDER_RING, "priority"})
+    )
+    with pytest.raises(AssertionError) as excinfo:
+        play_game(game, random.Random(0), chooser=_unused_chooser)
+    message = str(excinfo.value)
+    assert "implements the ring row only" in message, message
+    assert "['priority', 'ring']" in message, message
+
+
 def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     """resolve's guard is MODULE-level, so the witness is an import.
 
@@ -590,11 +644,6 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES", "site in RESERVATION_SITES"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
-    # The one latent deny-list the census surfaced: the dispatch implements
-    # `priority` and defaults every other mode to ring. Excluded from the class
-    # correctly (it pins itself against nothing, so there is no guard to
-    # witness) and filed as issue #165.
-    "runtime/mechanics.py": ["self.stmt.order_mode == n.ROUND_ORDER_PRIORITY"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"

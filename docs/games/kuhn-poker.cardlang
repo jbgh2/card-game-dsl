@@ -85,12 +85,11 @@ game KuhnPoker {
     run open_street(1)
 
     // The ring's `over` filter and its `until` terminator name the same set
-    // (`pending`), so the priority ring closes exactly when it empties; the
+    // (`pending`), so the ring closes exactly when it empties; the
     // second arm is the all-but-one-can-act case, which Kuhn reaches when a
     // player folds.
     round offering [check, bet, call, fold] from first_actor
           over players where pending(player)
-          order priority
           until (number of players where pending(player)) is 0
              or ((number of players where can_act(player)) <= 1
                  and (number of players where can_act(player) and owes(player)) is 0)

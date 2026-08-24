@@ -340,8 +340,9 @@ in tests/test_trump_slot_class.py.
   (see "Mechanics" below).
 - **Betting runs on the betting form of the kernel `round`** (see
   [decisions.md](decisions.md) "The auction form of `round`") — the same
-  continuous-ring form as an auction, in **`order priority`** (after a raise
-  re-opens earlier seats, action returns to the earliest owing seat) and with the
+  continuous-ring form as an auction, on the **default ring** (a bet or raise
+  re-opens the seats it passed, and the pointer reaches the seats behind the
+  aggressor first — poker's continuation order) and with the
   `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
   variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
   `round offering [check, bet, call, fold, raise]` per street over the

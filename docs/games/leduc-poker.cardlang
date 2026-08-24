@@ -77,13 +77,12 @@ game LeducPoker {
 
   // First street: private cards only, bets of 2. The ring's `over` filter
   // and its `until` terminator name the same set (`pending`), so the
-  // priority ring closes exactly when it empties; the second arm covers the
+  // ring closes exactly when it empties; the second arm covers the
   // case where only one player can still act.
   phase first_street {
     run open_street(2)
     round offering [check, bet, call, fold, raise] from first_actor
           over players where pending(player)
-          order priority
           until (number of players where pending(player)) is 0
              or ((number of players where can_act(player)) <= 1
                  and (number of players where can_act(player) and owes(player)) is 0)
@@ -99,7 +98,6 @@ game LeducPoker {
       run open_street(4)
       round offering [check, bet, call, fold, raise] from first_actor
             over players where pending(player)
-            order priority
             until (number of players where pending(player)) is 0
                or ((number of players where can_act(player)) <= 1
                    and (number of players where can_act(player) and owes(player)) is 0)
