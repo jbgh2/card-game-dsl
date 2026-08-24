@@ -491,8 +491,8 @@ def test_budget_on_an_empty_registry_and_log_is_unlimited(tmp_path: Path) -> Non
     no log — the two zeros a cap must not fire on.
     """
     log = _log(tmp_path)
-    assert Budget(max_cost_usd=0.01).exceeded(log) is None
-    assert Budget(max_cost_usd=0.01, window="all").exceeded(log) is None
+    assert Budget(max_cost_usd=0.01).exceeded(log, Spend()) is None
+    assert Budget(max_cost_usd=0.01, window="all").exceeded(log, Spend()) is None
 
 
 def _two_matchup_config(tmp_path: Path) -> tuple[dict[str, Any], Path]:

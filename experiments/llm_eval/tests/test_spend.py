@@ -400,6 +400,37 @@ def test_a_second_log_on_one_path_sees_the_first(tmp_path: Path) -> None:
     assert first.total(Window("invocation")) == Spend(input_tokens=10)
 
 
+def test_the_short_circuit_agrees_with_the_line_it_skips(tmp_path: Path) -> None:
+    """`invocation` answered in memory is the same answer the file gives.
+
+    `total` returns `appended` without opening the file, so `admits`'
+    `invocation` arm is reached by nothing else — and the equivalence the
+    short-circuit rests on ("the two agree by construction") is a claim like
+    any other. This is what holds it, and it is why the `session` field on
+    every line is not dead weight.
+
+    red under: dropping the `self.appended = ...` update from
+    `SpendLog.record`.
+    """
+    path = tmp_path / "log.jsonl"
+    first, second = SpendLog(path), SpendLog(path)
+    first.record("r", "t", [Billed("m", PRICED, 1, Spend(1, 2, 0.5))])
+    second.record("r", "t", [Billed("m", PRICED, 1, Spend(30, 40, 9.0))])
+    first.record("r", "t", [Billed("m", PRICED, 1, Spend(7, 0, 0.25))])
+
+    for log in (first, second):
+        from_file = Spend()
+        for entry in SpendLog(path).entries():
+            if Window("invocation").admits(entry, now=NOW, session=log.session):
+                from_file = from_file + Spend(
+                    entry["input_tokens"], entry["output_tokens"], entry["cost_usd"]
+                )
+        assert log.total(Window("invocation")) == from_file
+    # And the two sessions really are distinguished, or this compares one
+    # number with itself.
+    assert first.total(Window("invocation")) != second.total(Window("invocation"))
+
+
 def _damaged(field_name: str, kind: str) -> list[str]:
     """A line missing `field_name`, and one carrying the wrong kind there.
 
@@ -744,6 +775,54 @@ def test_a_smoke_that_dies_partway_still_records_what_it_billed(
         main(["--config", str(config), "--smoke"])
     spent_anyway = SpendLog(spend_log_path(tmp_path)).total(Window("all"))
     assert spent_anyway.output_tokens > 0, "the models that did smoke went unrecorded"
+
+
+@pytest.mark.parametrize("damage", ["{not json", '{"ts": "yesterday"}'])
+def test_an_unreadable_log_dies_before_a_game_is_paid_for(
+    tmp_path: Path, damage: str
+) -> None:
+    """The log is reached and read in pre-flight, not at the first cap check.
+
+    A window that reads the file refuses a damaged line — correctly, since
+    counting it as zero would widen the ceiling — and that refusal has to land
+    before a run starts. Reaching it at the loop top instead means an operator
+    learns the log is broken after a game has been played and billed.
+
+    red under: deleting `log.total(budget.counts)` from `main`'s pre-flight.
+    """
+    from ..run_eval import main
+
+    log = SpendLog(spend_log_path(tmp_path))
+    log.record("earlier", "t", [Billed("m", PRICED, 1, Spend(input_tokens=1))])
+    with log.path.open("a", encoding="utf-8") as handle:
+        handle.write(damage + "\n")
+
+    config = _smoke_config(tmp_path)
+    assert main(["--config", str(config)]) == 2
+    assert not (tmp_path / "runs").exists(), "a run directory was made anyway"
+
+
+def test_a_log_whose_directory_cannot_be_made_dies_in_pre_flight(
+    tmp_path: Path,
+) -> None:
+    """The other half of reaching the log early: a path it can never write to.
+
+    `spend_log:` takes an arbitrary path, and one whose parent is a FILE fails
+    at the first append — which is after a game has been played.
+
+    red under: deleting `log.path.parent.mkdir(...)` from `main`'s pre-flight.
+    """
+    from ..run_eval import main
+
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("", encoding="utf-8")
+    config = json.loads(_smoke_config(tmp_path).read_text(encoding="utf-8"))
+    config["spend_log"] = str(blocker / "spend" / "log.jsonl")
+    path = tmp_path / "config.yaml"
+    path.write_text(json.dumps(config), encoding="utf-8")
+
+    assert main(["--config", str(path)]) == 2
+    assert not (tmp_path / "runs").exists()
 
 
 def test_a_bad_spend_log_in_a_config_dies_before_anything_runs(

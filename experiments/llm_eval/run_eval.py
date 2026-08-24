@@ -96,7 +96,7 @@ class Budget:
     def exceeded(
         self,
         log: SpendLog,
-        pending: Spend = Spend(),
+        pending: Spend,
         *,
         now: datetime | None = None,
     ) -> str | None:
