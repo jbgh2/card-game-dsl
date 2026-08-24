@@ -1,21 +1,30 @@
-"""Random-playout harness for Spades.
+"""Playout harness for Spades, under both choosers.
 
 Spades is the first team trump game on the runtime. Its invariants
 exercise the seams Hearts/Getaway never touched: a value (integer-bid) decision,
 a trump-aware trick winner, and team-indexed capture/scoring. The trump check is
 the one that would go red under a wrong outcome function — it recomputes each
 trick's winner from the cards played and compares against what the runtime chose.
+
+Those invariants hold under a uniform chooser, which is also all a uniform
+chooser reaches: it bids over 0..13, overbids, and ends every seed at the
+-200 floor, so Spades' +500 win is scored and never played. The witness at
+the bottom is that branch, under a [[playout-policy]], measured against the
+uniform chooser over the same seeds.
 """
 
 from __future__ import annotations
 
 import random
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.values import Card
+from tests.playout_policy import PlayoutPolicy, is_length_guard
 
 SPADES = Path(__file__).parent.parent / "docs" / "games" / "spades.cardlang"
 
@@ -73,3 +82,90 @@ def test_200_random_games_satisfy_invariants() -> None:
             assert {p for p, _ in group} == {0, 1, 2, 3}  # all four play once
             assert winner == _expected_winner(group), f"seed {seed}, trick {i}"
             assert [c for _, c in group] == cards
+
+
+# --- the +500 witness -----------------------------------------------------
+#
+# The assertion above — `max(...) >= 500 or min(...) <= -200` — is a
+# disjunction only ever satisfied by its right arm: uniform-random bidding
+# draws over 0..13, so both teams systematically overbid, miss their
+# contracts, and sink to the -200 floor. Spades' +500 win is scored and never
+# reached. What follows is the left arm, under a Playout Policy, with the
+# uniform chooser measured over the same seeds as the contrast that makes it
+# a witness rather than a number.
+
+WITNESS_SEEDS = 30
+
+# The floor, not the measurement: the policy reaches +500 on 27 of these 30
+# seeds (2026-08-23), and this is set well below that so ordinary drift does
+# not redden it while a policy that stopped steering would.
+WITNESS_FLOOR = 20
+
+
+def _termini(seeds: int, use_policy: bool) -> Counter[str]:
+    """How each seed ended: the win, the collapse, or the declared bound.
+
+    `max_length` is a counted outcome rather than an error. It is a per-game
+    declared contract sized against measured random playouts, and a policy
+    that keeps a team solvent plays more hands than a random one — so a few
+    seeds spend the budget. The bucket is the record.
+
+    Only THAT guard is bucketed. `OwnerGuardError` is the currency of every
+    authoring refusal the policy path can reach — the un-attached refusal, an
+    unregistered Candidate shape, `random_chooser`'s `n > len(candidates)` —
+    and catching the type would file each of them as "this game ran long".
+    That is not hypothetical: a policy fault planted on 7 of 30 seeds bucketed
+    as `max_length` and left the witness green, because 21 still cleared the
+    floor. Anything but the length bound propagates.
+    """
+    game = _spades()
+    out: Counter[str] = Counter()
+    for seed in range(seeds):
+        rng = random.Random(seed)
+        policy = PlayoutPolicy(rng) if use_policy else None
+        try:
+            result = (
+                play_game(game, rng, chooser=policy, on_first_decision=policy.attach)
+                if policy is not None
+                else play_game(game, rng)
+            )
+        except OwnerGuardError as exc:
+            if not is_length_guard(exc):
+                raise
+            out["max_length"] += 1
+            continue
+        out["+500" if max(result.scores.values()) >= 500 else "-200"] += 1
+    return out
+
+
+def test_the_policy_reaches_the_500_win_the_random_chooser_never_does() -> None:
+    """#105's witness: the skill-gated branch, executed.
+
+    Both arms run over the same seeds, so the contrast is attributable to the
+    chooser and nothing else. Asserting a COUNT rather than "at least one"
+    is what makes it a regression gate: a policy that stopped steering the
+    bidding would still hit +500 occasionally and would still redden here.
+    """
+    policy_termini = _termini(WITNESS_SEEDS, use_policy=True)
+    random_termini = _termini(WITNESS_SEEDS, use_policy=False)
+
+    assert policy_termini["+500"] >= WITNESS_FLOOR, (
+        f"the Playout Policy reached +500 on only {policy_termini['+500']} of "
+        f"{WITNESS_SEEDS} seeds: {dict(policy_termini)}"
+    )
+    assert random_termini["+500"] == 0, (
+        "the uniform chooser now reaches +500 — the contrast this witness "
+        f"rests on no longer holds: {dict(random_termini)}"
+    )
+    # Non-vacuity, stated so it can fail: `sum(...) == WITNESS_SEEDS` cannot,
+    # since every loop iteration increments exactly one bucket — a totally dead
+    # arm satisfies it with 30 refusals. What is worth pinning is that both
+    # arms actually PLAYED: each reached a scored terminus on most seeds, and
+    # the length bound is the rare arm rather than the common one.
+    for label, termini in (("policy", policy_termini), ("random", random_termini)):
+        scored = termini["+500"] + termini["-200"]
+        assert scored > WITNESS_SEEDS // 2, (
+            f"{label} arm reached a scored terminus on only {scored} of "
+            f"{WITNESS_SEEDS} seeds — the rest never finished a game: "
+            f"{dict(termini)}"
+        )

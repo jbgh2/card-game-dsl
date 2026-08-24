@@ -1,8 +1,9 @@
 """[[chooser]]s: how a player decision is resolved at a decision point.
 
 For random playout, a player picks `n` cards uniformly at random from the legal
-[[candidate]]s. The same interface is where a real policy (or OpenSpiel's
-action-driven control) would plug in later.
+[[candidate]]s. The same interface is where a ranking policy plugs in
+(`tests/playout_policy.py`), and where OpenSpiel's action-driven control
+does (`openspiel/replay.py`).
 """
 
 from __future__ import annotations
