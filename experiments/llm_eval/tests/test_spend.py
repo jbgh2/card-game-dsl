@@ -75,7 +75,7 @@ import yaml
 from .. import spend as spend_mod
 from ..layout import spend_log_path
 from ..providers import FakeProvider, Provider, Usage
-from ..run_eval import CAPS, Budget, spend_log
+from ..run_eval import CAPS, Budget, budget_of, spend_log
 from ..spend import (
     ENTRY_FIELDS,
     ROLLING_SPELLING,
@@ -821,6 +821,64 @@ def test_a_log_whose_directory_cannot_be_made_dies_in_pre_flight(
     path = tmp_path / "config.yaml"
     path.write_text(json.dumps(config), encoding="utf-8")
 
+    assert main(["--config", str(path)]) == 2
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize(
+    ("block", "needle"),
+    [
+        ({"max_dollars": 5}, "nothing evaluates"),          # a plausible synonym
+        ({"max_cost": 5}, "nothing evaluates"),             # the cap, half-spelled
+        ({"maxcostusd": 5}, "nothing evaluates"),           # separators dropped
+        ({"max_cost_usd": "5 dollars"}, "not a number"),    # a quantity as prose
+        ({"max_cost_usd": None}, "not a number"),           # YAML's bare `~`
+        ({"max_input_tokens": True}, "not a number"),       # `yes` in YAML
+        ({"max_cost_usd": -1}, "negative ceiling"),         # a ceiling below zero
+        ({"max_input_tokens": -1}, "negative ceiling"),
+    ],
+)
+def test_a_token_budget_key_or_value_outside_the_registry_is_refused(
+    block: dict[str, Any], needle: str
+) -> None:
+    """The block's own Owner Guard, naming the registry.
+
+    `Budget(**block)` refuses an unknown KEY on its own, but as a `TypeError`
+    about a dataclass argument — a message that names neither the config nor
+    the three caps that exist. It accepts a non-numeric or negative VALUE
+    outright, and a truthy string then compares against a float and stops the
+    run at its first check, while a negative ceiling stops it before its first
+    game while reading like a large one.
+
+    red under: replacing `budget_of`'s body with `return
+    Budget(**config.get("token_budget", {}))`.
+    """
+    with pytest.raises(ValueError, match=needle) as caught:
+        budget_of({"token_budget": block})
+    if needle == "nothing evaluates":
+        for cap in CAPS:
+            assert cap in str(caught.value), "the refusal does not name the registry"
+
+
+def test_a_token_budget_that_is_not_a_block_is_refused() -> None:
+    """`token_budget: 60` is the shape an author writes when they think the
+    key is the ceiling."""
+    with pytest.raises(ValueError, match="block of caps"):
+        budget_of({"token_budget": 60})
+
+
+def test_a_bad_token_budget_in_a_config_dies_before_anything_runs(
+    tmp_path: Path,
+) -> None:
+    """And it lands in pre-flight, at exit 2, with no run directory — an
+    all-matchup run would otherwise surface it after the expensive matchups
+    are paid for."""
+    from ..run_eval import main
+
+    config = json.loads(_smoke_config(tmp_path).read_text(encoding="utf-8"))
+    config["token_budget"] = {"max_dollars": 5}
+    path = tmp_path / "config.yaml"
+    path.write_text(json.dumps(config), encoding="utf-8")
     assert main(["--config", str(path)]) == 2
     assert not (tmp_path / "runs").exists()
 
