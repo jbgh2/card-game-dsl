@@ -98,6 +98,36 @@ playout policy that reaches unexercised branches — build the witness.
 Implemented-but-never-executed code is where the next silent defect is
 already sitting.
 
+## Prose states what is; the journey lives in dated artifacts (load-bearing)
+
+Every sentence of prose this repo carries — docstring, comment, doc —
+is living spec, and three rules bind it **at write time**, because a
+comment built wrong is cheaper to refuse now than to audit later:
+
+1. **Present tense.** Prose describes what IS — never what was, what
+   changed, what used to be, or which change added it. Operating
+   rule 1 ("spec, not history") binds in code exactly as in `docs/`.
+2. **No derivable values.** A number two derivations can disagree on is
+   a query, not a fact: prose names the query — the registry, the glob,
+   the command — never today's count. Only a test may pin a value; only
+   a dated artifact may quote a sample. Counting a designed surface or a
+   domain fact (four suits, the two `rank_dir` arms) is fine; counting
+   an accumulating set (games, tests, registry entries, findings) never
+   is. The law: `docs/decisions.md`, "Prose names the registry, never
+   the cardinality".
+3. **No journey.** Commentary, narrative, reasoning, evidence quotes,
+   review dialogue — everything about how the code got here — lives in
+   the dated artifacts built for it: the commit message, the PR body,
+   the issue, the report. None of it lives in the code. A comment
+   exists only to state a present-tense constraint the code cannot
+   show.
+
+Two ruled formats are the deliberate exceptions and carry their own
+law in module docstrings: `Contract` blocks, and completeness ledgers
+(`docs/decisions.md`, "Closed-domain completeness") — a ledger's
+measurement lines are themselves dated artifacts. A quoted measurement
+anywhere else is dated or it does not land.
+
 ## What's here
 
 ```
@@ -128,6 +158,7 @@ docs/
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the generated index, one line per term; the entries themselves are one file per term in `docs/glossary/`, so read the index for the whole vocabulary and open an entry only when that term is the thing in question. The naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table lists the words never to use unqualified, and each term has its own entry under `docs/glossary/`. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
+- **"How do I write a comment / docstring?"** → "Prose states what is" (the load-bearing section above); the full law is `docs/decisions.md`, "Prose names the registry, never the cardinality"
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
