@@ -31,8 +31,9 @@ does not prove:  the cells are driven at one bet size against one seat count,
                  so nothing here bounds a street's TOTAL aggression — that a
                  street stops at its declared number of bets is
                  tests/test_playout_holdem_heads_up.py's cap pin. And a zero in
-                 the consumer sweep is a zero over the seeds swept; what makes
-                 it a claim rather than a sample is the argument in
+                 the consumer sweep is a zero over the seeds swept, however wide
+                 the sweep; what makes it a claim rather than a sample is the
+                 argument in
                  `test_only_a_forced_post_reaches_the_un_acted_level_seat`.
 """
 
@@ -375,6 +376,14 @@ POSTS_BEFORE_THE_ROUND: dict[str, bool] = {
     "seven-card-stud": True,  # the bring-in
 }
 
+# The sweep width follows what each half of the claim needs, not one number for
+# both. A POSITIVE needs a single decision, and the games that post reach it in
+# hundreds within one seed; a ZERO is a claim about absence and is swept wider —
+# affordably, because the two games that must come back zero are also the two
+# cheapest to play, a handful of decisions each.
+SEEDS_FOR_A_ZERO = 40
+SEEDS_FOR_A_POSITIVE = 12
+
 
 def _un_acted_level_decisions(name: str, seeds: int) -> int:
     """Decisions where the actor owes nothing, a bet stands, and its turn is
@@ -437,8 +446,11 @@ def test_only_a_forced_post_reaches_the_un_acted_level_seat(name: str) -> None:
     setting `bet_to_match`, so Kuhn's and Leduc's first street opens with
     nothing standing.
     """
-    hits = _un_acted_level_decisions(name, seeds=40)
-    if POSTS_BEFORE_THE_ROUND[name]:
+    posts = POSTS_BEFORE_THE_ROUND[name]
+    hits = _un_acted_level_decisions(
+        name, seeds=SEEDS_FOR_A_POSITIVE if posts else SEEDS_FOR_A_ZERO
+    )
+    if posts:
         assert hits > 0, (
             f"{name} posts a forced bet, so a seat should reach the standing "
             f"bet it already matches without having taken a turn"

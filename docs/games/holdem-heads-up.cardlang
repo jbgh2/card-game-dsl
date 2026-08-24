@@ -22,8 +22,7 @@
 // the ruleset of the standard heads-up-limit benchmark (the ACPC / Cepheus
 // configuration) and what makes the game a bounded, comparable unit. A capped
 // heads-up game and an uncapped one are different games; this file is the
-// capped one and says so rather than inheriting an ambiguity. With that one
-// cap named, this IS the ACPC configuration.
+// capped one and says so rather than inheriting an ambiguity.
 //
 // The big blind holds its option, which is Pagat's rule and not a courtesy:
 // limped to, it may raise its own forced post as well as check. The library's

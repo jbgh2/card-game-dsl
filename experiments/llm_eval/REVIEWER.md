@@ -235,8 +235,9 @@ Every exploitability figure is reported beside that floor.
   #237 the big blind facing a limped pot gains a decision node these files do not
   contain. Anyone who knows the benchmark will read "heads-up limit Hold'em" as
   the standard rules, so the gap between the archive and the current game is
-  stated here rather than only in the transcripts' `PROVENANCE.md`. The corpus
-  game itself is now the ACPC configuration.
+  stated here rather than only in the transcripts' `PROVENANCE.md`. The
+  deviation that made the corpus game not the benchmark configuration is closed;
+  what these files hold is the tree from before it was.
 - **The Hold'em archive predates balanced seating.** The confound is structurally
   present in that game and its magnitude was bounded below detection by three
   probes; re-measuring the free baseline under balanced seating gives +1.14 ± 0.54

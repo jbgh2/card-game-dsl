@@ -58,8 +58,7 @@ and raising its own forced post is the street's second aggression. It is not
 offered `fold`, which is right — a seat that owes nothing has nothing to fold
 against. The library reaches the seat because a forced post placed before the
 round begins is not a turn taken within it, so the big blind is still pending
-even though its chips already match the bet. With the raise cap above named as
-this file's one deviation, **this is the ACPC configuration**.
+even though its chips already match the bet.
 
 "Four" alone is ambiguous, so here is the table it means. `raise_cap` counts
 **aggressions including the opening bet**, so `raise_cap : 4` is four bets on

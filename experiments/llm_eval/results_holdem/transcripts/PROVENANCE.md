@@ -42,7 +42,9 @@ leader picks the seat the pointer already names, and after either seat acts it
 stops being pending. The two traversals agree at every decision. The second,
 issue #237, gives an un-acted seat that owes nothing its `raise` option, which
 DOES move this game: the big blind facing a limped pot decides at a node these
-files do not contain, so a transcript here shows it offered `check` alone.
+files do not contain. It is visible in the archive rather than inferred — 410 of
+these decisions were offered `check` and nothing else, which under the current
+rules is `check` and `raise`.
 
 So a rate recomputed from these files is a rate against the tree of that run,
 and that tree is no longer the corpus game's. That is what a record of real
