@@ -129,6 +129,15 @@ def test_the_depth_is_the_deepest_pause_the_swap_geometry_admits(seed: int) -> N
         f"{TestReadiness.spec.depth}"
     )
     board_at = {depth: board for depth, _, board in rows}
+    # The hand-boundary walk reads the board's growth, so a first hand that never
+    # dealt one would make the comparison below `0 == 0` — true, and about
+    # nothing. Asserting the community grew is what keeps the board-complete half
+    # of this pin from going quietly vacuous if the greedy line stops reaching a
+    # flop.
+    assert max(board_at.values()) > 0, (
+        f"seed {seed}: the first hand dealt no community card, so the walk's "
+        f"boundary never triggered and the board comparison below is vacuous"
+    )
     assert board_at[TestReadiness.spec.depth] == max(board_at.values()), (
         f"seed {seed}: the deepest admissible pause no longer has the whole "
         f"community out — board {board_at[TestReadiness.spec.depth]} of "

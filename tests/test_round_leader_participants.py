@@ -178,9 +178,15 @@ FIRST_PARTICIPANT_AFTER_LEADER = {"clockwise": 2, "counterclockwise": 0}
 def test_acting_path_axis_is_derived_from_the_registries() -> None:
     """The path axis is the AST constructs carrying BOTH `leader` and
     `participants` — the shape that defines the class — with the auction form
-    split again by the order modes. A sixth path (a new construct with a
-    `from`/`over` pair, a fourth round form, a third order mode) must fail here
-    rather than go unnoticed."""
+    split again by the order modes. A further path (a new construct with a
+    `from`/`over` pair, a fourth round form, a second order mode) must fail here
+    rather than go unnoticed.
+
+    red under: add a member to `n.ROUND_ORDER_MODES` — the registry
+    reconciliation below fails by name, and so does the arithmetic, which is
+    what stops a new mode acquiring the ring's rows. Or delete `"turns"` from
+    `ACTING_PATHS`: the arithmetic fails without any registry edit, which is
+    the half a registry mutation alone would not prove."""
     fields_of = {
         node.__name__: {f.name for f in dataclasses.fields(node)}
         for node in (n.TrickRound, n.AuctionRound, n.ClimbRound, n.Turns)
@@ -284,7 +290,7 @@ game G {{
   state {{ x[player] : Integer = 0 }}
   phase run {{
     round offering [step] from {leader} over players where {pred}
-          until false
+{order}          until false
   }}
   winner: highest x
 }}
@@ -340,7 +346,21 @@ def _source(path: str, relationship: str, direction: str) -> str:
         return CLIMB.format(dir=direction, leader=leader, pred=pred)
     if path == "turns":
         return TURNS.format(dir=direction, leader=leader, pred=pred)
-    return AUCTION.format(dir=direction, leader=leader, pred=pred)
+    # The auction paths are named `auction_<mode>`, and the clause is written
+    # from the name rather than dispatched on it: a path added for a second
+    # traversal then EMITS that traversal, instead of quietly re-testing the
+    # default while its name says otherwise. An unrecognised suffix raises here
+    # rather than falling through to a clause-free source.
+    mode = path.removeprefix("auction_")
+    if mode not in n.ROUND_ORDER_MODES:
+        raise AssertionError(
+            f"acting path '{path}' names order mode '{mode}', which is not in "
+            f"{sorted(n.ROUND_ORDER_MODES)} — the path would emit no clause and "
+            f"its rows would re-test whichever traversal is the default"
+        )
+    return AUCTION.format(
+        dir=direction, leader=leader, pred=pred, order=f"          order {mode}\n"
+    )
 
 
 def _first_actor(src: str) -> int:

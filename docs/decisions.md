@@ -3544,8 +3544,8 @@ outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
   with `actor` bound to that player.
 - `round` — a sequence of decisions over participants, varying only along a
   *closed* set of axes: participants (actor / others / ring / list), order, an
-  accumulator threaded across
-  steps, a termination predicate, and a typed outcome. Auctions, betting,
+  accumulator threaded across steps, a termination predicate, and a typed
+  outcome. Auctions, betting,
   climbing, response windows, and the trick are all `round` configurations.
 
 **Richer vocabulary is a standard library written in the DSL, not engine
@@ -4094,9 +4094,13 @@ So a closed domain gets both halves:
   branch, so widening the table fails *there*, by name —
   `runtime/execute.py` pins its player-only simultaneous executor against
   `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain guards against
-  `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns keying against
-  the same set and raises for a role it cannot invert, exactly as
+  `ZONE_INDEX_ROLES`; `runtime/mechanics.py` pins the auction form's single
+  traversal against `ROUND_ORDER_MODES`; `openspiel/replay` pins its returns
+  keying against the same set as `resolve` and raises for a role it cannot invert, exactly as
   `domains.zone_observer_key` does rather than guessing player keying.
+  The practising sites are enumerated in code, not here: the census in
+  `tests/test_registry_guard_witnesses.py` derives them and demands a witness
+  for each, so a site added without one fails there rather than going unlisted.
 
 **The boundary is closed versus open, and it is load-bearing.** Everything
 above applies to a domain whose membership is enumerable — a union, a

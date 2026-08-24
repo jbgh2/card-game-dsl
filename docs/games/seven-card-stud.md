@@ -23,8 +23,9 @@ that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The whole hand runs in the
 DSL: the betting — antes, deal, the bring-in post, and the five streets — on the
 kernel `round`'s **ring** (the pointer advances past whoever just acted, so a
-bet or raise that re-opens the seats behind it is answered by them first and the
-seats it re-opened decide last — poker's continuation order), and the showdown as
+bet or raise re-opens the seats it has already passed and the seats behind it —
+those yet to speak — decide first, the re-opened ones answering once they have;
+poker's continuation order), and the showdown as
 plain statements — a contested hand reveals the contenders' hole cards into the
 public board, each entrant collects its side-pot share via `pot_share(p)`, and
 the hands leave play to the muck. The Primitives are pure reads: the

@@ -58,19 +58,28 @@ sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
 residual:   THREE, all R4, all ledger-owned.
 
             (0) The `order` clause admits ONE value, and it is the default:
-            `order ring` and no clause at all reach the same traversal. So
-            the grid's `order` rows cross a clause that cannot change a
-            game's behaviour, and what they prove is narrower than it looks
-            — that the clause parses, resolves, emits and runs, not that it
-            selects anything. The clause is kept deliberately, as the
-            docking point a second traversal arrives at
-            (decisions.md, "The auction form of `round`", under Order); the
-            runtime reconciliation that stops such a traversal inheriting
-            ring's body is `mechanics.AuctionForm.__init__`, witnessed in
-            tests/test_registry_guard_witnesses.py. R4 — only an engine
-            maintainer widening `ROUND_ORDER_MODES` meets it, and it guards
-            nothing rigor-critical on its own, so this ledger owns the
-            record and no issue does.
+            `order ring` and no clause at all reach the same traversal —
+            nothing below resolve reads `order_mode` at all. So the grid's
+            `order` rows cross a clause that cannot change a game's
+            behaviour, and what they prove is narrower than it looks: that
+            the clause parses, resolves, emits and runs, not that it selects
+            anything. The clause is kept deliberately, as the docking point a
+            second traversal arrives at (decisions.md, "The auction form of
+            `round`", under Order).
+
+            What guards the docking point is a REGISTRY reconciliation in
+            `mechanics.AuctionForm.__init__`, witnessed in
+            tests/test_registry_guard_witnesses.py: widening
+            `ROUND_ORDER_MODES` fails by name, so a second traversal cannot
+            arrive and inherit ring's body. It does not guard the other
+            direction — an `AuctionRound` carrying a mode the form cannot
+            walk, which resolve owns and no runtime check shadows. That path
+            is unreachable from source text (resolve refuses the mode, and
+            nothing below parse rebuilds the node), and the check that would
+            close it belongs with the traversal that makes it reachable;
+            issue #425 carries it for whoever writes that traversal. R4
+            throughout — only an engine maintainer meets any of it — so this
+            ledger owns the record.
 
             (1) The two AUTHORED mappings in `round_axes`
             (`_CLAUSE_VALUE_REGISTRIES`, `_RUNNABLE_MOVE_TYPE`) are naming

@@ -4,16 +4,17 @@
 consumer that can only implement ONE row of a closed domain: pin the hard-coded
 row against the registry's derived view, so widening the registry fails by name
 here rather than silently giving the new member the implemented row's
-behaviour. `docs/decisions.md` names three sites practising it, and
+behaviour. `docs/decisions.md` names the sites practising it, and
 `tests/test_role_comparison_pin.py` calls the executor one "the remedy
 practised correctly exactly once".
 
-This module witnesses the TWO written as a comparison against a literal
+This module witnesses those written as a comparison against a literal
 collection, which is the shape whose conjuncts can each be fired by widening a
-registry. The third — `openspiel/replay`'s returns keying — pins by raising
-past an exhausted if-chain, comparing nothing; it is witnessed at
-`tests/test_openspiel_returns_keying.py`, and the census cannot see its shape
-(issue #171).
+registry — the cells are DERIVED, so the module never states how many there
+are. `openspiel/replay`'s returns keying is the one practising site outside
+that shape: it pins by raising past an exhausted if-chain, comparing nothing;
+it is witnessed at `tests/test_openspiel_returns_keying.py`, and the census
+cannot see its shape (issue #171).
 
 Neither had a witness, and the reason is structural rather than an oversight:
 **both conjuncts are tautologically true against today's registry**, and no
@@ -113,10 +114,12 @@ residual:   FOUR:
             domain that pins itself against nothing — is not covered. It is
             not #149's class (there is no guard to witness), it is unbounded
             without its own framing check, and the census cannot see it: a
-            missing guard has no syntax. So the class is bounded by nothing
-            and a member of it reaches neither the grid nor the band; only
-            reading a consumer against the registry it implements finds one.
-            R4, this ledger owns the record.
+            missing guard has no syntax. So a member reaches neither the grid
+            nor the band, and only reading a consumer against the registry it
+            implements finds one. The class stays here rather than becoming an
+            issue because there is nothing to enumerate and so nothing to
+            schedule; a member found by reading is filed on its own, which is
+            what happened to the one this module used to name. R4.
             (2) a witness proves a conjunct CAN fire; it cannot prove the
             message names the right remedy, which is prose. Each witness
             asserts on the message text, so a reworded message that stops
@@ -764,12 +767,15 @@ def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
     below is the assertion, so neither a count here nor a count in the ledger
     can drift away from it.
 
-    Two of the rejections are the real exclusions, written the way the real
-    sites are — `runtime/state.py`'s registry-vs-variable membership test, and
-    `runtime/mechanics.py`'s scalar dispatch whose `if` body happens to contain
-    a raise further down. The second matters: whether `_guard_tests` scans the
-    direct body or the whole subtree should not change the verdict, because the
-    literal-collection predicate is what excludes it.
+    Two of the rejections are the real exclusions. The first,
+    `runtime/state.py`'s registry-vs-variable membership test, is written the
+    way that live site is. The second — a scalar dispatch whose `if` body
+    contains a raise further down — has no live instance in `cardlang/`, and is
+    kept precisely because the predicate must not depend on that: whether
+    `_guard_tests` scans the direct body or the whole subtree should not change
+    the verdict, because the literal-collection test is what excludes it. A
+    near-miss the tree happens not to contain is the one a future edit
+    reintroduces with nobody watching.
 
     Three of the acceptances answer PR #166 review findings. The parenthesised
     `and` shapes are the severe one: a nested `BoolOp` is not a `Compare`, so

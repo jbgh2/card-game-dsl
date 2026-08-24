@@ -38,9 +38,15 @@ not move — but the ORDER of the asking does, which reorders the whole hand and
 so every later deal. `seven-card-stud.ir.json` moves with it through its own
 `UPDATE_GOLDEN=1` path, and there the diff is five `order_mode` values going
 null: the clause is gone from the game, and null is what an absent clause emits.
-The three 2-seat family members (Kuhn, Leduc, Hold'em heads-up) are the negative
-control and did NOT move: in a two-seat street exactly one seat is ever pending,
-so a re-scan from the leader and an advance of the pointer name the same seat.
+The family's 2-seat members are the change's negative control, and this module
+holds no golden for any of them, so the control is measured where their decision
+order is pinned — the readiness proofs and playouts under `tests/openspiel_ready/`
+and `tests/test_playout_holdem_heads_up.py` — never here. Why they do not move:
+at a two-seat street's first decision both seats are pending, and the pointer is
+at the leader, so a re-scan from the leader picks the seat the pointer already
+names; after either seat acts it stops being pending, so only one ever is. The
+two traversals agree at every decision, not because the pending set is a
+singleton throughout.
 That vector loses nothing it had, for the reason below: the pre-kernel monolith
 asked in the same wrong order, so this is the same trade the third regeneration
 made, and the migration claim now rests on the family's other pins rather than

@@ -52,6 +52,7 @@ move_type step { effect { acted_count[actor] := acted_count[actor] + 1 } }
 
 
 def _source(order_clause: str = "") -> str:
+    """The fixture, with the `order` clause written or left absent."""
     return SRC_DEFAULT.replace("{order}", order_clause)
 
 
@@ -71,24 +72,18 @@ def test_continuous_ring_interleaves_the_seats() -> None:
     assert _actor_sequence(_source()) == [0, 1, 2, 0, 1, 2]
 
 
-def test_the_explicit_ring_clause_is_the_default() -> None:
-    """`order ring` and no clause at all reach the same traversal.
-
-    The clause is total but inert, which is the state the ledger in
-    tests/test_round_forms.py records: what makes it inert is that the two
-    spellings agree, and that is a fact to execute rather than to assert in
-    prose. A future traversal landing on this clause makes this the row that
-    tells you the default moved.
-    """
-    assert _actor_sequence(_source("          order ring\n")) == _actor_sequence(
-        _source()
-    )
-
-
 # The misuse probe: the grammar admits `order <NAME>`, so every wrong spelling a
 # designer might reach for arrives at resolve, not at the parser. `priority` is
 # the retired value and the one most likely to be typed — from an older game
 # file, or from anywhere describing poker's betting.
+#
+# There is deliberately no companion pin that `order ring` and an absent clause
+# play the same, though both are legal: nothing below resolve reads
+# `order_mode`, so the two spellings are one code path and such a pin could not
+# fail under any mutation of the traversal it claimed to watch. What the clause
+# DOES prove is that it parses, resolves, emits and runs, and that is the round
+# form grid's `order=ring` cells in tests/test_round_forms.py, whose ledger owns
+# the record.
 PROBE_SPELLINGS = ("priority", "simultaneous", "Ring", "rings")
 
 
@@ -99,7 +94,14 @@ def test_an_order_mode_the_axis_does_not_hold_is_refused() -> None:
     added to `ROUND_ORDER_MODES` changes what this test demands back, and the
     probe list is checked against the registry rather than filtered by it — a
     probe silently dropped because it became legal is the vacuously-green shape.
+    The list's own non-emptiness is asserted for the same reason and not as
+    ceremony: an emptied tuple satisfies the disjointness check and the loop
+    alike, which is this repo's recorded empty-input-set defect wearing a
+    probe's name.
     """
+    assert PROBE_SPELLINGS, (
+        "the probe list is empty, so this test exercises no refusal at all"
+    )
     legal = set(n.ROUND_ORDER_MODES) & set(PROBE_SPELLINGS)
     assert not legal, (
         f"{sorted(legal)} is a legal order mode again, so it no longer probes "
@@ -150,7 +152,7 @@ def test_an_empty_ring_with_until_unsatisfied_names_the_disagreement() -> None:
     with pytest.raises(OwnerGuardError) as excinfo:
         play_game(game, random.Random(0))
     message = str(excinfo.value)
-    assert "no participant is pending" in message, message
+    assert "auction: no participant is pending" in message, message
     assert "termination and participants clauses disagree" in message, message
     assert "1000" not in message, message
 

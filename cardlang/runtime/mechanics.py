@@ -4,8 +4,8 @@
 kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
 sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
 participant plays a legal card, a [[winner]] function picks the winner),
-`AuctionForm` (a continuous ring over an [[offering]], threading a
-bid history, serving *both* the auction and betting forms), and `ClimbForm` (one
+`AuctionForm` (a continuous ring over an [[offering]], threading a bid history,
+serving *both* the auction and betting forms), and `ClimbForm` (one
 combination-climbing trick over game-local engine queries). `build_form` selects
 the bundle by field-presence and `execute.py` dispatches on the returned Outcome
 union.
@@ -337,7 +337,9 @@ class AuctionForm:
     OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
     runs with `actor` (and the move parameter) bound, threading the bid history.
 
-    Two axes vary, both as *values* on the hooks rather than new slots:
+    One axis varies here, as a *value* on a hook rather than a new slot; the
+    other the form carries is settled at one value, and the pair is worth reading
+    together because it is what the axes-not-slots claim rests on:
 
     - **outcome (optional).** An auction supplies `outcome <fn>` and `outcome`
       produces the phase's typed outcome `(tag, payloads)` from the bid history when
@@ -356,11 +358,17 @@ class AuctionForm:
     """
 
     def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
-        # This form implements the ring row of the order axis and no other, so it
-        # reconciles the row against the registry rather than letting a second
-        # mode inherit ring's traversal in silence (decisions.md, "Allow-list,
-        # never deny-list"). The `order` clause outliving its second value is
-        # exactly the condition that makes the reconciliation worth writing.
+        # The OWNER GUARD for "the order axis holds no row this form cannot walk".
+        # It shadows nothing: resolve owns whether a DECLARED mode is in the
+        # registry, and no guard anywhere owns whether the registry has outgrown
+        # its consumer — which is the condition here, and the reason the remedy is
+        # a reconciliation rather than a check on the statement (decisions.md,
+        # "Allow-list, never deny-list"). An assert is the channel because no game
+        # description can reach it: the trigger is an edit to `ROUND_ORDER_MODES`,
+        # so the reader it addresses is the engine maintainer making that edit.
+        # It sits on the form rather than at module import, unlike its siblings,
+        # because the row it pins is this form's — `next_actor`'s traversal — and
+        # a tree with no auction round has no such row to be wrong about.
         assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}, (
             f"the auction form implements the ring row only, and the order axis "
             f"now holds {sorted(n.ROUND_ORDER_MODES)} — a mode added to "
@@ -417,7 +425,7 @@ class AuctionForm:
                 # to spin out the step limit above, which reports a runaway loop
                 # for what is a disagreement between two clauses.
                 raise OwnerGuardError(
-                    "round: no participant is pending but the `until` predicate "
+                    "auction: no participant is pending but the `until` predicate "
                     "is unsatisfied (the termination and participants clauses "
                     "disagree)"
                 )

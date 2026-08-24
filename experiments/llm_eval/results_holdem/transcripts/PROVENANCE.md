@@ -36,8 +36,10 @@ These transcripts record decisions made against the corpus game as it stood at
 that commit, and two betting-order corrections have been ruled on since. The
 first, issue #198, retires the `order priority` value so every betting round
 takes the ring: it moves the decision order of every poker game with three or
-more seats and, for a two-seat game, moves nothing — in a two-seat street exactly
-one seat is ever pending, so both traversals name the same seat. The second,
+more seats and, for a two-seat game, moves nothing — at a street's first decision
+both seats are pending and the pointer is at the leader, so a re-scan from the
+leader picks the seat the pointer already names, and after either seat acts it
+stops being pending. The two traversals agree at every decision. The second,
 issue #237, gives an un-acted seat that owes nothing its `raise` option, which
 DOES move this game: the big blind facing a limped pot gains a decision node it
 was not offered here.

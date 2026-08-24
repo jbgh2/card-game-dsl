@@ -2,8 +2,8 @@
 
 The corpus's first betting game. Chips are integer state (a `stack` per player),
 not a resource-zone subsystem. The whole hand — antes, deal, bring-in post, the
-five betting streets (3rd–7th) on the kernel [[round]]'s ring, and the
-showdown (reveal, per-entrant pot collection, muck) — runs in the DSL
+five betting streets (3rd–7th) on the kernel [[round]]'s ring, and the showdown
+(reveal, per-entrant pot collection, muck) — runs in the DSL
 (seven-card-stud.cardlang); this module holds only the pure functions not
 expressible there:
 
