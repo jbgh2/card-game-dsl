@@ -28,6 +28,7 @@
 // from a source. What the poster's raise then COSTS is a separate matter and a
 // separate defect: 3rd street's ladder runs 2/7/12 where the rules say 2/5/10
 // (issue #431).
+//
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
 // statements; the bring-in / first-to-act seat selectors and the `pot_share`
