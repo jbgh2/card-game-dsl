@@ -86,11 +86,13 @@ clock (below), so markers carry an instance, not just a gap:
    one comment (`warden:threads`) per open PR carrying unresolved
    threads, listing the count.
 4. **Report.** End the round with counts per chore — flagged,
-   skipped-as-already-flagged, cleared, reaped, escalated — and post it
-   as a comment on epic #274: the fleet's public record and the review
-   desk's inbox. Session messaging does not exist in unattended runs, so
-   the epic is the primary channel, not a fallback. Nothing else is
-   posted anywhere else.
+   skipped-as-already-flagged, cleared, reaped, escalated — and deliver
+   it to the fleet ledger (`logs/ledger.md` in the fleet clone): under
+   the wrapper, by writing the report to the run-report file the run
+   instructions name, which the wrapper appends. The ledger is the
+   fleet's local record and the review desk's inbox; session messaging
+   does not exist in unattended runs, so it is the primary channel, not
+   a fallback. Nothing else is posted anywhere else.
 
 ## Bounds
 
