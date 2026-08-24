@@ -251,11 +251,11 @@ def spend_log(config: dict[str, Any], results_dir: Path) -> SpendLog:
 
     Defaults to one log per results tree, which is where every other artifact
     of a run lives. `spend_log:` overrides it, and the reason it exists is
-    that a tree is a GAME's output: `config.yaml`, `config_kuhn.yaml` and
-    `config_holdem.yaml` name three trees and one account, so with no override
-    each would carry its own ceiling and the three together could spend three
-    times any of them — the same shape as the per-model ceiling `Budget`
-    already refuses. Point them at one path to give a campaign one bill.
+    that a tree is a GAME's output: the shipped configs name a tree apiece and
+    one account between them, so with no override each carries a ceiling of
+    its own and they could together spend a multiple of any of them — the same
+    shape as the per-model ceiling `Budget` already refuses. Point them at one
+    path to give a campaign one bill.
     """
     if "spend_log" not in config:
         return SpendLog(layout.spend_log_path(results_dir))

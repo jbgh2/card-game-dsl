@@ -663,11 +663,11 @@ def test_the_log_is_outside_every_transcript_glob(tmp_path: Path) -> None:
 def test_the_default_log_is_ignored_in_every_shipped_tree(path: Path) -> None:
     """git does not track it, wherever the shipped configs put their results.
 
-    Asked of git rather than read off the rules, because the three trees do
-    not carry the same ones: two have a recursive `*.jsonl` that would keep
-    working under any directory name, and `results_kuhn` has no ignore file of
-    its own at all — so the tree where a rename would expose a billing record
-    is exactly the one a spot-check of the other two would clear.
+    Asked of git rather than read off the rules, because the trees do not
+    carry the same ones: some have a recursive `*.jsonl` that keeps working
+    under any directory name, and `results_kuhn` has no ignore file of its own
+    at all — so the tree where a rename would expose a billing record is
+    exactly the one a spot-check of its neighbours would clear.
 
     red under: renaming `layout.SPEND`.
     """
@@ -686,8 +686,8 @@ def test_the_log_defaults_into_the_results_tree_and_can_be_shared(
     """One log per tree unless a config says otherwise.
 
     `spend_log:` exists because a tree is one GAME's output while an account
-    is one bill: three configs naming three trees would otherwise carry three
-    independent ceilings.
+    is one bill: configs naming a tree apiece would otherwise carry a ceiling
+    apiece.
     """
     tree = tmp_path / "results"
     assert spend_log(config={}, results_dir=tree).path == spend_log_path(tree)
