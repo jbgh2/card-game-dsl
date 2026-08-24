@@ -2067,6 +2067,19 @@ owes(p))` (the ring/termination predicate). The `over` filter and the `until`
 terminator both name `pending(player)`, so they cannot drift out of step — a
 correctness property, not only brevity.
 
+`acted[p]` is the turn taken *within* the round, and **a forced post placed
+before the round begins is not one: the posting seat stays pending until it
+acts.** Hold'em's big blind and Stud's bring-in poster match the standing bet
+without having spoken, so `pending`'s `not acted[p]` arm is what keeps them in
+the ring — keyed on debt alone it would deal the hand out around a live seat.
+The same reading decides which moves are legal and not only who is asked:
+`poker_betting`'s `raise` is offered against a standing bet to a seat that
+either still owes it or has not yet taken a turn, which is Pagat's option for
+the big blind — *"The big blind player acts last, and may raise even if no one
+else has done any more than call."* Pagat is silent on the bring-in poster's
+same moment, so Seven-Card Stud's file pins that treatment as the variant's own
+rule rather than citing an authority for it.
+
 The body is **hermetic**: it reads only its parameters and game/phase state (read
 at call time), never the caller's local binders or call-site `actor` / `action` /
 `outcome`. A function that needs a player takes it as a parameter. It is
@@ -4482,7 +4495,8 @@ VARIATION rather than about zones: **the move that differs across the family
 stays game-local; the library holds what every member holds identically.**
 
 `poker_betting` holds check, bet, call, raise and the `can_act`/`owes`/`pending`
-ring predicates — all of which move chips and nothing else — and omits `fold`,
+ring predicates — all of which move chips and nothing else, over the reading of
+`acted` in "Named functions" above — and omits `fold`,
 the one betting move that touches cards. Which cards a fold disposes of, and
 where they go, is a property of the game: Stud sends the folder's upcards to the
 muck the instant they fold, and opponents' information sets carry that

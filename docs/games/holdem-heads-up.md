@@ -51,17 +51,15 @@ uses, and it is what makes the hand a bounded, comparable unit. A capped
 heads-up game and an uncapped one are different games; this file is the capped
 one and pins it rather than inheriting the ambiguity.
 
-**The big blind's option, not deliberately.** Pagat grants it — *"The big blind
-player acts last and is allowed to raise, even if the other active players have
-all called"* — and this game does not: after the small blind completes, the big
-blind is offered `check` and nothing else. The family library gates `raise` on
-owing a bet, and the big blind's forced post has already matched it, so the
-option falls out for every game in the corpus that posts blinds; three-handed
-Hold'em has the same hole. The hand is otherwise correct — chips conserve and
-the table below still holds, because the cap stays reachable through
-small-blind-raise → big-blind-raise → small-blind-raise — but a real decision
-node is missing, so **this file is not yet the ACPC configuration**. Issue #237
-tracks it.
+**The big blind keeps its option.** Pagat grants it — *"The big blind player
+acts last, and may raise even if no one else has done any more than call"* — and
+so does this game: limped to, the big blind is offered `raise` beside `check`,
+and raising its own forced post is the street's second aggression. It is not
+offered `fold`, which is right — a seat that owes nothing has nothing to fold
+against. The library reaches the seat because a forced post placed before the
+round begins is not a turn taken within it, so the big blind is still pending
+even though its chips already match the bet. With the raise cap above named as
+this file's one deviation, **this is the ACPC configuration**.
 
 "Four" alone is ambiguous, so here is the table it means. `raise_cap` counts
 **aggressions including the opening bet**, so `raise_cap : 4` is four bets on

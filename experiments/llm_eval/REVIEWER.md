@@ -230,10 +230,13 @@ Every exploitability figure is reported beside that floor.
   costs do. Cheat is N=10 per matchup — enough for a paired sign test on a
   per-decision endpoint, not for win rates, which are 0/10 everywhere. Kuhn is
   N=1500. Hold'em is N=200–400.
-- **Hold'em is not the ACPC configuration** — the big blind cannot raise a limped
-  pot (issue #237). Anyone who knows the benchmark will read "heads-up limit
-  Hold'em" as the standard rules, so the deviation is stated here rather than only
-  in the README.
+- **The Hold'em archive predates two betting corrections** (issues #198 and
+  #237), so its transcripts record a game tree the corpus no longer has: under
+  #237 the big blind facing a limped pot gains a decision node these files do not
+  contain. Anyone who knows the benchmark will read "heads-up limit Hold'em" as
+  the standard rules, so the gap between the archive and the current game is
+  stated here rather than only in the transcripts' `PROVENANCE.md`. The corpus
+  game itself is now the ACPC configuration.
 - **The Hold'em archive predates balanced seating.** The confound is structurally
   present in that game and its magnitude was bounded below detection by three
   probes; re-measuring the free baseline under balanced seating gives +1.14 ± 0.54

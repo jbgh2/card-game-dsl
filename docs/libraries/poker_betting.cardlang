@@ -118,8 +118,16 @@ library poker_betting {
     }
   }
 
-  // Aggression re-opens the action: every other player's `acted` is cleared, so
-  // seats that already acted this street owe a response again.
+  // Aggression re-opens the betting: every other player's `acted` is cleared, so
+  // seats that already took a turn this street owe a response again.
+  //
+  // A raise is offered against a STANDING bet, to a seat that either still owes
+  // it or has not yet taken a turn on the street. The second arm is the forced
+  // post's: a post placed before the round begins is not a turn taken within it
+  // (decisions.md, "Named functions"), so the big blind and the bring-in poster
+  // match the bet without having spoken and keep the choice the rules give
+  // them. Gating on debt alone offers them `check` and nothing else — a legal,
+  // chip-conserving, terminating hand missing a decision node poker has.
   //
   // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
   // the only legal actions are call and fold — raising into a field that cannot
@@ -133,7 +141,9 @@ library poker_betting {
   // action that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
   move_type raise {
-    when: bet_to_match > bet_by[actor] and raises < raise_cap
+    when: bet_to_match > 0
+          and (bet_to_match > bet_by[actor] or not acted[actor])
+          and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
     effect {

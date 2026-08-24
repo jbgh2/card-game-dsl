@@ -239,3 +239,100 @@ def test_the_seat_behind_the_aggressor_decides_before_the_checked_seat() -> None
         f"so seat {behind} — which has not yet spoken this street — decides "
         f"first and seat {opener} answers knowing what it did"
     )
+
+
+# --- the corpus witness, four-handed: a re-raise chain with a seat folding out -
+#
+# Three seats separate the two traversals only where a bet re-opens a seat. Four
+# separate them further: an aggression can re-open a seat while ANOTHER leaves
+# the ring for good in between, and the ring must then skip the departed seat
+# without letting it consume the turn that belonged to the seat behind it.
+# Seven-Card Stud is the corpus's four-handed betting game, and the goldens that
+# cover its four seats are characterization vectors — they would move under a
+# wrong traversal and say only that something moved. This says what.
+
+STUD = Path(__file__).parent.parent / "docs" / "games" / "seven-card-stud.cardlang"
+
+# One entry per decision, on 3rd street. The bring-in is posted before the round
+# begins, so the ring opens on the seat to the poster's left: that seat completes
+# the bring-in, the seat behind it folds out, the next seat re-raises to the cap,
+# and the last two entries are the seats that chain re-opened, answering.
+RE_RAISE_CHAIN_WITH_A_FOLD = ("raise", "fold", "raise", "call", "call")
+
+
+def _stud_seats_along_the_chain() -> list[int]:
+    """The seats Stud offers along the scripted chain.
+
+    Keyed by decision index like the three-handed line above, so a street shape
+    that drifts fails naming the decision it drifted at rather than quietly
+    asserting the property about a different line.
+    """
+    game = check_source(STUD)
+    seats: list[int] = []
+
+    def scripted(player: int, candidates: list[Any], count: int) -> list[Any]:
+        if len(seats) == len(RE_RAISE_CHAIN_WITH_A_FOLD):
+            raise _LineComplete  # the chain is answered; 4th street is not it
+        seats.append(player)
+        want = RE_RAISE_CHAIN_WITH_A_FOLD[len(seats) - 1]
+        offered = [name for name, _ in candidates]
+        assert want in offered, (
+            f"decision {len(seats)} of the chain wanted `{want}` and seat "
+            f"{player} was offered {offered} — the line no longer reaches the "
+            f"re-raise chain it is written to set up"
+        )
+        return [next(c for c in candidates if c[0] == want)]
+
+    try:
+        play_game(game, random.Random(3), chooser=scripted)
+    except _LineComplete:
+        pass
+    return seats
+
+
+def test_a_folded_seat_leaves_the_ring_and_the_chain_walks_past_it() -> None:
+    """A re-raise chain asks the four seats in ring order, minus the folder.
+
+    The whole sequence is derived from the seat the ring opens on, because the
+    claim is about the TRAVERSAL and not about which seat the deal happened to
+    give the bring-in to: each decision goes to the next seat clockwise, the
+    folder is gone from every later lap, and the opener answers last.
+
+    The discriminating decision is the fourth. A traversal that re-scanned from
+    the street's leader after the third seat's re-raise would find the OPENER
+    pending — the re-raise re-opened it — and ask it before the seat that has
+    not yet spoken at all. The ring asks the seat behind the aggressor first, so
+    the opener answers knowing what the whole table did, and that difference is
+    an information-set property: the same seats commit the same chips either
+    way, so conservation, the side-pot known-value tests and Stud's hand vectors
+    are all blind to it.
+
+    red under: in `AuctionForm.next_actor`, replace the pointer read
+    `player = order[pointer % len(order)]` with a scan from the leader,
+    `player = next(p for p in order if p in participants)`. RUN, not predicted:
+    the first lap comes back `[2, 3, 0, 2]` against the ring's `[2, 3, 0, 1]` —
+    the re-raise sends the turn back to the opener instead of on to the seat
+    that has not yet spoken.
+    """
+    seats = _stud_seats_along_the_chain()
+    assert len(seats) == len(RE_RAISE_CHAIN_WITH_A_FOLD), (
+        f"the chain ended early at {seats} — the street closed before the "
+        f"re-raise had been answered by both seats it re-opened"
+    )
+    opener = seats[0]
+    ring = [(opener + step) % 4 for step in range(4)]
+    assert seats[:4] == ring, (
+        f"the first lap was {seats[:4]}, but the ring advances one seat per "
+        f"turn from {opener}, so it is {ring}"
+    )
+    folder = seats[1]
+    assert folder not in seats[2:], (
+        f"seat {folder} folded at decision 2 and was offered another turn at "
+        f"{seats[2:].index(folder) + 3} — a folded seat leaves the ring"
+    )
+    assert seats[4] == opener, (
+        f"after seat {seats[2]} re-raised, the next seat offered was {seats[3]} "
+        f"and then {seats[4]}; the ring continues past the aggressor, so seat "
+        f"{seats[3]} — which had not yet spoken — decides before the opener "
+        f"{opener} that the re-raise re-opened"
+    )

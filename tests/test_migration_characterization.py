@@ -29,6 +29,23 @@ see issue #83).
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
 
+A FIFTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
+seed it holds: `poker_betting`'s `raise` now admits a seat that owes nothing but
+has not taken a turn on the street, which is Stud's bring-in poster (issue
+#237). Called around, that seat is offered `raise` beside `check` where it had
+`check` alone, so 3rd street gains a decision node in nearly every hand — which
+moves the chooser draws, and so the deal of every later street and every later
+hand. `seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1`
+path, and there the diff is one hunk inside `raise`'s guard, the old `>`
+comparison becoming the `and` that heads the new disjunction. The negative
+control for this change is the family members with NO forced post — Kuhn and
+Leduc, whose antes set no standing bet — and it is measured in
+tests/test_poker_betting_offers.py, which drives every consumer and asserts the
+count is zero for exactly those two. Both Hold'em variants move and are pinned
+by their playout modules, not here. What this vector attests for Stud is
+unchanged by the addition: a characterization of the current game, per the
+third and fourth regenerations below.
+
 A FOURTH sanctioned regeneration covers `seven-card-stud_hands.json` again, this
 time on every seed it holds: retiring the `order priority` value put Stud's
 betting on the default ring, so after a bet or raise the seats behind the

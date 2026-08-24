@@ -310,39 +310,7 @@ def test_every_declared_variable_is_an_axis_or_reads_in_no_guard() -> None:
     )
 
 
-def _not_yet_admitted(cell: Cell) -> bool:
-    """The seat `raise` does not yet reach: a bet standing, the seat level
-    against it because a forced post placed it there, and its turn not taken."""
-    return (
-        cell.bet_to_match > 0
-        and cell.owed == 0
-        and not cell.acted
-        and cell.raises < cell.raise_cap
-        and cell.field
-        and cell.stack > cell.owed
-    )
-
-
-_PARAMS = [
-    pytest.param(
-        cell,
-        id=cell.id,
-        marks=(
-            pytest.mark.xfail(
-                strict=True,
-                raises=AssertionError,
-                reason="issue #237: `raise` gates on debt, so the seat whose "
-                "forced post already matched the bet is offered `check` alone",
-            )
-            if _not_yet_admitted(cell)
-            else ()
-        ),
-    )
-    for cell in CELLS
-]
-
-
-@pytest.mark.parametrize("cell", _PARAMS)
+@pytest.mark.parametrize("cell", CELLS, ids=[c.id for c in CELLS])
 def test_the_offer_partitions_the_library_vocabulary(cell: Cell) -> None:
     """Every cell's whole offered set, against the rules.
 
