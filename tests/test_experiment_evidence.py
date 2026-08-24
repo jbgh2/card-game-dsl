@@ -23,10 +23,11 @@ domain:          (a) every `experiments/*/results_*.json`, classified by
                  classification going vacuous when no artifact carries the
                  knobs. (b) every table under the two covered sections of
                  `experiments/salvo/REPORT.md`, crossed with its rows and its
-                 mapped columns, with the row axis pinned to what each table is
-                 bound to — `test_the_liveness_table_prints_every_bin_it_is_
-                 bound_to` and `test_the_scoreboard_prints_the_rows_it_is_bound_
-                 to` — so a deleted row shrinks the checked population loudly.
+                 mapped columns, with the row axis pinned to what each table
+                 is bound to, so a deleted row shrinks the checked population
+                 loudly rather than in silence:
+                 `test_the_liveness_table_prints_every_bin_it_is_bound_to`,
+                 `test_the_scoreboard_prints_the_rows_it_is_bound_to`.
                  Boundaries, each a limit on this module rather than a
                  gap in the report. Only salvo's two adopted-game sections are
                  bound: §2's and §8's tables describe rounds 1-3 and want a
