@@ -523,14 +523,27 @@ LEDGER_HEADER_RE='^## [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z '
 if [ ! -e "$LEDGER" ]; then
   emit '<p class="muted">no reports yet</p>'
 else
-  # Deliberate set +e island: an unreadable ledger renders FAILED in place.
-  # grep exit 1 is "a ledger with no entries yet", not a failure; 2 and up are.
+  # Snapshot first, then read only the snapshot. A round appends to the fleet
+  # ledger while this runs; scanning headers from the live file and extracting
+  # bodies from it in later passes would swallow an entry that arrived between
+  # the passes into its predecessor's body, because the newest entry is read
+  # through end-of-file.
+  # Deliberate set +e island: an unreadable ledger, or an unscannable snapshot,
+  # renders FAILED in place. grep exit 1 is "a ledger with no entries yet", not
+  # a failure; 2 and up are.
   set +e
-  grep -nE "$LEDGER_HEADER_RE" "$LEDGER" > "$TMP/ledger.hdrs" 2> "$TMP/ledger.err"
-  led_rc=$?
+  cp "$LEDGER" "$TMP/ledger.snap" 2> "$TMP/ledger.err"
+  led_cp_rc=$?
+  led_rc=0
+  if [ "$led_cp_rc" -eq 0 ]; then
+    grep -nE "$LEDGER_HEADER_RE" "$TMP/ledger.snap" > "$TMP/ledger.hdrs" 2> "$TMP/ledger.err"
+    led_rc=$?
+  fi
   set -e
-  if [ "$led_rc" -gt 1 ]; then
-    emit_failed "reading the fleet ledger $LEDGER failed (grep exit $led_rc)" "$(cat "$TMP/ledger.err" 2>/dev/null)"
+  if [ "$led_cp_rc" -ne 0 ]; then
+    emit_failed "reading the fleet ledger $LEDGER failed (cp exit $led_cp_rc)" "$(cat "$TMP/ledger.err" 2>/dev/null)"
+  elif [ "$led_rc" -gt 1 ]; then
+    emit_failed "scanning the fleet ledger snapshot failed (grep exit $led_rc)" "$(cat "$TMP/ledger.err" 2>/dev/null)"
   elif [ ! -s "$TMP/ledger.hdrs" ]; then
     emit '<p class="muted">no reports yet</p>'
   else
@@ -553,7 +566,7 @@ else
       else
         e_end=0
       fi
-      e_head="$(awk -v s="$e_start" 'BEGIN { s = s + 0 } NR == s { sub(/^## /, ""); print; exit }' "$LEDGER")"
+      e_head="$(awk -v s="$e_start" 'BEGIN { s = s + 0 } NR == s { sub(/^## /, ""); print; exit }' "$TMP/ledger.snap")"
       e_when="${e_head%% *}"
       e_run="${e_head#* }"
       # The body is the entry's lines after its header, less the format's
@@ -562,7 +575,7 @@ else
         BEGIN { s = s + 0; e = e + 0 }
         NR > s && (e == 0 || NR <= e) { buf[++n] = $0 }
         END { while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
-              for (i = 1; i <= n; i++) print buf[i] }' "$LEDGER" > "$TMP/body.raw"
+              for (i = 1; i <= n; i++) print buf[i] }' "$TMP/ledger.snap" > "$TMP/body.raw"
       # head reads from the file (not a pipe) so a long body cannot SIGPIPE
       # an upstream writer under pipefail.
       head -40 "$TMP/body.raw" | tr -d '\r' > "$TMP/body.txt"

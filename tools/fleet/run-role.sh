@@ -49,10 +49,35 @@ main() {
   # the `## <UTC timestamp> <run id>` header line plus the lines to the next
   # such header — so the timestamp is what tells a header from a `##` heading
   # inside a report body.
-  # One printf, so the single unlocked writer — a skip entry appended while
-  # another run holds the lock — rides O_APPEND atomicity for a short entry.
-  post() { # post "$body" — best-effort; delivery failure must not mask run status
-    printf '## %s %s\n%s\n\n' "$(date -u +%FT%TZ)" "$RUN_ID" "$1" >> "$LEDGER" || true
+  #
+  # Serialization is the micro-lock below, not O_APPEND: a skip entry is
+  # appended by a run that does NOT hold the role lock, and a full report is
+  # large enough that its append is several writes, so a skip header can land
+  # inside a report body without one. mkdir is the atomic test-and-set; the
+  # spin is bounded, because delivery must never deadlock — past the bound the
+  # entry is appended anyway; and a lock dir old enough to be a crashed
+  # appender's is reclaimed rather than left to wedge the ledger.
+  #
+  # post RETURNS the append's status. A caller that must not have its own exit
+  # status masked says `|| true` at the call site; the one caller that acts on
+  # the result — the consume path — branches on it, because deleting the only
+  # copy of a report whose append failed is the loss this status exists to
+  # prevent.
+  post() { # post "$body" -> 0 iff the entry reached the fleet ledger
+    local mlock="$LEDGER.lock" waited=0 held=0 rc=0
+    while [ "$waited" -le 120 ]; do  # 120 * 0.25s = ~30s
+      if mkdir "$mlock" 2>/dev/null; then held=1; break; fi
+      if [ "$(( $(date +%s) - $(stat -f %m "$mlock" 2>/dev/null || date +%s) ))" -gt 120 ]; then
+        rm -rf "$mlock" 2>/dev/null || true
+        continue
+      fi
+      waited=$((waited + 1))
+      sleep 0.25
+    done
+    printf '## %s %s\n%s\n\n' "$(date -u +%FT%TZ)" "$RUN_ID" "$1" >> "$LEDGER"
+    rc=$?
+    if [ "$held" -eq 1 ]; then rm -rf "$mlock" 2>/dev/null || true; fi
+    return "$rc"
   }
 
   tail_block() { printf '```\n%s\n```' "$(tail -c 1500 "$LOG" 2>/dev/null || echo "(no log)")"; }
@@ -66,12 +91,12 @@ main() {
     HOLDER_PID="$(printf '%s' "$HOLDER" | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p')"
     HOLDER_AGE=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || date +%s) ))
     if [ -n "$HOLDER_PID" ] && kill -0 "$HOLDER_PID" 2>/dev/null && [ "$HOLDER_AGE" -le "$MAX_HOLD_S" ]; then
-      post "**$ROLE run skipped** at $(date -u +%FT%TZ): fleet clone busy ($HOLDER)."
+      post "**$ROLE run skipped** at $(date -u +%FT%TZ): fleet clone busy ($HOLDER)." || true
       exit 0
     fi
     rm -rf "$LOCK"
     if ! mkdir "$LOCK" 2>/dev/null; then
-      post "**$ROLE run skipped** at $(date -u +%FT%TZ): lost the lock race while reclaiming (was: $HOLDER)."
+      post "**$ROLE run skipped** at $(date -u +%FT%TZ): lost the lock race while reclaiming (was: $HOLDER)." || true
       exit 0
     fi
     echo "reclaimed stale lock (was: $HOLDER, age ${HOLDER_AGE}s)" >&2
@@ -116,21 +141,24 @@ Run marker: this run is $RUN_ID. Write your report to the file $REPORT — it MU
 
   if [ "$STATUS" -ne 0 ]; then
     post "**$ROLE run FAILED** (exit $STATUS; 143 = watchdog kill at ${TIMEOUT_S}s), run $RUN_ID, started $RUN_START, log \`$LOG\`. Tail:
-$(tail_block)"
+$(tail_block)" || true
     exit "$STATUS"
   fi
 
   # Delivery: only a report file carrying this run's marker counts — a file
   # left by an earlier run, or a stub the round never filled in, would
   # otherwise mask a missing report. The report is consumed on delivery: the
-  # fleet ledger is the record, and a second copy beside it would drift. A
-  # file that fails the check is LEFT where it is, for forensics.
+  # fleet ledger is the record, and a second copy beside it would drift — but
+  # only once the append has actually landed, so a read-only ledger or a full
+  # disk costs the round its page entry and not the report itself. A file that
+  # fails the check is LEFT where it is, for forensics.
   if [ -f "$REPORT" ] && grep -qF "$MARKER" "$REPORT"; then
-    post "$(cat "$REPORT")"
-    rm -f "$REPORT"
+    if post "$(cat "$REPORT")"; then
+      rm -f "$REPORT"
+    fi
   else
     post "**$ROLE run ended with no report** (exit 0, marker $RUN_ID absent from \`$REPORT\`), started $RUN_START, log \`$LOG\`. Tail:
-$(tail_block)"
+$(tail_block)" || true
   fi
 
   # Keep the last 30 role logs.
