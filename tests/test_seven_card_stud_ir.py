@@ -2,8 +2,8 @@
 
 The full pipeline (parse -> resolve -> typecheck -> emit) on the real
 seven-card-stud.cardlang, pinned with a golden file so any change to the IR shape
-— in particular the betting `round`s in `order priority` on the non-folded ring —
-is a reviewable diff. Regenerate deliberately with ``UPDATE_GOLDEN=1 pytest``.
+— in particular the betting `round`s over the non-folded ring — is a reviewable
+diff. Regenerate deliberately with ``UPDATE_GOLDEN=1 pytest``.
 """
 
 from __future__ import annotations
@@ -36,7 +36,11 @@ def test_seven_card_stud_ir_is_well_formed() -> None:
     assert isinstance(move_types, list)
     names = {m["name"] for m in move_types if isinstance(m, dict)}
     assert {"check", "bet", "call", "raise", "fold"} <= names
-    # The betting rounds are the betting form: priority order, no outcome function.
+    # The betting rounds are the betting form: the default ring traversal, so the
+    # emitted mode is null, and no outcome function. Pinned affirmatively AND by
+    # the absence of any spelled mode — a pin that only said what the IR is not
+    # would stay green on an IR that had lost the key altogether.
     blob = json.dumps(ir)
-    assert '"order_mode": "priority"' in blob
+    assert '"order_mode": null' in blob
+    assert '"order_mode": "' not in blob
     assert '"outcome_fn": null' in blob

@@ -112,7 +112,7 @@ participant plus a `winner` function. Everything below composes on a
 `round` grown to the closed axes from [decisions.md](decisions.md):
 
 - **participants** — actor / others / ring / list
-- **order** — turn-from-a-seat / priority / simultaneous
+- **order** — how the ring is traversed
 - **accumulator** — a value threaded across steps (high bid, bet-to-match,
   running total, led combination)
 - **termination** — a predicate over the accumulator/state
@@ -258,19 +258,18 @@ amount syntax" / "Resource transfer failure").
   post, and the five streets (3rd–7th) are DSL statements; each street's betting is
   a `round offering [check, bet, call, fold, raise]` over the non-folded, non-allin
   ring (`over players where not folded[player] and stack[player] > 0 and (not
-  acted[player] or bet_by[player] < bet_to_match)`) in **priority order**. The
+  acted[player] or bet_by[player] < bet_to_match)`) on the default ring. The
   accumulator (bet-to-match, raises, per-player bet_by/acted) is ordinary phase
   state written by the move-type effects; a bet/raise is a partial all-in when the
   actor can't cover it and resets every other `acted`. Termination (`until`) closes
   a street when no live player still owes or has yet to act (or one lone matched
   contender remains). The bid value isn't chosen — `limit` is per-street state.
-- **The `priority` order value — done.** Stud's betting order ("after a raise
-  re-opens earlier seats, action returns to the earliest owing seat") is the
-  pre-designed `priority` value on the order axis (turn-from-a-seat / priority /
-  simultaneous), not a new axis. It is `order priority` on the betting round
-  ([decisions.md](decisions.md), "The auction form of `round`"); the continuous
-  ring (`order ring`, the default) was the only order built before. Reused by
-  Coup's WS5 response windows.
+- **The betting order — done, and it is the ring's.** Stud's betting order
+  ("after a raise re-opens earlier seats, the action continues round the table
+  from the aggressor") is what the continuous ring already produces: the
+  re-marking of seats as pending is the library's, and `until` is checked before
+  each draw, so the street closes mid-lap ([decisions.md](decisions.md), "The
+  auction form of `round`"). The order axis needed no value of its own.
 - **Seat selectors as Primitives.** The bring-in (lowest door card) and the
   first-to-act (highest visible upcards) are argmin/argmax over players keyed on
   card ranks/suits — not DSL-expressible — so `bring_in_seat()` / `first_to_act_seat()`
@@ -473,8 +472,8 @@ blocks fold the claimed character into the window vocabulary
 (`block_claiming_*`), so the bluff is the decision itself; `steal` /
 `assassinate` / `coup` carry a declared `target : Player` parameter; and a
 proven challenge `reveal`s the shown card publicly before returning it to
-the deck. The single-pass poll pattern replaced the anticipated auction
-`priority`-mode substrate — a challenge window never loops, so the ring
+the deck. The single-pass poll pattern replaced the anticipated auction-round
+substrate — a challenge window never loops, so the ring
 machinery buys nothing. One recorded residual: the proven card's *return
 movement* stays count-projected, so a formal observer cannot exclude the
 kept-the-copy world (the runtime's filter guarantees the proven card
@@ -484,7 +483,7 @@ also surfaced the corpus's first legally unbounded lines
 ([open-questions/unbounded-lines-and-max-length.md](open-questions/unbounded-lines-and-max-length.md)).
 
 The anticipated new-axis risk (action → response → counter-response
-nesting, priority windows) dissolved on inspection at migration time and
+nesting, response windows) dissolved on inspection at migration time and
 stayed dissolved through the interactive upgrade: every decision lands on
 existing kernel sites — the turn's action pick and every window response
 are `offer`s, every influence loss is a chosen movement by the loser (the

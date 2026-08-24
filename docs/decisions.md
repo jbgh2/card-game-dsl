@@ -496,7 +496,7 @@ The surface:
 
 ```text
 round offering [<move_type>, …] from <seat> over <ring>
-      [order <ring | priority>] until <predicate> [outcome <fn>]
+      [order ring] until <predicate> [outcome <fn>]
 ```
 
 - **Move vocabulary (`offering`).** Each turn presents the acting player **one
@@ -532,17 +532,18 @@ round offering [<move_type>, …] from <seat> over <ring>
   being a single pass per participant — is observationally identical; this is one
   participants axis, with the continuous auction ring the case where per-turn
   re-evaluation is visible.
-- **Order (`order`).** How the ring is traversed — a value on the closed order
-  axis (turn-from-a-seat / priority / simultaneous). `order ring` (the default)
-  is the continuous ring: the pointer advances each turn, so after a player acts
-  the next *seat* is offered, wrapping. `order priority` re-scans the seat order
-  from the leader every turn and offers the first still-pending participant: after
-  an aggression re-opens earlier seats, action returns to the *earliest* owing
-  seat, not the next one round the ring. Bridge/Pinochle/Tarot auctions are
-  `ring`; Stud's betting is `priority` (a checked player responds to a later raise
-  before seats that have not yet acted), and Coup's *interactive* response
-  windows — the scope upgrade beyond its migrated rng gates
-  ([kernel-migration.md](kernel-migration.md), Workstream 5) — would be too.
+- **Order (`order`).** How the ring is traversed. One value exists — `ring`,
+  which is also what an absent clause means: the pointer advances each turn, so
+  after a player acts the next *seat* is offered, wrapping. That is poker's order
+  as much as an auction's, and each half of the claim is a neighboring bullet's:
+  the pointer advances, so the seats *behind* the aggressor are the next ones
+  reached; the participants filter is re-evaluated each turn, so the seats a bet
+  re-opened come back when the ring returns to them; and `until` is checked
+  before each draw, so the ring closes mid-lap the moment nobody is pending. Bridge's, Pinochle's
+  and Tarot's auctions and every poker game's betting all run on it. The clause is
+  kept although it holds a single value, as the docking point a further traversal
+  arrives at: the axis is closed at `ring` alone; the next value arrives with the
+  game that forces it — and mints its own name.
 - **Call-and-response is a configuration, not an order value.** Skat's Reizen —
   a speaker naming successive ladder values against a responder who holds or
   passes, twice in sequence with the survivor advancing — runs on the plain
@@ -557,14 +558,13 @@ round offering [<move_type>, …] from <seat> over <ring>
   contest before the responder is offered a turn); the speaks-before-his-seat
   reorder is `from <speaker>` (the ring starts at the speaker regardless of
   seating); and the two sequential contests are two `round` statements
-  threading the survivor through phase state. The order axis stays two values
-  (`ring`, `priority`).
+  threading the survivor through phase state. The order axis stays `ring` alone.
 - **Accumulator.** The decision-relevant running state (Bridge's standing level,
   strain, doubling, high bidder, pass count) is ordinary **phase state**, read and
   written by the move-type effects and read by the termination predicate. No
   separate accumulator construct.
-- **Termination (`until`).** A predicate over that state, checked each time around
-  the ring (Bridge: three passes after a bid, four with no bid).
+- **Termination (`until`).** A predicate over that state, checked before each
+  draw (Bridge: three passes after a bid, four with no bid).
 - **Outcome (optional).** A named function over the threaded **bid history** plus
   the terminal state — the same status as a trick's `winner` callback (a
   runtime-primitive, no decisions of its own) — that produces the phase's typed
@@ -3392,7 +3392,7 @@ block" sound like simultaneous group decisions, but the step that
 carries weight is a *conditional commit* — challenge or not, block or
 not — with a branching result (the claim stands or is refuted; the
 action is blocked or proceeds). That is a sequenced-response shape,
-not the atomic-effect block: serializing responders in priority order is
+not the atomic-effect block: serializing responders in seat order is
 faithful, because a response reacts to what is already on the table. No
 `simultaneously:` block appears in Coup, and none of the
 unforced body-grammar extensions below (in-block `if`, nested blocks)
@@ -3544,9 +3544,9 @@ outcome. Plus chance nodes for shuffles/deals. Everything below lowers to this.
   `move_type`s (each a guard plus an effect), and the chosen move's effect runs
   with `actor` bound to that player.
 - `round` — a sequence of decisions over participants, varying only along a
-  *closed* set of axes: participants (actor / others / ring / list), order
-  (turn-from a seat / priority / simultaneous), an accumulator threaded across
-  steps, a termination predicate, and a typed outcome. Auctions, betting,
+  *closed* set of axes: participants (actor / others / ring / list), order, an
+  accumulator threaded across steps, a termination predicate, and a typed
+  outcome. Auctions, betting,
   climbing, response windows, and the trick are all `round` configurations.
 
 **Richer vocabulary is a standard library written in the DSL, not engine
@@ -3582,8 +3582,8 @@ axis (an `early` predicate — Getaway's tochoo) plus round-state exposure. The
 ring over a heterogeneous move vocabulary, with the accumulator as phase state, a
 termination predicate, and a typed outcome over the bid history — Bridge's,
 Pinochle's, and Tarot's auctions run on it (Tarot as a counterclockwise
-single-pass ring, the ring honouring the game's `direction`), Stud's betting
-runs its `priority` order, and Skat's Reizen call-and-response runs as a
+single-pass ring, the ring honouring the game's `direction`), the poker family's
+betting runs on the plain ring, and Skat's Reizen call-and-response runs as a
 role-guarded two-participant ring (see the call-and-response bullet under "The
 auction form of `round`"). The
 participant-filter axis is built — the ring is re-evaluated each turn, so it
@@ -4095,9 +4095,13 @@ So a closed domain gets both halves:
   branch, so widening the table fails *there*, by name —
   `runtime/execute.py` pins its player-only simultaneous executor against
   `SIMULTANEOUS_ROLES`; `resolve` pins its empty-domain guards against
-  `ZONE_INDEX_ROLES`; `openspiel/replay` pins its returns keying against
-  the same set and raises for a role it cannot invert, exactly as
+  `ZONE_INDEX_ROLES`; `runtime/mechanics.py` pins the auction form's single
+  traversal against `ROUND_ORDER_MODES`; `openspiel/replay` pins its returns
+  keying against the same set as `resolve` and raises for a role it cannot invert, exactly as
   `domains.zone_observer_key` does rather than guessing player keying.
+  The practising sites are enumerated in code, not here: the census in
+  `tests/test_registry_guard_witnesses.py` derives them and demands a witness
+  for each, so a site added without one fails there rather than going unlisted.
 
 **The boundary is closed versus open, and it is load-bearing.** Everything
 above applies to a domain whose membership is enumerable — a union, a

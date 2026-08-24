@@ -22,10 +22,10 @@ terminal, the executable plays until one player holds **all** the chips and name
 that player the winner. Chips are modelled as an integer `stack` per player (not
 a resource-zone subsystem); the total is invariant. The whole hand runs in the
 DSL: the betting — antes, deal, the bring-in post, and the five streets — on the
-kernel `round` in **priority order** (each turn re-scans the seat order from the
-leader and offers the first still-pending player, so after a raise re-opens
-earlier seats action returns to the earliest owing seat), and the showdown as
-plain statements — a contested hand reveals the contenders' hole cards into the
+kernel `round`'s **ring** (the pointer advances past whoever just acted, so the
+seats behind the aggressor decide before the seats its bet re-opened — poker's
+continuation order), and the showdown as plain statements — a contested hand
+reveals the contenders' hole cards into the
 public board, each entrant collects its side-pot share via `pot_share(p)`, and
 the hands leave play to the muck. The Primitives are pure reads: the
 door-card seat selectors (`bring_in_seat` / `first_to_act_seat`) and the
@@ -105,7 +105,6 @@ game SevenCardStud {
         bet_to_match := 2   raises := 1     // the post is the street's first aggression
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
-              order priority
               until (number of players where pending(player)) is 0
                  or ((number of players where can_act(player)) <= 1
                      and (number of players where can_act(player) and owes(player)) is 0)

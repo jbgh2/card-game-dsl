@@ -29,6 +29,29 @@ see issue #83).
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
 
+A FOURTH sanctioned regeneration covers `seven-card-stud_hands.json` again, this
+time on every seed it holds: retiring the `order priority` value put Stud's
+betting on the default ring, so after a bet or raise the seats behind the
+aggressor decide before the seats it re-opened (issue #198). The same seats
+commit the same chips — chip conservation and the side-pot known-value tests do
+not move — but the ORDER of the asking does, which reorders the whole hand and
+so every later deal. `seven-card-stud.ir.json` moves with it through its own
+`UPDATE_GOLDEN=1` path, and there the diff is five `order_mode` values going
+null: the clause is gone from the game, and null is what an absent clause emits.
+The family's 2-seat members are the change's negative control, and this module
+holds no golden for any of them, so the control is measured where their decision
+order is pinned — the readiness proofs and playouts under `tests/openspiel_ready/`
+and `tests/test_playout_holdem_heads_up.py` — never here. Why they do not move:
+at a two-seat street's first decision both seats are pending, and the pointer is
+at the leader, so a re-scan from the leader picks the seat the pointer already
+names; after either seat acts it stops being pending, so only one ever is. The
+two traversals agree at every decision, not because the pending set is a
+singleton throughout.
+That vector loses nothing it had, for the reason below: the pre-kernel monolith
+asked in the same wrong order, so this is the same trade the third regeneration
+made, and the migration claim now rests on the family's other pins rather than
+on these seeds.
+
 A THIRD sanctioned regeneration covers `seven-card-stud_hands.json` (25 of its 50
 seeds moved): `poker_betting`'s `raise` gained the clause requiring an opponent
 who can still act, so a player facing none is now offered only call and fold
@@ -39,9 +62,10 @@ its own `UPDATE_GOLDEN=1` path; that diff is the guard expression gaining its
 correcting it necessarily diverges from it — and that is the cost this
 regeneration pays: for the seeds that moved, this vector no longer attests
 "the kernel migration reproduced the monolith" but "the migrated game plus one
-deliberate rule correction". The migration claim survives on the 25 unchanged
-seeds; a future divergence in those is still a real one, which is what keeps the
-pin worth having. The rule was corrected rather than kept because the extra
+deliberate rule correction". The fourth regeneration above extends that cost to
+every seed, so what this vector pins for Stud today is a characterization of the
+current game, not a migration claim; a future divergence in it is still a real
+one, which is what keeps the pin worth having. The rule was corrected rather than kept because the extra
 decision node is an ACTION-SPACE defect, invisible to every chip-conservation
 check the family relies on (the side-pot layering returns an uncalled excess to
 its sole contributor), and the OpenSpiel target is what this corpus exists for.

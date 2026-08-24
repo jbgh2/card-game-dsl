@@ -169,10 +169,13 @@ def optional_clauses(production: str) -> tuple[str, ...]:
 def order_modes() -> tuple[str, ...]:
     """The values the auction form's `order` clause may take.
 
-    A closed value registry, so the clause is not binary: `absent` (the
-    default) and each declared mode are distinct cells. Read from the AST
-    registry rather than the grammar, which admits any NAME here and leaves
-    the domain to resolve.
+    A closed value registry, so the clause is crossed over its members rather
+    than absent/present: `absent` (the default) and each declared mode are
+    distinct cells. With one member the two crossings happen to produce the
+    same number of cells, which is why `test_clause_axis_is_the_grammar_and_
+    the_order_registry` carries a second assertion naming the mode — a count
+    alone cannot tell them apart today. Read from the AST registry rather than
+    the grammar, which admits any NAME here and leaves the domain to resolve.
     """
     if not n.ROUND_ORDER_MODES:
         raise AxisDerivationError("`ROUND_ORDER_MODES` is empty")

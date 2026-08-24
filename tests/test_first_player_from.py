@@ -882,7 +882,7 @@ def test_adjacency_sentences_parse_at_zero_ambiguity() -> None:
         "seat := the first player from seat offset_by left where mark[player] and hand[player] is not empty",
         "seat := the first player from seat where mark[player] or mark2[player]",
         """round offering [bid_a, bid_b] from the first player from seat offset_by left where mark[player]
-              over players where mark[player] order priority until true""",
+              over players where mark[player] order ring until true""",
         "turns t from the first player from seat where mark[player] over all players until true { seat := t }",
         "move the first player from seat where mark[player] cards from hand[0] to hand[1]",
         """round t from the first player from seat where mark[player] over players where mark[player]

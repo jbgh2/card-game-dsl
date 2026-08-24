@@ -4,8 +4,8 @@
 kernel `round` form (§4 of docs/design-notes/kernel-extensibility.md). The three
 sequential forms are hook bundles over it — `TrickForm` (one turn-order pass, each
 participant plays a legal card, a [[winner]] function picks the winner),
-`AuctionForm` (a continuous ring/priority pass over an [[offering]], threading a
-bid history, serving *both* the auction and betting forms), and `ClimbForm` (one
+`AuctionForm` (a continuous ring over an [[offering]], threading a bid history,
+serving *both* the auction and betting forms), and `ClimbForm` (one
 combination-climbing trick over game-local engine queries). `build_form` selects
 the bundle by field-presence and `execute.py` dispatches on the returned Outcome
 union.
@@ -92,7 +92,7 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
     while True:
         if form.terminated(state, ctx):  # until / early / shed-out
             break
-        actor = form.next_actor(state, ctx)  # ring / priority / came-back-to-last
+        actor = form.next_actor(state, ctx)  # ring / came-back-to-last
         if actor is None:  # the actor sequence is structurally spent
             break
         candidates = form.candidates(actor, state, ctx)
@@ -337,25 +337,45 @@ class AuctionForm:
     OpenSpiel's one-decision-node-per-turn action set). The chosen move's effect
     runs with `actor` (and the move parameter) bound, threading the bid history.
 
-    Two axes vary, both as *values* on the hooks rather than new slots:
+    One axis varies here, as a *value* on a hook rather than a new slot; the
+    other the form carries is settled at one value, and the pair is worth reading
+    together because it is what the axes-not-slots claim rests on:
 
     - **outcome (optional).** An auction supplies `outcome <fn>` and `outcome`
       produces the phase's typed outcome `(tag, payloads)` from the bid history when
       the ring closes. A betting round omits it (`outcome` returns `None`): the move
       effects have already mutated the shared chip/fold state, so the ring just
       closes and the surrounding body deals the next street or settles.
-    - **order.** `next_actor` is the order axis refunctionalized. `ring` (the
-      default) advances the pointer each turn, so a seat that has acted is offered
-      again only when the ring wraps. `priority` re-scans the seat order from the
-      leader every turn and offers the first still-pending participant, so after an
-      aggression re-opens earlier seats action returns to the earliest of them
-      (betting, response windows); the pointer does not advance. In priority mode
-      `until` is the sole terminator — the participants clause and the termination
-      predicate must agree, so an empty ring with `until` still false is malformed,
-      raised rather than silently ended.
+    - **order.** `next_actor` is the order axis refunctionalized, and one
+      traversal stands: `ring` (equivalently, no `order` clause) advances the
+      pointer each turn, so a seat that has acted is offered again only when the
+      ring wraps. That is also poker's continuation order, three mechanisms
+      jointly: the advancing pointer reaches the seats behind the aggressor
+      next; the participants filter, re-evaluated each turn, brings the seats a
+      bet re-opened back when the ring returns to them; and `until`, checked
+      before every draw, closes the round mid-lap the moment nobody is pending. The participants clause and
+      the termination predicate must agree, so an empty ring with `until` still
+      false is malformed, raised rather than silently ended.
     """
 
     def __init__(self, stmt: n.AuctionRound, ctx: Ctx) -> None:
+        # The OWNER GUARD for "the order axis holds no row this form cannot walk".
+        # It shadows nothing: resolve owns whether a DECLARED mode is in the
+        # registry, and no guard anywhere owns whether the registry has outgrown
+        # its consumer — which is the condition here, and the reason the remedy is
+        # a reconciliation rather than a check on the statement (decisions.md,
+        # "Allow-list, never deny-list"). An assert is the channel because no game
+        # description can reach it: the trigger is an edit to `ROUND_ORDER_MODES`,
+        # so the reader it addresses is the engine maintainer making that edit.
+        # It sits on the form rather than at module import, unlike its siblings,
+        # because the row it pins is this form's — `next_actor`'s traversal — and
+        # a tree with no auction round has no such row to be wrong about.
+        assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}, (
+            f"the auction form implements the ring row only, and the order axis "
+            f"now holds {sorted(n.ROUND_ORDER_MODES)} — a mode added to "
+            f"`ROUND_ORDER_MODES` reaches this form as ring unless `next_actor` "
+            f"gains its traversal"
+        )
         self.stmt = stmt
         self.until: n.Expr = stmt.until
         self.order: list[Player] = ctx.rs.seating.turn_order_from(
@@ -372,7 +392,7 @@ class AuctionForm:
         # — a stale frame from a different form. `_pronoun`'s "fail loudly, don't
         # return a stale or empty frame" is only true because of this line.
         ctx.rs.last_round_state = None
-        state["i"] = 0  # the ring pointer (ring mode)
+        state["i"] = 0  # the ring pointer
         state["guard"] = 0
         state["history"] = []
         return state
@@ -399,15 +419,17 @@ class AuctionForm:
                     "participants clause must between them end the ring"
                 )
             participants = set(evaluate(self.stmt.participants, ctx))
-            if self.stmt.order_mode == n.ROUND_ORDER_PRIORITY:
-                player = next((p for p in order if p in participants), None)
-                if player is None:
-                    raise OwnerGuardError(
-                        "priority round: no participant is pending but the `until` "
-                        "predicate is unsatisfied (the termination and participants "
-                        "clauses disagree)"
-                    )
-                return player
+            if not participants:
+                # Nobody is in the ring and `until` is still false — `terminated`
+                # runs before this method, so reaching here means the predicate
+                # said the round goes on. Named for what it is rather than left
+                # to spin out the step limit above, which reports a runaway loop
+                # for what is a disagreement between two clauses.
+                raise OwnerGuardError(
+                    "auction: no participant is pending but the `until` predicate "
+                    "is unsatisfied (the termination and participants clauses "
+                    "disagree)"
+                )
             pointer: int = state["i"]
             state["i"] = pointer + 1
             player = order[pointer % len(order)]

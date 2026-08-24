@@ -177,7 +177,6 @@ game HoldemHeadsUp {
   phase preflop {
     round offering [check, bet, call, fold, raise] from button
           over players where pending(player)
-          order priority
           until (number of players where pending(player)) is 0
              or ((number of players where can_act(player)) <= 1
                  and (number of players where can_act(player) and owes(player)) is 0)
@@ -193,7 +192,6 @@ game HoldemHeadsUp {
       run open_street(2)
       round offering [check, bet, call, fold, raise] from big_blind
             over players where pending(player)
-            order priority
             until (number of players where pending(player)) is 0
                or ((number of players where can_act(player)) <= 1
                    and (number of players where can_act(player) and owes(player)) is 0)
@@ -207,7 +205,6 @@ game HoldemHeadsUp {
       run open_street(4)
       round offering [check, bet, call, fold, raise] from big_blind
             over players where pending(player)
-            order priority
             until (number of players where pending(player)) is 0
                or ((number of players where can_act(player)) <= 1
                    and (number of players where can_act(player) and owes(player)) is 0)
@@ -221,7 +218,6 @@ game HoldemHeadsUp {
       run open_street(4)
       round offering [check, bet, call, fold, raise] from big_blind
             over players where pending(player)
-            order priority
             until (number of players where pending(player)) is 0
                or ((number of players where can_act(player)) <= 1
                    and (number of players where can_act(player) and owes(player)) is 0)

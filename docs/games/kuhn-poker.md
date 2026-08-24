@@ -128,7 +128,6 @@ game KuhnPoker {
     run open_street(1)
     round offering [check, bet, call, fold] from first_actor
           over players where pending(player)
-          order priority
           until (number of players where pending(player)) is 0
              or ((number of players where can_act(player)) <= 1
                  and (number of players where can_act(player) and owes(player)) is 0)

@@ -47,5 +47,5 @@ instance. Revisit alongside Hold'em.
 
 Related: [decisions.md](../decisions.md) "Named functions" (the resolved
 within-round factoring) and "The auction form of `round`" (the betting form and
-its `priority` order), [games/_candidates.md](../games/_candidates.md) (Hold'em,
+the ring it runs on), [games/_candidates.md](../games/_candidates.md) (Hold'em,
 the second-instance data point).

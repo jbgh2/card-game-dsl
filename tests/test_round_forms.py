@@ -35,7 +35,7 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
 covered:    `test_round_cell_builds_its_own_node`,
             `test_no_field_is_null_across_a_whole_form`, and
             `test_no_ir_key_is_null_across_a_whole_form` -- each the full
-            11-cell cross. The null-across-a-whole-form pair is the issue's
+            cross. The null-across-a-whole-form pair is the issue's
             acceptance criterion made executable: it reads the cells of one
             form as a GROUP, which is what lets it distinguish a field that is
             optional within a form (`trump`) from one the form can never use
@@ -55,7 +55,31 @@ sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
             by the corpus (bridge, french-tarot, pinochle). Written as the
             excluded setting, not the included list, so the exclusion cannot
             quietly widen -- see `_RAISES_TAGGED_OUTCOME`.
-residual:   TWO, both R4, both ledger-owned.
+residual:   THREE, all R4, all ledger-owned.
+
+            (0) The `order` clause admits ONE value, and it is the default:
+            `order ring` and no clause at all reach the same traversal —
+            nothing below resolve reads `order_mode` at all. So the grid's
+            `order` rows cross a clause that cannot change a game's
+            behaviour, and what they prove is narrower than it looks: that
+            the clause parses, resolves, emits and runs, not that it selects
+            anything. The clause is kept deliberately, as the docking point a
+            second traversal arrives at (decisions.md, "The auction form of
+            `round`", under Order).
+
+            What guards the docking point is a REGISTRY reconciliation in
+            `mechanics.AuctionForm.__init__`, witnessed in
+            tests/test_registry_guard_witnesses.py: widening
+            `ROUND_ORDER_MODES` fails by name, so a second traversal cannot
+            arrive and inherit ring's body. It does not guard the other
+            direction — an `AuctionRound` carrying a mode the form cannot
+            walk, which resolve owns and no runtime check shadows. That path
+            is unreachable from source text (resolve refuses the mode, and
+            nothing below parse rebuilds the node), and the check that would
+            close it belongs with the traversal that makes it reachable;
+            issue #425 carries it for whoever writes that traversal. R4
+            throughout — only an engine maintainer meets any of it — so this
+            ledger owns the record.
 
             (1) The two AUTHORED mappings in `round_axes`
             (`_CLAUSE_VALUE_REGISTRIES`, `_RUNNABLE_MOVE_TYPE`) are naming
@@ -78,7 +102,7 @@ residual:   TWO, both R4, both ledger-owned.
             will look for it. It becomes real work only if the auction form
             ever starts publishing.
 
-            Not residual, deliberately: the four cells no corpus game writes
+            Not residual, deliberately: the cells no corpus game writes
             (`trump`+`early` together, and every explicit `order ring`). They
             are grid rows like any other -- the derivation surfaced them, and
             covering them cost a template substitution each. That is the whole
@@ -194,7 +218,6 @@ _SPELLINGS = {
     ("early", "present"): " early on_play_off_led_suit",
     ("order", "absent"): "",
     ("order", "ring"): " order ring",
-    ("order", "priority"): " order priority",
     ("outcome", "absent"): "",
     ("outcome", "present"): " outcome bridge_auction_outcome",
 }

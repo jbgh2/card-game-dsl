@@ -4,16 +4,17 @@
 consumer that can only implement ONE row of a closed domain: pin the hard-coded
 row against the registry's derived view, so widening the registry fails by name
 here rather than silently giving the new member the implemented row's
-behaviour. `docs/decisions.md` names three sites practising it, and
+behaviour. `docs/decisions.md` names the sites practising it, and
 `tests/test_role_comparison_pin.py` calls the executor one "the remedy
 practised correctly exactly once".
 
-This module witnesses the TWO written as a comparison against a literal
+This module witnesses those written as a comparison against a literal
 collection, which is the shape whose conjuncts can each be fired by widening a
-registry. The third — `openspiel/replay`'s returns keying — pins by raising
-past an exhausted if-chain, comparing nothing; it is witnessed at
-`tests/test_openspiel_returns_keying.py`, and the census cannot see its shape
-(issue #171).
+registry — the cells are DERIVED, so the module never states how many there
+are. `openspiel/replay`'s returns keying is the one practising site outside
+that shape: it pins by raising past an exhausted if-chain, comparing nothing;
+it is witnessed at `tests/test_openspiel_returns_keying.py`, and the census
+cannot see its shape (issue #171).
 
 Neither had a witness, and the reason is structural rather than an oversight:
 **both conjuncts are tautologically true against today's registry**, and no
@@ -113,11 +114,12 @@ residual:   FOUR:
             domain that pins itself against nothing — is not covered. It is
             not #149's class (there is no guard to witness), it is unbounded
             without its own framing check, and the census cannot see it: a
-            missing guard has no syntax. The one member found while deriving
-            this class is `runtime/mechanics.py`'s round-order dispatch, filed
-            as issue #165 rather than fixed here — R4, since reaching it means
-            widening `ROUND_ORDER_MODES`, and filed anyway because closed-domain
-            dispatch is rigor-critical.
+            missing guard has no syntax. So a member reaches neither the grid
+            nor the band, and only reading a consumer against the registry it
+            implements finds one. The class stays here rather than becoming an
+            issue because there is nothing to enumerate and so nothing to
+            schedule; a member found by reading is filed on its own, which is
+            what happened to the one this module used to name. R4.
             (2) a witness proves a conjunct CAN fire; it cannot prove the
             message names the right remedy, which is prose. Each witness
             asserts on the message text, so a reworded message that stops
@@ -145,6 +147,7 @@ from cardlang.ast import nodes as n
 from cardlang.domains import Role
 from cardlang.pipeline import check_dsl
 from cardlang.runtime import execute
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
 
@@ -367,6 +370,11 @@ _WITNESSES: dict[tuple[str, str, str], str] = {
         "_each_simultaneous",
         "role_of(stmt.role) is Role.PLAYER",
     ): "test_a_non_player_simultaneous_block_fails_the_executor",
+    (
+        "runtime/mechanics.py",
+        "__init__",
+        "n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}",
+    ): "test_widening_round_order_modes_fails_the_auction_form",
 }
 
 
@@ -509,6 +517,55 @@ def test_a_non_player_simultaneous_block_fails_the_executor() -> None:
     assert "names 'team'" in message, message
 
 
+_ONE_STEP_EACH = """
+game Auction {
+  players: 3
+  max_length: 1000
+  direction: clockwise
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck }
+  state { steps[player] : Integer = 0 }
+  phase run {
+    round offering [step] from 0 over players where steps[player] < 1
+          until (number of players where steps[player] < 1) is 0
+  }
+  winner: highest steps
+}
+move_type step { effect { steps[actor] := steps[actor] + 1 } }
+"""
+
+
+def test_widening_round_order_modes_fails_the_auction_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The auction form implements the ring row, and says so when the order axis
+    grows a second traversal.
+
+    The guard replaces a DENY-LIST: the form used to name one mode and let every
+    other fall through to the ring body, so a widened registry would have given
+    the new mode ring's traversal in silence. `ROUND_ORDER_MODES` holds one
+    member, so the conjunct is tautologically true against today's registry and
+    only widening it can be seen.
+
+    The registry is widened AFTER the front end has run, because resolve reads
+    the same constant to bound a declared `order` clause; the fixture declares
+    none, so what reaches the form is the default.
+
+    red under: delete the `assert n.ROUND_ORDER_MODES == ...` from
+    `runtime/mechanics.py::AuctionForm.__init__` — the widened registry then
+    plays the round out on the ring body with nothing said."""
+    game = check_dsl(_ONE_STEP_EACH, "auction.cardlang")
+    monkeypatch.setattr(
+        n, "ROUND_ORDER_MODES", frozenset({n.ROUND_ORDER_RING, "priority"})
+    )
+    with pytest.raises(AssertionError) as excinfo:
+        play_game(game, random.Random(0), chooser=_unused_chooser)
+    message = str(excinfo.value)
+    assert "implements the ring row only" in message, message
+    assert "['priority', 'ring']" in message, message
+
+
 def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
     """resolve's guard is MODULE-level, so the witness is an import.
 
@@ -590,11 +647,6 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES", "site in RESERVATION_SITES"],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
-    # The one latent deny-list the census surfaced: the dispatch implements
-    # `priority` and defaults every other mode to ring. Excluded from the class
-    # correctly (it pins itself against nothing, so there is no guard to
-    # witness) and filed as issue #165.
-    "runtime/mechanics.py": ["self.stmt.order_mode == n.ROUND_ORDER_PRIORITY"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"
@@ -715,12 +767,15 @@ def test_the_census_classifies_each_shape(tmp_path: pathlib.Path) -> None:
     below is the assertion, so neither a count here nor a count in the ledger
     can drift away from it.
 
-    Two of the rejections are the real exclusions, written the way the real
-    sites are — `runtime/state.py`'s registry-vs-variable membership test, and
-    `runtime/mechanics.py`'s scalar dispatch whose `if` body happens to contain
-    a raise further down. The second matters: whether `_guard_tests` scans the
-    direct body or the whole subtree should not change the verdict, because the
-    literal-collection predicate is what excludes it.
+    Two of the rejections are the real exclusions. The first,
+    `runtime/state.py`'s registry-vs-variable membership test, is written the
+    way that live site is. The second — a scalar dispatch whose `if` body
+    contains a raise further down — has no live instance in `cardlang/`, and is
+    kept precisely because the predicate must not depend on that: whether
+    `_guard_tests` scans the direct body or the whole subtree should not change
+    the verdict, because the literal-collection test is what excludes it. A
+    near-miss the tree happens not to contain is the one a future edit
+    reintroduces with nobody watching.
 
     Three of the acceptances answer PR #166 review findings. The parenthesised
     `and` shapes are the severe one: a nested `BoolOp` is not a `Compare`, so
