@@ -1,7 +1,7 @@
 """What `poker_betting` offers at a betting decision, and to whom.
 
-property:        the four imported move types PARTITION every betting decision
-                 the family library can reach: exactly one of `check`/`call`
+property:        the imported move types PARTITION every betting decision the
+                 family library can reach: exactly one of `check`/`call`
                  by whether the actor owes the standing bet, and at most one of
                  `bet`/`raise` by whether a bet is standing at all. A raise is
                  offered to a seat that still owes the bet, and to a seat that
@@ -18,7 +18,13 @@ domain:          every combination of the situation a `when:` in
                  filters on `pending`, and `pending` calls `can_act`, so a seat
                  with an empty stack is never offered a turn. The probe's own
                  ring names the seat rather than `pending`, so each cell asks
-                 the GUARDS what they admit and not what the ring reached.
+                 the GUARDS what they admit and not what the ring reached. The
+                 axes are crossed freely rather than restricted to what the
+                 library's own moves produce, because five of the six sit on
+                 `requires` state the GAME writes — Stud's bring-in sets
+                 `bet_to_match` and `raises` by hand — so a combination no move
+                 of the library reaches is still a combination a designer can
+                 declare into being.
 registry:        vocabulary and state surface: `n.Library.move_types`,
                  `.requires` and `.state` of `libraries.load_library`
                  ("poker_betting"); consumers: the `uses` lines of
@@ -182,9 +188,13 @@ def _expected(cell: Cell) -> frozenset[str]:
     yet taken its turn (Pagat's big-blind option) or still owes, a cap with room
     left, an opponent who can answer, and chips that exceed the call.
 
-    The one clause here that the library does not carry is `bet`'s field: an
-    opening bet is offered even when nobody can answer it, which is issue #429
-    — the `open-…-nofield` cells capture that, and flip when it lands.
+    `bet`'s row is the exception: it CAPTURES what the library does rather than
+    what the rules say, because `bet` carries only `bet_to_match is 0` where
+    `raise` carries four conjuncts. So an opening bet is offered into a field
+    that cannot answer it, and offered at a cap with no room — issue #429. The
+    `open-…-nofield` and `open-…-capped` cells hold that behaviour and flip when
+    it lands, which is the point of capturing it rather than asserting the rule
+    over a guard nobody has decided to change.
     """
     owes = cell.owed > 0
     offered = {"call" if owes else "check"}
