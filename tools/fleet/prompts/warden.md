@@ -39,10 +39,12 @@ execute its round exactly as chartered:
    operator, never deleted.
 4. Produce the counts report: flagged, skipped-as-already-flagged,
    cleared, reaped, escalated, filed — and every DENIED command, if any.
-5. POST the report as a comment on epic #274 — the fleet's public record
-   and the review desk's inbox. This is the primary channel (session
-   messaging does not exist in unattended runs). A round whose report
-   lands nowhere a reader will see did not finish its round.
+5. WRITE the report to the run-report file the run instructions name,
+   carrying the run marker they give; the wrapper appends it to the fleet
+   ledger (`logs/ledger.md`) — the fleet's local record and the review
+   desk's inbox. This is the primary channel (session messaging does not
+   exist in unattended runs). A round whose report lands nowhere a reader
+   will see did not finish its round.
 
 The charter file and docs/harness.md are the authorities; if anything
 observed falls outside the chartered chores, file an issue (kind +

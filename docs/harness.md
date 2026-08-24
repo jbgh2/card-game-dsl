@@ -260,10 +260,13 @@ Scheduled invocation is owned by `tools/fleet/` (issue
 [#317](https://github.com/jbgh2/card-game-dsl/issues/317)): the
 machine's scheduler fires the engine headless in a dedicated fleet
 clone — never the operator's working copy — under the permission
-charter, and the wrapper guarantees every run a delivery record on the
-fleet epic. Installing or scheduling a launch agent is the operator's
-hand, never an agent's. The charters bind identically however a role is
-invoked.
+charter, and the wrapper guarantees every run a delivery record in the
+fleet ledger (`logs/ledger.md` in that clone), so delivery does not
+depend on the network. A run report is the fleet's own telemetry about
+one round and stays on the operator's machine; the work the round did —
+Leases, issues, PRs — is public like all of the work graph. Installing
+or scheduling a launch agent is the operator's hand, never an agent's.
+The charters bind identically however a role is invoked.
 
 ## The Language Owner
 

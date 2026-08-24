@@ -76,6 +76,13 @@ experiments/llm_eval/results_kuhn/estimate/
 # recursive `*.jsonl` and `results_kuhn` has no ignore file at all.
 experiments/llm_eval/results*/spend/
 
+# The fleet's own telemetry: run logs, undelivered run reports, and the fleet
+# ledger (`logs/ledger.md`) the wrapper appends every run's record to. The
+# fleet clone is a clone of this repo, so the ledger sits in a working tree
+# where a stray `git add` could commit it — root-anchored, because the record
+# is machine-local and never repo content.
+/logs/
+
 # The fleet permission charter is team state, versioned like the charters;
 # local overrides (settings.local.json) stay personal and ignored.
 !.claude/settings.json

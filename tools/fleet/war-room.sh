@@ -3,7 +3,7 @@
 # pull-based pulse page over the Standing Role fleet (docs/harness.md,
 # "Standing Roles"; issue #279). Derives live fleet state -- role runs and the
 # occupancy lock in the fleet clone, the running round's own progress, live
-# Leases, open PRs, the Ready Front, the latest fleet reports on issue #274 --
+# Leases, open PRs, the Ready Front, the latest entries in the fleet ledger --
 # and writes ONE self-contained static HTML file (default
 # /Users/benh/Projects/cardlang-fleet/war-room/index.html; -o PATH overrides).
 # Failure discipline: a section whose derivation fails renders IN PLACE with a
@@ -26,7 +26,7 @@ REPO="jbgh2/card-game-dsl"
 FLEET_CLONE="/Users/benh/Projects/cardlang-fleet"
 LOGS_DIR="$FLEET_CLONE/logs"
 LOCK_HOLDER="$FLEET_CLONE/.role-lock/holder"
-REPORTS_ISSUE="274"
+LEDGER="$LOGS_DIR/ledger.md"
 READY_FRONT_TIMEOUT=90
 
 # Where the headless engine writes its transcript live: one directory per
@@ -512,52 +512,70 @@ emit '</div>'
 # ------------------------------------------------- section 6: Latest reports
 emit '<div class="sec" id="reports">'
 emit '<h2>Latest reports</h2>'
-emit "<p class=\"muted\">last 3 comments on <a href=\"https://github.com/$REPO/issues/$REPORTS_ISSUE\">issue #$REPORTS_ISSUE</a>, newest first</p>"
-# Deliberate set +e island: a failed gh api call renders FAILED in place.
-# --paginate walks every page (the endpoint is oldest-first, so without it
-# the "latest" reports would go permanently stale at comment 100); each
-# page arrives as its own array, so the object stream is reassembled into
-# one array for the tail-walk below.
-set +e
-gh api --paginate "repos/$REPO/issues/$REPORTS_ISSUE/comments?per_page=100" --jq '.[]' 2> "$TMP/comments.err" | jq -s '.' > "$TMP/comments.json"
-rep_rc=$?
-set -e
-if [ "$rep_rc" -ne 0 ]; then
-  emit_failed "gh api repos/$REPO/issues/$REPORTS_ISSUE/comments failed (exit $rep_rc)" "$(cat "$TMP/comments.err" 2>/dev/null)"
+emit "<p class=\"muted\">last 3 entries in <span class=\"mono\">$(esc "$LEDGER")</span>, newest first</p>"
+# The fleet ledger's entry format is a two-party contract: tools/fleet/run-role.sh,
+# post(), is the writer. An entry is a `## <UTC timestamp> <run id>` header line
+# plus the lines to the next such header. The timestamp is part of the match and
+# not decoration: report bodies carry their own `##` markdown headings, and a bare
+# `^## ` would split one report into several and push real entries off the newest
+# three -- a confident wrong answer, which is the one thing this page does not do.
+LEDGER_HEADER_RE='^## [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z '
+if [ ! -e "$LEDGER" ]; then
+  emit '<p class="muted">no reports yet</p>'
 else
-  # Deliberate set +e island: unparseable JSON renders FAILED in place.
+  # Deliberate set +e island: an unreadable ledger renders FAILED in place.
+  # grep exit 1 is "a ledger with no entries yet", not a failure; 2 and up are.
   set +e
-  rep_n="$(jq -r 'if type == "array" then length else "not-an-array" end' "$TMP/comments.json" 2> "$TMP/comments_jq.err")"
-  rep_jq_rc=$?
+  grep -nE "$LEDGER_HEADER_RE" "$LEDGER" > "$TMP/ledger.hdrs" 2> "$TMP/ledger.err"
+  led_rc=$?
   set -e
-  if [ "$rep_jq_rc" -ne 0 ] || [ -z "$rep_n" ]; then
-    emit_failed "parsing the comments JSON failed" "$(cat "$TMP/comments_jq.err" 2>/dev/null)"
-  elif [ "$rep_n" = "not-an-array" ]; then
-    emit_failed "comments endpoint did not return an array" "$(head -c 400 "$TMP/comments.json" 2>/dev/null)"
-  elif [ "$rep_n" -eq 0 ]; then
+  if [ "$led_rc" -gt 1 ]; then
+    emit_failed "reading the fleet ledger $LEDGER failed (grep exit $led_rc)" "$(cat "$TMP/ledger.err" 2>/dev/null)"
+  elif [ ! -s "$TMP/ledger.hdrs" ]; then
     emit '<p class="muted">no reports yet</p>'
   else
-    # The endpoint returns comments oldest-first; walk the tail backwards.
-    idx=$((rep_n - 1))
+    led_starts=()
+    while IFS= read -r led_line; do
+      [ -n "$led_line" ] || continue
+      led_starts+=("${led_line%%:*}")
+    done < "$TMP/ledger.hdrs"
+    led_n="${#led_starts[@]}"
+    # The fleet ledger is append-only, so its entries are oldest-first: walk
+    # the tail backwards.
+    idx=$((led_n - 1))
     shown=0
     while [ "$idx" -ge 0 ] && [ "$shown" -lt 3 ]; do
-      c_author="$(jq -r ".[$idx].user.login // \"?\"" "$TMP/comments.json")"
-      c_created="$(jq -r ".[$idx].created_at // \"?\"" "$TMP/comments.json")"
-      c_url="$(jq -r ".[$idx].html_url // \"\"" "$TMP/comments.json")"
-      jq -r ".[$idx].body // \"\"" "$TMP/comments.json" > "$TMP/body.raw"
+      e_start="${led_starts[$idx]}"
+      # 0 is "to the end of the file": the newest entry has no successor to
+      # bound it.
+      if [ "$idx" -lt $((led_n - 1)) ]; then
+        e_end=$(( ${led_starts[$((idx + 1))]} - 1 ))
+      else
+        e_end=0
+      fi
+      e_head="$(awk -v s="$e_start" 'BEGIN { s = s + 0 } NR == s { sub(/^## /, ""); print; exit }' "$LEDGER")"
+      e_when="${e_head%% *}"
+      e_run="${e_head#* }"
+      # The body is the entry's lines after its header, less the format's
+      # trailing blank separator.
+      awk -v s="$e_start" -v e="$e_end" '
+        BEGIN { s = s + 0; e = e + 0 }
+        NR > s && (e == 0 || NR <= e) { buf[++n] = $0 }
+        END { while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
+              for (i = 1; i <= n; i++) print buf[i] }' "$LEDGER" > "$TMP/body.raw"
       # head reads from the file (not a pipe) so a long body cannot SIGPIPE
       # an upstream writer under pipefail.
       head -40 "$TMP/body.raw" | tr -d '\r' > "$TMP/body.txt"
       body_lines="$(wc -l < "$TMP/body.raw" | tr -d ' ')"
       emit '<div class="report">'
-      emit "<div class=\"subhead\"><strong>$(esc "$c_author")</strong> &middot; $(esc "${c_created/T/ }") &middot; <a href=\"$(esc "$c_url")\">open comment</a></div>"
+      emit "<div class=\"subhead\"><strong>$(esc "$e_run")</strong> &middot; $(esc "${e_when/T/ }")</div>"
       if [ -s "$TMP/body.txt" ]; then
         emit "<pre>$(html_escape < "$TMP/body.txt")</pre>"
       else
         emit '<p class="muted">(empty body)</p>'
       fi
       if [ "$body_lines" -gt 40 ]; then
-        emit "<p class=\"muted\">truncated at 40 of $body_lines lines; open the comment for the rest</p>"
+        emit "<p class=\"muted\">truncated at 40 of $body_lines lines; open the fleet ledger for the rest</p>"
       fi
       emit '</div>'
       idx=$((idx - 1))

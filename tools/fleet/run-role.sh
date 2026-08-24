@@ -8,12 +8,13 @@
 #                origin/main before the run, under the lock;
 #   occupancy  — one role in the clone at a time; a stale lock left by a
 #                dead or overheld run is reclaimed, and a genuinely
-#                skipped run is a public event, never a silent no-op;
+#                skipped run is a recorded event, never a silent no-op;
 #   delivery   — every run must land a report carrying this run's marker
-#                on the fleet epic, or the wrapper posts the failure /
+#                in the fleet ledger, or the wrapper writes the failure /
 #                no-report record itself with the log tail. A round
 #                whose report lands nowhere a reader will see did not
-#                finish its round.
+#                finish its round. The fleet ledger is a file in this
+#                clone, so delivery does not depend on the network.
 # The whole body is one function invoked on the last line: the file is
 # fully parsed before anything runs, so the in-run hard-sync may rewrite
 # this script on disk without corrupting the executing copy (the update
@@ -23,8 +24,6 @@ set -euo pipefail
 main() {
   FLEET="/Users/benh/Projects/cardlang-fleet"
   CLAUDE_BIN="/Users/benh/.local/bin/claude"
-  REPO="jbgh2/card-game-dsl"
-  REPORT_ISSUE=274
   MAX_HOLD_S=18000  # > the longest watchdog below; an older holder is wedged
   export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -39,11 +38,21 @@ main() {
   RUN_ID="$ROLE-$STAMP-$$"
   MARKER="<!-- fleet-run:$RUN_ID -->"
   LOGDIR="$FLEET/logs"
-  mkdir -p "$LOGDIR"
+  LEDGER="$LOGDIR/ledger.md"
+  REPORTS_DIR="$LOGDIR/reports"
+  mkdir -p "$LOGDIR" "$REPORTS_DIR"
   LOG="$LOGDIR/$ROLE-$STAMP.log"
+  REPORT="$REPORTS_DIR/$RUN_ID.md"
 
+  # The fleet ledger's entry format is a two-party contract:
+  # tools/fleet/war-room.sh, section 6, is the reader, and parses an entry as
+  # the `## <UTC timestamp> <run id>` header line plus the lines to the next
+  # such header — so the timestamp is what tells a header from a `##` heading
+  # inside a report body.
+  # One printf, so the single unlocked writer — a skip entry appended while
+  # another run holds the lock — rides O_APPEND atomicity for a short entry.
   post() { # post "$body" — best-effort; delivery failure must not mask run status
-    gh issue comment "$REPORT_ISSUE" --repo "$REPO" --body "$1" || true
+    printf '## %s %s\n%s\n\n' "$(date -u +%FT%TZ)" "$RUN_ID" "$1" >> "$LEDGER" || true
   }
 
   tail_block() { printf '```\n%s\n```' "$(tail -c 1500 "$LOG" 2>/dev/null || echo "(no log)")"; }
@@ -95,7 +104,7 @@ main() {
   "$CLAUDE_BIN" -p --permission-mode default \
     "$(cat "$FLEET/tools/fleet/prompts/$ROLE.md")
 
-Run marker: this run is $RUN_ID. The report comment you post on epic #$REPORT_ISSUE MUST contain the literal line $MARKER — the wrapper verifies delivery by that marker." >"$LOG" 2>&1 &
+Run marker: this run is $RUN_ID. Write your report to the file $REPORT — it MUST contain the literal line $MARKER — and the wrapper verifies delivery by that file and appends it to the fleet ledger." >"$LOG" 2>&1 &
   ENGINE=$!
   ( sleep "$TIMEOUT_S" && kill "$ENGINE" 2>/dev/null ) &
   WATCHDOG=$!
@@ -111,21 +120,23 @@ $(tail_block)"
     exit "$STATUS"
   fi
 
-  # Delivery: only a comment carrying this run's marker counts as the
-  # report — any-comment-since would let unrelated traffic on the epic
-  # mask a missing report.
-  FOUND="$(gh api "repos/$REPO/issues/$REPORT_ISSUE/comments?since=$RUN_START&per_page=100" \
-    --jq "[.[] | select(.body | contains(\"$MARKER\"))] | length" 2>/dev/null || echo unverifiable)"
-  if [ "$FOUND" = "unverifiable" ]; then
-    post "**$ROLE run ended (exit 0) but delivery is unverifiable** (comment query failed), run $RUN_ID, started $RUN_START, log \`$LOG\`. Tail:
-$(tail_block)"
-  elif [ "$FOUND" -eq 0 ]; then
-    post "**$ROLE run ended with no report** (exit 0, marker $RUN_ID absent from epic comments), started $RUN_START, log \`$LOG\`. Tail:
+  # Delivery: only a report file carrying this run's marker counts — a file
+  # left by an earlier run, or a stub the round never filled in, would
+  # otherwise mask a missing report. The report is consumed on delivery: the
+  # fleet ledger is the record, and a second copy beside it would drift. A
+  # file that fails the check is LEFT where it is, for forensics.
+  if [ -f "$REPORT" ] && grep -qF "$MARKER" "$REPORT"; then
+    post "$(cat "$REPORT")"
+    rm -f "$REPORT"
+  else
+    post "**$ROLE run ended with no report** (exit 0, marker $RUN_ID absent from \`$REPORT\`), started $RUN_START, log \`$LOG\`. Tail:
 $(tail_block)"
   fi
 
   # Keep the last 30 role logs.
   ls -1t "$LOGDIR" | grep -E "^(warden|dispatcher)-" | tail -n +31 | while read -r f; do rm -f "$LOGDIR/$f"; done
+  # Keep the last 30 undelivered report files.
+  ls -1t "$REPORTS_DIR" | tail -n +31 | while read -r f; do rm -f "$REPORTS_DIR/$f"; done
 }
 
 main "$@"
