@@ -232,12 +232,19 @@ those lines the ceiling is measured over:
 
 So a day's work is boundable, not just one run. The log is re-read before every
 game, which is what makes two invocations against one tree share a ceiling
-rather than each getting its own. It is machine-local and gitignored:
-operational, never evidence.
+rather than each getting its own — to within one game apiece, since both can
+pass a check the pair then crosses (issue #424). It is operational, never evidence.
 
-A cap bounds one log. The default is one per results tree, and a tree is one
-game's output — so `spend_log:` points several configs at a single file when
-what you want bounded is an account rather than a study.
+A cap bounds one log, and the run prints which one it is using. The default is
+one per results tree, and a tree is one game's output — so `spend_log:` points
+several configs at a single file when what you want bounded is an account
+rather than a study. Set it on **every** config in the campaign: one left out
+writes to its own tree-local log, which the campaign's ceiling never reads.
+
+The default location is gitignored. A `spend_log:` elsewhere is yours to
+place, and this repo is public — the log carries per-model token counts,
+dollar figures and timestamps, so put it outside the repo or add your own
+ignore rule.
 
 Two things a window does not stop. A matchup whose roster names no model is
 never capped, because it cannot spend — which is what keeps `rule_vs_random`

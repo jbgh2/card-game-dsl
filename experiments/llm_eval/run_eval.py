@@ -45,7 +45,16 @@ from .metrics import aggregate, game_key
 from .prompts import parse_response
 from .providers import PRICES, Provider, Usage, make_provider
 from .referee import NUM_SEEDS, GameRecord, load_game, play_game
-from .spend import Billed, SpendLog, Window, billed_since, parse_window, snapshot
+from .spend import (
+    Billed,
+    Spend,
+    SpendLog,
+    Window,
+    billed_since,
+    parse_window,
+    snapshot,
+    spent,
+)
 
 
 #: What a `token_budget` bounds: each cap field against the `Spend` dimension
@@ -86,8 +95,8 @@ class Budget:
 
     def exceeded(
         self,
-        registry: dict[str, Provider],
         log: SpendLog,
+        pending: Spend = Spend(),
         *,
         now: datetime | None = None,
     ) -> str | None:
@@ -100,17 +109,18 @@ class Budget:
         counter started at zero. `max_cost_usd` is dollars, which add across
         models; the token caps are counts, which do too.
 
-        Across invocations for the same reason. The window's own lines plus
-        whatever the live providers have billed and not yet written is one
-        expression, not a branch per window: `invocation` is the window that
-        admits this log object's lines, so it comes out at exactly the
-        registry's totals and needs no arithmetic of its own.
+        Across invocations for the same reason. What the window admits, plus
+        `pending` — billed by the live providers and not yet written — is the
+        whole of what a ceiling is measured against. `pending` is passed rather
+        than derived here because the mark it is measured from belongs to
+        whoever is running the games; it is zero between games in the ordinary
+        run, where a game's usage is recorded before the next check.
 
         `now` is injectable because a time-sensed window otherwise makes every
         assertion about it a race with the clock (`layout.stamp` is the same
         convention for the same reason).
         """
-        total = log.total(self.counts, now=now) + log.unrecorded(registry)
+        total = log.total(self.counts, now=now) + pending
         for cap, dimension in CAPS.items():
             limit = getattr(self, cap)
             if limit and getattr(total, dimension) >= limit:
@@ -199,6 +209,43 @@ def validate_model_refs(config: dict[str, Any], matchups: list[dict[str, Any]]) 
                 )
 
 
+def budget_of(config: dict[str, Any]) -> Budget:
+    """The config's `token_budget`, refused here if it is not one.
+
+    The Owner Guard for the block's key and value domains. `Budget(**block)`
+    alone rejects an unknown key, but as a `TypeError` naming a dataclass
+    argument rather than the registry — and it accepts `max_cost_usd: "a lot"`
+    outright, which then compares as a truthy string against a float and stops
+    the run at its first check.
+    """
+    block = config.get("token_budget", {})
+    if not isinstance(block, dict):
+        raise ValueError(
+            f"token_budget must be a block of caps, not {type(block).__name__}. "
+            f"Known: {', '.join(sorted(CAPS))}, window."
+        )
+    unknown = sorted(set(block) - set(CAPS) - {"window"})
+    if unknown:
+        raise ValueError(
+            f"token_budget names {', '.join(repr(u) for u in unknown)}, which "
+            f"nothing evaluates. Known: {', '.join(sorted(CAPS))}, window."
+        )
+    for cap in CAPS:
+        value = block.get(cap, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(
+                f"token_budget.{cap} is {value!r}, which is not a number. A cap "
+                f"is a quantity of {CAPS[cap]}; zero or absent means unlimited."
+            )
+        if value < 0:
+            raise ValueError(
+                f"token_budget.{cap} is {value!r}. A negative ceiling stops the "
+                f"run before its first game while reading like a large one; "
+                f"write 0 for unlimited."
+            )
+    return Budget(**block)
+
+
 def spend_log(config: dict[str, Any], results_dir: Path) -> SpendLog:
     """The log this config's spend is recorded in and its window is read from.
 
@@ -210,8 +257,31 @@ def spend_log(config: dict[str, Any], results_dir: Path) -> SpendLog:
     times any of them — the same shape as the per-model ceiling `Budget`
     already refuses. Point them at one path to give a campaign one bill.
     """
-    named = config.get("spend_log")
-    return SpendLog(Path(named) if named else layout.spend_log_path(results_dir))
+    if "spend_log" not in config:
+        return SpendLog(layout.spend_log_path(results_dir))
+    named = config["spend_log"]
+    if not isinstance(named, str) or not named.strip():
+        raise ValueError(
+            f"spend_log must be a path, not {named!r}. It names the file every "
+            f"billed call is appended to and every `token_budget.window` is "
+            f"read from."
+        )
+    path = Path(named)
+    if path.is_dir():
+        raise ValueError(
+            f"spend_log {named!r} is a directory. It names the log FILE, and a "
+            f"run would otherwise fail on its first append — after the money "
+            f"is spent."
+        )
+    if path.parent.name == layout.ARCHIVE:
+        raise ValueError(
+            f"spend_log {named!r} sits in a {layout.ARCHIVE}/ directory, where "
+            f"every transcript reader globs `*.jsonl` — `verify`, `study`, "
+            f"`compare` and `promote` would each read billing lines as a "
+            f"matchup that never played. The default location "
+            f"({layout.SPEND}/) exists to be out of that glob."
+        )
+    return SpendLog(path)
 
 
 def ensure_provider(
@@ -291,9 +361,9 @@ def run_matchup(
     game and again when the loop unwinds. It is a parameter rather than
     something derived here because a caller that spends money must say where
     the record goes — a default would be a run whose spend nothing outside the
-    process ever hears about. Keyword-only, because `limit` held that
-    position: a caller passing it positionally would otherwise hand `--limit`
-    over as the log and be told nothing.
+    process ever hears about. Keyword-only, because `limit` occupies the
+    position a fifth positional would take: a caller passing `--limit`
+    positionally would otherwise hand it over as the log and be told nothing.
     """
     name = matchup["name"]
     roster = matchup["agents"]
@@ -339,7 +409,7 @@ def run_matchup(
     # `m` deliberately, not `n`: `n` is the game count in this scope, and a
     # comprehension that reuses it reads like a shadow even though it is not one.
     providers = {m: ensure_provider(config, m, registry) for m in used}
-    budget = Budget(**config.get("token_budget", {}))
+    budget = budget_of(config)
     before = {
         m: (providers[m].usage.input_tokens, providers[m].usage.output_tokens)
         for m in used
@@ -439,6 +509,10 @@ def run_matchup(
         encoding="utf-8",
     )
 
+    records: list[dict[str, Any]] = []
+    stopped: str | None = None
+    aborted: str | None = None
+
     def flush_spend() -> None:
         """Write what the providers have billed since the last write.
 
@@ -450,20 +524,41 @@ def run_matchup(
         log.record(out_dir.name, name, billed_since(providers, logged))
         logged = snapshot(providers)
 
-    records: list[dict[str, Any]] = []
-    stopped: str | None = None
-    aborted: str | None = None
+    def abort(exc: BaseException, at: str) -> None:
+        """Record a failure without letting it take the completed games'
+        summary with it. Every raise inside the loop routes through here."""
+        nonlocal aborted
+        aborted = f"{type(exc).__name__}: {exc}"
+        print(
+            f"\n[{name}] ABORTED {at} — writing the partial summary for the "
+            f"{len(records)} completed game(s) before exiting:\n",
+            file=sys.stderr,
+        )
+        traceback.print_exc()
+
     with path.open("a" if resume else "w", encoding="utf-8") as handle:
         for i in range(resume, n):
-            # Against the WHOLE registry AND the window's own record: the cap is
-            # a ceiling over spend, so it cannot be evaluated one provider — or
+            # Against every provider AND the window's own record: the cap is a
+            # ceiling over spend, so it cannot be evaluated one provider — or
             # one process — at a time.
             #
             # A matchup whose roster names no model is exempt, because the cap
             # gates spending and this one cannot spend. That is what keeps the
             # no-API-key acceptance path (`rule_vs_random`) runnable under a
             # window wide enough to have already been crossed.
-            reason = budget.exceeded(registry, log) if providers else None
+            #
+            # Reading the log can refuse (another invocation writing the same
+            # file, a hand-repaired line), and that must not take the completed
+            # games' summary with it any more than a dying game may.
+            try:
+                reason = (
+                    budget.exceeded(log, spent(billed_since(providers, logged)))
+                    if providers
+                    else None
+                )
+            except (ValueError, OSError) as exc:
+                abort(exc, f"reading the spend log before game {i + 1}/{n}")
+                break
             if reason is not None:
                 stopped = f"{reason} reached over the {budget.counts.spelling()} window"
                 break
@@ -505,14 +600,7 @@ def run_matchup(
                 # Deliberately broad: the point is that NOTHING gets past here
                 # without the partial summary being written. The traceback is
                 # re-printed and the caller exits non-zero, so nothing is hidden.
-                aborted = f"{type(exc).__name__}: {exc}"
-                print(
-                    f"\n[{name}] ABORTED on game {i + 1}/{n} (seed {seed}) — "
-                    f"writing the partial summary for the {len(records)} completed "
-                    f"game(s) before exiting:\n",
-                    file=sys.stderr,
-                )
-                traceback.print_exc()
+                abort(exc, f"on game {i + 1}/{n} (seed {seed})")
                 break
             as_dict = record.as_dict()
             handle.write(json.dumps(as_dict, ensure_ascii=False) + "\n")
@@ -659,6 +747,23 @@ def smoke(config: dict[str, Any], matchups: list[dict[str, Any]], log: SpendLog)
     registry: dict[str, Provider] = {}
     before = snapshot(registry)
     failures = 0
+    try:
+        failures = _smoke_calls(config, names, registry)
+    finally:
+        # In a `finally` because `ensure_provider` can raise — a typo'd `kind`,
+        # an SDK that will not import — and the models smoked before it did
+        # spend real money. `before` was taken on the empty registry, so this
+        # is every call made, including by a model that then failed.
+        log.record("smoke", "smoke", billed_since(registry, before))
+    print(f"\n{len(names) - failures}/{len(names)} model(s) usable")
+    return 1 if failures else 0
+
+
+def _smoke_calls(
+    config: dict[str, Any], names: list[str], registry: dict[str, Provider]
+) -> int:
+    """One real call per model, reporting how many were unusable."""
+    failures = 0
     for name in names:
         provider = ensure_provider(config, name, registry)
         print(f"\n--- {name} ({provider.model}) params={provider.params}")
@@ -681,11 +786,7 @@ def smoke(config: dict[str, Any], matchups: list[dict[str, Any]], log: SpendLog)
         else:
             failures += 1
             print(f"    parse       FAILED: {parsed.error}")
-    # `before` was taken on the empty registry, so this is every call the
-    # smoke made — including the models that were constructed and then failed.
-    log.record("smoke", "smoke", billed_since(registry, before))
-    print(f"\n{len(names) - failures}/{len(names)} model(s) usable")
-    return 1 if failures else 0
+    return failures
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -732,19 +833,27 @@ def main(argv: list[str] | None = None) -> int:
 
     results_dir = Path(config.get("results_dir", "experiments/llm_eval/results"))
 
-    # Pre-flight, constructing nothing: a bad model reference or an unreadable
-    # `token_budget` dies here rather than after the first matchup has already
-    # been played. `Budget` is built again per matchup, from the same config;
-    # this is the same constructor reached early, not a second guard.
+    # Pre-flight: a bad model reference, an unreadable `token_budget` or a
+    # `spend_log` that is not a path dies here rather than after the first
+    # matchup has already been played. `Budget` is built again per matchup,
+    # from the same config; this is the same constructor reached early, not a
+    # second guard.
     try:
         validate_model_refs(config, selected)
-        Budget(**config.get("token_budget", {}))
-    except (TypeError, ValueError) as exc:
+        budget = budget_of(config)
+        log = spend_log(config, results_dir)
+        # Reached and readable NOW, both of them: a log whose directory cannot
+        # be made, or that holds a line a total cannot read, otherwise stops
+        # the run at its first flush or its first cap check — which is after a
+        # game has been played and paid for.
+        log.path.parent.mkdir(parents=True, exist_ok=True)
+        log.total(budget.counts)
+    except (ValueError, OSError) as exc:
         print(exc, file=sys.stderr)
         return 2
 
     registry: dict[str, Provider] = {}
-    log = spend_log(config, results_dir)
+    print(f"spend log: {log.path} (window: {budget.window})")
 
     if args.smoke:
         return smoke(config, selected, log)

@@ -23,7 +23,7 @@ from ..run_eval import (
     run_matchup,
     validate_model_refs,
 )
-from ..spend import Billed, Spend, SpendLog, Window
+from ..spend import Billed, Spend, SpendLog, Window, registry_spend
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -35,11 +35,13 @@ FAKE_MODEL: dict[str, Any] = {
 
 
 def _log(tmp_path: Path) -> SpendLog:
-    """This test's own spend log.
+    """A spend log under `tmp_path`, so no test writes into the committed
+    results tree — which a config-derived default path would.
 
-    One per `tmp_path`, so a matchup and the matchup resuming it share the
-    record a window reads — and no test writes into the committed results
-    tree, which a config-derived default path would.
+    A fresh object per call: two calls on one `tmp_path` share the FILE and
+    not the session, which is what two invocations against one results tree
+    do. A test that needs one invocation across several `run_matchup` calls
+    binds the result once and passes it to each.
     """
     return SpendLog(tmp_path / "spend" / "log.jsonl")
 
@@ -132,7 +134,7 @@ def test_budget_is_shared_across_matchups(tmp_path: Path) -> None:
     # And the durable record partitions the same spend exactly once: two
     # matchups, one log, no line counted twice and none missed.
     assert log.total(Window("invocation")).output_tokens == after_second
-    assert log.unrecorded(registry) == Spend(), "spend was billed and never written"
+    assert registry_spend(registry) == log.appended, "billed and never written"
 
 
 def _session_config(tmp_path: Path, **budget: Any) -> Path:
@@ -307,7 +309,7 @@ def test_a_matchup_that_dies_mid_game_still_records_what_it_spent(
     summary = run_matchup(config, matchup, tmp_path, registry, log=log)
 
     assert summary["aborted"] is not None
-    assert log.unrecorded(registry) == Spend(), "the dying game's spend went unwritten"
+    assert registry_spend(registry) == log.appended, "the dying game's spend went unwritten"
     assert log.total(Window("all")).output_tokens == registry["m"].usage.output_tokens
 
 
@@ -429,7 +431,7 @@ def test_budget_boundaries(
     test_spend.py's grid; this is the boundary of each cap over one total.
     """
     registry = _registry({"claude-haiku-4-5": usage_kwargs})
-    assert Budget(**cap).exceeded(registry, _log(tmp_path)) == expected
+    assert Budget(**cap).exceeded(_log(tmp_path), registry_spend(registry)) == expected
 
 
 def _registry(spend: dict[str, dict[str, int]]) -> dict[str, Any]:
@@ -460,9 +462,9 @@ def test_budget_sums_across_every_model_in_the_registry(tmp_path: Path) -> None:
          "claude-sonnet-5": {"input_tokens": 200_000}}    # $0.60
     )
     log = _log(tmp_path)
-    assert Budget(max_cost_usd=1.0).exceeded(registry, log) == "max_cost_usd"
+    assert Budget(max_cost_usd=1.0).exceeded(log, registry_spend(registry)) == "max_cost_usd"
     # Non-vacuity: the same registry is under a ceiling that genuinely clears it.
-    assert Budget(max_cost_usd=2.0).exceeded(registry, log) is None
+    assert Budget(max_cost_usd=2.0).exceeded(log, registry_spend(registry)) is None
 
 
 def test_budget_sums_token_caps_across_models_too(tmp_path: Path) -> None:
@@ -472,10 +474,12 @@ def test_budget_sums_token_caps_across_models_too(tmp_path: Path) -> None:
          "claude-sonnet-5": {"input_tokens": 60, "output_tokens": 6}}
     )
     log = _log(tmp_path)
-    assert Budget(max_input_tokens=100).exceeded(registry, log) == "max_input_tokens"
-    assert Budget(max_output_tokens=10).exceeded(registry, log) == "max_output_tokens"
+    assert Budget(max_input_tokens=100).exceeded(log, registry_spend(registry)) == "max_input_tokens"
+    assert Budget(max_output_tokens=10).exceeded(log, registry_spend(registry)) == "max_output_tokens"
     assert (
-        Budget(max_input_tokens=200, max_output_tokens=20).exceeded(registry, log)
+        Budget(max_input_tokens=200, max_output_tokens=20).exceeded(
+            log, registry_spend(registry)
+        )
         is None
     )
 
@@ -487,8 +491,8 @@ def test_budget_on_an_empty_registry_and_log_is_unlimited(tmp_path: Path) -> Non
     no log — the two zeros a cap must not fire on.
     """
     log = _log(tmp_path)
-    assert Budget(max_cost_usd=0.01).exceeded({}, log) is None
-    assert Budget(max_cost_usd=0.01, window="all").exceeded({}, log) is None
+    assert Budget(max_cost_usd=0.01).exceeded(log) is None
+    assert Budget(max_cost_usd=0.01, window="all").exceeded(log) is None
 
 
 def _two_matchup_config(tmp_path: Path) -> tuple[dict[str, Any], Path]:
@@ -803,12 +807,28 @@ def test_resume_reproduces_what_a_full_run_would_have_done(tmp_path: Path) -> No
     """The resumed games are bit-identical to the ones a single full run would
     have produced — same seed AND same seat rotation, which is a function of the
     game index, not of position within the invocation."""
-    full = run_matchup(_config(), {**_matchup(5, llm=False), "n": 5}, tmp_path / "full", {}, log=_log(tmp_path))
+    full = run_matchup(
+        _config(),
+        {**_matchup(5, llm=False), "n": 5},
+        tmp_path / "full",
+        {},
+        # Its own record: the two runs below are an independent reproduction
+        # of this one, and one shared log would fold both into a single tree's
+        # spend the moment either roster named a model.
+        log=_log(tmp_path / "full"),
+    )
     a = list(iter_jsonl(str(tmp_path / "full" / "transcripts" / "t.jsonl")))
 
     part = tmp_path / "part"
-    run_matchup(_config(), {**_matchup(3, llm=False), "n": 3}, part, {}, log=_log(tmp_path))
-    run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 3}, part, {}, log=_log(tmp_path))
+    part_log = _log(part)
+    run_matchup(_config(), {**_matchup(3, llm=False), "n": 3}, part, {}, log=part_log)
+    run_matchup(
+        _config(),
+        {**_matchup(5, llm=False), "n": 5, "resume_from": 3},
+        part,
+        {},
+        log=part_log,
+    )
     b = list(iter_jsonl(str(part / "transcripts" / "t.jsonl")))
 
     assert len(a) == len(b) == 5

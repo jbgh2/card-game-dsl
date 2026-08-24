@@ -425,7 +425,10 @@ sequential, so the three LLM matchups are most of a day. Running each matchup as
 its own process is the obvious parallelisation and needs no code change: they
 write to separate transcript files, and a `window:` other than `invocation`
 keeps one ceiling across all of them, since every process appends to the tree's
-spend log and re-reads it before each game.
+spend log and re-reads it before each game. Check and spend are not atomic, so
+N processes can each clear the same check and each play a game: the ceiling
+binds to within one game per process, which on Opus 5 is about $5.60 apiece
+(issue #424).
 
 Prices used for the dollar figures are the published list rates in
 `providers.PRICES`; Sonnet 5's lower introductory rate is deliberately *not*
