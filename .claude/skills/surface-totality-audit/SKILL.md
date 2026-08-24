@@ -326,6 +326,16 @@ If you are about to write "not covered here" — stop and ask which of the
 six it is. Three of them are not instrument limits at all, and the row's
 name is what should have stopped you.
 
+**A history is none of the six.** If the row tells you which defects
+escaped and how they were fixed, the design it argues for belongs at the
+construct, written there as the design and in the present tense; the story
+belongs nowhere. A docstring is not a place to record what went wrong
+before. Do not
+put it in `does not prove:` because it sounds like a caution -- that row is
+read in the present tense, so "a green here is no evidence about X" becomes
+false the moment X is pinned, and it reads the existing pins out of
+existence.
+
 Deferred work goes **beside the guard**, never in a row: the refusal is
 where a reader meets it, not the ledger. Add a positive sentence in
 `domain:` too **only** when the deferral bounds what the module covers — an

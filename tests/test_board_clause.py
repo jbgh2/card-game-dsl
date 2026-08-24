@@ -29,63 +29,33 @@ property:   a `board: <family>(<args>)` clause is validated against
             typed as TCell; every other TCell-consuming operation is either
             accepted or rejected with a diagnostic, never silently ignored.
 domain:     {clause combinations} x {pipeline layers} UNION
-            {TCell value positions} x {accept | reject | inexpressible}
+            {TCell value positions} x {accept | reject | inexpressible}.
+            Outside it, deliberately: a cell CONSTANT is not expression
+            surface at this rung, so a bare `a1` is an unknown name rather
+            than a value, and there is no accept cell to write. Making it one
+            waits on a game that names specific cells (breakthrough) --
+            issue #111, and the unknown-name diagnostic below is where a
+            designer meets the boundary.
 registry:   cardlang/stdlib/boards.py::BOARD_FAMILIES (family/arity/bounds);
             cardlang/domains.py (position substrate); the value-position
             surface (grammar + Expr/Stmt unions).
-covered:    clause axis, each cell proven by a run probe below --
-              board alone (no pieces)        -> reject (resolve)
-              board + cards                  -> reject (resolve)
-              board + pieces                 -> accept
-              duplicate board:               -> reject (parse, once())
-              unknown family                 -> reject (resolve, board_entry)
-              bad arity / bad bounds         -> reject (resolve, board_entry)
-              missing arg list `board: grid` -> reject (resolve, arity 0 --
-                                                the parse builder filters the
-                                                placeholder None)
-              collision with positions{cell} -> reject (resolve, names both)
-              collision with a built-in name -> reject (reuses the standing
-                                                guard; constant today, swept)
-            TCell value-position axis, each proven by a run probe below --
-              move parameter `place(at:cell)`        -> accept (TCell)
-              let binder `let c = at`                -> accept (TCell)
-              zone index + type arg `square[cell]:Cell<cell>` -> accept
-              subscript index `square[at]`           -> accept
-              subscript index `square[7]` (int)      -> reject (typecheck)
-              subscript `tableau[at]` (cell on int)  -> reject (typecheck)
-              equality `at is at2`                   -> accept
-              equality `at is 3`                     -> reject (typecheck)
-              ordering  `at < at2`                   -> reject (typecheck)
-              arithmetic `at + 1`                    -> reject (typecheck)
-              state decl type `foo : cell`           -> reject (resolve)
-              state decl index `r[cell] : Integer`   -> reject (resolve)
-              function parameter `f(x : cell)`       -> ADMIT, types as TCell
-                                                (the payload-admit policy of
-                                                `_check_declared_type_names`;
-                                                x + 1 then rejects, proving it
-                                                is TCell, not a TAny leak)
-              variant payload `Won(cell)`            -> ADMIT, same policy
-sampled:    the action-space round-trip (encode/decode) is proven on the
-            nine `place` vocab ids of grid(3,3); the members-in-order
-            property is proven on grid(3,3)'s row-major order (the registry
-            owns the order, pinned in tests/test_boards_registry.py).
-residual:   * cell CONSTANTS in expressions (a bare `a1`) are not
-              expression surface at rung 1 -- `a1` stays an unknown-name
-              diagnostic (proven below); witness = a game naming specific
-              cells (breakthrough); issue #111.
-            * quantifiers over `cell`/`line` (`any cell where`, `any line in
-              lines(3) where`) LANDED in Task 7 -- the cell/line query
-              register (tests/test_cell_queries.py owns that grid); the
-              board-clause marker that the residual retired is
-              test_quantifier_over_cell_is_accepted_after_the_task_7_lift
-              below. `for each cell` STAYS rejected (no iteration witness;
-              tests/test_cell_queries.py pins the standing diagnostic).
-            * an INTEGER position-domain name (`lane`/`column`) in a function-
-              parameter or variant-payload slot ADMITS identically, resolving
-              to TInteger -- main's type-name grid
-              (tests/test_type_name_positions.py) owns the integer cell; the
-              board `cell` extension (TCell) is pinned here. Not a residual
-              gap -- listed for the cross-module reader.
+            Board member order:
+            tests/test_boards_registry.py::test_grid_3x3_cell_order.
+            The cell/line quantifier register: tests/test_cell_queries.py.
+            `for each cell` iteration: tests/test_cell_iteration.py
+            (`test_for_each_cell_over_a_region_places_one_piece_per_cell`,
+            `test_for_each_cell_binder_is_a_cell`).
+            The declared-type-name admit for an INTEGER position domain
+            (`lane`/`column`, resolving to TInteger):
+            tests/test_type_name_positions.py::test_the_type_name_grid.
+does not prove:  that the board machinery holds for boards other than the
+            one it runs on. The action-space round trip is exercised on the
+            nine `place` vocab ids of grid(3, 3), and members-in-order on
+            that same board's row-major order -- one family, one size. What
+            a green establishes is that encode/decode and ordering agree
+            with the registry for the board under test; a family whose
+            ordering or arity behaved differently would not be seen here,
+            and BOARD_FAMILIES is where the other families are declared.
 """
 
 from __future__ import annotations
