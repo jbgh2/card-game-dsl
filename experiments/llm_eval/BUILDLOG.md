@@ -370,7 +370,10 @@ Plan accordingly:
 
 - `token_budget` in the config is a **hard ceiling** on input tokens, output
   tokens and dollars. The runner checks it between games, stops cleanly, and
-  records the partial N and the reason in `summary.json`.
+  records the partial N and the reason in `summary.json`. Its `window:` says
+  how much spend is counted — this process, a UTC day, a rolling `<N>h`, or
+  everything the results tree has billed — read from the durable spend log
+  rather than from the in-memory counters, which start at zero every time.
 - `max_decisions` bounds a single game, because one uncapped game can be a
   material fraction of a budget. A truncated game is flagged `truncated`, scored
   `0.0` for everyone, and **excluded** from win rates, which are reported
@@ -419,8 +422,13 @@ partial N**. That is the cap working, not a misconfiguration — raise it
 deliberately after `--estimate 5` confirms the per-game figure on your account,
 or lower N. Wall clock is the tighter constraint in practice: the calls are
 sequential, so the three LLM matchups are most of a day. Running each matchup as
-its own process is the obvious parallelisation and needs no code change (they
-write to separate transcript files), but then the budget is per process.
+its own process is the obvious parallelisation and needs no code change: they
+write to separate transcript files, and a `window:` other than `invocation`
+keeps one ceiling across all of them, since every process appends to the tree's
+spend log and re-reads it before each game. Check and spend are not atomic, so
+N processes can each clear the same check and each play a game: the ceiling
+binds to within one game per process, which on Opus 5 is about $5.60 apiece
+(issue #424).
 
 Prices used for the dollar figures are the published list rates in
 `providers.PRICES`; Sonnet 5's lower introductory rate is deliberately *not*

@@ -15,6 +15,11 @@ because it is a claim that the data backs a number someone will read, and it is
 what `AUDIT.txt` and `REVIEWER.md`'s verification commands address. A run directory is
 working output; the archive is evidence.
 
+SPEND — `results/spend/log.jsonl` is what the tree has billed, across every
+invocation into it (`spend.py`). It sits in its own directory rather than at
+the top of the tree because every transcript reader globs `*.jsonl`, and a
+spend line read as a game record is a matchup that never played.
+
 The timestamp is UTC and filename-safe, and it is chosen so that lexicographic
 order IS chronological order — `sorted()` on directory names is a valid
 "most recent" without stat-ing anything or trusting mtimes, which copying and
@@ -23,7 +28,8 @@ checkout both destroy.
 Contract
 --------
 Assumes: `results_dir` exists or can be created.
-Establishes: a fresh, empty run directory whose name sorts chronologically.
+Establishes: a fresh, empty run directory whose name sorts chronologically,
+and one spend-log path per results tree.
 Illegal after: writing a run's summary anywhere but inside its own run directory.
 """
 
@@ -34,6 +40,7 @@ from pathlib import Path
 
 RUNS = "runs"
 ARCHIVE = "transcripts"
+SPEND = "spend"
 
 # `:` is illegal in filenames on Windows and awkward everywhere; `-` keeps the
 # field widths fixed, which is what makes the lexicographic sort correct.
@@ -81,3 +88,14 @@ def latest_run(results_dir: Path) -> Path | None:
 def archive_dir(results_dir: Path) -> Path:
     """The curated, committed transcripts — the audit path's default target."""
     return results_dir / ARCHIVE
+
+
+def spend_log_path(results_dir: Path) -> Path:
+    """The one spend log for this results tree.
+
+    One per tree, not one per run: it is the record a `token_budget` window
+    reads, and a per-run file would bound exactly the one invocation the
+    in-memory counters already bound. Configs that must not share a ceiling
+    already name different trees.
+    """
+    return results_dir / SPEND / "log.jsonl"

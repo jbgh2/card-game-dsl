@@ -215,15 +215,49 @@ same thing as the same experiment.
 ## Budget
 
 `config.yaml` carries a `token_budget` (input tokens, output tokens, dollars),
-checked between games against the whole provider registry. The runner stops
-cleanly and records the partial N plus the reason. `max_decisions` bounds a single
-game, because one Cheat episode can be a material fraction of a budget.
+checked between games. The runner stops cleanly and records the partial N plus
+the reason. `max_decisions` bounds a single game, because one Cheat episode can
+be a material fraction of a budget.
+
+`window:` says how much spend a cap counts. Every billed call is appended to
+`<results_dir>/spend/log.jsonl` as it happens, and the window decides which of
+those lines the ceiling is measured over:
+
+| `window:` | the cap bounds |
+|---|---|
+| `invocation` (default) | this process, as the in-memory counters always did |
+| `day` | everything the tree billed on this UTC date |
+| `<N>h` (`24h`, `720h`) | everything it billed in the last N hours |
+| `all` | everything it has ever billed |
+
+So a day's work is boundable, not just one run. The log is re-read before every
+game, which is what makes two invocations against one tree share a ceiling
+rather than each getting its own — to within one game apiece, since both can
+pass a check the pair then crosses (issue #424). It is operational, never evidence.
+
+A cap bounds one log, and the run prints which one it is using. The default is
+one per results tree, and a tree is one game's output — so `spend_log:` points
+several configs at a single file when what you want bounded is an account
+rather than a study. Set it on **every** config in the campaign: one left out
+writes to its own tree-local log, which the campaign's ceiling never reads.
+
+The default location is gitignored. A `spend_log:` elsewhere is yours to
+place, and this repo is public — the log carries per-model token counts,
+dollar figures and timestamps, so put it outside the repo or add your own
+ignore rule.
+
+Two things a window does not stop. A matchup whose roster names no model is
+never capped, because it cannot spend — which is what keeps `rule_vs_random`
+runnable with no key and no credit. And `--smoke` is recorded but not capped:
+it is the diagnostic you reach for *because* a ceiling stopped the work.
+
+Four figures name money here, and they are not the same: a matchup block's
+`usage` is that matchup's delta, its `run_total` is the model's running total,
+`summary.json`'s `run_totals` is one invocation's, and the spend log is the
+tree's across all of them.
 
 Read `games_truncated` before quoting a win rate. Truncation is not
 missing-at-random: games run long exactly when nobody is shedding.
-
-> The cap is **per invocation**, not per session — a fresh `run_eval` starts a new
-> registry. It bounds one run, not a day's work.
 
 ---
 

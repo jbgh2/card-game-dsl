@@ -69,6 +69,13 @@ coverage.xml
 experiments/llm_eval/results_kuhn/runs/
 experiments/llm_eval/results_kuhn/estimate/
 
+# The spend log (`layout.spend_log_path`): what a results tree has billed,
+# read by the runner's `token_budget` window. Machine-local and operational,
+# never evidence — the published record is the transcript archive. One rule
+# for every tree, because the per-tree ignore files disagree: two carry a
+# recursive `*.jsonl` and `results_kuhn` has no ignore file at all.
+experiments/llm_eval/results*/spend/
+
 # The fleet permission charter is team state, versioned like the charters;
 # local overrides (settings.local.json) stay personal and ignored.
 !.claude/settings.json

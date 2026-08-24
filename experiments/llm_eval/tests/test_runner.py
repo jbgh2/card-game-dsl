@@ -23,6 +23,7 @@ from ..run_eval import (
     run_matchup,
     validate_model_refs,
 )
+from ..spend import Billed, Spend, SpendLog, Window, registry_spend
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -31,6 +32,18 @@ FAKE_MODEL: dict[str, Any] = {
     "model": "fake",
     "replies": ['{"action": 0, "reasoning": "first legal"}'],
 }
+
+
+def _log(tmp_path: Path) -> SpendLog:
+    """A spend log under `tmp_path`, so no test writes into the committed
+    results tree — which a config-derived default path would.
+
+    A fresh object per call: two calls on one `tmp_path` share the FILE and
+    not the session, which is what two invocations against one results tree
+    do. A test that needs one invocation across several `run_matchup` calls
+    binds the result once and passes it to each.
+    """
+    return SpendLog(tmp_path / "spend" / "log.jsonl")
 
 
 def _config(**overrides: Any) -> dict[str, Any]:
@@ -73,7 +86,7 @@ def test_offline_matchup_needs_no_provider(tmp_path: Path) -> None:
     config = _config()
     matchup = _matchup(2, llm=False)
     registry: dict[str, Any] = {}
-    summary = run_matchup(config, matchup, tmp_path, registry)
+    summary = run_matchup(config, matchup, tmp_path, registry, log=_log(tmp_path))
     assert registry == {}, "an offline roster must construct no provider"
     assert summary["n_completed"] == 2
     assert summary["stopped_early"] is None
@@ -85,7 +98,7 @@ def test_budget_stops_the_run_and_reports_partial_n(tmp_path: Path) -> None:
     records the completed N and the cap that stopped it — never the intended N."""
     config = _config(token_budget={"max_output_tokens": 50})
     matchup = _matchup(10, llm=True)
-    summary = run_matchup(config, matchup, tmp_path, {})
+    summary = run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
 
     assert 0 < summary["n_completed"] < 10, "the cap neither fired nor blocked everything"
     assert summary["n_requested"] == 10
@@ -106,17 +119,198 @@ def test_budget_is_shared_across_matchups(tmp_path: Path) -> None:
     first, second = _matchup(1, llm=True), _matchup(1, llm=True)
     second["name"] = "t2"
     registry: dict[str, Any] = {}
+    log = _log(tmp_path)
 
-    run_matchup(config, first, tmp_path, registry)
+    run_matchup(config, first, tmp_path, registry, log=log)
     assert set(registry) == {"m"}, "the first matchup builds the shared provider"
     after_first = registry["m"].usage.output_tokens
-    summary = run_matchup(config, second, tmp_path, registry)
+    summary = run_matchup(config, second, tmp_path, registry, log=log)
     after_second = registry["m"].usage.output_tokens
 
     assert after_second > after_first > 0
     # The matchup block reports its own delta; `run_total` carries the running sum.
     assert summary["usage"]["m"]["output_tokens"] == after_second - after_first
     assert summary["usage"]["m"]["run_total"]["output_tokens"] == after_second
+    # And the durable record partitions the same spend exactly once: two
+    # matchups, one log, no line counted twice and none missed.
+    assert log.total(Window("invocation")).output_tokens == after_second
+    assert registry_spend(registry) == log.appended, "billed and never written"
+
+
+def _session_config(tmp_path: Path, **budget: Any) -> Path:
+    """A one-LLM-matchup config on its own results tree, written to disk.
+
+    `main()` rather than `run_matchup`, because the defect is what happens
+    BETWEEN invocations and only `main` starts one.
+    """
+    config = _config(
+        results_dir=str(tmp_path),
+        max_decisions=40,
+        token_budget=budget,
+        matchups=[_matchup(2, llm=True)],
+    )
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    path = tmp_path / "config.yaml"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    return path
+
+
+def _completed(run: Path) -> int:
+    summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
+    completed: int = summary["matchups"][0]["n_completed"]
+    return completed
+
+
+def _stops(run: Path) -> str | None:
+    summary = json.loads((run / "summary.json").read_text(encoding="utf-8"))
+    stopped: str | None = summary["matchups"][0]["stopped_early"]
+    return stopped
+
+
+def test_a_second_invocation_stops_where_the_first_left_off(tmp_path: Path) -> None:
+    """THE defect. A session is many invocations, and a windowed cap counts
+    them all.
+
+    The ceiling is exactly what one invocation of this matchup spends, so it
+    is never reached WITHIN an invocation and is reached the moment a second
+    one starts. Under `window: all` the first runs to completion and the
+    second stops before its first game, naming the cap.
+
+    Its twin, `test_the_default_window_still_bounds_one_invocation`, is this
+    fixture with the window left out. The two differ in one config key.
+
+    Verified against the accepted-but-ignored form of the fix — `window`
+    parsed and stored but `Budget.exceeded` reading only the live registry —
+    where the second invocation plays both games and reports
+    `stopped_early: None`, which is the behaviour issue #219 describes.
+    """
+    probe = _session_config(tmp_path / "probe")
+    assert main(["--config", str(probe)]) == 0
+    one = json.loads(
+        (_run_dir(tmp_path / "probe") / "summary.json").read_text(encoding="utf-8")
+    )["run_totals"]["m"]["output_tokens"]
+
+    config = _session_config(tmp_path, max_output_tokens=one, window="all")
+    assert main(["--config", str(config)]) == 0
+    assert main(["--config", str(config)]) == 0
+
+    from .. import layout
+
+    first, second = layout.list_runs(tmp_path)
+    assert _completed(first) == 2, "the first invocation was capped, not the second"
+    assert _stops(first) is None
+    assert _completed(second) == 0
+    assert _stops(second) is not None
+    assert "max_output_tokens" in str(_stops(second))
+    assert "all" in str(_stops(second)), "the stop does not say which window"
+
+
+def test_the_default_window_still_bounds_one_invocation(tmp_path: Path) -> None:
+    """Every shipped config names no window, so the default must not change
+    what they mean: a ceiling over this process, spent again on the next."""
+    probe = _session_config(tmp_path / "probe")
+    assert main(["--config", str(probe)]) == 0
+    one = json.loads(
+        (_run_dir(tmp_path / "probe") / "summary.json").read_text(encoding="utf-8")
+    )["run_totals"]["m"]["output_tokens"]
+
+    config = _session_config(tmp_path, max_output_tokens=one)
+    assert main(["--config", str(config)]) == 0
+    assert main(["--config", str(config)]) == 0
+
+    from .. import layout
+
+    for run in layout.list_runs(tmp_path):
+        assert _completed(run) == 2, "the default window reached across invocations"
+        assert _stops(run) is None
+    # The record was written anyway, so turning a window on later has history
+    # to read rather than starting from a log nothing filled.
+    log = SpendLog(layout.spend_log_path(tmp_path))
+    assert log.total(Window("all")).output_tokens >= 2 * one
+
+
+def test_estimate_spend_is_recorded_and_counts_toward_a_later_run(
+    tmp_path: Path,
+) -> None:
+    """`--estimate` plays real games on a real account, so it is spend.
+
+    Its output is scratch — a gitignored `estimate/` directory it overwrites
+    in place — and that is the whole of what makes it disposable. The money is
+    not.
+    """
+    from .. import layout
+
+    config = _session_config(tmp_path, max_output_tokens=10**9, window="all")
+    assert main(["--config", str(config), "--estimate", "2"]) == 0
+
+    log = SpendLog(layout.spend_log_path(tmp_path))
+    spent = log.total(Window("all"))
+    assert spent.output_tokens > 0, "cost recon wrote nothing to the record"
+    assert not (tmp_path / "runs").exists(), "an estimate is not a run"
+
+    capped = _session_config(tmp_path, max_output_tokens=1, window="all")
+    assert main(["--config", str(capped)]) == 0
+    stopped = _stops(_run_dir(tmp_path))
+    assert stopped is not None and "max_output_tokens" in stopped
+
+
+def test_an_offline_matchup_runs_under_a_crossed_window(tmp_path: Path) -> None:
+    """The no-API-key acceptance path survives a ceiling that has been reached.
+
+    A cap gates spending, and a roster naming no model cannot spend. Without
+    the exemption, `rule_vs_random` — the run that needs no credential and
+    costs nothing — would refuse to play the moment a window wide enough to
+    have been crossed was configured.
+
+    red under: dropping the `if providers` guard from `run_matchup`'s cap
+    check.
+    """
+    from .. import layout
+
+    log = SpendLog(layout.spend_log_path(tmp_path))
+    log.record(
+        "earlier", "t", [Billed("m", "claude-haiku-4-5", 1, Spend(output_tokens=10**6))]
+    )
+
+    config = _config(
+        results_dir=str(tmp_path),
+        token_budget={"max_output_tokens": 10, "window": "all"},
+        matchups=[{**_matchup(2, llm=False), "name": "offline"}],
+    )
+    path = tmp_path / "config.yaml"
+    path.write_text(json.dumps(config), encoding="utf-8")
+
+    assert main(["--config", str(path)]) == 0
+    run = _run_dir(tmp_path)
+    assert _completed(run) == 2
+    assert _stops(run) is None
+    assert len(list(iter_jsonl(str(run / "transcripts" / "offline.jsonl")))) == 2
+
+
+def test_a_matchup_that_dies_mid_game_still_records_what_it_spent(
+    tmp_path: Path,
+) -> None:
+    """The case a log derived from `summary.json` gets wrong.
+
+    A provider that dies partway leaves its usage counted in memory and its
+    game unwritten; the record has to carry that spend anyway, or the next
+    invocation's ceiling is short by exactly the run that failed.
+
+    red under: deleting the `flush_spend()` that follows `run_matchup`'s game
+    loop. (Not the abort branch — every exit from the loop reaches the one
+    after it, which is why the abort branch has no flush of its own.)
+    """
+    config = _config(max_decisions=400)
+    matchup = _matchup(5, llm=True)
+    ok = _calls_in_first_game(tmp_path) + 20
+    registry: dict[str, Any] = {"m": ExplodingProvider(ok_calls=ok)}
+    log = _log(tmp_path)
+
+    summary = run_matchup(config, matchup, tmp_path, registry, log=log)
+
+    assert summary["aborted"] is not None
+    assert registry_spend(registry) == log.appended, "the dying game's spend went unwritten"
+    assert log.total(Window("all")).output_tokens == registry["m"].usage.output_tokens
 
 
 def test_summary_records_the_full_request_params(tmp_path: Path) -> None:
@@ -126,7 +320,7 @@ def test_summary_records_the_full_request_params(tmp_path: Path) -> None:
     model = {**FAKE_MODEL, "params": {"max_tokens": 256, "temperature": 0}}
     config = _config(models={"m": model})
     matchup = _matchup(1, llm=True)
-    summary = run_matchup(config, matchup, tmp_path, {})
+    summary = run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     # The fake provider ignores params, but the plumbing that reports them is
     # shared; the Anthropic provider's own copy is asserted below.
     assert "params" in summary["usage"]["m"]
@@ -157,7 +351,7 @@ def test_roster_size_must_match_the_seats(tmp_path: Path) -> None:
     matchup = _matchup(1, llm=False)
     matchup["agents"] = matchup["agents"][:3]
     with pytest.raises(ValueError, match="roster has 3 agents"):
-        run_matchup(config, matchup, tmp_path, {})
+        run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
 
 
 def test_unknown_model_reference_is_loud() -> None:
@@ -191,14 +385,14 @@ def test_seed_range_is_checked_against_the_adapter(tmp_path: Path) -> None:
     config = _config(seeds={"start": 4090})
     matchup = _matchup(20, llm=False)
     with pytest.raises(ValueError, match="only addresses"):
-        run_matchup(config, matchup, tmp_path, {})
+        run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
 
 
 def test_seat_rotation_moves_the_focus_agent(tmp_path: Path) -> None:
     """Position effects wash out only if the focus seat actually rotates."""
     config = _config()
     matchup = _matchup(4, llm=False)
-    run_matchup(config, matchup, tmp_path, {})
+    run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     seats = [
         next(int(k) for k, v in r["seats"].items() if v == "rule") for r in records
@@ -210,7 +404,7 @@ def test_rotation_can_be_disabled(tmp_path: Path) -> None:
     config = _config()
     matchup = _matchup(3, llm=False)
     matchup["rotate"] = False
-    run_matchup(config, matchup, tmp_path, {})
+    run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     assert all(r["seats"]["0"] == "rule" for r in records)
 
@@ -227,11 +421,17 @@ def test_rotation_can_be_disabled(tmp_path: Path) -> None:
     ],
 )
 def test_budget_boundaries(
-    cap: dict[str, Any], usage_kwargs: dict[str, int], expected: str | None
+    tmp_path: Path, cap: dict[str, Any], usage_kwargs: dict[str, int], expected: str | None
 ) -> None:
     """Each cap fires at its own boundary and not before. `claude-haiku-4-5` is
-    $1/MTok in, so 10**6 input tokens is exactly $1.00."""
-    assert Budget(**cap).exceeded(_registry({"claude-haiku-4-5": usage_kwargs})) == expected
+    $1/MTok in, so 10**6 input tokens is exactly $1.00.
+
+    An empty log, so this is the in-flight spend alone — the same reading the
+    default `invocation` window gives. Which spend a window ADMITS is
+    test_spend.py's grid; this is the boundary of each cap over one total.
+    """
+    registry = _registry({"claude-haiku-4-5": usage_kwargs})
+    assert Budget(**cap).exceeded(_log(tmp_path), registry_spend(registry)) == expected
 
 
 def _registry(spend: dict[str, dict[str, int]]) -> dict[str, Any]:
@@ -247,7 +447,7 @@ def _registry(spend: dict[str, dict[str, int]]) -> dict[str, Any]:
     return registry
 
 
-def test_budget_sums_across_every_model_in_the_registry() -> None:
+def test_budget_sums_across_every_model_in_the_registry(tmp_path: Path) -> None:
     """The cap is a ceiling for the RUN, so it cannot be evaluated one provider at
     a time.
 
@@ -261,25 +461,38 @@ def test_budget_sums_across_every_model_in_the_registry() -> None:
         {"claude-haiku-4-5": {"input_tokens": 600_000},   # $0.60
          "claude-sonnet-5": {"input_tokens": 200_000}}    # $0.60
     )
-    assert Budget(max_cost_usd=1.0).exceeded(registry) == "max_cost_usd"
+    log = _log(tmp_path)
+    assert Budget(max_cost_usd=1.0).exceeded(log, registry_spend(registry)) == "max_cost_usd"
     # Non-vacuity: the same registry is under a ceiling that genuinely clears it.
-    assert Budget(max_cost_usd=2.0).exceeded(registry) is None
+    assert Budget(max_cost_usd=2.0).exceeded(log, registry_spend(registry)) is None
 
 
-def test_budget_sums_token_caps_across_models_too() -> None:
+def test_budget_sums_token_caps_across_models_too(tmp_path: Path) -> None:
     """Tokens are counts and add the same way dollars do."""
     registry = _registry(
         {"claude-haiku-4-5": {"input_tokens": 60, "output_tokens": 6},
          "claude-sonnet-5": {"input_tokens": 60, "output_tokens": 6}}
     )
-    assert Budget(max_input_tokens=100).exceeded(registry) == "max_input_tokens"
-    assert Budget(max_output_tokens=10).exceeded(registry) == "max_output_tokens"
-    assert Budget(max_input_tokens=200, max_output_tokens=20).exceeded(registry) is None
+    log = _log(tmp_path)
+    assert Budget(max_input_tokens=100).exceeded(log, registry_spend(registry)) == "max_input_tokens"
+    assert Budget(max_output_tokens=10).exceeded(log, registry_spend(registry)) == "max_output_tokens"
+    assert (
+        Budget(max_input_tokens=200, max_output_tokens=20).exceeded(
+            log, registry_spend(registry)
+        )
+        is None
+    )
 
 
-def test_budget_on_an_empty_registry_is_unlimited() -> None:
-    """An offline matchup builds no provider; a cap must not fire on zero spend."""
-    assert Budget(max_cost_usd=0.01).exceeded({}) is None
+def test_budget_on_an_empty_registry_and_log_is_unlimited(tmp_path: Path) -> None:
+    """Nothing spent is nothing counted, however wide the window.
+
+    An offline matchup builds no provider, and a tree nothing has run in has
+    no log — the two zeros a cap must not fire on.
+    """
+    log = _log(tmp_path)
+    assert Budget(max_cost_usd=0.01).exceeded(log, Spend()) is None
+    assert Budget(max_cost_usd=0.01, window="all").exceeded(log, Spend()) is None
 
 
 def _two_matchup_config(tmp_path: Path) -> tuple[dict[str, Any], Path]:
@@ -388,7 +601,7 @@ def test_per_game_token_usage_is_recorded_and_aggregated(tmp_path: Path) -> None
 
     config = _config()
     matchup = _matchup(2, llm=True)
-    run_matchup(config, matchup, tmp_path, {})
+    run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
 
     assert len(records) == 2
@@ -417,7 +630,7 @@ def test_retries_are_billed_twice_in_the_per_game_tally(tmp_path: Path) -> None:
     model = {**FAKE_MODEL, "replies": ["nonsense", '{"action": 0, "reasoning": ""}']}
     config = _config(models={"m": model}, max_decisions=20)
     matchup = _matchup(1, llm=True)
-    run_matchup(config, matchup, tmp_path, {})
+    run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     record = next(iter(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl"))))
     llm_decisions = sum(1 for d in record["decisions"] if d["agent"] == "fake_llm")
     assert record["usage"]["fake_llm"]["llm_calls"] > llm_decisions
@@ -426,7 +639,7 @@ def test_retries_are_billed_twice_in_the_per_game_tally(tmp_path: Path) -> None:
 def test_transcript_lines_are_valid_json_records(tmp_path: Path) -> None:
     config = _config()
     matchup = _matchup(2, llm=False)
-    run_matchup(config, matchup, tmp_path, {})
+    run_matchup(config, matchup, tmp_path, {}, log=_log(tmp_path))
     text = (tmp_path / "transcripts" / "t.jsonl").read_text(encoding="utf-8")
     lines = [line for line in text.splitlines() if line.strip()]
     assert len(lines) == 2
@@ -472,7 +685,11 @@ def _calls_in_first_game(tmp_path: Path) -> int:
     green-but-vacuous.
     """
     probe = tmp_path / "probe"
-    run_matchup(_config(max_decisions=400), _matchup(1, llm=True), probe, {})
+    # Its own log, or the probe's spend would sit in the record the calling
+    # test then reads and every count would be one game too high.
+    run_matchup(
+        _config(max_decisions=400), _matchup(1, llm=True), probe, {}, log=_log(probe)
+    )
     rec = next(iter(iter_jsonl(str(probe / "transcripts" / "t.jsonl"))))
     return int(rec["usage"]["fake_llm"]["llm_calls"])
 
@@ -492,7 +709,7 @@ def test_completed_games_keep_their_summary_when_a_later_game_dies(
     ok = _calls_in_first_game(tmp_path) + 20  # dies partway through game 2
     registry: dict[str, Any] = {"m": ExplodingProvider(ok_calls=ok)}
 
-    summary = run_matchup(config, matchup, tmp_path, registry)
+    summary = run_matchup(config, matchup, tmp_path, registry, log=_log(tmp_path))
 
     assert summary["aborted"] is not None
     assert "usage limit reached" in summary["aborted"]
@@ -517,7 +734,7 @@ def test_the_aborted_game_leaves_no_record(tmp_path: Path) -> None:
     matchup = _matchup(5, llm=True)
     ok = _calls_in_first_game(tmp_path) + 20
     registry: dict[str, Any] = {"m": ExplodingProvider(ok_calls=ok)}
-    summary = run_matchup(config, matchup, tmp_path, registry)
+    summary = run_matchup(config, matchup, tmp_path, registry, log=_log(tmp_path))
     recs = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     assert len(recs) == summary["n_completed"]
     # Seeds run 0..n_completed-1; the seed that died is absent entirely.
@@ -564,7 +781,7 @@ def test_abort_writes_the_summary_and_skips_later_matchups(
 def test_clean_run_reports_no_abort(tmp_path: Path) -> None:
     """The field is present and None on a healthy run, so a consumer can read it
     unconditionally rather than probing for its existence."""
-    summary = run_matchup(_config(), _matchup(2, llm=False), tmp_path, {})
+    summary = run_matchup(_config(), _matchup(2, llm=False), tmp_path, {}, log=_log(tmp_path))
     assert summary["aborted"] is None
 
 
@@ -572,11 +789,11 @@ def test_resume_appends_only_the_missing_games(tmp_path: Path) -> None:
     """Finishing a matchup that died partway must not re-play what succeeded."""
     config = _config()
     first = {**_matchup(3, llm=False), "n": 5, "resume_from": 0}
-    run_matchup(config, {**first, "n": 3}, tmp_path, {})
+    run_matchup(config, {**first, "n": 3}, tmp_path, {}, log=_log(tmp_path))
     before = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     assert [r["seed"] for r in before] == [0, 1, 2]
 
-    summary = run_matchup(config, {**first, "n": 5, "resume_from": 3}, tmp_path, {})
+    summary = run_matchup(config, {**first, "n": 5, "resume_from": 3}, tmp_path, {}, log=_log(tmp_path))
     after = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     assert [r["seed"] for r in after] == [0, 1, 2, 3, 4]
     # The three original records are untouched, byte for byte.
@@ -590,12 +807,28 @@ def test_resume_reproduces_what_a_full_run_would_have_done(tmp_path: Path) -> No
     """The resumed games are bit-identical to the ones a single full run would
     have produced — same seed AND same seat rotation, which is a function of the
     game index, not of position within the invocation."""
-    full = run_matchup(_config(), {**_matchup(5, llm=False), "n": 5}, tmp_path / "full", {})
+    full = run_matchup(
+        _config(),
+        {**_matchup(5, llm=False), "n": 5},
+        tmp_path / "full",
+        {},
+        # Its own record: the two runs below are an independent reproduction
+        # of this one, and one shared log would fold both into a single tree's
+        # spend the moment either roster named a model.
+        log=_log(tmp_path / "full"),
+    )
     a = list(iter_jsonl(str(tmp_path / "full" / "transcripts" / "t.jsonl")))
 
     part = tmp_path / "part"
-    run_matchup(_config(), {**_matchup(3, llm=False), "n": 3}, part, {})
-    run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 3}, part, {})
+    part_log = _log(part)
+    run_matchup(_config(), {**_matchup(3, llm=False), "n": 3}, part, {}, log=part_log)
+    run_matchup(
+        _config(),
+        {**_matchup(5, llm=False), "n": 5, "resume_from": 3},
+        part,
+        {},
+        log=part_log,
+    )
     b = list(iter_jsonl(str(part / "transcripts" / "t.jsonl")))
 
     assert len(a) == len(b) == 5
@@ -609,14 +842,14 @@ def test_resume_reproduces_what_a_full_run_would_have_done(tmp_path: Path) -> No
 def test_resume_refuses_a_mismatched_transcript(tmp_path: Path) -> None:
     """Appending onto the wrong prefix would silently duplicate games and the
     result would still look like a valid transcript."""
-    run_matchup(_config(), {**_matchup(2, llm=False), "n": 2}, tmp_path, {})
+    run_matchup(_config(), {**_matchup(2, llm=False), "n": 2}, tmp_path, {}, log=_log(tmp_path))
     with pytest.raises(ValueError, match="cannot resume"):
-        run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 4}, tmp_path, {})
+        run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 4}, tmp_path, {}, log=_log(tmp_path))
 
 
 def test_resume_without_a_transcript_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="nothing to resume"):
-        run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 3}, tmp_path, {})
+        run_matchup(_config(), {**_matchup(5, llm=False), "n": 5, "resume_from": 3}, tmp_path, {}, log=_log(tmp_path))
 
 
 def test_transcripts_read_identically_from_gzip(tmp_path: Path) -> None:
@@ -627,7 +860,7 @@ def test_transcripts_read_identically_from_gzip(tmp_path: Path) -> None:
 
     from ..verify import _load, _transcripts, _stem
 
-    run_matchup(_config(), _matchup(2, llm=False), tmp_path, {})
+    run_matchup(_config(), _matchup(2, llm=False), tmp_path, {}, log=_log(tmp_path))
     plain = tmp_path / "transcripts" / "t.jsonl"
     gz = plain.with_suffix(".jsonl.gz")
     with plain.open("rb") as src, gzip.open(gz, "wb") as dst:
@@ -653,7 +886,7 @@ def test_verify_agrees_with_aggregate_for_multi_seat_agents(tmp_path: Path) -> N
     from ..metrics import aggregate
     from ..verify import tally
 
-    run_matchup(_config(), _matchup(3, llm=False), tmp_path, {})
+    run_matchup(_config(), _matchup(3, llm=False), tmp_path, {}, log=_log(tmp_path))
     records = list(iter_jsonl(str(tmp_path / "transcripts" / "t.jsonl")))
     agg = aggregate(records)["agents"]
 
