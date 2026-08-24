@@ -6,10 +6,10 @@ clause at all. The clause survives its second value as the docking point a furth
 traversal arrives at; why it is kept, and what a further one owes, is
 `docs/decisions.md`, "The auction form of `round`", under Order.
 
-Four things are pinned here, and they divide by who meets them. The ring's own
-stepping and poker's continuation order are what a designer sees; the two
-refusals — a mode the axis does not hold, and a ring that empties while `until`
-is still false — are what a designer meets when the game description is wrong.
+What is pinned here divides by who meets it. The ring's own stepping and poker's
+continuation order are what a designer sees; the two refusals — a mode the axis
+does not hold, and a ring that empties while `until` is still false — are what a
+designer meets when the game description is wrong.
 The clause's grid cells (parse, resolve, IR, execution, crossed against the
 other optional clauses) live in tests/test_round_forms.py; this module holds
 the behaviour that grid cannot state.
