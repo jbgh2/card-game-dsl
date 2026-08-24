@@ -10,11 +10,13 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:        a `token_budget` cap fires exactly when the spend its window
                  admits, plus everything the live providers have billed and
-                 not yet written, reaches it — and not before. Every window
-                 spelling outside the registry is refused at construction,
-                 naming the registry; a spend log that cannot be read refuses
-                 rather than counting less than was spent; and every path that
-                 bills the API writes to the log it is counted from.
+                 not yet written, reaches it — and not before. Every
+                 `token_budget` key or value outside the registry, and every
+                 window spelling outside it, is refused before a game is
+                 played, in a message naming the registry; a spend log that
+                 cannot be read or written refuses rather than counting less
+                 than was spent; and every path that bills the API writes to
+                 the log it is counted from.
 domain:          `run_eval.CAPS` x `spend.WINDOW_KINDS` x the states a record
                  can be in when a cap is checked (no log, spend billed but not
                  yet written, written by this invocation, written by another
@@ -22,8 +24,9 @@ domain:          `run_eval.CAPS` x `spend.WINDOW_KINDS` x the states a record
                  each cell — the cap fires at its own boundary and does not
                  fire above it. Crossed again with every way a line can fail to
                  be countable, over the windows that read the file. The misuse
-                 probes cross the window spellings and the `spend_log:` values
-                 a config author plausibly writes.
+                 probes cross the `token_budget` keys and values, the window
+                 spellings and the `spend_log:` values a config author
+                 plausibly writes.
 
                  Three boundaries, each stated positively rather than missing.
                  A cap is counted over ONE log: `spend_log:` is what points
