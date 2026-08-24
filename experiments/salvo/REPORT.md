@@ -223,7 +223,7 @@ curve with a sweet spot and a punishment for overdose, which is
 exactly what "the count is a decision" looks like. Opponent-aware
 restraint says the same: sighted vs sighted_nohold under recon is
 56.2/42.3 at the default threshold and 61.6/37.1 at 11, against a
-flat null under capacity-only (50.0/48.7 and 48.4/50.4).
+flat null under capacity-only (50.3/48.5 and 48.4/50.4).
 
 **An honest side effect: capacity compresses the crude-heuristic
 skill gap.** sighted vs blind fell from 68.0/31.8 (round 1) to
@@ -328,7 +328,7 @@ the adopted base game, over seeds 200-1199 (the sighted policy carries
 the tuned knobs, so the probe starts past the sweep's range for the same
 reason §9 does; `seed_start` is recorded in the artifact), each location binned by its target's distance
 from rank 7 (mid: targets 6-8, near: 4-5/9-10, edge: A-3/J-K; the
-bins naturally appear in 21/31/47% of location slots). Data:
+bins naturally appear in 22/31/47% of location slots). Data:
 `results_liveness.json`.
 
 Under tuned sighted play:
