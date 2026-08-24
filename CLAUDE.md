@@ -107,6 +107,11 @@ comment built wrong is cheaper to refuse now than to audit later:
 1. **Present tense.** Prose describes what IS — never what was, what
    changed, what used to be, or which change added it. Operating
    rule 1 ("spec, not history") binds in code exactly as in `docs/`.
+   The one exception is a wall, not a diary: where an obvious
+   alternative was tried and rejected, prose says so and why — the
+   reason, never the chronology (`docs/maintaining.md`, "When history
+   earns its place") — because omitting it invites re-litigating the
+   settled decision.
 2. **No derivable values.** A number two derivations can disagree on is
    a query, not a fact: prose names the query — the registry, the glob,
    the command — never today's count. Only a test may pin a value; only
