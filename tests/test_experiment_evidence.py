@@ -14,14 +14,20 @@ property:        a policy whose knobs a sweep selected is reported only on
                  salvo report tables that describe the adopted game equals the
                  artifact field it cites, to the precision the cell prints.
 domain:          (a) every `experiments/*/results_*.json`, classified by
-                 `provenance_of` into the three arms of `Provenance` — the
+                 `provenance_of` into the three arms of `Provenance` on two
+                 axes — whether the artifact names its knobs, and whether it
+                 names its first deal — so a rig that reports the tuned policy
+                 through its own schema is reached rather than skipped. The
                  sweep is the glob, so an artifact joins it by being written,
                  and `test_the_tuned_population_is_not_empty` is what stops the
                  classification going vacuous when no artifact carries the
                  knobs. (b) every table under the two covered sections of
                  `experiments/salvo/REPORT.md`, crossed with its rows and its
-                 mapped columns.
-                 Three boundaries, each a limit on this module rather than a
+                 mapped columns, with the row axis pinned to what each table is
+                 bound to — `test_the_liveness_table_prints_every_bin_it_is_
+                 bound_to` and `test_the_scoreboard_prints_the_rows_it_is_bound_
+                 to` — so a deleted row shrinks the checked population loudly.
+                 Boundaries, each a limit on this module rather than a
                  gap in the report. Only salvo's two adopted-game sections are
                  bound: §2's and §8's tables describe rounds 1-3 and want a
                  per-cell filename convention derived from
@@ -32,16 +38,19 @@ domain:          (a) every `experiments/*/results_*.json`, classified by
                  quoted in running prose is a larger and less uniform population
                  (issue #417). And the artifact axis is the `results_*.json`
                  glob, which the green-lane variant artifacts are named outside
-                 of (issue #418).
+                 of (issue #418). The table superset is over pipe tables with a
+                 delimiter row, the one style this report writes; a borderless
+                 or HTML table would not be seen.
 registry:        the tuned knobs and the sweep's extent are read from
                  `experiments/salvo/results_tune.json` (`winner.knobs`,
                  `sweep_seeds`), never restated here, so re-tuning moves the
                  predicate with the artifact; the artifact axis is the glob in
                  `_artifacts`; the table axis is `_tables`, parsed from the
-                 report; the column maps are `_SCOREBOARD` and `_LIVENESS`.
-                 That `seed_start` absent means zero is
-                 `experiments/salvo/triage.py`'s `--seed-start` default, not a
-                 reading invented here.
+                 report; the column bindings are `_LIVENESS` with
+                 `_LIVENESS_PARENTHETICAL`, and `_SCOREBOARD_VALUES`; the
+                 deal-range spellings are `_SEED_START_FIELDS`. The `--seed-start`
+                 default that this module's absent-means-zero reading matches:
+                 `experiments/salvo/triage.py`.
 does not prove:  a green here says nothing about whether the number is a good
                  measurement. Whether the sweep was fine enough, whether the
                  reference policies are strong, and whether 500 deals separate
@@ -94,6 +103,17 @@ def _artifact_ids() -> list[str]:
     return [str(p.relative_to(EXPERIMENTS)) for p in _artifacts()]
 
 
+# How the salvo rigs spell "the first deal behind these numbers". Declaring a
+# deal range IS a provenance claim, so an artifact that records one is judged
+# against the sweep even when it names no knobs — which is the only reason the
+# gate reaches the rigs that run the tuned policy without writing a `tuning`
+# block (`probe_liveness.py`, whose policy is `triage.CURVES["base"]`, and
+# `tune_sighted.py`, whose `final.*` are tuned headlines). An artifact that
+# DOES name its knobs and they are not the tuned ones is out regardless: that
+# is rounds 1-3, kept as recorded.
+_SEED_START_FIELDS = ("seed_start", "final_seed_start")
+
+
 def _selection() -> tuple[dict[str, Any], int]:
     """The knobs a sweep SELECTED, and how many deals it selected them on."""
     doc = json.loads(_SELECTION.read_text())
@@ -110,11 +130,23 @@ def provenance_of(doc: object, knobs: Mapping[str, Any], sweep_seeds: int) -> Pr
     if not isinstance(doc, Mapping):
         return Provenance.UNREACHED
     tuning = doc.get("tuning")
-    if not isinstance(tuning, Mapping):
+    declares_knobs = isinstance(tuning, Mapping)
+    if isinstance(tuning, Mapping):
+        if any(tuning.get(knob) != value for knob, value in knobs.items()):
+            return Provenance.UNREACHED
+    recorded = [field for field in _SEED_START_FIELDS if field in doc]
+    if not declares_knobs and not recorded:
         return Provenance.UNREACHED
-    if any(tuning.get(knob) != value for knob, value in knobs.items()):
-        return Provenance.UNREACHED
-    if int(doc.get("seed_start", 0)) >= sweep_seeds:
+    # A field that is present but unreadable is treated as a range starting at
+    # deal zero rather than as no range at all: the fail-safe direction, since
+    # the alternative is a malformed artifact quietly leaving the gate.
+    readable = [
+        int(doc[field])
+        for field in recorded
+        if isinstance(doc[field], (int, float)) and not isinstance(doc[field], bool)
+    ]
+    first_deal = min(readable) if readable else 0
+    if first_deal >= sweep_seeds:
         return Provenance.OUT_OF_SAMPLE
     return Provenance.IN_SAMPLE
 
@@ -126,9 +158,10 @@ def _synthetic(kind: str, knobs: Mapping[str, Any], sweep_seeds: int) -> object:
     other = dict(knobs, hold_below=float(knobs["hold_below"]) + 1.0)
     shapes: dict[str, object] = {
         "list": [{"tuning": tuned, "seed_start": 0}],
-        "no-tuning": {"pairings": [], "seed_start": 0},
-        "tuning-not-a-mapping": {"tuning": "base", "seed_start": 0},
-        "other-knobs": {"tuning": other, "seed_start": 0},
+        "no-knobs-no-range": {"pairings": []},
+        "tuning-not-a-mapping-no-range": {"tuning": "base"},
+        "other-knobs": {"tuning": other},
+        "other-knobs-with-a-range": {"tuning": other, "seed_start": 0},
         "tuned-past-the-sweep": {"tuning": tuned, "seed_start": sweep_seeds + 300},
         "tuned-at-the-sweep": {"tuning": tuned, "seed_start": sweep_seeds},
         "tuned-inside-the-sweep": {"tuning": tuned, "seed_start": sweep_seeds - 1},
@@ -138,26 +171,44 @@ def _synthetic(kind: str, knobs: Mapping[str, Any], sweep_seeds: int) -> object:
             "tuning": dict(tuned, game="salvo.cardlang", results="x.json"),
             "seed_start": sweep_seeds,
         },
+        "no-knobs-range-past-the-sweep": {"policies": {}, "seed_start": sweep_seeds},
+        "no-knobs-range-from-zero": {"policies": {}, "seed_start": 0},
+        "no-knobs-final-range-past-the-sweep": {"final": {}, "final_seed_start": sweep_seeds},
+        "no-knobs-final-range-from-zero": {"final": {}, "final_seed_start": 0},
+        "tuning-not-a-mapping-with-a-range": {"tuning": "base", "seed_start": 0},
     }
     return shapes[kind]
 
 
-# Every shape the classifier must sort, and the verdict each earns. Authored
-# before `provenance_of` existed. The two arms that matter are the last pair:
-# an artifact that ran the tuned knobs and records no `seed_start` is not
-# "unverifiable", it is IN_SAMPLE — `triage.py`'s `--seed-start` defaults to 0,
-# so the absent field records a run that started at the sweep's first deal.
+# The two axes an artifact is sorted on — does it name its knobs, and does it
+# name its first deal — crossed, with the verdict each cell earns.
+#
+# `tuned-no-seed-start` is IN_SAMPLE rather than "unverifiable": `triage.py`'s
+# `--seed-start` defaults to 0, so the absent field records a run that started
+# at the sweep's first deal.
+#
+# The `no-knobs-*` arms are the ones that reach a rig writing no `tuning`
+# block at all. Both `probe_liveness.py` and `tune_sighted.py` report the tuned
+# policy through their own schema, so a gate keyed on `tuning` alone would let
+# either be re-run from seed 0 — overwriting a committed headline with
+# in-sample data — while staying green.
 _PROVENANCE_GRID: list[tuple[str, Provenance]] = [
     ("list", Provenance.UNREACHED),
-    ("no-tuning", Provenance.UNREACHED),
-    ("tuning-not-a-mapping", Provenance.UNREACHED),
+    ("no-knobs-no-range", Provenance.UNREACHED),
+    ("tuning-not-a-mapping-no-range", Provenance.UNREACHED),
     ("other-knobs", Provenance.UNREACHED),
+    ("other-knobs-with-a-range", Provenance.UNREACHED),
     ("tuned-past-the-sweep", Provenance.OUT_OF_SAMPLE),
     ("tuned-at-the-sweep", Provenance.OUT_OF_SAMPLE),
     ("tuned-inside-the-sweep", Provenance.IN_SAMPLE),
     ("tuned-from-zero", Provenance.IN_SAMPLE),
     ("tuned-no-seed-start", Provenance.IN_SAMPLE),
     ("tuned-with-extra-fields", Provenance.OUT_OF_SAMPLE),
+    ("no-knobs-range-past-the-sweep", Provenance.OUT_OF_SAMPLE),
+    ("no-knobs-range-from-zero", Provenance.IN_SAMPLE),
+    ("no-knobs-final-range-past-the-sweep", Provenance.OUT_OF_SAMPLE),
+    ("no-knobs-final-range-from-zero", Provenance.IN_SAMPLE),
+    ("tuning-not-a-mapping-with-a-range", Provenance.IN_SAMPLE),
 ]
 
 
@@ -174,8 +225,10 @@ def test_the_selection_artifact_still_names_its_own_sweep() -> None:
     a schema change there would leave every cell below classifying against
     nothing. This is the pin that makes that loud rather than green.
 
-    red under: drop `sweep_seeds` or `winner` from
-    experiments/salvo/results_tune.json."""
+    red under: set `sweep_seeds` to 0, or `winner.knobs` to `{}`, in
+    experiments/salvo/results_tune.json. Dropping either key instead raises in
+    `_selection` before this pin's own assertions run, which would be the
+    module failing rather than this guard proving it can."""
     knobs, sweep = _selection()
     assert knobs, "the tuning artifact records no winning knobs"
     assert sweep > 0, f"the sweep covers {sweep} deals"
@@ -196,6 +249,28 @@ def test_the_tuned_population_is_not_empty() -> None:
         if provenance_of(json.loads(p.read_text()), knobs, sweep) is not Provenance.UNREACHED
     ]
     assert reached, "no committed artifact reports the tuned knobs"
+
+
+def test_only_the_swept_experiment_records_a_deal_range() -> None:
+    """`_SEED_START_FIELDS` reaches an artifact by its fields, not its
+    directory, and the sweep it is judged against is salvo's. That is sound
+    only while salvo is the one experiment recording a deal range at all — so
+    the coupling is a pin rather than an assumption, and a green-lane or
+    undertow rig that starts recording one reddens here for a ruling instead
+    of being silently scored against a sweep that is not its own.
+
+    red under: add a `seed_start` to any artifact outside experiments/salvo/."""
+    strays = [
+        p
+        for p in _artifacts()
+        if p.parent.name != "salvo"
+        and isinstance(doc := json.loads(p.read_text()), Mapping)
+        and any(field in doc for field in _SEED_START_FIELDS)
+    ]
+    assert not strays, (
+        f"{[str(p.relative_to(EXPERIMENTS)) for p in strays]} record a deal range but "
+        f"the sweep this gate compares against is salvo's"
+    )
 
 
 @pytest.mark.parametrize("artifact", _artifacts(), ids=_artifact_ids())
@@ -229,10 +304,10 @@ def cited_matches(cited: str, source: float) -> bool:
 
 
 # Cited-against-source pairs, authored before `cited_matches` existed. The
-# tolerance has to be tight enough to catch a transcribed COMPLEMENT (the
-# defect that shipped: `100 - 64.1 = 35.9` written where the measured loss rate
-# was `35.8`) and loose enough to accept the three cells of the liveness table
-# that land on an exact rounding tie.
+# tolerance is half of the last printed place: tight enough that a transcribed
+# COMPLEMENT — `100 - 64.1 = 35.9` printed where the measured loss rate is
+# `35.8` — is a mismatch, and loose enough that a liveness cell landing on an
+# exact rounding tie is not.
 _ROUNDING_GRID: list[tuple[str, float, bool]] = [
     ("35.8", 35.8, True),
     ("64.1", 64.1, True),
@@ -282,12 +357,16 @@ def _tables(md: str) -> list[Table]:
     section = ""
     i = 0
     while i < len(lines):
-        line = lines[i]
+        line = lines[i].strip()
         if line.startswith("## "):
             section = line[3:].strip()
-            while i + 1 < len(lines) and lines[i + 1].startswith("## "):
+            while i + 1 < len(lines) and lines[i + 1].strip().startswith("## "):
                 i += 1
-                section += " " + lines[i][3:].strip()
+                section += " " + lines[i].strip()[3:].strip()
+        # Leading whitespace is stripped before every test, so an indented
+        # table is found rather than passing unseen — the shape that would
+        # make `test_every_table_in_the_report_is_accounted_for`'s superset
+        # claim false.
         if (
             line.startswith("|")
             and i + 1 < len(lines)
@@ -296,8 +375,8 @@ def _tables(md: str) -> list[Table]:
             header = _cells(line)
             i += 2
             rows: list[tuple[str, ...]] = []
-            while i < len(lines) and lines[i].startswith("|"):
-                rows.append(_cells(lines[i]))
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                rows.append(_cells(lines[i].strip()))
                 i += 1
             out.append(Table(section, header, tuple(rows)))
             continue
@@ -344,7 +423,10 @@ _UNBOUND_SECTIONS = ("2. Not double solitaire", "8. Round 3")
 
 def _numbers(cell: str) -> list[str]:
     """The numeric tokens a report cell prints, in order, markup stripped."""
-    return re.findall(r"\d+(?:\.\d+)?", cell.replace("**", ""))
+    # The sign is part of the number: without it a cell printing `-0.12`
+    # against an artifact holding `+0.12` reads as a correct citation. The
+    # lookbehind keeps a range (`5-8`) from being read as a negative.
+    return re.findall(r"(?<!\d)-?\d+(?:\.\d+)?", cell.replace("**", ""))
 
 
 def cell_mismatches(report: str) -> list[str]:
@@ -375,16 +457,30 @@ def _scoreboard_mismatches(table: Table) -> list[str]:
     """Each row names its two policies; the cell prints their two win rates in
     that order, as percentages of the artifact's fractions."""
     doc = _artifact(_SCOREBOARD_ARTIFACT)
-    by_pairing = {entry["pairing"]: entry for entry in doc["pairings"]}
+    pairings = doc.get("pairings") if isinstance(doc, Mapping) else None
+    if not isinstance(pairings, list):
+        return [f"{_SCOREBOARD_ARTIFACT} records no `pairings` list"]
+    by_pairing = {
+        entry["pairing"]: entry
+        for entry in pairings
+        if isinstance(entry, Mapping) and "pairing" in entry
+    }
     index, missing = _columns(table, [_SCOREBOARD_KEY, _SCOREBOARD_VALUES])
     if missing:
         return [f"the scoreboard table no longer prints {missing}"]
     found: list[str] = []
     for row in table.rows:
+        if len(row) < len(table.header):
+            found.append(f"a scoreboard row prints {len(row)} cells for {len(table.header)} columns")
+            continue
         label = row[index[_SCOREBOARD_KEY]]
         entry = by_pairing.get(label)
         if entry is None:
             found.append(f"{label}: no pairing of that name in {_SCOREBOARD_ARTIFACT}")
+            continue
+        rates = entry.get("win_rate")
+        if not isinstance(rates, Mapping):
+            found.append(f"{label}: no win_rate recorded in {_SCOREBOARD_ARTIFACT}")
             continue
         sides = [side.strip() for side in label.split(" vs ")]
         printed = _numbers(row[index[_SCOREBOARD_VALUES]])
@@ -392,8 +488,8 @@ def _scoreboard_mismatches(table: Table) -> list[str]:
             found.append(f"{label}: cell prints {len(printed)} numbers for {len(sides)} sides")
             continue
         for side, text in zip(sides, printed):
-            source = entry["win_rate"].get(side)
-            if source is None:
+            source = rates.get(side)
+            if not isinstance(source, (int, float)):
                 found.append(f"{label}: {side} has no win rate in {_SCOREBOARD_ARTIFACT}")
             elif not cited_matches(text, source * 100.0):
                 found.append(f"{label}: {side} printed {text}, artifact has {source * 100:.3f}")
@@ -404,15 +500,21 @@ def _liveness_mismatches(table: Table) -> list[str]:
     """Each row is one bin of the policy the prose selects; the last column
     prints a second field in parentheses."""
     doc = _artifact(_LIVENESS_ARTIFACT)
-    bins = doc["policies"][_LIVENESS_POLICY]
+    policies = doc.get("policies") if isinstance(doc, Mapping) else None
+    bins = policies.get(_LIVENESS_POLICY) if isinstance(policies, Mapping) else None
+    if not isinstance(bins, Mapping):
+        return [f"{_LIVENESS_ARTIFACT} records no `{_LIVENESS_POLICY}` policy"]
     index, missing = _columns(table, [_LIVENESS_KEY, *_LIVENESS])
     if missing:
         return [f"the liveness table no longer prints {missing}"]
     found: list[str] = []
     for row in table.rows:
+        if len(row) < len(table.header):
+            found.append(f"a liveness row prints {len(row)} cells for {len(table.header)} columns")
+            continue
         name = row[index[_LIVENESS_KEY]]
         record = bins.get(name)
-        if record is None:
+        if not isinstance(record, Mapping):
             found.append(f"{name}: no bin of that name under {_LIVENESS_POLICY}")
             continue
         for header, mapped in _LIVENESS.items():
@@ -426,7 +528,14 @@ def _liveness_mismatches(table: Table) -> list[str]:
                 )
                 continue
             for text, (field, percent) in zip(printed, fields):
-                source = record[field] * 100.0 if percent else record[field]
+                # `probe_liveness.py` writes null for a bin that appeared with
+                # no cards committed, so an absent number is a shape this
+                # reports rather than a shape it can assume away.
+                raw = record.get(field)
+                if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+                    found.append(f"{name}/{header}: {field} records no number")
+                    continue
+                source = raw * 100.0 if percent else float(raw)
                 if not cited_matches(text, source):
                     found.append(f"{name}/{header}: printed {text}, {field} is {source:.3f}")
     return found
@@ -438,10 +547,80 @@ def test_the_report_cites_its_artifacts_correctly() -> None:
     assert cell_mismatches(_REPORT.read_text()) == []
 
 
+def _row_labels(section: str) -> list[str]:
+    return [
+        row[0]
+        for table in _tables(_REPORT.read_text())
+        if section in table.section
+        for row in table.rows
+    ]
+
+
+def test_the_liveness_table_prints_every_bin_it_is_bound_to() -> None:
+    """Rows are an axis of the domain, and `cell_mismatches` walks the rows the
+    REPORT prints — so a deleted row leaves the population silently and the
+    citation pin stays green over what remains. The liveness table's row set is
+    not a matter of taste: it is the policy's bins, so it is pinned equal to
+    them rather than merely non-empty.
+
+    red under: delete any bin row from the §10 table of
+    experiments/salvo/REPORT.md."""
+    bins = _artifact(_LIVENESS_ARTIFACT)["policies"][_LIVENESS_POLICY]
+    assert set(_row_labels(_LIVENESS_SECTION)) == set(bins), (
+        f"the liveness table prints {sorted(_row_labels(_LIVENESS_SECTION))} for bins "
+        f"{sorted(bins)}"
+    )
+
+
+# The scoreboard quotes a chosen subset of the artifact's pairings — the five
+# that carry the skill argument — so its row set is a declaration rather than
+# the artifact's own. Naming it here is what makes a deleted row loud.
+_SCOREBOARD_ROWS = frozenset(
+    {
+        "sighted vs blind",
+        "sighted vs sighted_nohold",
+        "sighted vs blind_hold",
+        "blind_hold vs blind",
+        "sighted_nohold vs blind",
+    }
+)
+
+
+def test_the_scoreboard_prints_the_rows_it_is_bound_to() -> None:
+    """red under: delete any row from the §9 table of
+    experiments/salvo/REPORT.md."""
+    printed = set(_row_labels(_SCOREBOARD_SECTION))
+    assert printed == _SCOREBOARD_ROWS, f"the scoreboard prints {sorted(printed)}"
+    recorded = {entry["pairing"] for entry in _artifact(_SCOREBOARD_ARTIFACT)["pairings"]}
+    assert _SCOREBOARD_ROWS <= recorded, (
+        f"{sorted(_SCOREBOARD_ROWS - recorded)} is quoted but not measured"
+    )
+
+
+def test_each_bound_section_names_the_artifact_its_cells_are_read_from() -> None:
+    """The binder holds the filename and the section's prose tells a reader
+    which file to check. Nothing makes those the same string, so the report can
+    send a reader to one artifact while the gate reads another — and a citation
+    reported correct would be correct about the wrong file.
+
+    red under: change either `results_*.json` filename in the prose of §9 or
+    §10 of experiments/salvo/REPORT.md."""
+    report = _REPORT.read_text()
+    for section, artifact in (
+        (_SCOREBOARD_SECTION, _SCOREBOARD_ARTIFACT),
+        (_LIVENESS_SECTION, _LIVENESS_ARTIFACT),
+    ):
+        start = report.index(section)
+        body = report[start : start + 2500]
+        assert artifact in body, f"§{section!r} never names {artifact}, which its cells come from"
+
+
 def test_every_table_in_the_report_is_accounted_for() -> None:
-    """Completeness by superset: a table is bound or it is named unbound. A new
-    table in the report belongs to neither set and reddens here, so the covered
-    fraction cannot quietly shrink as the report grows.
+    """Completeness by superset over the pipe tables `_tables` parses: a table
+    is bound or it is named unbound, so a new one belongs to neither set and
+    reddens here rather than joining the unchecked majority. The superset is
+    the parser's — a borderless or HTML table is outside it, which is the
+    `domain:` boundary rather than a hole this pin covers.
 
     red under: add a markdown table under any other section of
     experiments/salvo/REPORT.md."""
@@ -488,9 +667,9 @@ def test_every_scoreboard_column_is_mapped() -> None:
 
 
 def test_a_transcribed_complement_is_caught() -> None:
-    """The defect that shipped: a loss rate written as `100 - win rate` instead
-    of the measured value. One tenth of a point, and it is the reason the
-    tolerance is half of the last printed place rather than a round number."""
+    """A loss rate printed as `100 - win rate` instead of the measured value.
+    One tenth of a point separates the two, which is why the tolerance is half
+    of the last printed place rather than a round number."""
     mutated = _REPORT.read_text().replace("**64.1 / 35.8**", "**64.1 / 35.9**")
     assert "35.9" in mutated, "the probe did not apply"
     found = cell_mismatches(mutated)
