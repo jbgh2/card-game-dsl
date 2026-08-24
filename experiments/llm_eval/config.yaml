@@ -59,6 +59,12 @@ store_infostates: false
 #
 # Wall clock is the tighter constraint in practice: ~210 sequential API calls
 # per game is 7-15 minutes, so N=20 is 2.5-5 hours per matchup.
+#
+# `window:` says how much spend a cap counts, read from the tree's spend log:
+# `invocation` (the default, and this file's — a ceiling on one process),
+# `day`, a rolling `<N>h` such as `24h`, or `all`. Set it when the session is
+# many invocations, which is what a multi-day run is; the log is written
+# either way, so turning a window on later has history to read.
 token_budget:
   max_input_tokens: 40000000
   max_output_tokens: 800000
