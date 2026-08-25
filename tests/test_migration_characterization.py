@@ -30,10 +30,11 @@ hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capt
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
 
 A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
-seed it holds: `poker_betting`'s `raise` climbs to the next RUNG of the street's
-ladder instead of adding a bet size to wherever the bet stands (issue #431).
-Those are the same thing on every street that opens with no bet or with one the
-size of the street, which is every street of every other consumer — so this is
+seed it holds: `poker_betting`'s `raise` COMPLETES a standing bet short of the
+street's size to that size, instead of adding a size on top of it (issue #431).
+It still adds a size from anywhere else, which is every street of every other
+consumer — those open with no bet at all or with one exactly the street's size —
+so this is
 the rare library change with a measured whole-tree negative: capturing per-seed
 scores and per-hand stack vectors before and after moves 0 of 12 seeds for Kuhn,
 Leduc, Hold'em and heads-up Hold'em, and 12 of 12 for Stud. Stud is the one
@@ -48,8 +49,18 @@ tests/test_poker_betting_sizing.py, which drives each move from a hand-built
 standing bet — because a characterization vector shows that something repriced,
 never that it repriced correctly.
 
-A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on 5 of its
-50 seeds: an all-in that moves the standing bet less than half as far as a full
+`holdem_hands.json` is PINNED here rather than regenerated: three-handed
+Hold'em is the corpus's other multi-seat betting game and had no per-seed vector
+at all, so a change to the order the family asks its seats moved its whole tree
+with nothing in this suite reporting it (issue #427). Three changes in a row did
+exactly that and were checked by hand. Its cost was measured rather than assumed
+— the issue expected Hold'em to be the expensive one, and it is the cheaper:
+2.4s against Stud's 4.7s over ten seeds, and a smaller vector, because Hold'em's
+hands are shorter even though its matches are not. Pinned at the same fifty
+seeds Stud holds.
+
+A SEVENTH sanctioned regeneration covers `seven-card-stud_hands.json` on 5 of
+its 50 seeds: an all-in that moves the standing bet less than half as far as a full
 raise is now action only — it re-opens nothing and spends none of the street's
 counted aggressions, and the seats already in answer it with call or fold alone
 (issue #442, the operator's half-bet ruling). That changes who is ASKED and what
@@ -192,6 +203,7 @@ CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
     "french-tarot": ("french-tarot_scores.json",),
     "skat": ("skat_scores.json", "skat_hands.json"),
     "seven-card-stud": ("seven-card-stud_hands.json",),
+    "holdem": ("holdem_hands.json",),
     "tichu": ("tichu_scores.json", "tichu_hands.json"),
     "bigtwo": ("bigtwo_scores.json",),
     "cribbage": ("cribbage_hands.json",),
@@ -302,17 +314,16 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
 # values, same count, but a signal that does not depend on how the showdown is
 # implemented. That independence is what makes this a net across a
 # reimplementation of it rather than a restatement of one.
-_STUD_CAPTURE = """
+_PER_HAND_CAPTURE = """
 import json, random, sys
 from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
-game = check_dsl(
-    Path("docs/games/seven-card-stud.cardlang").read_text(), "seven-card-stud.cardlang"
-)
+name = sys.argv[1]
+game = check_dsl(Path(f"docs/games/{name}.cardlang").read_text(), f"{name}.cardlang")
 out = {}
-for seed in range(int(sys.argv[1])):
+for seed in range(int(sys.argv[2])):
     hands = []
 
     def tracer(event, data, _h=hands):
@@ -325,10 +336,10 @@ print(json.dumps(out))
 """
 
 
-def _capture_stud_hands() -> dict[str, Any]:
+def _capture_per_hand_stacks(name: str) -> dict[str, Any]:
     env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
-        [sys.executable, "-c", _STUD_CAPTURE, str(seeds_for("seven-card-stud"))],
+        [sys.executable, "-c", _PER_HAND_CAPTURE, name, str(seeds_for(name))],
         cwd=REPO,
         env=env,
         capture_output=True,
@@ -339,9 +350,27 @@ def _capture_stud_hands() -> dict[str, Any]:
     return result
 
 
-def test_stud_migration_preserves_per_hand_stacks() -> None:
-    expected = json.loads((GOLDEN / "seven-card-stud_hands.json").read_text())
-    assert_golden_seeds("seven-card-stud", _capture_stud_hands(), expected)
+@pytest.mark.parametrize("name", ["seven-card-stud", "holdem"])
+def test_the_betting_games_per_hand_stacks_are_pinned(name: str) -> None:
+    """The stack vector after every hand, for the two games with three or more
+    seats at the betting ring.
+
+    Both are here for the same reason and it is not the settlement: a change to
+    the ORDER the family asks its seats moves the whole tree of a multi-seat
+    game and nothing else in the suite reports it by name. The greedy `legal[0]`
+    line the readiness proofs and playouts walk is check/call throughout, so no
+    street is ever re-opened and every traversal yields the same sequence on it.
+    Two seats cannot see it either — their orders coincide — which is why Kuhn,
+    Leduc and heads-up Hold'em are absent rather than merely unpinned.
+
+    red under: in `AuctionForm.next_actor`, replace the pointer read
+    `player = order[pointer % len(order)]` with a scan from the leader,
+    `player = next(p for p in order if p in participants)`. RUN, not predicted:
+    both games' vectors move on every swept seed.
+    """
+    (golden,) = CAPTURE_GOLDENS[name]
+    expected = json.loads((GOLDEN / golden).read_text())
+    assert_golden_seeds(name, _capture_per_hand_stacks(name), expected)
 
 
 # Tichu (climbing + the combination model) moves its whole hand — pushing, the
