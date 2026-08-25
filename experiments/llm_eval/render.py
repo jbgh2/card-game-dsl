@@ -29,7 +29,9 @@ Contract
 Assumes: an information state for `docs/games/cheat.cardlang` specifically. The
 state vocabulary is Cheat's, and an unexpected zone or variable RAISES rather
 than passing through unrendered — a silently-dropped field would be information
-loss disguised as formatting.
+loss disguised as formatting. `challenged`/`challenger` are held to the same
+bar by a refusal rather than a rendering: no decision point exhibits them set,
+so there is no faithful sentence for a state that does.
 Establishes: English carrying exactly the facts `infostate.parse` reads.
 Illegal after: adding a sentence to this module that is not recoverable by
 `recover()`.
@@ -108,37 +110,48 @@ def render_state(info_state: str) -> str:
 
     # --- the decision context ------------------------------------------------
     #
-    # THE fix this arm exists to test. In the raw string, `claimant`,
-    # `claim_count`, `challenged` and `challenger` describe the play that just
-    # RESOLVED whenever `window_open` is False, while `claim_rank` has already
-    # advanced to the next turn's rank. Nothing marks the difference, and models
-    # read the five as one coherent record — then correctly infer a rank one step
-    # too far. Every fact is still stated below; the framing tells you which play
-    # each belongs to.
+    # Three moments, and the raw string tells them apart by `claimant` and
+    # `window_open` alone: no play stands (the announce), a play is being
+    # assembled face down by its own claimant (the card picks), or a play
+    # stands and the window is open (the challenge). Naming the moment is the
+    # substance of this arm — the same facts, framed as the question being
+    # asked rather than as a record to be decoded.
     rank = info.claim_rank
     if rank not in RANK_PLURAL:
         raise ValueError(f"claim_rank {rank!r} is not a rank this renderer knows")
     open_window = info.state["window_open"] == "True"
-    challenged = info.state["challenged"] == "True"
+    claimant = info.claimant
+    if info.state["challenged"] == "True" or info.state["challenger"] != "None":
+        # No decision is offered between a call and its adjudication: the call
+        # closes the window, the flip and pickup follow with nobody to ask, and
+        # `resolve_play` clears the verdict. So these two never reach a prompt,
+        # and a state carrying one is not a state this renderer can be faithful
+        # about — refusing beats quietly dropping the only fact that varies.
+        raise ValueError(
+            "render_state: `challenged`/`challenger` are set, which no decision "
+            "point in Cheat exhibits — this is not an information state the "
+            "game produces"
+        )
     lines.append("")
     if open_window:
         lines.append(
-            f"RIGHT NOW: seat {info.claimant} has played {info.claim_count} cards "
+            f"RIGHT NOW: seat {claimant} has played {info.claim_count} cards "
             f"face down, claiming they are {RANK_PLURAL[rank]}. You are deciding "
             f"whether to call \"Cheat!\" on that claim."
         )
-    else:
+        lines.append(f"Seat {info.state['responder']} is the window's rotation cursor.")
+    elif claimant is None:
         lines.append(
             f"RIGHT NOW: it is your play. You must call your cards as "
             f"{RANK_PLURAL[rank]}."
         )
+        lines.append("No play stands: nothing is waiting to be challenged.")
+    else:
         lines.append(
-            f"Already resolved: the previous play was seat {info.claimant}'s, "
-            f"claiming {info.claim_count} cards. It was "
-            f"{'challenged by seat ' + info.state['challenger'] if challenged else 'not challenged'}."
+            f"RIGHT NOW: seat {claimant} has announced {info.claim_count} cards "
+            f"as {RANK_PLURAL[rank]} and is choosing which cards to put down."
         )
     lines.append(f"The challenge window is {'open' if open_window else 'closed'}.")
-    lines.append(f"Seat {info.state['responder']} is the window's rotation cursor.")
 
     won = re.findall(r"(\d+):(True|False)", info.state["won"])
     out = [s for s, w in won if w == "True"]
@@ -185,18 +198,21 @@ def recover(rendered: str) -> dict[str, object]:
         m = need(r"seat (\d+) has played (\d+) cards face down, claiming they are (\w+)")
         facts["claimant"], facts["claim_count"] = int(m.group(1)), int(m.group(2))
         facts["claim_rank"] = PLURAL_TO_RANK[m.group(3)]
-        facts["challenged"] = False
-    else:
+        facts["responder"] = int(
+            need(r"Seat (\d+) is the window's rotation cursor").group(1)
+        )
+    elif "No play stands" in rendered:
         facts["claim_rank"] = PLURAL_TO_RANK[
             need(r"You must call your cards as (\w+)\.").group(1)
         ]
-        m = need(r"previous play was seat (\d+)'s, claiming (\d+) cards")
+        facts["claimant"], facts["claim_count"] = None, 0
+        facts["responder"] = None
+    else:
+        m = need(r"seat (\d+) has announced (\d+) cards as (\w+) and is choosing")
         facts["claimant"], facts["claim_count"] = int(m.group(1)), int(m.group(2))
-        facts["challenged"] = "It was challenged by seat" in rendered
-    if facts["challenged"]:
-        facts["challenger"] = int(need(r"challenged by seat (\d+)").group(1))
+        facts["claim_rank"] = PLURAL_TO_RANK[m.group(3)]
+        facts["responder"] = None
     facts["window_open"] = "The challenge window is open." in rendered
-    facts["responder"] = int(need(r"Seat (\d+) is the window's rotation cursor").group(1))
     m = re.search(r"Seats that have gone out: ([\d, ]+)\.", rendered)
     facts["won"] = sorted(int(x) for x in m.group(1).split(",")) if m else []
     facts["obs"] = rendered.split("Your complete event log, oldest first:\n", 1)[1]

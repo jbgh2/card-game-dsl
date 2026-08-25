@@ -44,7 +44,9 @@ reshuffles, and redraws; every influence loss is a chosen movement by the
 loser, flipped publicly into `revealed` (everyone sees the lost card — real
 Coup); the exchange draws off the top, returns two chosen cards, and
 reshuffles. Window results (`challenge_stands` / `block_stands`) are public
-phase state. Coins are integers (always 50 in total, the treasury clamping
+phase state, and every window field is cleared where the action that opened
+it resolves, so the seat asked for its turn reads no verdict and no claimant
+from the action just settled. Coins are integers (always 50 in total, the treasury clamping
 every gain) and influence cards conserve to 15. `alive[p]` is a Boolean —
 true while a player is in, false once exiled — so `winner: highest alive`
 names the survivor. The three blocks the game repeats — the challenge window
@@ -80,13 +82,18 @@ game Coup {
   phase play {
     state {
       turn             : Player  = 0
-      challenge_stands : Boolean = true
+      // Everything below belongs to ONE action and its windows, and holds
+      // its idle value between actions: `clear_windows` runs where the
+      // action resolves, so the seat asked for its turn reads no verdict
+      // and no claimant from the action that just settled. `turn` is the
+      // exception — it is the rotation itself, and outlives every action.
+      challenge_stands : Boolean = true   // idle: no claim is pending to disprove
       block_stands     : Boolean = false
       challenged       : Boolean = false
-      challenger       : Player  = 0
+      challenger       : Player? = none
       block_claim      : Rank?   = none
-      blocker          : Player  = 0
-      responder        : Player  = 0
+      blocker          : Player? = none
+      responder        : Player? = none
       window_open      : Boolean = false
     }
 
@@ -113,6 +120,20 @@ game Coup {
 // The challenge window on a claim: everyone else, clockwise from the claimant,
 // is offered [challenge, allow]; the first challenge closes the window. Leaves
 // its verdict in `challenged` (and the challenger's seat in `challenger`).
+// The idle state of an action's bookkeeping, run where the action resolves.
+// Reset at the END of the action rather than the start of the next one: the
+// two differ exactly at the turn decision in between, which is where the
+// asking seat reads the state.
+procedure clear_windows() {
+  challenged := false
+  challenger := none
+  block_claim := none
+  blocker := none
+  responder := none
+  challenge_stands := true
+  block_stands := false
+}
+
 procedure challenge_window(claimant : Player) {
   challenged := false
   window_open := true
@@ -248,6 +269,7 @@ move_type foreign_aid {
       treasury -= g
       coins[actor] += g
     }
+    run clear_windows()
   }
 }
 
@@ -270,6 +292,7 @@ move_type tax {
       treasury -= g
       coins[actor] += g
     }
+    run clear_windows()
   }
 }
 
@@ -314,6 +337,7 @@ move_type steal(target : Player) {
         coins[actor] += amt
       }
     }
+    run clear_windows()
   }
 }
 
@@ -338,6 +362,7 @@ move_type exchange {
       move chosen n cards from influence[actor] to court_deck
       shuffle court_deck
     }
+    run clear_windows()
   }
 }
 
@@ -392,6 +417,7 @@ move_type assassinate(target : Player) {
         run lose_influence(target)
       }
     }
+    run clear_windows()
   }
 }
 ```

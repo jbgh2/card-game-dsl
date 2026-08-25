@@ -64,7 +64,10 @@ def test_round_trip_preserves_every_fact(states: list[str]) -> None:
         assert got["claim_count"] == info.claim_count
         assert got["claimant"] == info.claimant
         assert got["window_open"] == (info.state["window_open"] == "True")
-        assert got["responder"] == int(info.state["responder"])
+        raw_responder = info.state["responder"]
+        assert got["responder"] == (
+            None if raw_responder == "None" else int(raw_responder)
+        )
         assert got["pile"] == info.zones["pile"]
         assert got["played"] == info.zones["played"]
         assert got["deck"] == info.zones["deck"]
@@ -111,7 +114,7 @@ def test_indistinguishable_states_render_identically() -> None:
     different ones do not collapse together."""
     a = (
         "P1|deck=#0;flipped=[];pile=#3;played=#2;hand[0]=#12;hand[1]=[A♠,2♥,K♣];"
-        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;claim_count=2;"
+        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=None;claim_count=2;"
         "claim_rank=9;claimant=0;responder=1;window_open=True;"
         "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
     )
@@ -122,32 +125,68 @@ def test_indistinguishable_states_render_identically() -> None:
         build_prompt(RULES_RENDERED, render_state(b), ["allow", "call_cheat"])
 
 
-def test_the_stale_field_trap_is_disambiguated() -> None:
-    """The defect this arm exists to fix, stated as a test.
+def test_each_decision_context_is_named() -> None:
+    """Three moments share the `state:` vocabulary, and the rendering says
+    which one the reader is in.
 
-    With the window CLOSED, `claimant`/`claim_count`/`challenged` describe the
-    play that just resolved while `claim_rank` has already advanced to the
-    reader's own turn. The raw string marks no difference; the rendering must.
+    `claim_rank` is the cycle's position at all three, which is what a reader
+    taking the record as one moment gets wrong: it names the standing play's
+    call while a play stands, and the reader's OWN required call between
+    plays. The other fields distinguish the moments rather than describing a
+    play that has already resolved.
     """
+    zones = (
+        "P0|deck=#0;flipped=[];pile=#4;played=#0;hand[0]=[9♣,9♥,Q♠];hand[1]=#11;"
+        "hand[2]=#16;hand[3]=#13|state:"
+    )
+    won = ";won={0:False,1:False,2:False,3:False}|obs:('announce', 3, 'play_two')"
+
+    announce = render_state(
+        zones + "challenged=False;challenger=None;claim_count=0;claim_rank=9;"
+        "claimant=None;responder=None;window_open=False" + won
+    )
+    assert "it is your play. You must call your cards as Nines." in announce
+    assert "No play stands" in announce
+
+    picking = render_state(
+        zones.replace("played=#0", "played=#1")
+        + "challenged=False;challenger=None;claim_count=2;claim_rank=9;"
+        "claimant=0;responder=None;window_open=False" + won
+    )
+    assert "seat 0 has announced 2 cards as Nines and is choosing" in picking
+
+    window = render_state(
+        zones.replace("played=#0", "played=#2")
+        + "challenged=False;challenger=None;claim_count=2;claim_rank=9;"
+        "claimant=3;responder=0;window_open=True" + won
+    )
+    assert "seat 3 has played 2 cards face down, claiming they are Nines" in window
+
+    for text, claimant, count in ((announce, None, 0), (picking, 0, 2), (window, 3, 2)):
+        got = recover(text)
+        assert got["claim_rank"] == "9"
+        assert got["claimant"] == claimant and got["claim_count"] == count
+
+
+def test_a_state_carrying_a_verdict_is_refused() -> None:
+    """`challenged`/`challenger` are set only between the call and its
+    adjudication, where nobody is asked to decide. A state carrying one is not
+    one the game produces, and the renderer has no faithful sentence for it —
+    so it refuses rather than dropping the field."""
     raw = (
-        "P0|deck=#0;flipped=[];pile=#0;played=#0;hand[0]=[9♣,9♥,Q♠];hand[1]=#11;"
-        "hand[2]=#16;hand[3]=#13|state:challenged=True;challenger=0;claim_count=2;"
+        "P0|deck=#0;flipped=[];pile=#0;played=#0;hand[0]=[9♣];hand[1]=#11;"
+        "hand[2]=#16;hand[3]=#13|state:challenged=True;challenger=1;claim_count=2;"
         "claim_rank=9;claimant=3;responder=0;window_open=False;"
         "won={0:False,1:False,2:False,3:False}|obs:('announce', 3, 'play_two')"
     )
-    text = render_state(raw)
-    assert "it is your play. You must call your cards as Nines." in text
-    assert "Already resolved: the previous play was seat 3's" in text
-    # Both facts survive, correctly attributed — the count belongs to the
-    # resolved play, the rank to the reader's own turn.
-    got = recover(text)
-    assert got["claim_rank"] == "9" and got["claim_count"] == 2 and got["claimant"] == 3
+    with pytest.raises(ValueError, match="no decision point in Cheat exhibits"):
+        render_state(raw)
 
 
 def test_open_window_names_the_claimant_and_rank() -> None:
     raw = (
         "P1|deck=#0;flipped=[];pile=#5;played=#3;hand[0]=#12;hand[1]=[A♠,2♥];"
-        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;claim_count=3;"
+        "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=None;claim_count=3;"
         "claim_rank=K;claimant=0;responder=1;window_open=True;"
         "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_three')"
     )
@@ -161,7 +200,7 @@ def test_unknown_state_vocabulary_raises() -> None:
     it would silently drop from the prompt."""
     raw = (
         "P0|deck=#0;flipped=[];pile=#0;played=#0;hand[0]=[9♣]|state:challenged=False;"
-        "challenger=0;claim_count=1;claim_rank=9;claimant=0;responder=0;"
+        "challenger=None;claim_count=1;claim_rank=9;claimant=0;responder=0;"
         "window_open=False;won={0:False};mystery=7|obs:"
     )
     with pytest.raises(ValueError, match="unknown="):
@@ -200,7 +239,7 @@ def test_agent_arm_switch_selects_the_right_prompt() -> None:
         player=1,
         infostate=(
             "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
-            "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
+            "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=None;"
             "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
             "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
         ),
@@ -236,7 +275,7 @@ ALL_KEYS = {key for arm in RESPONSE_ARMS.values() for key in arm.keys}
 
 INFO_WINDOW = (
     "P1|deck=#0;flipped=[];pile=#0;played=#2;hand[0]=#12;hand[1]=[A♠,2♥];"
-    "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=0;"
+    "hand[2]=#13;hand[3]=#13|state:challenged=False;challenger=None;"
     "claim_count=2;claim_rank=A;claimant=0;responder=1;window_open=True;"
     "won={0:False,1:False,2:False,3:False}|obs:('announce', 0, 'play_two')"
 )

@@ -226,35 +226,8 @@ CELLS: list[tuple[str, str]] = [
     for var, _idle in episode.idle
 ]
 
-# The cells the games fail before they clear a window where it ends. Authored
-# from the red run, so the grid's capacity to fail is what these record; the
-# game edits take the marks off, and `strict` reddens a mark left behind.
-RED_BEFORE_FIX: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("cheat.cardlang", v)
-        for v in ("claimant", "claim_count", "challenged", "challenger", "responder")
-    }
-    | {
-        ("coup.cardlang", v)
-        for v in (
-            "challenged", "challenger", "block_claim", "blocker", "responder",
-            "challenge_stands", "block_stands",
-        )
-    }
-    | {("gin-rummy.cardlang", v) for v in ("arranging", "defending")}
-)
-
 PARAMS = [
-    pytest.param(
-        filename,
-        var,
-        id=f"{filename.removesuffix('.cardlang')}:{var}",
-        marks=(
-            [pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #192")]
-            if (filename, var) in RED_BEFORE_FIX
-            else []
-        ),
-    )
+    pytest.param(filename, var, id=f"{filename.removesuffix('.cardlang')}:{var}")
     for filename, var in CELLS
 ]
 

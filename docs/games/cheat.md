@@ -69,7 +69,11 @@ model. The claim itself — `claim_rank`, `claim_count`, `claimant`, and the
 window state — is ordinary public state: decisions.md's modeling rule ("a
 public assertion is a state variable *because* it is public, while the
 concealed truth it may misrepresent sits in a face-down zone") in its purest
-corpus form.
+corpus form. Every field of that claim belongs to ONE play and is cleared
+where the play resolves, so a seat asked to announce reads no claimant, no
+count and no verdict: the settled play's record is in each observer's event
+log, which is where a fact about the past belongs. `claim_rank` alone belongs
+to the table rather than to a play, and steps once per play.
 
 **The information-set point.** Cheat is the corpus's **compound
 hidden-function probe** for
@@ -119,12 +123,18 @@ game Cheat {
   }
 
   state {
-    claim_rank  : Rank?   = none    // the rank the standing play is called as
-    claim_count : Integer = 0       // how many cards the standing play claims to be
-    claimant    : Player  = 0       // whose play stands in the window
+    // `claim_rank` belongs to the TABLE: it is the cycle's position, so it
+    // names what a standing play is called as while one stands and what the
+    // next play must call between plays. Every other field below belongs to
+    // one PLAY, and holds its idle value whenever no play stands — the
+    // announce sets them, `resolve_play` clears them, and a seat asked for
+    // its turn therefore reads nothing about the play that just resolved.
+    claim_rank  : Rank?   = none    // the cycle's rank; what the next play must call
+    claim_count : Integer = 0       // cards the standing play claims (0: none stands)
+    claimant    : Player? = none    // whose play stands, announce to resolution
     challenged  : Boolean = false   // did anyone call "Cheat!" on it?
-    challenger  : Player  = 0       // who called (meaningful only once `challenged`)
-    responder   : Player  = 0       // the window's rotation cursor
+    challenger  : Player? = none    // who called
+    responder   : Player? = none    // the open window's rotation cursor
     window_open : Boolean = false
     won[player] : Boolean = false   // set for the survivor of the winning play
   }
@@ -145,6 +155,7 @@ game Cheat {
 
 move_type play_one {
   effect {
+    claimant := actor
     claim_count := 1
     move chosen one card from hand[actor] to played
     run resolve_play(actor)
@@ -154,6 +165,7 @@ move_type play_one {
 move_type play_two {
   when: (number of cards in hand[actor]) >= 2
   effect {
+    claimant := actor
     claim_count := 2
     move chosen 2 cards from hand[actor] to played
     run resolve_play(actor)
@@ -163,6 +175,7 @@ move_type play_two {
 move_type play_three {
   when: (number of cards in hand[actor]) >= 3
   effect {
+    claimant := actor
     claim_count := 3
     move chosen 3 cards from hand[actor] to played
     run resolve_play(actor)
@@ -172,6 +185,7 @@ move_type play_three {
 move_type play_four {
   when: (number of cards in hand[actor]) >= 4
   effect {
+    claimant := actor
     claim_count := 4
     move chosen 4 cards from hand[actor] to played
     run resolve_play(actor)
@@ -194,7 +208,6 @@ move_type allow {
 // window (first call closes it), then flip-judge-collect or a quiet merge,
 // the shed-out check, and the cycle step.
 procedure resolve_play(who : Player) {
-  claimant := who
   challenged := false
   window_open := true
   responder := who
@@ -220,6 +233,12 @@ procedure resolve_play(who : Player) {
   }
   if hand[who] is empty { won[who] := true }
   claim_rank := next_rank(claim_rank)
+  // The play stops standing here, so its fields stop describing anything.
+  claimant := none
+  claim_count := 0
+  challenged := false
+  challenger := none
+  responder := none
 }
 
 // The fixed claim cycle: A, 2, ... 10, J, Q, K, back to A.
