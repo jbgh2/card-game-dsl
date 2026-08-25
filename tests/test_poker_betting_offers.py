@@ -24,7 +24,22 @@ domain:          every combination of the situation a `when:` in
                  `requires` state the GAME writes — Stud's bring-in sets
                  `bet_to_match` and `raises` by hand — so a combination no move
                  of the library reaches is still a combination a designer can
-                 declare into being.
+                 declare into being. Three things are held fixed rather than
+                 crossed, and each is held by an argument. The OFFERING LIST is
+                 the library's whole vocabulary: a consumer may name a subset
+                 (Kuhn omits `raise`), but a move a game does not name is not
+                 offered whatever its guard says, which is decisions.md's "A
+                 member offers a subset of the family vocabulary, at no cost"
+                 and is pinned at the OpenSpiel target by
+                 tests/openspiel_ready/test_kuhn_poker.py. The game-local `fold`
+                 is outside the library and so outside this module: every
+                 consumer guards it on `bet_to_match > bet_by[actor]`, which
+                 makes it `check`'s exact complement, and its ABSENCE from the
+                 seat this change admits — a seat owing nothing has nothing to
+                 fold against — is asserted in
+                 tests/test_playout_holdem_heads_up.py. The DECISION SITE is the
+                 `round` form; `execute._offer` enumerates candidates a second
+                 time for `offer to`, which no game in this family uses.
 registry:        vocabulary and state surface: `n.Library.move_types`,
                  `.requires` and `.state` of `libraries.load_library`
                  ("poker_betting"); consumers: the `uses` lines of
@@ -306,6 +321,13 @@ def test_every_declared_variable_is_an_axis_or_reads_in_no_guard() -> None:
     it by reading in no `when:` at all, which is computed here rather than
     asserted: `committed` is side-pot bookkeeping and `limit` sizes an
     aggression's payment, and neither decides whether a move is legal.
+
+    Neither is inert, though, and they are left out for different reasons:
+    `committed` only accumulates for the side-pot query, while `limit` sizes
+    what an aggression PAYS — so it shapes the `bet_to_match` a LATER decision
+    is offered against, through `bet`'s effect rather than through any guard.
+    This module drives one bet size; what the chips then do is the playout
+    modules' to pin.
 
     red under: add `and limit > 0` to any `when:` in the library — `limit`
     becomes a guard input no axis varies, and the second assertion names it.
