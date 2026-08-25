@@ -68,6 +68,14 @@ def test_round_trip_preserves_every_fact(states: list[str]) -> None:
         assert got["responder"] == (
             None if raw_responder == "None" else int(raw_responder)
         )
+        # The two fields no sentence states: the rendering carries them by
+        # refusing anything else, so the round-trip has to compare them or the
+        # refusal is the only thing holding a fact nothing checks.
+        assert got["challenged"] == (info.state["challenged"] == "True")
+        raw_challenger = info.state["challenger"]
+        assert got["challenger"] == (
+            None if raw_challenger == "None" else int(raw_challenger)
+        )
         assert got["pile"] == info.zones["pile"]
         assert got["played"] == info.zones["played"]
         assert got["deck"] == info.zones["deck"]

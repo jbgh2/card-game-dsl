@@ -54,6 +54,18 @@ PLURAL_TO_RANK: dict[str, str] = {v: k for k, v in RANK_PLURAL.items()}
 
 COUNT_WORD: dict[int, str] = {1: "one", 2: "two", 3: "three", 4: "four"}
 
+# The fields no sentence below states, because no decision point exhibits them
+# set: nobody is asked anything between a call and its adjudication, and
+# `resolve_play` clears the verdict before the next offer. `render_state`
+# refuses a state that contradicts this and `recover` reports the assumed
+# value, so BOTH read this one table — a guard covering a field the recovery
+# omits is how the two halves drift. (`responder` is idle too, but only while
+# the window is closed, so it is handled per branch.)
+ALWAYS_IDLE: tuple[tuple[str, str, object], ...] = (
+    ("challenged", "False", False),
+    ("challenger", "None", None),
+)
+
 # The exact vocabulary this game's information state can contain. Declared, not
 # discovered: an unknown key means the game changed under the renderer, and the
 # right response is to fail rather than quietly omit a fact from the prompt.
@@ -122,18 +134,14 @@ def render_state(info_state: str) -> str:
         raise ValueError(f"claim_rank {rank!r} is not a rank this renderer knows")
     open_window = info.state["window_open"] == "True"
     claimant = info.claimant
-    # Three fields the sentences below ASSUME idle rather than state, so
-    # `recover` reports them from the shape of the prose. `challenged` and
-    # `challenger` are idle at every decision — no one is asked anything
-    # between a call and its adjudication, and `resolve_play` clears the
-    # verdict before the next offer — and `responder` is a cursor only an open
-    # window has. Assuming is safe exactly while it is checked: an assumption
-    # violated here would be a fact dropped from the prompt, so it refuses.
+    # Assuming is safe exactly while it is checked: an assumption violated
+    # here would be a fact dropped from the prompt, so it refuses. `responder`
+    # joins ALWAYS_IDLE while the window is closed — a cursor only an open
+    # window has.
     assumed_idle = [
         name
         for name, idle in (
-            ("challenged", "False"),
-            ("challenger", "None"),
+            *((name, raw) for name, raw, _value in ALWAYS_IDLE),
             *((("responder", "None"),) if not open_window else ()),
         )
         if info.state[name] != idle
@@ -224,6 +232,8 @@ def recover(rendered: str) -> dict[str, object]:
         facts["claimant"], facts["claim_count"] = int(m.group(1)), int(m.group(2))
         facts["claim_rank"] = PLURAL_TO_RANK[m.group(3)]
         facts["responder"] = None
+    for name, _raw, value in ALWAYS_IDLE:
+        facts[name] = value  # stated by the refusal above, not by a sentence
     facts["window_open"] = "The challenge window is open." in rendered
     m = re.search(r"Seats that have gone out: ([\d, ]+)\.", rendered)
     facts["won"] = sorted(int(x) for x in m.group(1).split(",")) if m else []
