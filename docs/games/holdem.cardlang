@@ -144,9 +144,13 @@ game Holdem {
       for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
       for each player p: if in_hand[p] { deal 1 card from deck to hole[p] }
 
-      // Pre-flop. Action begins with the first entrant left of the big blind —
-      // heads-up that is the button, which is the small blind, so the button
-      // acts first pre-flop and last afterwards, exactly as the rules require.
+      // Pre-flop. The betting begins with the first entrant left of the big
+      // blind — heads-up that is the button, which is the small blind, so the
+      // button decides first pre-flop and last afterwards, exactly as the rules
+      // require. The big blind therefore decides last, and limped to it holds
+      // its option: `raise` beside `check`, because a post placed before the
+      // round begins is not a turn taken within it and the seat is still
+      // pending (decisions.md, "Named functions").
       //
       // The guard is the round's own `until` terminator, negated: run the street
       // exactly when it would not close on entry. A plain "two can act" test is

@@ -13,6 +13,22 @@
 // seats its bet re-opened — poker's continuation order. `until` is checked
 // before every draw, so a street closes the moment nobody is pending rather
 // than at the end of a lap.
+//
+// THE BRING-IN POSTER HOLDS THE OPTION — this variant's own rule, pinned here
+// because no authority settles it. Called around, the seat that posted the
+// bring-in may raise its own post as well as check, exactly as Hold'em's big
+// blind may: the library reaches it because a post placed before the round
+// begins is not a turn taken within it (decisions.md, "Named functions"), and
+// nothing the library can read separates the two forced posts. Pagat, fetched
+// live, describes only the SUBSEQUENT players' rights ("subsequent players have
+// the option to complete the bet to a small bet ($5), to call the bring-in ($2)
+// or to fold") and is silent on the poster's own later turn, on the variant page
+// and on poker/rules/betting.html alike — where the big blind's option is
+// spelled out. So this is a choice, made once and recorded, not a rule quoted
+// from a source. What the poster's raise then COSTS is a separate matter and a
+// separate defect: 3rd street's ladder runs 2/7/12 where the rules say 2/5/10
+// (issue #431).
+//
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL
 // statements; the bring-in / first-to-act seat selectors and the `pot_share`

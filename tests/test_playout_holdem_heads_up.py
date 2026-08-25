@@ -1,10 +1,10 @@
-"""Heads-up fixed-limit Hold'em: random playouts plus the three rules the
+"""Heads-up fixed-limit Hold'em: random playouts plus the four rules the
 invariants can't see.
 
 Chip conservation is the strongest falsifiable check a betting game has, and it
 is checked here at every game end. But conservation is blind to everything about
 WHO is charged and HOW MUCH, so each of the game file's load-bearing claims gets
-its own test. All three below are rules under which a broken game still
+its own test. All four below are rules under which a broken game still
 conserves chips, still terminates, and still looks legal:
 
 - the BETS-PER-STREET table (`test_four_aggressions_per_street_is_the_cap`,
@@ -25,7 +25,12 @@ conserves chips, still terminates, and still looks legal:
   _first_preflop`). Pagat reverses the blinds heads-up: the button posts the
   SMALL blind, so it acts first pre-flop and last on every later street. Swap
   the two seats and the game is still a legal, chip-conserving poker game
-  played by the wrong rules.
+  played by the wrong rules;
+- the BIG BLIND'S OPTION (`test_the_big_blind_is_offered_the_raise_it_is_owed`).
+  Limped to, the big blind may raise its own forced post. A game that offers it
+  `check` alone conserves chips and still reaches every documented cap — through
+  small-blind-raise, big-blind-raise, small-blind-raise — so only the offered
+  list can see the missing node.
 
 The hook for the state-reading tests is the chooser, as in
 tests/test_playout_holdem.py: phase state is unwound by the time a decision
@@ -299,3 +304,34 @@ def test_the_button_posts_the_small_blind_and_acts_first_preflop() -> None:
             f"the {_STREET_NAME[board]} was opened by {by_street[board]} — "
             f"every street after the flop is opened by the big blind (seat 1)"
         )
+
+
+def test_the_big_blind_is_offered_the_raise_it_is_owed() -> None:
+    """Limped to, the big blind is offered `raise` beside `check` — and no more.
+
+    The line is scripted rather than sampled: the small blind calls, which is
+    the whole of "a limped pot" heads-up, and the next decision is the big
+    blind's option. Asserting the WHOLE offered list is what makes this a pin on
+    the rule rather than on `raise` alone — `fold` must be absent (a seat that
+    owes nothing has nothing to fold against) and `bet` must be absent (a bet
+    stands), so a guard that admitted the seat too widely fails here just as a
+    guard that shuts it out does.
+    """
+    game = check_source(GAME)
+    offers: list[list[str]] = []
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        offers.append(_names(candidates))
+        if len(offers) == 1:
+            # The small blind limps in. It is the button heads-up, so this is
+            # the pre-flop street's first decision.
+            assert "call" in offers[0], f"the button was offered {offers[0]}"
+            return [next(c for c in candidates if c[0] == "call")]
+        return list(candidates[:k])
+
+    play_game(game, random.Random(0), None, chooser)
+    assert len(offers) > 1, "the hand ended before the big blind decided"
+    assert sorted(offers[1]) == ["check", "raise"], (
+        f"the big blind facing a limped pot was offered {sorted(offers[1])}, "
+        f"not its option to raise its own post or check behind it"
+    )

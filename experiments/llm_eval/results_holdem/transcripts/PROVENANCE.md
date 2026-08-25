@@ -33,22 +33,26 @@ because the fingerprint checks config and not the code that builds the prompt).
 ## The game tree, which the transcripts also cannot carry
 
 These transcripts record decisions made against the corpus game as it stood at
-that commit, and two betting-order corrections have been ruled on since. The
-first, issue #198, retires the `order priority` value so every betting round
-takes the ring: it moves the decision order of every poker game with three or
+that commit, and two betting corrections have landed since. The first, issue
+#198, retires the `order priority` value so every betting round takes the ring:
+it moves the decision order of every poker game with three or
 more seats and, for a two-seat game, moves nothing — at a street's first decision
 both seats are pending and the pointer is at the leader, so a re-scan from the
 leader picks the seat the pointer already names, and after either seat acts it
 stops being pending. The two traversals agree at every decision. The second,
 issue #237, gives an un-acted seat that owes nothing its `raise` option, which
-DOES move this game: the big blind facing a limped pot gains a decision node it
-was not offered here.
+DOES move this game: the big blind facing a limped pot decides at a node these
+files do not contain. It is visible in the archive rather than inferred — 410 of
+these decisions were offered `check` and nothing else, which under the current
+rules is `check` and `raise`.
 
-So a rate recomputed from these files is a rate against the tree of that run.
-That is what a record of real model responses is for — the transcripts are not
-regenerable (below), so they are read as evidence about the models under a stated
-tree, never as a current benchmark of the corpus game. Both twins disclose the
-open half in their own headers.
+So a rate recomputed from these files is a rate against the tree of that run,
+and that tree is no longer the corpus game's. That is what a record of real
+model responses is for — the transcripts are not regenerable (below), so they
+are read as evidence about the models under a stated tree, never as a current
+benchmark of the corpus game. Re-running under the current tree would draw a
+fresh sample rather than replicate this one, which is why the divergence is
+recorded here instead.
 
 ## Recompute every published rate
 

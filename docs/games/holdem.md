@@ -16,7 +16,9 @@ Each hand:
    burns here as well as before each community stage — four burns a hand,
    where common casino practice burns only three.)
 3. **Pre-flop** betting, begun by the player to the big blind's left. A player
-   may check, bet, call, raise (capped), or fold.
+   may check, bet, call, raise (capped), or fold. The big blind decides last and
+   holds its **option**: limped to, it may raise its own forced post as well as
+   check, because posting is not the same as having taken a turn.
 4. **The flop** — burn one, deal three face-up **community cards** — then a
    betting round begun by the first live player to the button's left.
 5. **The turn** — burn one, deal one — then a betting round. Limits double here

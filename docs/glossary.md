@@ -184,6 +184,7 @@ These carry several meanings each; always qualify them. The ones that also name 
 | [index](glossary/index.md) | definition index (name→def) · rank index (rank→strength) · zone index (the keying domain) · subscript |
 | [kind](glossary/kind.md) | IR node tag (reserved) · AST discriminators (rename per node when touched — → F-9) |
 | [Library](glossary/library.md) | family library · the stdlib is not a library |
+| [option](glossary/option.md) | the option (poker) — a forced poster's right to aggress when the betting comes back to it unraised, which Hold'em's big blind and Stud's bring-in poster hold. Always with its article, and only of that right · never a synonym for [[candidate]], for "legal move" or for "concrete move" (→ F-19) |
 | [order](glossary/order.md) | traversal order (a turn ring, arrival order) · [[trick-order]] (what beats what) · ranking order (`ranking:`, the deck's context-free rank order) · reference order (the order a Trick Order's rows are read in) |
 | [Outcome](glossary/outcome.md) | one meaning only: the tagged result. The player sense is **winner** / **winner function**. Reserved as a declaration name even though no pronoun claims it (`resolve._KEYWORD_RESERVED`); `AuctionRound.outcome_fn` is the tagged sense, qualified because the bare word belongs to the designer's clause |
 | [Round](glossary/round.md) | the round statement/forms · (a "round of the game" is a *hand*) |

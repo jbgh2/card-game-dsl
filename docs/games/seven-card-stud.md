@@ -8,7 +8,12 @@ Fixed-limit Seven-Card Stud — the corpus's first **betting** game. Source:
 Each hand:
 
 1. Every player antes; deal two hole cards and one upcard each.
-2. The lowest upcard (ties by suit) **brings in**.
+2. The lowest upcard (ties by suit) **brings in**. Called around, the seat that
+   posted holds the **option**: it may raise its own post as well as check,
+   because posting is not the same as having taken a turn. Pagat covers only the
+   *subsequent* players' rights and is silent on this moment, where it spells the
+   same option out for Hold'em's big blind — so this is **this file's own rule**,
+   chosen to match the blind rather than quoted from a source.
 3. Five betting streets — 3rd through 7th — interleaved with a dealt card each
    (an upcard on 4th/5th/6th, a face-down card on 7th, a burn before each). On
    each street a player may check, bet, call, raise (capped), or fold; the
@@ -30,7 +35,11 @@ public board, each entrant collects its side-pot share via `pot_share(p)`, and
 the hands leave play to the muck. The Primitives are pure reads: the
 door-card seat selectors (`bring_in_seat` / `first_to_act_seat`) and the
 side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
-The 4th-street open-pair limit doubling is simplified out.
+The 4th-street open-pair limit doubling is simplified out. One further departure
+is a defect rather than a simplification, and is named here rather than left for
+a reader to meet: completing the bring-in adds a full limit on top of it instead
+of raising the bet to it, so 3rd street's ladder runs 2/7/12 where the rules say
+2/5/10 (issue #431).
 
 The betting state splits two ways. What Stud touches it declares itself
 (`bet_to_match`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);

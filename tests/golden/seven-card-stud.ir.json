@@ -3319,23 +3319,60 @@
             "op": "and",
             "left": {
               "kind": "binop",
-              "op": ">",
+              "op": "and",
               "left": {
-                "kind": "name",
-                "name": "bet_to_match",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "subscript",
-                "obj": {
+                "kind": "binop",
+                "op": ">",
+                "left": {
                   "kind": "name",
-                  "name": "bet_by",
+                  "name": "bet_to_match",
                   "ref": "state_var"
                 },
-                "index_expr": {
-                  "kind": "name",
-                  "name": "actor",
-                  "ref": "pronoun"
+                "right": {
+                  "kind": "int",
+                  "value": 0
+                }
+              },
+              "right": {
+                "kind": "binop",
+                "op": "or",
+                "left": {
+                  "kind": "binop",
+                  "op": ">",
+                  "left": {
+                    "kind": "name",
+                    "name": "bet_to_match",
+                    "ref": "state_var"
+                  },
+                  "right": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "bet_by",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "actor",
+                      "ref": "pronoun"
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "not",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "acted",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "actor",
+                      "ref": "pronoun"
+                    }
+                  }
                 }
               }
             },
