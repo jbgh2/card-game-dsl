@@ -3458,15 +3458,57 @@
       "effect": [
         {
           "kind": "let",
-          "name": "owed",
+          "name": "target",
+          "index": null,
+          "value": {
+            "kind": "if_expr",
+            "cond": {
+              "kind": "binop",
+              "op": "<",
+              "left": {
+                "kind": "name",
+                "name": "bet_to_match",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "name",
+                "name": "limit",
+                "ref": "state_var"
+              }
+            },
+            "then": {
+              "kind": "name",
+              "name": "limit",
+              "ref": "state_var"
+            },
+            "elifs": [],
+            "otherwise": {
+              "kind": "binop",
+              "op": "+",
+              "left": {
+                "kind": "name",
+                "name": "bet_to_match",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "name",
+                "name": "limit",
+                "ref": "state_var"
+              }
+            }
+          }
+        },
+        {
+          "kind": "let",
+          "name": "want",
           "index": null,
           "value": {
             "kind": "binop",
             "op": "-",
             "left": {
               "kind": "name",
-              "name": "bet_to_match",
-              "ref": "state_var"
+              "name": "target",
+              "ref": "local"
             },
             "right": {
               "kind": "subscript",
@@ -3480,25 +3522,6 @@
                 "name": "actor",
                 "ref": "pronoun"
               }
-            }
-          }
-        },
-        {
-          "kind": "let",
-          "name": "want",
-          "index": null,
-          "value": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
-              "kind": "name",
-              "name": "owed",
-              "ref": "local"
-            },
-            "right": {
-              "kind": "name",
-              "name": "limit",
-              "ref": "state_var"
             }
           }
         },

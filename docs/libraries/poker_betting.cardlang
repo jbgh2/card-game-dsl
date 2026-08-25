@@ -39,8 +39,13 @@ library poker_betting {
 
   // State this library OWNS. The game may read these — and does not, today —
   // but may not write them: they are pure intra-street bookkeeping, maintained
-  // entirely by the move types and `open_street` below. `limit` is 0 between
-  // streets, which is the reading of "no street is open"; no move runs then.
+  // entirely by the move types and `open_street` below. Both start a GAME at
+  // their defaults and are then only ever reset by `open_street`, never by a
+  // game's per-hand `state` block, which cannot write provided state — so
+  // between one hand's last street and the next hand's first, `limit` still
+  // holds the size it was last opened at. Nothing reads it there, because a
+  // street that runs a `round` opens first; a game that ran one without
+  // `open_street` would size its bets at the previous hand's street.
   state {
     acted[player] : Boolean = false   // has acted since the last aggression
     limit         : Integer = 0       // the open street's bet size
@@ -138,8 +143,20 @@ library poker_betting {
   // A raise must also be able to RAISE. A stack that cannot cover more than the
   // call pays what it has and leaves `bet_to_match` where it was — so offering
   // `raise` there would bump `raises` and clear everyone's `acted`, reopening
-  // action that nobody reopened. A short all-in is a call, and `call` already
+  // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
+  //
+  // A raise climbs to the next RUNG of the street's ladder, which is why the
+  // target is computed rather than added: rungs sit one `limit` apart, and
+  // `bet_to_match + limit` finds the next one only when the standing bet is
+  // already on one. A forced post smaller than the street's size is not — Stud
+  // brings in for 2 where the street runs at 5 — and from there, adding a size
+  // walks a ladder of its own (2, 7, 12) that the rules have no rung for.
+  // Climbing instead COMPLETES the short bet to the first rung, which is the
+  // move Stud's rules name. A standing bet that sits BETWEEN two rungs is the
+  // remaining case and this does not reach it (issue #436): getting back on the
+  // ladder from there needs the standing bet told apart from the current rung,
+  // which is a change to what the library records, not to what it computes.
   move_type raise {
     when: bet_to_match > 0
           and (bet_to_match > bet_by[actor] or not acted[actor])
@@ -147,8 +164,8 @@ library poker_betting {
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
     effect {
-      let owed = bet_to_match - bet_by[actor]
-      let want = owed + limit
+      let target = if bet_to_match < limit then limit else bet_to_match + limit
+      let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay

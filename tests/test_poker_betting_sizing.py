@@ -240,17 +240,6 @@ def _deferred(cell: Cell) -> bool:
     )
 
 
-def _not_yet_on_the_ladder(cell: Cell) -> bool:
-    """Raising from a standing bet BELOW the first rung — Stud's sub-limit
-    bring-in, and any opening bet a short stack could not size to the street.
-    The library adds a bet size to the post instead of climbing to the rung."""
-    return (
-        cell.move == "raise"
-        and 0 < cell.standing < LIMIT
-        and cell.purse == "covers"
-    )
-
-
 _PARAMS = [
     pytest.param(
         cell,
@@ -263,13 +252,6 @@ _PARAMS = [
                 "bet size to it rather than climbing to the rung above",
             )
             if _deferred(cell)
-            else pytest.mark.xfail(
-                strict=True,
-                raises=AssertionError,
-                reason="issue #431: a raise from a bet below the first rung adds "
-                "a bet size to it rather than climbing to the rung",
-            )
-            if _not_yet_on_the_ladder(cell)
             else ()
         ),
     )
