@@ -199,9 +199,17 @@ def _expected(cell: Cell) -> frozenset[str]:
 
     Authored from the rules, never read off the guards. `check` and `call`
     divide by whether the actor owes the standing bet. `bet` opens a street that
-    has none. `raise` needs a bet standing to raise, a seat that has either not
-    yet taken its turn (Pagat's big-blind option) or still owes, a cap with room
-    left, an opponent who can answer, and chips that exceed the call.
+    has none. `raise` needs a bet standing to raise, a seat with a LIVE RIGHT TO
+    ACT — one that has not taken a turn since anything last re-opened the
+    betting to it — a cap with room left, an opponent who can answer, and chips
+    that exceed the call.
+
+    That `acted` is the whole test, rather than "owes or has not acted", is
+    Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`): after an all-in
+    "of less than half a bet", a seat "who has already acted and is in the pot
+    for all previous bets" may "fold, call, or complete the wager" — it owes the
+    short difference and still may not raise. Owing is therefore not a right to
+    raise; having a turn outstanding is.
 
     `bet`'s row is the exception: it CAPTURES what the library does rather than
     what the rules say, because `bet` carries only `bet_to_match is 0` where
@@ -216,7 +224,7 @@ def _expected(cell: Cell) -> frozenset[str]:
     if cell.bet_to_match == 0:
         offered.add("bet")
     elif (
-        (owes or not cell.acted)
+        not cell.acted
         and cell.raises < cell.raise_cap
         and cell.field
         and cell.stack > cell.owed

@@ -3047,8 +3047,40 @@
           "index_expr": null,
           "op": ":=",
           "value": {
-            "kind": "int",
-            "value": 1
+            "kind": "if_expr",
+            "cond": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "binop",
+                "op": "+",
+                "left": {
+                  "kind": "name",
+                  "name": "post",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "post",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "name",
+                "name": "limit",
+                "ref": "state_var"
+              }
+            },
+            "then": {
+              "kind": "int",
+              "value": 1
+            },
+            "elifs": [],
+            "otherwise": {
+              "kind": "name",
+              "name": "raises",
+              "ref": "state_var"
+            }
           }
         },
         {
@@ -3056,19 +3088,48 @@
           "role": "player",
           "binder": "p",
           "body": {
-            "kind": "assign",
-            "target": "acted",
-            "index_expr": {
-              "kind": "name",
-              "name": "p",
-              "ref": "local"
+            "kind": "if",
+            "cond": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "binop",
+                "op": "+",
+                "left": {
+                  "kind": "name",
+                  "name": "post",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "post",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "name",
+                "name": "limit",
+                "ref": "state_var"
+              }
             },
-            "op": ":=",
-            "value": {
-              "kind": "name",
-              "name": "false",
-              "ref": "bool"
-            }
+            "then": [
+              {
+                "kind": "assign",
+                "target": "acted",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "name",
+                  "name": "false",
+                  "ref": "bool"
+                }
+              }
+            ],
+            "else": null
           }
         },
         {
@@ -3334,44 +3395,18 @@
                 }
               },
               "right": {
-                "kind": "binop",
-                "op": "or",
-                "left": {
-                  "kind": "binop",
-                  "op": ">",
-                  "left": {
+                "kind": "not",
+                "operand": {
+                  "kind": "subscript",
+                  "obj": {
                     "kind": "name",
-                    "name": "bet_to_match",
+                    "name": "acted",
                     "ref": "state_var"
                   },
-                  "right": {
-                    "kind": "subscript",
-                    "obj": {
-                      "kind": "name",
-                      "name": "bet_by",
-                      "ref": "state_var"
-                    },
-                    "index_expr": {
-                      "kind": "name",
-                      "name": "actor",
-                      "ref": "pronoun"
-                    }
-                  }
-                },
-                "right": {
-                  "kind": "not",
-                  "operand": {
-                    "kind": "subscript",
-                    "obj": {
-                      "kind": "name",
-                      "name": "acted",
-                      "ref": "state_var"
-                    },
-                    "index_expr": {
-                      "kind": "name",
-                      "name": "actor",
-                      "ref": "pronoun"
-                    }
+                  "index_expr": {
+                    "kind": "name",
+                    "name": "actor",
+                    "ref": "pronoun"
                   }
                 }
               }
@@ -3575,6 +3610,61 @@
           }
         },
         {
+          "kind": "let",
+          "name": "moved",
+          "index": null,
+          "value": {
+            "kind": "binop",
+            "op": "-",
+            "left": {
+              "kind": "binop",
+              "op": "+",
+              "left": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "bet_by",
+                  "ref": "state_var"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "actor",
+                  "ref": "pronoun"
+                }
+              },
+              "right": {
+                "kind": "name",
+                "name": "pay",
+                "ref": "local"
+              }
+            },
+            "right": {
+              "kind": "name",
+              "name": "bet_to_match",
+              "ref": "state_var"
+            }
+          }
+        },
+        {
+          "kind": "let",
+          "name": "full",
+          "index": null,
+          "value": {
+            "kind": "binop",
+            "op": "-",
+            "left": {
+              "kind": "name",
+              "name": "target",
+              "ref": "local"
+            },
+            "right": {
+              "kind": "name",
+              "name": "bet_to_match",
+              "ref": "state_var"
+            }
+          }
+        },
+        {
           "kind": "assign",
           "target": "stack",
           "index_expr": {
@@ -3726,16 +3816,48 @@
           "index_expr": null,
           "op": ":=",
           "value": {
-            "kind": "binop",
-            "op": "+",
-            "left": {
+            "kind": "if_expr",
+            "cond": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "binop",
+                "op": "+",
+                "left": {
+                  "kind": "name",
+                  "name": "moved",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "moved",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "name",
+                "name": "full",
+                "ref": "local"
+              }
+            },
+            "then": {
+              "kind": "binop",
+              "op": "+",
+              "left": {
+                "kind": "name",
+                "name": "raises",
+                "ref": "state_var"
+              },
+              "right": {
+                "kind": "int",
+                "value": 1
+              }
+            },
+            "elifs": [],
+            "otherwise": {
               "kind": "name",
               "name": "raises",
               "ref": "state_var"
-            },
-            "right": {
-              "kind": "int",
-              "value": 1
             }
           }
         },
@@ -3744,19 +3866,48 @@
           "role": "player",
           "binder": "p",
           "body": {
-            "kind": "assign",
-            "target": "acted",
-            "index_expr": {
-              "kind": "name",
-              "name": "p",
-              "ref": "local"
+            "kind": "if",
+            "cond": {
+              "kind": "binop",
+              "op": ">=",
+              "left": {
+                "kind": "binop",
+                "op": "+",
+                "left": {
+                  "kind": "name",
+                  "name": "moved",
+                  "ref": "local"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "moved",
+                  "ref": "local"
+                }
+              },
+              "right": {
+                "kind": "name",
+                "name": "full",
+                "ref": "local"
+              }
             },
-            "op": ":=",
-            "value": {
-              "kind": "name",
-              "name": "false",
-              "ref": "bool"
-            }
+            "then": [
+              {
+                "kind": "assign",
+                "target": "acted",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": ":=",
+                "value": {
+                  "kind": "name",
+                  "name": "false",
+                  "ref": "bool"
+                }
+              }
+            ],
+            "else": null
           }
         },
         {

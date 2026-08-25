@@ -48,6 +48,24 @@ tests/test_poker_betting_sizing.py, which drives each move from a hand-built
 standing bet — because a characterization vector shows that something repriced,
 never that it repriced correctly.
 
+A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on 5 of its
+50 seeds: an all-in that moves the standing bet less than half as far as a full
+raise is now action only — it re-opens nothing and spends none of the street's
+counted aggressions, and the seats already in answer it with call or fold alone
+(issue #442, the operator's half-bet ruling). That changes who is ASKED and what
+they are OFFERED, so it moves the chooser draws wherever a seat is all-in for
+less. `seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1`
+path: six hunks, in `bet`'s and `raise`'s effects and `raise`'s guard.
+
+**This regeneration is also the one that showed the sampling dial can hide a
+real change.** The moved seeds are 10 and above; `DEFAULT_SEEDS` is 10, so the
+comparison slice is 0..9 and this module stayed GREEN across a change that moves
+the game. The golden on disk was stale for 5 seeds it pins while the gate said
+nothing — which is why regeneration happens at the golden's own width and never
+at `seeds_for(...)`, the rule stated further down. A green here bounds the
+slice, not the vector. Hold'em moves on this change too and has no per-seed
+golden at all (issue #427), so its delta was measured by hand.
+
 A FIFTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` now admits a seat that owes nothing but
 has not taken a turn on the street, which is Stud's bring-in poster (issue
