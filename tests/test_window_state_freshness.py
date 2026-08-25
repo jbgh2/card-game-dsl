@@ -51,11 +51,11 @@ registry:        the game axis derives from
                  `cardlang.openspiel.infostate.information_state`, whose
                  own determinism is pinned at
                  tests/openspiel_ready/harness.py.
-does not prove:  nothing about a variable's freshness at a decision INSIDE
-                 an episode — a value that is correct at episode entry may
-                 still be stale at a later decision of the same episode,
-                 which needs a per-window liveness predicate the language
-                 has no way to declare (issue #438).
+does not prove:  nothing about freshness at a decision INSIDE an episode.
+                 The check is anchored at episode entry, where "no episode is
+                 live" is a fact about the game; inside one, which fields are
+                 live varies with the window's own progress, and this module
+                 quantifies over neither.
 """
 
 from __future__ import annotations
