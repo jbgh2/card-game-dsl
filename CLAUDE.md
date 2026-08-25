@@ -133,6 +133,30 @@ law in module docstrings: `Contract` blocks, and completeness ledgers
 measurement lines are themselves dated artifacts. A quoted measurement
 anywhere else is dated or it does not land.
 
+## The game does not bend to the harness (load-bearing)
+
+`docs/games/` describes the game. When the game and the instrument that
+measures it disagree, **the instrument changes**. A rule trimmed because a
+uniform-random playout would not exercise it, or because a random line would
+not terminate, leaves the corpus measuring a game nobody plays — and every
+proof taken against that file is then a proof about the wrong game, however
+green it runs.
+
+Two justifications look alike in a comment and are opposite in kind:
+
+- **"The language cannot express it yet"** is legitimate, and is the engine of
+  this project. The game stays whole, the gap gets a witness and a tracker
+  issue, and the language grows to meet it.
+- **"The harness will not exercise it"** is this rule's defect. The fix is
+  upstream, in the harness — a better playout policy, a different bound, a
+  real oracle — never in the game file.
+
+A game genuinely played in a reduced form is a variant, and its header names
+it as one. A game reduced to suit a test is not a variant; it is a
+measurement error with a comment. The corpus acceptance test below ("A note
+on the games") is what this rule protects: a non-player reads the file cold
+and plays a hand — of the real game.
+
 ## What's here
 
 ```
@@ -163,6 +187,7 @@ docs/
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
 - **"What is this thing called?" / "What may this word mean?"** → `docs/glossary.md` — the generated index, one line per term; the entries themselves are one file per term in `docs/glossary/`, so read the index for the whole vocabulary and open an entry only when that term is the thing in question. The naming authority. Its preamble's usage rules (full phrase, Title Case, one name one shape) bind all new code, comments, diagnostics, and issues; its reserved-words table lists the words never to use unqualified, and each term has its own entry under `docs/glossary/`. Where current code diverges: `docs/design-notes/glossary-findings.md`; renames execute via [epic #204](https://github.com/jbgh2/card-game-dsl/issues/204), when-touched unless an issue rules otherwise.
+- **"May I simplify a game to make it run?"** → "The game does not bend to the harness" (the load-bearing section above); a language gap is a witness and an issue, a harness gap is fixed in the harness
 - **"How do I write a comment / docstring?"** → "Prose states what is" (the load-bearing section above); the full law is `docs/decisions.md`, "Prose names the registry, never the cardinality"
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
@@ -386,7 +411,9 @@ update every game that exercises the changed construct in the same edit.
 The corpus is the set of files in `docs/games/` — one game per file, with
 each file's header naming its exact variant and player count. Each is a
 complete description: a non-player should be able to read the file
-cold and play a hand. That's the acceptance test for clarity.
+cold and play a hand. That's the acceptance test for clarity. What that test is worth
+depends on the file describing the real game, which is the load-bearing
+section "The game does not bend to the harness".
 
 ## Rule references
 
