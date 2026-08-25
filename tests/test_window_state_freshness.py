@@ -147,12 +147,14 @@ def _flag_window_games() -> dict[str, frozenset[str]]:
 
 @dataclass(frozen=True)
 class Episode:
-    """One game's window bookkeeping, as the game declares it.
+    """One game's declarations, classified against its Decision Episode.
 
     `entry_move` names the episode-opening offer: the decision at which no
     episode is live. `idle` is the value each window-scoped variable holds
-    between episodes; `persistent` names the declarations that outlive one
-    by design, so that the two together account for every declaration.
+    between episodes; `persistent` names the declarations that outlive one by
+    design. The classification is authored, not derived — what is pinned is
+    that it is TOTAL against the game's own declarations, so a variable
+    nobody classified reddens rather than going unchecked.
     """
 
     entry_move: str
@@ -164,9 +166,10 @@ class Episode:
 # a DSL `none` is Python `None`, a Player is its seat index.
 EPISODES: dict[str, Episode] = {
     "canasta.cardlang": Episode(
-        # The turn's draw, then the meld attempt it may open. Canasta already
-        # closes its attempt where it ends (`close_meld` clears both), which
-        # is why its rows are green with no change to the game.
+        # The turn's draw, then the meld attempt it may open. Canasta closes
+        # the attempt where the attempt ends — `close_meld` clears both — so
+        # its rows hold on the game as written, which is what makes them the
+        # grid's control: they cannot all be failing for a shared reason.
         entry_move="draw_stock",
         idle=(("turn_done", False), ("taking_pile", False), ("meld_rank", None)),
         persistent=frozenset(
