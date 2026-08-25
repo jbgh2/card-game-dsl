@@ -25,9 +25,9 @@
 // or to fold") and is silent on the poster's own later turn, on the variant page
 // and on poker/rules/betting.html alike — where the big blind's option is
 // spelled out. So this is a choice, made once and recorded, not a rule quoted
-// from a source. What the poster's raise then COSTS is a separate matter and a
-// separate defect: 3rd street's ladder runs 2/7/12 where the rules say 2/5/10
-// (issue #431).
+// from a source. What the poster's raise COSTS is Pagat's own ladder: the
+// bring-in is 2, completing it makes the bet 5 — the street's size, not the
+// bring-in plus it — and a raise from there makes it 10.
 //
 // Antes, the deal, the bring-in post, the five streets, and the showdown (a
 // contested hand's reveal, the per-entrant pot collection, the muck) are all DSL

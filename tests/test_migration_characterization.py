@@ -29,6 +29,25 @@ see issue #83).
 hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
 in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
 
+A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
+seed it holds: `poker_betting`'s `raise` climbs to the next RUNG of the street's
+ladder instead of adding a bet size to wherever the bet stands (issue #431).
+Those are the same thing on every street that opens with no bet or with one the
+size of the street, which is every street of every other consumer — so this is
+the rare library change with a measured whole-tree negative: capturing per-seed
+scores and per-hand stack vectors before and after moves 0 of 12 seeds for Kuhn,
+Leduc, Hold'em and heads-up Hold'em, and 12 of 12 for Stud. Stud is the one
+consumer that opens a street with a forced post SHORTER than the street's size —
+the bring-in of 2 against a 5 — so completing it now makes the bet 5 rather than
+7, and 3rd street runs Pagat's 2/5/10. That reprices every 3rd street, which
+moves the chips, which moves the deal of every later hand.
+`seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1` path:
+two hunks inside `raise`'s effect, the `owed` binding becoming a `target` one.
+The ladder itself is pinned away from these vectors, in
+tests/test_poker_betting_sizing.py, which drives each move from a hand-built
+standing bet — because a characterization vector shows that something repriced,
+never that it repriced correctly.
+
 A FIFTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` now admits a seat that owes nothing but
 has not taken a turn on the street, which is Stud's bring-in poster (issue
