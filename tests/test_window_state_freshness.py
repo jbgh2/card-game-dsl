@@ -29,7 +29,12 @@ property:        in a game that runs a flag-gated decision window, every
                  the decision that opens the next Decision Episode
 domain:          the corpus games that declare a flag window — an
                  offer-bearing `repeat until` gated on a declared Boolean
-                 state variable — crossed with each such game's
+                 state variable. A window written as `round offering ...
+                 until <state>` is a different construct and belongs to the
+                 property in issue #444, which an axis alone cannot reach:
+                 those games reset their accumulator BEFORE each poll, so the
+                 entry anchor below is satisfied and the staleness shows at
+                 another episode's decisions. Crossed with each such game's
                  window-scoped variables. Each game's state declarations
                  partition, totally, into the window-scoped set checked
                  here and the persistent set that outlives an episode by
@@ -113,7 +118,16 @@ def _offering_vocabularies(game: n.Game) -> list[tuple[str, ...]]:
 def _flag_windows(game: n.Game) -> frozenset[str]:
     """The Boolean state variables that gate an offer-bearing `repeat until`
     — the structural signature of a decision window, as opposed to a loop
-    gated on a count or a quantifier over the table."""
+    gated on a count or a quantifier over the table.
+
+    Any MENTION of such a variable in the condition counts, not a match
+    against the spellings the corpus happens to use: `not window_open`,
+    `window_open is false` and `turn_done` are one shape to a designer, and a
+    predicate keyed to two of them would drop the third silently. The cost of
+    the superset is a loop gated on a count AND a flag arriving for
+    classification, which is loud and correct; the cost of the subset is a
+    window nobody checks.
+    """
     booleans = frozenset(
         d.name
         for b in n.state_blocks(game)
@@ -126,11 +140,11 @@ def _flag_windows(game: n.Game) -> frozenset[str]:
             continue
         if not any(isinstance(x, n.Offer) for x in _subnodes(node.body)):
             continue
-        cond = node.until
-        if isinstance(cond, n.Not):
-            cond = cond.operand
-        if isinstance(cond, n.NameRef) and cond.name in booleans:
-            flags.add(cond.name)
+        named = {x.name for x in _subnodes(node.until) if isinstance(x, n.NameRef)}
+        flags |= named & booleans
+    # `RepeatUntil` only: a `round offering ... until` window is the same
+    # defect in another construct, and reaching it needs a stronger property
+    # than this module's entry anchor, not a wider predicate (issue #444).
     return frozenset(flags)
 
 
@@ -149,15 +163,19 @@ def _flag_window_games() -> dict[str, frozenset[str]]:
 class Episode:
     """One game's declarations, classified against its Decision Episode.
 
-    `entry_move` names the episode-opening offer: the decision at which no
-    episode is live. `idle` is the value each window-scoped variable holds
+    `entry` is the episode-opening offer's whole vocabulary: the decision at
+    which no episode is live. Matching the VOCABULARY rather than one of its
+    moves is what keeps the walk total over guarded openings — Coup's turn
+    entry is a forced `coup` once a seat holds ten coins, and keying on
+    `income` (guarded `coins[actor] < 10`) silently dropped exactly those
+    decisions. `idle` is the value each window-scoped variable holds
     between episodes; `persistent` names the declarations that outlive one by
     design. The classification is authored, not derived — what is pinned is
     that it is TOTAL against the game's own declarations, so a variable
     nobody classified reddens rather than going unchecked.
     """
 
-    entry_move: str
+    entry: tuple[str, ...]
     idle: tuple[tuple[str, Any], ...]
     persistent: frozenset[str]
 
@@ -170,7 +188,7 @@ EPISODES: dict[str, Episode] = {
         # the attempt where the attempt ends — `close_meld` clears both — so
         # its rows hold on the game as written, which is what makes them the
         # grid's control: they cannot all be failing for a shared reason.
-        entry_move="draw_stock",
+        entry=("draw_stock", "take_pile"),
         idle=(("turn_done", False), ("taking_pile", False), ("meld_rank", None)),
         persistent=frozenset(
             {
@@ -183,7 +201,7 @@ EPISODES: dict[str, Episode] = {
         # One play: the announce, the face-down discard, the challenge window.
         # `claim_rank` is the table's cycle position, not the play's — it
         # advances once per play and belongs to no episode.
-        entry_move="play_one",
+        entry=("play_one", "play_two", "play_three", "play_four"),
         idle=(
             ("claimant", None),
             ("claim_count", 0),
@@ -198,7 +216,10 @@ EPISODES: dict[str, Episode] = {
         # One turn action and the block/challenge windows it opens.
         # `challenge_stands` idles TRUE: it reads "the claim was not
         # disproved", which is what holds when no claim is pending.
-        entry_move="income",
+        entry=(
+            "income", "foreign_aid", "tax", "steal", "exchange", "coup",
+            "assassinate",
+        ),
         idle=(
             ("challenged", False),
             ("challenger", None),
@@ -214,7 +235,7 @@ EPISODES: dict[str, Episode] = {
     "gin-rummy.cardlang": Episode(
         # The two showdown windows, which open only after a knock; every
         # draw-discard turn happens with neither live.
-        entry_move="draw_stock",
+        entry=("draw_stock", "take_discard"),
         idle=(("arranging", False), ("defending", False)),
         persistent=frozenset(
             {
@@ -253,6 +274,23 @@ def _move_names(candidates: list[Any]) -> frozenset[str]:
     return frozenset(names)
 
 
+def _is_entry(
+    names: frozenset[str], entry: tuple[str, ...], others: list[frozenset[str]]
+) -> bool:
+    """Did this decision come from the episode-entry offer?
+
+    A decision shows the LEGAL subset of its offer's vocabulary, so membership
+    is subset rather than equality — and a subset that would equally fit some
+    other offer of the same game names no offer unambiguously, so it is not
+    counted. Conservative in the safe direction: an ambiguous decision is
+    skipped, never attributed, and the walk's own floor catches a game whose
+    entries all turn out ambiguous.
+    """
+    if not names or not names <= frozenset(entry):
+        return False
+    return not any(names <= other for other in others)
+
+
 class _WalkDone(Exception):
     """Ends the walk at WALK_STEPS without ending the game."""
 
@@ -271,6 +309,10 @@ def _entry_states(
     path = str(GAMES_DIR / filename)
     game, _space = load(path)
     episode = EPISODES[filename]
+    entry = frozenset(episode.entry)
+    others = [
+        frozenset(v) for v in _offering_vocabularies(game) if frozenset(v) != entry
+    ]
     live: list[RuntimeState] = []
     seen: list[dict[str, Any]] = []
     rng = random.Random(seed ^ 0x5EED)
@@ -284,7 +326,7 @@ def _entry_states(
         steps += 1
         if steps > WALK_STEPS:
             raise _WalkDone
-        if episode.entry_move in _move_names(candidates):
+        if _is_entry(_move_names(candidates), episode.entry, others):
             merged: dict[str, Any] = {}
             for frame in live[0].frames:
                 merged.update(frame)
@@ -314,7 +356,7 @@ def test_window_variable_is_idle_at_episode_entry(filename: str, var: str) -> No
             entries += 1
             assert merged[var] == idle, (
                 f"{filename}: at an episode-entry decision (offering "
-                f"{episode.entry_move}), `{var}` is {merged[var]!r}, not its "
+                f"{list(episode.entry)}), `{var}` is {merged[var]!r}, not its "
                 f"idle value {idle!r} — the record states a fact about an "
                 f"episode that has already resolved"
             )
@@ -323,6 +365,51 @@ def test_window_variable_is_idle_at_episode_entry(filename: str, var: str) -> No
         f"over {len(WALK_SEEDS)} seeds; fewer than {MIN_ENTRIES} cannot have "
         f"left the first episode, whose idle values come from the declarations"
     )
+
+
+# The matcher's own boundary, probed directly. A random walk does not reach a
+# Coup seat holding ten coins within the step budget, so the forced-`coup`
+# turn — the case a single-move matcher drops — has no witness in the walk and
+# gets one here instead.
+_COUP = "coup.cardlang"
+
+
+@pytest.mark.parametrize(
+    ("names", "expected", "why"),
+    [
+        (frozenset({"coup"}), True, "a forced coup IS the turn entry"),
+        (frozenset({"income", "tax", "coup"}), True, "a partly-guarded turn entry"),
+        (frozenset({"challenge", "allow"}), False, "a challenge window is not entry"),
+        (frozenset({"block_claiming_duke", "allow"}), False, "a block window is not"),
+        (frozenset(), False, "no move names at all (a card or integer decision)"),
+    ],
+)
+def test_entry_matching_covers_guarded_openings(
+    names: frozenset[str], expected: bool, why: str
+) -> None:
+    game, _space = load(str(GAMES_DIR / _COUP))
+    entry = EPISODES[_COUP].entry
+    others = [
+        frozenset(v)
+        for v in _offering_vocabularies(game)
+        if frozenset(v) != frozenset(entry)
+    ]
+    assert _is_entry(names, entry, others) is expected, why
+
+
+def test_entry_matching_skips_an_ambiguous_subset() -> None:
+    """Canasta offers `[take_pile]` alone when the stock is empty, so a lone
+    `take_pile` fits both that offer and the turn entry. Attributing it would
+    be a guess; the walk skips it and says so in `domain:`."""
+    game, _space = load(str(GAMES_DIR / "canasta.cardlang"))
+    entry = EPISODES["canasta.cardlang"].entry
+    others = [
+        frozenset(v)
+        for v in _offering_vocabularies(game)
+        if frozenset(v) != frozenset(entry)
+    ]
+    assert _is_entry(frozenset({"take_pile"}), entry, others) is False
+    assert _is_entry(frozenset({"draw_stock"}), entry, others) is True
 
 
 def test_flag_window_games_are_exactly_the_specified_ones() -> None:
@@ -350,15 +437,16 @@ def test_state_declarations_partition(filename: str) -> None:
 
 
 @pytest.mark.parametrize("filename", sorted(EPISODES), ids=lambda f: f.removesuffix(".cardlang"))
-def test_entry_move_names_one_offering(filename: str) -> None:
-    """The entry decision is identified by a move the game offers in exactly
-    one place, so `_entry_states` cannot silently match a different offer.
+def test_entry_vocabulary_is_one_the_game_offers(filename: str) -> None:
+    """The entry vocabulary is a real offer of the game, not a list authored
+    here — so a game that renames or re-scopes its turn offering reddens
+    rather than silently matching nothing.
 
-    red under: add `play_one` to Cheat's challenge-window offering — the
-    entry move then names two vocabularies and the walk could match either."""
+    red under: drop `assassinate` from Coup's turn offering — the declared
+    vocabulary then matches no `offer` in the game."""
     game, _space = load(str(GAMES_DIR / filename))
-    vocabularies = [v for v in _offering_vocabularies(game) if EPISODES[filename].entry_move in v]
-    assert len({frozenset(v) for v in vocabularies}) == 1, (
-        f"{filename}: `{EPISODES[filename].entry_move}` appears in "
-        f"{len(vocabularies)} distinct offering vocabularies"
+    declared = {frozenset(v) for v in _offering_vocabularies(game)}
+    assert frozenset(EPISODES[filename].entry) in declared, (
+        f"{filename}: the declared entry vocabulary matches no `offer` in the "
+        f"game; it offers {sorted(sorted(v) for v in declared)}"
     )
