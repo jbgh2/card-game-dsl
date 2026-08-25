@@ -29,9 +29,10 @@ Contract
 Assumes: an information state for `docs/games/cheat.cardlang` specifically. The
 state vocabulary is Cheat's, and an unexpected zone or variable RAISES rather
 than passing through unrendered — a silently-dropped field would be information
-loss disguised as formatting. `challenged`/`challenger` are held to the same
-bar by a refusal rather than a rendering: no decision point exhibits them set,
-so there is no faithful sentence for a state that does.
+loss disguised as formatting. The three fields the prose states by ASSUMPTION
+rather than by reading — `challenged`, `challenger`, and `responder` while the
+window is closed — are held to the same bar by a refusal: no decision point
+exhibits them set, so there is no faithful sentence for a state that does.
 Establishes: English carrying exactly the facts `infostate.parse` reads.
 Illegal after: adding a sentence to this module that is not recoverable by
 `recover()`.
@@ -121,16 +122,27 @@ def render_state(info_state: str) -> str:
         raise ValueError(f"claim_rank {rank!r} is not a rank this renderer knows")
     open_window = info.state["window_open"] == "True"
     claimant = info.claimant
-    if info.state["challenged"] == "True" or info.state["challenger"] != "None":
-        # No decision is offered between a call and its adjudication: the call
-        # closes the window, the flip and pickup follow with nobody to ask, and
-        # `resolve_play` clears the verdict. So these two never reach a prompt,
-        # and a state carrying one is not a state this renderer can be faithful
-        # about — refusing beats quietly dropping the only fact that varies.
+    # Three fields the sentences below ASSUME idle rather than state, so
+    # `recover` reports them from the shape of the prose. `challenged` and
+    # `challenger` are idle at every decision — no one is asked anything
+    # between a call and its adjudication, and `resolve_play` clears the
+    # verdict before the next offer — and `responder` is a cursor only an open
+    # window has. Assuming is safe exactly while it is checked: an assumption
+    # violated here would be a fact dropped from the prompt, so it refuses.
+    assumed_idle = [
+        name
+        for name, idle in (
+            ("challenged", "False"),
+            ("challenger", "None"),
+            *((("responder", "None"),) if not open_window else ()),
+        )
+        if info.state[name] != idle
+    ]
+    if assumed_idle:
         raise ValueError(
-            "render_state: `challenged`/`challenger` are set, which no decision "
-            "point in Cheat exhibits — this is not an information state the "
-            "game produces"
+            f"render_state: {sorted(assumed_idle)} carry window bookkeeping that "
+            f"no decision point in Cheat exhibits — this renderer states them by "
+            f"assumption, so it has no faithful sentence for such a state"
         )
     lines.append("")
     if open_window:

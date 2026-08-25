@@ -168,17 +168,27 @@ def test_each_decision_context_is_named() -> None:
         assert got["claimant"] == claimant and got["claim_count"] == count
 
 
-def test_a_state_carrying_a_verdict_is_refused() -> None:
-    """`challenged`/`challenger` are set only between the call and its
-    adjudication, where nobody is asked to decide. A state carrying one is not
-    one the game produces, and the renderer has no faithful sentence for it —
-    so it refuses rather than dropping the field."""
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("challenged", "True"), ("challenger", "1"), ("responder", "0")],
+)
+def test_a_state_carrying_assumed_bookkeeping_is_refused(field: str, value: str) -> None:
+    """The three fields the rendering states by assumption, one probe each.
+
+    `challenged`/`challenger` are set only between a call and its
+    adjudication, where nobody is asked to decide; `responder` is a cursor
+    only an open window has. None reaches a prompt, so `recover` reads them
+    off the prose shape — and a state that contradicts the assumption would
+    lose the field silently, which is why it refuses instead.
+    """
     raw = (
         "P0|deck=#0;flipped=[];pile=#0;played=#0;hand[0]=[9♣];hand[1]=#11;"
-        "hand[2]=#16;hand[3]=#13|state:challenged=True;challenger=1;claim_count=2;"
-        "claim_rank=9;claimant=3;responder=0;window_open=False;"
-        "won={0:False,1:False,2:False,3:False}|obs:('announce', 3, 'play_two')"
-    )
+        "hand[2]=#16;hand[3]=#13|state:challenged=False;challenger=None;"
+        "claim_count=0;claim_rank=9;claimant=None;responder=None;"
+        "window_open=False;won={0:False,1:False,2:False,3:False}"
+        "|obs:('announce', 3, 'play_two')"
+    ).replace(f"{field}=" + {"challenged": "False", "challenger": "None", "responder": "None"}[field],
+              f"{field}={value}")
     with pytest.raises(ValueError, match="no decision point in Cheat exhibits"):
         render_state(raw)
 
