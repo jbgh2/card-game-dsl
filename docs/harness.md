@@ -324,6 +324,32 @@ impact currency and the implementer mechanism; counsel was the last
 artifact that gave the decider only the execution-grade text. The exact
 shape is the charters' contract; this file names only the obligation.
 
+## The Review Desk
+
+The **Review Desk** is the operator's standing session over the harness
+itself — a desk, not a counsel persona and not a Standing Role. Where
+the Language Owner answers for the language and the Architect for the
+engine, the desk answers for this file: Merge Lane calls, charter
+intent, work-graph placement, whether a change fits the doctrine it
+lands in. Role runs are read at the desk, and a gap between a round and
+its charter becomes a charter diff there. A consult is input, never
+authority: nothing merges on the desk's answer, and anything
+permission-shaped or merge-shaped routes to the operator.
+
+Reaching the desk: address it by the name its ListAgents row shows. The
+desk session is spawned under the name **Cavendish**, so the row and the
+identity coincide; when no such row is listed, the desk opens the
+channel — name the consult where the desk reads (a PR body, an issue,
+the operator) and it initiates, and a reply to an inbound message always
+resolves. The desk's working state lives in the operator's session
+substrate, not in this repository; this section is the charter, minted
+through the tracker
+([#447](https://github.com/jbgh2/card-game-dsl/issues/447)).
+
+The desk is named **Cavendish** — the pen name of Henry Jones, the
+Victorian era's ruling authority on whist, taken from the London club of
+that name: the table's third name, after Hoyle and Foster.
+
 ## The physical layer
 
 Two standing facts bind the harness, and one authority stays put:
