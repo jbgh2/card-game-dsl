@@ -34,8 +34,12 @@ What is proven here
   and the two observers' board-directed subsequences are EQUAL. The pause is
   chosen so captures have happened, and their presence is asserted, so the
   capture half cannot go vacuous.
-- Seed degeneracy (``test_no_shuffle_means_seed_degeneracy``): a fixed action
-  history renders byte-identically for both players across three seeds.
+- Chance-freeness: nothing in the game draws, so the adapter gives it a tree
+  with no root chance node and its generator refuses every draw
+  (``cardlang.runtime.chance``). The property is proven over the corpus
+  registry in ``tests/test_chance_free.py`` — classifier against an
+  independent draw counter, and a greedy line to a terminal node under
+  refusal — rather than restated per game here.
 
 The singleton-partition argument (the "bulletproof" claim)
 ----------------------------------------------------------
@@ -70,18 +74,15 @@ Honest caveats
   ``box=#0`` identically for both observers, hiding nothing. The two
   ``reserve`` piles are identity-projected and empty after setup — the army
   fills the home ranks exactly — so they conceal nothing either.
-- Seed degeneracy is OVER-DETERMINED and its cause is not the absence of
-  shuffle: it follows from fungible men + attribute-based setup + sorted
-  identity rendering (order never leaks). Adding a bare ``shuffle box`` is a
-  DEMONSTRATED no-op (verified: three seeds stay byte-identical) precisely
-  because of that. The firing red-under is ``shuffle box`` PLUS a
-  position-based deal (``move 16 pieces from box to reserve[0]``): the
-  light/dark split then becomes seed-dependent and the sorted identity views
-  diverge (verified: the very first pause differs between seeds 1 and 5).
-- The adapter's root chance node still samples a seed, but every branch is
-  provably identical (the seed proof). Collapsing that degenerate node is the
-  stage-3 chance workstream (roadmap residual "adapter root-chance collapse for
-  chance-free games"); it is not an info-set gap.
+- Seed insensitivity here is OVER-DETERMINED, and no single cause carries it:
+  the game draws nothing at all, AND fungible men + attribute-based setup +
+  sorted identity rendering would hide a permutation even if it did. So a bare
+  ``shuffle box`` added to this game is a no-op for the rendered views though
+  it is emphatically not a no-op for the classification — it makes the game
+  chance-bearing and restores its root chance node. What would move the views
+  is ``shuffle box`` PLUS a position-based deal (``move 16 pieces from box to
+  reserve[0]``): the light/dark split becomes seed-dependent and the sorted
+  identity views diverge.
 - A decider holding men with every step blocked is not modelled (the DSL would
   raise where the oracle returns an empty action list). It did not arise in 400
   random games and no machinery is built for it — issue #124. Nothing in this
@@ -95,7 +96,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.openspiel.replay import DecisionNode
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances
@@ -299,73 +300,4 @@ def test_moves_and_captures_are_public_identity_events() -> None:
         events=len(boards[0]),
         captures=len([e for e in boards[0] if str(e[3]).startswith("captured[")]),
         common_knowledge=True,
-    )
-
-
-def _first_step_divergence(
-    reference: list[tuple[str, ...]], states: list[tuple[str, ...]]
-) -> tuple[int, str, str]:
-    """The first (step, reference-render, actual-render) where two per-step
-    render lists differ, so the witness points at the real divergence rather
-    than always at step 0."""
-    for i in range(min(len(reference), len(states))):
-        if states[i] != reference[i]:
-            for q in range(min(len(reference[i]), len(states[i]))):
-                if states[i][q] != reference[i][q]:
-                    return i, reference[i][q], states[i][q]
-            return i, str(reference[i]), str(states[i])
-    return 0, str(reference), str(states)
-
-
-def test_no_shuffle_means_seed_degeneracy() -> None:
-    """A fixed action history renders byte-identically for both players across
-    three seeds. The degeneracy is OVER-DETERMINED (fungible men +
-    attribute-based setup + sorted identity rendering), not caused by the mere
-    absence of shuffle.
-
-    red under (demonstrated out of band, reverted): a bare ``shuffle box`` is a
-    DEMONSTRATED no-op — three seeds stay byte-identical — because order never
-    leaks and same-side men are fungible. The firing red-under is
-    ``shuffle box`` PLUS a position-based deal (``move 16 pieces from box to
-    reserve[0]`` in place of the ``where piece.side is light`` filter): the
-    light/dark split becomes seed-dependent, mixed armies fill the home ranks,
-    and the sorted identity views diverge at the very first pause.
-
-    Honest caveat: the adapter's root chance node still samples the seed; every
-    branch is provably identical (this proof), and collapsing that degenerate
-    node is the stage-3 chance workstream (roadmap residual), not an info-set
-    gap.
-    """
-    history, _ = _advance(PATH, 1, DEPTH)
-    assert len(history) >= 4, "seed test needs a non-trivial replayed line"
-    reference: list[tuple[str, ...]] | None = None
-    for seed in (1, 5, 7):
-        states: list[tuple[str, ...]] = []
-        for i in range(len(history) + 1):
-            r = run(PATH, seed, tuple(history[:i]))
-            if not isinstance(r, DecisionNode):
-                break
-            states.append(
-                tuple(
-                    information_state(q, r.rs, r.obs_logs[q])
-                    for q in range(len(r.obs_logs))
-                )
-            )
-        assert states, f"seed {seed} produced no pause states"
-        if reference is None:
-            reference = states
-        else:
-            step, ref_cell, got_cell = _first_step_divergence(reference, states)
-            assert states == reference, (
-                f"cardlang_breakthrough: seed {seed} renders differently from the "
-                f"reference seed — the info state is seed-sensitive\n"
-                f"witness (step {step}): {first_divergence(ref_cell, got_cell)}"
-            )
-    assert reference is not None
-    record(
-        "cardlang_breakthrough",
-        "seed_degeneracy",
-        seeds=3,
-        steps=len(reference),
-        over_determined=True,
     )

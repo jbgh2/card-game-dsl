@@ -46,7 +46,9 @@ def memo_info() -> Any:
 
 class _State(CardlangState):
     def __init__(self, game: pyspiel.Game, path: str, num_players: int, seeds: tuple[int, ...]) -> None:
-        super().__init__(game, path, num_players)
+        # chance_free=False: this rig exists to vary the seed space, so it
+        # keeps a chance root whatever the underlying game would classify as.
+        super().__init__(game, path, num_players, False)
         self._seeds = seeds
 
     def chance_outcomes(self) -> list[tuple[int, float]]:

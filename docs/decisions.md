@@ -2432,6 +2432,17 @@ exercises most) and confirms the finite-action-space anchor end to end. The
 adapter is per-game and proof-scoped; the general, all-corpus path remains the
 eventual compilation pass (see issue #139).
 
+A game whose text draws nothing — a Chance-Free Game, see
+[glossary/chance-free-game.md](glossary/chance-free-game.md) — compiles with no
+root chance node at all: it registers as `DETERMINISTIC`, declares no chance
+outcomes, and opens on its first decision, so its information state is
+available at the root rather than after a seed nobody chose. The licence is
+derived from the game rather than declared by its author, and it is guarded
+both ways: the classification names every drawing construct and refuses one it
+does not know, and the run installs a generator that refuses every draw, so a
+missed construct stops the game where it draws instead of yielding a tree that
+silently omits real chance.
+
 Info-set derivation is uniform across the corpus: every game's decisions run
 on kernel sites that emit observation events, no Python mechanic exists (the
 `instantiate` construct is deleted), and the readiness proofs cover

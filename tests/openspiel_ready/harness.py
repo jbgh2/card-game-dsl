@@ -52,6 +52,7 @@ from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import (
     DecisionNode,
     TerminalNode,
+    chance_free,
     load,
     returns_for,
     run,
@@ -954,6 +955,12 @@ class ReadinessProofs:
             reseeded=True,
             stocks_reversed=len(stocks),
             vacuous_stock=(len(stocks) == 0),
+            # A Chance-Free Game is degenerate here twice over: it has no
+            # undrawn stock AND no draw was ever going to be made, so the
+            # reseed perturbs a generator the game never consults. Recorded so
+            # a reader of the coverage row can tell that from a game that
+            # merely happens to have no stock at this depth.
+            chance_free=chance_free(spec.path),
         )
 
     @pytest.mark.parametrize("seed", manifest())
@@ -1116,8 +1123,15 @@ class ReadinessProofs:
         game = pyspiel.load_game(spec.short_name)
         _, space = load(spec.path)
         state = game.new_initial_state()
-        assert state.is_chance_node()
-        state.apply_action(seed)
+        # A Chance-Free Game opens on its first decision; every other game
+        # opens on the root [[shuffle-seed]] draw. Read from the adapter's own
+        # source (`replay.chance_free`) rather than re-derived here, so this
+        # walk cannot agree with a classification the adapter does not hold.
+        if chance_free(spec.path):
+            assert not state.is_chance_node()
+        else:
+            assert state.is_chance_node()
+            state.apply_action(seed)
 
         history: list[int] = []
         r = run(spec.path, seed, ())

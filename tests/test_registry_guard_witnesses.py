@@ -645,6 +645,19 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # its_own_id scrapes the call sites, so a site that stopped naming itself
     # -- or a fourth consumer joining silently -- reddens there.
     "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES", "site in RESERVATION_SITES"],
+    # The parse.py shape, one module over: a consumer validating a
+    # grammar-admitted identifier against the registry that owns the row set,
+    # so the registry stays the ONE place the set is stated and an arm it does
+    # not know gets a refusal naming both sides. Nothing to widen against — the
+    # registries ARE the collections. Their witnesses are the misuse probes in
+    # tests/test_chance_free.py (`test_unknown_epistemic_op_is_refused_not_read_
+    # as_chance_free` and its selection-mode sibling), which retag a checked
+    # tree with an arm outside each table, plus the grammar scrape that
+    # reconciles both tables against the productions that define them.
+    "runtime/chance.py": [
+        "node.op not in EPISTEMIC_OP_DRAWS",
+        "node.selection_mode not in SELECTION_MODE_DRAWS",
+    ],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
