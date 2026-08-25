@@ -82,7 +82,7 @@ from typing import Any
 import pytest
 
 from cardlang.openspiel.infostate import information_state
-from cardlang.openspiel.replay import DecisionNode, run
+from cardlang.openspiel.replay import DecisionNode
 
 from .harness import ONE_SEED, GAMES_DIR, GameSpec, ReadinessProofs, _advance
 from .partition import first_divergence, projection_for, record, zone_instances

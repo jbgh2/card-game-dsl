@@ -62,6 +62,17 @@ SELECTION_MODE_DRAWS: dict[str | None, bool] = {
 }
 
 
+# Raised in full at each site rather than built by a helper: the guard-role
+# census (tests/test_guard_role_sites.py) reads the raise statement, and an
+# exception returned from a helper hides its class from the scraper.
+_LEAKED_GUARD = "cardlang.runtime.chance.chance_sites"
+_DREW = (
+    "a game classified Chance-Free drew from its generator — the enumeration in "
+    "cardlang/runtime/chance.py is missing the construct that drew, and this "
+    "game's OpenSpiel tree would have dropped a real chance node"
+)
+
+
 def _walk(node: Any) -> Iterator[Any]:
     """Every dataclass node reachable from `node` (AST nodes hold only
     dataclasses, tuples, and leaves)."""
@@ -130,17 +141,8 @@ class RefusingRandom(random.Random):
     being named here.
     """
 
-    def _refuse(self) -> ShadowGuardError:
-        return ShadowGuardError(
-            "cardlang.runtime.chance.chance_sites",
-            "a game classified Chance-Free drew from its generator — the "
-            "enumeration in cardlang/runtime/chance.py is missing the construct "
-            "that drew, and this game's OpenSpiel tree would have dropped a real "
-            "chance node",
-        )
-
     def random(self) -> float:
-        raise self._refuse()
+        raise ShadowGuardError(_LEAKED_GUARD, _DREW)
 
     def getrandbits(self, k: int) -> int:
-        raise self._refuse()
+        raise ShadowGuardError(_LEAKED_GUARD, _DREW)

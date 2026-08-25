@@ -213,6 +213,11 @@ checklist for resolving this question.
   is a regression pin that bites the moment rendering couples to the
   generator or to hidden-stock order, not a discriminating probe;
   seed-sensitivity through the deal itself is the swap proof's territory.
+  A Chance-Free Game is degenerate here twice over — it has no undrawn stock
+  and no seed reaches it at all — so its row records `chance_free`, and the
+  property it actually rests on is proven by execution rather than by this
+  pin: `tests/test_chance_free.py` runs the classifier against an independent
+  draw counter over every registered game.
 - **Legal-action agreement.** Two worlds in the same information set for the
   player to move must offer identical legal actions — otherwise the offered
   moves are themselves a leak channel, one OpenSpiel does not police.
