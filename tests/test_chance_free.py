@@ -61,9 +61,11 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.openspiel.registry import GAMES
+from cardlang.openspiel.replay import DecisionNode, TerminalNode, run
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.runtime.chance import RefusingRandom, chance_sites, is_chance_free
 from cardlang.runtime.chooser import random_chooser
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 
 GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
@@ -99,8 +101,6 @@ def _play_counting(game: n.Game, policy_seed: int = 1) -> tuple[int, bool]:
     returned either way and the completion flag carries the difference."""
     rng = _Counting(0)
     try:
-        from cardlang.runtime.driver import play_game
-
         play_game(game, rng, chooser=random_chooser(random.Random(policy_seed)))
     except OwnerGuardError:
         return rng.draws, False
@@ -256,10 +256,13 @@ def test_selection_mode_cell(mode: str | None) -> None:
 
 
 def test_unknown_epistemic_op_is_refused_not_read_as_chance_free() -> None:
-    """An epistemic op outside the enumeration is refused, in the engine's own
-    channel and naming the two sites that disagree. Reading it as non-drawing is
-    the silent half of this defect class: a future `roll` arm would then collapse
-    the chance node of a game that rolls dice."""
+    """An epistemic op outside the enumeration is refused, and the message names
+    the two sites that disagree. An internal invariant rather than a typed
+    runtime channel, the same shape `replay.returns_for` uses for an unhandled
+    RANK_DIR: no game description is at fault, the engine's table is out of sync
+    with the grammar. Reading the op as non-drawing instead is the silent half
+    of this defect class -- a future `roll` arm would then collapse the chance
+    node of a game that rolls dice."""
     game = _minimal("shuffle deck")
     hijacked = _retag(game, n.EpistemicOp, op="peek")
     with pytest.raises(AssertionError, match="unhandled epistemic op 'peek'"):
@@ -319,9 +322,11 @@ def test_refusing_generator_refuses_every_draw() -> None:
         ("choices", lambda: r.choices([1, 2], k=2)),
         ("gauss", lambda: r.gauss(0.0, 1.0)),
     ):
-        with pytest.raises(ShadowGuardError):
+        try:
             call()
-            pytest.fail(f"{label} drew from a refusing generator")
+        except ShadowGuardError:
+            continue
+        pytest.fail(f"{label} answered a draw instead of refusing it")
 
 
 # =============================================================================
@@ -408,7 +413,7 @@ def test_adapter_root_follows_the_classification(short_name: str) -> None:
     assert (state.current_player() == pyspiel.PlayerId.CHANCE) is not free
 
 
-@pytest.mark.parametrize("short_name", sorted(sorted(CHANCE_FREE_CORPUS)))
+@pytest.mark.parametrize("short_name", sorted(CHANCE_FREE_CORPUS))
 def test_chance_free_root_carries_a_real_information_state(short_name: str) -> None:
     """Collapsing the chance node moves the game's first information state to
     the root, where the chance node used to render the empty string. Every seat
@@ -439,8 +444,6 @@ def test_chance_free_game_plays_to_terminal_under_a_refusing_generator(
     enumeration does not know `shuffle` draws. The game then classifies
     Chance-Free, `run` gives it the refusing generator, and the line dies at the
     shuffle with `ShadowGuardError` naming the leaked classifier (verified)."""
-    from cardlang.openspiel.replay import DecisionNode, TerminalNode, run
-
     path = str(GAMES_DIR / GAMES[short_name])
     history: list[int] = []
     r: Any = run(path, 0, ())
