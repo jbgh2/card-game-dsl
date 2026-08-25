@@ -1,22 +1,23 @@
 """What a betting move COSTS, and what standing bet it leaves behind.
 
-property:        a street runs on a ladder of rungs, one bet size apart. `bet`
-                 opens it on the first rung; `call` matches the standing bet
-                 without moving it; `raise` moves the standing bet to the NEXT
-                 RUNG ABOVE wherever it stands — not up by one bet size from
-                 wherever it stands, which is the same thing only when the
-                 standing bet is already on a rung. Where a stack cannot cover
-                 what the move wants, it pays what it holds.
-domain:          the position of the standing bet on the ladder, crossed with
-                 each move the library can size and with whether the actor's
-                 stack covers what that move wants. The positions are
-                 enumerated from the ARITHMETIC — below the first rung, on the
-                 first rung, on a later rung, between two rungs, and none at
-                 all — never from what the corpus happens to reach: three of
-                 the five appear in no game file, and an axis read off
-                 `docs/games/` could not have generated them. The actor holds
-                 chips in every cell, because a ring only offers a turn to a
-                 seat that can act.
+property:        `bet` opens a street at the street's bet size; `call` matches
+                 the standing bet without moving it; `raise` adds a full size to
+                 where the bet STANDS — except from a standing bet short of the
+                 size, which it COMPLETES to the size instead. Those are two
+                 rules and not one, and the pair is the whole property: the
+                 betting level does not re-form around multiples of the size, so
+                 a bet left off one by an all-in for less stays off it and is
+                 raised from where it is. Where a stack cannot cover what the
+                 move wants, it pays what it holds.
+domain:          where the standing bet sits relative to the street's size,
+                 crossed with each move the library can size and with whether
+                 the actor's stack covers what that move wants. The positions
+                 are enumerated from the ARITHMETIC — none, short of the size,
+                 exactly the size, a multiple of it, and off any multiple —
+                 never from what the corpus happens to reach: three of the five
+                 appear in no game file, and an axis read off `docs/games/`
+                 could not have generated them. The actor holds chips in every
+                 cell, because a ring only offers a turn to a seat that can act.
 registry:        the moves that size a payment, and the state they read:
                  `n.Library.move_types`, `.requires` and `.state` of
                  `libraries.load_library("poker_betting")`, crossed in
@@ -28,8 +29,8 @@ does not prove:  a cell drives one move from a hand-built state, so nothing
                  here bounds what a STREET costs end to end — that a street
                  stops at its declared number of bets is
                  tests/test_playout_holdem_heads_up.py's cap pin. And the
-                 expected column is the rule's arithmetic, so a green says the
-                 library computes what fixed-limit poker's ladder says; it says
+                 expected column is the rules' arithmetic, so a green says the
+                 library charges what fixed-limit poker charges; it says
                  nothing about whether a given game declared the right bet
                  sizes for the variant it names.
 """
@@ -54,15 +55,28 @@ LIBRARY = load_library("poker_betting")
 VOCABULARY: tuple[str, ...] = tuple(m.name for m in LIBRARY.move_types)
 SIZING_MOVES: tuple[str, ...] = tuple(m for m in VOCABULARY if m != "check")
 
-LIMIT = 5  # the street's bet size: one rung to the next
+LIMIT = 5  # the street's bet size
 
 
-def _next_rung(standing: int) -> int:
-    """Where the rules put a raise's target: the first rung strictly above the
-    standing bet. Written as the ladder rather than as `standing + LIMIT`,
-    because those agree only when the standing bet is already on a rung — and
-    the whole property is about the cells where it is not."""
-    return (standing // LIMIT + 1) * LIMIT
+def _raise_target(standing: int) -> int:
+    """Where the rules put a raise's target, and it is TWO rules, not one.
+
+    A standing bet short of the street's size is COMPLETED to it. Pagat, on
+    Stud's bring-in: "subsequent players have the option to complete the bet to
+    a small bet ($5), to call the bring-in ($2) or to fold" — so from a
+    bring-in of 2 at a size of 5, the target is 5 and not 7.
+
+    From anywhere else a raise adds a full size to WHERE THE BET STANDS, even
+    when an all-in for less has left it off any multiple of the size. Pagat,
+    worked: "player A bets $4 and player B who has $6 left goes all-in, which is
+    a raise of $2 ... Player C may now fold, call for $6 or raise $4 by putting
+    in $10 of which $6 goes into the main pot and $4 into the side pot." C's
+    total is B's all-in plus a full raise — 6 + 4 — not A's last full bet plus
+    one, which would be 8. The betting level does not re-form around the size
+    after a short all-in, and a target computed as "the next multiple of the
+    size above the standing bet" would charge 10 where the rules charge 12.
+    """
+    return LIMIT if standing < LIMIT else standing + LIMIT
 
 
 class Cell(NamedTuple):
@@ -70,7 +84,7 @@ class Cell(NamedTuple):
     standing: int  # bet_to_match before the move
     bet_by: int  # what the actor has already put in this street
     stack: int
-    rung: str  # the ladder position, for the id
+    rung: str  # where the standing bet sits, for the id
     purse: str
 
     @property
@@ -78,9 +92,10 @@ class Cell(NamedTuple):
         return f"{self.move}-{self.rung}-{self.purse}"
 
 
-# The ladder positions, enumerated from the arithmetic. `first-rung` and
-# `later-rung` are the on-grid cases; the other three are what a forced post, a
-# short opening bet or an incomplete raise can leave behind.
+# Where the standing bet can sit relative to the street's size, enumerated from
+# the arithmetic. `first-rung` and `later-rung` are the ordinary cases; the
+# other three are what a forced post, a short opening bet or an all-in for less
+# can leave behind.
 RUNGS: dict[str, int] = {
     "no-bet": 0,
     "below-first": 2,
@@ -104,7 +119,7 @@ def _cells() -> list[Cell]:
                 wants = (
                     LIMIT if move == "bet" else standing - bet_by
                     if move == "call"
-                    else _next_rung(standing) - bet_by
+                    else _raise_target(standing) - bet_by
                 )
                 for purse, stack in (("covers", wants + 1), ("short", max(1, wants - 1))):
                     if stack <= 0:
@@ -134,16 +149,16 @@ class Outcome(NamedTuple):
 def _expected(cell: Cell) -> Outcome:
     """What the rules charge, and what standing bet they leave.
 
-    Authored from fixed-limit poker's ladder, never from a game file: the corpus
-    twin for Stud DOCUMENTS the wrong 3rd-street sizes, so expectations read
-    from it would agree with the defect they are meant to catch.
+    Authored from the rules, never from a game file: a corpus twin documents
+    what its game does, so an expected column read from one agrees with
+    whatever defect the game has.
     """
     if cell.move == "bet":
-        wants = LIMIT  # a street opens on its first rung
+        wants = LIMIT  # a street opens at its own size
     elif cell.move == "call":
         wants = cell.standing - cell.bet_by
     else:
-        wants = _next_rung(cell.standing) - cell.bet_by
+        wants = _raise_target(cell.standing) - cell.bet_by
     paid = min(wants, cell.stack)
     standing = cell.standing if cell.move == "call" else max(cell.standing, cell.bet_by + paid)
     return Outcome(paid=paid, standing=standing)
@@ -243,26 +258,37 @@ def test_a_move_pays_the_ladder(cell: Cell) -> None:
     )
 
 
-def test_the_rung_ladder_is_not_the_add_one_bet_rule() -> None:
-    """The control: the cells only discriminate where the two rules differ.
+def test_the_domain_separates_completing_from_adding_and_from_snapping() -> None:
+    """The control: the cells must be able to tell the three candidate rules apart.
 
-    `_next_rung` and `standing + LIMIT` agree on every on-grid position, so a
-    grid whose ladder positions were all on-grid would pass under either rule
-    and prove nothing. This asserts the domain contains positions that separate
-    them, and names them — the empty-input-set defect wearing a grid's clothes.
+    Three rules agree almost everywhere and disagree exactly where this grid has
+    to be right — so a domain missing either separating position would pass under
+    any of them and prove nothing.
+
+    - COMPLETE a short standing bet to the size, then add a size (the rules);
+    - always add a size, completing nothing (charges 7 from a bring-in of 2);
+    - snap to the next multiple of the size (charges 10 where the rules charge
+      12, after an all-in for less has left the bet off a multiple).
+
+    The third is worth naming rather than dropping: it is the plausible wrong
+    rule, it reads as tidier than the right one, and it was authored into this
+    module's expected column and shipped before Pagat's worked example was
+    consulted. See `_raise_target`.
     """
-    separating = {
-        rung
-        for rung, standing in RUNGS.items()
-        if _next_rung(standing) != standing + LIMIT
+    add_only = {r for r, s in RUNGS.items() if _raise_target(s) != s + LIMIT}
+    snap = {
+        r
+        for r, s in RUNGS.items()
+        if _raise_target(s) != (s // LIMIT + 1) * LIMIT
     }
-    assert separating == {"below-first", "off-grid"}, (
-        f"the positions where the ladder rule differs from add-one-bet are "
-        f"{sorted(separating)} — the grid must contain them or it cannot see "
-        f"the difference between the two rules"
+    assert add_only == {"below-first"}, (
+        f"only a standing bet short of the size should be COMPLETED rather than "
+        f"added to; the domain says {sorted(add_only)}"
+    )
+    assert snap == {"off-grid"}, (
+        f"only a standing bet off a multiple of the size should separate the "
+        f"rules' target from the next multiple; the domain says {sorted(snap)}"
     )
     driven = {c.rung.split("-posted")[0].split("-fresh")[0] for c in CELLS}
-    assert separating <= driven, (
-        f"{sorted(separating - driven)} separates the two rules but no cell "
-        f"drives it"
-    )
+    missing = (add_only | snap) - driven
+    assert not missing, f"{sorted(missing)} separates two rules but no cell drives it"
