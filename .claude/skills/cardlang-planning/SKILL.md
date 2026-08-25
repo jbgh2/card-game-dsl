@@ -89,8 +89,12 @@ justifies what it costs. An R3/R4 whose fix is more than small routes to
 record-and-file: the guard, the marked cell naming its reason, and the
 record its tag calls for — an issue for R3, the mark's reason alone for a
 non-rigor-critical R4 (decisions.md, "Reachability ranks the work") — not
-the fix. This
-gate exists because locally-correct choices compound: each finding
+the fix. An approved issue's R-tag is authority to do the work; it is
+never evidence that the work still in front of you is proportionate. A
+stage of a large R3/R4 issue is measured against what that issue has cost
+so far, not against the stage.
+
+This gate exists because locally-correct choices compound: each finding
 honestly pursued, each class honestly swept, and the portfolio quietly
 reallocates itself toward the machinery and away from the games. The
 plan is where that gets caught, because no later gate sees more than one
