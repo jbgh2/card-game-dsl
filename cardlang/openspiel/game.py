@@ -2,7 +2,8 @@
 
 One general adapter (SP1 spec): the state is ``(seed, history)`` over the
 re-simulation engine — that seed being the [[shuffle-seed]] the root chance node
-draws — the action space and information states are DERIVED, and
+draws, fixed and unexposed for a Chance-Free Game, whose tree carries no such
+node — the action space and information states are DERIVED, and
 registration is a loop over the game table — adding a fully-kernel game to the
 table is the whole per-game cost. Importing this module registers every game
 in the table; load with e.g. ``pyspiel.load_game("cardlang_hearts")``.
@@ -17,8 +18,13 @@ import pyspiel
 
 from cardlang.openspiel import replay
 from cardlang.openspiel.infostate import information_state
+from cardlang.runtime.errors import ShadowGuardError
 
 _NUM_SEEDS = 4096  # sampled deal space at the root chance node (known limitation)
+# The seed a Chance-Free Game runs under. Any value does: its generator refuses
+# every draw (`cardlang.runtime.chance`), so no branch of the collapsed node
+# could have differed from any other.
+_CHANCE_FREE_SEED = 0
 _GAMES_DIR = Path(__file__).resolve().parent.parent.parent / "docs" / "games"
 
 from cardlang.openspiel.registry import GAMES as GAMES
@@ -39,11 +45,22 @@ class _Observer:
 
 
 class CardlangState(pyspiel.State):
-    def __init__(self, game: pyspiel.Game, path: str, num_players: int) -> None:
+    """``_seed is None`` exactly while a root chance node is pending.
+
+    A Chance-Free Game has no such node, so its seed is fixed at construction
+    and the predicate stays true by definition rather than carrying a second
+    meaning: `current_player` never reports CHANCE for it, and the root is its
+    first decision.
+    """
+
+    def __init__(
+        self, game: pyspiel.Game, path: str, num_players: int, chance_free: bool
+    ) -> None:
         super().__init__(game)
         self._path = path
         self._num_players = num_players
-        self._seed: int | None = None
+        self._chance_free = chance_free
+        self._seed: int | None = _CHANCE_FREE_SEED if chance_free else None
         self._history_ids: list[int] = []
         self._cache_key: Any = object()
         self._cache: replay.DecisionNode | replay.TerminalNode | None = None
@@ -69,6 +86,16 @@ class CardlangState(pyspiel.State):
         return r.legal
 
     def chance_outcomes(self) -> list[tuple[int, float]]:
+        if self._chance_free:
+            # Unreachable while the classification is right — pyspiel asks only
+            # at a chance node, and this game declares none. Saying so beats the
+            # bare assert it replaces: a wrong classification surfaces as the
+            # sentence that names it, not as a traceback the reader must decode.
+            raise ShadowGuardError(
+                "cardlang.runtime.chance.chance_sites",
+                f"pyspiel asked {self._path} for chance outcomes, but it is "
+                f"registered DETERMINISTIC because nothing in it draws",
+            )
         assert self._seed is None
         p = 1.0 / _NUM_SEEDS
         return [(i, p) for i in range(_NUM_SEEDS)]
@@ -105,25 +132,37 @@ class CardlangState(pyspiel.State):
         return information_state(player, r.rs, r.obs_logs[player])
 
     def clone(self) -> CardlangState:
-        copy = CardlangState(self.get_game(), self._path, self._num_players)
+        copy = CardlangState(
+            self.get_game(), self._path, self._num_players, self._chance_free
+        )
         copy._seed = self._seed
         copy._history_ids = list(self._history_ids)
         return copy
 
     def __str__(self) -> str:
+        if self._chance_free:
+            return f"history={self._history_ids}"
         return f"seed={self._seed} history={self._history_ids}"
 
 
 def _register(short_name: str, filename: str) -> None:
     path = str(_GAMES_DIR / filename)
     game_ast, space = replay.load(path)
+    # The one read of the classification per registered game. The GameType's
+    # chance mode, the declared outcome count and the state's opening node all
+    # come off this single answer, so they cannot describe different games.
+    chance_free = replay.chance_free(path)
     num_players = game_ast.players.low
     assert game_ast.max_length is not None, "resolve() must reject a missing max_length"
     game_type = pyspiel.GameType(
         short_name=short_name,
         long_name=f"Cardlang {game_ast.name}",
         dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
-        chance_mode=pyspiel.GameType.ChanceMode.EXPLICIT_STOCHASTIC,
+        chance_mode=(
+            pyspiel.GameType.ChanceMode.DETERMINISTIC
+            if chance_free
+            else pyspiel.GameType.ChanceMode.EXPLICIT_STOCHASTIC
+        ),
         information=pyspiel.GameType.Information.IMPERFECT_INFORMATION,
         utility=pyspiel.GameType.Utility.GENERAL_SUM,
         reward_model=pyspiel.GameType.RewardModel.TERMINAL,
@@ -137,7 +176,7 @@ def _register(short_name: str, filename: str) -> None:
     )
     game_info = pyspiel.GameInfo(
         num_distinct_actions=space.num_distinct_actions,
-        max_chance_outcomes=_NUM_SEEDS,
+        max_chance_outcomes=0 if chance_free else _NUM_SEEDS,
         num_players=num_players,
         min_utility=-100000.0,  # loose static bounds; true scores are far inside
         max_utility=100000.0,
@@ -150,7 +189,7 @@ def _register(short_name: str, filename: str) -> None:
             super().__init__(game_type, game_info, params or {})
 
         def new_initial_state(self) -> CardlangState:
-            return CardlangState(self, path, num_players)
+            return CardlangState(self, path, num_players, chance_free)
 
         def make_py_observer(self, iig_obs_type: Any = None, params: Any = None) -> _Observer:
             return _Observer()

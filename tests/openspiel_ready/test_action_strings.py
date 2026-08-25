@@ -80,7 +80,7 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame
-from cardlang.openspiel.replay import load
+from cardlang.openspiel.replay import chance_free, load
 
 from .harness import GAMES_DIR, REGISTERED_GAMES, action_strings
 
@@ -178,8 +178,10 @@ def test_action_strings_do_not_move_with_the_state(short_name: str, filename: st
     game = pyspiel.load_game(short_name)
     _, space = load(str(GAMES_DIR / filename))
     state = game.new_initial_state()
-    assert state.is_chance_node()
-    state.apply_action(5)
+    # A Chance-Free Game has no seed to apply — its root IS the first decision.
+    if not chance_free(str(GAMES_DIR / filename)):
+        assert state.is_chance_node()
+        state.apply_action(5)
 
     n = game.num_distinct_actions()
     probes = sorted({(i * n) // 8 for i in range(8)} | {0, n - 1})

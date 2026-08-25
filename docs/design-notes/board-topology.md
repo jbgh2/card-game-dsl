@@ -445,18 +445,21 @@ domains with the same guards, not new machinery.
 
 ### 2.6 Chance: the `roll` statement
 
-Backgammon forces the first mid-game chance nodes. Today the engine's
-randomness folds entirely into the root seed (one OpenSpiel chance
-node; replay is a pure function of `(seed, history)`) — so `roll d6 as
-d1` is **a replay-model change, not a registry entry**, exactly as
+Backgammon forces the first mid-game chance nodes. The engine's
+randomness folds entirely into the root seed (at most one OpenSpiel
+chance node; replay is a pure function of `(seed, history)`) — so `roll
+d6 as d1` is **a replay-model change, not a registry entry**, exactly as
 [domain-map.md](domain-map.md)'s tripwire says: a kernel chance site
 that suspends like a decision with the chance actor, whose outcome
 enters the action history and announces publicly through the existing
 event vocabulary. CFR and IS-MCTS consume explicit chance nodes
 natively; the seed keeps covering shuffles. A board game with no deck
-and no roll has no chance at all, and the adapter's root chance node
-degenerates accordingly. This lands as its own stage (below) with the
-seed/rng non-observability proof extended to roll sites.
+and no roll has no chance at all, and the adapter gives such a game no
+root chance node — a Chance-Free Game (`runtime.chance`), whose replay
+is a pure function of `history`. `roll` lands as its own stage (below)
+with the seed/rng non-observability proof extended to roll sites, and
+it is what turns that classification from a whole-game flag into a
+question about sites.
 
 ### 2.7 Information sets: what moves, and when
 

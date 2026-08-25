@@ -7,7 +7,11 @@ that decodes and returns the recorded actions in order and raises
 ``ChooserAbort`` at the first decision beyond the history — surfacing the
 current decision point with the live [[world]] and the per-player
 [[observation-log]]s attached. The chooser makes no RNG calls, so a run is a
-pure function of ``seed``."""
+pure function of ``seed``.
+
+For a Chance-Free Game the seed reaches nothing: its generator refuses every
+draw (`cardlang.runtime.chance`), so a run is a pure function of ``history``
+alone and `game.py` gives it a tree with no root chance node."""
 
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from cardlang.ast import nodes as n
 from cardlang.domains import Role, role_of
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_source
+from cardlang.runtime.chance import RefusingRandom, is_chance_free
 from cardlang.runtime.driver import GameResult, play_game
 from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
@@ -32,6 +37,19 @@ def load(path_str: str) -> tuple[n.Game, ActionSpace]:
     """Parse + check a game and derive its action space (cached per path)."""
     game = check_source(Path(path_str))
     return game, ActionSpace.for_game(game)
+
+
+@cache
+def chance_free(path_str: str) -> bool:
+    """Whether the game at `path_str` consumes no randomness
+    (`cardlang.runtime.chance`), cached per path beside its action space.
+
+    The ONE place a consumer asks. `game.py` reads it to decide whether the
+    tree carries a root chance node, and `run` below reads it to decide which
+    generator the game gets; deriving it twice would let the tree shape and the
+    guard disagree about the same game."""
+    game, _ = load(path_str)
+    return is_chance_free(game)
 
 
 @dataclass
@@ -230,10 +248,17 @@ def run(
         logs[player].append(event)
 
     chooser = ReplayChooser(space, history, observe)
+    # A Chance-Free Game gets a generator that refuses every draw. `run` is the
+    # right site for it: it is the one entry point the adapter and every
+    # `tests/openspiel_ready/` proof share, and the only one where the chooser
+    # is guaranteed not to be the default `random_chooser` — whose draws are the
+    # POLICY's, not the game's, and would make the refusal fire on a playout
+    # that is behaving correctly.
+    rng = RefusingRandom(seed) if chance_free(path_str) else random.Random(seed)
     try:
         result = play_game(
             game,
-            random.Random(seed),
+            rng,
             chooser=chooser,
             observer=observe,
             on_first_decision=on_first_decision,
