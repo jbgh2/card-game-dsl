@@ -94,8 +94,12 @@ game GinRummy {
           knocker      : Player  = 0     // meaningful only once `knocked`
           opener       : Player  = 0     // who completed turn one
           upcard_taken : Boolean = false
-          arranging    : Boolean = true  // knocker's showdown window
-          defending    : Boolean = true  // defender's showdown window
+          // The two showdown windows, each open only from where the
+          // showdown raises it to where its owner finishes. Idle FALSE, so
+          // no draw-discard turn is asked for a decision while the record
+          // says a showdown window stands.
+          arranging    : Boolean = false // knocker's showdown window
+          defending    : Boolean = false // defender's showdown window
         }
 
         phase deal {
@@ -136,10 +140,12 @@ game GinRummy {
         // knocker exposes an arrangement; the defender arranges and —
         // barring gin — lays off; then the counts settle the hand.
         phase showdown when knocked {
+          arranging := true
           repeat until not arranging {
             offer to knocker one of [declare_meld, finish_arranging]
           }
           let defender = the player where player is not knocker
+          defending := true
           repeat until not defending {
             offer to defender one of [declare_meld_d, lay_off_a, lay_off_b,
                                       lay_off_c, finish_defense]

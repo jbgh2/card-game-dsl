@@ -103,10 +103,15 @@ machine-generated and terse. Its layout is:
         advance it yourself; when you are deciding whether to challenge, it is
         the rank the standing play was called as. The cycle steps forward only
         after a play has been fully resolved.
-      * `claim_count` — how many cards the standing play claims to be.
-      * `claimant` — the seat whose play stands in the window.
+      * `claimant` — the seat whose play stands, from the moment it is
+        announced until it resolves. `None` means no play stands, which is
+        what you see when it is your turn to announce one.
+      * `claim_count` — how many cards that standing play claims to be, or 0
+        when none stands.
       * `challenged`, `challenger`, `responder`, `window_open` — the state of
-        the current challenge window.
+        the challenge window. All of them go back to their empty values when a
+        play resolves, so nothing here ever describes an earlier play; the
+        history of earlier plays is in `obs:`.
       * `won` — which seats have gone out.
   - The `obs:` section is your complete personal event log, oldest first. It is
     the record of everything you have observed, including the cards you chose

@@ -51,7 +51,7 @@ from ..render import render_state
 INFO_A = (
     "P1|deck=#0;flipped=[];pile=#0;played=#1;hand[0]=#12;"
     "hand[1]=[10♥,2♥,A♣];hand[2]=#13;hand[3]=#13"
-    "|state:challenged=False;challenger=0;claim_count=1;claim_rank=A;claimant=0;"
+    "|state:challenged=False;challenger=None;claim_count=1;claim_rank=A;claimant=0;"
     "responder=1;window_open=True;won={0:False,1:False,2:False,3:False}"
     "|obs:('announce', 0, 'play_one')"
 )

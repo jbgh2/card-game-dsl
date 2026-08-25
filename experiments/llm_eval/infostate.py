@@ -100,8 +100,16 @@ class Info:
         return int(self.state["claim_count"])
 
     @property
-    def claimant(self) -> int:
-        return int(self.state["claimant"])
+    def claimant(self) -> int | None:
+        """The seat whose play stands, from its announce until it resolves.
+
+        `None` between plays — the game clears the claim where the play stops
+        standing, so the absence is a fact about the world and not a missing
+        field. A caller that needs a seat is at a window or a card decision;
+        at an announce there is nothing standing to name.
+        """
+        raw = self.state["claimant"]
+        return None if raw == "None" else int(raw)
 
 
 def _parse_zone_view(text: str) -> list[str] | int | None:
@@ -259,6 +267,12 @@ def provably_false(
     the seat whose play stands in the window.
     """
     seat = info.claimant if claimant is None else claimant
+    if seat is None:
+        raise ValueError(
+            "provably_false: no play stands (claimant is none), so there is no "
+            "claim to disprove — pass the seat explicitly to ask about a "
+            "hypothetical one"
+        )
     return _excluded_count(info, claim_rank, seat) + claim_count > COPIES_PER_RANK
 
 

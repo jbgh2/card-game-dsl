@@ -110,6 +110,11 @@ def test_flip_knowledge_is_discarded_when_the_claimant_collects(games: list[Any]
         for view in views:
             info = istate.parse(view.infostate)
             claimant = info.claimant
+            if claimant is None:
+                # No play stands, so there is no claimant to exclude and the
+                # exclusion set is a different quantity. Comparing it against
+                # the neighbouring ones would manufacture a shrink.
+                continue
             size = len(istate.cards_known_elsewhere(info, claimant))
             if view.player in previous and size < previous[view.player]:
                 shrank = True
