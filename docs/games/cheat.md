@@ -129,7 +129,7 @@ game Cheat {
     // one PLAY, and holds its idle value whenever no play stands — the
     // announce sets them, `resolve_play` clears them, and a seat asked for
     // its turn therefore reads nothing about the play that just resolved.
-    claim_rank  : Rank?   = none    // the cycle's rank; what the next play must call
+    claim_rank  : Rank?   = none    // the cycle's position; the table's, not a play's
     claim_count : Integer = 0       // cards the standing play claims (0: none stands)
     claimant    : Player? = none    // whose play stands, announce to resolution
     challenged  : Boolean = false   // did anyone call "Cheat!" on it?

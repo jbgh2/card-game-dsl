@@ -1,33 +1,32 @@
-"""A window's state is idle at the decision that opens the next episode.
+"""A window's state is idle at the decision that opens the next Decision Episode.
 
-A game whose rules run a *decision window* — a challenge, a block, a
-showdown, a meld attempt — needs state variables to carry the window's
+A game whose rules run a decision window — a challenge, a block, a
+showdown, a meld attempt — needs [[state-variable]]s to carry the window's
 subject: whose play stands, what it claims, who called it, where the
 rotation cursor is. Those variables are declared in a phase (or at game
 level), so their frame outlives the window many times over, and the
-[[information-state]] renders every frame merged and sorted with nothing
-marking which moment a value belongs to. A window variable left holding
-its last episode's value is therefore read as a claim about the present:
-at Cheat's announce decision, `claimant=3;challenged=True` says a play
-stands and was called, while the seat being asked is about to make the
-first play of a new cycle step.
+[[observation-log]] string renders every frame merged and sorted with
+nothing marking which moment a value belongs to. A window variable still
+holding its last [[decision-episode]]'s value therefore reads as a claim
+about the present: `claimant=3;challenged=True` at Cheat's announce
+decision says a play stands and was called, while the seat being asked is
+about to make the first play of a new cycle step.
 
-The property below is what makes the record legible to a consumer that
-reads it as one moment — the OpenSpiel adapter's string, and any tensor
-derived from it — and it is a property of the GAME, not of the renderer:
-the fix is that the game clears a window's variables when the window's
-episode ends, so idleness is a fact about the world rather than a
-convention the reader must know.
+So the guarantee is the game's, not the renderer's — a game clears a
+window's variables where the episode ends, and idleness is a fact about
+the world rather than a convention its reader has to know. That is what
+makes the record legible to a consumer reading it as one moment: the
+OpenSpiel adapter's string, and any tensor derived from it.
 
-Info-set derivation is untouched by all of this. Every one of these
-variables is public state, projected identically to every observer, so
-indistinguishability holds either way; what an idle value removes is a
-spurious distinction between worlds that differ only in resolved history
-the [[observation-log]] already carries.
+Info-set derivation is orthogonal. Every one of these variables is public
+state, projected identically to every observer, so indistinguishability
+holds either way; what an idle value removes is a spurious distinction
+between worlds differing only in resolved history the [[observation-log]]
+already carries.
 
 property:        in a game that runs a flag-gated decision window, every
-                 window-scoped state variable holds its idle value at the
-                 decision that opens the next episode
+                 window-scoped [[state-variable]] holds its idle value at
+                 the decision that opens the next Decision Episode
 domain:          the corpus games that declare a flag window — an
                  offer-bearing `repeat until` gated on a declared Boolean
                  state variable — crossed with each such game's
@@ -41,7 +40,7 @@ domain:          the corpus games that declare a flag window — an
                  game's own AST; a game reachable only through a different
                  vocabulary at that moment (Canasta's stock-empty forced
                  take) is outside the walk, and each walk asserts it saw
-                 enough entries to have left the first episode.
+                 enough entries to have left its first episode.
 registry:        the game axis derives from
                  `cardlang.openspiel.registry.GAMES` filtered by
                  `_flag_window_games`; the variable axis from
@@ -49,13 +48,12 @@ registry:        the game axis derives from
                  vocabularies from the `Offer` nodes of each game's AST.
                  The renderer these values reach:
                  `cardlang.openspiel.infostate.information_state`, whose
-                 own determinism is pinned at
-                 tests/openspiel_ready/harness.py.
+                 determinism is pinned at tests/openspiel_ready/harness.py.
 does not prove:  nothing about freshness at a decision INSIDE an episode.
-                 The check is anchored at episode entry, where "no episode is
-                 live" is a fact about the game; inside one, which fields are
-                 live varies with the window's own progress, and this module
-                 quantifies over neither.
+                 The check is anchored at episode entry, where "no episode
+                 is live" is a fact about the game; inside one, which
+                 fields are live varies with the window's own progress, and
+                 this module quantifies over neither.
 """
 
 from __future__ import annotations
@@ -85,6 +83,10 @@ WALK_STEPS = 240
 # The walk must leave the FIRST episode before it proves anything: every
 # window variable is idle at the opening decision by its declared default,
 # so a walk that saw one entry would pass against a game that never clears.
+#
+# red under (the vacuity guard itself): set WALK_STEPS to 2 — the walk stops
+# inside the first episode, every cell's assertion is trivially satisfied,
+# and this floor is the only thing that notices.
 MIN_ENTRIES = 4
 
 
@@ -239,7 +241,11 @@ def _move_names(candidates: list[Any]) -> frozenset[str]:
     for candidate in candidates:
         if isinstance(candidate, str):
             names.add(candidate)
-        elif isinstance(candidate, tuple) and candidate and isinstance(candidate[0], str):
+        elif (
+            isinstance(candidate, tuple)
+            and len(candidate) == 2  # the action space's (name, packed params)
+            and isinstance(candidate[0], str)
+        ):
             names.add(candidate[0])
     return frozenset(names)
 
@@ -281,12 +287,9 @@ def _entry_states(
                 merged.update(frame)
             seen.append(merged)
         pool = list(candidates)
-        picked: list[Any] = []
-        for _ in range(k):
-            choice = pool[rng.randrange(len(pool))]
-            pool.remove(choice)
-            picked.append(choice)
-        return picked
+        # `pop`, not `remove`: two equal candidates would otherwise drop the
+        # first one twice and never offer the second.
+        return [pool.pop(rng.randrange(len(pool))) for _ in range(k)]
 
     try:
         play_game(game, random.Random(seed), chooser=chooser, on_first_decision=capture)
@@ -321,14 +324,21 @@ def test_window_variable_is_idle_at_episode_entry(filename: str, var: str) -> No
 
 def test_flag_window_games_are_exactly_the_specified_ones() -> None:
     """Axis A is derived from the corpus, not listed here: a new game that
-    runs a flag-gated window arrives as an unspecified key."""
+    runs a flag-gated window arrives as an unspecified key.
+
+    red under: give Canasta's turn loop a non-flag condition
+    (`repeat until turn_done` -> `repeat until (number of cards in hand[t])
+    is 0`) — it leaves the derived set and the two sides disagree."""
     assert set(_flag_window_games()) == set(EPISODES)
 
 
 @pytest.mark.parametrize("filename", sorted(EPISODES), ids=lambda f: f.removesuffix(".cardlang"))
 def test_state_declarations_partition(filename: str) -> None:
     """Axis B is total: every declaration is either window-scoped (checked
-    above) or persistent by design, and none is both."""
+    above) or persistent by design, and none is both.
+
+    red under: declare one more variable in Cheat's `state` block — it
+    belongs to neither side and the partition stops covering the game."""
     game, _space = load(str(GAMES_DIR / filename))
     episode = EPISODES[filename]
     scoped = frozenset(var for var, _idle in episode.idle)
@@ -339,7 +349,10 @@ def test_state_declarations_partition(filename: str) -> None:
 @pytest.mark.parametrize("filename", sorted(EPISODES), ids=lambda f: f.removesuffix(".cardlang"))
 def test_entry_move_names_one_offering(filename: str) -> None:
     """The entry decision is identified by a move the game offers in exactly
-    one place, so `_entry_states` cannot silently match a different offer."""
+    one place, so `_entry_states` cannot silently match a different offer.
+
+    red under: add `play_one` to Cheat's challenge-window offering — the
+    entry move then names two vocabularies and the walk could match either."""
     game, _space = load(str(GAMES_DIR / filename))
     vocabularies = [v for v in _offering_vocabularies(game) if EPISODES[filename].entry_move in v]
     assert len({frozenset(v) for v in vocabularies}) == 1, (

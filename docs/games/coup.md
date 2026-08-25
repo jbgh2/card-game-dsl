@@ -123,7 +123,8 @@ game Coup {
 // The idle state of an action's bookkeeping, run where the action resolves.
 // Reset at the END of the action rather than the start of the next one: the
 // two differ exactly at the turn decision in between, which is where the
-// asking seat reads the state.
+// asking seat reads the state. `income` and `coup` open no window, so they
+// leave the state idle and do not call this.
 procedure clear_windows() {
   challenged := false
   challenger := none
