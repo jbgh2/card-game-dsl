@@ -91,7 +91,9 @@ chartered:
 - Produce the full report: taken, produced (PR numbers), merged (with
   gate evidence), parked (with questions), bounced, skipped (with
   reasons), and every DENIED command — count everything.
-- POST the report as a comment on epic #274 — the fleet's public record
-  and the review desk's inbox. This is the primary channel (session
-  messaging does not exist in unattended runs). A round whose report
-  lands nowhere a reader will see did not finish its round.
+- WRITE the report to the run-report file the run instructions name,
+  carrying the run marker they give; the wrapper appends it to the fleet
+  ledger (`logs/ledger.md`) — the fleet's local record and the review
+  desk's inbox. This is the primary channel (session messaging does not
+  exist in unattended runs). A round whose report lands nowhere a reader
+  will see did not finish its round.

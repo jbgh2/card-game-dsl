@@ -10,9 +10,12 @@ Pieces (all in this directory):
 
 - `run-role.sh <warden|dispatcher>` — the wrapper. Owns freshness
   (hard-sync to origin/main), single occupancy (one role in the clone at
-  a time; a skipped run posts publicly), a wall-clock watchdog, and the
-  delivery guarantee: every run ends with a report on epic #274 or a
-  wrapper-posted failure/no-report comment carrying the log tail.
+  a time; a skipped run is recorded, never a silent no-op), a wall-clock
+  watchdog, and the delivery guarantee: every run ends with an entry in
+  the fleet ledger (`logs/ledger.md` in the clone) — the round's own
+  report, or a wrapper-written failure/no-report entry carrying the log
+  tail. The record is a file in the clone, so delivery does not depend on
+  the network.
 - `prompts/<role>.md` — the versioned prompt each run executes. Thin by
   design: it invokes the role's charter skill and carries only the
   headless adaptations (no pulling, worktrees inside the clone, checks
