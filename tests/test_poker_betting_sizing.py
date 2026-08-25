@@ -227,39 +227,7 @@ def _drive(cell: Cell) -> Outcome:
     raise AssertionError(f"{cell.id}: the probe never reached a second decision")
 
 
-def _deferred(cell: Cell) -> bool:
-    """Raising from a standing bet that sits BETWEEN two rungs — and only where
-    the actor can afford the difference between the two rules. A stack too short
-    to reach either target pays what it holds under both, so those cells are
-    already green and marking them would be an xfail that cannot fail."""
-    return (
-        cell.move == "raise"
-        and cell.standing > LIMIT
-        and cell.standing % LIMIT != 0
-        and cell.purse == "covers"
-    )
-
-
-_PARAMS = [
-    pytest.param(
-        cell,
-        id=cell.id,
-        marks=(
-            pytest.mark.xfail(
-                strict=True,
-                raises=AssertionError,
-                reason="issue #436: a raise from a bet between two rungs adds a "
-                "bet size to it rather than climbing to the rung above",
-            )
-            if _deferred(cell)
-            else ()
-        ),
-    )
-    for cell in CELLS
-]
-
-
-@pytest.mark.parametrize("cell", _PARAMS)
+@pytest.mark.parametrize("cell", CELLS, ids=[c.id for c in CELLS])
 def test_a_move_pays_the_ladder(cell: Cell) -> None:
     """Both numbers per cell: what left the actor's stack, and what stands after.
 

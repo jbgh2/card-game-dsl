@@ -3458,13 +3458,14 @@
       "effect": [
         {
           "kind": "let",
-          "name": "target",
+          "name": "rung",
           "index": null,
           "value": {
-            "kind": "if_expr",
-            "cond": {
+            "kind": "binop",
+            "op": "*",
+            "left": {
               "kind": "binop",
-              "op": "<",
+              "op": "divided_by_rounded_down",
               "left": {
                 "kind": "name",
                 "name": "bet_to_match",
@@ -3476,25 +3477,10 @@
                 "ref": "state_var"
               }
             },
-            "then": {
+            "right": {
               "kind": "name",
               "name": "limit",
               "ref": "state_var"
-            },
-            "elifs": [],
-            "otherwise": {
-              "kind": "binop",
-              "op": "+",
-              "left": {
-                "kind": "name",
-                "name": "bet_to_match",
-                "ref": "state_var"
-              },
-              "right": {
-                "kind": "name",
-                "name": "limit",
-                "ref": "state_var"
-              }
             }
           }
         },
@@ -3506,9 +3492,18 @@
             "kind": "binop",
             "op": "-",
             "left": {
-              "kind": "name",
-              "name": "target",
-              "ref": "local"
+              "kind": "binop",
+              "op": "+",
+              "left": {
+                "kind": "name",
+                "name": "rung",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "limit",
+                "ref": "state_var"
+              }
             },
             "right": {
               "kind": "subscript",

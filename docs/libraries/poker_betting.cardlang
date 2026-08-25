@@ -127,8 +127,11 @@ library poker_betting {
   // seats that already took a turn this street owe a response again.
   //
   // A raise is offered against a STANDING bet, to a seat that either still owes
-  // it or has not yet taken a turn on the street. The second arm is the forced
-  // post's: a post placed before the round begins is not a turn taken within it
+  // it or has not yet taken a turn on the street. The second arm is true of any
+  // seat on its first turn — the whole table, at a street's first decision — so
+  // what it ADMITS that the first arm does not is the seat owing nothing and
+  // yet to speak, which is what a forced post leaves behind: a post placed
+  // before the round begins is not a turn taken within it
   // (decisions.md, "Named functions"), so the big blind and the bring-in poster
   // match the bet without having spoken and keep the choice the rules give
   // them. Gating on debt alone offers them `check` and nothing else — a legal,
@@ -149,14 +152,30 @@ library poker_betting {
   // A raise climbs to the next RUNG of the street's ladder, which is why the
   // target is computed rather than added: rungs sit one `limit` apart, and
   // `bet_to_match + limit` finds the next one only when the standing bet is
-  // already on one. A forced post smaller than the street's size is not — Stud
-  // brings in for 2 where the street runs at 5 — and from there, adding a size
-  // walks a ladder of its own (2, 7, 12) that the rules have no rung for.
-  // Climbing instead COMPLETES the short bet to the first rung, which is the
-  // move Stud's rules name. A standing bet that sits BETWEEN two rungs is the
-  // remaining case and this does not reach it (issue #436): getting back on the
-  // ladder from there needs the standing bet told apart from the current rung,
-  // which is a change to what the library records, not to what it computes.
+  // already on one. Two things put it off a rung, and rounding the standing bet
+  // DOWN to a rung answers both without recording anything new — the last full
+  // level is simply the standing bet with its remainder dropped. A forced post
+  // shorter than the street's size is the first: Stud brings in for 2 where the
+  // street runs at 5, so the rung below is 0 and completing makes the bet 5, the
+  // move Stud's rules name. An all-in for less than a full raise is the second:
+  // it lands the bet between two rungs, and the next raise climbs to the rung
+  // above rather than adding a size to the odd figure.
+  //
+  // Dividing by `limit` also settles what a street opened at 0 does. It used to
+  // play: the target came out equal to the standing bet, so a raise paid a call,
+  // spent an aggression and cleared every seat's `acted` — leaving each of them
+  // owing nothing and yet to speak, hence offered `raise` again, round and round
+  // to the cap and then to the engine's step limit. It is now refused, naming
+  // the divisor. That is not a side effect to apologise for: the arm above is
+  // safe only because every aggression strictly RAISES the standing bet, which
+  // holds only while `limit` is at least 1 — so the division enforces the
+  // precondition the arm was already relying on. No game opens a street at 0;
+  // every one passes a literal size.
+  //
+  // What a short all-in then does to the OTHER seats is not settled here
+  // (issue #442): it re-opens the betting to everyone, where the rules re-open
+  // only above a half-bet threshold and otherwise leave the seats already in
+  // with call or fold alone.
   move_type raise {
     when: bet_to_match > 0
           and (bet_to_match > bet_by[actor] or not acted[actor])
@@ -164,8 +183,8 @@ library poker_betting {
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
     effect {
-      let target = if bet_to_match < limit then limit else bet_to_match + limit
-      let want = target - bet_by[actor]
+      let rung = (bet_to_match divided by limit rounded down) * limit
+      let want = rung + limit - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
