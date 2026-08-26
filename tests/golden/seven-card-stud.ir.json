@@ -3646,25 +3646,6 @@
           }
         },
         {
-          "kind": "let",
-          "name": "full",
-          "index": null,
-          "value": {
-            "kind": "binop",
-            "op": "-",
-            "left": {
-              "kind": "name",
-              "name": "target",
-              "ref": "local"
-            },
-            "right": {
-              "kind": "name",
-              "name": "bet_to_match",
-              "ref": "state_var"
-            }
-          }
-        },
-        {
           "kind": "assign",
           "target": "stack",
           "index_expr": {
@@ -3836,8 +3817,8 @@
               },
               "right": {
                 "kind": "name",
-                "name": "full",
-                "ref": "local"
+                "name": "limit",
+                "ref": "state_var"
               }
             },
             "then": {
@@ -3886,8 +3867,8 @@
               },
               "right": {
                 "kind": "name",
-                "name": "full",
-                "ref": "local"
+                "name": "limit",
+                "ref": "state_var"
               }
             },
             "then": [

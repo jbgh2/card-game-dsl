@@ -80,13 +80,33 @@ AGGRESSIONS: tuple[str, ...] = tuple(
 # names is an integer this grid can drive. At 5 it would fall between chips and
 # the `>=` could never be told from `>`.
 LIMIT = 4
-STANDING = 4  # a bet already on the table, for the `raise` cells
+
+# Where the standing bet sits when a `raise` answers it. ON-SIZE is the ordinary
+# case; SUB_SIZE is a forced post shorter than the street — Stud brings in for 2
+# on a street of 5 — and it is the only position that separates the yardstick
+# below from the distance a full raise happens to travel FROM HERE. Completing a
+# sub-size post moves the bet less than a full bet does, and it is a full bet the
+# rule measures against, so the two come apart exactly here.
+ON_SIZE = LIMIT
+SUB_SIZE = 2
 
 
 class Cell(NamedTuple):
     move: str
+    standing: int  # the bet already on the table, 0 when `bet` opens the street
     moved: int  # how far this aggression shifts the standing bet
-    full: int  # how far a full raise would shift it
+
+    @property
+    def full(self) -> int:
+        """A FULL BET, which is the street's size and nothing else.
+
+        Not the distance a full raise would travel from the standing bet: those
+        agree everywhere except from a post shorter than the street, and Pagat
+        settles which one the rule means — "player A bets $4 and player B who
+        has $6 left goes all-in, which is a raise of $2, i.e. HALF A FULL
+        RAISE". Two against a street of four. The yardstick is the street.
+        """
+        return LIMIT
 
     @property
     def reopens(self) -> bool:
@@ -100,17 +120,32 @@ class Cell(NamedTuple):
         share = {1: "under-half", 2: "exactly-half", 3: "over-half"}.get(
             self.moved, "full"
         )
-        return f"{self.move}-moves-{self.moved}-of-{self.full}-{share}"
+        where = (
+            "opening"
+            if self.move == "bet"
+            else "on-size"
+            if self.standing == ON_SIZE
+            else "sub-size"
+        )
+        return f"{self.move}-{where}-moves-{self.moved}-of-{self.full}-{share}"
 
 
 def _cells() -> list[Cell]:
     out: list[Cell] = []
     for move in AGGRESSIONS:
-        # `bet` opens a street, so a full raise is the street's whole size;
-        # `raise` answers a standing bet, and moves it one size further.
-        full = LIMIT
-        for moved in range(1, full + 1):
-            out.append(Cell(move=move, moved=moved, full=full))
+        # `bet` opens a street, so there is no standing bet to answer; `raise`
+        # answers one, and the position it answers from is an axis.
+        standings = [0] if move == "bet" else [ON_SIZE, SUB_SIZE]
+        for standing in standings:
+            # One aggression can carry the bet as far as its target and no
+            # further, both effects paying `min(what the rules want, what the
+            # seat holds)`. From a sub-size post the target is the street's size
+            # rather than a size beyond the post, so the reachable distances are
+            # SHORTER there — which is the same fact that makes the position
+            # discriminating, seen from the domain's side.
+            target = LIMIT if standing < LIMIT else standing + LIMIT
+            for moved in range(1, target - standing + 1):
+                out.append(Cell(move=move, standing=standing, moved=moved))
     return out
 
 
@@ -173,7 +208,7 @@ def _drive(cell: Cell) -> Aftermath:
     a seat holding exactly the standing bet plus `moved` can shift the bet by
     exactly that much and no further.
     """
-    standing = 0 if cell.move == "bet" else STANDING
+    standing = cell.standing
     hero_stack = cell.moved if cell.move == "bet" else standing + cell.moved
     before_raises = 0 if cell.move == "bet" else 1
     source = _PROBE.format(
@@ -290,4 +325,36 @@ def test_the_domain_reaches_both_sides_of_the_boundary() -> None:
     assert all(c.reopens for c in boundary), (
         "a cell at exactly half is expected not to re-open; Robert's Rules 5 "
         "says 'a half a bet OR MORE is treated as a full bet'"
+    )
+
+
+def test_the_domain_separates_the_street_size_from_the_completion_distance() -> None:
+    """The control: the cells must be able to tell the two yardsticks apart.
+
+    A full BET and the distance a full RAISE travels from the standing bet are
+    the same number everywhere except from a post shorter than the street, so a
+    domain whose standing bets all sat on a size would pass under either reading
+    and prove nothing about which one the rule means. This asserts the domain
+    contains a position that separates them, and a distance at which they
+    actually disagree — the empty-input-set defect wearing a grid's clothes.
+
+    Written because its absence let exactly that through: the first version of
+    this module drove one standing bet, equal to the street size, and could not
+    see a threshold computed from the completion distance.
+    """
+    separating = [
+        c
+        for c in CELLS
+        if c.move == "raise"
+        and c.standing < LIMIT
+        and (c.moved * 2 >= LIMIT) != (c.moved * 2 >= LIMIT - c.standing)
+    ]
+    assert separating, (
+        "no cell distinguishes a threshold measured against the street's size "
+        "from one measured against the distance left to complete a short post — "
+        "every standing bet in the domain must sit on a size"
+    )
+    assert {c.standing for c in CELLS if c.move == "raise"} == {ON_SIZE, SUB_SIZE}, (
+        "the raise cells must answer a standing bet from BOTH positions; one of "
+        "them alone cannot see which yardstick the threshold uses"
     )

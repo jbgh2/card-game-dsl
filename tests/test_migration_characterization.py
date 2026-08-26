@@ -66,12 +66,23 @@ counted aggressions, and the seats already in answer it with call or fold alone
 (issue #442, the operator's half-bet ruling). That changes who is ASKED and what
 they are OFFERED, so it moves the chooser draws wherever a seat is all-in for
 less. `seven-card-stud.ir.json` moves with it through its own `UPDATE_GOLDEN=1`
-path: six hunks, in `bet`'s and `raise`'s effects and `raise`'s guard.
+path: hunks in `bet`'s and `raise`'s effects and `raise`'s guard.
+
+The threshold measures against a FULL BET — the street's size — and never
+against the distance a full raise happens to travel from where the bet stands.
+Those are the same number everywhere except from a post shorter than the street,
+which is exactly Stud's bring-in, so the difference is invisible in four of the
+five consumers and in every cell of a grid whose standing bets all sit on a
+size. Pagat settles it: "player A bets $4 and player B who has $6 left goes
+all-in, which is a raise of $2, i.e. half a full raise" — two against a street
+of four.
 
 **This regeneration is also the one that showed the sampling dial can hide a
-real change.** The moved seeds are 10 and above; `DEFAULT_SEEDS` is 10, so the
-comparison slice is 0..9 and this module stayed GREEN across a change that moves
-the game. The golden on disk was stale for 5 seeds it pins while the gate said
+real change, twice over.** Every moved seed is 10 or above — 10, 21, 30, 31 and
+37 — while `DEFAULT_SEEDS` is 10, so the comparison slice is 0..9 and this
+module stayed GREEN across a change that moves the game. It stayed green a
+second time on the correction to that same change, where seeds 31 and 37 moved
+and the first ten did not. The golden on disk was stale for 5 seeds it pins while the gate said
 nothing — which is why regeneration happens at the golden's own width and never
 at `seeds_for(...)`, the rule stated further down. A green here bounds the
 slice, not the vector. Hold'em moves on this change too and has no per-seed

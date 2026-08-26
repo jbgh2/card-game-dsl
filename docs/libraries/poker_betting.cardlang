@@ -124,9 +124,16 @@ library poker_betting {
   }
 
   // Aggression re-opens the betting — but only aggression that is big enough to
-  // count as one. `moved + moved >= full` is the HALF-BET THRESHOLD: an all-in
-  // that moves the bet at least half as far as a full raise would is a raise
-  // for every purpose, and one that moves it less is not a raise at all.
+  // count as one. `moved + moved >= limit` is the HALF-BET THRESHOLD: an all-in
+  // that moves the standing bet at least half of a FULL BET is a raise for
+  // every purpose, and one that moves it less is not a raise at all. The
+  // yardstick is the street's size and never the distance a full raise happens
+  // to travel from here — those agree everywhere except from a post shorter
+  // than the street, where completing it moves the bet less than a full bet
+  // does. Pagat settles which is meant: "player A bets $4 and player B who has
+  // $6 left goes all-in, which is a raise of $2, i.e. half a full raise" — two
+  // measured against a street of four, not against the two still needed to
+  // complete anything.
   // Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`): "an all-in wager
   // of less than half a bet does not reopen the betting for any player who has
   // already acted and is in the pot for all previous bets ... An all-in wager
@@ -183,13 +190,12 @@ library poker_betting {
       let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
       let moved = bet_by[actor] + pay - bet_to_match
-      let full = target - bet_to_match
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
       bet_by[actor] := bet_by[actor] + pay
       bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
-      raises := if moved + moved >= full then raises + 1 else raises
-      for each player p: if moved + moved >= full { acted[p] := false }
+      raises := if moved + moved >= limit then raises + 1 else raises
+      for each player p: if moved + moved >= limit { acted[p] := false }
       acted[actor] := true
     }
   }
