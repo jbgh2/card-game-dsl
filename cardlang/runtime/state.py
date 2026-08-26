@@ -458,6 +458,15 @@ class Ctx:
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
     observer: Callable[[Player, tuple[Any, ...]], None] | None = None
+    # Delegated Play (decisions.md "Delegated play"). `round_source` is the
+    # acting seat's effective trick source — (declared family name, the zone
+    # the seat actually plays from) — bound by the trick form for the scope of
+    # one seat's turn so rule bodies read the routed pool. `decider` is the
+    # seat that chose at the live decision, bound by the round loop for the
+    # apply that enacts the choice; `None` everywhere else, and equal to the
+    # actor in every undelegated game.
+    round_source: "tuple[str, Zone] | None" = None
+    decider: Player | None = None
 
     def trace(self, event: str, data: Any) -> None:
         if self.tracer is not None:
