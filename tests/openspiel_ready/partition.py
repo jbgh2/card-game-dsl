@@ -309,9 +309,11 @@ def derive_arrivals(
     The derivation replays the log's `move` events: an arrival into the zone
     appends each card of the (identity) destination view, attributed to the
     source label's owner seat when the source is a player-indexed family
-    (`hand[2]` -> 2 — how any observer attributes a play today, actor and
-    source-owner coinciding corpus-wide; decisions.md "Delegated play" holds
-    the unwired divergence design); a departure removes its cards by value.
+    (`hand[2]` -> 2 — how any observer attributes a play; under Delegated
+    Play the engine record keeps this same seat, the source's owner, so the
+    derivation and the record agree by construction while the decider's
+    recall stays in the decider's own log); a departure removes its cards
+    by value.
     A multi-card arrival appends in the view's (sorted) order — exact for
     the single-card plays the consumers read, and a LOUD mismatch rather
     than a silent one if a future consumer's pile ever takes batches whose

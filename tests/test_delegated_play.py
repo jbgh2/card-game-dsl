@@ -360,3 +360,137 @@ def test_a_source_the_decider_cannot_see_is_refused() -> None:
     )
     with pytest.raises(OwnerGuardError, match="cannot see"):
         play_game(game, random.Random(0), chooser=_Recording())
+
+
+# =============================================================================
+# The review round's cells — the finding is one row of a class
+# =============================================================================
+
+
+def test_source_routing_alone_cannot_reach_an_opponents_private_zone() -> None:
+    """`play_source_for` with NO delegation can hand a seat an opponent's
+    private hand (`hand[p offset_by left]`) — the decider is the actor, but
+    the pool is cards the actor cannot see. The visibility guard fires on any
+    routed draw, not only a delegated one."""
+    game = _fixture(
+        "SelfBlind",
+        functions="function play_source_for(p : Player) = hand[p offset_by left]",
+    )
+    with pytest.raises(OwnerGuardError, match="cannot see"):
+        play_game(game, random.Random(0), chooser=_Recording())
+
+
+def test_an_owner_blind_declared_source_is_refused_statically() -> None:
+    """The DECLARED source needs no helper to be wrong: `source stock` over a
+    FaceDownPile offers the actor cards they cannot see, known from the
+    declaration alone — refused at resolve, where the designer wrote it.
+
+    red under: delete the declared-source projection wall in
+    `resolve._check_delegation` (verified)."""
+    src = _BASE.format(
+        name="DeclaredBlind", functions="", after_deal="", source="stock"
+    ).replace(
+        "    trick_pile       : TrickPile",
+        "    stock[player]    : FaceDownPile\n    trick_pile       : TrickPile",
+    ).replace(
+        "deal 3 cards from deck to each hand",
+        "deal 3 cards from deck to each stock",
+    )
+    with pytest.raises(DiagnosticError, match="identity to its own seat"):
+        check_dsl(src, "declaredblind.cardlang")
+
+
+def test_the_pile_read_winner_agrees_with_the_round_winner_under_delegation() -> None:
+    """The Arrival-Record CALL form (`highest_trump_or_led_suit(pile, ...)`)
+    pairs each card with the ATTRIBUTED seat, so it crowns the same winner as
+    the round's own winner slot even when every play was the boss's decision.
+    The fixture folds the agreement into its own scoring — each seat's final
+    score is captured cards minus two per pile-read trick, so every score is
+    zero exactly when the two winner paths crowned the same seat every trick.
+    Under a record storing the decider, boss's pile-read credit would drive
+    boss negative and the true winner positive.
+
+    red under: store `delegation.decider_for(ctx, actor)` as the arrival
+    actor in `TrickForm.apply` (verified; the same mutation reddens the
+    record cell below)."""
+    src = _BASE.format(
+        name="PileRead",
+        functions=(
+            "function chooser_for(p : Player) = boss\n"
+            "function play_source_for(p : Player) = exposed[p]"
+        ),
+        after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
+        source="hand",
+    ).replace(
+        "    score[player] : Integer = 0",
+        "    score[player] : Integer = 0\n    pile_tricks[player] : Integer = 0",
+    ).replace(
+        "      move all cards from trick_pile to captured[winner]",
+        "      pile_tricks[highest_trump_or_led_suit(trick_pile, none)] += 1\n"
+        "      move all cards from trick_pile to captured[winner]",
+    ).replace(
+        "    for each player p: score[p] := number of cards in captured[p]",
+        "    for each player p: score[p] := (number of cards in captured[p]) - (2 * pile_tricks[p])",
+    )
+    game = check_dsl(src, "pileread.cardlang")
+    result = play_game(game, random.Random(0), chooser=_Recording())
+    assert all(v == 0 for v in result.scores.values()), (
+        f"scores {result.scores}: a nonzero seat means the pile-read winner "
+        f"and the round winner crowned different seats for some trick — the "
+        f"call form paired a card with the decider"
+    )
+
+
+def test_a_delegated_plays_record_carries_the_attributed_seat() -> None:
+    """The record itself, read at a pause: after a delegated play, the trick
+    pile's arrival names the ACTOR (the source's owner), never the boss who
+    chose it — the seat every observer can derive from the movement's source
+    label (issue #256's no-leak criterion; the decider's recall is the chose
+    event, private to the decider).
+
+    red under: store `delegation.decider_for(ctx, actor)` as the arrival
+    actor in `TrickForm.apply` — the delegated lead's arrival then names
+    boss (verified; the delegated seat must LEAD in this fixture, since a
+    2p trick completes at two plays and a boss-led line leaves no delegated
+    arrival at any pause)."""
+    src = _BASE.format(
+        name="RecordSeat",
+        functions=(
+            "function chooser_for(p : Player) = boss\n"
+            "function play_source_for(p : Player) = exposed[p]"
+        ),
+        after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
+        source="hand",
+    ).replace(
+        # The delegated seat LEADS, so the trick's first arrival is the
+        # delegated play — in a 2p game the trick completes at two plays and
+        # the pile empties, so a boss-led line holds no delegated arrival at
+        # any pause.
+        "    leader := boss\n", "    leader := boss offset_by left\n"
+    )
+    import tempfile
+
+    from cardlang.openspiel.replay import DecisionNode, run
+
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".cardlang", delete=False
+    ) as f:
+        f.write(src)
+        path = f.name
+    r: Any = run(path, 0, ())
+    assert isinstance(r, DecisionNode)
+    r2: Any = run(path, 0, (r.legal[0],))
+    assert isinstance(r2, DecisionNode)
+    pile = r2.rs.zones.single("trick_pile")
+    assert len(pile.arrivals) == 1, "the leader's play should sit in the pile"
+    arrival = pile.arrivals[-1]
+    assert arrival.src is not None
+    src_family, src_key = arrival.src
+    assert src_key is not None and int(src_key) != 0, (
+        "the sampled play is boss's own — walk further"
+    )
+    assert src_family == "exposed" and arrival.actor == src_key, (
+        f"the delegated play's arrival names actor {arrival.actor} with "
+        f"source {arrival.src}; the record stores the attributed seat (the "
+        f"source's owner), and the decider only in the decider's own log"
+    )

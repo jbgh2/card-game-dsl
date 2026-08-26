@@ -76,9 +76,14 @@ class ChooserAbort(Exception):
 
 @dataclass(frozen=True, slots=True)
 class Arrival:
-    """One entry of a zone's [[arrival-record]]: the deciding [[actor]], the
+    """One entry of a zone's [[arrival-record]]: the attributed [[actor]], the
     card VALUE, and the source [[zone-address]] (`None` for out-of-game
-    seeding). The actor is the chooser's seat for a chosen selection, else
+    seeding). Under Delegated Play the attributed seat is the SOURCE's owner,
+    never the [[decider]] — every observer derives a play's seat from the
+    movement's source label, and the `chose` event is the decider's alone,
+    so a decider stored here would be provenance no observer's stream
+    entails (issue #256's no-leak criterion). Outside a round the actor is
+    the chooser's seat for a chosen selection, else
     whatever seat the movement ran under (`ctx.current_player`) — `None`
     when none is bound, which is every engine deal and every corpus gather
     today (they run in phase bodies); a gather or dealt movement inside an
@@ -458,15 +463,13 @@ class Ctx:
     action: Move | None = None
     active_rules: tuple[n.RuleDef, ...] = ()
     observer: Callable[[Player, tuple[Any, ...]], None] | None = None
-    # Delegated Play (decisions.md "Delegated play"). `round_source` is the
-    # acting seat's effective trick source — (declared family name, the zone
-    # the seat actually plays from) — bound by the trick form for the scope of
-    # one seat's turn so rule bodies read the routed pool. `decider` is the
-    # seat that chose at the live decision, bound by the round loop for the
-    # apply that enacts the choice; `None` everywhere else, and equal to the
-    # actor in every undelegated game.
+    # Delegated Play (decisions.md "Delegated play"): the acting seat's
+    # effective trick source — (declared family name, the zone the seat
+    # actually plays from) — bound by the trick form for the scope of one
+    # seat's turn so rule bodies read the routed pool. The Decider itself
+    # never rides the Ctx: its record is the decision node and its private
+    # `chose` recall, and the Arrival Record stays the attributed seat's.
     round_source: "tuple[str, Zone] | None" = None
-    decider: Player | None = None
 
     def trace(self, event: str, data: Any) -> None:
         if self.tracer is not None:

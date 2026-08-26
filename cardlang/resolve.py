@@ -3105,18 +3105,35 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
     - a game defining a helper must hold a trick round somewhere for it to
       route — helpers no site consults are accepted-but-ignored, the defect
       class this repo ranks worst;
-    The third guard — the decider must SEE the routed pool — is deliberately
-    NOT here: whether a seat's pool is delegated depends on `chooser_for`'s
-    value at the same seat, and correlating two opaque expression bodies is
-    not statically decidable (Bridge's own helper routes non-dummy seats to
-    their private hands, legally, because those seats decide for themselves).
-    The precise check is the runtime Owner Guard at the draw
-    (`runtime/mechanics.py`): a delegated draw whose pool does not project
-    identity to the decider refuses before any candidate is offered.
+    - every trick round's DECLARED source projects identity to its own seat
+      (helpers or not): the unrouted actor draws from their own instance, and
+      an owner-blind declared source is a game nobody can play, statically
+      known from the declaration.
+
+    The routed pool's guard — the DECIDER must see it — is deliberately NOT
+    here: whether a seat's pool is routed, and to whom the decision goes,
+    are the helpers' values at that seat, and correlating two opaque
+    expression bodies is not statically decidable (Bridge's own helper
+    routes undelegated seats to their private hands, legally). The precise
+    check is the runtime Owner Guard at the draw (`runtime/mechanics.py`),
+    fired whenever either helper routes.
     """
     from cardlang.runtime.delegation import HELPER_NAMES
 
     helpers = [f for f in game.functions if f.name in HELPER_NAMES]
+    zone_types = {z.name: z.type_ref.name for z in game.zones}
+    for node in _walk(game):
+        if not isinstance(node, n.TrickRound):
+            continue
+        ztype = zone_types.get(node.source_zone)
+        if ztype is not None and ZONE_PROJECTIONS[ztype].owner != "identity":
+            bag.error(
+                f"a trick round's source '{node.source_zone}' ({ztype}) does "
+                f"not project identity to its own seat — the acting player "
+                f"could not see the cards offered from it. Play tricks from "
+                f"an owner-visible zone",
+                node.span,
+            )
     if not helpers:
         return
     for fn in helpers:

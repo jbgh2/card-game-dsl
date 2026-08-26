@@ -2460,10 +2460,13 @@ The kernel performs every movement, and it retains what it performed: each
 zone carries an **Arrival Record** — per card now in the zone, the deciding
 actor (`None` when no seat decided), the card value, and the source zone
 address, in arrival order (`state.Zone`). "Who played this card" is two
-facts, deliberately: the deciding actor and the source zone's owner coincide
-everywhere in the corpus today, and the one known case that splits them —
-Bridge's dummy — is the "Delegated play" section's unwired design, which the
-two-fact record already has room for. Consumers read the record in place of
+facts, deliberately: the attributed actor and the source zone's owner — one
+seat spelled twice, and kept the SAME seat under Delegated Play: a delegated
+play's record stays the source owner's (Bridge's dummy), because every
+observer derives a play's seat from the movement's source label while the
+`chose` event is the [[decider]]'s alone, so a decider stored in the record
+would be provenance no observer's stream entails. The decider's record is
+the decision node and its private recall ("Delegated play"). Consumers read the record in place of
 re-deriving attribution: a trick winner's pairing of seat against card is a
 read, never a zip of seat order against pile contents, and participation is
 nothing to declare — it derives from who acted, so a contract's dead seat is
@@ -3222,7 +3225,9 @@ themselves), and a parallel `play_source_for` helper routes the actor's
 move-source zone. Both live as ordinary per-game functions; the seat a
 helper yields is the [[decider]] — the `chose` observation and the
 OpenSpiel decision node are the Decider's, while the trace, the movement,
-and the trick stay the actor's, per "The Arrival Record"'s two facts.
+the Arrival Record, and the trick stay the actor's: the record never
+stores the Decider, whose provenance no observer's stream entails ("The
+Arrival Record").
 The trick form is the routed form; the other decision points refuse the
 helpers by name rather than ignore them (`runtime/delegation.py` classifies
 every chooser call site, and issue #458 records what lifting a refusal

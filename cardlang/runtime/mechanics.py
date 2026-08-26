@@ -111,19 +111,25 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
             if type(form).__name__ in delegation.ROUTED_FORMS
             else actor
         )
-        if decider != actor:
-            # The visibility Owner Guard: a delegated draw is offered only
-            # from a pool the decider can SEE — legal actions must be a
-            # function of the decider's own information state, or two worlds
-            # the decider cannot tell apart would offer different moves.
-            # Runtime rather than resolve because whether a seat's pool is
-            # delegated depends on both helpers' values at the same seat,
-            # which two opaque expression bodies do not statically reveal.
+        if decider != actor or (
+            type(form).__name__ in delegation.ROUTED_FORMS
+            and delegation.helper(ctx.rs, delegation.SOURCE_HELPER) is not None
+        ):
+            # The visibility Owner Guard: a routed draw is offered only from
+            # a pool its DECIDER can SEE — legal actions must be a function
+            # of the decider's own information state, or two worlds the
+            # decider cannot tell apart would offer different moves. Fires
+            # whenever EITHER routing is active: `play_source_for` alone can
+            # hand a seat an opponent's private zone with no delegation in
+            # sight. Runtime rather than resolve because whether a seat's
+            # pool is routed depends on the helpers' values at that seat,
+            # which opaque expression bodies do not statically reveal; the
+            # DECLARED source's own visibility is resolve's static wall.
             delegation.check_decider_sees(ctx, decider, actor, form)
         choice = ctx.chooser(decider, candidates, 1)[0]  # the single per-step draw
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
         observe.choice(ctx, decider, choice)
-        state = form.apply(actor, choice, state, replace(ctx, decider=decider))
+        state = form.apply(actor, choice, state, ctx)
     result = form.outcome(state, ctx)
     # After `outcome`, never before: the winner function runs as a primitive, and
     # `EngineFacts.round_state` hands it `mech_state[-1]` while a frame is live.
@@ -229,12 +235,13 @@ class TrickForm:
         )
         src.remove(choice)
         src_addr = ctx.rs.zones.locate(src)
-        # Arrival.actor is the DECIDING seat and the source address carries
-        # the owning seat — "two facts, deliberately" (decisions.md "The
-        # Arrival Record"); winner paths pair cards with the owner.
-        ctx.rs.zones.single(self.play_zone).add(
-            choice, ctx.decider if ctx.decider is not None else actor, src_addr
-        )
+        # The record stores the ATTRIBUTED seat: every observer derives a
+        # play's seat from the movement's source label, and the `chose`
+        # event is the decider's alone — storing the decider here would be
+        # provenance no observer's stream entails (issue #256's no-leak
+        # criterion; decisions.md "The Arrival Record"). The decider's
+        # record is the decision node and its private recall.
+        ctx.rs.zones.single(self.play_zone).add(choice, actor, src_addr)
         observe.movement(ctx, src_addr, (self.play_zone, None), [choice])
         state["played"].append((actor, choice))
         ctx.trace("play", (actor, choice))
