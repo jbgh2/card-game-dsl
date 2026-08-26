@@ -114,3 +114,33 @@ def source_for(ctx: "Ctx", actor: Player, declared: "Zone") -> "Zone":
             f"value's type open, so it is checked here"
         )
     return routed
+
+
+def check_decider_sees(ctx: "Ctx", decider: Player, actor: Player, form: Any) -> None:
+    """The visibility Owner Guard on a delegated draw: the pool the actor
+    plays from must project full identity to the DECIDER, or the offered
+    candidates would be a function of cards outside the decider's information
+    state (the legal-action-agreement axiom, refused at its source). Fires
+    per delegated decision; an undelegated game never reaches it."""
+    from cardlang.domains import zone_observer_key
+    from cardlang.stdlib.zones import zone_projection
+
+    family = getattr(form, "source_family", None)
+    if family is None:
+        return  # a form with no card source has no pool to see
+    src = source_for(ctx, actor, ctx.rs.zones.instance(family, actor))
+    name, key = ctx.rs.zones.locate(src)
+    index = ctx.rs.zones.zone_index[name]
+    is_owner = (
+        index is not None
+        and key is not None
+        and zone_observer_key(index, ctx.rs, decider) == key
+    )
+    if zone_projection(ctx.rs.zones.zone_type[name], is_owner) != "identity":
+        label = name if key is None else f"{name}[{key}]"
+        raise OwnerGuardError(
+            f"seat {decider} decides seat {actor}'s play from {label}, which "
+            f"seat {decider} cannot see in full — a delegated move's source "
+            f"must project identity to its decider (route the plays through a "
+            f"zone every observer sees, e.g. a PublicHand)"
+        )

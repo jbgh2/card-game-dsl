@@ -3105,13 +3105,16 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
     - a game defining a helper must hold a trick round somewhere for it to
       route — helpers no site consults are accepted-but-ignored, the defect
       class this repo ranks worst;
-    - `play_source_for` may name only zones every observer sees in full
-      (others-projection `identity`): the decider of a delegated move may be
-      any seat, so a pool below identity-to-others is a game someone plays
-      blind. Conservative by design — it also refuses routing a seat into
-      their own private zone, and says so here rather than silently.
+    The third guard — the decider must SEE the routed pool — is deliberately
+    NOT here: whether a seat's pool is delegated depends on `chooser_for`'s
+    value at the same seat, and correlating two opaque expression bodies is
+    not statically decidable (Bridge's own helper routes non-dummy seats to
+    their private hands, legally, because those seats decide for themselves).
+    The precise check is the runtime Owner Guard at the draw
+    (`runtime/mechanics.py`): a delegated draw whose pool does not project
+    identity to the decider refuses before any candidate is offered.
     """
-    from cardlang.runtime.delegation import HELPER_NAMES, SOURCE_HELPER
+    from cardlang.runtime.delegation import HELPER_NAMES
 
     helpers = [f for f in game.functions if f.name in HELPER_NAMES]
     if not helpers:
@@ -3133,25 +3136,6 @@ def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
             f"(routing at other decision points is issue #458)",
             helpers[0].span,
         )
-    zone_types = {z.name: z.type_ref.name for z in game.zones}
-    for fn in helpers:
-        if fn.name != SOURCE_HELPER:
-            continue
-        for node in _walk(fn.body):
-            if not isinstance(node, n.NameRef) or node.name not in zone_types:
-                continue
-            vis = ZONE_PROJECTIONS[zone_types[node.name]]
-            if vis.others != "identity":
-                bag.error(
-                    f"'{SOURCE_HELPER}' routes plays into '{node.name}' "
-                    f"({zone_types[node.name]}), which projects "
-                    f"'{vis.others}' to non-owners — the decider of a "
-                    f"delegated move may be any seat, so a routed source must "
-                    f"project identity to every observer (a pool the decider "
-                    f"cannot see is a game played blind)",
-                    node.span if node.span is not None else fn.span,
-                )
-
 
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     """A `winner:` target must be a state variable a game can be ranked by.

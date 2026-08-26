@@ -33,11 +33,39 @@ or `all_pass` — and the `produces:` consumer either routes on into play or ski
 the passed-out hand (see [decisions.md](../decisions.md) "Typed phase outcomes").
 Random bids are capped at level 3 so rubbers stay
 a realistic dozen-odd hands — game-level and slam contracts are unreachable under
-random play (their scoring is implemented but unexercised). The dummy and
-declarer-plays-dummy delegation are omitted: pure information/agency structure a
-uniform-random playout does not exercise.
+random play (their scoring is implemented but unexercised; issue #415 holds the
+cap's own reckoning). The dummy is modelled: once a contract stands, declarer's
+partner lays their thirteen cards into `dummy_hand`, a `PublicHand` every seat
+sees in full, and declarer decides dummy's plays through the Delegated Play
+helpers (`chooser_for` / `play_source_for`, [decisions.md](../decisions.md)
+"Delegated play") while the tricks stay dummy's. One declared deviation from
+the real game: the exposure precedes the opening lead rather than following
+it, so the leader chooses with sight of dummy — the kernel round is atomic
+per trick, and the mid-trick instant real Bridge exposes at is not a
+statement site.
 
 ```
+// Bridge (rubber, simplified) — formalized DSL (parser/checker/runtime target).
+//
+// Companion to bridge.md. Rubber Bridge with the standard below-the-line /
+// above-the-line scoring, game and rubber bonuses, slam bonuses, and
+// vulnerability; honors and the finer penalty table are simplified. One rubber
+// is played (first side to two games), and the side with the higher total wins.
+//
+// Bridge trick play needs only follow-suit, so the thirteen tricks run on the
+// kernel `round` construct (a no-trump contract passes trump = none). The
+// auction — ascending bids over C D H S NT, with double and redouble — runs on
+// the auction form of the same `round` kernel: a continuous ring over the bid
+// vocabulary (the `move_type`s below), threading the standing contract through
+// the phase's accumulator state until the bidding closes. The dummy is
+// modelled: declarer's partner lays their hand into a PublicHand every seat
+// sees in full, and declarer decides its plays through the Delegated Play
+// helpers below (decisions.md "Delegated play") while the tricks stay
+// dummy's. One declared deviation: the exposure precedes the opening lead
+// rather than following it, so the leader chooses with sight of dummy —
+// the kernel round is atomic per trick, and the mid-trick instant real
+// Bridge exposes at is not a statement site (see bridge.md).
+
 game Bridge {
 
   players: 4
@@ -49,26 +77,31 @@ game Bridge {
   ranking: aces high
 
   zones {
-    deck           : Deck
-    hand[player]   : Hand<player>
-    trick_pile     : TrickPile
-    captured[team] : TeamPile<team>
+    deck              : Deck
+    hand[player]      : Hand<player>
+    dummy_hand[player]: PublicHand<player>   // dummy's exposed cards; empty for every other seat
+    trick_pile        : TrickPile
+    captured[team]    : TeamPile<team>
   }
 
   state {
-    // The rubber accumulators (one rubber is played); read for the winner.
+    // The rubber accumulators. Game-level so they persist for the winner read
+    // after the rubber phase ends (a single rubber is played).
     games_won[team]     : Integer = 0
     total_score[team]   : Integer = 0
     below_current[team] : Integer = 0    // below-the-line toward the current game
   }
 
+  // One rubber: play hands until a side has won two games; highest total wins.
   phase rubber repeat until (any team where games_won[team] >= 2) {
     state {
+      // Per-hand, reset by before_each / set by the auction's outcome arm.
       dealer            : Player  = 0
       contract_level    : Integer = 0
       trump_suit        : Suit?   = none   // none = no-trump
       doubled_mult      : Integer = 1
       declarer          : Player? = none
+      dummy              : Player? = none   // declarer's partner once a contract stands
       leader            : Player? = none
       tricks_taken[team]: Integer = 0
     }
@@ -81,16 +114,22 @@ game Bridge {
       for each team t: tricks_taken[t] := 0
     }
 
+    // The auction resolves either to a final contract (declarer, level, strain,
+    // doubling) or to a pass-out; the consumer routes to play or skips the hand.
     phase auction -> outcome {
       contract_finalized(Player, Integer, Suit?, Integer) | all_pass
     } {
+      // The standing contract, threaded across the bidding ring. Each turn a
+      // player bids the cheapest level in some strain, doubles, redoubles, or
+      // passes; the ring continues until three passes follow a bid (four passes
+      // with no bid). bridge_auction_outcome then reads this terminal state.
       state {
-        cur_level   : Integer = 0
-        cur_strain  : Suit?   = none
-        high_bidder : Player? = none
-        doubled     : Integer = 1
+        cur_level   : Integer = 0      // 0 = no bid yet
+        cur_strain  : Suit?   = none   // the high bid's strain (none = no-trump)
+        high_bidder : Player? = none   // who made the standing bid (its team owns it)
+        doubled     : Integer = 1      // 1 undoubled, 2 doubled, 4 redoubled
         made_bid    : Boolean = false
-        passes      : Integer = 0
+        passes      : Integer = 0      // consecutive passes since the last call
       }
       round offering [pass, submit_bid, double, redouble] from dealer over all players
             until (made_bid and passes >= 3) or (not made_bid and passes >= 4)
@@ -110,8 +149,13 @@ game Bridge {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
-      leader := declarer offset_by left
-      repeat until (all players where hand[player] is empty) {
+      // The dummy lays their hand down. The movement IS the exposure: every
+      // seat learns thirteen identities through dummy_hand's declared type.
+      dummy := declarer offset_by across
+      move all cards from hand[dummy] to dummy_hand[dummy]
+      leader := declarer offset_by left          // declarer's left-hand opponent leads
+      repeat until (all players where
+          (number of cards in hand[player]) + (number of cards in dummy_hand[player]) is 0) {
         round play_to_trick from leader over all players source hand into trick_pile
               winner highest_trump_or_led_suit trump trump_suit
         move all cards from trick_pile to captured[team_of(winner)]
@@ -171,14 +215,23 @@ game Bridge {
 // MustFollowSuit is a standard-library rule (library.md "Rules"): activated
 // by name above, defined once in cardlang/stdlib/rules.cardlang.
 
-// The bid vocabulary. The cheapest beating level in a strain is derived; random
-// bids are capped at level 3 so rubbers stay a realistic length.
-move_type pass { effect { passes += 1 } }
+// === Auction move vocabulary ===
+//
+// The cheapest level that beats the standing bid in a strain is derived, not
+// chosen: 1 if no one has bid, else the same level when the strain ranks above
+// the standing strain (a higher strain beats it at the same level), else one
+// level up. Random bids are capped at level 3 — a random declarer almost never
+// makes a higher contract, so the cap keeps a rubber to a realistic length
+// (game and slam contracts are scored but unreached under random play).
+
+move_type pass {
+  effect { passes += 1 }
+}
 
 move_type submit_bid(strain : Suit?) {
   when: next_level(strain) <= 3
   effect {
-    cur_level   := next_level(strain)
+    cur_level  := next_level(strain)
     cur_strain  := strain
     high_bidder := actor
     doubled     := 1
@@ -197,10 +250,17 @@ move_type redouble {
   effect { doubled := 4  passes := 0 }
 }
 
-// The cheapest level that beats the standing bid in a strain, named once so the
-// `submit_bid` guard and effect agree by construction (the level the guard
-// admits is the level the effect writes).
+// The cheapest level that beats the standing bid in a strain. Factored so the
+// `submit_bid` guard and its effect compute the identical level from one place
+// (they must agree: a bid the guard admits is the level the effect writes).
 function next_level(s : Suit?) = if cur_level is 0 then 1
                                  elif strain_index(s) > strain_index(cur_strain) then cur_level
                                  else cur_level + 1
+
+// Delegated Play (decisions.md "Delegated play"): dummy's tricks are played
+// from the exposed hand, and declarer decides them. Every other seat decides
+// its own plays from its own hand — the identity default, written out because
+// the conditional needs its other arm.
+function chooser_for(p : Player) = if p is dummy then declarer else p
+function play_source_for(p : Player) = if p is dummy then dummy_hand[p] else hand[p]
 ```

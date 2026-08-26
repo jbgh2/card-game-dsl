@@ -48,6 +48,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.delegation import DECISION_POINTS, HELPER_NAMES
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
 
 CARDLANG = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
 
@@ -185,9 +186,16 @@ class _Recording:
 def test_chooser_routing_sends_every_draw_to_the_decider() -> None:
     """`chooser_for` routes the draw: with every decision routed to the holder
     of the ace of spades, no round draw ever reaches the other seat."""
+    # The pool is public (declared `source exposed`) so routing the draws is
+    # epistemically legal — the visibility guard rightly refuses a delegated
+    # draw from a private hand, which is its own cell below. The declared
+    # non-`hand` source also exercises issue #457's fix: candidates, rule
+    # bodies, and removal all read the declared source.
     game = _fixture(
         "ChooserOnly",
         functions="function chooser_for(p : Player) = boss",
+        after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
+        source="exposed",
     )
     rec = _Recording()
     play_game(game, random.Random(0), chooser=rec)
@@ -275,6 +283,8 @@ def test_chose_event_lands_in_the_deciders_log() -> None:
     game = _fixture(
         "ChooserOnly2",
         functions="function chooser_for(p : Player) = boss",
+        after_deal="    for each player p: move all cards from hand[p] to exposed[p]",
+        source="exposed",
     )
     logs: dict[Any, list[tuple[Any, ...]]] = {0: [], 1: []}
     rec = _Recording()
@@ -333,18 +343,20 @@ def test_a_misshapen_helper_is_refused() -> None:
 
 
 def test_a_source_the_decider_cannot_see_is_refused() -> None:
-    """The visibility Owner Guard: routing a decider into a pool that does not
-    project identity to them is a game no one can play — refused at check
-    time, never dealt blind. `hand` projects count_only to non-owners, so
-    routing the other seat's decisions into it must refuse."""
-    game_src = _BASE.format(
-        name="Blind",
+    """The visibility Owner Guard: a delegated draw from a pool that does not
+    project identity to the decider refuses at the draw, before any candidate
+    is offered — never a blind deal. Runtime rather than resolve because
+    whether a seat's pool is delegated depends on both helpers' values at the
+    same seat, which two opaque expression bodies do not statically reveal
+    (Bridge's own helper legally routes undelegated seats to their private
+    hands). `hand` projects count_only to non-owners, so boss deciding the
+    other seat's play from that seat's own hand must refuse."""
+    game = _fixture(
+        "Blind",
         functions=(
             "function chooser_for(p : Player) = boss\n"
             "function play_source_for(p : Player) = hand[p]"
         ),
-        after_deal="",
-        source="hand",
     )
-    with pytest.raises(DiagnosticError, match="identity|see|visib"):
-        check_dsl(game_src, "blind.cardlang")
+    with pytest.raises(OwnerGuardError, match="cannot see"):
+        play_game(game, random.Random(0), chooser=_Recording())

@@ -3226,14 +3226,14 @@ and the trick stay the actor's, per "The Arrival Record"'s two facts.
 The trick form is the routed form; the other decision points refuse the
 helpers by name rather than ignore them (`runtime/delegation.py` classifies
 every chooser call site, and issue #458 records what lifting a refusal
-takes). Three Owner Guards ride the helpers at resolve: a helper takes
-exactly one Player; a game defining helpers must hold a trick round for
-them to reach; and `play_source_for` may name only zones whose
-others-projection is `identity` — the Decider of a delegated move may be
-any seat, so a pool below identity-to-others is a game someone plays
-blind. The helpers' bodies read public state; a routing condition over
-hidden zones is refused by the visibility guard's conservatism today and
-recorded in issue #458.
+takes). Three Owner Guards ride the helpers: at resolve, a helper takes
+exactly one Player, and a game defining helpers must hold a trick round
+for them to reach; at the draw, a delegated decision's pool must project
+full identity to its Decider — legal actions must be a function of the
+Decider's own information state, and whether a seat's pool is delegated
+depends on both helpers' values at that seat, which is not statically
+decidable over two opaque expression bodies. A routing condition read
+from a hidden zone is issue #458's recorded deferral.
 
 The default — actor is chooser, hand is source — is implicit.
 Games without delegated play declare neither helper and the

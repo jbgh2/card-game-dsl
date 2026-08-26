@@ -63,6 +63,18 @@
     },
     {
       "kind": "zone",
+      "name": "dummy_hand",
+      "index": "player",
+      "type_ref": {
+        "kind": "type_ref",
+        "name": "PublicHand",
+        "args": [
+          "player"
+        ]
+      }
+    },
+    {
+      "kind": "zone",
       "name": "trick_pile",
       "index": null,
       "type_ref": {
@@ -210,6 +222,18 @@
             {
               "kind": "state_decl",
               "name": "declarer",
+              "index": null,
+              "type": "Player",
+              "optional": true,
+              "default": {
+                "kind": "name",
+                "name": "none",
+                "ref": "null"
+              }
+            },
+            {
+              "kind": "state_decl",
+              "name": "dummy",
               "index": null,
               "type": "Player",
               "optional": true,
@@ -604,6 +628,62 @@
             },
             {
               "kind": "assign",
+              "target": "dummy",
+              "index_expr": null,
+              "op": ":=",
+              "value": {
+                "kind": "binop",
+                "op": "offset_by",
+                "left": {
+                  "kind": "name",
+                  "name": "declarer",
+                  "ref": "state_var"
+                },
+                "right": {
+                  "kind": "name",
+                  "name": "across",
+                  "ref": "enum_value"
+                }
+              }
+            },
+            {
+              "kind": "transfer",
+              "verb": "move",
+              "selection_mode": null,
+              "amount": "all",
+              "item": "cards",
+              "source": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "hand",
+                  "ref": "zone"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "dummy",
+                  "ref": "state_var"
+                }
+              },
+              "dest": {
+                "kind": "subscript",
+                "obj": {
+                  "kind": "name",
+                  "name": "dummy_hand",
+                  "ref": "zone"
+                },
+                "index_expr": {
+                  "kind": "name",
+                  "name": "dummy",
+                  "ref": "state_var"
+                }
+              },
+              "dest_each": false,
+              "distribution": null,
+              "visibility": null
+            },
+            {
+              "kind": "assign",
               "target": "leader",
               "index_expr": null,
               "op": ":=",
@@ -630,20 +710,49 @@
                 "role": "player",
                 "binder": "player",
                 "body": {
-                  "kind": "is_check",
-                  "check": "empty",
-                  "operand": {
-                    "kind": "subscript",
-                    "obj": {
-                      "kind": "name",
-                      "name": "hand",
-                      "ref": "zone"
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "binop",
+                    "op": "+",
+                    "left": {
+                      "kind": "card_query",
+                      "query": "count",
+                      "source": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "hand",
+                          "ref": "zone"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
                     },
-                    "index_expr": {
-                      "kind": "name",
-                      "name": "player",
-                      "ref": "local"
+                    "right": {
+                      "kind": "card_query",
+                      "query": "count",
+                      "source": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "dummy_hand",
+                          "ref": "zone"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      }
                     }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 0
                   }
                 }
               },
@@ -1969,6 +2078,98 @@
           "right": {
             "kind": "int",
             "value": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "chooser_for",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          },
+          "right": {
+            "kind": "name",
+            "name": "dummy",
+            "ref": "state_var"
+          }
+        },
+        "then": {
+          "kind": "name",
+          "name": "declarer",
+          "ref": "state_var"
+        },
+        "elifs": [],
+        "otherwise": {
+          "kind": "name",
+          "name": "p",
+          "ref": "local"
+        }
+      }
+    },
+    {
+      "kind": "function",
+      "name": "play_source_for",
+      "params": [
+        {
+          "name": "p",
+          "type_name": "Player"
+        }
+      ],
+      "body": {
+        "kind": "if_expr",
+        "cond": {
+          "kind": "binop",
+          "op": "is",
+          "left": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          },
+          "right": {
+            "kind": "name",
+            "name": "dummy",
+            "ref": "state_var"
+          }
+        },
+        "then": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "dummy_hand",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
+          }
+        },
+        "elifs": [],
+        "otherwise": {
+          "kind": "subscript",
+          "obj": {
+            "kind": "name",
+            "name": "hand",
+            "ref": "zone"
+          },
+          "index_expr": {
+            "kind": "name",
+            "name": "p",
+            "ref": "local"
           }
         }
       }

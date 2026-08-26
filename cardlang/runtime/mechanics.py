@@ -111,6 +111,15 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
             if type(form).__name__ in delegation.ROUTED_FORMS
             else actor
         )
+        if decider != actor:
+            # The visibility Owner Guard: a delegated draw is offered only
+            # from a pool the decider can SEE — legal actions must be a
+            # function of the decider's own information state, or two worlds
+            # the decider cannot tell apart would offer different moves.
+            # Runtime rather than resolve because whether a seat's pool is
+            # delegated depends on both helpers' values at the same seat,
+            # which two opaque expression bodies do not statically reveal.
+            delegation.check_decider_sees(ctx, decider, actor, form)
         choice = ctx.chooser(decider, candidates, 1)[0]  # the single per-step draw
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
         observe.choice(ctx, decider, choice)
