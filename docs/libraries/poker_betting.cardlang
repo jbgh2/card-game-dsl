@@ -179,14 +179,27 @@ library poker_betting {
   // pays it correctly.
   //
   // The target is computed rather than added because a raise measures from
-  // WHERE THE BET STANDS, and a standing bet is not always a full wager. At or
-  // above the street's size it is one, and the next wager is `bet_to_match +
-  // limit`: Pagat's "player A bets $4 and player B who has $6 left goes all-in,
-  // which is a raise of $2, i.e. half a full raise" makes B's six the level C
-  // raises from, to ten. Below the street's size it is not one — Stud brings in
-  // for 2 where the street runs at 5 — and adding a size there would walk a
-  // ladder of its own (2, 7, 12) the rules have no step for, so the target is
-  // the street's size itself and the move is the completion.
+  // WHERE THE BET STANDS, and a standing bet reaches three positions of which
+  // this covers two.
+  //
+  // BELOW the street's size it is no wager anyone has made in full — Stud brings
+  // in for 2 where the street runs at 5 — so the target is the street's size
+  // itself and the move is the completion; adding a size there would walk a
+  // ladder of its own (2, 7, 12) the rules have no step for. AT a level some
+  // wager reached in full, the next one is `bet_to_match + limit`: Pagat's
+  // "player A bets $4 and player B who has $6 left goes all-in, which is a raise
+  // of $2, i.e. half a full raise" makes B's six the level C raises from, to ten
+  // — B's all-in was half a bet, so it counts, and the level moves with it.
+  //
+  // ABOVE a full wager but at no level is the third, and this reaches it with
+  // the wrong number. An all-in that moves the bet less than half a bet does not
+  // count, so the level stays where it was while `bet_to_match` runs ahead of
+  // it: complete Stud's bring-in to 5, shove a 7-chip stack, and the bet stands
+  // at 7 against a level of 5. Rule 5's completion from there is 10 and this
+  // targets 12, and the seat the shove closed out is offered no completion at
+  // all, because the `bet_to_match < limit` arm above cannot see a level it does
+  // not record. Telling the standing bet apart from the level it last reached is
+  // a change to what this library RECORDS, not to what it computes.
   move_type raise {
     when: bet_to_match > 0
           and (not acted[actor] or bet_to_match < limit)
