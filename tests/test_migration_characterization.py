@@ -165,6 +165,44 @@ GOLDEN = Path(__file__).parent / "golden"
 DEFAULT_SEEDS = 10
 SEEDS_BY_GAME: dict[str, int] = {}
 
+# THE DIAL IS FOR THE REGRESSION GATE, NEVER FOR A CHANGE TO A GAME. Sampling is
+# a reasonable way to notice that something moved; it is not a way to establish
+# that nothing did. A change to `docs/games/` or `docs/libraries/` is exactly the
+# case where the second is what you need, and this module has twice stayed GREEN
+# across a change that moved the game — once on seeds 10 and above, once on 31
+# and 37 — because the slice compared was 0..9 both times.
+#
+# So set `CARDLANG_GOLDEN_SEEDS=full` and every capture here sweeps its golden's
+# WHOLE width. That is the run whose green means "the vector did not move"; the
+# default run's green means only "the first `DEFAULT_SEEDS` did not". The rule
+# and the command live in CLAUDE.md, "Verifying changes"; this switch is what
+# makes obeying it one word rather than a discipline.
+#
+# The two instruments differ exactly as advertised: change one chip of seed 37 in
+# `seven-card-stud_hands.json` and the default run passes while the full sweep
+# fails, because 37 is not in 0..9.
+_FULL_WIDTH = "full"
+
+
+def _golden_width(game: str) -> int:
+    """How many seeds this game's golden actually pins.
+
+    Every golden a game captures against must agree on its width, or "the whole
+    width" names two numbers and the slice is ambiguous again — refused here
+    rather than silently resolved, because resolving it is what the dial already
+    does wrong.
+    """
+    widths = {
+        name: len(json.loads((GOLDEN / name).read_text()))
+        for name in CAPTURE_GOLDENS[game]
+    }
+    if len(set(widths.values())) != 1:
+        raise AssertionError(
+            f"{game}: its goldens pin different widths ({widths}), so a "
+            f"full-width sweep has no single number to sweep to"
+        )
+    return next(iter(widths.values()))
+
 # The games captured here, and the goldens each one's captures compare against
 # — the domain the table above is keyed over.
 CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
@@ -182,14 +220,17 @@ CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
 
 
 def seeds_for(game: str) -> int:
+    if os.environ.get("CARDLANG_GOLDEN_SEEDS") == _FULL_WIDTH:
+        return _golden_width(game)
     return SEEDS_BY_GAME.get(game, DEFAULT_SEEDS)
 
 
 def assert_golden_seeds(game: str, captured: Any, expected: Any) -> None:
     """Compare a capture against the corresponding SLICE of its golden.
 
-    The count is a sampling dial (see `DEFAULT_SEEDS`), so the golden holds more
-    seeds than a run sweeps. Two things have to be checked before the slice is
+    The count is a sampling dial (see `DEFAULT_SEEDS`), so by default the golden
+    holds more seeds than a run sweeps — unless `CARDLANG_GOLDEN_SEEDS=full`, at
+    which point the slice is the whole vector and this comparison is exact. Two things have to be checked before the slice is
     honest: that the capture actually produced the seeds it was asked for — a
     capture that swept none would otherwise compare an empty dict against an
     empty slice and pass — and that every seed it produced is one the golden
