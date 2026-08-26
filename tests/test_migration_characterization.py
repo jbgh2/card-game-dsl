@@ -177,8 +177,9 @@ SEEDS_BY_GAME: dict[str, int] = {}
 # and the command live in CLAUDE.md, "Verifying changes"; this switch is what
 # makes obeying it one word rather than a discipline.
 #
-# The switch takes that one word and nothing else. Any other value is REFUSED
-# rather than rounded down to the dial, because a caller who asked for a width
+# The switch takes that one word and nothing else. Unset — or set and cleared,
+# which is how a shell spells the same thing — is the dial; every other value is
+# REFUSED rather than rounded down to it, because a caller who asked for a width
 # and silently got the dial's is in exactly the position this switch exists to
 # get them out of.
 _FULL_WIDTH = "full"
