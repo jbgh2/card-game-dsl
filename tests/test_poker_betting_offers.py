@@ -4,12 +4,17 @@ property:        the imported move types PARTITION every betting decision the
                  family library can reach: exactly one of `check`/`call`
                  by whether the actor owes the standing bet, and at most one of
                  `bet`/`raise` by whether a bet is standing at all. A raise is
-                 offered to a seat that still owes the bet, and to a seat that
-                 has not yet taken a turn on the street — the big blind and the
-                 bring-in poster, whose forced post already matches it.
+                 offered to a seat with a TURN OUTSTANDING — the big blind and
+                 the bring-in poster, whose forced post is no turn taken — and
+                 to any seat facing a bet SHORT of the street's size, spent turn
+                 or not, because bringing a short bet up to size is the
+                 COMPLETION Robert's Rules 5 grants the very seat it has closed
+                 the betting to.
 domain:          every combination of the situation a `when:` in
                  `docs/libraries/poker_betting.cardlang` can read — a standing
-                 bet or none, the actor owing or level, its turn taken or not,
+                 bet or none, against a street size that leaves it short of a
+                 full wager or at one, the actor owing or level, its turn taken
+                 or not,
                  the raise cap with room or without, an opponent able to answer
                  or none, and a stack that can exceed the call or cannot —
                  crossed and driven through a probe game that imports the real
@@ -127,16 +132,33 @@ GUARD_INPUTS: frozenset[str] = frozenset(
 # the turn is taken; `raises` against `raise_cap` the cap; `folded` the field
 # (`can_act` reads it); `stack` the purse (and `can_act` reads it too).
 AXIS_VARIABLES: frozenset[str] = frozenset(
-    ["bet_to_match", "bet_by", "acted", "raises", "raise_cap", "folded", "stack"]
+    [
+        "bet_to_match",
+        "bet_by",
+        "acted",
+        "raises",
+        "raise_cap",
+        "folded",
+        "stack",
+        "limit",
+    ]
 )
 
-STANDING = 4  # the standing bet, where a cell has one
-LIMIT = 2  # the street's bet size, what one aggression adds
+# The street's bet size is an AXIS, not a constant. `raise`'s guard reads it —
+# a standing bet short of a full one is a bet anybody may complete, spent turn
+# or not — so a cell that held it fixed would leave that comparison driven from
+# one side. The two values are chosen so ONE standing bet sits on either side of
+# them: 4 is short of a 10-chip street and full on a 2-chip one. A guard
+# comparing against the street size and a guard comparing against the number 4
+# agree on every cell but those, which is the whole reason to cross them.
+LIMITS: tuple[int, ...] = (2, 10)
+STANDING: tuple[int, ...] = (0, 4)
 
 
 class Cell(NamedTuple):
     """One betting situation, as the probe game's own numbers."""
 
+    limit: int
     bet_to_match: int
     bet_by: int
     acted: bool
@@ -152,10 +174,16 @@ class Cell(NamedTuple):
 
     @property
     def id(self) -> str:
-        standing = "standing" if self.bet_to_match else "open"
+        if not self.bet_to_match:
+            standing = "open"
+        elif self.bet_to_match < self.limit:
+            standing = "sub"
+        else:
+            standing = "standing"
         debt = "owes" if self.owed else "level"
         return (
-            f"{standing}-{debt}-{'acted' if self.acted else 'unacted'}-"
+            f"limit{self.limit}-{standing}-{debt}-"
+            f"{'acted' if self.acted else 'unacted'}-"
             f"{'room' if self.raises < self.raise_cap else 'capped'}-"
             f"{'field' if self.field else 'nofield'}-{self.purse}"
         )
@@ -166,28 +194,30 @@ def _cells() -> list[Cell]:
     empty stack fails `can_act`, so no ring in the family offers that seat a
     turn, and the situation is outside what a betting decision can be."""
     out: list[Cell] = []
-    for bet_to_match in (0, STANDING):
-        for bet_by in sorted({0, bet_to_match}):
-            owed = bet_to_match - bet_by
-            purses = {"short": owed, "partial": owed + 1, "full": owed + LIMIT + 1}
-            for purse, stack in sorted(purses.items()):
-                if stack <= 0:
-                    continue
-                for acted in (False, True):
-                    for raises, raise_cap in ((1, 4), (4, 4)):
-                        for field in (True, False):
-                            out.append(
-                                Cell(
-                                    bet_to_match=bet_to_match,
-                                    bet_by=bet_by,
-                                    acted=acted,
-                                    raises=raises,
-                                    raise_cap=raise_cap,
-                                    field=field,
-                                    stack=stack,
-                                    purse=purse,
+    for limit in LIMITS:
+        for bet_to_match in STANDING:
+            for bet_by in sorted({0, bet_to_match}):
+                owed = bet_to_match - bet_by
+                purses = {"short": owed, "partial": owed + 1, "full": owed + limit + 1}
+                for purse, stack in sorted(purses.items()):
+                    if stack <= 0:
+                        continue
+                    for acted in (False, True):
+                        for raises, raise_cap in ((1, 4), (4, 4)):
+                            for field in (True, False):
+                                out.append(
+                                    Cell(
+                                        limit=limit,
+                                        bet_to_match=bet_to_match,
+                                        bet_by=bet_by,
+                                        acted=acted,
+                                        raises=raises,
+                                        raise_cap=raise_cap,
+                                        field=field,
+                                        stack=stack,
+                                        purse=purse,
+                                    )
                                 )
-                            )
     return out
 
 
@@ -204,12 +234,26 @@ def _expected(cell: Cell) -> frozenset[str]:
     betting to it — a cap with room left, an opponent who can answer, and chips
     that exceed the call.
 
-    That `acted` is the whole test, rather than "owes or has not acted", is
-    Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`): after an all-in
-    "of less than half a bet", a seat "who has already acted and is in the pot
-    for all previous bets" may "fold, call, or complete the wager" — it owes the
-    short difference and still may not raise. Owing is therefore not a right to
-    raise; having a turn outstanding is.
+Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
+    who may, and it settles two things in one breath: after an all-in "of less
+    than half a bet", a seat "who has already acted and is in the pot for all
+    previous bets" may "fold, call, or complete the wager".
+
+    OWING IS NOT A RIGHT TO RAISE. That seat owes the short difference and still
+    may not raise over it, so `acted` and not `owes` is what carries the right.
+    The no-limit sibling names the restricted class outright — "a player who has
+    already checked or called" — and its parenthesis, that "the half-the-size
+    rule for reopening the betting is for limit poker only", is what makes the
+    two one rule at two thresholds.
+
+    COMPLETING IS STILL OPEN TO IT. The same sentence grants that same closed-out
+    seat the third option, and a standing bet short of the street's size is
+    exactly what there is to complete: nobody has yet wagered a full bet, so
+    bringing it up to one is not the reopening the seat has been refused. Stud's
+    bring-in is the everyday case and a short all-in opening bet reaches it
+    mid-street. `raise` is the move that carries it — from a standing bet below
+    `limit` its target IS the completion, which is why no fifth move type
+    appears in the offered set.
 
     `bet`'s row is the exception: it CAPTURES what the library does rather than
     what the rules say, because `bet` carries only `bet_to_match is 0` where
@@ -224,7 +268,7 @@ def _expected(cell: Cell) -> frozenset[str]:
     if cell.bet_to_match == 0:
         offered.add("bet")
     elif (
-        not cell.acted
+        (not cell.acted or cell.bet_to_match < cell.limit)
         and cell.raises < cell.raise_cap
         and cell.field
         and cell.stack > cell.owed
@@ -292,7 +336,7 @@ class _Offered(Exception):
 
 def _offer(cell: Cell) -> frozenset[str]:
     source = _PROBE.format(
-        limit=LIMIT,
+        limit=cell.limit,
         prime=_PRIME if cell.acted else "",
         bet_to_match=cell.bet_to_match,
         raises=cell.raises,
@@ -327,18 +371,16 @@ def test_every_declared_variable_is_an_axis_or_reads_in_no_guard() -> None:
     reading a variable the cells hold fixed is exactly the drift a
     guard-derived axis list cannot see. What the axes leave out must then earn
     it by reading in no `when:` at all, which is computed here rather than
-    asserted: `committed` is side-pot bookkeeping and `limit` sizes an
-    aggression's payment, and neither decides whether a move is legal.
+    asserted: `committed` is side-pot bookkeeping, and it decides no move's
+    legality.
 
-    Neither is inert, though, and they are left out for different reasons:
-    `committed` only accumulates for the side-pot query, while `limit` sizes
-    what an aggression PAYS — so it shapes the `bet_to_match` a LATER decision
-    is offered against, through `bet`'s effect rather than through any guard.
-    This module drives one bet size; what the chips then do is the playout
-    modules' to pin.
+    It is not inert, though. `committed` accumulates for the side-pot query
+    alone, so what it holds shapes a SETTLEMENT and never an offer; what the
+    chips then do is the playout modules' to pin.
 
-    red under: add `and limit > 0` to any `when:` in the library — `limit`
-    becomes a guard input no axis varies, and the second assertion names it.
+    red under: drop `limit` from `AXIS_VARIABLES` — `raise` reads it to tell a
+    standing bet short of a full wager from one at a full wager, so the second
+    assertion names it at once.
     """
     unvaried = DECLARED_STATE - AXIS_VARIABLES
     assert AXIS_VARIABLES <= DECLARED_STATE, (
@@ -377,7 +419,7 @@ def test_the_probe_drives_the_library_the_corpus_uses() -> None:
     assert set(VOCABULARY) == {"check", "bet", "call", "raise"}
     probe = parse_text(
         _PROBE.format(
-            limit=LIMIT,
+            limit=LIMITS[0],
             prime="",
             bet_to_match=0,
             raises=0,

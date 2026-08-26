@@ -3395,18 +3395,36 @@
                 }
               },
               "right": {
-                "kind": "not",
-                "operand": {
-                  "kind": "subscript",
-                  "obj": {
+                "kind": "binop",
+                "op": "or",
+                "left": {
+                  "kind": "not",
+                  "operand": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "acted",
+                      "ref": "state_var"
+                    },
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "actor",
+                      "ref": "pronoun"
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "binop",
+                  "op": "<",
+                  "left": {
                     "kind": "name",
-                    "name": "acted",
+                    "name": "bet_to_match",
                     "ref": "state_var"
                   },
-                  "index_expr": {
+                  "right": {
                     "kind": "name",
-                    "name": "actor",
-                    "ref": "pronoun"
+                    "name": "limit",
+                    "ref": "state_var"
                   }
                 }
               }

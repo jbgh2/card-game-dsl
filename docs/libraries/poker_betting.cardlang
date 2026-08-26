@@ -148,13 +148,23 @@ library poker_betting {
   // governs re-opening, counting and the right to re-raise together.
   //
   // A raise is offered against a STANDING bet to a seat with a TURN
-  // OUTSTANDING, and that is the whole test — `acted` now means "has taken a
-  // turn since anything last re-opened to me", so owing chips is not itself a
-  // right to raise. A seat that already acted and is facing only a short all-in
-  // keeps its `acted`, stays in the ring through `owes`, and is offered call and
-  // fold alone: rule 5's "may fold, call, or complete the wager". A forced post
-  // is not a turn taken within the round (decisions.md, "Named functions"), so
-  // the big blind and the bring-in poster still hold their option.
+  // OUTSTANDING — `acted` means "has taken a turn since anything last re-opened
+  // to me", so owing chips is not itself a right to raise. A seat that already
+  // acted and is facing only a short all-in keeps its `acted` and stays in the
+  // ring through `owes`, and the betting is not reopened to it. A forced post is
+  // not a turn taken within the round (decisions.md, "Named functions"), so the
+  // big blind and the bring-in poster still hold their option.
+  //
+  // Not reopened is not silenced, and the second arm of the guard is rule 5's
+  // third option: "may fold, call, or complete the wager". While the standing
+  // bet is SHORT of the street's size, nobody has yet wagered a full bet, so
+  // bringing it up to one is open to every seat — spent turn or not. That is the
+  // move Stud's rules name against the bring-in, and the one a short all-in
+  // opening bet leaves on the table mid-street; without it a two-chip shove
+  // freezes a five-chip street, and the seats behind it may only call a bet none
+  // of them was ever offered the chance to make. `raise` carries it rather than a
+  // move type of its own, because from a standing bet below `limit` its target
+  // already IS the completion.
   //
   // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
   // the only legal actions are call and fold — raising into a field that cannot
@@ -168,20 +178,18 @@ library poker_betting {
   // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
   //
-  // A raise climbs to the next RUNG of the street's ladder, which is why the
-  // target is computed rather than added: rungs sit one `limit` apart, and
-  // `bet_to_match + limit` finds the next one only when the standing bet is
-  // already on one. A forced post smaller than the street's size is not — Stud
-  // brings in for 2 where the street runs at 5 — and from there, adding a size
-  // walks a ladder of its own (2, 7, 12) that the rules have no rung for.
-  // Climbing instead COMPLETES the short bet to the first rung, which is the
-  // move Stud's rules name. A standing bet that sits BETWEEN two rungs is the
-  // remaining case and this does not reach it (issue #436): getting back on the
-  // ladder from there needs the standing bet told apart from the current rung,
-  // which is a change to what the library records, not to what it computes.
+  // The target is computed rather than added because a raise measures from
+  // WHERE THE BET STANDS, and a standing bet is not always a full wager. At or
+  // above the street's size it is one, and the next wager is `bet_to_match +
+  // limit`: Pagat's "player A bets $4 and player B who has $6 left goes all-in,
+  // which is a raise of $2, i.e. half a full raise" makes B's six the level C
+  // raises from, to ten. Below the street's size it is not one — Stud brings in
+  // for 2 where the street runs at 5 — and adding a size there would walk a
+  // ladder of its own (2, 7, 12) the rules have no step for, so the target is
+  // the street's size itself and the move is the completion.
   move_type raise {
     when: bet_to_match > 0
-          and not acted[actor]
+          and (not acted[actor] or bet_to_match < limit)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
