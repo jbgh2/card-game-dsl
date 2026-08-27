@@ -2071,6 +2071,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_procedures(game, bag)
     _check_chooses(game, bag)
     _check_actor_alias_comparisons(game, bag)
+    _check_delegation(game, bag)
     _check_winner_target(game, bag)
     # Last, so a fixture missing its result clause still surfaces the
     # sharper diagnostic it was aimed at first (bag order is report order).
@@ -3094,6 +3095,64 @@ def _resolve_winner_loser(game: n.Game, bag: DiagnosticBag) -> None:
 # utilities, silently, at every layer.
 _RANKABLE_TYPES: frozenset[str] = frozenset({"Integer", "Boolean"})
 
+
+def _check_delegation(game: n.Game, bag: DiagnosticBag) -> None:
+    """The Delegated Play helpers' three Owner Guards (decisions.md "Delegated
+    play"; the grid is tests/test_delegated_play.py):
+
+    - a helper of the exact name must take exactly one Player — the routing
+      contract is per-seat, and any other shape is a mis-remembered API;
+    - a game defining a helper must hold a trick round somewhere for it to
+      route — helpers no site consults are accepted-but-ignored, the defect
+      class this repo ranks worst;
+    - every trick round's DECLARED source projects identity to its own seat
+      (helpers or not): the unrouted actor draws from their own instance, and
+      an owner-blind declared source is a game nobody can play, statically
+      known from the declaration.
+
+    The routed pool's guard — the DECIDER must see it — is deliberately NOT
+    here: whether a seat's pool is routed, and to whom the decision goes,
+    are the helpers' values at that seat, and correlating two opaque
+    expression bodies is not statically decidable (Bridge's own helper
+    routes undelegated seats to their private hands, legally). The precise
+    check is the runtime Owner Guard at the draw (`runtime/mechanics.py`),
+    fired whenever either helper routes.
+    """
+    from cardlang.runtime.delegation import HELPER_NAMES
+
+    helpers = [f for f in game.functions if f.name in HELPER_NAMES]
+    zone_types = {z.name: z.type_ref.name for z in game.zones}
+    for node in _walk(game):
+        if not isinstance(node, n.TrickRound):
+            continue
+        ztype = zone_types.get(node.source_zone)
+        if ztype is not None and ZONE_PROJECTIONS[ztype].owner != "identity":
+            bag.error(
+                f"a trick round's source '{node.source_zone}' ({ztype}) does "
+                f"not project identity to its own seat — the acting player "
+                f"could not see the cards offered from it. Play tricks from "
+                f"an owner-visible zone",
+                node.span,
+            )
+    if not helpers:
+        return
+    for fn in helpers:
+        if len(fn.params) != 1 or fn.params[0].type_name != "Player":
+            got = ", ".join(f"{q.name} : {q.type_name}" for q in fn.params) or "none"
+            bag.error(
+                f"'{fn.name}' is a Delegated Play helper and must take exactly "
+                f"one Player parameter (the seat whose move is routed); it "
+                f"takes ({got})",
+                fn.span,
+            )
+    if not any(isinstance(node, n.TrickRound) for node in _walk(game)):
+        names = ", ".join(sorted(f.name for f in helpers))
+        bag.error(
+            f"this game defines {names} but holds no trick round for the "
+            f"routing to reach — the helpers would be silently ignored "
+            f"(routing at other decision points is issue #458)",
+            helpers[0].span,
+        )
 
 def _check_winner_target(game: n.Game, bag: DiagnosticBag) -> None:
     """A `winner:` target must be a state variable a game can be ranked by.

@@ -80,6 +80,8 @@ RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
 # `test_raw_access_is_confined_to_the_exemptions` pins the list non-stale
 # (an exempted file that stops using raw access must leave this table).
 _EXEMPT_RAW_ACCESS: dict[str, str] = {
+    "delegation.py": "engine core — the round's declared source family, from"
+    " the form the loop is running (decisions.md \"Delegated play\")",
     "driver.py": "engine core — names come from the AST, resolve-guarded",
     "evaluate.py": "engine core — names come from the AST, resolve-guarded",
     "execute.py": "engine core — names come from the AST, resolve-guarded",

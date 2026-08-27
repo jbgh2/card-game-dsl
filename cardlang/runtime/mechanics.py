@@ -14,12 +14,13 @@ union.
 from __future__ import annotations
 
 import itertools
+from dataclasses import replace
 from typing import Any, Protocol
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS
 from cardlang.domains import DomainSources, enumerate_domain
-from cardlang.runtime import active_rules, narrowing, observe, reads, rules
+from cardlang.runtime import active_rules, delegation, narrowing, observe, reads, rules
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import Ctx, Move
@@ -100,9 +101,34 @@ def run_decision_round(form: DecisionForm, state: RoundState, ctx: Ctx) -> Outco
         # `candidates` (which raises the form-specific malformed-game error), not
         # here: the messages stay byte-identical and the climbing form keeps its
         # original empty-lead behaviour rather than a reshaped guard.
-        choice = ctx.chooser(actor, candidates, 1)[0]  # the single per-step draw
+        # Delegated Play (decisions.md "Delegated play"): the decider makes
+        # the draw and holds its recall; the trace and the apply stay the
+        # actor's, so attribution is untouched. Consulted only for the routed
+        # forms — delegation.ROUTED_FORMS names which and why — and the
+        # decider equals the actor in every game defining no helper.
+        decider = (
+            delegation.decider_for(ctx, actor)
+            if type(form).__name__ in delegation.ROUTED_FORMS
+            else actor
+        )
+        if decider != actor or (
+            type(form).__name__ in delegation.ROUTED_FORMS
+            and delegation.helper(ctx.rs, delegation.SOURCE_HELPER) is not None
+        ):
+            # The visibility Owner Guard: a routed draw is offered only from
+            # a pool its DECIDER can SEE — legal actions must be a function
+            # of the decider's own information state, or two worlds the
+            # decider cannot tell apart would offer different moves. Fires
+            # whenever EITHER routing is active: `play_source_for` alone can
+            # hand a seat an opponent's private zone with no delegation in
+            # sight. Runtime rather than resolve because whether a seat's
+            # pool is routed depends on the helpers' values at that seat,
+            # which opaque expression bodies do not statically reveal; the
+            # DECLARED source's own visibility is resolve's static wall.
+            delegation.check_decider_sees(ctx, decider, actor, form)
+        choice = ctx.chooser(decider, candidates, 1)[0]  # the single per-step draw
         ctx.trace("decision", (actor, choice))  # the canonical decision event (§4)
-        observe.choice(ctx, actor, choice)
+        observe.choice(ctx, decider, choice)
         state = form.apply(actor, choice, state, ctx)
     result = form.outcome(state, ctx)
     # After `outcome`, never before: the winner function runs as a primitive, and
@@ -181,8 +207,17 @@ class TrickForm:
         return None  # turn order ran out: every participant has played
 
     def candidates(self, actor: Player, state: RoundState, ctx: Ctx) -> list[Any]:
+        # The acting seat's effective source: routed by `play_source_for`
+        # when defined, else the declared family's instance — the ONE pool
+        # candidates, rule bodies, and the removal in `apply` all read
+        # (issue #457's class: two reads, one answer).
+        src = delegation.source_for(
+            self.trick_ctx, actor, ctx.rs.zones.instance(self.source_family, actor)
+        )
         candidates = rules.legal_cards(
-            actor, RULE_ENFORCED_MOVE_TYPE, self.trick_ctx
+            actor,
+            RULE_ENFORCED_MOVE_TYPE,
+            replace(self.trick_ctx, round_source=(self.source_family, src)),
         )
         if not candidates:
             # No implicit pass: a player on turn must have a legal play. An empty
@@ -195,11 +230,19 @@ class TrickForm:
         return candidates
 
     def apply(self, actor: Player, choice: Any, state: RoundState, ctx: Ctx) -> RoundState:
-        ctx.rs.zones.instance(self.source_family, actor).remove(choice)
-        ctx.rs.zones.single(self.play_zone).add(
-            choice, actor, (self.source_family, actor)
+        src = delegation.source_for(
+            ctx, actor, ctx.rs.zones.instance(self.source_family, actor)
         )
-        observe.movement(ctx, (self.source_family, actor), (self.play_zone, None), [choice])
+        src.remove(choice)
+        src_addr = ctx.rs.zones.locate(src)
+        # The record stores the ATTRIBUTED seat: every observer derives a
+        # play's seat from the movement's source label, and the `chose`
+        # event is the decider's alone — storing the decider here would be
+        # provenance no observer's stream entails (issue #256's no-leak
+        # criterion; decisions.md "The Arrival Record"). The decider's
+        # record is the decision node and its private recall.
+        ctx.rs.zones.single(self.play_zone).add(choice, actor, src_addr)
+        observe.movement(ctx, src_addr, (self.play_zone, None), [choice])
         state["played"].append((actor, choice))
         ctx.trace("play", (actor, choice))
         if state["led_suit"] is None:

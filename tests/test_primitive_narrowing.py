@@ -181,6 +181,7 @@ RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
 _ENGINE_CORE: dict[str, str] = {
     "__init__.py": "package init",
     "chooser.py": "the decision seam itself",
+    "delegation.py": "engine core — routes the decider and source at the seam",
     "driver.py": "engine core — builds and threads Ctx",
     "evaluate.py": "engine core — the expression interpreter",
     "execute.py": "engine core — the statement interpreter",
