@@ -18,19 +18,26 @@ it.
 
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
-property:        the card block is present exactly when some decision the game
-                 can reach offers a candidate `encode` routes to that block,
-                 and a game whose block is absent REFUSES such a candidate
-                 loudly rather than encoding it into a neighbouring block.
-domain:          two crossed axes, each derived from its registry in code.
+property:        two implications, NOT a biconditional. (i) If the block is
+                 absent, no decision the game can reach offers a candidate
+                 `encode` routes to it — and if one ever does, the game is
+                 refused loudly rather than numbered into a neighbouring
+                 block. (ii) If the block is present, it numbers every content
+                 item the game can offer. The converse of (i) is deliberately
+                 NOT claimed: presence follows from a construct EXISTING in
+                 the tree, not from its site being reachable, so a game whose
+                 only card decision sits behind a false branch reserves a
+                 block nothing can use. That is the over-approximation the
+                 derivation is built to make, because its cost is ids while
+                 the other direction's cost is a decision with no id at all.
+domain:          two axes, each derived from its registry in code.
                  (1) `runtime.delegation.DECISION_POINTS` — the engine's own
                  enumeration of every `ctx.chooser` call site — crossed with
-                 the configurations that make a site content-valued or not,
-                 each isolated in a minimal game below. That registry is
-                 what makes the axis total: a decision can only arise at a
-                 chooser call site, the site list is reconciled against an AST
-                 scrape by tests/test_delegated_play.py, and every site is
-                 either isolated here or carries its reason. The games on this
+                 the polarities each site admits (`SITE_POLARITIES` below,
+                 pinned total against that registry). That registry is what
+                 makes the axis total: a decision can only arise at a chooser
+                 call site, and the site list is reconciled against an AST
+                 scrape by tests/test_delegated_play.py. The games on this
                  axis are MINIMAL rather than borrowed from the corpus because
                  a corpus game carries several decision points at once and so
                  cannot isolate any of them — measured: removing the
@@ -43,17 +50,26 @@ domain:          two crossed axes, each derived from its registry in code.
                  block.
 registry:        axis 1: `cardlang.runtime.delegation.DECISION_POINTS`;
                  axis 2: `cardlang.openspiel.registry.GAMES`;
+                 climb candidate shapes (what the `ClimbRound` exclusion rests
+                 on): `cardlang.runtime.primitives.climb_lead_function` /
+                 `climb_follow_function`;
                  site-list totality:
                  tests/test_delegated_play.py::test_every_decision_point_is_classified;
                  verb-image agreement:
                  tests/test_openspiel_encoding.py::test_declared_verbs_are_exactly_the_verbs_ids_produce.
-does not prove:  a green execution row does NOT prove a game whose block is
-                 absent can never offer a content item — a played line
-                 samples the reachable decisions, it does not enumerate them.
-                 The rows run one direction only: whatever a line DOES offer,
-                 the static answer must already have said PRESENT. What backs
-                 the other direction is not a row here but the runtime
-                 refusal, which turns a wrong absent into a stopped game.
+does not prove:  (a) a green execution row does NOT prove a game whose block is
+                 absent can never offer a content item — a played line samples
+                 the reachable decisions, it does not enumerate them. The rows
+                 run one direction only: whatever a line DOES offer, the static
+                 answer must already have said PRESENT. What backs the other
+                 direction is not a row here but the runtime refusal, which
+                 turns a wrong absent into a stopped game.
+                 (b) axis 2's evidence is thin where a random line is short.
+                 Measured on the manifest head: Klondike reaches about three
+                 draws, heads-up Hold'em about five, FreeCell about ten. The row asserts nothing when
+                 a line offers nothing, so for those three a derivation gap
+                 would most likely pass unwitnessed here; what covers them is
+                 axis 1, whose arms do not depend on a line's depth.
 """
 
 from __future__ import annotations
@@ -267,15 +283,15 @@ ARMS: list[Arm] = [
         """    each player simultaneously:
       move chosen 2 cards from hand[player]
            where jointly (number of cards in cards) is 2 to pile[player]""",
-        plays=False,
-        why_unplayed="its cell asks the derivation directly; see why_no_space",
         builds_space=False,
         why_no_space=(
             "an inline joint predicate has no registered subset codec, so "
             "`for_game` refuses this game before any block is laid out — a "
-            "guard about the COMBO block, unrelated to this derivation. The "
-            "hole the arm pins is reachable in a game whose predicate does "
-            "root in a registered codec."
+            "guard about the COMBO block, unrelated to this derivation, and "
+            "a synthetic game cannot root in a registered codec because each "
+            "belongs to a primitive module bound to one game file (issue "
+            "#232). The hole the arm pins is reachable in a game whose "
+            "predicate does root in one."
         ),
     ),
     # --- evaluate._choose ---------------------------------------------------
@@ -289,20 +305,62 @@ ARMS: list[Arm] = [
 ]
 
 
-def test_every_decision_point_has_an_isolating_arm() -> None:
-    """Axis 1 is total against its registry: every chooser call site the engine
-    has is exercised by at least one arm above, in both the configuration that
-    needs the card block and the one that does not, where the site has both.
+# Which answers each decision point can produce. A site whose candidate kind
+# depends on how the construct is written admits BOTH and needs an arm for
+# each; a site that can only ever offer one kind admits one. Stating it here
+# rather than reading it off `ARMS` is the point — otherwise the cross below
+# would be the arm list compared against itself.
+SITE_POLARITIES: dict[str, frozenset[bool]] = {
+    # trick offers cards, climb offers combinations, and an auction offers
+    # cards only through a Card-parameterized member — one site, both answers.
+    "mechanics.run_decision_round": frozenset({True, False}),
+    "execute._select": frozenset({True}),
+    "execute._select_filtered": frozenset({True}),
+    # candidates are card SUBSETS, which the combo block numbers.
+    "execute._select_joint": frozenset({False}),
+    # like the auction: bare only through a Card-parameterized member.
+    "execute._offer": frozenset({True, False}),
+    # draws from `source.cards` whatever the body's clauses say.
+    "execute._pass_selection": frozenset({True}),
+    "evaluate._choose": frozenset({False}),  # integers
+}
 
-    Without this the arm list is a hand-written sample of the site list, and a
-    new decision point would land with no cell — the hand-listed-axis defect
-    (issue #380) one construct over.
+
+def test_every_decision_point_declares_the_answers_it_admits() -> None:
+    """`SITE_POLARITIES` is total against the engine's own site registry, so a
+    new decision point must say what it can offer before the cross below can
+    ask for its arms."""
+    assert set(SITE_POLARITIES) == set(DECISION_POINTS), (
+        "sites with no declared polarity: "
+        f"{sorted(set(DECISION_POINTS) - set(SITE_POLARITIES))}; declared for a "
+        f"site the engine does not have: "
+        f"{sorted(set(SITE_POLARITIES) - set(DECISION_POINTS))}"
+    )
+
+
+def test_every_decision_point_has_an_isolating_arm_per_answer() -> None:
+    """Axis 1 is the site registry CROSSED with the answers each site admits —
+    not the site list alone. A site that can be written both ways carries an
+    arm for each, so dropping the False-polarity arm at a site that has one
+    fails here instead of passing on site coverage.
+
+    Without the cross the arm list is a hand-written sample, and a new decision
+    point (or a new polarity at an existing one) would land with no cell — the
+    hand-listed-axis defect (issue #380) one construct over.
+
+    red under: delete the `auction_nullary` arm — its site still has the
+    `auction_card_param` and `trick` arms, so site coverage stays complete and
+    only the missing polarity fails (executed at authoring).
     """
-    covered = {arm.site for arm in ARMS}
-    assert covered == set(DECISION_POINTS), (
-        "decision points with no isolating arm: "
-        f"{sorted(set(DECISION_POINTS) - covered)}; arms naming a site the "
-        f"engine does not have: {sorted(covered - set(DECISION_POINTS))}"
+    want = {
+        (site, polarity)
+        for site, polarities in SITE_POLARITIES.items()
+        for polarity in polarities
+    }
+    have = {(arm.site, arm.present) for arm in ARMS}
+    assert have == want, (
+        f"(site, answer) pairs with no isolating arm: {sorted(map(str, want - have))}; "
+        f"arms claiming a pair the site does not admit: {sorted(map(str, have - want))}"
     )
 
 

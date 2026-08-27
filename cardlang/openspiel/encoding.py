@@ -28,12 +28,15 @@ Contract
 Assumes: a checked game, whose decision-bearing constructs are all reachable
 from the `Game` tree — resolve flattens `uses` imports and `expand` splices
 procedure bodies precisely so this module's walk sees them.
-Establishes: the card block is present exactly when some decision the game can
-reach offers a candidate this module numbers into it, so `num_distinct_actions`
-carries no id no state can offer. Illegal after this: assuming action id 0 is a
-card, that `NUM_DISTINCT_ACTIONS` bounds any game's space from below, or that
-`verbs()` contains `CARD_VERB`. Encoding a content item against a game with no
-card block is refused, never numbered.
+Establishes: two implications, not a biconditional. An ABSENT block means no
+decision the game can reach offers a candidate this module numbers into it; a
+PRESENT block numbers every content item the game can offer. Presence follows
+from a construct existing in the tree rather than from its site being
+reachable, so a game may still reserve a block nothing exercises — the
+over-approximation `_decides_a_content_item` is built to make. Illegal after
+this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
+game's space from below, or that `verbs()` contains `CARD_VERB`. Encoding a
+content item against a game with no card block is refused, never numbered.
 """
 
 from __future__ import annotations
@@ -138,12 +141,13 @@ def _decides_a_content_item(game: n.Game, mt_index: dict[str, n.MoveTypeDef]) ->
     block numbers — a bare content item, or a Card-parameterized move's
     `(name, card)` pair, which `encode` folds onto the same id.
 
-    One arm per decision point (`runtime.delegation.DECISION_POINTS`, the
-    engine's own enumeration of chooser call sites, reconciled against an AST
-    scrape by tests/test_delegated_play.py). That registry is what makes this
-    total rather than a sample: a decision arises only at a chooser call site,
-    and every site is either an arm here or named below as offering something
-    the other blocks number. The arms are crossed against the configurations
+Every decision point is accounted for — each of
+    `runtime.delegation.DECISION_POINTS` (the engine's own enumeration of
+    chooser call sites, reconciled against an AST scrape by
+    tests/test_delegated_play.py) is either an arm below or named at the
+    bottom as offering something the other blocks number. Arms and sites are
+    not one-to-one: the three round forms share one site, and the two
+    non-joint movement sites share one arm. The arms are crossed against the configurations
     that decide them in tests/test_card_block_derivation.py.
 
     A sound over-approximation, deliberately. Node presence does not prove the
@@ -422,8 +426,10 @@ class ActionSpace:
                 # block starts at 0, so any number produced here would name
                 # another block's action. A ShadowGuardError rather than an
                 # OwnerGuardError because the game is not at fault — the
-                # derivation missed a construct, which is an engine gap, and
-                # the suite fails on this type wherever it is raised.
+                # derivation missed a construct, which is an engine gap. A
+                # raise stops the run wherever it happens; `tests/conftest.py`
+                # additionally fails any test that merely CONSTRUCTS one, which
+                # covers `tests/` and not the experiment rigs.
                 raise ShadowGuardError(
                     "ActionSpace.for_game's card-block derivation",
                     f"a decision offered {value}, but this game's action space "

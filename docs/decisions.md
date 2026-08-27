@@ -697,8 +697,10 @@ game whose every play is a combination, a board game deciding by cell —
 reserves no card block, and its ids begin at the next block. The presence is
 derived from the game's own decision-bearing constructs rather than declared,
 so `num_distinct_actions` — OpenSpiel's action dimension, and therefore the
-width of any policy head trained on the game — carries no id no state can
-offer. The derivation over-approximates deliberately: a block reserved and
+width of any policy head trained on the game — is not padded by a block the
+game has no construct for. The derivation reads the tree, not reachability, so
+a game whose only card decision sits behind a condition that never holds still
+reserves the block. The derivation over-approximates deliberately: a block reserved and
 never used costs ids, while a block missing under a live decision would leave
 that decision with no id at all, so encoding a content item against an absent
 block is refused rather than numbered into the neighbouring block.

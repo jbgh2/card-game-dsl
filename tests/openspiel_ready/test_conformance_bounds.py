@@ -70,7 +70,8 @@ residual:  (a) UNBOUNDED games (`conformance_steps=None`) get no verb claim.
            tests/test_card_block_derivation.py). What this module can still
            not see is a verb whose block is present and whose mechanic the
            bound does not reach — that is what the `unreached` entries are
-           for, and no verb is exempt from needing one.
+           for, and within a BOUNDED game no verb is exempt from needing one.
+           Unbounded games raise no cell at all, per (a).
 
 The bound each game carries is not derived here: coverage says how LOW a bound
 may go, never how high, and depth beyond the coverage frontier is still real
