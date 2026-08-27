@@ -221,6 +221,10 @@ class ActionSpace:
         self._card_ids = (
             None if card_block is None else {c: i for i, c in enumerate(card_block)}
         )
+        # Stated once, read by `encode` and `verbs` alike: two sites deriving
+        # "does this space number content items" separately is two answers
+        # waiting to disagree.
+        self._has_card_block = card_block is None or len(card_block) > 0
         self._names = names
         self._offering = offering
         # The game's largest integer-`choose` ceiling, or None if it has no
@@ -412,7 +416,7 @@ class ActionSpace:
         if isinstance(value, Card):
             if self._card_ids is None:
                 return card_to_action(value)
-            if not self._card_ids:
+            if not self._has_card_block:
                 # The derivation said this game decides no content item, and a
                 # decision just offered one. There is no id to return: the next
                 # block starts at 0, so any number produced here would name
@@ -545,7 +549,7 @@ class ActionSpace:
         # The card block contributes its verb only when it reserves ids — an
         # empty block numbers nothing, so no id can report `CARD_VERB` and
         # declaring it would claim a verb the space cannot produce.
-        out = {CARD_VERB} if self._card_block != [] else set()
+        out = {CARD_VERB} if self._has_card_block else set()
         out.update(self._names)
         if self._int_ceiling is not None:
             out.add(INT_VERB)
