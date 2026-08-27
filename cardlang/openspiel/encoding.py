@@ -31,9 +31,10 @@ procedure bodies precisely so this module's walk sees them.
 Establishes: two implications, not a biconditional. An ABSENT block means no
 decision the game can reach offers a candidate this module numbers into it; a
 PRESENT block numbers every content item the game can offer. Presence follows
-from a construct existing in the tree rather than from its site being
-reachable, so a game may still reserve a block nothing exercises — the
-over-approximation `_decides_a_content_item` is built to make. Illegal after
+from a construct EXISTING in the tree — not from its site being reachable, and
+not from the construct deciding when reached — so a game may still reserve a
+block nothing exercises; the over-approximation `_decides_a_content_item` is
+built to make, on both axes, and states there. Illegal after
 this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
 game's space from below, or that `verbs()` contains `CARD_VERB`. Encoding a
 content item against a game with no card block is refused, never numbered.
@@ -152,12 +153,26 @@ def _decides_a_content_item(game: n.Game, mt_index: dict[str, n.MoveTypeDef]) ->
     non-joint movement sites share one arm. Each site is crossed against the
     answers it admits in tests/test_card_block_derivation.py.
 
-    A sound over-approximation, deliberately. Node presence does not prove the
-    site is reachable — a `when:`-gated phase or an untaken branch may never
-    fire — so a game can carry a block it never uses. That direction costs
-    ids; the other direction has no id to return at all, so an unclear case
-    answers True, and `encode` refuses a content item against an absent block
-    rather than numbering it into the next block's range.
+    A sound over-approximation, deliberately, and on TWO axes. Node presence
+    does not prove the site is REACHABLE — a `when:`-gated phase or an untaken
+    branch may never fire. Nor does reaching a construct prove it DECIDES:
+    `move chosen all` short-circuits on `take_all()` before it ever reaches
+    the chooser, so it offers no card while matching the arm below. Both leave
+    a game carrying a block it never uses.
+
+    The second axis stays in rather than being excluded, because the
+    short-circuit it rests on is itself recorded as a defect (issue #462: a
+    `chosen` selection that cannot choose). Excluding it would move the case
+    to ABSENT on the strength of behaviour the tracker expects to change —
+    and if that behaviour is fixed toward posing a decision, an absent block
+    has no id to return. No corpus game writes the form today, so the
+    exclusion would buy nothing and stake the unsafe direction on a defect's
+    resolution.
+
+    That is the standing rule here: the wasteful direction costs ids, the
+    other has no id at all, so an unclear case answers True, and `encode`
+    refuses a content item against an absent block rather than numbering it
+    into the next block's range.
     """
     for node in _walk(game):
         if isinstance(node, n.TrickRound):

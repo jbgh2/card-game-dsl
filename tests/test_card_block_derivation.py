@@ -24,12 +24,15 @@ property:        two implications, NOT a biconditional. (i) If the block is
                  refused loudly rather than numbered into a neighbouring
                  block. (ii) If the block is present, it numbers every content
                  item the game can offer. The converse of (i) is deliberately
-                 NOT claimed: presence follows from a construct EXISTING in
-                 the tree, not from its site being reachable, so a game whose
-                 only card decision sits behind a false branch reserves a
-                 block nothing can use. That is the over-approximation the
-                 derivation is built to make, because its cost is ids while
-                 the other direction's cost is a decision with no id at all.
+                 NOT claimed, on two axes: presence follows from a construct
+                 EXISTING in the tree, not from its site being REACHABLE (a
+                 game whose only card decision sits behind a false branch
+                 reserves a block nothing can use), and not from the construct
+                 DECIDING when reached (`move chosen all` returns the whole
+                 source before the chooser — issue #462). That is the
+                 over-approximation the derivation is built to make, because
+                 its cost is ids while the other direction's cost is a
+                 decision with no id at all.
 domain:          two axes, each derived from its registry in code.
                  (1) `runtime.delegation.DECISION_POINTS` — the engine's own
                  enumeration of every `ctx.chooser` call site — crossed with
