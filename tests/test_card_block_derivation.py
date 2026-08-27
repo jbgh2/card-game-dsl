@@ -30,8 +30,13 @@ domain:          two crossed axes, each derived from its registry in code.
                  what makes the axis total: a decision can only arise at a
                  chooser call site, the site list is reconciled against an AST
                  scrape by tests/test_delegated_play.py, and every site is
-                 either isolated here or carries its reason. (2) Every game in
-                 the adapter's registry, `cardlang.openspiel.game.GAMES`,
+                 either isolated here or carries its reason. The games on this
+                 axis are MINIMAL rather than borrowed from the corpus because
+                 a corpus game carries several decision points at once and so
+                 cannot isolate any of them — measured: removing the
+                 `EachSimultaneous` arm from the derivation reddens one
+                 synthetic arm here and no corpus game at all. (2) Every game
+                 in the adapter's registry, `cardlang.openspiel.game.GAMES`,
                  whose static answer is checked against what a played line
                  actually offers. Board games are in-domain on both axes: a
                  board's pieces are the deck's content items and share the
@@ -54,6 +59,7 @@ does not prove:  a green execution row does NOT prove a game whose block is
 from __future__ import annotations
 
 import random
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -64,11 +70,16 @@ from cardlang.openspiel.encoding import (
     _decides_a_content_item,
     card_to_action,
 )
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_source
+import cardlang.openspiel.game as ogame  # registers the adapter's game table
+from cardlang.runtime.chance import RefusingRandom, is_chance_free
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import ShadowGuardError
+from cardlang.runtime.state import ChooserAbort
 from cardlang.runtime.values import Card
+
+GAMES_DIR = Path(__file__).resolve().parent.parent / "docs" / "games"
 
 # =============================================================================
 # Axis 1 — one minimal game per decision-point configuration
@@ -300,7 +311,15 @@ def test_the_arm_reserves_a_card_block_exactly_when_it_can_decide_a_card(
     arm: Arm,
 ) -> None:
     """The derivation cell. `verbs()` naming `CARD_VERB` is the block's public
-    tell — it is the verb every card-block id reports."""
+    tell — it is the verb every card-block id reports.
+
+    red under: drop the `n.EachSimultaneous` arm from
+    `encoding._decides_a_content_item` — `pass_simultaneous_jointly` fails and
+    NOTHING ELSE DOES, the corpus row included (executed at authoring). That
+    measurement is why these synthetic arms exist: every corpus game with a
+    simultaneous pass also has a trick round, so the corpus cannot isolate the
+    arm, and a derivation that lost it would ship green.
+    """
     game = arm.game()
     if not arm.builds_space:
         mt_index = {m.name: m for m in game.move_types}
@@ -372,13 +391,14 @@ def test_encoding_a_card_against_an_absent_block_is_refused_by_name() -> None:
 
 
 def test_the_standard_and_absent_sentinels_do_not_collide() -> None:
-    """`None` and `[]` must stay different states. Were absence spelled `None`,
-    this card would silently receive `card_to_action`'s id — 0 — which the
-    blockless space above gives to `check`.
+    """`None` and `[]` must stay different states. Collapse them and an absent
+    block is numbered as though it were the standard 52, so ids the space does
+    not have become reachable.
 
-    red under: change `_blockless`'s block argument from `[]` to `None` — the
-    refusal above stops firing and this equality goes red (executed at
-    authoring).
+    red under: widen `ActionSpace.__init__`'s `_name_base` from
+    `card_block is None` to `not card_block` — the blockless space then claims
+    52 card ids it does not hold and `decode(0)` dies instead of naming the
+    first move (executed at authoring).
     """
     ace = Card("A", "clubs")
     standard = ActionSpace(None, ["check", "fold"], [], None, [])
@@ -389,19 +409,68 @@ def test_the_standard_and_absent_sentinels_do_not_collide() -> None:
     assert _blockless().decode(0) == "check"
 
 
-def _content_candidates_offered(game: Any) -> set[str]:
+def _content_candidates_offered(game: Any, seed: int = 0, bound: int = 0) -> set[str]:
     """The kinds of card-block-numbered candidate a played line offers: a bare
     content item, or a Card-parameterized move's `(name, card)` pair, which
-    `encode` folds onto the same id."""
+    `encode` folds onto the same id.
+
+    `bound` stops a long game early by refusing further draws; 0 plays it out.
+    Stopping early can only SHRINK what a line offers, which is the safe
+    direction for the one-way claim the callers make.
+    """
     seen: set[str] = set()
+    policy = random.Random(seed * 977 + 13)
+    drawn = 0
 
     def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        nonlocal drawn
         for c in candidates:
             if isinstance(c, Card):
                 seen.add("Card")
             elif isinstance(c, tuple) and len(c) == 2 and isinstance(c[1], Card):
                 seen.add("(move, Card)")
-        return list(candidates)[:k]
+        drawn += 1
+        if bound and drawn > bound:
+            raise ChooserAbort(player, [])
+        return policy.sample(candidates, k) if k > 1 else [policy.choice(candidates)]
 
-    play_game(game, random.Random(0), chooser=chooser)
+    rng: Any = RefusingRandom(seed) if is_chance_free(game) else random.Random(seed)
+    try:
+        play_game(game, rng, chooser=chooser)
+    except ChooserAbort:
+        pass  # the bound, not a failure — see the docstring
     return seen
+
+
+# =============================================================================
+# Axis 2 — every registered game, static answer against a played line
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "path", sorted(set(ogame.GAMES.values())), ids=lambda p: p.removesuffix(".cardlang")
+)
+def test_no_registered_game_offers_a_card_its_space_cannot_number(path: str) -> None:
+    """The soundness direction, on the real corpus: whatever a played line
+    offers, that game's space must already reserve the block that numbers it.
+
+    One direction only, and deliberately. A line samples the decisions it
+    reaches, so it can witness that a block is NEEDED but never that one is
+    unnecessary — a game reserving a block this line does not exercise is not a
+    defect, it is the over-approximation the derivation is built to make. What
+    would be a defect is the converse, and that is what fails here.
+
+    red under: drop the `n.TrickRound` arm from
+    `encoding._decides_a_content_item` — belote, bridge, getaway, oh-hell,
+    pinochle and spades then offer cards into a space with no card block
+    (executed at authoring).
+    """
+    game = check_source(GAMES_DIR / path)
+    space = ActionSpace.for_game(game)
+    offered = _content_candidates_offered(game, seed=0, bound=400)
+    if offered:
+        assert CARD_VERB in space.verbs(), (
+            f"{path}: a played line offers {sorted(offered)}, which only the "
+            f"card block numbers, but this game's space reserves none — those "
+            f"candidates have no action id"
+        )

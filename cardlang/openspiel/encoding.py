@@ -414,8 +414,8 @@ class ActionSpace:
 
     def encode(self, value: Any) -> int:
         if isinstance(value, Card):
-            if self._card_ids is None:
-                return card_to_action(value)
+            # Presence is asked FIRST: "which numbering" is only a question
+            # once there is a block to number into.
             if not self._has_card_block:
                 # The derivation said this game decides no content item, and a
                 # decision just offered one. There is no id to return: the next
@@ -430,6 +430,8 @@ class ActionSpace:
                     f"reserves no card block — `_decides_a_content_item` must "
                     f"account for the construct that offered it",
                 )
+            if self._card_ids is None:
+                return card_to_action(value)
             return self._card_ids[value]
         if isinstance(value, bool):
             raise ValueError("boolean is not an action value")
