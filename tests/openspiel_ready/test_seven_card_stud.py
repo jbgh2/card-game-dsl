@@ -30,15 +30,6 @@ class TestReadiness(ReadinessProofs):
         hidden_zone="hole",
         conformance_steps=120,
         swap_axis="any",
-        conformance_verbs_unreached=(
-            (
-                "<card>",
-                ("STRUCTURAL, not a depth shortfall: Stud deals cards and bets "
-                "on them — no decision is ever card-valued, so the reserved "
-                "card block is dead (measured unapplied on lines that reach "
-                "TerminalNode). Issue #157 owns deriving the block away"),
-            ),
-        ),
     )
 
 

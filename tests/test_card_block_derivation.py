@@ -58,10 +58,16 @@ from typing import Any
 
 import pytest
 
-from cardlang.openspiel.encoding import CARD_VERB, ActionSpace
+from cardlang.openspiel.encoding import (
+    CARD_VERB,
+    ActionSpace,
+    _decides_a_content_item,
+    card_to_action,
+)
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.values import Card
 
 # =============================================================================
@@ -124,6 +130,8 @@ class Arm:
         move_types: str = "",
         plays: bool = True,
         why_unplayed: str = "",
+        builds_space: bool = True,
+        why_no_space: str = "",
     ) -> None:
         self.name = name
         self.site = site
@@ -132,6 +140,12 @@ class Arm:
         self.move_types = move_types
         self.plays = plays
         self.why_unplayed = why_unplayed
+        # Some configurations are refused by a guard unrelated to this
+        # derivation, so no `ActionSpace` exists to read the block off. Their
+        # cell asks the derivation directly — the property under test is its
+        # answer, not the neighbouring guard's.
+        self.builds_space = builds_space
+        self.why_no_space = why_no_space
 
     def game(self) -> Any:
         camel = "".join(part.title() for part in self.name.split("_"))
@@ -228,6 +242,31 @@ ARMS: list[Arm] = [
         """    each player simultaneously:
       move chosen 1 card from hand[player] to pile[player]""",
     ),
+    Arm(
+        # The configuration that makes `EachSimultaneous` unconditional rather
+        # than a special case of the chosen-Transfer arm. `_pass_selection`
+        # reads only `source` and `amount`, and `simultaneous_body_error`
+        # checks neither `where` nor `joint` — so this body carries
+        # `joint=True` and still draws BARE cards. A derivation keyed on
+        # "chosen and not joint" reads it as deciding no content item and
+        # leaves the block absent, while the game goes on offering cards.
+        "pass_simultaneous_jointly",
+        "execute._pass_selection",
+        True,
+        """    each player simultaneously:
+      move chosen 2 cards from hand[player]
+           where jointly (number of cards in cards) is 2 to pile[player]""",
+        plays=False,
+        why_unplayed="its cell asks the derivation directly; see why_no_space",
+        builds_space=False,
+        why_no_space=(
+            "an inline joint predicate has no registered subset codec, so "
+            "`for_game` refuses this game before any block is laid out — a "
+            "guard about the COMBO block, unrelated to this derivation. The "
+            "hole the arm pins is reachable in a game whose predicate does "
+            "root in a registered codec."
+        ),
+    ),
     # --- evaluate._choose ---------------------------------------------------
     Arm(
         "choose_integer",
@@ -256,33 +295,18 @@ def test_every_decision_point_has_an_isolating_arm() -> None:
     )
 
 
-def _derivation_cells() -> list[Any]:
-    """The arms, with the ones designed to FLIP marked. An arm expecting no
-    block fails today — every game reserves one — so the mark is constrained to
-    that assertion: an unconstrained `xfail` would count a harness crash or an
-    import error as the designed red, which is the vacuously-green class
-    wearing red."""
-    return [
-        pytest.param(
-            arm,
-            id=arm.name,
-            marks=(
-                []
-                if arm.present
-                else pytest.mark.xfail(strict=True, raises=AssertionError)
-            ),
-        )
-        for arm in ARMS
-    ]
-
-
-@pytest.mark.parametrize("arm", _derivation_cells())
+@pytest.mark.parametrize("arm", ARMS, ids=lambda a: a.name)
 def test_the_arm_reserves_a_card_block_exactly_when_it_can_decide_a_card(
     arm: Arm,
 ) -> None:
     """The derivation cell. `verbs()` naming `CARD_VERB` is the block's public
     tell — it is the verb every card-block id reports."""
-    space = ActionSpace.for_game(arm.game())
+    game = arm.game()
+    if not arm.builds_space:
+        mt_index = {m.name: m for m in game.move_types}
+        assert _decides_a_content_item(game, mt_index) is arm.present
+        return
+    space = ActionSpace.for_game(game)
     assert (CARD_VERB in space.verbs()) is arm.present
 
 
@@ -305,6 +329,64 @@ def test_the_arms_played_line_agrees_with_its_declared_column(arm: Arm) -> None:
         f"the card block would number, but the arm's column says "
         f"present={arm.present}"
     )
+
+
+# =============================================================================
+# The absent block's own behaviour — probed directly, because no corpus game
+# reaches the refusal and code nothing executes is where the next defect sits
+# =============================================================================
+
+
+def _blockless() -> ActionSpace:
+    """A space whose card block reserves no ids, built directly: the three
+    states of the block parameter are `None` (standard 52), a list (derived),
+    and the empty list (absent), and only the third is under probe here."""
+    return ActionSpace([], ["check", "fold"], [], None, [])
+
+
+def test_an_absent_block_reserves_no_ids_and_the_next_block_starts_at_zero() -> None:
+    assert _blockless().num_distinct_actions == 2
+    assert _blockless().decode(0) == "check"
+
+
+def test_an_absent_block_declares_no_card_verb() -> None:
+    """The claim `verbs()` makes must be one the ids can keep: with no block,
+    no id reports `CARD_VERB`, so declaring it would advertise a verb the space
+    cannot produce."""
+    assert CARD_VERB not in _blockless().verbs()
+
+
+@pytest.mark.expects_shadow_guard
+def test_encoding_a_card_against_an_absent_block_is_refused_by_name() -> None:
+    """The guarantee the execution rows cannot give. A line samples the
+    decisions it reaches; this is what happens if the derivation is ever wrong
+    about one it did not — the game stops, naming the derivation, instead of
+    numbering the card into the bare-name block.
+
+    `ShadowGuardError` is the type on purpose: the game is legal and the ENGINE
+    is at fault, and the suite fails on that type wherever it is raised, so a
+    derivation miss anywhere in the corpus surfaces as a test failure.
+    """
+    with pytest.raises(ShadowGuardError, match="card-block derivation"):
+        _blockless().encode(Card("A", "clubs"))
+
+
+def test_the_standard_and_absent_sentinels_do_not_collide() -> None:
+    """`None` and `[]` must stay different states. Were absence spelled `None`,
+    this card would silently receive `card_to_action`'s id — 0 — which the
+    blockless space above gives to `check`.
+
+    red under: change `_blockless`'s block argument from `[]` to `None` — the
+    refusal above stops firing and this equality goes red (executed at
+    authoring).
+    """
+    ace = Card("A", "clubs")
+    standard = ActionSpace(None, ["check", "fold"], [], None, [])
+    assert standard.encode(ace) == card_to_action(ace)
+    assert standard.decode(standard.encode(ace)) == ace
+    # The same id means different things in the two spaces, which is the whole
+    # reason absence may not be spelled `None`.
+    assert _blockless().decode(0) == "check"
 
 
 def _content_candidates_offered(game: Any) -> set[str]:

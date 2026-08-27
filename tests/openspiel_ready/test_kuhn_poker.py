@@ -156,10 +156,11 @@ def test_the_imported_raise_is_absent_from_the_action_space() -> None:
         "an imported-but-unoffered move type minted an action id — whole-library "
         "import is inflating the action space"
     )
-    # 52 card-block slots (the standard grid every deck maps onto) plus the
-    # four offered move types, and nothing else.
-    assert space.num_distinct_actions == 52 + 4
-    assert {space.to_string(a) for a in range(52, 56)} == {"check", "bet", "call", "fold"}
+    # The four offered move types, and nothing else. Kuhn deals a card and
+    # bets on it — no decision is card-valued — so no card block is reserved
+    # and the vocabulary starts at 0.
+    assert space.num_distinct_actions == 4
+    assert {space.to_string(a) for a in range(0, 4)} == {"check", "bet", "call", "fold"}
 
 
 def test_a_fold_never_reveals_the_folded_card_but_a_showdown_does() -> None:
