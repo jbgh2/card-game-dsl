@@ -36,13 +36,13 @@ domain:          two crossed axes, each derived from its registry in code.
                  cannot isolate any of them — measured: removing the
                  `EachSimultaneous` arm from the derivation reddens one
                  synthetic arm here and no corpus game at all. (2) Every game
-                 in the adapter's registry, `cardlang.openspiel.game.GAMES`,
+                 in the adapter's registry, `cardlang.openspiel.registry.GAMES`,
                  whose static answer is checked against what a played line
                  actually offers. Board games are in-domain on both axes: a
                  board's pieces are the deck's content items and share the
                  block.
 registry:        axis 1: `cardlang.runtime.delegation.DECISION_POINTS`;
-                 axis 2: `cardlang.openspiel.game.GAMES`;
+                 axis 2: `cardlang.openspiel.registry.GAMES`;
                  site-list totality:
                  tests/test_delegated_play.py::test_every_decision_point_is_classified;
                  verb-image agreement:
@@ -71,7 +71,7 @@ from cardlang.openspiel.encoding import (
     card_to_action,
 )
 from cardlang.pipeline import check_dsl, check_source
-import cardlang.openspiel.game as ogame  # registers the adapter's game table
+from cardlang.openspiel.registry import GAMES as REGISTERED
 from cardlang.runtime.chance import RefusingRandom, is_chance_free
 from cardlang.runtime.delegation import DECISION_POINTS
 from cardlang.runtime.driver import play_game
@@ -448,7 +448,7 @@ def _content_candidates_offered(game: Any, seed: int = 0, bound: int = 0) -> set
 
 
 @pytest.mark.parametrize(
-    "path", sorted(set(ogame.GAMES.values())), ids=lambda p: p.removesuffix(".cardlang")
+    "path", sorted(set(REGISTERED.values())), ids=lambda p: p.removesuffix(".cardlang")
 )
 def test_no_registered_game_offers_a_card_its_space_cannot_number(path: str) -> None:
     """The soundness direction, on the real corpus: whatever a played line
