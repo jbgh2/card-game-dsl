@@ -27,9 +27,15 @@ Each check names its query so the answer is derived, not vibed:
    extended enforcement scaffolding, and how many built execution
    surface — games, differentials, playout reach, proof generality?
    CLAUDE.md's load-bearing section says which way that ratio should lean.
-3. **Aging by reachability.** The oldest open R1/R2 issues, by date. An
-   R1 outliving a week of R4 work is the allocation failure this review
-   exists to catch.
+3. **Aging by reachability.** The oldest open R1/R2 issues, by date — and
+   age is a flag to read, never a rank. An aged issue is one of three
+   things, and only its body read against the tree says which:
+   **neglected** (a wrong game behind it while R4 work merges — the
+   allocation failure this check exists to catch), **stale** (its premise
+   no longer matches the tree — rescope it, don't re-flag it), or
+   **correctly parked** (reach without a wrong game behind it; the tag
+   ranks reach, not worth). A flagging without the read wastes the
+   flagging.
 4. **Inflow vs closure, by class.** Issues opened vs closed in the window,
    grouped by the class-closing refactor they belong to (if one is on the
    tracker). A class whose instances arrive faster than its refactor
@@ -45,8 +51,14 @@ Each check names its query so the answer is derived, not vibed:
 A short verdict (one screen): the shape the window shows, the two or three
 reallocation moves with the most leverage, and — only where a trend check
 demands it — a doctrine amendment, drafted as the exact edit. Reprioritize
-issue #143 in place if the ordering should change. Save the verdict where
-the operator will find it and previous verdicts can be compared.
+issue #143 in place if the ordering should change — and treat that edit as
+code, because #143's prose is the ranking function: `tools/ready-front.sh`
+ranks by first mention in its body. After editing, re-run the sweep and
+check two things: the derived ranks match the intended order, and every
+move the verdict ranks is selectable by the Ready Front (an epic
+container, a doc paragraph, and the verdict itself are not). Save the
+verdict where the operator will find it and previous verdicts can be
+compared.
 
 What this skill must never do: add gates, add machinery, file more than a
 handful of issues, or grow its own process. It is the stopping rule, so it
