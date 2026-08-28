@@ -45,7 +45,11 @@ registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
             partition, via `typing.get_args`); the `?game_item` scrape in
             tests/test_game_clause_guards.py for the clause registry; the
             declared-reads accessors' own refusal matrix in
-            tests/test_primitive_reads.py.
+            tests/test_primitive_reads.py; the load site that populates the
+            derived table is `runtime/driver.play_game`, the one
+            `RuntimeState(` construction in `cardlang/` — every path that can
+            reach `native_call`, the OpenSpiel adapter included, replays
+            through it (`openspiel/replay.py`).
 covered:    the parametrized cells below. The clause's duplication and
             absorption cells are tests/test_game_clause_guards.py's, whose
             axes derive from `?game_item` and so cover this clause without
@@ -64,7 +68,12 @@ does not prove: a green here says nothing about whether a declared read is
             `reads hand[p]` does not also need `trump_suit` is proven by the
             implementation failing, at playout, on the bundle it was handed,
             which only running the game can show. The witness fixture is the
-            one place that runs.
+            one place that runs. And every name declarable in 3a is also in
+            `CALL_SIGS` with the SAME signature, so no cell here distinguishes
+            the two tables by the values they carry — the freeze cell plants a
+            divergence to observe which table is read, and the behavioral
+            distinction becomes visible only when 3b's declarations differ
+            from the registry they replace.
 
 Born red (the bare run on this branch, before any of the block's grammar,
 resolve, typecheck or runtime existed): `58 failed, 51 passed`. Every
@@ -107,7 +116,9 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang.runtime.driver import play_game
-from cardlang.runtime.reads import PRIMITIVE_READS
+from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
+from cardlang.runtime.state import RuntimeState, ZoneStore
+from cardlang.runtime.values import Seating
 from cardlang.types import Type
 
 # --- the probe game ----------------------------------------------------------
@@ -600,11 +611,10 @@ def test_a_trick_order_row_cannot_call_a_declared_primitive() -> None:
 # --- axis 18: the declared signature is what freezes -------------------------
 
 
-def test_the_declared_signature_drives_the_argument_coercion() -> None:
-    """`coerce_args` is signature-driven, and for a declared Primitive the
-    signature is the DECLARATION's. A wrong declared type would change what the
-    implementation receives, so the materialized signature is what the runtime
-    reads — never `CALL_SIGS`, which a declared game's name need not be in."""
+def test_the_declared_signature_is_materialized() -> None:
+    """The type pass materializes the `Sig` each entry declares — the one
+    exception its own contract sanctions, because the runtime's `coerce_args`
+    is a downstream consumer that needs a type."""
     from cardlang.typecheck import declared_primitive_sigs
     from cardlang.types import TInteger, TPlayer
 
@@ -612,6 +622,43 @@ def test_the_declared_signature_drives_the_argument_coercion() -> None:
     sigs = declared_primitive_sigs(game)
     assert sigs["pinochle_meld_value"].params == (TPlayer(),)
     assert sigs["pinochle_meld_value"].ret == TInteger()
+
+
+def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
+    """The table the runtime FREEZES against, observed.
+
+    Every name declarable in 3a is also in `CALL_SIGS` with the same
+    signature, so the two agree on every reachable cell and the distinction
+    this claims is unobservable as things stand. Made observable by planting a
+    DIFFERENT signature in `CALL_SIGS` for the declared name: the coercion
+    must still see the declaration's. Without the plant the assertion below
+    could not fail, which is what makes the plant the cell rather than
+    decoration."""
+    from cardlang.builtins.signatures import CALL_SIGS, Sig
+    from cardlang.runtime import reads as reads_mod
+    from cardlang.types import TAny, TInteger, TPlayer
+
+    game = _checks(_game(body=_SCORE_FROM_PRIMITIVE))
+    planted = Sig((TAny(),), TInteger())
+    assert planted != CALL_SIGS["pinochle_meld_value"], "the plant changes nothing"
+    seen: list[object] = []
+    real = reads_mod.coerce_args
+
+    def spy(sig: object, args: list[object]) -> object:
+        seen.append(sig)
+        return real(sig, args)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(CALL_SIGS, "pinochle_meld_value", planted)
+        mp.setattr(reads_mod, "coerce_args", spy)
+        play_game(game, random.Random(0))
+    assert seen, "no native call was coerced — the probe reached nothing"
+    assert planted not in seen, (
+        "the runtime froze the declared Primitive's arguments against CALL_SIGS"
+    )
+    assert Sig((TPlayer(),), TInteger()) in seen
+    # red under: point `native_call`'s declared branch at `CALL_SIGS.get(name)`
+    # instead of `ctx.rs.declared_sigs` (demonstrated and reverted).
 
 
 # --- axis 8: the binder narrows what the bundle materializes ----------------
@@ -656,10 +703,52 @@ def test_a_binder_read_narrows_to_the_instance() -> None:
     assert set(gr.families["hand"]) == {0}  # type: ignore[attr-defined]
 
 
+def test_an_indexed_state_read_narrows_to_the_instance() -> None:
+    """The binder narrows a state variable exactly as it narrows a family: the
+    two kinds materialize differently, so the arm needs its own cell."""
+    gr = _bundle_for("hand[p], trump_suit, seen[p]")
+    assert set(gr.state["seen"]) == {0}  # type: ignore[attr-defined]
+
+
 def test_an_undeclared_name_is_absent_from_the_bundle() -> None:
     gr = _bundle_for("hand[p], trump_suit")
     assert "discard" not in gr.singles  # type: ignore[attr-defined]
     assert "seen" not in gr.state  # type: ignore[attr-defined]
+
+
+def test_a_key_the_live_value_does_not_hold_is_refused() -> None:
+    """A narrowing that found no instance would hand the implementation an
+    EMPTY family, which reads exactly like a family with no members — the
+    silent-wrong-answer shape the accessors exist to prevent."""
+    from cardlang.runtime import reads as reads_mod
+
+    rs, row = _live_state_and_row()
+    with pytest.raises(reads_mod.PrimitiveReadError, match="does not hold"):
+        reads_mod.game_reads(rs, row, {"hand": 7})
+
+
+def test_a_key_naming_an_undeclared_read_is_refused() -> None:
+    """A key narrows a name the ROW declares; one it omits is a narrowing of
+    nothing, and silently ignoring it would let a binder point anywhere."""
+    from cardlang.runtime import reads as reads_mod
+
+    rs, row = _live_state_and_row()
+    with pytest.raises(reads_mod.PrimitiveReadError, match="indexed read"):
+        reads_mod.game_reads(rs, row, {"discard": 0})
+
+
+def _live_state_and_row() -> tuple[RuntimeState, PrimitiveReads]:
+    """A live two-seat world and a declared row over it — built directly, so
+    the refusals above are probed at the accessor rather than through a game
+    that resolve would refuse before the runtime ever ran."""
+    game = _checks(_game(body=_SCORE_FROM_PRIMITIVE))
+    rs = RuntimeState(Seating(2), ZoneStore(game.zones, (0, 1)), random.Random(0))
+    row = PrimitiveReads(
+        module="cardlang/runtime/pinochle.py",
+        game_file="probe.cardlang",
+        zone_families=frozenset({"hand"}),
+    )
+    return rs, row
 
 
 # --- axis 13/15: the corpus reconciliation pin ------------------------------
