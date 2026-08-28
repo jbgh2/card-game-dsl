@@ -1977,6 +1977,11 @@ _PARSE_HINTS = {
         " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
         "move menu, so a mode body takes `active_rules:`/`transition_to:` only"
     ),
+    "primitives": (
+        " — `primitives { }` is a game clause: a [[primitive]]'s meaning belongs "
+        "to ONE game, so a library — which several games import — may not "
+        "declare one; write the block in the game"
+    ),
 }
 
 

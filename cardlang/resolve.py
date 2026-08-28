@@ -81,6 +81,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum
 from typing import assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
@@ -90,7 +91,9 @@ from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
+    BUILTIN_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CALL_FUNCS,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
@@ -107,6 +110,17 @@ from cardlang.builtins.functions import (
     VALUE_NAMES,
 )
 from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.primitives_block import (
+    InvocationContract,
+    Regime,
+    call_namespace,
+    declarable_type_names,
+    engine_fact_names,
+    regime,
+    undeclarable_contract,
+    unimplemented,
+    walled_namespace_of,
+)
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
@@ -2029,6 +2043,10 @@ def resolve(game: n.Game) -> n.Game:
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag)
+    # Before `_validate_refs`, which resolves calls against the namespace the
+    # block defines: a game whose block is wrong should hear about the block
+    # rather than about every call that then fails to resolve.
+    _check_primitives_block(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
@@ -4694,6 +4712,206 @@ def _row_order(key: str) -> int:
     return [k for k, _ in TRICK_ORDER_ROWS].index(key)
 
 
+class _ReadKind(Enum):
+    """What one `reads` name denotes — the exhaustive classification the
+    binder needs, since each kind materializes differently."""
+
+    STATE_VAR = "state variable"
+    INDEXED_STATE_VAR = "indexed state variable"
+    ZONE_FAMILY = "zone family"
+    SINGLE_ZONE = "single zone"
+
+
+# The kinds a `reads` name may carry a BINDER on: the indexed ones, because the
+# binder keys an instance. Stated as the allow-list so a kind added above is
+# refused a binder until someone admits it.
+_BINDABLE_READ_KINDS: frozenset[_ReadKind] = frozenset(
+    {_ReadKind.INDEXED_STATE_VAR, _ReadKind.ZONE_FAMILY}
+)
+
+
+def _classify_primitive_read(game: n.Game, name: str) -> _ReadKind | None:
+    """Which of the game's own keyed declarations `name` denotes, or None.
+
+    The ONE classifier: resolve stamps the kind and every downstream consumer
+    dispatches on it (the driver materializes the row, the binder narrows the
+    instance), so nothing re-derives it from the declarations a second time."""
+    for decl in n.state_blocks(game):
+        for sd in decl.decls:
+            if sd.name == name:
+                return (
+                    _ReadKind.INDEXED_STATE_VAR
+                    if sd.index is not None
+                    else _ReadKind.STATE_VAR
+                )
+    for z in game.zones:
+        if z.name == name:
+            return _ReadKind.ZONE_FAMILY if z.index is not None else _ReadKind.SINGLE_ZONE
+    return None
+
+
+def _undeclared_primitive_hint(game: n.Game, func: str) -> str:
+    """The half-sentence an unknown call earns when the name IS a Primitive
+    some other game declares. Without it a declared game's author reads
+    "unknown function" about a name they can see in the registry, and the
+    regime — the thing that actually refused it — stays invisible."""
+    if regime(game) is not Regime.DECLARED or func not in PRIMITIVE_CALL_FUNCS:
+        return ""
+    return (
+        f" — `{func}` is a [[primitive]] another game declares, and this game's "
+        f"`primitives {{ }}` block does not; declare it here to call it"
+    )
+
+
+def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
+    """The `primitives { }` block, validated whole.
+
+    Everything a declaration can be wrong about is settled here, in the compile
+    stage's own channel, because every one of them is a fact about the game
+    text against a registry the front end holds: the entry's name against the
+    game's other namespaces and the implementation index, its declared types
+    against the spellable set, and each `reads` name against the game's own
+    `zones { }` and `state { }`. What is deliberately NOT settled here is
+    whether a declared read SUFFICES for the implementation — that is a fact
+    about Python, and only running the game shows it."""
+    if game.primitives is None:
+        return
+    declarable = declarable_type_names(game)
+    own_definitions = (
+        {f.name for f in game.functions}
+        | {p.name for p in game.procedures}
+        | {m.name for m in game.move_types}
+        | {d.name for d in game.defines}
+        | {r.name for r in game.rules}
+    )
+    seen: set[str] = set()
+    for decl in game.primitives.decls:
+        _check_primitive_name(game, decl, own_definitions, seen, bag)
+        seen.add(decl.name)
+        for slot, type_name in [("return type", decl.return_type)] + [
+            (f"parameter `{p.name}`", p.type_name) for p in decl.params
+        ]:
+            bare = type_name.removesuffix("?")
+            if bare not in declarable:
+                bag.error(
+                    f"`{decl.name}`'s {slot} names `{bare}`, which a "
+                    f"`primitives` entry may not spell — a declared signature "
+                    f"is what freezes the arguments, so its types are the "
+                    f"declared-type names ({', '.join(sorted(declarable))}); "
+                    f"issue #472 tracks the shapes that have no spelling",
+                    decl.span,
+                )
+        _check_primitive_reads(game, decl, bag)
+
+
+def _check_primitive_name(
+    game: n.Game,
+    decl: n.PrimitiveDecl,
+    own_definitions: set[str],
+    seen: set[str],
+    bag: DiagnosticBag,
+) -> None:
+    """One entry's NAME, against every namespace it could collide with and
+    against the implementation index. Ordered so the most specific reason
+    speaks: a walled namespace before an unknown name, because the name IS a
+    Primitive and "nothing implements it" would be false."""
+    if decl.name in seen:
+        bag.error(
+            f"`primitives` declares one `{decl.name}` entry — the repeat would "
+            f"silently replace the first; keep one",
+            decl.span,
+        )
+        return
+    if decl.name in BUILTIN_CALL_FUNCS:
+        bag.error(
+            f"`{decl.name}` is a [[builtins]] the language ships, so a "
+            f"`primitives` entry may not declare it — a call would resolve "
+            f"against two homes at once; rename the Primitive",
+            decl.span,
+        )
+        return
+    if decl.name in own_definitions:
+        bag.error(
+            f"`{decl.name}` is already defined in this game, so a `primitives` "
+            f"entry may not declare it too — a call would name both; rename one",
+            decl.span,
+        )
+        return
+    walled = walled_namespace_of(decl.name)
+    if walled is not None:
+        bag.error(
+            f"`{decl.name}` is {walled}, not a call-position [[primitive]], so "
+            f"the `primitives` block cannot declare it — its signature is the "
+            f"mechanic's, not a parameter list; the round slots take their own "
+            f"declaration form (issue #142)",
+            decl.span,
+        )
+        return
+    contract = undeclarable_contract(decl.name)
+    if contract is not None:
+        bag.error(
+            f"`{decl.name}`'s implementation does not answer the declared "
+            f"Primitive contract (it is {contract.value}), so a `primitives` "
+            f"entry cannot bind it — see issue "
+            f"{'#142' if contract is InvocationContract.EMITTING else '#473'}",
+            decl.span,
+        )
+        return
+    if unimplemented(frozenset({decl.name})):
+        bag.error(
+            f"nothing implements the [[primitive]] `{decl.name}` — a "
+            f"`primitives` entry names Python the engine can find "
+            f"(cardlang/primitives_block.py, PRIMITIVE_IMPLEMENTATIONS); check "
+            f"the spelling, or register the implementation",
+            decl.span,
+        )
+
+
+def _check_primitive_reads(
+    game: n.Game, decl: n.PrimitiveDecl, bag: DiagnosticBag
+) -> None:
+    """One entry's `reads` clause: every name classified, every binder bound.
+
+    The engine-structural half of what a Primitive sees (`EngineFacts`) is not
+    spellable here, and its field names are refused at THIS site rather than
+    left to read as ordinary unknowns, so the deferral is loud and cites its
+    issue."""
+    params = {p.name for p in decl.params}
+    for read in decl.reads:
+        kind = _classify_primitive_read(game, read.name)
+        if kind is None:
+            hint = (
+                f" — `{read.name}` is an engine fact a Primitive receives "
+                f"whole today; the `reads` clause names this game's own zones "
+                f"and state variables only (issue #474)"
+                if read.name in engine_fact_names()
+                else ""
+            )
+            bag.error(
+                f"`{decl.name}` reads `{read.name}`, which this game declares "
+                f"in neither `zones {{ }}` nor `state {{ }}`{hint}",
+                read.span or decl.span,
+            )
+            continue
+        if read.binder is None:
+            continue
+        if kind not in _BINDABLE_READ_KINDS:
+            bag.error(
+                f"`{decl.name}` reads `{read.name}[{read.binder}]`, but "
+                f"`{read.name}` is a {kind.value} — it has no instances to key, "
+                f"so write `{read.name}`",
+                read.span or decl.span,
+            )
+        elif read.binder not in params:
+            bag.error(
+                f"`{decl.name}` reads `{read.name}[{read.binder}]`, but "
+                f"`{read.binder}` is not one of its parameters "
+                f"({', '.join(p.name for p in decl.params) or 'it declares none'}) "
+                f"— an index binder keys the instance the CALL names",
+                read.span or decl.span,
+            )
+
+
 def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:
     """The presence partition, both directions: a game either declares a
     [[trick-order]] and names the winner and calls that read it, or declares
@@ -6245,6 +6463,7 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     defined_types = {t.name for t in game.types}
     defined_defines = {d.name for d in game.defines}
     defined_functions = {f.name for f in game.functions}
+    native_namespace = call_namespace(game)
     # Which role (if any) each declared zone family is keyed by — the fact the
     # `to each <family>` Owner Guard needs (the executor keys parcels per PLAYER).
     zone_index = {z.name: z.index for z in game.zones}
@@ -6297,9 +6516,19 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
     for nd in _walk(game):
         match nd:
             case n.Call() if (
-                nd.func not in CALL_FUNCS and nd.func not in defined_functions
+                nd.func not in native_namespace and nd.func not in defined_functions
             ):
-                bag.error(f"call to unknown function '{nd.func}'", nd.span)
+                # `native_namespace` is the game's own, not the corpus-wide
+                # registry: a game with a `primitives { }` block names the
+                # Primitives it declares and no other game's, so a neighbour's
+                # trick winner is an unknown name here rather than a call that
+                # resolves and then dispatches through a table this game never
+                # claimed (issue #364).
+                bag.error(
+                    f"call to unknown function '{nd.func}'"
+                    + _undeclared_primitive_hint(game, nd.func),
+                    nd.span,
+                )
             case n.Call() if (
                 game.content_flavor == "piece" and nd.func in DECK_ONLY_CALL_FUNCS
             ):

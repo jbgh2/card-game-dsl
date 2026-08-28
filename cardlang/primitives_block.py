@@ -293,6 +293,22 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
 }
 
 
+def engine_fact_names() -> frozenset[str]:
+    """The `EngineFacts` field names — the OTHER half of what a Primitive sees.
+
+    Not spellable in a `reads` clause: the block declares the name-keyed half
+    only, and the engine-structural half arrives whole (issue #474). Derived from the
+    dataclass rather than listed, so a field added to that closed set is
+    refused in the clause without an edit here — and imported lazily, because
+    the front end must not pull the runtime in to answer a name question.
+    """
+    from dataclasses import fields
+
+    from cardlang.runtime.narrowing import EngineFacts
+
+    return frozenset(f.name for f in fields(EngineFacts))
+
+
 # --- reconciliation ----------------------------------------------------------
 
 

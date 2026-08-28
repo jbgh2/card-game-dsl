@@ -155,10 +155,15 @@ def _checks(source: str) -> n.Game:
 
 
 def _refused(source: str) -> str:
-    """The rendered diagnostic a refused probe produces."""
+    """Every diagnostic a refused probe produces, rendered.
+
+    The whole bag, not the first item: resolve reports bag-first, so a probe
+    that trips two guards would otherwise be read against whichever spoke
+    first — and which that is, is not the cell's claim."""
     with pytest.raises(DiagnosticError) as excinfo:
         _checks(source)
-    return str(excinfo.value)
+    notes = list(getattr(excinfo.value, "__notes__", None) or [])
+    return "\n".join([str(excinfo.value), *notes])
 
 
 # --- the registries, reconciled ---------------------------------------------
@@ -257,14 +262,18 @@ def _reachable_type_constructors() -> set[str]:
         for optional in (False, True):
             t = type_from_name(name, optional, env.structs, env.positions, env.directions)
             out.add(type(t).__name__)
-            if isinstance(t, tuple(typing.get_args(Type))) and hasattr(t, "inner"):
-                out.add(type(t.inner).__name__)  # type: ignore[union-attr]
+            inner = getattr(t, "inner", None)
+            if inner is not None:
+                out.add(type(inner).__name__)
     # A board game's `cell` domain is the one declarable name outside the
     # built-ins whose member type is not `TInteger`; probed on its own game
     # rather than by hand-adding `TCell`, so the reachability is measured.
     board = _checks(_board_game())
-    for p in board.positions:
-        t = type_from_name(p.name, False, env.structs, {q.name: q for q in board.positions}, {})
+    from cardlang.typecheck import _position_types
+
+    positions = _position_types(board)
+    for name in sorted(positions):
+        t = type_from_name(name, False, env.structs, positions, {})
         out.add(type(t).__name__)
     return out
 
@@ -274,9 +283,9 @@ def _board_game() -> str:
         "game BoardProbe {\n"
         "  players: 2\n"
         "  max_length: 1000\n"
-        "  pieces: chequers\n"
+        "  pieces: xo_marks\n"
         "  board: grid(3, 3)\n"
-        "  zones { supply : Pile }\n"
+        "  zones { supply : Discard }\n"
         "  state { score[player] : Integer = 0 }\n"
         "  phase play { score[0] := 1 }\n"
         "  winner: highest score\n"
@@ -400,19 +409,28 @@ def test_every_declarable_type_name_is_spellable_in_both_slots(type_name: str) -
 
 
 @pytest.mark.parametrize(
-    "spelling",
-    ["Any", "collection of Card", "Line", "dir", "Bid"],
-    ids=["any", "collection", "line", "direction", "struct"],
+    "spelling", ["Any", "Line", "dir", "Bid"], ids=["any", "line", "direction", "struct"]
 )
-def test_an_unspellable_type_is_refused(spelling: str) -> None:
-    """The complement of the declarable set, probed at the parameter slot. Each
-    is refused by NAME — never accepted and silently typed as the permissive
-    top, which is the one reading that would let a declared Primitive receive
-    an unfrozen engine value."""
-    entry = f"probe_fn(x : {spelling}) : Integer"
-    source = _game(block=entry, body="    score[0] := 1")
-    message = _refused(source)
-    assert "probe_fn" in message or spelling.split()[0] in message
+def test_an_unspellable_type_name_is_refused(spelling: str) -> None:
+    """The complement of the declarable set, at the parameter slot. Each parses
+    (they are bare names, so the grammar cannot tell them apart from a
+    declarable one) and is refused by NAME — never accepted and silently typed
+    as the permissive top, which is the one reading that would let a declared
+    Primitive receive an unfrozen engine value."""
+    entry = f"pinochle_meld_value(x : {spelling}) : Integer"
+    message = _refused(_game(block=entry, body="    score[0] := 1"))
+    assert spelling in message
+    assert "#472" in message
+
+
+def test_a_collection_type_has_no_spelling_at_all() -> None:
+    """The one unspellable shape that is grammatically inexpressible rather
+    than refused by name: the type slot is a bare name with an optional `?`,
+    and no production spells a collection. That is the state surface totality
+    calls inexpressible, and issue #472 is what would change it."""
+    entry = "pinochle_meld_value(x : collection of Card) : Integer"
+    message = _refused(_game(block=entry, body="    score[0] := 1"))
+    assert "syntax error" in message
 
 
 # --- axis 7-9: the reads clause ---------------------------------------------
@@ -505,10 +523,10 @@ def test_a_duplicate_entry_is_refused() -> None:
 
 
 def test_a_declaration_may_not_shadow_a_game_function() -> None:
-    source = _game(
-        block="probe_fn(p : Player) : Integer",
-        body="    score[0] := 1",
-        extra="  function probe_fn(p : Player) = 0\n",
+    """A `function` is a top-level definition the game holds, so a Primitive of
+    the same name would make one call name two things."""
+    source = "function probe_fn(p : Player) = 0\n" + _game(
+        block="probe_fn(p : Player) : Integer", body="    score[0] := 1"
     )
     message = _refused(source)
     assert "probe_fn" in message
