@@ -618,6 +618,17 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "domains.py": ["set(BY_ID) == set(Role)"],
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
+    # `runtime/reads.py`'s shape, one module over: it reconciles two registries
+    # against each other rather than pinning one against a literal, so there is
+    # no collection to widen and no witness of this module's shape. What it
+    # protects is that every Primitive name has an implementation row and every
+    # row is a Primitive name — the both-ways check the `primitives { }` block
+    # rests on. Its reddening mutation is executed in
+    # tests/test_primitives_block.py::test_the_implementation_index_covers_the_
+    # primitive_namespace, and the CORPUS-side question it cannot ask (is the
+    # implementation reached by any game) is the reconciliation pin's, whose
+    # own plants are demonstrated there.
+    "primitives_block.py": ["frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
     # Both are the same shape: the builder validating a grammar-admitted
     # identifier against the registry that owns the row set, so the registry
@@ -659,6 +670,17 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
         "node.selection_mode not in SELECTION_MODE_DRAWS",
     ],
     "runtime/driver.py": ["game.winner.rank_dir not in RANK_DIR_TO_PICK"],
+    # The declared-regime half of the native dispatch: a call that is neither a
+    # Builtin nor a Primitive the game's own `primitives { }` block declares.
+    # It reconciles no rows — the sentinel is the Builtin half's way of saying
+    # "not mine" — and it is a Shadow Guard, unreachable from any game
+    # description, because resolve refuses the name against the game's own
+    # namespace first (`_validate_refs`). What it protects is that a declared
+    # game never falls through to the legacy dispatch, which is the property
+    # the regime partition exists for; the Owner Guard's witness is
+    # tests/test_primitives_block.py::test_an_empty_block_refuses_a_legacy_
+    # primitive_call.
+    "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     "runtime/state.py": [

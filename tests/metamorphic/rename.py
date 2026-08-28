@@ -119,6 +119,7 @@ from cardlang.diagnostics import Span
 from cardlang.libraries import library_names, load_library
 from cardlang.resolve import _introduced_binders
 from cardlang.resolve import _walk as _resolve_walk
+from cardlang.primitives_block import Regime, regime
 from cardlang.runtime.reads import PRIMITIVE_READS
 from tests.metamorphic.pairing import Event
 
@@ -132,12 +133,28 @@ _PREFIX = "_mt_"
 # see the module docstring.
 _GLOBAL_EXCLUSIONS: frozenset[str] = frozenset({"hand"})
 
-def _coupled_names(game_file: str) -> frozenset[str]:
-    """Every zone/state name a game-local primitive reads for `game_file` —
-    derived from the declared-reads registry (`PRIMITIVE_READS`,
-    cardlang/runtime/reads.py), unioned over the game's rows (a game may be
-    served by its own module AND stdlib.py). See the module docstring's
-    second exclusion."""
+def _coupled_names(game: n.Game, game_file: str) -> frozenset[str]:
+    """Every zone/state name a game-local primitive reads, that this transform
+    must NOT rename — because the reading side is Python this transform cannot
+    reach.
+
+    Which names those are depends on WHERE the coupling is declared, and the
+    two regimes answer differently:
+
+    * A game with a `primitives { }` block declares its Primitive reads in its
+      own file, so the declaration renames WITH the zone — one edit, one file,
+      and the checker refuses a `reads` name that no longer resolves. Nothing
+      is excluded, and the transform covers names it used to have to skip.
+    * A game without one is coupled to `PRIMITIVE_READS`, which this transform
+      cannot rewrite: the rows are authored Python in the language package.
+      Those names stay excluded, derived from the registry.
+
+    The transform is what first surfaced this class empirically, as a playout
+    `KeyError` — so what the block changes is not that the coupling is safe but
+    that it is STRUCTURAL, and a structural coupling is not something an
+    instrument has to observe."""
+    if regime(game) is Regime.DECLARED:
+        return frozenset()
     names: set[str] = set()
     for row in PRIMITIVE_READS:
         if row.game_file == game_file:
@@ -243,7 +260,7 @@ def build_rename_plan(game: n.Game) -> RenamePlan:
     # Subtracting the global exclusions keeps the three excluded sets a
     # partition: `hand` is primitive-coupled too (Tichu/Skat/... rows declare
     # it) but is already excluded corpus-wide as the magic name.
-    excluded_coupled = (domain & _coupled_names(filename)) - excluded_global
+    excluded_coupled = (domain & _coupled_names(game, filename)) - excluded_global
     # Subtracted like the others so the excluded sets stay a partition.
     excluded_contract = (
         (domain & _contract_names(game)) - excluded_global - excluded_coupled
@@ -280,6 +297,15 @@ def _rewrite(node: object, name_map: dict[str, str]) -> object:
         new = name_map.get(node.name)
         return node if new is None else replace(node, name=new)
     if isinstance(node, (n.ZoneDecl, n.StateDecl)):
+        new = name_map.get(node.name)
+        if new is not None:
+            node = replace(node, name=new)
+    elif isinstance(node, n.PrimitiveRead):
+        # A `primitives { }` entry names the zone or state variable it reads as
+        # a bare string — the `Winner.target` class, one clause over. This arm
+        # is what makes the block's coupling structural rather than merely
+        # declared: rename the zone and the declaration follows, in the same
+        # file, in the same edit.
         new = name_map.get(node.name)
         if new is not None:
             node = replace(node, name=new)

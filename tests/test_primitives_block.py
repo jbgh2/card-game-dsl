@@ -578,6 +578,25 @@ def test_a_declared_primitive_is_callable(body: str) -> None:
     assert result.scores == {0: 1, 1: 0}
 
 
+# --- axis 19: the partitions that must stay total ---------------------------
+
+
+def test_a_trick_order_row_cannot_call_a_declared_primitive() -> None:
+    """The Trick Order's row-callable partition covers the Builtin half only,
+    on the ground that a row calls no game-local Python. A declared Primitive
+    is game-local Python in NO registry that partition reads, so the argument
+    holds only because the name is refused on its own — not by inheriting an
+    exclusion it is not in."""
+    source = _game(
+        block=_PINOCHLE_ENTRY,
+        body="    score[0] := if follows_lead(A of spades, discard) then 1 else 0",
+        extra="  trick_order { trump: pinochle_meld_value(0) > 0 }\n",
+    )
+    message = _refused(source)
+    assert "pinochle_meld_value" in message
+    assert "Trick Order row" in message
+
+
 # --- axis 18: the declared signature is what freezes -------------------------
 
 

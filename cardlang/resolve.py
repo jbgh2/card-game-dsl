@@ -115,6 +115,7 @@ from cardlang.primitives_block import (
     Regime,
     call_namespace,
     classify_read,
+    declared_names,
     declarable_type_names,
     engine_fact_names,
     regime,
@@ -1245,7 +1246,15 @@ def _library_slot_names(library: n.Library) -> dict[str, frozenset[str]]:
         "move_type": frozenset(m.name for m in library.move_types),
         "define": frozenset(d.name for d in library.defines),
         "procedure": frozenset(p.name for p in library.procedures),
-        "function": frozenset(f.name for f in library.functions) | frozenset(CALL_FUNCS),
+        # BUILTIN_CALL_FUNCS, not CALL_FUNCS: a library body may call the
+        # generic native functions the language ships, and may not call a
+        # game-local [[primitive]]. A Primitive's meaning belongs to ONE game,
+        # so a library — which several games import — naming one is the
+        # cross-game coupling the `primitives { }` block exists to end; and an
+        # importing game that declares a block would refuse the call anyway,
+        # to ITS author rather than the library's, which is the library-alone
+        # property this sweep is for.
+        "function": frozenset(f.name for f in library.functions) | BUILTIN_CALL_FUNCS,
         "enum_value": SEAT_DIRECTION_VALUES,
         # No longer empty: a library reaches exactly the zones it contracts for,
         # and nothing else. This is the set every zone-naming slot is swept
@@ -5127,7 +5136,7 @@ def _check_trick_order_rows(game: n.Game, bag: DiagnosticBag) -> None:
                     game, row, nd, fn, bag, through, id(nd) in subscripted
                 )
             elif isinstance(nd, n.Call):
-                _check_row_call(row, nd, fn, bag, through)
+                _check_row_call(game, row, nd, fn, bag, through)
 
 
 def _check_row_zone_read(
@@ -5177,12 +5186,30 @@ def _check_row_zone_read(
 
 
 def _check_row_call(
+    game: n.Game,
     row: n.TrickOrderRow,
     nd: n.Call,
     fn: str | None,
     bag: DiagnosticBag,
     through: Callable[[str | None], str],
 ) -> None:
+    if nd.func in declared_names(game):
+        # A [[primitive]] this game's own `primitives { }` block declares.
+        # Uncallable from a row for the reason every registered Primitive is:
+        # a row is HERMETIC, a pure function of the card and public state, and
+        # a Primitive reads whatever its `reads` clause names — a concealed
+        # hand among them. The registered half is uncallable because
+        # `TRICK_ORDER_ROW_CALLS` admits none of it; the declared half is not
+        # in that registry at all, so it needs this arm rather than inheriting
+        # the exclusion.
+        bag.error(
+            f"`{row.key}:` calls the declared [[primitive]] `{nd.func}(...)`"
+            + through(fn)
+            + " — a Trick Order row reads the card and public state only, and "
+            "a Primitive reads whatever its `reads` clause names",
+            nd.span or row.span,
+        )
+        return
     if nd.func in TRICK_ORDER_ROW_CALLS or nd.func not in CALL_FUNCS:
         return  # allowed, or a designer function (walked on its own)
     if nd.func in TRICK_ORDER_GATED_FUNCS - frozenset(TRICK_ORDER_READERS):
