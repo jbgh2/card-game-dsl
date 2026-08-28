@@ -119,6 +119,7 @@ from cardlang.resolve import (
     _METADATA_SLOTS,
     _OPAQUE_SLOTS,
     _REFERENCE_SLOTS,
+    _UNION_NAMESPACES,
     slot_namespace,
     slot_strings,
 )
@@ -371,16 +372,32 @@ def test_every_namespace_is_named() -> None:
     are listed, so the list is the statement — a new reference namespace must be
     classified as one or the other before it can land.
 
+    A third classification exists and is not a loophole: a namespace that is
+    the UNION of declaration namespaces (`_UNION_NAMESPACES`), for a slot whose
+    name may come from either of two declaration blocks. Its members are held
+    to the same rule, so a union cannot smuggle an unowned namespace in as one
+    of its halves.
+
     red under: point a `_REFERENCE_SLOTS` row at a namespace spelled differently
-    from its declaration, or drop one from `_EXTERNALLY_OWNED`."""
+    from its declaration, drop one from `_EXTERNALLY_OWNED`, or point a
+    `_UNION_NAMESPACES` member at a namespace nothing declares."""
     assert all(ns for ns in _DECLARATION_SLOTS.values())
     assert all(ns for ns in _REFERENCE_SLOTS.values())
     declared = set(_DECLARATION_SLOTS.values())
     referenced = set(_REFERENCE_SLOTS.values())
-    unowned = sorted(referenced - declared - _EXTERNALLY_OWNED)
+    unowned = sorted(referenced - declared - _EXTERNALLY_OWNED - set(_UNION_NAMESPACES))
     assert not unowned, (
         f"reference namespaces nothing declares and nothing owns: {unowned}"
     )
+    for union, members in _UNION_NAMESPACES.items():
+        unowned_members = sorted(members - declared - _EXTERNALLY_OWNED)
+        assert not unowned_members, (
+            f"union namespace {union!r} draws from namespaces nothing declares "
+            f"and nothing owns: {unowned_members}"
+        )
+    # A union namespace with nothing referencing it classifies nothing.
+    stale = sorted(set(_UNION_NAMESPACES) - referenced)
+    assert not stale, f"union namespaces no reference slot draws from: {stale}"
 
 
 

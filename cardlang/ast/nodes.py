@@ -1099,6 +1099,57 @@ class Parameter:
 
 
 @dataclass(frozen=True, slots=True)
+class PrimitiveRead:
+    """One name of a [[primitives-block]] entry's `reads` clause.
+
+    Three spellings, one node: `trump_suit` (a state variable), `hand` (a whole
+    zone family, or a single zone), and `hand[p]` (ONE instance of an indexed
+    declaration, keyed by the entry's own parameter ``binder``). Which kind the
+    name denotes is resolve's classification against the game's own `zones { }`
+    and `state { }` declarations, so the node keeps the two spellings the
+    designer wrote and nothing more."""
+
+    name: str
+    binder: str | None
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PrimitiveDecl:
+    """One entry of a `primitives { }` block:
+    ``name(<param> : <type>, …) : <type> [reads <name>, …]``.
+
+    A colon-row like every other declaration in the language (`zones`, `state`,
+    `card_points`), reusing `Parameter` for the typed list so a Primitive's
+    parameters and a `move_type`'s are one shape. ``return_type`` keeps a
+    trailing `?` for a nullable return, exactly as `Parameter.type_name` does.
+    ``params`` is empty for a zero-argument entry and ``reads`` for one that
+    reads no game state (a Primitive pure over its arguments)."""
+
+    name: str
+    params: tuple[Parameter, ...]
+    return_type: str
+    reads: tuple[PrimitiveRead, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PrimitivesBlock:
+    """The `primitives { }` clause: the [[primitive]]s this game borrows from
+    outside the DSL, with their typed signatures and their declared reads
+    (docs/design-notes/primitive-sidecars.md §2).
+
+    Entries are held in SOURCE order and each name appears at most once
+    (resolve). An EMPTY block is a declaration, not an absence: it says this
+    game borrows no Python, and every Primitive call in it is refused — which
+    is why `decls` may be empty and `Game.primitives` is still `None` for a
+    game that writes no block at all (`primitives_block.regime`)."""
+
+    decls: tuple[PrimitiveDecl, ...]
+    span: Span | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class MoveTypeDef:
     """`move_type NAME [(<param> : <type>, …)] { when: <pred> effect { <stmt>* } }` —
     a named action, legal only where its predicate holds. ``when`` is None when the
@@ -1379,6 +1430,14 @@ class Game:
     # decision sites a second time, on top of the copies spliced at the call
     # sites, and size the action space wrong.
     procedures: tuple[ProcedureDef, ...] = ()
+    # The `primitives { }` clause, or None for a game that writes none. The ONE
+    # source of which [[primitive]]s this game may call: with a block, its
+    # entries plus the Builtins are the whole native namespace, and a
+    # neighbouring game's Primitive is an unknown name; without one, the
+    # hand-authored `PRIMITIVE_CALL_FUNCS` registry is. `None` and an EMPTY
+    # block are different states, and `primitives_block.regime` is the ONE
+    # site that reads the difference.
+    primitives: PrimitivesBlock | None = None
     # Emptied by `resolve`, which splices each named library's definitions in:
     # like `procedures`, a surviving entry downstream would mean the import was
     # parsed and ignored. Order is source order, and resolution is flat and
@@ -1403,6 +1462,9 @@ Node = (
     | Loser
     | MoveTypeDef
     | Parameter
+    | PrimitiveRead
+    | PrimitiveDecl
+    | PrimitivesBlock
     | OutcomeCase
     | DefineDef
     | FunctionDef

@@ -373,6 +373,7 @@ _DECLARATION_SLOTS: dict[tuple[type, str], str] = {
     (n.StructField, "name"): "field",
     (n.DerivedField, "name"): "field",
     (n.Parameter, "name"): "param",
+    (n.PrimitiveDecl, "name"): "primitive",
     (n.OutcomeCase, "tag"): "outcome_tag",
     # `let` declares a name and scopes it to the statements after it, so it is
     # both — filed as the declaration, since that is the half a name registry
@@ -418,6 +419,17 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     (n.StateDecl, "type_name"): "type",
     (n.RequireDecl, "type_name"): "type",
     (n.Parameter, "type_name"): "type",
+    (n.PrimitiveDecl, "return_type"): "type",
+    # A `reads` name is one of the game's own KEYED declarations — a state
+    # variable or a zone — and which it is decides how the binder materializes
+    # it, so the slot's namespace is their union and
+    # `_classify_primitive_read` is the one site that picks (the
+    # `RequireDecl.type_name` shape: one slot, two registries, classified at
+    # resolve rather than by the grammar). Its BINDER names a parameter of the
+    # entry it sits in, which is why that slot is `param` and not a binder
+    # slot: `Parameter` introduces the name and this refers to it.
+    (n.PrimitiveRead, "name"): "primitive_read",
+    (n.PrimitiveRead, "binder"): "param",
     (n.StructField, "type_name"): "type",
     (n.StructLit, "type_name"): "type",
     (n.OutcomeCase, "payload_types"): "type",
@@ -547,6 +559,19 @@ STRING_SLOT_KINDS: dict[tuple[type, str], str] = {
     **{slot: "opaque" for slot in _OPAQUE_SLOTS},
     **{slot: "classified" for slot in _CLASSIFIED_SLOTS},
     **{slot: "metadata" for slot in _METADATA_SLOTS},
+}
+
+# Reference namespaces that are the UNION of declaration namespaces, and which
+# ones each draws from. A slot whose name may come from either of two
+# declaration blocks cannot name one of them, and naming neither would leave
+# the namespace unowned — the state `test_every_namespace_is_named` exists to
+# keep impossible. WHICH declaration a given name is stays resolve's
+# classification, made where the declarations are in hand.
+_UNION_NAMESPACES: dict[str, frozenset[str]] = {
+    # A `primitives { }` entry's `reads` name is one of the game's own keyed
+    # declarations: a `state { }` variable or a `zones { }` zone
+    # (`_classify_primitive_read`).
+    "primitive_read": frozenset({"state", "zone"}),
 }
 
 
@@ -2195,6 +2220,11 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
             # spliced into the Game and reached through the arms below.
             | n.Library() | n.UsesDecl() | n.RequireDecl()
             | n.MoveTypeDef() | n.Parameter() | n.RuleDef() | n.RuleRef()
+            # A `primitives { }` entry's parameters name the arguments its
+            # Python receives and key its `reads` binders; no DSL body is
+            # scoped by them, so the entry introduces no name into any scope
+            # (`_check_reserved_params` covers them via `_PARAM_BEARING`).
+            | n.PrimitivesBlock() | n.PrimitiveDecl() | n.PrimitiveRead()
             | n.AppliesWhen() | n.Demands()
             | n.DefineDef() | n.FunctionDef() | n.ProcedureDef()
             | n.OutcomeCase() | n.StructField() | n.DerivedField()
@@ -4146,29 +4176,65 @@ def _check_duplicate_names(game: n.Game, bag: DiagnosticBag) -> None:
     check("mode", modes)
 
 
-# The param-bearing declaration kinds: node type -> (the `Game` collection that
-# holds them, the diagnostic noun, the reserved set their parameters check
+# The param-bearing declaration kinds: node type -> (how to reach them from a
+# `Game`, the diagnostic noun, the reserved set their parameters check
 # against). This table is pinned to the AST by tests/test_node_registry.py —
 # every `Node` member with a `params` field must have a row — so a new
 # parameterized declaration form cannot ship with its parameters silently
-# exempt from the reserved-word sweep. (The pronoun carve-out below: function
+# exempt from the reserved-word sweep. The reach is a CALLABLE rather than an
+# attribute name because a declaration form's holder need not be a top-level
+# `Game` list: a `primitives { }` entry lives inside the block, and reaching
+# it by attribute would mean either a special case here or a second top-level
+# field mirroring the block. (The pronoun carve-out below: function
 # and procedure bodies are hermetic — forbidden from READING the call-site
 # pronouns — so naming a parameter after one is that error message's own
 # prescribed fix, not a hijack. Move-type/rule bodies read the pronouns live,
-# so all five stay reserved there. See `_check_reserved_params`.)
-_PARAM_BEARING: dict[type, tuple[str, str, frozenset[str]]] = {
-    n.FunctionDef: (
-        "functions",
+# so all five stay reserved there. A Primitive's parameters read nothing at
+# all — they label the declaration and key its `reads` binders — so the full
+# set stays reserved for them. See `_check_reserved_params`.)
+_ParamBearer = n.FunctionDef | n.ProcedureDef | n.MoveTypeDef | n.RuleDef | n.PrimitiveDecl
+
+
+@dataclass(frozen=True, slots=True)
+class _ParamBearing:
+    """One param-bearing declaration kind's row."""
+
+    reach: Callable[[n.Game], tuple[_ParamBearer, ...]]
+    noun: str
+    reserved: frozenset[str]
+    library_field: str | None
+    """The `n.Library` field holding this kind, or None for a kind a library
+    cannot hold. `primitives { }` is a game clause and no `?library_item`, so
+    a Primitive declaration has no library home — stated here so the family-
+    library sweep derives which kinds it must cover instead of intersecting
+    two name lists that happen to coincide."""
+
+
+_PARAM_BEARING: dict[type, _ParamBearing] = {
+    n.FunctionDef: _ParamBearing(
+        lambda game: game.functions,
         "function parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+        "functions",
     ),
-    n.ProcedureDef: (
-        "procedures",
+    n.ProcedureDef: _ParamBearing(
+        lambda game: game.procedures,
         "procedure parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
+        "procedures",
     ),
-    n.MoveTypeDef: ("move_types", "move-type parameter", RESERVED_VALUE_NAMES),
-    n.RuleDef: ("rules", "rule parameter", RESERVED_VALUE_NAMES),
+    n.MoveTypeDef: _ParamBearing(
+        lambda game: game.move_types, "move-type parameter", RESERVED_VALUE_NAMES, "move_types"
+    ),
+    n.RuleDef: _ParamBearing(
+        lambda game: game.rules, "rule parameter", RESERVED_VALUE_NAMES, "rules"
+    ),
+    n.PrimitiveDecl: _ParamBearing(
+        lambda game: () if game.primitives is None else game.primitives.decls,
+        "Primitive parameter",
+        RESERVED_VALUE_NAMES,
+        None,
+    ),
 }
 
 
@@ -4194,10 +4260,10 @@ def _check_reserved_params(game: n.Game, bag: DiagnosticBag) -> None:
     hermetic call clears. Move-type/rule bodies are not hermetic — they read
     `actor`/`action`/`winner` directly as live pronouns — so every reserved
     word stays reserved for their parameters."""
-    for attr, kind, reserved in _PARAM_BEARING.values():
-        for decl in getattr(game, attr):
+    for row in _PARAM_BEARING.values():
+        for decl in row.reach(game):
             for p in decl.params:
-                _check_reserved(p.name, kind, p.span, bag, reserved)
+                _check_reserved(p.name, row.noun, p.span, bag, row.reserved)
 
 
 def _check_reserved_binders(game: n.Game, bag: DiagnosticBag) -> None:
@@ -4523,6 +4589,10 @@ _GAME_FIELD_ROLES: dict[str, str] = {
     "functions": "definition",
     "rules": "definition",
     "trick_order": "declared",
+    # A declaration whose consumers are the game's `f(...)` calls, exactly as
+    # a Trick Order's are: an entry's body is Python, so the block itself
+    # evaluates nothing and must not be walked as a root.
+    "primitives": "declared",
     "state": "root",  # declaration defaults, evaluated at setup
     "loser": "root",  # the terminal selection, evaluated after the phases
     "winner": "root",  # names a state variable today; walked for symmetry

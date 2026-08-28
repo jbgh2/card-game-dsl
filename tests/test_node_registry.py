@@ -56,6 +56,38 @@ import cardlang.ast.nodes as n
 from cardlang.diagnostics import Span
 
 
+# One instance of each param-bearing declaration kind, and where a `Game`
+# holds it. Authored rather than synthesized: the constructors differ, and the
+# membership assertion above is what keeps this table complete — a new
+# param-bearing kind reaches `_PARAM_BEARING`, and then a `KeyError` here.
+_PLANTED: dict[type, typing.Any] = {
+    n.FunctionDef: n.FunctionDef(name="f", params=(), body=n.IntLit(0)),
+    n.ProcedureDef: n.ProcedureDef(name="p", params=(), body=()),
+    n.MoveTypeDef: n.MoveTypeDef(name="m", when=None, effect=()),
+    n.RuleDef: n.RuleDef(
+        name="r", constrains=None, applies_when=None, demands=None, if_impossible=None
+    ),
+    n.PrimitiveDecl: n.PrimitiveDecl(
+        name="probe", params=(), return_type="Integer", reads=()
+    ),
+}
+
+
+def _planted_game(cls: type, planted: typing.Any) -> n.Game:
+    """A skeleton game holding `planted` wherever its kind belongs."""
+    base = n.Game(
+        name="Planted", players=n.PlayersSpec(low=2, high=2), deck="standard52", zones=()
+    )
+    holders: dict[type, dict[str, typing.Any]] = {
+        n.FunctionDef: {"functions": (planted,)},
+        n.ProcedureDef: {"procedures": (planted,)},
+        n.MoveTypeDef: {"move_types": (planted,)},
+        n.RuleDef: {"rules": (planted,)},
+        n.PrimitiveDecl: {"primitives": n.PrimitivesBlock(decls=(planted,))},
+    }
+    return dataclasses.replace(base, **holders[cls])
+
+
 def _module_dataclasses() -> set[type]:
     return {
         obj
@@ -101,13 +133,17 @@ def test_every_param_bearing_node_kind_is_reserved_swept() -> None:
         f"{sorted(c.__name__ for c in _PARAM_BEARING)} — every parameterized "
         "declaration form must have a _PARAM_BEARING row"
     )
-    # And each row's `Game` collection must actually hold that node kind, so a
-    # row cannot point the sweep at the wrong list.
-    for cls, (attr, _kind, _reserved) in _PARAM_BEARING.items():
-        game_field = next(f for f in dataclasses.fields(n.Game) if f.name == attr)
-        assert cls.__name__ in str(game_field.type), (
-            f"_PARAM_BEARING maps {cls.__name__} to Game.{attr}, "
-            f"which is typed {game_field.type}"
+    # And each row's reach must actually FIND that node kind, so a row cannot
+    # point the sweep at the wrong place. Executed against a planted game
+    # rather than read off the `Game` field's annotation: the reach is a
+    # callable because a declaration form's holder need not be a top-level
+    # field (a `primitives { }` entry lives inside the block), and running it
+    # is the only reading that covers both shapes.
+    for cls, row in _PARAM_BEARING.items():
+        planted = _PLANTED[cls]
+        assert row.reach(_planted_game(cls, planted)) == (planted,), (
+            f"_PARAM_BEARING's reach for {cls.__name__} does not return the "
+            f"{cls.__name__} planted in the game it was given"
         )
 
 
