@@ -76,15 +76,26 @@ declares what it borrows from outside the DSL:
 
 ```
 primitives {
-  pot_share(p : Player) -> Integer
+  pot_share(p : Player) : Integer
       reads committed, hole, upcards
-  skat_matadors(p : Player) -> Integer
+  skat_matadors(p : Player) : Integer
       reads hand[p], skat
 }
 ```
 
+An entry is a colon-row, like every other declaration in this language
+(`zones`, `state`, `card_points`, `require`); the arrow an earlier sketch
+carried is foreign to a surface that has never used one, and writing it gets
+a rejection naming the colon form. The block sits beside `uses`, and a
+library may not carry one: a primitive's meaning belongs to ONE game, so a
+shared library declaring one would be the cross-game coupling the block ends.
+
 The declaration carries the typed signature and — the load-bearing clause —
-**what state and zones the implementation reads**. Pure reads are permitted
+**what state and zones the implementation reads**. A bare name grants the
+whole declaration (`reads hand`, every seat's); an indexed one narrows to the
+instance the call names (`reads hand[p]`, keyed by a parameter of the same
+entry), which is what makes a call stop materializing rows it never touches.
+Pure reads are permitted
 to touch hidden zones (`pinochle_meld_value` reads a concealed hand;
 `skat_matadors` reads hand plus skat — the reason matadors must be a `let`
 and never public state), so every primitive is a small information-flow
@@ -92,10 +103,15 @@ decision. Declared reads make that decision visible to the checker instead
 of a reviewer: if a primitive reads `hand[declarer]` and its result flows
 into public state, the implied reveal is derivable — the derived-info-set
 story ([decisions.md](../decisions.md) "Knowledge, visibility, and the
-projection model") extended to the one place Python still participates. The
-resolver checks the block both ways: declared-but-unimplemented and
-implemented-but-undeclared are both errors, and the runtime hands the
-implementation exactly the declared reads, nothing more.
+projection model") extended to the one place Python still participates. That
+derivation is recorded work, not built (issue #471); what the clause does
+today is make the read declared and checked.
+
+The resolver checks the block both ways: declared-but-unimplemented is a
+compile diagnostic against the one names-only implementation index, and
+implemented-but-undeclared is the corpus reconciliation pin's — the two sides
+are independently authored, so reconciling them IS the check. The runtime
+hands the implementation exactly the declared reads, nothing more.
 
 **Co-location.** With the interface sealed and the declaration in the game
 file, the implementation's location stops mattering for safety — so it moves
@@ -121,15 +137,18 @@ interface cannot express one.
   module names `Ctx`, `RuntimeState`, `ZoneStore` or `Chooser`, so a
   primitive structurally cannot mutate state, make a decision, or read a
   name its module never declared (stage 2; the crossed Owner Guard in
-  `tests/test_primitive_narrowing.py`). What it CAN still do is read a
-  declared name it does not personally need, because both bundles the
-  binder hands over — `GameReads` from `PRIMITIVE_READS`, and the closed
-  `EngineFacts` set for the engine-structural reads — are module-granular.
-  §2's declaration is per-primitive, and closing that gap is exactly what
-  the `primitives { }` block buys. It is not only precision: a call
-  currently materializes its module's whole row whether it reads any of it
-  or not, and a unit test of one primitive has to declare names that
-  primitive never touches.
+  `tests/test_primitive_narrowing.py`). What remains is a GRANULARITY
+  question with two halves, and only one is still open. The name-keyed half
+  is per-primitive for a game that declares a `primitives { }` block — its
+  entry's own `reads` clause is the row, and an indexed read materializes
+  the one instance the call names — and module-granular for a game that
+  declares none, where `PRIMITIVE_READS` is the declaration. That is what
+  3b's corpus sweep closes for the rest. The engine-structural half, the
+  closed `EngineFacts` set, is whole under both regimes: its field names are
+  not spellable in a `reads` clause, so every primitive receives every fact
+  (issue #474). It is not only precision: an undeclared row is a row nothing
+  materializes, and a unit test of one primitive declares only what that
+  primitive touches.
 - **The trace emitters.** A function called for a side effect rather than a
   value is not a primitive and cannot be declared as one. `coup_note_reveal`
   and `tichu_hand_summary` are gone from all three tables and from both
@@ -240,23 +259,46 @@ Risk closed: `pot_share`'s surface signature does NOT have to change.
 `in_hand`/`committed`/`folded`/`hole`/`upcards`, so `pot_share(p :
 Player) -> Integer` survives the narrowing intact.
 
-**Stage 3 — the `primitives { }` block (L, 1-2 PRs; the audit
-stage).** Grammar: `name(param : Type, ...) -> Type reads <names>`.
-Resolve/typecheck: declared-but-unimplemented and
-implemented-but-undeclared are both errors; call sites check against
-the DECLARED signature; the reads clause validates zone and state
-names. Scope Owner Guard for v1: the reads clause is checked for name
-validity and drives what the dispatch hands over — the derived-reveal
-analysis (hidden reads flowing into public state) is recorded
-follow-on work, not silently absent. Registry, signatures, and
-dispatch DERIVE from the parsed declarations, replacing the three
-hand-maintained tables and the hand-written match; a static test pins
-corpus declarations against implementations both ways. Corpus game
-files gain their blocks in the same change (the lockstep rule);
-behavior unchanged, goldens byte-identical. Full audit artifacts:
-misuse probes (undeclared call, unimplemented declaration, wrong
-arity or types at the call site, reads naming an unknown zone,
-duplicate declaration) plus the completeness ledger.
+**Stage 3 — the `primitives { }` block (the audit stage), split 3a/3b.**
+Split because the block and the corpus sweep answer different questions
+and the second is only safe once the first is checked: 3a lands the
+surface and makes the coexistence window a CHECKED regime; 3b closes it.
+
+**Stage 3a — the block, the checks, the derivation. Landed.** Grammar:
+`name(param : Type, ...) : Type reads <names>`, a game clause beside
+`uses`, with reject arms for the colon habit, the arrow, and a `=`
+default. Resolve validates the block whole — duplicate entries, Builtin
+and own-definition collisions, the five round-slot namespaces the block
+does not cover, declared types against the spellable set, and every
+`reads` name classified against the game's own `zones { }` and
+`state { }` by one exhaustive classifier — and declared-but-unimplemented
+is a compile diagnostic against the names-only implementation index.
+Typecheck materializes the declared `Sig`, and it is that signature the
+runtime's `coerce_args` freezes against. The driver builds the dispatch
+table at load, so a declared primitive has no hand-written arm; a
+declared game never reaches the legacy table, and its `f(...)` calls
+resolve against its own namespace, which closes the cross-game leakage
+(issue #364). The reads clause is per-primitive and per-CALL: an indexed
+read materializes the one instance the call names. Scope Owner Guard:
+the clause is checked for name validity and drives what the dispatch
+hands over — the derived-reveal analysis (hidden reads flowing into
+public state) is recorded follow-on work (issue #471), not silently
+absent, and the engine-fact half of what a primitive sees stays whole
+behind a refusal citing issue #474. ZERO corpus game files change; the
+witness is a fixture game that declares, calls and plays
+(`tests/fixtures/primitives_witness.cardlang`). Goldens byte-identical
+over behavior and observation. Audit artifacts: the grid and its
+completeness ledger in `tests/test_primitives_block.py`, the misuse
+probes there, and the corpus reconciliation pin with both reddening
+mutations demonstrated.
+
+**Stage 3b — the corpus sweep and the legacy deletion.** Every game with
+a primitive gains its block (the lockstep rule), the authored
+`PRIMITIVE_READS` rows and the hand-written dispatch arms for those names
+go, and the coexistence window closes. Its own plan; blocked on the
+signatures that have no declared spelling (issue #472) and the two
+cribbage pegging primitives that read at the dispatch site (issue #473).
+Behavior unchanged, goldens byte-identical.
 
 **Stage 4 — co-locate (M).** Implementations move out of
 `cardlang/runtime/` to live with their games; the loader resolves
@@ -271,15 +313,12 @@ byte-identical.
 `standard54` deck row with registry-derived test coverage; salvo.cardlang
 takes the deck, an explicit ranking with `Joker`, the joker branch in
 `loc_value`, the filtered location deal, and a `primitives {
-salvo_combos(cards : collection of Card) -> Integer }` sidecar
+salvo_combos(p : Player, loc : Integer) : Integer }` sidecar
 carrying the frequency-core table (it migrates to the `combinations`
 construct when tier 1 lands — the visible burn-down §6 promises);
 the triage mirror updates alongside (its per-game mirror pin proves
 sidecar/mirror parity); arena re-runs and REPORT verdicts close the
 round.
-
-Standing risks: the unmerged family-library branch also touches stdlib
-surface — rebase order should be agreed before stage 3 lands.
 
 ## 6. One pressure to preserve
 
