@@ -248,6 +248,22 @@ quoting local evidence, run the checks as written. In particular:
   clean exit. Run the checks bare or under `set -o pipefail`, and treat the
   suite's own summary line (`N passed`) as the evidence, never a wrapper's
   exit code. CI is the authority.
+- **A change to a GAME or a LIBRARY sweeps the per-seed goldens at FULL WIDTH.**
+  They pin far more seeds than a run compares — the count in
+  `tests/test_migration_characterization.py` is a sampling dial, sized to notice
+  that something moved. That is the wrong instrument for the question a game
+  change asks, which is whether anything moved that was not meant to, and a dial
+  green answers it only for the slice it swept:
+
+  ```bash
+  CARDLANG_GOLDEN_SEEDS=full pytest tests/test_migration_characterization.py -q
+  ```
+
+  Sampling stays the default, including in CI, where the dial is a regression
+  gate and the cost is charged every run. Full width is the working rule: any
+  change under `docs/games/` or `docs/libraries/` sweeps it before the change is
+  reported as green, and REGENERATES at the golden's own width — never at the
+  dial's, which writes a vector stale everywhere the dial did not look.
 
 **These two checks are regression gates, not completeness gates.** A change
 that adds or extends grammar surface, a checker Owner Guard or diagnostic, a native registry or kernel table, or any closed-domain mechanism — **including a change answering a

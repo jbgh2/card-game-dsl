@@ -60,7 +60,7 @@ cards a player has available is a property of the game, how five of them compare
 is not.
 
 The betting state splits two ways. What Hold'em touches it declares itself
-(`bet_to_match`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
+(`bet_to_match`, `level`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
 the pure intra-street bookkeeping — `acted`, and the street's `limit` — the
 library *provides*, so Hold'em never names it and could not write it if it tried.
 The `until` predicate closes a street when no live player still owes or has yet
@@ -134,6 +134,7 @@ game Holdem {
         in_hand[player] : Boolean = false   committed[player] : Integer = 0
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
         bet_to_match : Integer = 0          raises : Integer = 0
+        level : Integer = 0                // the last FULL wager this street
         raise_cap : Integer = 4            // set per street, below
         button : Player = 0                 big_blind : Player = 0
       }
@@ -160,7 +161,7 @@ game Holdem {
       // players; opening two-handed, Pagat lifts the cap entirely.
       raise_cap := if (number of players where can_act(player)) > 2 then 4 else 99
       // ... post 2 from small_blind and 5 from big_blind (partial when short) ...
-      bet_to_match := 5   raises := 1
+      bet_to_match := 5   level := 5   raises := 1   // the blind IS a full wager
 
       deal 1 card from deck to burn
       // Two passes of one card: the deal goes round the table one at a time.

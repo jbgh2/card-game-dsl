@@ -334,6 +334,7 @@ game Probe {{
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 2
 {extra_state}  }}

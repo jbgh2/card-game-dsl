@@ -205,6 +205,25 @@ GOLDEN = Path(__file__).parent / "golden"
 DEFAULT_SEEDS = 10
 SEEDS_BY_GAME: dict[str, int] = {}
 
+# THE DIAL IS FOR THE REGRESSION GATE, NEVER FOR A CHANGE TO A GAME. Sampling is
+# a reasonable way to notice that something moved; it is not a way to establish
+# that nothing did: a green over a slice says nothing about a divergence that
+# fires only outside it. A change under `docs/games/` or `docs/libraries/` is
+# exactly the case where the second is the question being asked.
+#
+# So set `CARDLANG_GOLDEN_SEEDS=full` and every capture here sweeps its golden's
+# WHOLE width. That is the run whose green means "the vector did not move"; the
+# default run's green means only "the first `DEFAULT_SEEDS` did not". The rule
+# and the command live in CLAUDE.md, "Verifying changes"; this switch is what
+# makes obeying it one word rather than a discipline.
+#
+# The switch takes that one word and nothing else. Unset — or set and cleared,
+# which is how a shell spells the same thing — is the dial; every other value is
+# REFUSED rather than rounded down to it, because a caller who asked for a width
+# and silently got the dial's is in exactly the position this switch exists to
+# get them out of.
+_FULL_WIDTH = "full"
+
 # The games captured here, and the goldens each one's captures compare against
 # — the domain the table above is keyed over.
 CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
@@ -222,20 +241,56 @@ CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
 }
 
 
-def seeds_for(game: str) -> int:
+def _golden_width(game: str) -> int:
+    """How many seeds this game's golden actually pins.
+
+    Every golden a game captures against must agree on its width, or "the whole
+    width" names two numbers and the slice is ambiguous again — refused here
+    rather than silently resolved, because resolving it is what the dial already
+    does wrong.
+    """
+    widths = {
+        name: len(json.loads((GOLDEN / name).read_text()))
+        for name in CAPTURE_GOLDENS[game]
+    }
+    if len(set(widths.values())) != 1:
+        raise AssertionError(
+            f"{game}: its goldens pin different widths ({widths}), so a "
+            f"full-width sweep has no single number to sweep to"
+        )
+    return next(iter(widths.values()))
+
+
+def _dial_seeds(game: str) -> int:
+    """The sampling dial's count for `game`, with the switch out of the picture."""
     return SEEDS_BY_GAME.get(game, DEFAULT_SEEDS)
+
+
+def seeds_for(game: str) -> int:
+    requested = os.environ.get("CARDLANG_GOLDEN_SEEDS")
+    if not requested:
+        return _dial_seeds(game)
+    if requested != _FULL_WIDTH:
+        raise AssertionError(
+            f"CARDLANG_GOLDEN_SEEDS={requested!r} is not a width this module "
+            f"reads. It takes {_FULL_WIDTH!r} and nothing else; leave it unset "
+            f"for the sampling dial. Rounding an unrecognized value down to the "
+            f"dial would report a slice green against a width you asked for."
+        )
+    return _golden_width(game)
 
 
 def assert_golden_seeds(game: str, captured: Any, expected: Any) -> None:
     """Compare a capture against the corresponding SLICE of its golden.
 
-    The count is a sampling dial (see `DEFAULT_SEEDS`), so the golden holds more
-    seeds than a run sweeps. Two things have to be checked before the slice is
-    honest: that the capture actually produced the seeds it was asked for — a
-    capture that swept none would otherwise compare an empty dict against an
-    empty slice and pass — and that every seed it produced is one the golden
-    records, so a count raised past the golden fails loudly instead of
-    comparing fewer."""
+    The count is a sampling dial (see `DEFAULT_SEEDS`), so by default the golden
+    holds more seeds than a run sweeps — unless `CARDLANG_GOLDEN_SEEDS=full`, at
+    which point the slice is the whole vector and this comparison is exact. Two
+    things have to be checked before the slice is honest: that the capture
+    actually produced the seeds it was asked for — a capture that swept none
+    would otherwise compare an empty dict against an empty slice and pass — and
+    that every seed it produced is one the golden records, so a count raised
+    past the golden fails loudly instead of comparing fewer."""
     want = seeds_for(game)
     assert len(captured) == want, (
         f"{game}: captured {len(captured)} seeds, asked for {want}"
@@ -784,6 +839,97 @@ def _capture_coup() -> dict[str, Any]:
 def test_coup_migration_preserves_per_seed_results() -> None:
     expected = json.loads((GOLDEN / "coup_scores.json").read_text())
     assert_golden_seeds("coup", _capture_coup(), expected)
+
+
+# --- the width switch's own domain -------------------------------------------
+
+
+# Every value `CARDLANG_GOLDEN_SEEDS` can carry, and what this module does with
+# it. The legal arms are DERIVED from `_FULL_WIDTH` rather than spelled out, so
+# the constant and this grid cannot disagree about which word is the word; the
+# rejected arms are the plausible ways of missing it — the wrong case, a
+# truncation, and the two things a reader who has not read the constant would
+# guess a "how many seeds" variable takes.
+_SWITCH_DOMAIN: tuple[tuple[str | None, bool], ...] = (
+    (None, True),                      # unset: the sampling dial
+    ("", True),                        # set-but-cleared reads as unset
+    (_FULL_WIDTH, True),               # the one word
+    (_FULL_WIDTH.upper(), False),
+    (_FULL_WIDTH.capitalize(), False),
+    (_FULL_WIDTH[:-1], False),
+    ("50", False),                     # a width, which this switch does not take
+    ("0", False),
+    ("true", False),
+)
+
+
+@pytest.mark.parametrize("requested,accepted", _SWITCH_DOMAIN)
+def test_every_value_of_the_width_switch_is_ruled_on(
+    monkeypatch: pytest.MonkeyPatch, requested: str | None, accepted: bool
+) -> None:
+    """The switch answers for its whole domain, never for one word of it.
+
+    A value silently rounded down to the dial is the exact failure the switch
+    exists to prevent, reached through the switch itself: the caller asked for a
+    width, swept the dial's, and read the green as the width's. So everything
+    but the one legal spelling is refused, loudly, naming the spelling it missed.
+
+    red under: return `_dial_seeds(game)` for an unrecognized value instead of
+    raising — every rejected row then reports the dial's count and passes.
+    """
+    if requested is None:
+        monkeypatch.delenv("CARDLANG_GOLDEN_SEEDS", raising=False)
+    else:
+        monkeypatch.setenv("CARDLANG_GOLDEN_SEEDS", requested)
+
+    if accepted:
+        assert seeds_for("seven-card-stud") >= 1
+        return
+
+    with pytest.raises(AssertionError, match=_FULL_WIDTH):
+        seeds_for("seven-card-stud")
+
+
+def test_a_game_whose_goldens_disagree_on_width_is_refused_a_full_sweep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other arm of `_golden_width`, which no captured game reaches today.
+
+    Every game whose goldens agree exercises the returning arm; the refusal is
+    reachable only once two goldens for one game drift apart, which is a state
+    the corpus is not in and cannot be put into from inside a test. So the
+    domain is fabricated from two REAL goldens of different widths — the thing
+    under test is the refusal, not the files it is handed.
+
+    red under: return `max(widths.values())` instead of raising — "the whole
+    width" then silently names the wider golden and the narrower one is
+    compared past its end.
+    """
+    monkeypatch.setitem(
+        CAPTURE_GOLDENS, "fabricated", ("coup_scores.json", "bridge_scores.json")
+    )
+    with pytest.raises(AssertionError, match="different widths"):
+        _golden_width("fabricated")
+
+
+def test_the_full_sweep_and_the_dial_name_different_slices() -> None:
+    """The two instruments have to disagree somewhere, or the switch is a no-op.
+
+    Asserting that `full` returns the golden's width restates the implementation.
+    The claim worth pinning is the one the switch is FOR: that some game's golden
+    records seeds the dial never compares, so a divergence can hide in the gap.
+    Deriving each width here also runs `_golden_width`'s agreement refusal for
+    every captured game on an ordinary run — without this it fires only for
+    whoever sets the switch, which is the wrong half of the time.
+
+    red under: raise `DEFAULT_SEEDS` to the widest golden — the gap closes and
+    every game's dial then compares every seed its golden holds.
+    """
+    wider = sorted(g for g in CAPTURE_GOLDENS if _golden_width(g) > _dial_seeds(g))
+    assert wider, (
+        "no game's golden pins a seed the dial skips, so `full` sweeps exactly "
+        "what the default already did and the switch buys nothing"
+    )
 
 
 # --- the seed table's own pin ------------------------------------------------

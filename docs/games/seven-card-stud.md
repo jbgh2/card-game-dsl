@@ -19,7 +19,8 @@ Each hand:
    chosen to match the blind rather than quoted from a source.
 3. Five betting streets — 3rd through 7th — interleaved with a dealt card each
    (an upcard on 4th/5th/6th, a face-down card on 7th, a burn before each). On
-   each street a player may check, bet, call, raise (capped), or fold; the
+   each street a player may check, bet, call, raise (a bet and three raises
+   per street; completing the bring-in is the bet, not a raise), or fold; the
    highest visible board acts first from 4th street on. The lower limit applies
    on 3rd/4th, the upper limit from 5th.
 4. **Showdown** — the best five-card poker hand from each remaining player's seven
@@ -41,7 +42,7 @@ side-pot query (`pot_share`); the poker evaluator behind them is unit-tested.
 The 4th-street open-pair limit doubling is simplified out.
 
 The betting state splits two ways. What Stud touches it declares itself
-(`bet_to_match`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
+(`bet_to_match`, `level`, `raises`, `raise_cap`, per-player `bet_by`/`folded`/`committed`);
 the pure intra-street bookkeeping — `acted`, and the street's `limit` — the
 library *provides*, so Stud never names it and could not write it if it tried. A
 `check`/`bet`/`call`/`raise`/`fold` move type writes both (a bet or raise is a
@@ -59,7 +60,9 @@ predicates — from the family library shared with Kuhn and Leduc
 rulebook sentence "betting proceeds as in standard fixed-limit poker". Stud's
 own contribution is `fold`, which mucks the folder's **upcards** — a fact about
 Stud's zones, and an observation opponents' information sets carry — and the
-`raise_cap` of 3 it declares as required state, where Leduc declares 2. Every
+`raise_cap` of 4 it declares as required state — a bet and three raises,
+counted from the street's first FULL wager, so the sub-size bring-in and the
+completion that answers it spend none of them — where Leduc declares 2. Every
 street opens with the library's `open_street(<size>)`, which is where Stud's
 5 / 5 / 10 / 10 / 10 limits are written.
 
@@ -96,7 +99,8 @@ game SevenCardStud {
         in_hand[player] : Boolean = false   committed[player] : Integer = 0
         folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
         bet_to_match : Integer = 0          raises : Integer = 0
-        raise_cap : Integer = 3            // fixed-limit Stud allows three
+        level : Integer = 0                // the last FULL wager this street
+        raise_cap : Integer = 4            // a bet and three raises
       }
 
       for each player p: in_hand[p] := stack[p] > 0
@@ -110,7 +114,7 @@ game SevenCardStud {
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2   raises := 1     // the post is the street's first aggression
+        bet_to_match := 2                   // short of a full wager: level stays 0
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               until (number of players where pending(player)) is 0

@@ -690,6 +690,21 @@ the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
 
+**The card block itself is reserved only where a decision can reach it.** It
+is the home of every content-item id, so a game none of whose decisions can
+offer one — a betting game that deals cards and never plays them, a climbing
+game whose every play is a combination, a board game deciding by cell —
+reserves no card block, and its ids begin at the next block. The presence is
+derived from the game's own decision-bearing constructs rather than declared,
+so `num_distinct_actions` — OpenSpiel's action dimension, and therefore the
+width of any policy head trained on the game — is not padded by a block the
+game has no construct for. The derivation reads the tree, not reachability, so
+a game whose only card decision sits behind a condition that never holds still
+reserves the block. The derivation over-approximates deliberately: a block reserved and
+never used costs ids, while a block missing under a live decision would leave
+that decision with no id at all, so encoding a content item against an absent
+block is refused rather than numbered into the neighbouring block.
+
 ### The integer `choose` domain
 
 `choose integer in <lo> .. <hi>` is the
@@ -2460,10 +2475,13 @@ The kernel performs every movement, and it retains what it performed: each
 zone carries an **Arrival Record** — per card now in the zone, the deciding
 actor (`None` when no seat decided), the card value, and the source zone
 address, in arrival order (`state.Zone`). "Who played this card" is two
-facts, deliberately: the deciding actor and the source zone's owner coincide
-everywhere in the corpus today, and the one known case that splits them —
-Bridge's dummy — is the "Delegated play" section's unwired design, which the
-two-fact record already has room for. Consumers read the record in place of
+facts, deliberately: the attributed actor and the source zone's owner — one
+seat spelled twice, and kept the SAME seat under Delegated Play: a delegated
+play's record stays the source owner's (Bridge's dummy), because every
+observer derives a play's seat from the movement's source label while the
+`chose` event is the [[decider]]'s alone, so a decider stored in the record
+would be provenance no observer's stream entails. The decider's record is
+the decision node and its private recall ("Delegated play"). Consumers read the record in place of
 re-deriving attribution: a trick winner's pairing of seat against card is a
 read, never a zip of seat order against pile contents, and participation is
 nothing to declare — it derives from who acted, so a contract's dead seat is
@@ -3216,17 +3234,26 @@ chooser_for(actor) =                    // who decides what move it is
     actor
 ```
 
-The intended mechanism: a choice-prompting kernel construct (`round` /
-`offer`) consults an optional `chooser_for` helper that defaults to the
-identity function (actor chooses for themselves), and Bridge supplies its
-game-defined helper. This is a planned kernel hook — not yet wired, since no
-formalized game models delegated play today (`round` currently always lets the
-actor choose). It is recorded here as the design, not a built capability.
-
-A game with delegated play also typically wants a parallel
-`play_source_for` helper to route the actor's move-source zone
-through the conditional. Both helpers live as ordinary per-game
-functions in the game file.
+The mechanism: the kernel round loop consults an optional `chooser_for`
+helper that defaults to the identity function (the actor chooses for
+themselves), and a parallel `play_source_for` helper routes the actor's
+move-source zone. Both live as ordinary per-game functions; the seat a
+helper yields is the [[decider]] — the `chose` observation and the
+OpenSpiel decision node are the Decider's, while the trace, the movement,
+the Arrival Record, and the trick stay the actor's: the record never
+stores the Decider, whose provenance no observer's stream entails ("The
+Arrival Record").
+The trick form is the routed form; the other decision points refuse the
+helpers by name rather than ignore them (`runtime/delegation.py` classifies
+every chooser call site, and issue #458 records what lifting a refusal
+takes). Three Owner Guards ride the helpers: at resolve, a helper takes
+exactly one Player, and a game defining helpers must hold a trick round
+for them to reach; at the draw, a delegated decision's pool must project
+full identity to its Decider — legal actions must be a function of the
+Decider's own information state, and whether a seat's pool is delegated
+depends on both helpers' values at that seat, which is not statically
+decidable over two opaque expression bodies. A routing condition read
+from a hidden zone is issue #458's recorded deferral.
 
 The default — actor is chooser, hand is source — is implicit.
 Games without delegated play declare neither helper and the

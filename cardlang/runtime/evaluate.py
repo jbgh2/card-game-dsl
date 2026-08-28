@@ -157,6 +157,18 @@ def row_context(ctx: Ctx, card: Card) -> Ctx:
     return _hermetic_ctx(ctx, {"card": card}, keep_actor=False)
 
 
+def call_user_function(fn: n.FunctionDef, values: list[Any], ctx: Ctx) -> Any:
+    """Evaluate a user function over already-evaluated argument VALUES — the
+    engine-side entry (Delegated Play consults `chooser_for` /
+    `play_source_for` with the actor in hand, not as an AST argument). Shares
+    `_user_function`'s binding rules exactly: fresh scope holding only the
+    parameters, actor inherited."""
+    body_ctx = _hermetic_ctx(
+        ctx, {p.name: v for p, v in zip(fn.params, values)}, keep_actor=True
+    )
+    return evaluate(fn.body, body_ctx)
+
+
 def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     """Evaluate a user function hermetically: the arguments evaluate in the caller's
     context, then the body runs in a fresh scope holding only the parameters, over
@@ -166,11 +178,7 @@ def _user_function(fn: n.FunctionDef, args: tuple[n.Arg, ...], ctx: Ctx) -> Any:
     *inherited*, not cleared: a body may read a bare per-player zone (e.g.
     `cards in hand where card.suit is spades`), whose family instance resolves
     through the acting player the caller set."""
-    values = [evaluate(_pos(a), ctx) for a in args]
-    body_ctx = _hermetic_ctx(
-        ctx, {p.name: v for p, v in zip(fn.params, values)}, keep_actor=True
-    )
-    return evaluate(fn.body, body_ctx)
+    return call_user_function(fn, [evaluate(_pos(a), ctx) for a in args], ctx)
 
 
 def _name(e: n.NameRef, ctx: Ctx) -> Any:
@@ -180,6 +188,14 @@ def _name(e: n.NameRef, ctx: Ctx) -> Any:
         case "state_var":
             return ctx.rs.get(e.name)
         case "zone":
+            # Under Delegated Play, the acting seat's trick source may be
+            # routed: inside a trick round's rule and predicate bodies, the
+            # magic name `hand` and the round's declared source family both
+            # mean "the acting seat's play source", so both read the routed
+            # zone when one is bound (decisions.md "Delegated play"; the
+            # stdlib rules' contract re-anchor).
+            if ctx.round_source is not None and e.name in ("hand", ctx.round_source[0]):
+                return ctx.round_source[1]
             if ctx.rs.zones.is_family(e.name):
                 # Shadow Guard behind resolve's `_check_position_family_refs`
                 # Owner Guard: a bare position-family read has no per-player

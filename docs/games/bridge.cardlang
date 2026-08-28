@@ -10,10 +10,14 @@
 // auction — ascending bids over C D H S NT, with double and redouble — runs on
 // the auction form of the same `round` kernel: a continuous ring over the bid
 // vocabulary (the `move_type`s below), threading the standing contract through
-// the phase's accumulator state until the bidding closes. The dummy and
-// delegated play are omitted: they are pure information/agency structure that a
-// uniform-random playout does not exercise (declarer choosing dummy's card is
-// the same random draw either way; see bridge.md).
+// the phase's accumulator state until the bidding closes. The dummy is
+// modelled: declarer's partner lays their hand into a PublicHand every seat
+// sees in full, and declarer decides its plays through the Delegated Play
+// helpers below (decisions.md "Delegated play") while the tricks stay
+// dummy's. One declared deviation: the exposure precedes the opening lead
+// rather than following it, so the leader chooses with sight of dummy —
+// the kernel round is atomic per trick, and the mid-trick instant real
+// Bridge exposes at is not a statement site (see bridge.md).
 
 game Bridge {
 
@@ -26,10 +30,11 @@ game Bridge {
   ranking: aces high
 
   zones {
-    deck           : Deck
-    hand[player]   : Hand<player>
-    trick_pile     : TrickPile
-    captured[team] : TeamPile<team>
+    deck              : Deck
+    hand[player]      : Hand<player>
+    dummy_hand[player]: PublicHand<player>   // dummy's exposed cards; empty for every other seat
+    trick_pile        : TrickPile
+    captured[team]    : TeamPile<team>
   }
 
   state {
@@ -49,6 +54,7 @@ game Bridge {
       trump_suit        : Suit?   = none   // none = no-trump
       doubled_mult      : Integer = 1
       declarer          : Player? = none
+      dummy              : Player? = none   // declarer's partner once a contract stands
       leader            : Player? = none
       tricks_taken[team]: Integer = 0
     }
@@ -96,8 +102,13 @@ game Bridge {
       active_rules: [MustFollowSuit]
       legal_moves:  [play_to_trick]
 
+      // The dummy lays their hand down. The movement IS the exposure: every
+      // seat learns thirteen identities through dummy_hand's declared type.
+      dummy := declarer offset_by across
+      move all cards from hand[dummy] to dummy_hand[dummy]
       leader := declarer offset_by left          // declarer's left-hand opponent leads
-      repeat until (all players where hand[player] is empty) {
+      repeat until (all players where
+          (number of cards in hand[player]) + (number of cards in dummy_hand[player]) is 0) {
         round play_to_trick from leader over all players source hand into trick_pile
               winner highest_trump_or_led_suit trump trump_suit
         move all cards from trick_pile to captured[team_of(winner)]
@@ -198,3 +209,10 @@ move_type redouble {
 function next_level(s : Suit?) = if cur_level is 0 then 1
                                  elif strain_index(s) > strain_index(cur_strain) then cur_level
                                  else cur_level + 1
+
+// Delegated Play (decisions.md "Delegated play"): dummy's tricks are played
+// from the exposed hand, and declarer decides them. Every other seat decides
+// its own plays from its own hand — the identity default, written out because
+// the conditional needs its other arm.
+function chooser_for(p : Player) = if p is dummy then declarer else p
+function play_source_for(p : Player) = if p is dummy then dummy_hand[p] else hand[p]

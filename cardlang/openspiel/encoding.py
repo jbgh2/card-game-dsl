@@ -3,9 +3,10 @@
 Every decision a kernel game can pose maps to a stable global [[action]] id —
 the same id means the same action in every world, which is what makes
 determinized replay sound (SP1 spec, Pillar 2). The space is the disjoint union, in a fixed
-layout, of: the card block (always — the standard 52 for any deck expressible
-in it, else a per-game block derived from the deck itself; see
-`_derived_card_block`); bare-name actions (offer move-types, the climb "pass");
+layout, of: the card block (the standard 52 for any deck expressible in it,
+else a per-game block derived from the deck itself, and EMPTY for a game no
+decision of which can offer a content item; see `_derived_card_block` and
+`_decides_a_content_item`); bare-name actions (offer move-types, the climb "pass");
 the integer block `0..ceiling` (games with `choose`, sized to the game's
 largest declared `choose` ceiling — decisions.md "Declared parameter domains");
 the [[offering]] block (moves
@@ -21,6 +22,22 @@ play already has an id — the card block's. `encode` folds a `(move, card)`
 candidate into `card_to_action(card)` and `match` accepts either
 representation, so a card's id is identical whether it is a leader's
 `play_card` or a follower's [[transfer]] pick (Option B, SP6 sign-off 1).
+
+Contract
+--------
+Assumes: a checked game, whose decision-bearing constructs are all reachable
+from the `Game` tree — resolve flattens `uses` imports and `expand` splices
+procedure bodies precisely so this module's walk sees them.
+Establishes: two implications, not a biconditional. An ABSENT block means no
+decision the game can reach offers a candidate this module numbers into it; a
+PRESENT block numbers every content item the game can offer. Presence follows
+from a construct EXISTING in the tree — not from its site being reachable, and
+not from the construct deciding when reached — so a game may still reserve a
+block nothing exercises; the over-approximation `_decides_a_content_item` is
+built to make, on both axes, and states there. Illegal after
+this: assuming action id 0 is a card, that `NUM_DISTINCT_ACTIONS` bounds any
+game's space from below, or that `verbs()` contains `CARD_VERB`. Encoding a
+content item against a game with no card block is refused, never numbered.
 """
 
 from __future__ import annotations
@@ -34,6 +51,7 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import DomainSources, enumerate_domain
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.mechanics import _pack
 from cardlang.runtime.observe import render_candidate
 from cardlang.runtime.values import RANKS, SUITS, Card, build_deck, deck_suits
@@ -119,6 +137,71 @@ def _walk(node: Any) -> Iterator[Any]:
             yield from _walk(item)
 
 
+def _decides_a_content_item(game: n.Game, mt_index: dict[str, n.MoveTypeDef]) -> bool:
+    """Whether this game HOLDS a construct whose decision offers a candidate
+    the card block numbers — a bare content item, or a Card-parameterized
+    move's `(name, card)` pair, which `encode` folds onto the same id.
+
+    Holds, not reaches: see the over-approximation below.
+
+    Every decision point is accounted for — each of
+    `runtime.delegation.DECISION_POINTS` (the engine's own enumeration of
+    chooser call sites, reconciled against an AST scrape by
+    tests/test_delegated_play.py) is either an arm below or named at the
+    bottom as offering something the other blocks number. Arms and sites are
+    not one-to-one: the three round forms share one site, and the two
+    non-joint movement sites share one arm. Each site is crossed against the
+    answers it admits in tests/test_card_block_derivation.py.
+
+    A sound over-approximation, deliberately, and on TWO axes. Node presence
+    does not prove the site is REACHABLE — a `when:`-gated phase or an untaken
+    branch may never fire. Nor does reaching a construct prove it DECIDES:
+    `move chosen all` short-circuits on `take_all()` before it ever reaches
+    the chooser, so it offers no card while matching the arm below. Both leave
+    a game carrying a block it never uses.
+
+    The second axis stays in rather than being excluded, because the
+    short-circuit it rests on is itself recorded as a defect (issue #462: a
+    `chosen` selection that cannot choose). Excluding it would move the case
+    to ABSENT on the strength of behaviour the tracker expects to change —
+    and if that behaviour is fixed toward posing a decision, an absent block
+    has no id to return. No corpus game writes the form today, so the
+    exclusion would buy nothing and stake the unsafe direction on a defect's
+    resolution.
+
+    That is the standing rule here: the wasteful direction costs ids, the
+    other has no id at all, so an unclear case answers True, and `encode`
+    refuses a content item against an absent block rather than numbering it
+    into the next block's range.
+    """
+    for node in _walk(game):
+        if isinstance(node, n.TrickRound):
+            # The trick form's candidates are the pool's cards, always.
+            return True
+        if isinstance(node, n.EachSimultaneous):
+            # `_pass_selection` draws from `source.cards` and consults NEITHER
+            # `where` nor `jointly`, so a joint body inside this form still
+            # offers bare cards. The form is therefore unconditional here, and
+            # the Transfer arm below cannot stand in for it.
+            return True
+        if isinstance(node, n.Transfer):
+            # A joint selection's candidates are card SUBSETS, which the combo
+            # block numbers; every other chosen movement draws bare cards.
+            if node.selection_mode == "chosen" and not node.joint:
+                return True
+        if isinstance(node, (n.Offer, n.AuctionRound)):
+            for mt_name in node.offering:
+                mt = mt_index.get(mt_name)
+                if mt is None or any(p.type_name == "Card" for p in mt.params):
+                    # A move type the index does not hold is unresolvable from
+                    # here; answering True keeps the miss to wasted ids.
+                    return True
+    # Left out deliberately, each numbered by another block: `ClimbRound`
+    # (combination plays and the bare "pass"), a joint `Transfer` (card
+    # subsets), and `Choose` (integers).
+    return False
+
+
 def _offering_entries(
     mt: n.MoveTypeDef,
     sources: DomainSources,
@@ -149,10 +232,20 @@ class ActionSpace:
         combos: list[Any],
         combo_codec: Any | None = None,
     ) -> None:
+        # Three states, and the empty one is not the `None` one. `None` means
+        # "number cards by the standard 52-slot formula"; an EMPTY list means
+        # the game decides no content item, so the block reserves no ids at
+        # all. Absence deliberately does not reuse the `None` sentinel: `encode`
+        # reads `None` as the standard mapping and would hand a card an id
+        # inside the next block's range rather than refusing it.
         self._card_block = card_block
         self._card_ids = (
             None if card_block is None else {c: i for i, c in enumerate(card_block)}
         )
+        # Stated once, read by `encode` and `verbs` alike: two sites deriving
+        # "does this space number content items" separately is two answers
+        # waiting to disagree.
+        self._has_card_block = card_block is None or len(card_block) > 0
         self._names = names
         self._offering = offering
         # The game's largest integer-`choose` ceiling, or None if it has no
@@ -202,7 +295,16 @@ class ActionSpace:
         # (`ctx.rs.rank_index`, which `driver.py` builds from `game.ranking`)
         # — so the advertised action space and the live legal-candidate
         # enumeration are identical by construction, never merely coincident.
-        card_block = _derived_card_block(game.deck)
+        # Presence is DERIVED, not assumed: a game no decision of which can
+        # offer a content item reserves no card block, so its
+        # `num_distinct_actions` — OpenSpiel's action dimension — carries no id
+        # its states can never offer. The empty block is a third state beside
+        # "derived" and "the standard 52"; see `ActionSpace.__init__`.
+        card_block = (
+            _derived_card_block(game.deck)
+            if _decides_a_content_item(game, mt_index)
+            else []
+        )
         sources = DomainSources(
             suits=list(deck_suits(game.deck)),
             ranks=list(game.ranking),
@@ -333,6 +435,24 @@ class ActionSpace:
 
     def encode(self, value: Any) -> int:
         if isinstance(value, Card):
+            # Presence is asked FIRST: "which numbering" is only a question
+            # once there is a block to number into.
+            if not self._has_card_block:
+                # The derivation said this game decides no content item, and a
+                # decision just offered one. There is no id to return: the next
+                # block starts at 0, so any number produced here would name
+                # another block's action. A ShadowGuardError rather than an
+                # OwnerGuardError because the game is not at fault — the
+                # derivation missed a construct, which is an engine gap. A
+                # raise stops the run wherever it happens; `tests/conftest.py`
+                # additionally fails any test that merely CONSTRUCTS one, which
+                # covers `tests/` and not the experiment rigs.
+                raise ShadowGuardError(
+                    "ActionSpace.for_game's card-block derivation",
+                    f"a decision offered {value}, but this game's action space "
+                    f"reserves no card block — `_decides_a_content_item` must "
+                    f"account for the construct that offered it",
+                )
             if self._card_ids is None:
                 return card_to_action(value)
             return self._card_ids[value]
@@ -451,7 +571,10 @@ class ActionSpace:
         `verb_of` can return, derived from the blocks rather than enumerated
         over ids (the combination block is up to 211M ids wide). A bounded
         conformance walk's coverage claim is stated against this set."""
-        out = {CARD_VERB}  # the card block is always present (see `_name_base`)
+        # The card block contributes its verb only when it reserves ids — an
+        # empty block numbers nothing, so no id can report `CARD_VERB` and
+        # declaring it would claim a verb the space cannot produce.
+        out = {CARD_VERB} if self._has_card_block else set()
         out.update(self._names)
         if self._int_ceiling is not None:
             out.add(INT_VERB)
