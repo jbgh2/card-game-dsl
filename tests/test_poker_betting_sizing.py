@@ -99,7 +99,7 @@ class Cell(NamedTuple):
         return f"{self.move}-{self.rung}-{self.purse}"
 
 
-# Where the standing bet can sit relative to the street's size, enumerated from
+# Where the standing bet can sit relative to the level, enumerated from
 # the arithmetic. `first-rung` and `later-rung` are the ordinary cases; the
 # other three are what a forced post, a short opening bet or an all-in for less
 # can leave behind.
