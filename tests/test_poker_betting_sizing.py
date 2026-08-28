@@ -1,23 +1,26 @@
 """What a betting move COSTS, and what standing bet it leaves behind.
 
 property:        `bet` opens a street at the street's bet size; `call` matches
-                 the standing bet without moving it; `raise` adds a full size to
-                 where the bet STANDS — except from a standing bet short of the
-                 size, which it COMPLETES to the size instead. Those are two
-                 rules and not one, and the pair is the whole property: the
-                 betting level does not re-form around multiples of the size, so
-                 a bet left off one by an all-in for less stays off it and is
-                 raised from where it is. Where a stack cannot cover what the
-                 move wants, it pays what it holds.
-domain:          where the standing bet sits relative to the street's size,
-                 crossed with each move the library can size and with whether
-                 the actor's stack covers what that move wants. The positions
-                 are enumerated from the ARITHMETIC — none, short of the size,
-                 exactly the size, a multiple of it, and off any multiple —
-                 never from what the corpus happens to reach: three of the five
-                 appear in no game file, and an axis read off `docs/games/`
-                 could not have generated them. The actor holds chips in every
-                 cell, because a ring only offers a turn to a seat that can act.
+                 the standing bet without moving it; `raise` goes to ONE place —
+                 the last wager any seat made in full, plus the street's size.
+                 From a standing bet nobody made in full, that target is the
+                 COMPLETION; from one somebody did, it is a full raise; there is
+                 no third arm, which is the point of measuring from the level
+                 rather than from where the bet stands. Where a stack cannot
+                 cover what the move wants, it pays what it holds.
+domain:          where the standing bet sits relative to the level, crossed with
+                 each move the library can size and with whether the actor's
+                 stack covers what that move wants. This module writes its
+                 standing bets rather than playing them, so its cells all sit at
+                 a level of zero, and its positions are derived from the
+                 invariant that bounds them — the level, up to but not including
+                 the level plus the street — rather than listed: a standing bet
+                 outside that band is a state no play reaches, and a cell
+                 holding one would ask the library a question the rules never
+                 pose. The positions above a level are reached by PLAYING to
+                 them, in tests/test_poker_betting_transitions.py. The actor
+                 holds chips in every cell, because a ring only offers a turn
+                 to a seat that can act.
 registry:        the moves that size a payment, and the state they read:
                  `n.Library.move_types`, `.requires` and `.state` of
                  `libraries.load_library("poker_betting")`, crossed in

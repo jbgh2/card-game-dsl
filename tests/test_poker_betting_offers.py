@@ -6,16 +6,15 @@ property:        the imported move types PARTITION every betting decision the
                  `bet`/`raise` by whether a bet is standing at all. A raise is
                  offered to a seat with a TURN OUTSTANDING — the big blind and
                  the bring-in poster, whose forced post is no turn taken — and
-                 to any seat facing a bet SHORT of the street's size, spent turn
-                 or not, because bringing a short bet up to size is the
+                 to any seat facing a bet ABOVE THE LEVEL, spent turn or not —
+                 a standing bet above the last full wager is one nobody has
+                 yet made in full, and bringing it up to one is the
                  COMPLETION Robert's Rules 5 grants the very seat it has closed
                  the betting to.
 domain:          every combination of the situation a `when:` in
                  `docs/libraries/poker_betting.cardlang` can read — a standing
-                 bet or none, against a street size that leaves it short of a
-                 full wager or at one, the actor owing or level, its turn taken
-                 or not,
-                 the raise cap with room or without, an opponent able to answer
+                 bet or none, at the last full wager or above it, the actor
+                 owing or square, its turn taken or not, the raise cap with room or without, an opponent able to answer
                  or none, and a stack that can exceed the call or cannot —
                  crossed and driven through a probe game that imports the real
                  library. The actor holds chips in every cell, which is the
@@ -25,11 +24,14 @@ domain:          every combination of the situation a `when:` in
                  ring names the seat rather than `pending`, so each cell asks
                  the GUARDS what they admit and not what the ring reached. The
                  axes are crossed freely rather than restricted to what the
-                 library's own moves produce, because five of the six sit on
-                 `requires` state the GAME writes — Stud's bring-in sets
-                 `bet_to_match` and `raises` by hand — so a combination no move
-                 of the library reaches is still a combination a designer can
-                 declare into being. Three things are held fixed rather than
+                 library's own moves produce, because every axis except `acted`
+                 sits on `requires` state the GAME writes — Stud's bring-in
+                 sets `bet_to_match` by hand, the Hold'ems set `level` at the
+                 blinds — so a combination no move of the library reaches is
+                 still a combination a designer can declare into being. The
+                 crossing is bounded by the rules' own band, the level up to
+                 but not including the level plus the street, because outside
+                 it a wager would have become the level itself. Three things are held fixed rather than
                  crossed, and each is held by an argument. The OFFERING LIST is
                  the library's whole vocabulary: a consumer may name a subset
                  (Kuhn omits `raise`), but a move a game does not name is not
@@ -214,7 +216,7 @@ def _cells() -> list[Cell]:
           for level in sorted(
               {
                   lvl
-                  for lvl in range(0, bet_to_match + 1)
+                  for lvl in range(bet_to_match + 1)
                   if lvl <= bet_to_match < lvl + limit
               }
               & {bet_to_match, max(0, bet_to_match - limit + 1)}
