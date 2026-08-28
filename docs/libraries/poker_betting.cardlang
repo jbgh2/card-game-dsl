@@ -103,7 +103,11 @@ library poker_betting {
     effect { acted[actor] := true }
   }
 
-  // A bet is a partial all-in when the actor cannot cover the limit.
+  // A bet is a partial all-in when the actor cannot cover the limit. Its
+  // `counts` is `raise`'s rule with the reach arm collapsed: a bet fires only
+  // on an open street, where the level is zero, so reaching `level + limit`
+  // and posting the full `limit` are the same test and the half-bet arm alone
+  // decides (the rule itself is the comment above `raise`).
   move_type bet {
     when: bet_to_match is 0
     effect {
@@ -132,29 +136,32 @@ library poker_betting {
     }
   }
 
-  // Aggression re-opens the betting — but only aggression that is big enough to
-  // count as one. `moved + moved >= limit` is the HALF-BET THRESHOLD: an all-in
-  // that moves the standing bet at least half of a FULL BET is a raise for
-  // every purpose, and one that moves it less is not a raise at all. The
-  // yardstick is the street's size and never the distance a full raise happens
-  // to travel from here — those agree everywhere except from a post shorter
-  // than the street, where completing it moves the bet less than a full bet
-  // does. Pagat settles which is meant: "player A bets $4 and player B who has
-  // $6 left goes all-in, which is a raise of $2, i.e. half a full raise" — two
-  // measured against a street of four, not against the two still needed to
-  // complete anything.
-  // Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`): "an all-in wager
-  // of less than half a bet does not reopen the betting for any player who has
-  // already acted and is in the pot for all previous bets ... An all-in wager
-  // of a half a bet or more is treated as a full bet". "Or more" is why the
-  // comparison is `>=` and not `>`; exactly half re-opens. The counted
-  // aggression follows the same switch, because a wager that is not a raise
-  // cannot spend one of the "bet and three raises" rule 3 allows — a cardroom
-  // rulebook filed with the California Attorney General puts it as "only a full
-  // bet constitutes a raise anything less than a full bet is considered to be
-  // action only". The threshold is HALF here rather than that book's full bet,
-  // which is the operator's ruling on issue #442, taken so that one line
-  // governs re-opening, counting and the right to re-raise together.
+  // Aggression re-opens the betting — but only aggression that is big enough
+  // to count as one, and `counts` names the two ways of being big enough. A
+  // wager counts when it REACHES the next full wager, `level + limit`, however
+  // little the last action moved the bet — two sub-full wagers can stack, a
+  // bring-in shoved short and then completed, and the completion is the
+  // street's full bet whichever seat finishes it. And an all-in short of the
+  // target still counts when it moves the standing bet at least HALF a full
+  // bet: Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`), "an all-in
+  // wager of less than half a bet does not reopen the betting for any player
+  // who has already acted and is in the pot for all previous bets ... An
+  // all-in wager of a half a bet or more is treated as a full bet". "Or more"
+  // is why that comparison is `>=` and not `>`; exactly half re-opens. The
+  // yardstick is the street's size, never the distance still to travel —
+  // Pagat: "player A bets $4 and player B who has $6 left goes all-in, which
+  // is a raise of $2, i.e. half a full raise" — and a wager that counts
+  // BECOMES the level, which is Pagat's same example read forward: B's six is
+  // the level C raises from, to ten.
+  //
+  // The counted aggression, the `acted` clear and the level all follow the one
+  // `counts` switch, because a wager that is not a raise can spend none of the
+  // "bet and three raises" rule 3 allows — a cardroom rulebook filed with the
+  // California Attorney General puts it as "only a full bet constitutes a
+  // raise anything less than a full bet is considered to be action only". The
+  // all-in threshold is HALF here rather than that book's full bet, which is
+  // the operator's ruling on issue #442, taken so that one line governs
+  // re-opening, counting and the right to re-raise together.
   //
   // A raise is offered against a STANDING bet to a seat with a TURN
   // OUTSTANDING — `acted` means "has taken a turn since anything last re-opened
@@ -165,15 +172,19 @@ library poker_betting {
   // big blind and the bring-in poster still hold their option.
   //
   // Not reopened is not silenced, and the second arm of the guard is rule 5's
-  // third option: "may fold, call, or complete the wager". While the standing
-  // bet is SHORT of the street's size, nobody has yet wagered a full bet, so
-  // bringing it up to one is open to every seat — spent turn or not. That is the
-  // move Stud's rules name against the bring-in, and the one a short all-in
-  // opening bet leaves on the table mid-street; without it a two-chip shove
-  // freezes a five-chip street, and the seats behind it may only call a bet none
-  // of them was ever offered the chance to make. `raise` carries it rather than a
-  // move type of its own, because from a standing bet below `limit` its target
-  // already IS the completion.
+  // third option: "may fold, call, or complete the wager". A standing bet ABOVE
+  // THE LEVEL is one nobody has yet made in full — a bring-in, a short opening
+  // all-in, a short shove over a completed bet — and bringing it up to one is
+  // open to every seat, spent turn or not; without this arm a two-chip shove
+  // freezes a five-chip street, and the seats behind it may only call a bet
+  // none of them was ever offered the chance to make. `raise` carries the
+  // completion rather than a move type of its own, because its target already
+  // IS the completion: the target is `level + limit` from every position, so
+  // at the level it is a full raise and above the level it is the completion,
+  // and there is no third arm. That is why the target is computed from the
+  // level and never added to the standing bet — adding a size to a bring-in of
+  // 2 on a 5-chip street would walk a ladder of its own (2, 7, 12) the rules
+  // have no step for.
   //
   // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
   // the only legal actions are call and fold — raising into a field that cannot
@@ -186,29 +197,6 @@ library poker_betting {
   // `raise` there would bump `raises` and clear everyone's `acted`, reopening
   // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
-  //
-  // The target is computed rather than added because a raise measures from
-  // WHERE THE BET STANDS, and a standing bet reaches three positions of which
-  // this covers two.
-  //
-  // BELOW the street's size it is no wager anyone has made in full — Stud brings
-  // in for 2 where the street runs at 5 — so the target is the street's size
-  // itself and the move is the completion; adding a size there would walk a
-  // ladder of its own (2, 7, 12) the rules have no step for. AT a level some
-  // wager reached in full, the next one is `bet_to_match + limit`: Pagat's
-  // "player A bets $4 and player B who has $6 left goes all-in, which is a raise
-  // of $2, i.e. half a full raise" makes B's six the level C raises from, to ten
-  // — B's all-in was half a bet, so it counts, and the level moves with it.
-  //
-  // ABOVE a full wager but at no level is the third, and this reaches it with
-  // the wrong number. An all-in that moves the bet less than half a bet does not
-  // count, so the level stays where it was while `bet_to_match` runs ahead of
-  // it: complete Stud's bring-in to 5, shove a 7-chip stack, and the bet stands
-  // at 7 against a level of 5. Rule 5's completion from there is 10 and this
-  // targets 12, and the seat the shove closed out is offered no completion at
-  // all, because the `bet_to_match < limit` arm above cannot see a level it does
-  // not record. Telling the standing bet apart from the level it last reached is
-  // a change to what this library RECORDS, not to what it computes.
   move_type raise {
     when: bet_to_match > 0
           and (not acted[actor] or bet_to_match > level)
