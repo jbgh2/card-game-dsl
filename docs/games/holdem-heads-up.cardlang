@@ -104,6 +104,7 @@ game HoldemHeadsUp {
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4        // four aggressions per street, every street
 
@@ -131,6 +132,7 @@ game HoldemHeadsUp {
     stack[big_blind] := stack[big_blind] - 2
     committed[big_blind] := committed[big_blind] + 2
     bet_to_match := 2
+    level := 2
     raises := 1
 
     // Burn, then two hole cards each — FOUR burns per hand, not three.

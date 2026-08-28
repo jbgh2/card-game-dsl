@@ -92,7 +92,8 @@ def _seed_for(match: Any) -> int:
 
 def test_the_raise_cap_is_family_varying_required_state() -> None:
     """`raise_cap` carries a genuine family difference — Leduc allows two
-    aggressive actions per street, Stud three — with the difference living
+    aggressive actions per street, Stud a bet and three raises — with the
+    difference living
     ENTIRELY in each game's declared state, never in the library or on the
     `uses` line (decisions.md "Family libraries", the parameterization
     paragraph).
@@ -114,7 +115,7 @@ def test_the_raise_cap_is_family_varying_required_state() -> None:
         assert len(caps) == 1, f"{path}: expected one raise_cap declaration, got {caps}"
         return caps[0]
 
-    assert (cap(PATH), cap(STUD_PATH)) == (2, 3), (
+    assert (cap(PATH), cap(STUD_PATH)) == (2, 4), (
         "the poker family's members no longer differ on raise_cap — the "
         "parameterization-rides-on-required-state claim has lost its witness"
     )

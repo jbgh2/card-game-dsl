@@ -1,23 +1,26 @@
 """What a betting move COSTS, and what standing bet it leaves behind.
 
 property:        `bet` opens a street at the street's bet size; `call` matches
-                 the standing bet without moving it; `raise` adds a full size to
-                 where the bet STANDS — except from a standing bet short of the
-                 size, which it COMPLETES to the size instead. Those are two
-                 rules and not one, and the pair is the whole property: the
-                 betting level does not re-form around multiples of the size, so
-                 a bet left off one by an all-in for less stays off it and is
-                 raised from where it is. Where a stack cannot cover what the
-                 move wants, it pays what it holds.
-domain:          where the standing bet sits relative to the street's size,
-                 crossed with each move the library can size and with whether
-                 the actor's stack covers what that move wants. The positions
-                 are enumerated from the ARITHMETIC — none, short of the size,
-                 exactly the size, a multiple of it, and off any multiple —
-                 never from what the corpus happens to reach: three of the five
-                 appear in no game file, and an axis read off `docs/games/`
-                 could not have generated them. The actor holds chips in every
-                 cell, because a ring only offers a turn to a seat that can act.
+                 the standing bet without moving it; `raise` goes to ONE place —
+                 the last wager any seat made in full, plus the street's size.
+                 From a standing bet nobody made in full, that target is the
+                 COMPLETION; from one somebody did, it is a full raise; there is
+                 no third arm, which is the point of measuring from the level
+                 rather than from where the bet stands. Where a stack cannot
+                 cover what the move wants, it pays what it holds.
+domain:          where the standing bet sits relative to the level, crossed with
+                 each move the library can size and with whether the actor's
+                 stack covers what that move wants. This module writes its
+                 standing bets rather than playing them, so its cells all sit at
+                 a level of zero, and its positions are derived from the
+                 invariant that bounds them — the level, up to but not including
+                 the level plus the street — rather than listed: a standing bet
+                 outside that band is a state no play reaches, and a cell
+                 holding one would ask the library a question the rules never
+                 pose. The positions above a level are reached by PLAYING to
+                 them, in tests/test_poker_betting_transitions.py. The actor
+                 holds chips in every cell, because a ring only offers a turn
+                 to a seat that can act.
 registry:        the moves that size a payment, and the state they read:
                  `n.Library.move_types`, `.requires` and `.state` of
                  `libraries.load_library("poker_betting")`, crossed in
@@ -59,24 +62,28 @@ LIMIT = 5  # the street's bet size
 
 
 def _raise_target(standing: int) -> int:
-    """Where the rules put a raise's target, and it is TWO rules, not one.
+    """Where the rules put a raise's target, measured from the LEVEL.
 
-    A standing bet short of the street's size is COMPLETED to it. Pagat, on
-    Stud's bring-in: "subsequent players have the option to complete the bet to
-    a small bet ($5), to call the bring-in ($2) or to fold" — so from a
-    bring-in of 2 at a size of 5, the target is 5 and not 7.
+    A raise goes to the last wager anyone made IN FULL, plus the street's size.
+    This module writes its standing bet directly and never plays one, so no
+    full wager is ever made in its cells and the level stays at zero — which
+    makes every target here the street's size itself, the completion.
 
-    From anywhere else a raise adds a full size to WHERE THE BET STANDS, even
-    when an all-in for less has left it off any multiple of the size. Pagat,
-    worked: "player A bets $4 and player B who has $6 left goes all-in, which is
-    a raise of $2 ... Player C may now fold, call for $6 or raise $4 by putting
-    in $10 of which $6 goes into the main pot and $4 into the side pot." C's
-    total is B's all-in plus a full raise — 6 + 4 — not A's last full bet plus
-    one, which would be 8. The betting level does not re-form around the size
-    after a short all-in, and a target computed as "the next multiple of the
-    size above the standing bet" would charge 10 where the rules charge 12.
+    Pagat's worked example is the one that fixes the yardstick, because in it
+    the two candidate readings AGREE and it is easy to read the wrong one out:
+    "player A bets $4 and player B who has $6 left goes all-in, which is a
+    raise of $2 ... Player C may now fold, call for $6 or raise $4 by putting
+    in $10". B's $2 is half of $4, so it counts and B's six BECOMES the level;
+    C's ten is therefore the level plus the size, and equals the standing bet
+    plus the size only because the level moved. Where an all-in moves the bet
+    by less than half, the level does not move and the two part company —
+    Pagat again, "player D goes all-in for $6 ... player E has the option to
+    fold, to call for $6 or to complete the raise for $10" on a $5 street,
+    which is the level's five plus five and not the standing six plus five.
+    That case is pinned in tests/test_poker_betting_rulebook.py, and reached
+    by play in tests/test_poker_betting_transitions.py.
     """
-    return LIMIT if standing < LIMIT else standing + LIMIT
+    return LEVEL + LIMIT
 
 
 class Cell(NamedTuple):
@@ -92,16 +99,30 @@ class Cell(NamedTuple):
         return f"{self.move}-{self.rung}-{self.purse}"
 
 
-# Where the standing bet can sit relative to the street's size, enumerated from
+# Where the standing bet can sit relative to the level, enumerated from
 # the arithmetic. `first-rung` and `later-rung` are the ordinary cases; the
 # other three are what a forced post, a short opening bet or an all-in for less
 # can leave behind.
+LEVEL = 0
+"""The last wager made in full, which in this module is always none.
+
+`level` is state the LIBRARY owns, so a probe game cannot write it — a game
+may only reach a level by playing a wager that makes one. Every cell here
+writes its standing bet instead, so every cell sits at a level of zero.
+"""
+
+# Where the standing bet can sit, derived from the invariant rather than
+# listed: a standing bet is at least the level and short of the next full
+# wager, because a wager reaching that becomes the level itself. At a level of
+# zero that admits 0 and the sizes below the street's, and it EXCLUDES the
+# rungs this module used to carry — a standing bet at or above the street size
+# with no full wager behind it is a state no play reaches, and writing one
+# asks the library a question the rules never pose. Those positions are
+# reached by playing to them, in tests/test_poker_betting_transitions.py.
 RUNGS: dict[str, int] = {
-    "no-bet": 0,
-    "below-first": 2,
-    "first-rung": LIMIT,
-    "later-rung": 2 * LIMIT,
-    "off-grid": 7,
+    name: standing
+    for name, standing in (("no-bet", 0), ("below-first", 2), ("just-below", LIMIT - 1))
+    if LEVEL <= standing < LEVEL + LIMIT
 }
 
 
@@ -123,6 +144,12 @@ def _cells() -> list[Cell]:
                 )
                 for purse, stack in (("covers", wants + 1), ("short", max(1, wants - 1))):
                     if stack <= 0:
+                        continue
+                    # `raise` needs a stack that EXCEEDS the call, or the seat
+                    # is calling all-in and `call` is that decision. Where the
+                    # target sits one chip above the call there is no short
+                    # purse that can still raise, and the cell does not exist.
+                    if move == "raise" and stack <= standing - bet_by:
                         continue
                     posted = "posted" if bet_by else "fresh"
                     out.append(
@@ -178,6 +205,7 @@ game Sizing {{
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 9
   }}
@@ -258,37 +286,39 @@ def test_a_move_pays_the_ladder(cell: Cell) -> None:
     )
 
 
-def test_the_domain_separates_completing_from_adding_and_from_snapping() -> None:
-    """The control: the cells must be able to tell the three candidate rules apart.
+def test_the_domain_separates_the_level_from_where_the_bet_stands() -> None:
+    """The control: the cells must tell the two candidate yardsticks apart.
 
-    Three rules agree almost everywhere and disagree exactly where this grid has
-    to be right — so a domain missing either separating position would pass under
-    any of them and prove nothing.
+    A raise measures a full size from the LAST WAGER MADE IN FULL. The
+    plausible wrong rule measures it from WHERE THE BET STANDS, and the two
+    agree everywhere except after a wager that moved the bet without being a
+    full one — which is exactly the position this module's cells occupy, since
+    their standing bets are written rather than played and no full wager stands
+    behind them. A domain in which both yardsticks gave the same number would
+    pass under either and prove nothing.
 
-    - COMPLETE a short standing bet to the size, then add a size (the rules);
-    - always add a size, completing nothing (charges 7 from a bring-in of 2);
-    - snap to the next multiple of the size (charges 10 where the rules charge
-      12, after an all-in for less has left the bet off a multiple).
+    The third candidate — snap to the next multiple of the size — cannot be
+    separated here, because at a level of zero it agrees with the rule for
+    every standing bet this module can hold. It is separated by playing to a
+    level above zero, in tests/test_poker_betting_transitions.py, whose
+    `complete-over-a-level` cell charges twenty where snapping would charge
+    twenty and adding would charge twenty-three.
 
-    The third is worth naming rather than dropping: it is the plausible wrong
-    rule, it reads as tidier than the right one, and it was authored into this
-    module's expected column and shipped before Pagat's worked example was
-    consulted. See `_raise_target`.
+    red under: drop every rung but `no-bet` — the two yardsticks then agree on
+    the whole domain and the assertion names it.
     """
-    add_only = {r for r, s in RUNGS.items() if _raise_target(s) != s + LIMIT}
-    snap = {
-        r
-        for r, s in RUNGS.items()
-        if _raise_target(s) != (s // LIMIT + 1) * LIMIT
+    diverging = {
+        rung
+        for rung, standing in RUNGS.items()
+        if _raise_target(standing) != standing + LIMIT
     }
-    assert add_only == {"below-first"}, (
-        f"only a standing bet short of the size should be COMPLETED rather than "
-        f"added to; the domain says {sorted(add_only)}"
-    )
-    assert snap == {"off-grid"}, (
-        f"only a standing bet off a multiple of the size should separate the "
-        f"rules' target from the next multiple; the domain says {sorted(snap)}"
+    assert diverging, (
+        "every cell's standing bet sits where the two yardsticks agree, so no "
+        "cell here can tell a raise measured from the level apart from one "
+        "measured from the standing bet"
     )
     driven = {c.rung.split("-posted")[0].split("-fresh")[0] for c in CELLS}
-    missing = (add_only | snap) - driven
-    assert not missing, f"{sorted(missing)} separates two rules but no cell drives it"
+    assert not (diverging - driven), (
+        f"{sorted(diverging - driven)} separates the two yardsticks but no cell "
+        f"drives it"
+    )

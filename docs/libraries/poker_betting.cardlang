@@ -24,7 +24,7 @@
 //
 // Variation across the family is carried by state the game declares and sets,
 // not by parameters on the import. `raise_cap` — the number of AGGRESSIONS
-// allowed per street, counting the opening bet, so Kuhn 1, Leduc 2, Stud 3 and
+// allowed per street, counting the opening bet, so Kuhn 1, Leduc 2, and Stud and
 // both Hold'em variants 4 — is a per-GAME constant, so it is required: provided
 // state has exactly one default and no default is right for every consumer. The
 // "including the opening bet" half is load-bearing rather than pedantic: `bet`
@@ -55,15 +55,21 @@ library poker_betting {
   // unmet requirement is reported to the game's author rather than as an
   // undeclared name inside text the author did not write. Each is here because
   // a game genuinely touches it: the four chip variables and `folded` are
-  // written by antes, settlements and each game's own `fold`, and `raises` by
-  // Stud's bring-in, which counts a forced opening post as the street's first
-  // aggression. `raise_cap` is the family's one per-game constant.
+  // written by antes, settlements and each game's own `fold`, and `raises` by a
+  // game that wants a street to open part-spent. `level` is here for the same
+  // reason and is the subtler one: a FORCED POST may or may not be a full
+  // wager, and only the game knows which. Hold'em's big blind IS the street's
+  // bet, so it sets the level and a raise measures from it; Stud's bring-in is
+  // short of one, so it leaves the level at zero and the next wager COMPLETES
+  // rather than raises. A library that owned `level` could not tell them apart.
+  // `raise_cap` is the family's one per-game constant.
   requires {
     stack[player]     : Integer   // chips held
     committed[player] : Integer   // chips put in this hand (for side pots)
     bet_by[player]    : Integer   // chips put in on the current street
     folded[player]    : Boolean   // out of the hand
     bet_to_match      : Integer   // the street's standing bet
+    level             : Integer   // the last wager made IN FULL this street
     raises            : Integer   // raises so far on this street
     raise_cap         : Integer   // raises allowed per street
   }
@@ -78,6 +84,7 @@ library poker_betting {
     bet_to_match := 0
     raises := 0
     limit := bet_size
+    level := 0
     for each player p: bet_by[p] := 0
     for each player p: acted[p] := false
   }
@@ -96,7 +103,11 @@ library poker_betting {
     effect { acted[actor] := true }
   }
 
-  // A bet is a partial all-in when the actor cannot cover the limit.
+  // A bet is a partial all-in when the actor cannot cover the limit. Its
+  // `counts` is `raise`'s rule with the reach arm collapsed: a bet fires only
+  // on an open street, where the level is zero, so reaching `level + limit`
+  // and posting the full `limit` are the same test and the half-bet arm alone
+  // decides (the rule itself is the comment above `raise`).
   move_type bet {
     when: bet_to_match is 0
     effect {
@@ -105,8 +116,10 @@ library poker_betting {
       committed[actor] := committed[actor] + post
       bet_by[actor] := bet_by[actor] + post
       bet_to_match := bet_by[actor]
-      raises := 1
-      for each player p: acted[p] := false
+      let counts = post + post >= limit
+      raises := if counts then raises + 1 else raises
+      level := if counts then post else level
+      for each player p: if counts { acted[p] := false }
       acted[actor] := true
     }
   }
@@ -123,16 +136,55 @@ library poker_betting {
     }
   }
 
-  // Aggression re-opens the betting: every other player's `acted` is cleared, so
-  // seats that already took a turn this street owe a response again.
+  // Aggression re-opens the betting — but only aggression that is big enough
+  // to count as one, and `counts` names the two ways of being big enough. A
+  // wager counts when it REACHES the next full wager, `level + limit`, however
+  // little the last action moved the bet — two sub-full wagers can stack, a
+  // bring-in shoved short and then completed, and the completion is the
+  // street's full bet whichever seat finishes it. And an all-in short of the
+  // target still counts when it moves the standing bet at least HALF a full
+  // bet: Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`), "an all-in
+  // wager of less than half a bet does not reopen the betting for any player
+  // who has already acted and is in the pot for all previous bets ... An
+  // all-in wager of a half a bet or more is treated as a full bet". "Or more"
+  // is why that comparison is `>=` and not `>`; exactly half re-opens. The
+  // yardstick is the street's size, never the distance still to travel —
+  // Pagat: "player A bets $4 and player B who has $6 left goes all-in, which
+  // is a raise of $2, i.e. half a full raise" — and a wager that counts
+  // BECOMES the level, which is Pagat's same example read forward: B's six is
+  // the level C raises from, to ten.
   //
-  // A raise is offered against a STANDING bet, to a seat that either still owes
-  // it or has not yet taken a turn on the street. The second arm is the forced
-  // post's: a post placed before the round begins is not a turn taken within it
-  // (decisions.md, "Named functions"), so the big blind and the bring-in poster
-  // match the bet without having spoken and keep the choice the rules give
-  // them. Gating on debt alone offers them `check` and nothing else — a legal,
-  // chip-conserving, terminating hand missing a decision node poker has.
+  // The counted aggression, the `acted` clear and the level all follow the one
+  // `counts` switch, because a wager that is not a raise can spend none of the
+  // "bet and three raises" rule 3 allows — a cardroom rulebook filed with the
+  // California Attorney General puts it as "only a full bet constitutes a
+  // raise anything less than a full bet is considered to be action only". The
+  // all-in threshold is HALF here rather than that book's full bet, which is
+  // the operator's ruling on issue #442, taken so that one line governs
+  // re-opening, counting and the right to re-raise together.
+  //
+  // A raise is offered against a STANDING bet to a seat with a TURN
+  // OUTSTANDING — `acted` means "has taken a turn since anything last re-opened
+  // to me", so owing chips is not itself a right to raise. A seat that already
+  // acted and is facing only a short all-in keeps its `acted` and stays in the
+  // ring through `owes`, and the betting is not reopened to it. A forced post is
+  // not a turn taken within the round (decisions.md, "Named functions"), so the
+  // big blind and the bring-in poster still hold their option.
+  //
+  // Not reopened is not silenced, and the second arm of the guard is rule 5's
+  // third option: "may fold, call, or complete the wager". A standing bet ABOVE
+  // THE LEVEL is one nobody has yet made in full — a bring-in, a short opening
+  // all-in, a short shove over a completed bet — and bringing it up to one is
+  // open to every seat, spent turn or not; without this arm a two-chip shove
+  // freezes a five-chip street, and the seats behind it may only call a bet
+  // none of them was ever offered the chance to make. `raise` carries the
+  // completion rather than a move type of its own, because its target already
+  // IS the completion: the target is `level + limit` from every position, so
+  // at the level it is a full raise and above the level it is the completion,
+  // and there is no third arm. That is why the target is computed from the
+  // level and never added to the standing bet — adding a size to a bring-in of
+  // 2 on a 5-chip street would walk a ladder of its own (2, 7, 12) the rules
+  // have no step for.
   //
   // A raise needs someone able to ANSWER it. Facing opponents who are all-in,
   // the only legal actions are call and fold — raising into a field that cannot
@@ -145,34 +197,26 @@ library poker_betting {
   // `raise` there would bump `raises` and clear everyone's `acted`, reopening
   // betting that nobody reopened. A short all-in is a call, and `call` already
   // pays it correctly.
-  //
-  // A raise climbs to the next RUNG of the street's ladder, which is why the
-  // target is computed rather than added: rungs sit one `limit` apart, and
-  // `bet_to_match + limit` finds the next one only when the standing bet is
-  // already on one. A forced post smaller than the street's size is not — Stud
-  // brings in for 2 where the street runs at 5 — and from there, adding a size
-  // walks a ladder of its own (2, 7, 12) that the rules have no rung for.
-  // Climbing instead COMPLETES the short bet to the first rung, which is the
-  // move Stud's rules name. A standing bet that sits BETWEEN two rungs is the
-  // remaining case and this does not reach it (issue #436): getting back on the
-  // ladder from there needs the standing bet told apart from the current rung,
-  // which is a change to what the library records, not to what it computes.
   move_type raise {
     when: bet_to_match > 0
-          and (bet_to_match > bet_by[actor] or not acted[actor])
+          and (not acted[actor] or bet_to_match > level)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
     effect {
-      let target = if bet_to_match < limit then limit else bet_to_match + limit
+      let target = level + limit
       let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
+      let now = bet_by[actor] + pay
+      let moved = now - bet_to_match
+      let counts = now >= target or moved + moved >= limit
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
-      bet_by[actor] := bet_by[actor] + pay
-      bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
-      raises := raises + 1
-      for each player p: acted[p] := false
+      bet_by[actor] := now
+      bet_to_match := if bet_to_match > now then bet_to_match else now
+      raises := if counts then raises + 1 else raises
+      level := if counts then now else level
+      for each player p: if counts { acted[p] := false }
       acted[actor] := true
     }
   }

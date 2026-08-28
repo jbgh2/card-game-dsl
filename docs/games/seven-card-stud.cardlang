@@ -89,8 +89,9 @@ game SevenCardStud {
         folded[player]    : Boolean = false
         bet_by[player]    : Integer = 0        // chips put in on the current street
         bet_to_match      : Integer = 0        // the street's standing bet
+        level             : Integer = 0        // the last FULL wager this street
         raises            : Integer = 0        // raises so far on this street
-        raise_cap         : Integer = 3        // fixed-limit Stud allows three
+        raise_cap         : Integer = 4        // a bet and three raises
       }
 
       // Snapshot the entrants (held chips); ante and deal follow this set.
@@ -116,14 +117,22 @@ game SevenCardStud {
         let bringer = bring_in_seat()
         // The bring-in is a forced post (no decision): the lowest door puts 2 — a
         // partial all-in if it holds only one chip — and stands as the opening bet.
-        // It posts AFTER the street is opened, so opening does not clear it, and
-        // it counts as the street's first aggression, leaving two raises of the
-        // three the cap allows.
+        // It posts AFTER the street is opened, so opening does not clear it.
+        //
+        // It spends none of the street's aggressions, and neither does the
+        // completion that follows it. Robert's Rules of Seven-Card Stud 3:
+        // "Increasing the amount wagered by the opening forced bet up to a full
+        // bet does not count as a raise, but merely as a completion of the bet.
+        // For example: In $15-$30 stud, the lowcard opens for $5. If the next
+        // player increases the bet to $15 (completes the bet), up to three
+        // raises are then allowed when using a three-raise limit." So `raises`
+        // stays where `open_street` put it: the library counts the street's
+        // first FULL wager, which is the completion, and the book's three
+        // raises then fit under a cap of four.
         bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
         stack[bringer] := stack[bringer] - bet_by[bringer]
         committed[bringer] := committed[bringer] + bet_by[bringer]
         bet_to_match := 2
-        raises := 1
         round offering [check, bet, call, fold, raise] from bringer offset_by left
               over players where pending(player)
               until (number of players where pending(player)) is 0
