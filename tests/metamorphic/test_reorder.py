@@ -92,6 +92,7 @@ _PARSE_LEVEL_CASES = frozenset(
         # here from the resolve level when #208 gave the config-only class to
         # the grammar — the earliest layer that can own it.
         "legal_moves_in_mode_body",
+        "primitives_arrow_return",
     }
 )
 

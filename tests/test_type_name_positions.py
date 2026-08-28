@@ -88,6 +88,7 @@ from cardlang import typecheck
 from cardlang.ast import nodes as n
 from cardlang.domains import PARAM_DOMAINS
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import DECLARABLE_BUILTIN_TYPE_NAMES
 from cardlang.resolve import _PROCEDURE_PARAM_DOMAINS
 from cardlang.typecheck import KNOWN_TYPE_NAMES, TypeEnv
 from cardlang.types import TInteger, TOptional, TStruct, Type
@@ -111,7 +112,7 @@ GAME = """game G {
   max_length: 1000
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  positions { column : 1..8 }
+  positions { column : 1..8 }%(extra_clause)s
   zones { deck : Deck  hand[player] : Hand<player> }
   state { score[player] : Integer = 0  tick : Integer = 0%(extra_state)s }
   phase play%(outcome)s {%(rules)s for each player p: score[p] := 1 }
@@ -122,9 +123,10 @@ type T = { x : Integer }
 
 
 def _prog(*, extra: str = "", extra_state: str = "", outcome: str = "",
-          rules: str = "") -> str:
+          rules: str = "", extra_clause: str = "") -> str:
     return GAME % {"extra": extra, "extra_state": extra_state,
-                   "outcome": outcome, "rules": rules}
+                   "outcome": outcome, "rules": rules,
+                   "extra_clause": extra_clause}
 
 
 # Each entry: the grammar production that carries the name, and a probe that
@@ -147,6 +149,14 @@ POSITIONS: dict[str, tuple[str, object]] = {
     "P8 outcome_payload": ("phase_outcome", lambda d: _prog(
         outcome=f" -> outcome {{ won({d}) | lost }}")),
     "P9 struct_lit": ("struct_lit", lambda d: _prog(extra=f"function f() = {d} {{ x: 1 }}")),
+    # The `primitives { }` entry's two type slots. Both name an IMPLEMENTED
+    # Primitive, so the only thing under test is the type-name gate: an
+    # unimplemented name would trip its own guard first and the cell would be
+    # measuring that instead.
+    "P10 primitive_param": ("primitive_decl", lambda d: _prog(
+        extra_clause=f"\n  primitives {{ pinochle_meld_value(x : {d}) : Integer }}")),
+    "P11 primitive_return": ("primitive_decl", lambda d: _prog(
+        extra_clause=f"\n  primitives {{ pinochle_meld_value(p : Player) : {d} }}")),
 }
 
 # --- Axis B: the name sources ----------------------------------------------
@@ -162,6 +172,12 @@ NAMES = [
 
 DECLARED = frozenset(KNOWN_TYPE_NAMES) | {USER_STRUCT}
 _BASE_STRIPPED = DECLARED | {f"{n}?" for n in DECLARED}
+# What a `primitives { }` entry may spell, from the block's own registry
+# crossed with the probe game's position domain — never a hand-listed copy.
+_PRIMITIVE_BASE = DECLARABLE_BUILTIN_TYPE_NAMES | {POSITION_DOMAIN}
+_PRIMITIVE_SPELLABLE = frozenset(
+    _PRIMITIVE_BASE | {f"{n}?" for n in _PRIMITIVE_BASE}
+)
 
 # The expected column, COMPUTED per position from the registries above — never
 # a hand-written row, so a registry change moves the expectation with it.
@@ -181,6 +197,12 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     "P8 outcome_payload": frozenset(_BASE_STRIPPED | {POSITION_DOMAIN}),
     # A struct literal's head names a declared struct and nothing else.
     "P9 struct_lit": frozenset({USER_STRUCT}),
+    # A `primitives` entry spells the built-in declared-type names and the
+    # game's position domains — and NOT a declared struct: a Primitive receives
+    # values across the narrowing boundary, and no witness carries a
+    # `StructValue` over it (issue #472).
+    "P10 primitive_param": _PRIMITIVE_SPELLABLE,
+    "P11 primitive_return": _PRIMITIVE_SPELLABLE,
 }
 
 # The red set: cells a change designs to flip, carried as strict xfails so the
@@ -211,6 +233,8 @@ def _outcome(src: str) -> str:
             return "unknown-type"
         if "domain" in msg:
             return "domain"
+        if "may not spell" in msg:
+            return "unspellable"
     return "admit"
 
 
@@ -367,7 +391,13 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     # diagnostic lands on the game's `uses` line, not the library's `requires`),
     # recorded in issue #128; the coverage lives in test_family_libraries.py.
     library_only = {"require_decl"}
-    missing = carriers - expanded - library_only
+    # The `primitives` block's two reject arms carry a type name only so their
+    # rejection can QUOTE it (`... : Integer`, naming the colon form). The
+    # builder raises before any type-name gate runs, so there is no gate at
+    # these productions to grid — their own cells are the rejection tests in
+    # tests/test_primitives_block.py.
+    reject_arms = {"primitive_arrow_decl", "primitive_default_decl"}
+    missing = carriers - expanded - library_only - reject_arms
     assert not missing, (
         f"grammar productions carrying a type name with no grid row: {sorted(missing)}"
     )
