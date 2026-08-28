@@ -118,6 +118,25 @@ class _Trump:
 
 
 @dataclass(frozen=True, slots=True)
+class _PrimitiveArrowDecl:
+    """A `primitives` entry written with the arrow return spelling, carried
+    only far enough for the reject callback to name the offending entry at its
+    own span."""
+
+    decl: n.PrimitiveDecl
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
+class _PrimitiveDefaultDecl:
+    """A `primitives` entry written with a `= <expr>` default, carried the same
+    way and for the same reason as `_PrimitiveArrowDecl`."""
+
+    decl: n.PrimitiveDecl
+    span: Span
+
+
+@dataclass(frozen=True, slots=True)
 class _TrickOrderEqRow:
     """An assignment-shaped Trick Order row (`trump = ...` / `trump := ...`),
     carried only far enough for the reject callback to name the offending key
@@ -392,6 +411,97 @@ class _Builder(Transformer[Token, n.Game]):
                 "declared `card_points { A: 1 ... }`, and the Builtin reading "
                 "it is `card_points(card)`",
                 self._span(meta),
+            )
+        )
+
+    # --- the primitives block (design-notes/primitive-sidecars.md §2) -------
+    #
+    # An entry's NAME is validated nowhere here: which names may be declared is
+    # a question about the game's own namespaces and the implementation index,
+    # both of which resolve holds. What this layer owns is the SHAPE — the
+    # colon row, and the three wrong spellings a designer reaches for.
+
+    def primitive_read(self, meta: Meta, c: list[object]) -> n.PrimitiveRead:
+        binder = c[1]
+        assert binder is None or isinstance(binder, str)
+        return n.PrimitiveRead(
+            name=str(c[0]), binder=binder, span=self._span(meta)
+        )
+
+    def primitive_reads(
+        self, meta: Meta, c: list[n.PrimitiveRead]
+    ) -> tuple[n.PrimitiveRead, ...]:
+        return tuple(c)
+
+    def _primitive_decl(self, meta: Meta, c: list[object]) -> n.PrimitiveDecl:
+        """The shared body of the entry and its two reject twins, so the three
+        productions cannot drift in what they read out of the same slots."""
+        params = tuple(x for x in c if isinstance(x, n.Parameter))
+        # The return type is the one bare string among the children: a
+        # `payload_type` builds one, and `parameter` has already consumed its
+        # own. The reads clause arrives as a tuple, absent as None.
+        types = [x for x in c[1:] if isinstance(x, str)]
+        reads = next((x for x in c if isinstance(x, tuple)), ())
+        return n.PrimitiveDecl(
+            name=str(c[0]),
+            params=params,
+            return_type=types[-1],
+            reads=reads,
+            span=self._span(meta),
+        )
+
+    def primitive_decl(self, meta: Meta, c: list[object]) -> n.PrimitiveDecl:
+        return self._primitive_decl(meta, c)
+
+    def primitive_arrow_decl(self, meta: Meta, c: list[object]) -> _PrimitiveArrowDecl:
+        return _PrimitiveArrowDecl(
+            decl=self._primitive_decl(meta, c), span=self._span(meta)
+        )
+
+    def primitive_default_decl(
+        self, meta: Meta, c: list[object]
+    ) -> _PrimitiveDefaultDecl:
+        return _PrimitiveDefaultDecl(
+            decl=self._primitive_decl(meta, c), span=self._span(meta)
+        )
+
+    def primitives_block(self, meta: Meta, c: list[object]) -> n.PrimitivesBlock:
+        decls = tuple(x for x in c if isinstance(x, n.PrimitiveDecl))
+        return n.PrimitivesBlock(decls=decls, span=self._span(meta))
+
+    def primitives_colon_reject(self, meta: Meta, c: list[object]) -> n.PrimitivesBlock:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "`primitives` is a block clause and takes no colon — write "
+                "`primitives { name(p : Player) : Integer reads hand[p] }`",
+                self._span(meta),
+            )
+        )
+
+    def primitives_arrow_reject(self, meta: Meta, c: list[object]) -> n.PrimitivesBlock:
+        bad = next(x for x in c if isinstance(x, _PrimitiveArrowDecl))
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `primitives` entry names its return type after a colon, "
+                f"not an arrow — write `{bad.decl.name}(...) : "
+                f"{bad.decl.return_type}`",
+                bad.span,
+            )
+        )
+
+    def primitives_default_reject(
+        self, meta: Meta, c: list[object]
+    ) -> n.PrimitivesBlock:
+        bad = next(x for x in c if isinstance(x, _PrimitiveDefaultDecl))
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `primitives` entry declares a signature, never a value — "
+                f"`{bad.decl.name}(...) : {bad.decl.return_type} = ...` gives it "
+                f"a default the implementation would never see; drop the `=`",
+                bad.span,
             )
         )
 
@@ -1499,6 +1609,7 @@ class _Builder(Transformer[Token, n.Game]):
         ranking_convention: str | None = None
         card_points: n.CardPointsTable | None = None
         trick_order: n.TrickOrder | None = None
+        primitives: n.PrimitivesBlock | None = None
         trump: str | None = None
         teams: tuple[tuple[int, ...], ...] = ()
         max_length: int | None = None
@@ -1562,6 +1673,9 @@ class _Builder(Transformer[Token, n.Game]):
             elif isinstance(item, n.TrickOrder):
                 once("trick_order { }", item.span, merge_hint=True)
                 trick_order = item
+            elif isinstance(item, n.PrimitivesBlock):
+                once("primitives { }", item.span, merge_hint=True)
+                primitives = item
             elif isinstance(item, _Trump):
                 once("trump:", item.span)
                 trump = item.suit
@@ -1651,6 +1765,7 @@ class _Builder(Transformer[Token, n.Game]):
             ranking_convention=ranking_convention,
             card_points=card_points,
             trick_order=trick_order,
+            primitives=primitives,
             trump=trump,
             teams=teams,
             positions=positions,

@@ -137,7 +137,7 @@ def _game(block: str | None = _PINOCHLE_ENTRY, body: str = "", extra: str = "") 
         + extra
         + "  phase play {\n"
         "    trump_suit := spades\n"
-        "    move all cards from deck to each hand[player]\n"
+        "    move all cards from deck as-equally-as-possible to each hand\n"
         + body
         + "\n  }\n"
         "  winner: highest score\n"
@@ -145,7 +145,9 @@ def _game(block: str | None = _PINOCHLE_ENTRY, body: str = "", extra: str = "") 
     )
 
 
-_SCORE_FROM_PRIMITIVE = "    score[0] := 1  if pinochle_meld_value(0) >= 0 else 0"
+_SCORE_FROM_PRIMITIVE = (
+    "    score[0] := if pinochle_meld_value(0) >= 0 then 1 else 0"
+)
 
 
 def _checks(source: str) -> n.Game:
@@ -325,7 +327,7 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 
 def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
     message = _refused(
-        _game(block="", body="    score[0] := 1  if tichu_dragon_won() else 0")
+        _game(block="", body="    score[0] := if tichu_dragon_won() then 1 else 0")
     )
     assert "tichu_dragon_won" in message
     assert "primitives" in message
@@ -371,7 +373,7 @@ def test_every_arity_declares(entry: str, call: str) -> None:
     """Zero-argument entries are legal — real members exist — so the parameter
     list is `[...]`, not a required one."""
     extra = "" if "taken" not in entry else ""
-    source = _game(block=entry, body=f"    score[0] := 1  if {call} else 0", extra=extra)
+    source = _game(block=entry, body=f"    score[0] := if {call} then 1 else 0", extra=extra)
     if "taken" in entry:
         source = source.replace(
             "          discard : Discard }",
@@ -486,7 +488,7 @@ def test_a_declared_game_cannot_reach_another_games_primitive() -> None:
     """Issue #364's class: with a block, a neighbour's Primitive is not in this
     game's namespace, so the call is an unknown name."""
     message = _refused(
-        _game(body="    score[0] := 1  if tichu_dragon_won() else 0")
+        _game(body="    score[0] := if tichu_dragon_won() then 1 else 0")
     )
     assert "tichu_dragon_won" in message
 

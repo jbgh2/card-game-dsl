@@ -278,6 +278,7 @@ def test_no_clause_is_absorbed_when_it_follows_ranking(rule_name: str) -> None:
 # Keyed by grammar rule name so the parametrization above stays derived.
 _CLAUSE_TEXT: dict[str, str] = {
     "uses_decl": "uses poker_betting",
+    "primitives_block": "primitives { probe_fn(p : Player) : Integer reads hand }",
     "players": "players: 3",
     "direction": "direction: clockwise",
     "cards": "cards: skat32",
@@ -548,6 +549,7 @@ SINGLE_VALUED: dict[str, str] = {
     "card_points_table": "card_points { }",
     "trump": "trump:",
     "trick_order": "trick_order { }",
+    "primitives_block": "primitives { }",
     "teams": "teams:",
     "max_length": "max_length:",
     "positions": "positions { }",
@@ -595,6 +597,10 @@ _EXTRA_CLAUSE: dict[str, str] = {
     # first for a block that lacks one.
     "trick_order": "  trick_order { trump: card.suit is spades }",
     "teams": "  teams: [[0, 1]]",
+    # An EMPTY block, which is well-formed on purpose (the presence, not the
+    # contents, picks the game's Primitive regime) — so the duplicate probe
+    # reaches `once` without also having to name an implemented Primitive.
+    "primitives_block": "  primitives { }",
     "loser": "  loser: active",
 }
 
