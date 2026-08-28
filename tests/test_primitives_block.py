@@ -37,6 +37,16 @@ domain:     the block's own surface — clause placement x {game, library},
             declared arm has the witness fixture as its only member, which
             `test_reconciliation_reddens_on_a_planted_orphan` and its dual
             keep from being vacuous.
+            Two boundaries the domain has by construction rather than by
+            omission. The walled-namespace cells sample one member per
+            namespace, and `PRIMITIVE_TRICK_WINNERS` is EMPTY — deliberately,
+            as the registry's own comment records — so four of the five walls
+            carry a cell and the fifth is unreachable until a game files a
+            game-local trick winner there. And a declared Primitive cannot be
+            a `where jointly` predicate at all: that position needs a
+            collection parameter, which no declared spelling produces
+            (issue #472), so the joint-codec pairing obligation the position
+            carries is 3b's to meet, not a cell this grid can run.
 registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
             and `BUILTIN_CALL_FUNCS`); `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
@@ -376,6 +386,69 @@ def test_a_block_in_a_library_is_refused() -> None:
             "docs/libraries/probe.cardlang",
         )
     assert "primitives" in str(excinfo.value)
+
+
+# --- axis 2/4: the three wrong spellings ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "source,fragment",
+    [
+        ("  primitives : { }\n", "takes no colon"),
+        (
+            "  primitives { pinochle_meld_value(p : Player) -> Integer }\n",
+            "not an arrow",
+        ),
+        (
+            "  primitives { pinochle_meld_value(p : Player) : Integer = 0 }\n",
+            "declares a signature, never a value",
+        ),
+    ],
+    ids=["colon-habit", "arrow-return", "state-row-default"],
+)
+def test_a_wrong_entry_spelling_is_refused_in_the_designers_voice(
+    source: str, fragment: str
+) -> None:
+    """The three shapes an author reaches for: the colon habit every other
+    block clause refuses, the arrow the design note sketched before the block
+    had a surface, and the `= <default>` a `state { }` row carries. Each is a
+    plausible sentence, so each earns a rejection NAMING the right spelling
+    rather than the lexer's voice."""
+    game = _game(block=None, body="    score[0] := 1").replace(
+        "  zones {", source + "  zones {", 1
+    )
+    message = _refused(game)
+    assert fragment in message
+
+
+def test_one_wrong_entry_among_right_ones_still_speaks() -> None:
+    """The reject arms' tails admit the well-formed entry too, so a block whose
+    LAST entry is wrong reaches the designer-voice rejection rather than the
+    lexer's — the `trick_order` comma arm's rule, which exists because the
+    likeliest slip is one row among many."""
+    block = _PINOCHLE_ENTRY + "  tichu_dragon_won() -> Boolean"
+    message = _refused(_game(block=block, body=_SCORE_FROM_PRIMITIVE))
+    assert "not an arrow" in message
+    assert "tichu_dragon_won" in message
+
+
+# --- axis 22: the declared signature is what the CALL is checked against ----
+
+
+def test_a_call_with_the_wrong_arity_is_refused() -> None:
+    message = _refused(_game(body="    score[0] := pinochle_meld_value(0, 1)"))
+    assert "pinochle_meld_value" in message
+    assert "argument" in message
+
+
+def test_a_call_with_a_wrong_typed_argument_is_refused() -> None:
+    """The declared parameter type is what the call site is checked against —
+    so a declaration is not decoration, it is the contract."""
+    message = _refused(
+        _game(body="    score[0] := pinochle_meld_value(A of spades)")
+    )
+    assert "pinochle_meld_value" in message
+    assert "Player" in message
 
 
 # --- axis 6: arity -----------------------------------------------------------
