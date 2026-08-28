@@ -140,8 +140,18 @@ AXIS_VARIABLES: frozenset[str] = frozenset(
         "raise_cap",
         "folded",
         "stack",
-        "limit",
+        "level",
     ]
+)
+
+# State a probe game CANNOT drive, and so cannot cross. The membership is not a
+# judgment: a game may write the library's `requires` and may not write what the
+# library declares in its own `state`, so the excusable set is exactly the
+# library-owned guard inputs — asserted below rather than trusted here. What the
+# exclusion costs is named with it: these axes are driven by PLAYING to them, in
+# tests/test_poker_betting_transitions.py.
+LIBRARY_OWNED: frozenset[str] = frozenset(
+    d.name for d in (LIBRARY.state.decls if LIBRARY.state else ())
 )
 
 # The street's bet size is an AXIS, not a constant. `raise`'s guard reads it —
@@ -159,6 +169,7 @@ class Cell(NamedTuple):
     """One betting situation, as the probe game's own numbers."""
 
     limit: int
+    level: int
     bet_to_match: int
     bet_by: int
     acted: bool
@@ -176,7 +187,7 @@ class Cell(NamedTuple):
     def id(self) -> str:
         if not self.bet_to_match:
             standing = "open"
-        elif self.bet_to_match < self.limit:
+        elif self.bet_to_match > self.level:
             standing = "sub"
         else:
             standing = "standing"
@@ -196,28 +207,41 @@ def _cells() -> list[Cell]:
     out: list[Cell] = []
     for limit in LIMITS:
         for bet_to_match in STANDING:
-            for bet_by in sorted({0, bet_to_match}):
-                owed = bet_to_match - bet_by
-                purses = {"short": owed, "partial": owed + 1, "full": owed + limit + 1}
-                for purse, stack in sorted(purses.items()):
-                    if stack <= 0:
-                        continue
-                    for acted in (False, True):
-                        for raises, raise_cap in ((1, 4), (4, 4)):
-                            for field in (True, False):
-                                out.append(
-                                    Cell(
-                                        limit=limit,
-                                        bet_to_match=bet_to_match,
-                                        bet_by=bet_by,
-                                        acted=acted,
-                                        raises=raises,
-                                        raise_cap=raise_cap,
-                                        field=field,
-                                        stack=stack,
-                                        purse=purse,
-                                    )
-                                )
+          # A standing bet is at least the last full wager and short of the next
+          # one, because a wager reaching that BECOMES the level. Derived rather
+          # than listed, so a cell can never name a state no play reaches — the
+          # defect that put three rungs of the sizing grid outside the rules.
+          for level in sorted(
+              {
+                  lvl
+                  for lvl in range(0, bet_to_match + 1)
+                  if lvl <= bet_to_match < lvl + limit
+              }
+              & {bet_to_match, max(0, bet_to_match - limit + 1)}
+          ):
+              for bet_by in sorted({0, bet_to_match}):
+                  owed = bet_to_match - bet_by
+                  purses = {"short": owed, "partial": owed + 1, "full": owed + limit + 1}
+                  for purse, stack in sorted(purses.items()):
+                      if stack <= 0:
+                          continue
+                      for acted in (False, True):
+                          for raises, raise_cap in ((1, 4), (4, 4)):
+                              for field in (True, False):
+                                  out.append(
+                                      Cell(
+                                          limit=limit,
+                                          level=level,
+                                          bet_to_match=bet_to_match,
+                                          bet_by=bet_by,
+                                          acted=acted,
+                                          raises=raises,
+                                          raise_cap=raise_cap,
+                                          field=field,
+                                          stack=stack,
+                                          purse=purse,
+                                      )
+                                  )
     return out
 
 
@@ -247,13 +271,20 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     two one rule at two thresholds.
 
     COMPLETING IS STILL OPEN TO IT. The same sentence grants that same closed-out
-    seat the third option, and a standing bet short of the street's size is
-    exactly what there is to complete: nobody has yet wagered a full bet, so
-    bringing it up to one is not the reopening the seat has been refused. Stud's
-    bring-in is the everyday case and a short all-in opening bet reaches it
-    mid-street. `raise` is the move that carries it — from a standing bet below
-    `limit` its target IS the completion, which is why no fifth move type
-    appears in the offered set.
+    seat the third option, and a standing bet short of a full wager is exactly
+    what there is to complete: nobody has yet wagered one, so bringing it up to
+    one is not the reopening the seat has been refused. `raise` is the move that
+    carries it — from such a bet its target IS the completion, which is why no
+    fifth move type appears in the offered set.
+
+    WHICH IS WHY `acted` DOES NOT APPEAR ABOVE. Every cell in this module writes
+    its standing bet rather than playing to it, and `level` — the last wager
+    made in full — is state the LIBRARY owns, which a probe game may not write.
+    So every cell sits at a level of zero, every standing bet in it is short of
+    a full wager, and the completion is open to every seat. The other half of
+    the rule, that a spent turn is REFUSED a raise once a full wager stands, can
+    only be driven by playing to that wager: it lives in
+    tests/test_poker_betting_transitions.py, whose `level` cells hold it.
 
     `bet`'s row is the exception: it CAPTURES what the library does rather than
     what the rules say, because `bet` carries only `bet_to_match is 0` where
@@ -268,7 +299,7 @@ Robert's Rules 5 (`pagat.com/docs/RobsPkrRulesHome.pdf`) settles
     if cell.bet_to_match == 0:
         offered.add("bet")
     elif (
-        (not cell.acted or cell.bet_to_match < cell.limit)
+        (not cell.acted or cell.bet_to_match > cell.level)
         and cell.raises < cell.raise_cap
         and cell.field
         and cell.stack > cell.owed
@@ -291,12 +322,14 @@ game Probe {{
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 4
   }}
   phase play {{
     run open_street({limit})
 {prime}    bet_to_match := {bet_to_match}
+    level := {level}
     raises := {raises}
     raise_cap := {raise_cap}
     for each player p: bet_by[p] := {bet_by}
@@ -339,6 +372,7 @@ def _offer(cell: Cell) -> frozenset[str]:
         limit=cell.limit,
         prime=_PRIME if cell.acted else "",
         bet_to_match=cell.bet_to_match,
+        level=cell.level,
         raises=cell.raises,
         raise_cap=cell.raise_cap,
         bet_by=cell.bet_by,
@@ -422,6 +456,7 @@ def test_the_probe_drives_the_library_the_corpus_uses() -> None:
             limit=LIMITS[0],
             prime="",
             bet_to_match=0,
+            level=0,
             raises=0,
             raise_cap=4,
             bet_by=0,

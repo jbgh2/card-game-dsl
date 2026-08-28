@@ -24,7 +24,7 @@
 //
 // Variation across the family is carried by state the game declares and sets,
 // not by parameters on the import. `raise_cap` — the number of AGGRESSIONS
-// allowed per street, counting the opening bet, so Kuhn 1, Leduc 2, Stud 3 and
+// allowed per street, counting the opening bet, so Kuhn 1, Leduc 2, and Stud and
 // both Hold'em variants 4 — is a per-GAME constant, so it is required: provided
 // state has exactly one default and no default is right for every consumer. The
 // "including the opening bet" half is load-bearing rather than pedantic: `bet`
@@ -55,15 +55,21 @@ library poker_betting {
   // unmet requirement is reported to the game's author rather than as an
   // undeclared name inside text the author did not write. Each is here because
   // a game genuinely touches it: the four chip variables and `folded` are
-  // written by antes, settlements and each game's own `fold`, and `raises` by
-  // Stud's bring-in, which counts a forced opening post as the street's first
-  // aggression. `raise_cap` is the family's one per-game constant.
+  // written by antes, settlements and each game's own `fold`, and `raises` by a
+  // game that wants a street to open part-spent. `level` is here for the same
+  // reason and is the subtler one: a FORCED POST may or may not be a full
+  // wager, and only the game knows which. Hold'em's big blind IS the street's
+  // bet, so it sets the level and a raise measures from it; Stud's bring-in is
+  // short of one, so it leaves the level at zero and the next wager COMPLETES
+  // rather than raises. A library that owned `level` could not tell them apart.
+  // `raise_cap` is the family's one per-game constant.
   requires {
     stack[player]     : Integer   // chips held
     committed[player] : Integer   // chips put in this hand (for side pots)
     bet_by[player]    : Integer   // chips put in on the current street
     folded[player]    : Boolean   // out of the hand
     bet_to_match      : Integer   // the street's standing bet
+    level             : Integer   // the last wager made IN FULL this street
     raises            : Integer   // raises so far on this street
     raise_cap         : Integer   // raises allowed per street
   }
@@ -78,6 +84,7 @@ library poker_betting {
     bet_to_match := 0
     raises := 0
     limit := bet_size
+    level := 0
     for each player p: bet_by[p] := 0
     for each player p: acted[p] := false
   }
@@ -105,8 +112,10 @@ library poker_betting {
       committed[actor] := committed[actor] + post
       bet_by[actor] := bet_by[actor] + post
       bet_to_match := bet_by[actor]
-      raises := if post + post >= limit then 1 else raises
-      for each player p: if post + post >= limit { acted[p] := false }
+      let counts = post + post >= limit
+      raises := if counts then raises + 1 else raises
+      level := if counts then post else level
+      for each player p: if counts { acted[p] := false }
       acted[actor] := true
     }
   }
@@ -202,21 +211,24 @@ library poker_betting {
   // a change to what this library RECORDS, not to what it computes.
   move_type raise {
     when: bet_to_match > 0
-          and (not acted[actor] or bet_to_match < limit)
+          and (not acted[actor] or bet_to_match > level)
           and raises < raise_cap
           and (number of players where can_act(player)) > 1
           and stack[actor] > bet_to_match - bet_by[actor]
     effect {
-      let target = if bet_to_match < limit then limit else bet_to_match + limit
+      let target = level + limit
       let want = target - bet_by[actor]
       let pay = if want < stack[actor] then want else stack[actor]
-      let moved = bet_by[actor] + pay - bet_to_match
+      let now = bet_by[actor] + pay
+      let moved = now - bet_to_match
+      let counts = now >= target or moved + moved >= limit
       stack[actor] := stack[actor] - pay
       committed[actor] := committed[actor] + pay
-      bet_by[actor] := bet_by[actor] + pay
-      bet_to_match := if bet_to_match > bet_by[actor] then bet_to_match else bet_by[actor]
-      raises := if moved + moved >= limit then raises + 1 else raises
-      for each player p: if moved + moved >= limit { acted[p] := false }
+      bet_by[actor] := now
+      bet_to_match := if bet_to_match > now then bet_to_match else now
+      raises := if counts then raises + 1 else raises
+      level := if counts then now else level
+      for each player p: if counts { acted[p] := false }
       acted[actor] := true
     }
   }

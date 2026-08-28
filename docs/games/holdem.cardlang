@@ -69,6 +69,7 @@ game Holdem {
         folded[player]    : Boolean = false
         bet_by[player]    : Integer = 0       // chips put in on the current street
         bet_to_match      : Integer = 0       // the street's standing bet
+        level             : Integer = 0       // the last FULL wager this street
         raises            : Integer = 0       // aggressive actions so far this street
         raise_cap         : Integer = 4       // set per street, below
 
@@ -120,6 +121,7 @@ game Holdem {
       stack[big_blind] := stack[big_blind] - bet_by[big_blind]
       committed[big_blind] := committed[big_blind] + bet_by[big_blind]
       bet_to_match := 5
+      level := 5
       raises := 1
 
       // Burn, then two hole cards each — FOUR burns per hand, not three.
