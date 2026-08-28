@@ -100,18 +100,23 @@ def test_bridge_space_adds_the_auction_vocabulary() -> None:
 
 
 def test_bigtwo_space_adds_pass_and_the_combo_universe() -> None:
+    # No card block: every Big Two play is a combination — a singleton is a
+    # size-1 combo — so no decision offers a bare card and the space is the
+    # climb "pass" plus the combination universe.
     space = _space("big-two.cardlang")
-    assert space.num_distinct_actions == 52 + 1 + 19898
+    assert space.num_distinct_actions == 1 + 19898
     aid = space.encode("pass")
     assert space.decode(aid) == "pass"
 
 
 def test_stud_space_adds_the_betting_vocabulary() -> None:
     space = _space("seven-card-stud.cardlang")
-    # 52 cards + the nullary betting vocabulary in offering order at 52..56;
-    # no bare names, no integer block, no combos.
-    assert space.num_distinct_actions == 57
-    assert [space.to_string(a) for a in range(52, 57)] == [
+    # The nullary betting vocabulary in offering order, and nothing else: Stud
+    # deals cards and bets on them, so no decision is card-valued and no card
+    # block is reserved — the vocabulary starts at 0. No bare names, no integer
+    # block, no combos.
+    assert space.num_distinct_actions == 5
+    assert [space.to_string(a) for a in range(0, 5)] == [
         "check",
         "bet",
         "call",

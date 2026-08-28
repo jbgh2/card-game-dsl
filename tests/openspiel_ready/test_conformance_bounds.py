@@ -62,11 +62,16 @@ residual:  (a) UNBOUNDED games (`conformance_steps=None`) get no verb claim.
            deferred work — a game's combination kinds are exercised by its
            playout suite, and the adapter surface a conformance walk tests is
            per-block.
-           (c) Two `<card>` cells are unreachable BY CONSTRUCTION rather than
-           by depth — Big Two encodes every play through the combo block, and
-           Seven-Card Stud never makes a card-valued decision at all, so both
-           reserve a card block no state can offer. Recorded as unreached with
-           that reason; issue #157 owns deriving the block away.
+           (c) A game that decides no content item declares no `<card>` verb
+           at all, so it raises no cell here rather than a permanently
+           unreachable one: the card block is reserved only where some
+           decision can offer a candidate it numbers
+           (`encoding._decides_a_content_item`, gridded at
+           tests/test_card_block_derivation.py). What this module can still
+           not see is a verb whose block is present and whose mechanic the
+           bound does not reach — that is what the `unreached` entries are
+           for, and within a BOUNDED game no verb is exempt from needing one.
+           Unbounded games raise no cell at all, per (a).
 
 The bound each game carries is not derived here: coverage says how LOW a bound
 may go, never how high, and depth beyond the coverage frontier is still real

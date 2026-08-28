@@ -62,20 +62,6 @@ class TestReadiness(ReadinessProofs):
         depth=11,
         conformance_steps=120,
         swap_axis="any",
-        conformance_verbs_unreached=(
-            (
-                "<card>",
-                ("STRUCTURAL, not a depth shortfall, on two legs. The encoding "
-                 "reserves the card block for EVERY game unconditionally "
-                 "(`ActionSpace.verbs` seeds its result with `CARD_VERB`), and "
-                 "Hold'em offers nothing into it: its whole vocabulary is "
-                 "check/bet/call/raise/fold, every one nullary, so no state can "
-                 "ever make a card-valued decision. Measured unapplied at 60, "
-                 "120 and 200 steps, where every betting verb is applied by "
-                 "step 7. Issue #157 owns deriving the block away — Stud "
-                 "reserves it for the same reason"),
-            ),
-        ),
     )
 
 

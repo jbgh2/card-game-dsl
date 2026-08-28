@@ -105,10 +105,12 @@ def test_rank_domain_sourced_from_game_ranking_not_deck() -> None:
     assert game.ranking == ("A", "K", "Q")
     space = ActionSpace.for_game(game)
 
-    # Exactly 4 players x 3 ranks = 12 vocab entries (52 card block + 12).
-    # Deck-sourced (the pre-fix bug), this would instead be 52 + 4*13 = 104:
-    # the deck's full 13 ranks, not the 3 the game actually declared.
-    assert space.num_distinct_actions == 52 + 12
+    # Exactly 4 players x 3 ranks = 12 vocab entries, and nothing else: `ask`
+    # is the game's only decision and it is parameterized by Player and Rank,
+    # so no decision offers a content item and no card block is reserved.
+    # Deck-sourced (the pre-fix bug), this would instead be 4*13 = 52: the
+    # deck's full 13 ranks, not the 3 the game actually declared.
+    assert space.num_distinct_actions == 12
 
     # Every (target, rank) combination over the DECLARED ranking round-trips.
     for target in range(4):

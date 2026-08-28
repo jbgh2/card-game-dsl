@@ -690,6 +690,21 @@ the parameter. (Minting per-card vocabulary ids instead would give one card
 play two representations.) This is also why at most one Card-parameterized
 move may appear per vocabulary: the card id alone must name the move.
 
+**The card block itself is reserved only where a decision can reach it.** It
+is the home of every content-item id, so a game none of whose decisions can
+offer one — a betting game that deals cards and never plays them, a climbing
+game whose every play is a combination, a board game deciding by cell —
+reserves no card block, and its ids begin at the next block. The presence is
+derived from the game's own decision-bearing constructs rather than declared,
+so `num_distinct_actions` — OpenSpiel's action dimension, and therefore the
+width of any policy head trained on the game — is not padded by a block the
+game has no construct for. The derivation reads the tree, not reachability, so
+a game whose only card decision sits behind a condition that never holds still
+reserves the block. The derivation over-approximates deliberately: a block reserved and
+never used costs ids, while a block missing under a live decision would leave
+that decision with no id at all, so encoding a content item against an absent
+block is refused rather than numbered into the neighbouring block.
+
 ### The integer `choose` domain
 
 `choose integer in <lo> .. <hi>` is the
