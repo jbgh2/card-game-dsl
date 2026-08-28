@@ -118,6 +118,22 @@ agent without asking, and the revert itself is Merge Lane D. What was
 learned goes to the tracker before the re-attempt, not into a bigger
 second try.
 
+**Arming is merging.** GitHub's auto-merge is the harness's walk-away
+switch: `gh pr merge <N> --auto --merge` schedules the merge
+server-side, and it fires when the gate is satisfied — no session stays
+open to watch, and nothing dies with a watcher. The protection rule on
+`main` (repository settings, the operator's hand) enforces the
+mechanical gate at the server: the `check` run green and every review
+thread resolved. The Merge Lane binds the hand that arms: arming a PR
+IS performing its merge, so an agent arms Merge Lane C or D only, with
+the lane's requirements already satisfied at arming time —
+`tools/merge-gate.sh`'s lane call printed, the review landed, its
+threads answered. Armed-then-reviewed would collapse Merge Lane C into
+D. The one predicate the server cannot enforce is that a review has
+happened at all — a green PR with no threads merges when armed,
+reviewed or not — so that predicate belongs to the arming hand, never
+assumed from the platform. The operator arms any lane at will.
+
 ## Review threads
 
 A review thread is feedback in flight, and its resolved state is the only
