@@ -1978,7 +1978,7 @@ _PARSE_HINTS = {
         "move menu, so a mode body takes `active_rules:`/`transition_to:` only"
     ),
     "primitives": (
-        " — `primitives { }` is a game clause: a [[primitive]]'s meaning belongs "
+        " — `primitives { }` is a game clause: a Primitive's meaning belongs "
         "to ONE game, so a library — which several games import — may not "
         "declare one; write the block in the game"
     ),

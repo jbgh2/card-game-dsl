@@ -58,7 +58,7 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     if result is builtins.NOT_A_BUILTIN:
         raise ShadowGuardError(
             "resolve._validate_refs (the game's own call namespace)",
-            f"'{name}' is neither a [[builtins]] nor a Primitive this game's "
+            f"'{name}' is neither a Builtin nor a Primitive this game's "
             f"`primitives {{ }}` block declares, so nothing may dispatch it",
         )
     return result

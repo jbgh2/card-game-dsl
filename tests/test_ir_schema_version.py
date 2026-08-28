@@ -77,6 +77,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:role', 'key:rows', 'key:rules', 'key:selection', 'key:selection_mode',
         'key:source', 'key:source_zone', 'key:state', 'key:state_var', 'key:suit',
         'key:tag', 'key:target', 'key:teams', 'key:then', 'key:transitions',
+        'key:primitives', 'key:reads', 'key:return_type',
         'key:trick_order', 'key:trump', 'key:type', 'key:type_name',
         'key:type_ref', 'key:types',
         'key:until', 'key:value', 'key:values', 'key:verb', 'key:visibility',
@@ -98,6 +99,8 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'tag:repeat_until', 'tag:rotate', 'tag:rule', 'tag:rule_ref',
         'tag:skip_to_next_hand', 'tag:state', 'tag:state_decl', 'tag:str',
         'tag:struct_field', 'tag:struct_lit', 'tag:subscript', 'tag:transfer',
+        'tag:primitive_decl', 'tag:primitive_param', 'tag:primitive_read',
+        'tag:primitives',
         'tag:transition_to', 'tag:trick_order', 'tag:trick_order_row',
         'tag:trick_round', 'tag:turns', 'tag:type_def',
         'tag:type_ref', 'tag:winner', 'tag:zone'

@@ -1,0 +1,18 @@
+// Guard: resolve.py's `_check_primitive_reads`. A `primitives { }` entry's
+// `reads` clause names the game's own zones and state variables; `skat` is
+// neither here, so the declaration claims a coupling that does not exist.
+game PrimitivesUndeclaredRead {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], skat
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { trump_suit : Suit? = none  score[player] : Integer = 0 }
+  phase play {
+    score[0] := pinochle_meld_value(0)
+  }
+  winner: highest score
+}

@@ -79,6 +79,16 @@ def emit(game: n.Game) -> IRDict:
             if game.trick_order is not None
             else {}
         ),
+        # Keyed ONLY when the game declares a `primitives { }` block, the same
+        # precedent — and here the key's PRESENCE is itself a fact the IR must
+        # carry, because the block's presence is what partitions the game's
+        # native-call namespace. An EMPTY block therefore emits an empty entry
+        # list rather than no key at all.
+        **(
+            {"primitives": _primitives(game.primitives)}
+            if game.primitives is not None
+            else {}
+        ),
         "trump": game.trump,
         "teams": [list(t) for t in game.teams],
         "positions": [_position(p) for p in game.positions],
@@ -137,6 +147,30 @@ def _trick_order(t: n.TrickOrder) -> IRDict:
         "rows": [
             {"kind": "trick_order_row", "key": r.key, "body": _expr(r.body)}
             for r in t.rows
+        ],
+    }
+
+
+def _primitives(b: n.PrimitivesBlock) -> IRDict:
+    """The game's [[primitives-block]]. Entries keep SOURCE order (the node's),
+    so the IR is a faithful record of what was written."""
+    return {
+        "kind": "primitives",
+        "entries": [
+            {
+                "kind": "primitive_decl",
+                "name": d.name,
+                "params": [
+                    {"kind": "primitive_param", "name": p.name, "type": p.type_name}
+                    for p in d.params
+                ],
+                "return_type": d.return_type,
+                "reads": [
+                    {"kind": "primitive_read", "name": r.name, "binder": r.binder}
+                    for r in d.reads
+                ],
+            }
+            for d in b.decls
         ],
     }
 

@@ -1,0 +1,1 @@
+primitives_arrow_return.cardlang:11:5: error: a `primitives` entry names its return type after a colon, not an arrow — write `pinochle_meld_value(...) : Integer`

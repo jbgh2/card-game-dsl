@@ -4730,7 +4730,7 @@ def _undeclared_primitive_hint(game: n.Game, func: str) -> str:
     if regime(game) is not Regime.DECLARED or func not in PRIMITIVE_CALL_FUNCS:
         return ""
     return (
-        f" — `{func}` is a [[primitive]] another game declares, and this game's "
+        f" — `{func}` is a Primitive another game declares, and this game's "
         f"`primitives {{ }}` block does not; declare it here to call it"
     )
 
@@ -4796,7 +4796,7 @@ def _check_primitive_name(
         return
     if decl.name in BUILTIN_CALL_FUNCS:
         bag.error(
-            f"`{decl.name}` is a [[builtins]] the language ships, so a "
+            f"`{decl.name}` is a Builtin the language ships, so a "
             f"`primitives` entry may not declare it — a call would resolve "
             f"against two homes at once; rename the Primitive",
             decl.span,
@@ -4812,7 +4812,7 @@ def _check_primitive_name(
     walled = walled_namespace_of(decl.name)
     if walled is not None:
         bag.error(
-            f"`{decl.name}` is {walled}, not a call-position [[primitive]], so "
+            f"`{decl.name}` is {walled}, not a call-position Primitive, so "
             f"the `primitives` block cannot declare it — its signature is the "
             f"mechanic's, not a parameter list; the round slots take their own "
             f"declaration form (issue #142)",
@@ -4831,7 +4831,7 @@ def _check_primitive_name(
         return
     if unimplemented(frozenset({decl.name})):
         bag.error(
-            f"nothing implements the [[primitive]] `{decl.name}` — a "
+            f"nothing implements the Primitive `{decl.name}` — a "
             f"`primitives` entry names Python the engine can find "
             f"(cardlang/primitives_block.py, PRIMITIVE_IMPLEMENTATIONS); check "
             f"the spelling, or register the implementation",
@@ -5203,7 +5203,7 @@ def _check_row_call(
         # in that registry at all, so it needs this arm rather than inheriting
         # the exclusion.
         bag.error(
-            f"`{row.key}:` calls the declared [[primitive]] `{nd.func}(...)`"
+            f"`{row.key}:` calls the declared Primitive `{nd.func}(...)`"
             + through(fn)
             + " — a Trick Order row reads the card and public state only, and "
             "a Primitive reads whatever its `reads` clause names",
