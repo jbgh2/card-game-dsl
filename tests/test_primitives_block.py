@@ -77,6 +77,8 @@ has since flipped, so no mark remains.
 from __future__ import annotations
 
 import dataclasses
+import functools
+import pathlib
 import random
 import typing
 
@@ -89,7 +91,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CALL_FUNCS,
 )
 from cardlang.diagnostics import DiagnosticError
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
     DECLARABLE_BUILTIN_TYPE_NAMES,
     DECLARABLE_CONTRACTS,
@@ -105,6 +107,7 @@ from cardlang.primitives_block import (
     walled_namespace_of,
 )
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.reads import PRIMITIVE_READS
 from cardlang.types import Type
 
 # --- the probe game ----------------------------------------------------------
@@ -602,8 +605,8 @@ def _bundle_for(clause: str) -> object:
     seen: list[object] = []
     real = narrowing.bind
 
-    def spy(rs: object, actor: object, r: object, **kwargs: object) -> object:
-        bundle = real(rs, actor, r, **kwargs)  # type: ignore[arg-type]
+    def spy(*args: object, **kwargs: object) -> object:
+        bundle = real(*args, **kwargs)  # type: ignore[arg-type]
         seen.append(bundle.reads)
         return bundle
 
@@ -617,7 +620,7 @@ def _bundle_for(clause: str) -> object:
     try:
         play_game(game, random.Random(0))
     finally:
-        narrowing.bind = real  # type: ignore[assignment]
+        narrowing.bind = real
     assert seen, "the Primitive was never called"
     return seen[0]
 
@@ -640,54 +643,154 @@ def test_an_undeclared_name_is_absent_from_the_bundle() -> None:
     assert "seen" not in gr.state  # type: ignore[attr-defined]
 
 
-# --- axis 15: the corpus reconciliation pin ---------------------------------
+# --- axis 13/15: the corpus reconciliation pin ------------------------------
+#
+# The coexistence window is a live DUAL-DEFINITION-SITE domain: a game's
+# Primitive coupling can be stated in its own `primitives { }` block or in the
+# authored `PRIMITIVE_READS` registry, and two statements of one fact drift.
+# The pin below is what keeps the window checked rather than merely scheduled.
+
+GAMES_DIR = pathlib.Path(__file__).resolve().parent.parent / "docs" / "games"
+WITNESS = pathlib.Path(__file__).resolve().parent / "fixtures" / "primitives_witness.cardlang"
 
 
-def _reconcile(games: dict[str, frozenset[str]]) -> None:
-    """The corpus pin's body, over a supplied game -> declared-names map so the
-    reddening mutations below can plant into it."""
-    from cardlang.primitives_block import reconcile
-
-    reconcile(games)
-
-
-def test_the_corpus_reconciles_both_ways() -> None:
-    """Every game reaches its Primitives through exactly one regime, and every
-    registered implementation is claimed by exactly one side. Derived from the
-    games glob THROUGH the pipeline, so a game added to the corpus is covered
-    with nothing to keep in sync."""
-    from cardlang.primitives_block import corpus_declarations, reconcile
-
-    declarations = corpus_declarations()
-    assert declarations, "the corpus glob came up empty — wrong path, not a clean corpus"
-    reconcile(declarations)
+def _game_sources() -> list[pathlib.Path]:
+    """Every game the pin quantifies over: the corpus glob, plus the witness
+    fixture. The fixture is IN the domain deliberately — in 3a no corpus game
+    declares a block, so without it the declared arm of every check below would
+    be empty and green by having nothing to look at."""
+    return sorted(GAMES_DIR.glob("*.cardlang")) + [WITNESS]
 
 
+@functools.cache
+def _checked_games() -> tuple[tuple[str, n.Game], ...]:
+    """(game-file basename, checked game) for every source, through the
+    pipeline's own entry point — so a block written in a `.md` game reaches
+    this pin by the same extraction the runtime uses."""
+    return tuple((p.name, check_source(p)) for p in _game_sources())
+
+
+def _reconcile(
+    games: tuple[tuple[str, n.Game], ...],
+    implementations: dict[str, Implementation],
+) -> None:
+    """The pin's body, over supplied tables so the mutations below can plant.
+
+    Three claims, in both directions between the three independently authored
+    sides — each game's block, the implementation index, and the authored
+    `PRIMITIVE_READS` registry."""
+    declared: dict[str, str] = {}
+    reached: set[str] = set()
+    for name, game in games:
+        for primitive in sorted(declared_names(game)):
+            declared[primitive] = name
+        reached |= declared_names(game)
+        if regime(game) is Regime.LEGACY:
+            # A legacy game reaches every Primitive it CALLS. Reading the calls
+            # rather than the namespace is what makes the orphan question
+            # answerable: the namespace is corpus-wide, so quantifying over it
+            # would claim every implementation is reached by every game.
+            reached |= {
+                nd.func
+                for nd in _walk_calls(game)
+                if nd.func in PRIMITIVE_CALL_FUNCS
+            }
+
+    # (1) declared -> implemented. resolve refuses this per game; the pin says
+    # it over the whole corpus, so a game the pipeline never checks cannot
+    # carry a declaration nothing implements.
+    orphan_declarations = sorted(set(declared) - set(implementations))
+    assert not orphan_declarations, (
+        f"declared with no implementation: {orphan_declarations}"
+    )
+
+    # (2) implemented -> reached. An index row no game declares and no game
+    # calls is an orphan: Python the corpus cannot run.
+    orphans = sorted(set(implementations) - reached)
+    assert not orphans, (
+        f"implementations no game reaches: {orphans} — a Primitive nothing "
+        f"declares and nothing calls is dead Python in the language package"
+    )
+
+    # (3) one definition site per game. A game whose block declares its
+    # Primitives must not ALSO have authored `PRIMITIVE_READS` rows: the same
+    # coupling stated twice is the dual-definition-site state the coexistence
+    # window is priced to keep impossible.
+    with_rows = {row.game_file for row in PRIMITIVE_READS}
+    both = sorted(
+        {name for name, game in games if regime(game) is Regime.DECLARED} & with_rows
+    )
+    assert not both, (
+        f"games stating their Primitive reads twice: {both} — a `primitives "
+        f"{{ }}` block and a PRIMITIVE_READS row declare the same coupling, "
+        f"and two statements of one fact drift"
+    )
+
+
+def _walk_calls(game: n.Game) -> list[n.Call]:
+    from cardlang.resolve import _walk
+
+    return [nd for nd in _walk(game) if isinstance(nd, n.Call)]
+
+
+@pytest.mark.slow
+def test_the_corpus_reconciles_in_every_direction() -> None:
+    """Derived from the games glob THROUGH the pipeline, so a game added to the
+    corpus is covered with nothing to keep in sync."""
+    games = _checked_games()
+    assert len(games) > 20, "the corpus glob came up short — wrong path, not a clean corpus"
+    assert any(regime(g) is Regime.DECLARED for _, g in games), (
+        "no game in the pin's domain declares a block — the declared arm would "
+        "be green by having nothing to look at"
+    )
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS))
+
+
+@pytest.mark.slow
 def test_reconciliation_reddens_on_a_planted_orphan() -> None:
-    """A planted implementation nothing claims. Without this the pin's declared
-    arm is empty in 3a and would read as proof while proving nothing."""
-    from cardlang import primitives_block as pb
-
-    planted = dict(pb.PRIMITIVE_IMPLEMENTATIONS)
+    """An implementation nothing reaches. Demonstrated rather than asserted:
+    a pin whose author cannot name a reddening edit is the vacuously-green
+    defect wearing a test's name."""
+    planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["orphan_primitive"] = Implementation(
         "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED
     )
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(pb, "PRIMITIVE_IMPLEMENTATIONS", planted)
-        with pytest.raises(AssertionError, match="orphan_primitive"):
-            _reconcile(pb.corpus_declarations())
+    with pytest.raises(AssertionError, match="orphan_primitive"):
+        _reconcile(_checked_games(), planted)
 
 
-def test_reconciliation_reddens_on_a_dual_claim() -> None:
-    """A name claimed by a game's block AND by the legacy namespace — the
-    dual-definition-site state the coexistence window is priced to keep
-    impossible."""
-    from cardlang import primitives_block as pb
+@pytest.mark.slow
+def test_reconciliation_reddens_on_a_dual_definition_site() -> None:
+    """A game declaring a block while its authored `PRIMITIVE_READS` rows still
+    stand — the exact state 3b removes, planted here so the window is checked
+    while it is open."""
+    dual = _checked_games() + ((
+        "pinochle.cardlang",
+        check_source(WITNESS),
+    ),)
+    with pytest.raises(AssertionError, match="pinochle.cardlang"):
+        _reconcile(dual, dict(PRIMITIVE_IMPLEMENTATIONS))
 
-    claims = dict(pb.corpus_declarations())
-    claims["planted.cardlang"] = frozenset({"tichu_dragon_won"})
-    with pytest.raises(AssertionError, match="tichu_dragon_won"):
-        _reconcile(claims)
+
+# --- the witness fixture, played --------------------------------------------
+
+
+def test_the_witness_fixture_plays() -> None:
+    """A complete game that declares a Primitive, calls it, and reaches a
+    result — the one cell in this module where the whole path runs rather than
+    being checked. `Collection.does not prove` names why it has to exist: only
+    a playout can show a declared read SUFFICES for its implementation."""
+    game = check_source(WITNESS)
+    assert declared_names(game) == {"pinochle_meld_value"}
+    winners = set()
+    for seed in range(8):
+        result = play_game(game, random.Random(seed))
+        assert set(result.scores) == {0, 1}
+        assert all(v >= 0 for v in result.scores.values())
+        winners.add(result.winner)
+    # Both seats win on some seed: a fixture whose result never moved would
+    # pass on an implementation that returned a constant.
+    assert winners == {0, 1}
 
 
 # --- axis 25: the game-file input form --------------------------------------

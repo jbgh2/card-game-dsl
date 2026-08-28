@@ -1,0 +1,47 @@
+// The `primitives { }` block's witness: a complete two-hand game that
+// declares a Primitive, calls it, and plays to a result.
+//
+// Not a corpus game and not a variant of one — a fixture whose only job is to
+// exercise the declaration end to end, which is what "a construct with no
+// corpus witness ships a minimal witness fixture" asks for (decisions.md,
+// "Closed-domain completeness"). Each seat is dealt a hand, a trump is fixed,
+// and the declared Primitive scores each hand's Pinochle meld; the higher meld
+// wins. The whole point is the block, so the game around it is the smallest
+// thing that can hold one.
+//
+// `pinochle_meld_value` is a Primitive the engine already implements, borrowed
+// deliberately: a fixture that needed its own Python would prove the block
+// against an implementation written to suit it.
+game PrimitivesWitness {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+
+  // The declaration under test. `reads hand[p]` narrows to the ONE hand the
+  // call names — the per-primitive granularity the block buys — while
+  // `trump_suit` is a whole-value read.
+  primitives {
+    pinochle_meld_value(p : Player) : Integer
+        reads hand[p], trump_suit
+  }
+
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+
+  state {
+    trump_suit : Suit? = none
+    meld[player] : Integer = 0
+  }
+
+  phase score_the_meld {
+    shuffle deck
+    trump_suit := spades
+    deal 12 cards from deck to each hand
+    for each player p: meld[p] := pinochle_meld_value(p)
+  }
+
+  winner: highest meld
+}

@@ -31,13 +31,36 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     are then independently readable, which is what makes the Primitive count
     usable as the elimination metric. Arguments are coerced ONCE, before the
     chain, because `deep_freeze` dominates playout cost.
+
+    A game that declares a `primitives { }` block takes the DERIVED half of
+    the chain: its own table, built at load from the block, and never the
+    legacy `PRIMITIVE_CALL_FUNCS` dispatch. The regime is decided once, at
+    resolve; the runtime's only job is to refuse a contradiction, never to
+    fall back — a game that reached a legacy arm through a declared name
+    would be running Python its own file never claimed.
     """
-    sig = CALL_SIGS.get(name)
+    declared = ctx.rs.declared_primitives
+    if declared is None:
+        sig = CALL_SIGS.get(name)
+        if sig is not None:
+            args = reads.coerce_args(sig, args)
+        result = builtins.call(name, args, ctx)
+        if result is builtins.NOT_A_BUILTIN:
+            return primitives.call(name, args, ctx)
+        return result
+    entry = declared.get(name)
+    sig = ctx.rs.declared_sigs.get(name) if entry is not None else CALL_SIGS.get(name)
     if sig is not None:
         args = reads.coerce_args(sig, args)
+    if entry is not None:
+        return primitives.call_declared(entry, args, ctx)
     result = builtins.call(name, args, ctx)
     if result is builtins.NOT_A_BUILTIN:
-        return primitives.call(name, args, ctx)
+        raise ShadowGuardError(
+            "resolve._validate_refs (the game's own call namespace)",
+            f"'{name}' is neither a [[builtins]] nor a Primitive this game's "
+            f"`primitives {{ }}` block declares, so nothing may dispatch it",
+        )
     return result
 
 

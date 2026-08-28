@@ -12,12 +12,21 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
+from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
 from cardlang.domains import require_role, role_members
-from cardlang.runtime import active_rules
+from cardlang.primitives_block import (
+    PRIMITIVE_IMPLEMENTATIONS,
+    InvocationContract,
+    ReadKind,
+    classify_read,
+)
+from cardlang.runtime import active_rules, primitives, reads
+from cardlang.typecheck import declared_primitive_sigs
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate, row_context
@@ -85,6 +94,65 @@ def declared_card_points(game: n.Game) -> dict[str, int]:
     declared = {e.rank: e.value for e in game.card_points.entries}
     default = game.card_points.else_value or 0
     return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
+
+
+def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
+    """The game's `primitives { }` block, materialized: one dispatch entry per
+    declared [[primitive]]. None for a game declaring no block, which is what
+    leaves it on the legacy `PRIMITIVE_CALL_FUNCS` dispatch.
+
+    Every fact a call needs is resolved HERE, at the one load site, the
+    `declared_trick_order` precedent above: the implementation is imported from
+    the names-only index, the declared reads become the primitive's own row,
+    and each indexed read is paired with the parameter that keys it. No caller
+    re-derives any of them, which is what keeps the bundle a primitive receives
+    and the entry a designer wrote from being two readings of the same text.
+
+    Resolve has already refused a declaration naming no implementation, an
+    undeclarable contract, and an unclassifiable read, so the lookups below are
+    total by the time this runs."""
+    if game.primitives is None:
+        return None
+    game_file = Path(game.span.source_name).name if game.span is not None else ""
+    sigs = declared_primitive_sigs(game)
+    table: dict[str, primitives.Declared] = {}
+    for decl in game.primitives.decls:
+        impl_ref = PRIMITIVE_IMPLEMENTATIONS[decl.name]
+        module = import_module(impl_ref.module)
+        params = [p.name for p in decl.params]
+        kinds = {read.name: classify_read(game, read.name) for read in decl.reads}
+        table[decl.name] = primitives.Declared(
+            name=decl.name,
+            impl=getattr(module, impl_ref.attribute),
+            row=reads.PrimitiveReads(
+                module=impl_ref.module.replace(".", "/") + ".py",
+                game_file=game_file,
+                state_vars=frozenset(
+                    r.name
+                    for r in decl.reads
+                    if kinds[r.name]
+                    in (ReadKind.STATE_VAR, ReadKind.INDEXED_STATE_VAR)
+                ),
+                zone_families=frozenset(
+                    r.name for r in decl.reads if kinds[r.name] is ReadKind.ZONE_FAMILY
+                ),
+                single_zones=frozenset(
+                    r.name for r in decl.reads if kinds[r.name] is ReadKind.SINGLE_ZONE
+                ),
+            ),
+            binders=tuple(
+                (r.name, params.index(r.binder))
+                for r in decl.reads
+                if r.binder is not None
+            ),
+            bundled=impl_ref.contract is InvocationContract.BUNDLED,
+        )
+    # A declared table keyed by exactly the block's entries: `sigs` is built
+    # from the same decls, so a mismatch means one of the two walks skipped an
+    # entry (this raise is its Shadow Guard; the Owner Guard is resolve's
+    # duplicate-entry check, which is what makes the two counts comparable).
+    assert set(table) == set(sigs), "declared table and signature table disagree"
+    return table
 
 
 def declared_trick_order(game: n.Game) -> TrickOrderTable | None:
@@ -196,6 +264,8 @@ def play_game(
     rs.rank_index = {r: len(game.ranking) - 1 - i for i, r in enumerate(game.ranking)}
     rs.card_points = declared_card_points(game)
     rs.trick_order = declared_trick_order(game)
+    rs.declared_primitives = declared_primitives(game)
+    rs.declared_sigs = declared_primitive_sigs(game)
     rs.content_flavor = game.content_flavor
     rs.axis_attr = axis_attributes(game.deck)
     rs.suits = deck_suits(game.deck)

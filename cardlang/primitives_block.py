@@ -293,6 +293,45 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
 }
 
 
+class ReadKind(Enum):
+    """What one `reads` name denotes — the exhaustive classification, since
+    each kind materializes differently."""
+
+    STATE_VAR = "state variable"
+    INDEXED_STATE_VAR = "indexed state variable"
+    ZONE_FAMILY = "zone family"
+    SINGLE_ZONE = "single zone"
+
+
+# The kinds a `reads` name may carry a BINDER on: the indexed ones, because the
+# binder keys an instance. Stated as the allow-list so a kind added above is
+# refused a binder until someone admits it with a witness.
+BINDABLE_READ_KINDS: frozenset[ReadKind] = frozenset(
+    {ReadKind.INDEXED_STATE_VAR, ReadKind.ZONE_FAMILY}
+)
+
+
+def classify_read(game: n.Game, name: str) -> ReadKind | None:
+    """Which of the game's own keyed declarations `name` denotes, or None.
+
+    The ONE classifier. resolve refuses the None, and the driver dispatches on
+    the answer to build the primitive's row — neither re-derives the other's,
+    which is what keeps the row a primitive receives and the entry a designer
+    wrote from being two readings of the same text."""
+    for block in n.state_blocks(game):
+        for sd in block.decls:
+            if sd.name == name:
+                return (
+                    ReadKind.INDEXED_STATE_VAR
+                    if sd.index is not None
+                    else ReadKind.STATE_VAR
+                )
+    for z in game.zones:
+        if z.name == name:
+            return ReadKind.ZONE_FAMILY if z.index is not None else ReadKind.SINGLE_ZONE
+    return None
+
+
 def engine_fact_names() -> frozenset[str]:
     """The `EngineFacts` field names — the OTHER half of what a Primitive sees.
 

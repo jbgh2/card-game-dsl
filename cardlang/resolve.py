@@ -81,7 +81,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, is_dataclass, replace
-from enum import Enum
 from typing import assert_never, cast, get_args
 
 from cardlang.ast import nodes as n
@@ -111,9 +110,11 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.primitives_block import (
+    BINDABLE_READ_KINDS,
     InvocationContract,
     Regime,
     call_namespace,
+    classify_read,
     declarable_type_names,
     engine_fact_names,
     regime,
@@ -4712,44 +4713,6 @@ def _row_order(key: str) -> int:
     return [k for k, _ in TRICK_ORDER_ROWS].index(key)
 
 
-class _ReadKind(Enum):
-    """What one `reads` name denotes — the exhaustive classification the
-    binder needs, since each kind materializes differently."""
-
-    STATE_VAR = "state variable"
-    INDEXED_STATE_VAR = "indexed state variable"
-    ZONE_FAMILY = "zone family"
-    SINGLE_ZONE = "single zone"
-
-
-# The kinds a `reads` name may carry a BINDER on: the indexed ones, because the
-# binder keys an instance. Stated as the allow-list so a kind added above is
-# refused a binder until someone admits it.
-_BINDABLE_READ_KINDS: frozenset[_ReadKind] = frozenset(
-    {_ReadKind.INDEXED_STATE_VAR, _ReadKind.ZONE_FAMILY}
-)
-
-
-def _classify_primitive_read(game: n.Game, name: str) -> _ReadKind | None:
-    """Which of the game's own keyed declarations `name` denotes, or None.
-
-    The ONE classifier: resolve stamps the kind and every downstream consumer
-    dispatches on it (the driver materializes the row, the binder narrows the
-    instance), so nothing re-derives it from the declarations a second time."""
-    for decl in n.state_blocks(game):
-        for sd in decl.decls:
-            if sd.name == name:
-                return (
-                    _ReadKind.INDEXED_STATE_VAR
-                    if sd.index is not None
-                    else _ReadKind.STATE_VAR
-                )
-    for z in game.zones:
-        if z.name == name:
-            return _ReadKind.ZONE_FAMILY if z.index is not None else _ReadKind.SINGLE_ZONE
-    return None
-
-
 def _undeclared_primitive_hint(game: n.Game, func: str) -> str:
     """The half-sentence an unknown call earns when the name IS a Primitive
     some other game declares. Without it a declared game's author reads
@@ -4878,7 +4841,7 @@ def _check_primitive_reads(
     issue."""
     params = {p.name for p in decl.params}
     for read in decl.reads:
-        kind = _classify_primitive_read(game, read.name)
+        kind = classify_read(game, read.name)
         if kind is None:
             hint = (
                 f" — `{read.name}` is an engine fact a Primitive receives "
@@ -4895,7 +4858,7 @@ def _check_primitive_reads(
             continue
         if read.binder is None:
             continue
-        if kind not in _BINDABLE_READ_KINDS:
+        if kind not in BINDABLE_READ_KINDS:
             bag.error(
                 f"`{decl.name}` reads `{read.name}[{read.binder}]`, but "
                 f"`{read.name}` is a {kind.value} — it has no instances to key, "

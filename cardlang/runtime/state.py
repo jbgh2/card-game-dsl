@@ -25,6 +25,8 @@ from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from cardlang.builtins.signatures import Sig
+    from cardlang.runtime.primitives import Declared
     from cardlang.runtime.trick_order import TrickOrderTable
     from cardlang.stdlib.boards import BoardEntry
 
@@ -372,6 +374,19 @@ class RuntimeState:
         # (`runtime/driver.py`); None for a game declaring no block, where
         # resolve's presence partition admits no reader of one.
         self.trick_order: TrickOrderTable | None = None
+        # The game's declared [[primitive]]s, materialized once from its
+        # `primitives { }` clause (`runtime/driver.py`); None for a game
+        # declaring no block, which is what puts it on the legacy dispatch.
+        # `None` and an EMPTY dict are different states: an empty block
+        # declares that the game borrows no Python, so every Primitive call in
+        # it is refused.
+        self.declared_primitives: dict[str, Declared] | None = None
+        # The declared signatures those entries carry, materialized by the
+        # type pass (`typecheck.declared_primitive_sigs`). `coerce_args` is
+        # signature-driven, and for a declared Primitive the signature is the
+        # DECLARATION's — so the freeze a game file describes is the freeze the
+        # implementation gets.
+        self.declared_sigs: dict[str, Sig] = {}
         self.suits: tuple[str, ...] = ()  # the deck's actual card suits (move-param domains)
         self.ranks: tuple[str, ...] = ()  # rank iteration order: ranking: if declared, else deck order
         # Declared position domains, name -> ordered members (decisions.md
