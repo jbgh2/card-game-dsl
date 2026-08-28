@@ -138,6 +138,7 @@ game HoldemHeadsUp {
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0        // the last FULL wager this street
     raises            : Integer = 0
     raise_cap         : Integer = 4        // four aggressions per street, every street
 
@@ -161,6 +162,7 @@ game HoldemHeadsUp {
     stack[big_blind] := stack[big_blind] - 2
     committed[big_blind] := committed[big_blind] + 2
     bet_to_match := 2
+    level := 2                             // the blind IS a full wager
     raises := 1
 
     deal 1 card from deck to burn

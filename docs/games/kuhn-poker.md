@@ -111,6 +111,7 @@ game KuhnPoker {
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 1        // no raises: a bet sets raises to 1
 

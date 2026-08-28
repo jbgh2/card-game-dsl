@@ -97,6 +97,17 @@ class Cell(NamedTuple):
     moved: int  # how far this aggression shifts the standing bet
 
     @property
+    def level(self) -> int:
+        """The last wager made in full when the cell's aggression is driven.
+
+        An ON-SIZE standing bet IS one — a standing bet at or past the street
+        with no full wager behind it is a state no play reaches, since a wager
+        arriving there becomes the level itself. A SUB-SIZE standing bet is a
+        forced post, which is exactly a bet nobody made in full.
+        """
+        return self.standing if self.standing >= LIMIT else 0
+
+    @property
     def full(self) -> int:
         """A FULL BET, which is the street's size and nothing else.
 
@@ -166,6 +177,7 @@ game Reopening {{
     bet_by[player]    : Integer = 0
     folded[player]    : Boolean = false
     bet_to_match      : Integer = 0
+    level             : Integer = 0
     raises            : Integer = 0
     raise_cap         : Integer = 9
   }}
@@ -175,6 +187,7 @@ game Reopening {{
           over players where player is witness and not acted[player]
           until (number of players where acted[player]) is 1
     bet_to_match := {standing}
+    level := {level}
     raises := {raises}
     for each player p: bet_by[p] := 0
     for each player p: if p is hero {{ stack[p] := {hero_stack} }}
@@ -214,6 +227,7 @@ def _drive(cell: Cell) -> Aftermath:
     source = _PROBE.format(
         limit=LIMIT,
         standing=standing,
+        level=cell.level,
         raises=before_raises,
         hero_stack=hero_stack,
         vocabulary=", ".join(m.name for m in LIBRARY.move_types),

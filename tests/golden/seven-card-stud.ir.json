@@ -113,17 +113,6 @@
       },
       {
         "kind": "state_decl",
-        "name": "level",
-        "index": null,
-        "type": "Integer",
-        "optional": false,
-        "default": {
-          "kind": "int",
-          "value": 0
-        }
-      },
-      {
-        "kind": "state_decl",
         "name": "stack",
         "index": "player",
         "type": "Integer",
@@ -302,6 +291,17 @@
                 {
                   "kind": "state_decl",
                   "name": "bet_to_match",
+                  "index": null,
+                  "type": "Integer",
+                  "optional": false,
+                  "default": {
+                    "kind": "int",
+                    "value": 0
+                  }
+                },
+                {
+                  "kind": "state_decl",
+                  "name": "level",
                   "index": null,
                   "type": "Integer",
                   "optional": false,
