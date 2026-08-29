@@ -27,7 +27,12 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             per-cell work list, now EMPTY — stage 2 is complete);
             `EMITS_TRACE` (primitives returning events alongside a value);
             `BUILTIN_*` / `PRIMITIVE_*` in `cardlang/builtins/functions.py`
-            (the name axis).
+            (the name axis); the bundle probes' kind axis is
+            `PrimitiveReads`' own fields minus the two that identify a row,
+            and the row they narrow against is SYNTHETIC — declaring one
+            name of every kind, so the shape claim is the fixture's own
+            rather than a reading of whichever kinds the live registry
+            happens to carry while the corpus migrates off it.
 covered:    (a) per-implementation-SITE: the site's signature names no
             forbidden handle — exhaustive over the derived site set (one
             cell per `module::func`, NOT per primitive: the dispatch routes
@@ -150,7 +155,7 @@ from __future__ import annotations
 
 import ast
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, fields as _dc_fields
 from functools import cache
 from pathlib import Path
 from types import MappingProxyType
@@ -814,40 +819,55 @@ def _live_state() -> RuntimeState:
     return rs
 
 
-# The declared-reads row the two bundle probes below narrow against. Chosen by
-# SHAPE, not by name: it must declare at least one of every kind the bundle
-# carries that ANY row declares, so "every declared name present, no undeclared
-# name reachable" is a claim with all of those kinds in it. Doppelkopf's row
-# served until the Trick Order retired it, then Five Hundred's until the same
-# construct retired that one — and with it the last `arrival_zones` declaration
-# in the registry, so that kind is now witnessed by nothing.
-# `test_the_bundle_row_covers_every_declared_kind` is what keeps this a shape
-# choice rather than a name: it derives the kinds in play from the registry, so
-# the day a Primitive declares a kind this row lacks, the pin reddens instead
-# of the corresponding cell below quietly comparing two empty sets.
-_BUNDLE_ROW_MODULE = "cardlang/runtime/skat.py"
+# The declared-reads row the bundle probes below narrow against. SYNTHETIC, and
+# specified by SHAPE: it declares one name of every kind the bundle carries, so
+# "every declared name present, no undeclared name reachable" is a claim with
+# all of those kinds in it. A live registry row cannot serve — the rows are the
+# thing the corpus is migrating off, so any one of them can be deleted by a
+# migration that has no reason to look here, and the kinds a row happens to
+# carry are the game's business, not the fixture's. (Doppelkopf's row served
+# until the Trick Order retired it, then Five Hundred's until the same construct
+# retired that one — and with it the registry's last `arrival_zones`
+# declaration, which is why a registry-derived shape claim could no longer reach
+# that kind at all.)
+#
+# The bundle's kinds, each as the row attribute that declares it — derived from
+# `PrimitiveReads`' own fields minus the two that IDENTIFY a row, so a kind
+# added to the registry's shape lands as a cell rather than as an omission.
+_BUNDLE_KIND_FIELDS = tuple(
+    f.name
+    for f in _dc_fields(PrimitiveReads)
+    if f.name not in ("module", "game_file")
+)
+
+_BUNDLE_ROW = PrimitiveReads(
+    module="cardlang/runtime/probe.py",
+    game_file="probe.cardlang",
+    state_vars=frozenset({"declared_var"}),
+    zone_families=frozenset({"declared_family"}),
+    single_zones=frozenset({"declared_single"}),
+    arrival_zones=frozenset({"declared_single"}),
+)
+
 # A zone family the fixture declares and the row does not — asserted
 # absent from the bundle below. Pinned outside the row by the fixture
 # itself, so the negative witness cannot silently become a name the row
 # grew (which is how it stopped discriminating once before).
 _UNDECLARED_FAMILY = "decoy"
 
-# The bundle's four kinds, each as the row attribute that declares it.
-_BUNDLE_KIND_FIELDS = ("single_zones", "zone_families", "state_vars", "arrival_zones")
-
 
 def _bundle_row() -> PrimitiveReads:
-    return next(r for r in PRIMITIVE_READS if r.module == _BUNDLE_ROW_MODULE)
+    return _BUNDLE_ROW
 
 
 def _bundle_state() -> RuntimeState:
-    """`_live_state` extended with exactly what `_BUNDLE_ROW_MODULE`'s row
-    declares — the row is the fixture's specification, read from the registry
-    rather than transcribed (zones included), so a row that grows a name fails
-    loudly here instead of being silently under-satisfied. Every single zone is
-    declared public because `arrival_zones` is a subset of them and an arrival
-    read requires identity to every observer; the probes below are about the
-    binder's narrowing, not about any one game's zone types."""
+    """`_live_state` extended with exactly what the fixture's row declares — the
+    row is the fixture's specification, read from it rather than transcribed
+    (zones included), so a row that grows a name fails loudly here instead of
+    being silently under-satisfied. Every single zone is declared public because
+    `arrival_zones` is a subset of them and an arrival read requires identity to
+    every observer; the probes below are about the binder's narrowing, not about
+    any one game's zone types."""
     row = _bundle_row()
     decls = (
         *(
@@ -875,21 +895,20 @@ def _bundle_state() -> RuntimeState:
 
 
 def test_the_bundle_row_covers_every_declared_kind() -> None:
-    """The fixture's row is a SHAPE choice, and this is what enforces it: for
-    every bundle kind some row in the registry declares, the chosen row must
-    declare it too. Otherwise that kind's equality below compares two empty
-    sets — a cell reported as covered that cannot fail, which is how this
-    fixture stopped discriminating once before."""
+    """The fixture's row is a SHAPE choice, and this is what enforces it:
+    EVERY kind the bundle carries is declared on it, unconditionally. The
+    condition this once carried — "every kind some registry row declares" —
+    made the guard as narrow as the corpus happened to be, so the day the last
+    row declaring a kind was retired that kind's equality below quietly went
+    back to comparing two empty sets and nothing said so.
+
+    red under: drop `arrival_zones` from `_BUNDLE_ROW`."""
     row = _bundle_row()
-    unmet = [
-        field
-        for field in _BUNDLE_KIND_FIELDS
-        if any(getattr(r, field) for r in PRIMITIVE_READS) and not getattr(row, field)
-    ]
+    assert _BUNDLE_KIND_FIELDS, "the kind axis came up empty — wrong dataclass"
+    unmet = [field for field in _BUNDLE_KIND_FIELDS if not getattr(row, field)]
     assert not unmet, (
-        f"{_BUNDLE_ROW_MODULE} declares no {unmet}, which other rows do — the "
-        f"bundle probes would compare two empty sets for those kinds; pick a "
-        f"row that declares them"
+        f"the fixture's row declares no {unmet} — the bundle probes would "
+        f"compare two empty sets for those kinds; declare one name of each"
     )
 
 
@@ -993,6 +1012,14 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
     assert frozenset(bundle.families) == row.zone_families
     assert frozenset(bundle.state) == row.state_vars
     assert frozenset(bundle.arrivals) == row.arrival_zones
+    # Anti-vacuity for the four equalities above: each compares a NON-EMPTY
+    # pair, so a half the binder stopped materializing fails rather than
+    # agreeing with an empty declaration.
+    empty = [f.name for f in _dc_fields(bundle) if not getattr(bundle, f.name)]
+    assert not empty, (
+        f"the bundle materialized no {empty} — those equalities compare two "
+        f"empty sets; `_BUNDLE_ROW` declares a name of every kind"
+    )
     assert _UNDECLARED_FAMILY not in row.zone_families, (
         f"{_UNDECLARED_FAMILY!r} is in the row now — the negative witness below "
         f"no longer discriminates; pick another name outside the row"
@@ -1012,10 +1039,8 @@ def test_every_bundle_half_refuses_an_absent_name_typed() -> None:
 
     Quantified over `GameReads`' own fields rather than the two halves a
     corpus primitive happens to read, so a fifth half arrives covered."""
-    import dataclasses as _dc
-
     bundle = reads_mod.game_reads(_bundle_state(), _bundle_row())
-    halves = [f.name for f in _dc.fields(bundle)]
+    halves = [f.name for f in _dc_fields(bundle)]
     assert halves, "GameReads carries no half — the cells below would be vacuous"
     for half in halves:
         with pytest.raises(reads_mod.PrimitiveReadError, match="no_such_name"):
