@@ -46,6 +46,11 @@ from . import holdem
 from . import infostate as istate
 from . import layout
 
+#: Pre-change transcripts named the play size in the move type. The committed
+#: archive was recorded against that shape, so the audit still decodes it.
+LEGACY_ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
+
+
 def _stem(path: Path) -> str:
     """The matchup name, with `.jsonl` or `.jsonl.gz` stripped."""
     name = path.name
@@ -171,12 +176,18 @@ def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
             i += 1
             continue
         i += 1
-        if i >= len(decisions):
-            break  # truncated between the announce and its count
-        assert decisions[i]["facts"]["kind"] == "count", "play structure broken"
-        count = int(decisions[i]["action"])
+        if d["action"] in LEGACY_ANNOUNCE_COUNTS:
+            # A PRE-CHANGE transcript: the count was the move type's identity.
+            # Decoded from the ACTION, like the live arm below, so this
+            # re-derivation stays independent of the recorded facts.
+            count = LEGACY_ANNOUNCE_COUNTS[d["action"]]
+        else:
+            if i >= len(decisions):
+                break  # truncated between the announce and its count
+            assert decisions[i]["facts"]["kind"] == "count", "play structure broken"
+            count = int(decisions[i]["action"])
+            i += 1
         cards: list[str] = []
-        i += 1
         while i < len(decisions) and len(cards) < count:
             assert decisions[i]["facts"]["kind"] == "card", "play structure broken"
             cards.append(decisions[i]["action"])
@@ -504,7 +515,26 @@ def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
     from .referee import load_game, replay_views
 
     game = load_game("cardlang_cheat")
-    views = replay_views(game, record["seed"], record["history"])
+    try:
+        views = replay_views(game, record["seed"], record["history"])
+    except ValueError as e:
+        # A DESIGNED limit, not a defect to fix: a history is a sequence of
+        # action IDS, so it only means anything against the action space it
+        # was recorded in. Cheat's changed when the four-card play cap was
+        # removed, and no decoder can bridge that — the old ids name moves the
+        # game no longer has. Refused here, in the auditor's own voice, because
+        # the alternative is this surfacing as an encoder error four frames
+        # down that reads like a bug in the replay.
+        raise SystemExit(
+            f"--deep cannot replay this transcript: {e}\n"
+            f"Its action ids were recorded against a different Cheat action "
+            f"space (the archive predates the removal of the four-card play "
+            f"cap), so replaying them against today's game would not be a "
+            f"weaker audit but a meaningless one. Deep-audit this archive at "
+            f"the tag it was published under. The SHALLOW audit — the same "
+            f"command without --deep — recomputes every published number from "
+            f"the transcript itself and still covers it."
+        ) from e
     out = []
     for view, d in zip(views, record["decisions"], strict=True):
         assert view.player == d["player"], "replay diverged from the transcript"

@@ -153,26 +153,34 @@ def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
             i += 1
             continue
         i += 1
-        # The count is its own decision, immediately after the announce. A
-        # transcript truncated between the two is a play that never happened.
-        if i >= len(decisions):
-            break
-        cnt = decisions[i]
-        if cnt["facts"].get("kind") != "count":
-            raise ValueError(
-                f"the play announced at step {d['step']} was followed by a "
-                f"{cnt['facts'].get('kind')!r} decision, not the count "
-                f"— the transcript does not match Cheat's move structure"
-            )
+        if "claimed_count" in facts:
+            # A PRE-CHANGE transcript: the play size was the move type, so the
+            # count rode on the announce and no count decision was recorded.
+            # Read here so the documented audit keeps covering the published
+            # archive, which was recorded against that shape.
+            claimed_count = facts["claimed_count"]
+        else:
+            # The count is its own decision, immediately after the announce. A
+            # transcript truncated between the two is a play that never happened.
+            if i >= len(decisions):
+                break
+            cnt = decisions[i]
+            if cnt["facts"].get("kind") != "count":
+                raise ValueError(
+                    f"the play announced at step {d['step']} was followed by a "
+                    f"{cnt['facts'].get('kind')!r} decision, not the count "
+                    f"— the transcript does not match Cheat's move structure"
+                )
+            claimed_count = cnt["facts"]["claimed_count"]
+            i += 1
         play = Play(
             actor=d["player"],
             claim_rank=facts["claim_rank"],
-            claimed_count=cnt["facts"]["claimed_count"],
+            claimed_count=claimed_count,
             truthful_available=facts["truthful_available"],
-            hand_size=cnt["facts"]["hand_size"],
+            hand_size=facts["hand_size"],
             cards=[],
         )
-        i += 1
         while i < len(decisions) and len(play.cards) < play.claimed_count:
             nxt = decisions[i]
             if nxt["facts"].get("kind") != "card":
