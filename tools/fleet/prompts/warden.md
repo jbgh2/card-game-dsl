@@ -37,9 +37,15 @@ execute its round exactly as chartered:
    (tip-SHA) marker and only for refs with no commits absent from main
    and no open PR — stale refs WITH unique commits are flagged to the
    operator, never deleted.
-4. Produce the counts report: flagged, skipped-as-already-flagged,
-   cleared, reaped, escalated, filed — and every DENIED command, if any.
-5. WRITE the report to the run-report file the run instructions name,
+4. Run ./tools/branch-sweep.sh once — the one acting script (the
+   charter's Branch sweep chore owns the semantics; every deletion is
+   self-guarded). Its `kept` and `remains` lines go into the report
+   verbatim; never re-attempt a deletion it refused, and never spell
+   any `git branch` deletion yourself.
+5. Produce the counts report: flagged, skipped-as-already-flagged,
+   cleared, reaped, swept, escalated, filed — and every DENIED command,
+   if any.
+6. WRITE the report to the run-report file the run instructions name,
    carrying the run marker they give; the wrapper appends it to the fleet
    ledger (`logs/ledger.md`) — the fleet's local record and the review
    desk's inbox. This is the primary channel (session messaging does not

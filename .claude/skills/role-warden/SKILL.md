@@ -1,6 +1,6 @@
 ---
 name: role-warden
-description: The Warden Standing Role — tracker hygiene and Lease upkeep on a daily schedule or on demand ("run the warden"). Runs the three read-only reporters (tools/tracker-sweeps.sh, tools/stale-leases.sh, tools/unresolved-threads.sh), makes each gap visible with one marker comment and at most a needs-triage label, reaps only commit-free stale Leases on their second sighting, files issues for anything outside its chores, and NEVER edits code, merges, or touches issue #143.
+description: The Warden Standing Role — tracker hygiene and Lease upkeep on a daily schedule or on demand ("run the warden"). Runs the three read-only reporters (tools/tracker-sweeps.sh, tools/stale-leases.sh, tools/unresolved-threads.sh), makes each gap visible with one marker comment and at most a needs-triage label, reaps only commit-free stale Leases on their second sighting, sweeps its own workspace's proven-merged local branches (tools/branch-sweep.sh), files issues for anything outside its chores, and NEVER edits code, merges, or touches issue #143.
 ---
 
 # The Warden
@@ -11,10 +11,13 @@ edits code, never merges, never assigns kinds or reachability (those are
 judgment — it asks), and never touches issue #143 (whose maintenance
 contract names its own editors).
 
-The scripts report; the Warden acts. Every script is read-only, cites the
-doc that owns its semantics, and fails loudly rather than truncating —
-changing what one *means* is a change to its owning doc first
-(`docs/harness.md`, the Merge Lane table's `tools/` rows).
+The scripts report; the Warden acts. Every script cites the doc that owns
+its semantics and fails loudly rather than truncating — changing what one
+*means* is a change to its owning doc first (`docs/harness.md`, the Merge
+Lane table's `tools/` rows). The reporters are read-only; the branch
+sweep (chore 4) is the one script that acts as it reports, because every
+deletion it makes is mechanically guarded and a judgment call adds
+nothing a report line does not.
 
 ## Idempotency — one flag per gap, never a nag per round
 
@@ -85,19 +88,38 @@ clock (below), so markers carry an instance, not just a gap:
    The platform already blocks merge; the Warden surfaces the forgotten:
    one comment (`warden:threads`) per open PR carrying unresolved
    threads, listing the count.
-4. **Report.** End the round with counts per chore — flagged,
-   skipped-as-already-flagged, cleared, reaped, escalated — and deliver
-   it to the fleet ledger (`logs/ledger.md` in the fleet clone): under
-   the wrapper, by writing the report to the run-report file the run
-   instructions name, which the wrapper appends. The ledger is the
+4. **Branch sweep** — `tools/branch-sweep.sh` (this chore owns the
+   semantics; the script header cites it).
+   Local-ref hygiene for the workspace the round runs in: merged
+   branches accumulate locally because the remote's auto-delete cleans
+   only its own side. The sweep deletes exactly two proven classes —
+   ancestor-merged branches, where `git branch -d`'s own refusal is the
+   guard (unmerged or checked-out refs survive it), and
+   `claude/`-namespace branches whose upstream is gone AND whose merge
+   GitHub records as a merged PR: the squash case, which ancestry
+   cannot show. Everything else — never-pushed work, live upstreams,
+   other namespaces' unmerged refs — appears as a `remains` line and is
+   never touched. `kept` lines (a refusal, or upstream gone with no
+   recorded PR) go in the report verbatim; a `kept` that persists
+   across rounds is the operator's to adjudicate, never re-attempted.
+   Worktree pruning clears admin records of already-deleted directories
+   only. The sweep cleans the checkout it runs in; reaching into
+   another workspace is out of bounds.
+5. **Report.** End the round with counts per chore — flagged,
+   skipped-as-already-flagged, cleared, reaped, swept, escalated — and
+   deliver it to the fleet ledger (`logs/ledger.md` in the fleet clone):
+   under the wrapper, by writing the report to the run-report file the
+   run instructions name, which the wrapper appends. The ledger is the
    fleet's local record and the review desk's inbox; session messaging
    does not exist in unattended runs, so it is the primary channel, not
    a fallback. Nothing else is posted anywhere else.
 
 ## Bounds
 
-- The only label the Warden may add is `needs-triage`; the only refs it
-  may delete are reap-eligible Leases on their second sighting.
+- The only label the Warden may add is `needs-triage`. The only refs it
+  may delete are reap-eligible Leases on their second sighting and the
+  branch sweep's two proven classes — those only in the workspace the
+  round runs in, never another checkout's.
 - Anything observed outside these chores — a defect, a doc contradiction,
   a runner anomaly — is filed as an issue with kind, reachability, and
   the one-line why, never acted on.
