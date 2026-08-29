@@ -1,0 +1,736 @@
+{
+  "curve": "base",
+  "seed_start": 2000,
+  "seeds_per_seating": 500,
+  "tuning": {
+    "game": "salvo.cardlang",
+    "base": 13,
+    "combos": true,
+    "results": "results_triage_base_r5.json",
+    "won_margin": 25.0,
+    "lost_margin": 25.0,
+    "overkill_w": 0.15,
+    "lostcause_w": 0.2,
+    "urgency_w": 1.0,
+    "opp_staged_est": 11.0,
+    "hold_below": 11.0
+  },
+  "pairings": [
+    {
+      "pairing": "random vs random",
+      "games": 1000,
+      "win_rate": {
+        "random": 0.998,
+        "draw": 0.002
+      },
+      "seat_win_rate": {
+        "0": 0.514,
+        "1": 0.484,
+        "draw": 0.002
+      },
+      "mean_locs_won": {
+        "random": 1.463
+      },
+      "margin_mean": 15.37,
+      "margin_median": 13.0,
+      "unclaimed_rate_per_loc": 0.0247,
+      "mean_commits": {
+        "random": 7.62
+      },
+      "mean_holds": {
+        "random": 2.8
+      },
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 788,
+        "trips": 22,
+        "quads": 0,
+        "run3": 214,
+        "run4": 10,
+        "run5": 0,
+        "flush3": 292,
+        "flush4": 18,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.1313,
+        "trips": 0.0037,
+        "quads": 0.0,
+        "run3": 0.0357,
+        "run4": 0.0017,
+        "run5": 0.0,
+        "flush3": 0.0487,
+        "flush4": 0.003,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 150748,
+        "combo_points": 6422,
+        "joker_points": 7150,
+        "joker_cards": 550,
+        "joker_armies": 540
+      },
+      "combo_points_share": 0.0426,
+      "joker_points_share": 0.0474,
+      "joker_rate_per_army": 0.09,
+      "joker_cards_per_game": 0.55
+    },
+    {
+      "pairing": "blind vs random",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.979,
+        "random": 0.021,
+        "draw": 0.0
+      },
+      "seat_win_rate": {
+        "0": 0.499,
+        "1": 0.501,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "blind": 2.62
+      },
+      "margin_mean": 22.48,
+      "margin_median": 21.0,
+      "unclaimed_rate_per_loc": 0.0147,
+      "mean_commits": {
+        "blind": 11,
+        "random": 7.6
+      },
+      "mean_holds": {
+        "blind": 1,
+        "random": 2.8
+      },
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1480,
+        "trips": 74,
+        "quads": 0,
+        "run3": 525,
+        "run4": 83,
+        "run5": 0,
+        "flush3": 695,
+        "flush4": 85,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.2467,
+        "trips": 0.0123,
+        "quads": 0.0,
+        "run3": 0.0875,
+        "run4": 0.0138,
+        "run5": 0.0,
+        "flush3": 0.1158,
+        "flush4": 0.0142,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 211702,
+        "combo_points": 15028,
+        "joker_points": 8944,
+        "joker_cards": 688,
+        "joker_armies": 656
+      },
+      "combo_points_share": 0.071,
+      "joker_points_share": 0.0422,
+      "joker_rate_per_army": 0.1093,
+      "joker_cards_per_game": 0.688
+    },
+    {
+      "pairing": "sighted vs random",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.982,
+        "random": 0.018,
+        "draw": 0.0
+      },
+      "seat_win_rate": {
+        "0": 0.504,
+        "1": 0.496,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 2.569
+      },
+      "margin_mean": 22.33,
+      "margin_median": 23.0,
+      "unclaimed_rate_per_loc": 0.0097,
+      "mean_commits": {
+        "sighted": 9.66,
+        "random": 7.6
+      },
+      "mean_holds": {
+        "sighted": 1.81,
+        "random": 2.8
+      },
+      "sighted_divergence_rate": 0.1635,
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1340,
+        "trips": 77,
+        "quads": 0,
+        "run3": 517,
+        "run4": 90,
+        "run5": 0,
+        "flush3": 543,
+        "flush4": 62,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.2233,
+        "trips": 0.0128,
+        "quads": 0.0,
+        "run3": 0.0862,
+        "run4": 0.015,
+        "run5": 0.0,
+        "flush3": 0.0905,
+        "flush4": 0.0103,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 205269,
+        "combo_points": 13559,
+        "joker_points": 9880,
+        "joker_cards": 760,
+        "joker_armies": 721
+      },
+      "combo_points_share": 0.0661,
+      "joker_points_share": 0.0481,
+      "joker_rate_per_army": 0.1202,
+      "joker_cards_per_game": 0.76
+    },
+    {
+      "pairing": "sighted vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.594,
+        "blind": 0.406,
+        "draw": 0.0
+      },
+      "seat_win_rate": {
+        "0": 0.474,
+        "1": 0.526,
+        "draw": 0.0
+      },
+      "mean_locs_won": {
+        "sighted": 1.57
+      },
+      "margin_mean": 18.64,
+      "margin_median": 15.0,
+      "unclaimed_rate_per_loc": 0.0257,
+      "mean_commits": {
+        "sighted": 9.34,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted": 2.01,
+        "blind": 1
+      },
+      "sighted_divergence_rate": 0.1808,
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1988,
+        "trips": 150,
+        "quads": 2,
+        "run3": 882,
+        "run4": 165,
+        "run5": 0,
+        "flush3": 916,
+        "flush4": 126,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.3313,
+        "trips": 0.025,
+        "quads": 0.0003,
+        "run3": 0.147,
+        "run4": 0.0275,
+        "run5": 0.0,
+        "flush3": 0.1527,
+        "flush4": 0.021,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 263292,
+        "combo_points": 22448,
+        "joker_points": 12077,
+        "joker_cards": 929,
+        "joker_armies": 869
+      },
+      "combo_points_share": 0.0853,
+      "joker_points_share": 0.0459,
+      "joker_rate_per_army": 0.1448,
+      "joker_cards_per_game": 0.929
+    },
+    {
+      "pairing": "sighted_nohold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "sighted_nohold": 0.486,
+        "blind": 0.511,
+        "draw": 0.003
+      },
+      "seat_win_rate": {
+        "0": 0.463,
+        "1": 0.534,
+        "draw": 0.003
+      },
+      "mean_locs_won": {
+        "sighted_nohold": 1.427
+      },
+      "margin_mean": 12.99,
+      "margin_median": 11.0,
+      "unclaimed_rate_per_loc": 0.0327,
+      "mean_commits": {
+        "sighted_nohold": 11,
+        "blind": 11
+      },
+      "mean_holds": {
+        "sighted_nohold": 1,
+        "blind": 1
+      },
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 2022,
+        "trips": 109,
+        "quads": 0,
+        "run3": 845,
+        "run4": 143,
+        "run5": 0,
+        "flush3": 989,
+        "flush4": 137,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.337,
+        "trips": 0.0182,
+        "quads": 0.0,
+        "run3": 0.1408,
+        "run4": 0.0238,
+        "run5": 0.0,
+        "flush3": 0.1648,
+        "flush4": 0.0228,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 268536,
+        "combo_points": 22074,
+        "joker_points": 11180,
+        "joker_cards": 860,
+        "joker_armies": 807
+      },
+      "combo_points_share": 0.0822,
+      "joker_points_share": 0.0416,
+      "joker_rate_per_army": 0.1345,
+      "joker_cards_per_game": 0.86
+    },
+    {
+      "pairing": "sighted vs sighted_nohold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.558,
+        "sighted_nohold": 0.441,
+        "draw": 0.001
+      },
+      "seat_win_rate": {
+        "0": 0.476,
+        "1": 0.523,
+        "draw": 0.001
+      },
+      "mean_locs_won": {
+        "sighted": 1.525
+      },
+      "margin_mean": 16.92,
+      "margin_median": 14.0,
+      "unclaimed_rate_per_loc": 0.025,
+      "mean_commits": {
+        "sighted": 9.17,
+        "sighted_nohold": 11
+      },
+      "mean_holds": {
+        "sighted": 2.03,
+        "sighted_nohold": 1
+      },
+      "sighted_divergence_rate": 0.1888,
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1888,
+        "trips": 113,
+        "quads": 2,
+        "run3": 798,
+        "run4": 138,
+        "run5": 0,
+        "flush3": 849,
+        "flush4": 100,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.3147,
+        "trips": 0.0188,
+        "quads": 0.0003,
+        "run3": 0.133,
+        "run4": 0.023,
+        "run5": 0.0,
+        "flush3": 0.1415,
+        "flush4": 0.0167,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 255303,
+        "combo_points": 20261,
+        "joker_points": 12103,
+        "joker_cards": 931,
+        "joker_armies": 870
+      },
+      "combo_points_share": 0.0794,
+      "joker_points_share": 0.0474,
+      "joker_rate_per_army": 0.145,
+      "joker_cards_per_game": 0.931
+    },
+    {
+      "pairing": "blind vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind": 0.998,
+        "draw": 0.002
+      },
+      "seat_win_rate": {
+        "0": 0.478,
+        "1": 0.52,
+        "draw": 0.002
+      },
+      "mean_locs_won": {
+        "blind": 1.444
+      },
+      "margin_mean": 11.82,
+      "margin_median": 9.0,
+      "unclaimed_rate_per_loc": 0.0373,
+      "mean_commits": {
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind": 1
+      },
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 2082,
+        "trips": 126,
+        "quads": 0,
+        "run3": 880,
+        "run4": 162,
+        "run5": 0,
+        "flush3": 1024,
+        "flush4": 164,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.347,
+        "trips": 0.021,
+        "quads": 0.0,
+        "run3": 0.1467,
+        "run4": 0.027,
+        "run5": 0.0,
+        "flush3": 0.1707,
+        "flush4": 0.0273,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 272962,
+        "combo_points": 23336,
+        "joker_points": 11180,
+        "joker_cards": 860,
+        "joker_armies": 800
+      },
+      "combo_points_share": 0.0855,
+      "joker_points_share": 0.041,
+      "joker_rate_per_army": 0.1333,
+      "joker_cards_per_game": 0.86
+    },
+    {
+      "pairing": "sighted vs sighted",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.996,
+        "draw": 0.004
+      },
+      "seat_win_rate": {
+        "0": 0.48,
+        "1": 0.516,
+        "draw": 0.004
+      },
+      "mean_locs_won": {
+        "sighted": 1.467
+      },
+      "margin_mean": 18.56,
+      "margin_median": 18.0,
+      "unclaimed_rate_per_loc": 0.022,
+      "mean_commits": {
+        "sighted": 8.67
+      },
+      "mean_holds": {
+        "sighted": 2.27
+      },
+      "sighted_divergence_rate": 0.2142,
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1568,
+        "trips": 110,
+        "quads": 4,
+        "run3": 748,
+        "run4": 128,
+        "run5": 0,
+        "flush3": 682,
+        "flush4": 68,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.2613,
+        "trips": 0.0183,
+        "quads": 0.0007,
+        "run3": 0.1247,
+        "run4": 0.0213,
+        "run5": 0.0,
+        "flush3": 0.1137,
+        "flush4": 0.0113,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 234168,
+        "combo_points": 17462,
+        "joker_points": 13208,
+        "joker_cards": 1016,
+        "joker_armies": 946
+      },
+      "combo_points_share": 0.0746,
+      "joker_points_share": 0.0564,
+      "joker_rate_per_army": 0.1577,
+      "joker_cards_per_game": 1.016
+    },
+    {
+      "pairing": "blind_hold vs blind",
+      "games": 1000,
+      "win_rate": {
+        "blind_hold": 0.547,
+        "blind": 0.452,
+        "draw": 0.001
+      },
+      "seat_win_rate": {
+        "0": 0.47,
+        "1": 0.529,
+        "draw": 0.001
+      },
+      "mean_locs_won": {
+        "blind_hold": 1.509
+      },
+      "margin_mean": 13.14,
+      "margin_median": 11.0,
+      "unclaimed_rate_per_loc": 0.031,
+      "mean_commits": {
+        "blind_hold": 10.08,
+        "blind": 11
+      },
+      "mean_holds": {
+        "blind_hold": 1.58,
+        "blind": 1
+      },
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 2072,
+        "trips": 144,
+        "quads": 3,
+        "run3": 902,
+        "run4": 174,
+        "run5": 0,
+        "flush3": 936,
+        "flush4": 142,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.3453,
+        "trips": 0.024,
+        "quads": 0.0005,
+        "run3": 0.1503,
+        "run4": 0.029,
+        "run5": 0.0,
+        "flush3": 0.156,
+        "flush4": 0.0237,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 272586,
+        "combo_points": 23186,
+        "joker_points": 11921,
+        "joker_cards": 917,
+        "joker_armies": 851
+      },
+      "combo_points_share": 0.0851,
+      "joker_points_share": 0.0437,
+      "joker_rate_per_army": 0.1418,
+      "joker_cards_per_game": 0.917
+    },
+    {
+      "pairing": "sighted vs blind_hold",
+      "games": 1000,
+      "win_rate": {
+        "sighted": 0.518,
+        "blind_hold": 0.478,
+        "draw": 0.004
+      },
+      "seat_win_rate": {
+        "0": 0.472,
+        "1": 0.524,
+        "draw": 0.004
+      },
+      "mean_locs_won": {
+        "sighted": 1.492
+      },
+      "margin_mean": 18.98,
+      "margin_median": 15.0,
+      "unclaimed_rate_per_loc": 0.022,
+      "mean_commits": {
+        "sighted": 9.23,
+        "blind_hold": 10.08
+      },
+      "mean_holds": {
+        "sighted": 2.06,
+        "blind_hold": 1.58
+      },
+      "sighted_divergence_rate": 0.1843,
+      "combo_points_table": {
+        "pair": 4,
+        "trips": 12,
+        "quads": 20,
+        "run3": 6,
+        "run4": 10,
+        "run5": 15,
+        "flush3": 5,
+        "flush4": 9,
+        "flush5": 14
+      },
+      "combo_incidence": {
+        "pair": 1892,
+        "trips": 151,
+        "quads": 6,
+        "run3": 903,
+        "run4": 176,
+        "run5": 0,
+        "flush3": 843,
+        "flush4": 111,
+        "flush5": 0
+      },
+      "combo_rate_per_army": {
+        "pair": 0.3153,
+        "trips": 0.0252,
+        "quads": 0.001,
+        "run3": 0.1505,
+        "run4": 0.0293,
+        "run5": 0.0,
+        "flush3": 0.1405,
+        "flush4": 0.0185,
+        "flush5": 0.0
+      },
+      "settle_tally": {
+        "army_points": 261313,
+        "combo_points": 21892,
+        "joker_points": 12818,
+        "joker_cards": 986,
+        "joker_armies": 916
+      },
+      "combo_points_share": 0.0838,
+      "joker_points_share": 0.0491,
+      "joker_rate_per_army": 0.1527,
+      "joker_cards_per_game": 0.986
+    }
+  ]
+}
