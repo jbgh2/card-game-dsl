@@ -146,11 +146,18 @@ def bind(
     actor: Player | None,
     r: reads.PrimitiveReads,
     keys: Mapping[str, int | str] | None = None,
+    primitive: str | None = None,
 ) -> PrimitiveBundle:
     """The dispatch layer's one call: both bundles for one primitive call.
 
     `keys` narrows an INDEXED declared read to the one instance a call names —
     the granularity a `primitives { }` entry's `reads hand[p]` buys, applied
     per call because the key is an argument. None materializes the whole row,
-    which is what a module-granular declaration means."""
-    return PrimitiveBundle(engine_facts(rs, actor), reads.game_reads(rs, r, keys))
+    which is what a module-granular declaration means.
+
+    `primitive` is the DECLARED entry's name, passed by the declared dispatch
+    alone: it is what a read-miss message names, since a declared entry's fix
+    is its own `reads` clause and an authored row's is the registry."""
+    return PrimitiveBundle(
+        engine_facts(rs, actor), reads.game_reads(rs, r, keys, primitive)
+    )

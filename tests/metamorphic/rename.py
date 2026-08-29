@@ -143,8 +143,8 @@ def _coupled_names(game: n.Game, game_file: str) -> frozenset[str]:
 
     * A game with a `primitives { }` block declares its Primitive reads in its
       own file, so the declaration renames WITH the zone — one edit, one file,
-      and the checker refuses a `reads` name that no longer resolves. Nothing
-      is excluded, and the transform covers names it used to have to skip.
+      and the checker refuses a `reads` name that resolves to nothing. Nothing
+      is excluded: every name of such a game is in this transform's reach.
     * A game without one is coupled to `PRIMITIVE_READS`, which this transform
       cannot rewrite: the rows are authored Python in the language package.
       Those names stay excluded, derived from the registry.
