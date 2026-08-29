@@ -30,7 +30,7 @@ from collections.abc import Mapping
 from cardlang.runtime import reads
 from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import Card, Player, rank_strength
 
 # The joker as this deck spells it: `standard54` gives both jokers their own
 # suit and rank, outside the suits x ranks cross product
@@ -75,10 +75,20 @@ def run_bonus(cards: list[Card], rank_index: Mapping[str, int]) -> int:
     DESIGN.md describes however the ranking places the joker. The ladder does
     not wrap: A-2-3 is a run and Q-K-A is not, which is the reason Salvo's
     extreme location targets price the deck unevenly at all. Duplicate ranks
-    collapse — a run is a set of ranks, not of cards."""
+    collapse — a run is a set of ranks, not of cards.
+
+    The per-card strength goes through `rank_strength`, the ONE lookup every
+    `rank_index` consumer routes through: a `ranking:` may be a partial
+    permutation of the deck, and an army holding a card it does not rank is
+    the game author's to fix, in the runtime's own typed channel."""
     scale = sorted({v for r, v in rank_index.items() if r != JOKER_RANK})
     position = {v: i for i, v in enumerate(scale)}
-    held = sorted({position[rank_index[c.rank]] for c in naturals(cards)})
+    held = sorted(
+        {
+            position[rank_strength(rank_index, c.rank, "salvo_combos")]
+            for c in naturals(cards)
+        }
+    )
     longest = run = 0
     for i, p in enumerate(held):
         run = run + 1 if i and p == held[i - 1] + 1 else 1

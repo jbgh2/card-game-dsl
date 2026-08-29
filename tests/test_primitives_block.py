@@ -133,8 +133,11 @@ Each class was derived and rowed before its fix, on the same order.
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import functools
+import importlib
+import inspect
 import pathlib
 import random
 import typing
@@ -249,14 +252,126 @@ def test_every_indexed_implementation_resolves(name: str) -> None:
     strings answerable.
 
     red under: misspell any row's `attribute`."""
-    import importlib
-
     impl = PRIMITIVE_IMPLEMENTATIONS[name]
     module = importlib.import_module(impl.module)
     assert callable(getattr(module, impl.attribute, None)), (
         f"{impl.module}.{impl.attribute} — the index names it for {name!r}, "
         f"and the module does not define it"
     )
+
+
+# --- the ranking gate, derived from the implementations ----------------------
+
+
+@functools.cache
+def _module_function_sources(module: str) -> dict[str, str]:
+    """One runtime module's own top-level functions, name -> source text.
+
+    Functions the module IMPORTS are excluded (`__module__` keys them), so a
+    walk that follows a call name stays inside the home module."""
+    mod = importlib.import_module(module)
+    return {
+        attr: inspect.getsource(obj)
+        for attr, obj in vars(mod).items()
+        if inspect.isfunction(obj) and getattr(obj, "__module__", None) == module
+    }
+
+
+def _implementation_source(name: str) -> str:
+    """The Python one registered Primitive runs, as text: its entry point plus
+    every top-level function of its home module reachable from it by call name.
+
+    The closure is what makes the read visible when the entry point delegates —
+    a scrape of the entry point alone would miss a helper's read, and a scrape
+    of the whole module would report every sibling that merely shares the
+    file."""
+    impl = PRIMITIVE_IMPLEMENTATIONS[name]
+    sources = _module_function_sources(impl.module)
+    seen: set[str] = set()
+    frontier = [impl.attribute]
+    chunks: list[str] = []
+    while frontier:
+        attr = frontier.pop()
+        if attr in seen or attr not in sources:
+            continue
+        seen.add(attr)
+        chunks.append(sources[attr])
+        for node in ast.walk(ast.parse(sources[attr])):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                frontier.append(node.func.id)
+    assert seen, (
+        f"{name}: the index names {impl.module}.{impl.attribute}, which is not "
+        f"a top-level function of that module — the scrape below would report "
+        f"it as reading nothing"
+    )
+    return "\n".join(chunks)
+
+
+def _rank_index_readers() -> frozenset[str]:
+    """Every registered Primitive whose Python names `rank_index`. The domain
+    is the whole index — `_implementation_source` refuses a row it cannot
+    resolve, so a green here cannot come from a shrunken one."""
+    return frozenset(
+        name
+        for name in PRIMITIVE_IMPLEMENTATIONS
+        if "rank_index" in _implementation_source(name)
+    )
+
+
+def test_every_rank_index_reading_primitive_is_ranking_gated() -> None:
+    """A Primitive that reads the declared rank order is gated on the game
+    declaring one.
+
+    property:   membership of `typecheck.RANKING_GATED_FUNCS` covers every
+                registered Primitive whose implementation reads a rank index.
+                Nothing derives that membership today — a name is added by
+                hand — so an ungated reader checks clean in a game with no
+                `ranking:` and meets an empty order at playout.
+    domain:     `PRIMITIVE_IMPLEMENTATIONS`, every row, resolved to the source
+                of the Python it names.
+    registry:   the gate is `cardlang/typecheck.py`'s `RANKING_GATED_FUNCS`;
+                the reader set is derived from the index rather than listed,
+                so a Primitive registered later is scraped without an edit
+                here.
+    does not prove: only that the NAME is gated. That the reader also reaches
+                the runtime's typed channel on a PARTIAL `ranking:` is
+                tests/test_trump_slot_class.py's driver grid, whose member
+                axis is this registry's union with the two slot registries.
+                And the walk follows call names inside the implementation's
+                own home module: a reader that takes the order under some
+                other name and hands it to a function in a DIFFERENT module
+                names `rank_index` nowhere the walk looks. No registered
+                Primitive is shaped that way; the shape is what a green here
+                does not exclude.
+
+    red under: drop `salvo_combos` from `RANKING_GATED_FUNCS`."""
+    from cardlang.typecheck import RANKING_GATED_FUNCS
+
+    ungated = _rank_index_readers() - RANKING_GATED_FUNCS
+    assert not ungated, (
+        f"registered Primitives reading a rank index but ungated: "
+        f"{sorted(ungated)} — add each to `typecheck.RANKING_GATED_FUNCS` "
+        f"(and give it a driver in tests/test_trump_slot_class.py)"
+    )
+
+
+def test_the_rank_index_scrape_sees_a_reader_and_separates_two_file_mates() -> None:
+    """Anti-vacuity floor and discrimination floor in one, because the pin
+    above is a SUBSET assertion: an empty reader set satisfies it vacuously,
+    and a module-granular scrape satisfies it by over-reporting.
+
+    The control pair is the two cribbage pegging scorers, which share
+    `cardlang/runtime/cribbage.py` and sit on opposite sides of typecheck's
+    own census — `peg_run_points` reads the order to find a run,
+    `peg_pair_points` compares ranks for equality and reads no order. A
+    scrape that reported both would be answering about the FILE.
+
+    red under: read the whole module's source instead of the call closure —
+    `peg_pair_points` joins the reader set."""
+    readers = _rank_index_readers()
+    assert readers, "the scrape found no reader at all"
+    assert "peg_run_points" in readers, sorted(readers)
+    assert "peg_pair_points" not in readers, sorted(readers)
 
 
 def test_every_invocation_contract_has_a_member() -> None:
