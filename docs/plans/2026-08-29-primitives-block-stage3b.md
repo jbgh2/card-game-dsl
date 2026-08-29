@@ -83,9 +83,16 @@ co-location stage's declaration slots (#142 stage 4).
    into the ledger (each predicate is an intersection, so a third membership
    never un-refuses — pairwise covers every multi-membership vector), one
    three-way probe, the phase axis crossed with BOTH zone kinds, self-pair
-   cells citing `_check_duplicate_names` as their Owner, and one
-   uses-spliced-zone cell (the block check runs after `_apply_uses`, so
-   library-contributed zones are in the collision domain). The diagnostic's
+   cells citing `_check_duplicate_names` as their Owner, and the library
+   path's boundary. That boundary is narrower than the counsel's
+   "uses-spliced-zone cell", which is not constructible: `?library_item`
+   holds no `zones` clause, so no library contributes a zone to any
+   collision, and `test_the_collision_namespace_axis_is_derived` reads that
+   off the grammar so the day one does, the gap reddens. What a library DOES
+   reach is provided STATE — spliced into the game's own `state { }` before
+   the block is checked, so a `reads` name classifies against it — and every
+   collision between a provided name and a game's own declaration is refused
+   upstream by `_apply_uses`'s own Owner Guards. The diagnostic's
    message is pinned in the blessed-snapshot rejection harness; the grid
    module's over-crediting ledger sentence is corrected to the guard's new
    truth; `primitives_block.py`'s Contract Establishes clause gains the read

@@ -1045,6 +1045,13 @@ def test_every_bundle_half_refuses_an_absent_name_typed() -> None:
     for half in halves:
         with pytest.raises(reads_mod.PrimitiveReadError, match="no_such_name"):
             getattr(bundle, half)["no_such_name"]
+        # `.get` is the second read form the mapping protocol offers, and
+        # `dict.__missing__` does not reach it: unguarded it answers `None`,
+        # which reads exactly like a declared name whose value is absent.
+        with pytest.raises(reads_mod.PrimitiveReadError, match="no_such_name"):
+            getattr(bundle, half).get("no_such_name")
+        with pytest.raises(reads_mod.PrimitiveReadError, match="no_such_name"):
+            getattr(bundle, half).get("no_such_name", "a default")
 
 
 def test_a_bundle_half_stays_immutable_and_iterable() -> None:

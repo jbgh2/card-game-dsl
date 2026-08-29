@@ -272,7 +272,17 @@ and own-definition collisions, the five round-slot namespaces the block
 does not cover, declared types against the spellable set, and every
 `reads` name classified against the game's own `zones { }` and
 `state { }` by one exhaustive classifier — and declared-but-unimplemented
-is a compile diagnostic against the names-only implementation index.
+is a compile diagnostic against the names-only implementation index. A
+`reads` name denotes ONE declaration: the clause is a single flat
+namespace over the four a keyed name can be declared in (the game's
+`state { }`, a phase's, an indexed `zones { }` declaration, an unindexed
+one), and a name in two of them is refused with the collision named,
+including the cross-level pair the classification alone cannot reveal —
+a phase's state variable against a zone, which classifies silently as
+the zone. Whether a declared read SUFFICES for its implementation is a
+fact about Python and stays the playout's to answer; it answers in the
+declaration's own typed channel, naming the primitive and the clause to
+extend.
 Typecheck materializes the declared `Sig`, and it is that signature the
 runtime's `coerce_args` freezes against. The driver builds the dispatch
 table at load, so a declared primitive has no hand-written arm; a

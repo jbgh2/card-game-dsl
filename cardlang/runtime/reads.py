@@ -491,6 +491,17 @@ class _BundleHalf(dict[str, Any]):
         self._row = row
         self._primitive = primitive
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """A miss refuses here too, default or no default.
+
+        `dict.__missing__` fires on the SUBSCRIPT alone, so `.get` would walk
+        past the whole guarantee and hand back `None` — an undeclared read
+        reading exactly like a declared one whose value happens to be absent,
+        which is the silent-wrong-answer shape this half exists to close. What
+        a bundle carries is not a question with a sensible default: the
+        declaration answers it exactly."""
+        return self[key]
+
     def __missing__(self, key: str) -> Any:
         if self._primitive is not None:
             raise PrimitiveReadError(

@@ -4791,6 +4791,15 @@ def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
         | {d.name for d in game.defines}
         | {r.name for r in game.rules}
     )
+    # The four name-membership sets, computed ONCE for the block: each is a
+    # walk of the game's declarations, so the question they answer is about the
+    # game — the same answer for every entry and every read in it.
+    collisions = _ReadCollisions(
+        ambiguous=ambiguous_read_names(game),
+        shadowed=shadowed_state_names(game),
+        phase_zone=phase_state_zone_names(game),
+        phase_local=phase_local_state_names(game),
+    )
     seen: set[str] = set()
     for decl in game.primitives.decls:
         _check_primitive_name(game, decl, own_definitions, seen, bag)
@@ -4808,7 +4817,7 @@ def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
                     f"issue #472 tracks the shapes that have no spelling",
                     decl.span,
                 )
-        _check_primitive_reads(game, decl, bag)
+        _check_primitive_reads(game, decl, collisions, bag)
 
 
 def _check_primitive_name(
@@ -4880,8 +4889,25 @@ def _phase_list(phases: frozenset[str]) -> str:
     return f"phase `{names}`" if len(phases) == 1 else f"phases `{names}`"
 
 
+@dataclass(frozen=True, slots=True)
+class _ReadCollisions:
+    """The name-membership sets a `reads` clause is checked against.
+
+    Held as one value because they answer about the GAME, not about any one
+    entry or read: each is a walk of the game's declarations, so computing them
+    per read would re-walk the whole game per name."""
+
+    ambiguous: frozenset[str]
+    shadowed: frozenset[str]
+    phase_zone: frozenset[str]
+    phase_local: frozenset[str]
+
+
 def _check_primitive_reads(
-    game: n.Game, decl: n.PrimitiveDecl, bag: DiagnosticBag
+    game: n.Game,
+    decl: n.PrimitiveDecl,
+    collisions: _ReadCollisions,
+    bag: DiagnosticBag,
 ) -> None:
     """One entry's `reads` clause: every name classified, every binder bound.
 
@@ -4936,18 +4962,11 @@ def _check_primitive_reads(
             decl.span,
         )
         return
-    # The four name-membership sets, computed ONCE for the clause: each is a
-    # walk of the game's declarations, and the question they answer is about the
-    # game, not about the read — asking per read would re-walk the whole game
-    # per name. They are consulted BEFORE `classify_read`, which is
+    # The collision sets are consulted BEFORE `classify_read`, which is
     # collision-unaware by design: it is also the loader's materialization call
     # (`runtime/driver.declared_primitives`), where a refusal could never fire.
-    ambiguous = ambiguous_read_names(game)
-    shadowed = shadowed_state_names(game)
-    phase_zone = phase_state_zone_names(game)
-    phase_local = phase_local_state_names(game)
     for read in decl.reads:
-        if read.name in ambiguous:
+        if read.name in collisions.ambiguous:
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which this game declares "
                 f"as BOTH a state variable and a zone — the declaration cannot "
@@ -4956,7 +4975,7 @@ def _check_primitive_reads(
                 read.span or decl.span,
             )
             continue
-        if read.name in shadowed:
+        if read.name in collisions.shadowed:
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which the game AND a phase "
                 f"both declare — the declaration cannot say which, and at run "
@@ -4965,7 +4984,7 @@ def _check_primitive_reads(
                 read.span or decl.span,
             )
             continue
-        if read.name in phase_zone:
+        if read.name in collisions.phase_zone:
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which "
                 f"{_phase_list(declaring_phases(game, read.name))} declares as "
@@ -4980,7 +4999,7 @@ def _check_primitive_reads(
             continue
         kind = classify_read(game, read.name)
         if kind is None:
-            if read.name in phase_local:
+            if read.name in collisions.phase_local:
                 bag.error(
                     f"`{decl.name}` reads `{read.name}`, which a PHASE declares "
                     f"— a Primitive's row is materialized on every call, so a "

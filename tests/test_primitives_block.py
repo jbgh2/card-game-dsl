@@ -1245,6 +1245,16 @@ def test_a_legacy_game_still_may_not_shadow_a_primitive() -> None:
 # --- axis 7: a reads name must be GAME-scoped state -------------------------
 
 
+def _grammar_alternatives(nonterminal: str) -> frozenset[str]:
+    """One `?nonterminal:` production's alternatives, read off the grammar."""
+    import re
+
+    grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
+    body = re.search(rf"\{nonterminal}:(.*?)\n\n", grammar, re.S)
+    assert body is not None, f"{nonterminal} is not a production of the grammar"
+    return frozenset(a.strip().lstrip("| ") for a in body.group(1).split("\n"))
+
+
 def test_the_shadowable_read_kinds_are_derived() -> None:
     """Which declarable read kinds a PHASE can shadow at all — the class of the
     two cells below, read off the grammar rather than remembered. A phase
@@ -1252,14 +1262,7 @@ def test_the_shadowable_read_kinds_are_derived() -> None:
     resolution can differ from the declaration the classifier matched.
 
     red under: add another declaration block to `?phase_item` in the grammar."""
-    import re
-
-    grammar = (
-        ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark"
-    ).read_text()
-    body = re.search(r"\?phase_item:(.*?)\n\n", grammar, re.S)
-    assert body is not None
-    alternatives = {a.strip().lstrip("| ") for a in body.group(1).split("\n")}
+    alternatives = _grammar_alternatives("?phase_item")
     declaring = alternatives & {"state_block", "zones", "positions", "type_def"}
     assert declaring == {"state_block"}, (
         f"a phase now declares {sorted(declaring)} — every declarable read kind "
@@ -1426,16 +1429,6 @@ def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> Non
 
 _NAME_NAMESPACES = ("game_state", "phase_state", "zone_family", "single_zone")
 _PROBE_NAME = "pot"
-
-
-def _grammar_alternatives(nonterminal: str) -> frozenset[str]:
-    """One `?nonterminal:` production's alternatives, read off the grammar."""
-    import re
-
-    grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
-    body = re.search(rf"\{nonterminal}:(.*?)\n\n", grammar, re.S)
-    assert body is not None, f"{nonterminal} is not a production of the grammar"
-    return frozenset(a.strip().lstrip("| ") for a in body.group(1).split("\n"))
 
 
 def test_the_collision_namespace_axis_is_derived() -> None:
@@ -1612,6 +1605,28 @@ def test_a_reads_name_declared_in_two_namespaces_is_refused(
     assert _PROBE_NAME in message, message
     for fragment in expected:
         assert fragment in message, message
+
+
+@pytest.mark.parametrize(
+    "vector",
+    [
+        frozenset({"game_state", "zone_family"}),
+        frozenset({"phase_state", "zone_family"}),
+    ],
+    ids=["ambiguous", "phase-state-zone"],
+)
+def test_a_collision_speaks_before_the_binder_arms(vector: frozenset[str]) -> None:
+    """The product crossed with the BINDER, at the two vectors where a binder
+    is even well-formed (the colliding name is a zone family either way). The
+    collision arms run before `classify_read`, so they own a colliding name
+    whether the read carries a binder or not — a binder diagnostic here would
+    be answering about a kind the declaration cannot be said to have."""
+    source = _collision_source(vector).replace(
+        f"reads {_PROBE_NAME} }}", f"reads {_PROBE_NAME}[p] }}"
+    )
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    assert "index binder" not in message and "no instances to key" not in message, message
 
 
 @pytest.mark.parametrize(
