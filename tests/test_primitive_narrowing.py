@@ -13,9 +13,13 @@ property:   a game-local primitive sees VALUES, never an engine handle. Its
             (`EngineFacts`) — so "this primitive cannot mutate state, make a
             decision, or observe an undeclared name" is structural, not a
             property of review.
-domain:     every game-local primitive (derived: the dispatch tables in
-            `cardlang/runtime/primitives.py`, mapped name -> implementing
-            module by AST, restricted to modules outside the engine core)
+domain:     every game-local primitive (derived from all THREE routes to a
+            Primitive's Python — the two dispatch tables' `match` arms mapped
+            name -> implementing module by AST, and the declaration index
+            `PRIMITIVE_IMPLEMENTATIONS`, which is how a DECLARED Primitive is
+            reached and therefore what keeps a game's move onto a
+            `primitives { }` block from carrying its primitives out of this
+            domain — restricted to modules outside the engine core)
             x every forbidden engine handle (derived: `Ctx`'s own field set
             plus the engine types, NOT the handles modules happen to use
             today) x every `EngineFacts` field (derived: the dataclass).
@@ -172,6 +176,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_EARLY_PREDICATES,
     TRICK_WINNER_NAMES,
 )
+from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
@@ -247,15 +252,31 @@ def _dispatch_imports(body: list[ast.stmt]) -> list[tuple[str, str]]:
 
 @cache
 def _implementations() -> tuple[Impl, ...]:
-    """Derive name -> implementation by parsing the dispatch layer's `match`
-    arms. Derived, not listed: a primitive added to the dispatch enters this
-    grid automatically, which is what stops the coverage domain from being
-    whatever someone remembered to type."""
-    found: list[Impl] = []
-    # BOTH dispatch homes: a generic arm that lazily imported a game module
-    # would otherwise escape this grid by living in the half nobody parsed.
+    """Derive name -> implementation from every route a Primitive's Python is
+    reached by. Derived, not listed: a primitive added to any of them enters
+    this grid automatically, which is what stops the coverage domain from
+    being whatever someone remembered to type.
+
+    THREE homes. Two are `match` arms — a generic arm that lazily imported a
+    game module would otherwise escape this grid by living in the half nobody
+    parsed. The third is `PRIMITIVE_IMPLEMENTATIONS`, the declaration index
+    `call_declared` derives a DECLARED Primitive's call from: a declared entry
+    has no arm, so a game adopting a `primitives { }` block would otherwise
+    carry its primitives out of this domain — the property would stop being
+    checked at exactly the point the bundle narrows. The index is total over
+    `PRIMITIVE_CALL_FUNCS` (its own module asserts that), so it also holds the
+    arm-reached names, and the union deduplicates."""
+    found: set[Impl] = set()
     for home in ("builtins.py", "primitives.py"):
-        found.extend(_impls_in(RUNTIME_DIR / home))
+        found.update(_impls_in(RUNTIME_DIR / home))
+    found.update(
+        Impl(
+            primitive=name,
+            module=impl.module.rsplit(".", 1)[-1] + ".py",
+            func=impl.attribute,
+        )
+        for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
+    )
     return tuple(sorted(found, key=lambda i: (i.primitive, i.module, i.func)))
 
 
@@ -373,6 +394,7 @@ NARROWED: frozenset[str] = frozenset(
         "president.py::president_follows",
         "president.py::president_lead_options",
         "president.py::president_universe",
+        "salvo.py::salvo_combos",
         "skat.py::ROW",
         "skat.py::skat_matadors",
         "skat.py::skat_next_bid",
@@ -432,6 +454,7 @@ MIGRATED: frozenset[str] = frozenset(
         "pot_share",
         "president_follows",
         "president_lead_options",
+        "salvo_combos",
         "skat_matadors",
         "tarot_excuse_player",
         "tarot_per_opp",
