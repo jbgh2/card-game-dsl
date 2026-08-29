@@ -4381,12 +4381,13 @@ stays shadowable — the game declared it, so the author did write both. So does
 spelling the game already binds at declaration level, which the injection rule
 refuses first: one clash draws one refusal.
 
-Which fix the refusal prescribes follows the binder. Where the game's own text
-picked the spelling, renaming the binder is the fix. Where the language picked it
-— `any player where` always binds `player`, an aggregation always binds `card`, a
-transfer filter binds the game's content noun — no game can respell it, so the
-library's variable is what must change instead. Both are reported in the GAME,
-which is where the shadow is written and the file the author has open.
+Which fix the refusal prescribes follows the binder, and turns on one question:
+is the spelling the author's to choose? Where they picked it, renaming the binder
+is the fix. Where they did not — `any player where` always binds `player`, an
+aggregation always binds `card`, a transfer filter binds the game's content noun
+— there is nothing at the refusal site to rename, so the library's variable is
+what must change instead. Both are reported in the GAME, which is where the
+shadow is written and the file the author has open.
 
 A Primitive's parameters are the one declaration parameters the rule does not
 reach, and not by exemption: they label the Python signature and key the entry's

@@ -2698,9 +2698,9 @@ class _Site(typing.NamedTuple):
     `kind` names the AST node the introduction belongs to — what the axis pin
     matches against the two registries. `binds` is the spelling the construct
     introduces: free text where the author names the binder, and the fixed noun
-    where the language spells it. `chosen` records which, because that is what
-    decides whose text can fix a collision, and so which of the two diagnostics
-    the refusal owes.
+    where nobody writing a game gets to name it. `chosen` records which, because
+    that is what decides whether the refusal site has anything to rename, and so
+    which of the two diagnostics it owes.
 
     `already` marks the row whose spelling is refused a door earlier, by
     `_check_library_shadows_game`: a DECLARED position domain is one of the
@@ -2782,7 +2782,7 @@ _INTRODUCE: tuple[_Site, ...] = (
         clauses="primitives { belote_decl_size(shared : Player) : Integer reads score }",
         accepts=True,
     ),
-    # --- spellings the language fixes, which no game can respell -------------
+    # --- spellings no game gets to choose, and so cannot respell -------------
     _Site("Quantifier", "player", False, "if any player where player is 0 { score[0] := 1 }"),
     _Site("Quantifier", "team", False, "if all teams where true { score[0] := 1 }"),
     _Site("Quantifier", "suit", False, "if any suit where suit is hearts { score[0] := 1 }"),
@@ -3058,8 +3058,9 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
     The refusal is located in the GAME — that is where the shadow is written, and
     the file the author has open — and names the library, because the other half
     is text they never see. Which fix it prescribes follows the binder: a
-    spelling the author chose is theirs to respell, and one the language fixes is
-    not, so those rows ask for the library's variable to be renamed instead."""
+    spelling the author chose is theirs to respell, and one they did not choose
+    is not, so those rows ask for the library's variable to be renamed
+    instead."""
     site = _INTRODUCE[index]
     _patch_libraries(monkeypatch, {"provider": _shadow_library(site, claim)})
     source, file_name = _shadow_source(site, claim)

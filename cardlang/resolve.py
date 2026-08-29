@@ -1221,13 +1221,13 @@ def _check_provided_readonly(
         )
 
 
-# Binder-introducing node kinds whose introduced SPELLING the GAME's own text
-# fixes, as against the kinds the LANGUAGE fixes it for (`any player where`
-# always binds `player`, an aggregation always binds `card`, a transfer filter
-# binds the content noun, a position query binds the domain's noun). Both halves
-# shadow identically, so this is not a scoping table: it decides only WHOSE text
-# can fix a collision with a provided name, and therefore which fix the
-# diagnostic prescribes.
+# Binder-introducing node kinds whose introduced SPELLING is the game AUTHOR'S TO
+# CHOOSE, as against the kinds nobody writing a game gets to name (`any player
+# where` always binds `player`, an aggregation always binds `card`, a transfer
+# filter binds the content noun, a position query binds the domain's noun). Both
+# halves shadow identically, so this is not a scoping table: it decides only
+# whether a collision with a provided name has anything at the refusal site to
+# rename, and therefore which fix the diagnostic prescribes.
 #
 # Membership is one claim: the spelling is the AUTHOR'S TO CHOOSE — respelling it
 # is an edit that leaves the game otherwise unchanged. Neither "the grammar has a
@@ -1298,11 +1298,10 @@ def _check_provided_shadowed_by_binder(
 
     Reported to the GAME's author either way — that is where the shadow is
     written, and the file they have open — but the prescribed fix follows the
-    binder, because only one of the two sides can take it. A spelling the game's
-    own text fixes is theirs to respell. One the language fixes is not
-    respellable at all, so the only text that can change is the library's
-    declaration, and "rename the binder" there would be advice nobody can
-    follow."""
+    binder, because only one of the two sides can take it. A spelling the author
+    chose is theirs to respell. One they did not choose is not respellable at
+    all, so the only text that can change is the library's declaration, and
+    "rename the binder" there would be advice nobody can follow."""
     if not provided:
         return
     declared = _game_bindings(game)
