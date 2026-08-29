@@ -98,8 +98,8 @@ depth by target extremity, initiative effects) are a round-2 probe.
   in principle be overturned by a policy that holds *cleverly* (e.g.
   sandbagging to win the last-flip information race). The mini +
   exact tier remains the ground-truth instrument.
-- **No combos, no jokers yet** (round-2 scope, recorded in the game
-  file header). Combos are self-synergy and would, if anything,
+- **No combos and no jokers in the games measured here** (they arrive
+  in round 5). Combos are self-synergy and would, if anything,
   soften the interaction verdict's margin — they cannot rescue a
   double-solitaire core, which is why the base game was tested first.
 - **Sighted's knobs are hand-tuned** (WON/LOST margin 25, opponent
@@ -388,18 +388,28 @@ differential scale; `results_mini_seed{0,3,14}.json`):
   Undertow-style fast-sim speed twin with an adapter crosscheck. The
   long-run contract's calibration-first discipline earns its keep here.
 
-## 12. Round 5 (combos + jokers) — BLOCKED on a language review, by design
+## 12. Round 5 (combos + jokers) — implemented; the measurement is open
 
-The round stopped before implementation. Expressing the combo bonus
-table requires combinatorial-structure queries over a zone (same-rank
-groups, runs, flushes) that the language does not have; the shortest
-path — another registered per-game Primitive in cribbage's mold
-— is exactly the pattern this experiment exists to surface, not extend
-(designer's call, on review). The hole turns out to be the language's
-largest recurring one: five shipped witnesses already pay for it in
-Python (cribbage's show, Stud's entire showdown, the climbing
-vocabularies, Gin's melds, Canasta's melds). The characterization and
-option space live in `docs/design-notes/combination-scoring.md`; Salvo
-resumes this round when the language decision lands. The joker half is
-NOT blocked on expressiveness (joker cards, rankings, and filtered
-deals all exist) — only on the deck question recorded in the same note.
+Expressing the combo bonus table requires combinatorial-structure
+queries over a zone (same-rank groups, runs, flushes) that the language
+does not have. The blocking question was not whether to write that in
+Python but under what discipline: another entry in a corpus-wide
+registry is the pattern this experiment exists to surface, not extend
+(designer's call, on review). The hole is the language's largest
+recurring one — five shipped witnesses already pay for it in Python
+(cribbage's show, Stud's entire showdown, the climbing vocabularies,
+Gin's melds, Canasta's melds) — and its characterization and option
+space live in `docs/design-notes/combination-scoring.md`.
+
+What answered it is the `primitives { }` block
+(`docs/design-notes/primitive-sidecars.md`): the game declares
+`salvo_combos` itself, with its typed signature and the three army
+families it reads, so the borrowing is visible in the game file and
+belongs to no other game's namespace. The joker half needed no
+language decision (joker cards, rankings, and filtered deals all
+exist) — only the `standard54` deck row, which the same change adds.
+
+Both are in the game file and the rigs. The arena run and its verdicts
+are what this round still owes: the point values are DESIGN.md's
+starting values, and question 4 (combo incidence) is the instrument
+that moves them.

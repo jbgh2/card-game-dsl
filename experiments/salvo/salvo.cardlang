@@ -10,10 +10,11 @@
 // player who commits FEWER THAN TWO cards in a round draws one extra card at
 // round end (the recon draw — restraint buys card advantage; REPORT.md
 // section 8 is the evidence this rule is what makes the count a decision).
-// Highest army total takes a location; most locations wins, grand total
-// breaks ties (encoded as final = locations * 1000 + total).
+// An army also scores for its own structure — pairs, runs, flushes. Highest
+// army total takes a location; most locations wins, grand total breaks ties
+// (encoded as final = locations * 1000 + total).
 //
-// Deliberate encoding choices and remaining reductions (per DESIGN.md):
+// Deliberate encoding choices (per DESIGN.md):
 //
 // - STAGED-ALTERNATING COMMITS, not pure-sealed simultaneity. The sealed
 //   `each player simultaneously:` body is one fixed-destination chosen

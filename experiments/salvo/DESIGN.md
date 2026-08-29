@@ -34,8 +34,10 @@ original composition.
   (bluffing frequencies with interior probabilities), and the lab battery
   should demonstrate that, not just assert it.
 - **Small DSL footprint**: zero new constructs — the commit runs on
-  Cheat's per-option move_type pattern over offer windows; only the
-  pure-simultaneous variant (parked, below) would need new surface.
+  Cheat's per-option move_type pattern over offer windows, and the one
+  thing the language cannot say, the combo table, is a declared Primitive
+  rather than new surface; only the pure-simultaneous variant (parked,
+  below) would need any.
 
 ## The idea
 
@@ -62,8 +64,9 @@ simulation step; the mechanisms are the design.
 
 **Setup.** Shuffle 54 cards (standard 52 plus two jokers). Deal three
 cards face-up in a row: the **locations**. (A joker dealt as a location
-is set aside, replaced from the deck, then shuffled back in; jokers only
-ever live in hands.) Deal each
+is set aside, replaced from the deck, then shuffled back in: a joker
+broadcasts no target rank and no affinity suit, so it can never be a
+location. Jokers reach the table only from a hand.) Deal each
 player a hand of five. The rest is the face-down **deck**. Ranks run
 ace low: A=1, 2..10, J=11, Q=12, K=13, linear, no wraparound.
 
@@ -221,22 +224,31 @@ channel; the flip is a plain movement to public piles. Locations are
 the turned-card-as-rule-parameter family; scoring is `sum of f(card,
 top_of(...)) over cards in ...`.
 
-Would need new surface, both parked: the pure-simultaneous variant (a
-set-valued sealed commit — also what the capstone eventually needs),
-and the combo bonus table (a stdlib scoring primitive in cribbage's
-registered-primitive mold, unless its machinery generalizes). No
-per-game Python is anticipated either way.
+The combo bonus table is the one thing the DSL has no combinator for, so
+it is a Primitive — `salvo_combos`, which the game file declares in its own
+`primitives { }` block with its typed signature and the three army families
+it reads. That is the sanctioned shape for game-local Python
+(`docs/design-notes/primitive-sidecars.md`), and the declaration is what
+makes the borrowing visible: the block doubles as this game's inventory of
+what is not yet expressible, and the entry retires when the `combinations`
+construct lands.
+
+Would need new surface, parked: the pure-simultaneous variant (a
+set-valued sealed commit — also what the capstone eventually needs).
 
 ## Evaluation plan
 
 The standard loop: check, play, simulate; then the battery
 (`experiments/game-to-artifact-plan.md`), probe tier for the full game,
-exact tier for salvo-mini. The round-1 instrument is `triage.py`
+exact tier for salvo-mini. The arena instrument is `triage.py`
 (playout arena over `salvo.cardlang`: random / blind-greedy /
 sighted-adaptive policies under manual projection discipline, with a
 per-game mirror pin proving its value function equals the DSL's settle
-math), run before any solver work; it covers the base game — combos
-and jokers enter at round 2.
+math), run before any solver work. Its mirror covers the whole scoring
+rule — proximity, affinity, jokers and the combo table — and is written
+from this file rather than from the engine's Primitive, so the pin
+compares two independent authorings on every playout rather than one with
+itself. It reports each combo type's incidence, which is question 4 below.
 
 Decision questions, in priority order:
 
