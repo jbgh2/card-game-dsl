@@ -77,6 +77,16 @@ game HoldemHeadsUp {
   cards: standard52
   ranking: aces high
 
+  // The one this game borrows from outside the DSL. Every read is WHOLE, none
+  // narrowed to the argument: the settlement ranks every entrant's holding
+  // against every other's and layers the pot by commitment, so it needs all
+  // the hands and all the commitments; `p` picks which share of that
+  // settlement comes back, not which cards go into it.
+  primitives {
+    holdem_heads_up_pot_share(p : Player) : Integer
+        reads in_hand, committed, folded, hole, shown, board
+  }
+
   zones {
     deck          : Deck
     hole[player]  : Hand<player>           // the two private cards
@@ -91,7 +101,7 @@ game HoldemHeadsUp {
     stack[player]     : Integer = 100
     net[player]       : Integer = 0        // terminal score: chips won or lost
 
-    // The showdown primitive's declared reads (cardlang/runtime/reads.py).
+    // The showdown primitive's declared reads (the block above).
     // Both seats always enter — there is exactly one hand and neither can bust
     // before it — so `in_hand` is constant here where three-handed Hold'em
     // recomputes it per hand.

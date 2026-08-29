@@ -7,17 +7,18 @@ hole cards plus the shared board); both are imported. What is left is the
 delegation itself.
 
 Why the delegation exists at all, rather than `holdem-heads-up.cardlang`
-calling `holdem_pot_share` directly: a declared-reads row is keyed on
-(module, game_file) and a [[primitive]] module binds ONE row at import
-(`ROW = reads.row(...)`), so `holdem.py`'s row serves `holdem.cardlang` and
-only that. Reusing its primitive here would run this game's showdown against a
-row that does not name it, and `tests/test_primitive_reads.py` pins each row
+calling `holdem_pot_share` directly: `holdem.cardlang` writes no
+`primitives { }` block, so its reads are a `PRIMITIVE_READS` row keyed on
+(module, game_file) and `holdem.py` binds that ONE row at import
+(`ROW = reads.row(...)`) — it serves `holdem.cardlang` and only that.
+Reusing its primitive here would run this game's showdown against a row
+that does not name it, and `tests/test_primitive_reads.py` pins each row
 against its own game's declarations — so a later edit to `holdem.cardlang`'s
-zone names would silently break a game no pin was watching. Selecting the row
-from the running game instead of from a module constant is the general fix and
-is out of scope here; it is issue #232. That the CURRENT arrangement has no
-pin — a game can call another game's primitive and the suite stays green — is
-issue #238.
+zone names would silently break a game no pin was watching. This game
+declares instead, and a declaration carries its own reads per call, which is
+what a module constant cannot do (issue #232). That a LEGACY game can call
+another legacy game's primitive with no pin is issue #238; a declared game
+cannot, because its `f(...)` calls resolve against its own namespace alone.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in
@@ -35,8 +36,6 @@ from cardlang.runtime.holdem import showdown_hands
 from cardlang.runtime.poker import side_pot_payouts
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Player
-
-ROW = reads.row("cardlang/runtime/holdem_heads_up.py", "holdem-heads-up.cardlang")
 
 
 def holdem_heads_up_pot_share(
