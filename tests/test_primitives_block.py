@@ -76,11 +76,16 @@ domain:     the block's own surface — clause placement x {game, library},
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
-            scope; and the corpus is outside it by construction in 3a — no
+            scope; and the corpus is outside it by construction while no
             corpus game declares a block, so the reconciliation pin's
             declared arm has the witness fixture as its only member, which
-            `test_reconciliation_reddens_on_a_planted_orphan` and its dual
-            keep from being vacuous.
+            `test_reconciliation_reddens_on_a_planted_orphan` and the three
+            row-grain plants beside it keep from being vacuous. That pin's
+            own domain is the ROWS table it is handed crossed with the
+            declared games, and its exemption is the rows a walled binder
+            binds — the climb binder's answers over the two climb registries,
+            plus the shared dispatch module's rows under an assert that no
+            call implementation names that module.
             Two boundaries the domain has by construction rather than by
             omission. The walled-namespace cells sample one member per
             namespace, and `PRIMITIVE_TRICK_WINNERS` is EMPTY — deliberately,
@@ -139,6 +144,13 @@ does not prove: a green here says nothing about whether a declared read is
             divergence to observe which table is read, and the behavioral
             distinction becomes visible only when 3b's declarations differ
             from the registry they replace.
+            And the reconciliation pin's exemption is only as right as the
+            climb binder it asks: `primitives.climb_row` is a consumer of the
+            rows, not the artifact being judged, so a green here says a
+            declared game keeps exactly the rows THAT BINDER names — a binder
+            answering with the wrong row reshapes the exemption without
+            reddening anything in this module, and the climb machinery's own
+            tests are what hold that fault.
 
 Born red (the bare run on this branch, before any of the block's grammar,
 resolve, typecheck or runtime existed): `58 failed, 51 passed`. Every
@@ -180,6 +192,7 @@ import importlib
 import inspect
 import pathlib
 import random
+import sys
 import typing
 
 import pytest
@@ -2078,6 +2091,15 @@ def _live_state_and_row() -> tuple[RuntimeState, PrimitiveReads]:
 # Primitive coupling can be stated in its own `primitives { }` block or in the
 # authored `PRIMITIVE_READS` registry, and two statements of one fact drift.
 # The pin below is what keeps the window checked rather than merely scheduled.
+#
+# It quantifies per ROW, not per game, because a game's rows are not all its
+# block's to replace. The block covers the call-position namespace; the walled
+# namespaces keep their own rows and their binders bind them at load, so a
+# declared game legitimately keeps the rows those binders name and no others.
+# The exemption is derived by asking the binders rather than authored beside
+# them: an authored copy is a second statement of a fact its consumers already
+# hold, hand-edited once per migration, and its drift check would be this pin
+# again with one more table.
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
 GAMES_DIR = ROOT_DIR / "docs" / "games"
@@ -2110,9 +2132,65 @@ def _checked_games() -> tuple[tuple[str, n.Game], ...]:
     return tuple((p.name, check_source(p)) for p in game_sources())
 
 
+_SHARED_DISPATCH_MODULE = "cardlang/runtime/primitives.py"
+
+
+def _implementation_modules(implementations: dict[str, Implementation]) -> frozenset[str]:
+    """The implementation index's modules in `PrimitiveReads.module` spelling.
+
+    The index states an importable DOTTED path and a row a repo-relative FILE,
+    and this is the one site that compares them — the normalization
+    `runtime/driver.declared_primitives` performs when it builds a declared
+    entry's row, so the exemption below and the rows it exempts are spelled
+    alike. `test_the_module_spellings_meet` is the control under it: a
+    normalization that produced nothing would make that assert pass forever."""
+    return frozenset(
+        impl.module.replace(".", "/") + ".py" for impl in implementations.values()
+    )
+
+
+def _climb_bound_rows() -> frozenset[tuple[str, str]]:
+    """The declared-reads rows the CLIMB binder binds, asked of the binder.
+
+    A climb query is invoked by the round machinery rather than through the
+    call dispatch, and `primitives.climb_row` is what hands it its module's
+    row — at ROUND time, off a module-level binding made at import. So the
+    set is derived by asking that binder about every registered climb name
+    rather than authored a second time here, where it would drift the day a
+    climb home moves."""
+    from cardlang.builtins.functions import (
+        PRIMITIVE_CLIMB_FOLLOWS,
+        PRIMITIVE_CLIMB_LEADS,
+    )
+    from cardlang.runtime import primitives as dispatch
+
+    rows = [
+        dispatch.climb_row(name)
+        for name in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS)
+    ]
+    return frozenset((r.module, r.game_file) for r in rows)
+
+
+def _walled_binder_rows(rows: tuple[PrimitiveReads, ...]) -> frozenset[tuple[str, str]]:
+    """The rows a WALLED namespace's binder binds, keyed as the rows table keys
+    them — the rows a declared game's block does NOT replace, because the block
+    covers the call-position namespace alone.
+
+    Two sources, both consumer-derived: the climb binder's own answers, and the
+    shared dispatch module's rows, which serve the auction outcomes and
+    cribbage's pegging call sites. The second is stated per MODULE, which is
+    only safe while that module implements no call Primitive — `_reconcile`
+    asserts exactly that, so a call implementation landing there reddens the
+    pin instead of silently widening the exemption."""
+    return _climb_bound_rows() | frozenset(
+        (r.module, r.game_file) for r in rows if r.module == _SHARED_DISPATCH_MODULE
+    )
+
+
 def _reconcile(
     games: tuple[tuple[str, n.Game], ...],
     implementations: dict[str, Implementation],
+    rows: tuple[PrimitiveReads, ...],
 ) -> None:
     """The pin's body, over supplied tables so the mutations below can plant.
 
@@ -2152,18 +2230,31 @@ def _reconcile(
         f"declares and nothing calls is dead Python in the language package"
     )
 
-    # (3) one definition site per game. A game whose block declares its
-    # Primitives must not ALSO have authored `PRIMITIVE_READS` rows: the same
-    # coupling stated twice is the dual-definition-site state the coexistence
-    # window is priced to keep impossible.
-    with_rows = {row.game_file for row in PRIMITIVE_READS}
+    # (3) one definition site per ROW. A game whose block declares its
+    # Primitives must not ALSO have an authored `PRIMITIVE_READS` row for the
+    # coupling the block states: the same fact stated twice drifts. Quantified
+    # per row rather than per game because a game's rows are not all the
+    # block's to replace — the walled namespaces keep their own, and their
+    # binders bind them at load, so deleting one to satisfy a game-grain claim
+    # would kill the mechanic rather than end a duplication.
+    assert _SHARED_DISPATCH_MODULE not in _implementation_modules(implementations), (
+        f"{_SHARED_DISPATCH_MODULE} implements a call Primitive now, so "
+        f"exempting its rows per module would exempt a row a declared block "
+        f"replaces; give that half of the exemption a per-row basis"
+    )
+    declared_files = {name for name, game in games if regime(game) is Regime.DECLARED}
+    exempt = _walled_binder_rows(rows)
     both = sorted(
-        {name for name, game in games if regime(game) is Regime.DECLARED} & with_rows
+        f"{row.game_file} ({row.module})"
+        for row in rows
+        if row.game_file in declared_files
+        and (row.module, row.game_file) not in exempt
     )
     assert not both, (
-        f"games stating their Primitive reads twice: {both} — a `primitives "
-        f"{{ }}` block and a PRIMITIVE_READS row declare the same coupling, "
-        f"and two statements of one fact drift"
+        f"rows stating a Primitive coupling their game's block states too: "
+        f"{both} — a `primitives {{ }}` block and a PRIMITIVE_READS row "
+        f"declare the same coupling, and two statements of one fact drift; a "
+        f"row a walled binder binds is exempt and survives its game's block"
     )
 
 
@@ -2183,7 +2274,35 @@ def test_the_corpus_reconciles_in_every_direction() -> None:
         "no game in the pin's domain declares a block — the declared arm would "
         "be green by having nothing to look at"
     )
-    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS))
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
+
+
+def test_the_module_spellings_meet() -> None:
+    """The control under claim (3)'s backing assert. The index spells a module
+    dotted and a row spells it as a path, so an assert written in the wrong one
+    matches nothing and passes forever — this is what says the normalization
+    produces the rows' spelling and that the set it produces is not empty.
+
+    red under: drop the `.replace(".", "/")` from `_implementation_modules`."""
+    modules = _implementation_modules(dict(PRIMITIVE_IMPLEMENTATIONS))
+    assert "cardlang/runtime/pinochle.py" in modules, sorted(modules)
+    assert modules & {r.module for r in PRIMITIVE_READS}, sorted(modules)
+
+
+def test_the_walled_exemption_names_the_rows_the_binders_bind() -> None:
+    """The exemption is derived from two consumers, and this is what says it
+    landed on real rows rather than on a key shape nothing in the registry
+    uses. Both halves are asserted non-empty separately: a climb binder that
+    answered nothing and a shared module with no rows would each leave the
+    exemption silently narrower than it reads.
+
+    red under: return `frozenset()` from `_climb_bound_rows`."""
+    keys = {(r.module, r.game_file) for r in PRIMITIVE_READS}
+    climb = _climb_bound_rows()
+    shared = _walled_binder_rows(PRIMITIVE_READS) - climb
+    assert climb and climb <= keys, sorted(climb)
+    assert shared and shared <= keys, sorted(shared)
+    assert ("cardlang/runtime/tichu.py", "tichu.cardlang") in climb
 
 
 @pytest.mark.slow
@@ -2196,20 +2315,86 @@ def test_reconciliation_reddens_on_a_planted_orphan() -> None:
         "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED
     )
     with pytest.raises(AssertionError, match="orphan_primitive"):
-        _reconcile(_checked_games(), planted)
+        _reconcile(_checked_games(), planted, PRIMITIVE_READS)
 
 
 @pytest.mark.slow
 def test_reconciliation_reddens_on_a_dual_definition_site() -> None:
-    """A game declaring a block while its authored `PRIMITIVE_READS` rows still
-    stand — the exact state 3b removes, planted here so the window is checked
-    while it is open."""
-    dual = _checked_games() + ((
-        "pinochle.cardlang",
-        check_source(WITNESS),
-    ),)
-    with pytest.raises(AssertionError, match="pinochle.cardlang"):
-        _reconcile(dual, dict(PRIMITIVE_IMPLEMENTATIONS))
+    """A declared game whose authored `PRIMITIVE_READS` row still stands — the
+    exact state the corpus sweep removes, planted here so the window is checked
+    while it is open.
+
+    The plant is a ROW, keyed to the declaring witness game, because the claim
+    quantifies over rows: a game-shaped plant would say only that SOME row of
+    that game's remains, which the walled survivors make true for games that
+    are correctly migrated."""
+    planted = PRIMITIVE_READS + (
+        PrimitiveReads(
+            module="cardlang/runtime/pinochle.py",
+            game_file=WITNESS.name,
+            zone_families=frozenset({"hand"}),
+        ),
+    )
+    with pytest.raises(AssertionError, match=WITNESS.name):
+        _reconcile(_checked_games(), dict(PRIMITIVE_IMPLEMENTATIONS), planted)
+
+
+@pytest.mark.slow
+def test_the_narrowing_exempts_a_surviving_auction_row() -> None:
+    """The exemption exempts something. A game declaring a block while the
+    shared dispatch module still holds its AUCTION row is the day-one state of
+    the wave — the block covers the call-position namespace, the auction
+    outcome takes its own declaration slot later (issue #142), and the row
+    stays because the outcome's dispatch reads it.
+
+    The unnarrowed membership is asserted non-empty on the same state, so the
+    pass is the narrowing's doing and not an empty intersection. The rows table
+    is restricted to the shared module's own: the game's OTHER row — the one
+    its block replaces — is exactly what claim (3) must still refuse, and
+    leaving it in would prove the cell for the wrong reason."""
+    games = _checked_games() + (("pinochle.cardlang", check_source(WITNESS)),)
+    rows = tuple(r for r in PRIMITIVE_READS if r.module == _SHARED_DISPATCH_MODULE)
+    assert {"pinochle.cardlang"} & {r.game_file for r in rows}, (
+        "the shared module holds no pinochle row — the cell would pass by "
+        "having nothing to exempt"
+    )
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), rows)
+
+
+@pytest.mark.slow
+def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> None:
+    """The exemption states the shared dispatch module's rows per MODULE, which
+    is sound only while nothing there is a call Primitive. A call
+    implementation landing in that module would make one of those rows a row a
+    block replaces, and the module-grain half would exempt it silently — so the
+    condition is asserted rather than assumed, and this is the plant that says
+    the assert can speak."""
+    planted = dict(PRIMITIVE_IMPLEMENTATIONS)
+    planted["pinochle_meld_value"] = Implementation(
+        "cardlang.runtime.primitives", "call", InvocationContract.BUNDLED
+    )
+    with pytest.raises(AssertionError, match=_SHARED_DISPATCH_MODULE):
+        _reconcile(_checked_games(), planted, PRIMITIVE_READS)
+
+
+@pytest.mark.slow
+def test_the_narrowing_exempts_the_climb_row_its_binder_binds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tichu's carve-out, which the corpus sweep meets for real: the module
+    implements a call Primitive AND is a climb home, its row is what the climb
+    binder imports at load, and the block does not cover climb queries — so the
+    row outlives the block, and deleting it to satisfy a coarser claim would
+    crash the climb machinery at load rather than end a duplication.
+
+    red under (run): drop the climb half of the exemption."""
+    games = _checked_games() + (("tichu.cardlang", check_source(WITNESS)),)
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_climb_bound_rows", lambda: frozenset()
+    )
+    with pytest.raises(AssertionError, match="tichu.cardlang"):
+        _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
 
 
 # --- the witness fixture, played --------------------------------------------
