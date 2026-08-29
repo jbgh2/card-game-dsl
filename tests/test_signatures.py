@@ -195,16 +195,24 @@ def test_call_funcs_are_dispatchable() -> None:
         # off the table a game's `primitives { }` block derives, so the legacy
         # `call` MUST refuse it — asserting the complement rather than
         # excluding the name keeps the exclusion from quietly growing to cover
-        # one that should have an arm. Shadow Guard: the Owner Guard for which
-        # names have an arm is tests/test_native_dispatch_split.py::
-        # test_call_arm_home, and for whether the index resolves to real Python
-        # it is tests/test_primitives_block.py::
-        # test_every_indexed_implementation_resolves.
+        # one that should have an arm. No game description reaches that
+        # refusal: resolve's declared-only arm (`_validate_refs`) is the Owner
+        # Guard, witnessed at
+        # test_the_regime_product_admits_exactly_its_three_cells
+        # (tests/test_primitives_block.py) and pinned as a rendered message at
+        # tests/rejections/primitives_declared_only_no_block. The fallthrough
+        # stands behind it, which is why the message says LEGACY: a registered
+        # Primitive is not unknown to the engine, only to this dispatch.
+        # Shadow Guard: the Owner Guard for which names have an arm is
+        # tests/test_native_dispatch_split.py::test_call_arm_home, and for
+        # whether the index resolves to real Python it is
+        # test_every_indexed_implementation_resolves
+        # (tests/test_primitives_block.py).
         declared_only = name in DECLARED_ONLY_CALL_FUNCS
         try:
             call(name, [], ctx)
         except AssertionError as e:
-            fell_through = "unknown native function" in str(e)
+            fell_through = "unknown legacy native function" in str(e)
             assert fell_through == declared_only, (
                 f"{name!r} falls through call()'s default arm: {e}"
                 if fell_through

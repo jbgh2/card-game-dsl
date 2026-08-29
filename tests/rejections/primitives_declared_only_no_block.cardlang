@@ -1,0 +1,17 @@
+// Guard: resolve.py's `_validate_refs`, the declared-only arm. A Primitive in
+// `DECLARED_ONLY_CALL_FUNCS` has no legacy `call` arm, so a declaration is the
+// only route to its Python. The name is still a Primitive, so the legacy
+// namespace admits it and "unknown function" would be false; this game writes
+// no `primitives { }` block, which is what the diagnostic must say.
+game PrimitivesDeclaredOnlyNoBlock {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := salvo_combos(0, 0)
+  }
+  winner: highest score
+}

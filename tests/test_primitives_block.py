@@ -42,6 +42,14 @@ domain:     the block's own surface — clause placement x {game, library},
             zone, unknown} — crossed with the REGIME axis (declared /
             legacy) wherever a cell's outcome differs between them, and with
             the six Primitive namespaces of `cardlang/builtins/functions.py`.
+            The regime axis is crossed once in full: the Primitive's HOME
+            (`DECLARED_ONLY_CALL_FUNCS` against its complement in
+            `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
+            block}, total over the declared-only registry and sampled at one
+            named member of the legacy half. Both directions of the partition
+            are cells of that product: a declared game reaching a Primitive it
+            did not declare, and an undeclared game reaching one no legacy
+            dispatch arm serves.
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
@@ -64,8 +72,10 @@ domain:     the block's own surface — clause placement x {game, library},
             concrete entry: no registered implementation takes one, so the
             shape check refuses every `cell`-typed declaration. The two guards
             answer different questions and the grid runs the gate's.
-registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
-            and `BUILTIN_CALL_FUNCS`); `cardlang/primitives_block.py`
+registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces,
+            `BUILTIN_CALL_FUNCS`, and `DECLARED_ONLY_CALL_FUNCS` — which of
+            the Primitives a declaration is the only route to);
+            `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
             `DECLARABLE_BUILTIN_TYPE_NAMES`, `UNDECLARABLE_TYPE_CONSTRUCTORS`,
             `InvocationContract`); `cardlang.types.Type` (the constructor
@@ -129,6 +139,13 @@ runtime resolved the other. Red a fifth time, at `4 failed`, on a read name
 denoting two declarations at once, and on the native name-based guards that
 still answered about a call the runtime dispatches to a designer function.
 Each class was derived and rowed before its fix, on the same order.
+
+Red a sixth time, at `1 failed, 5 passed` over the regime product's own six
+cells (`-k regime_product`, 2026-08-29), on the one direction of the
+partition nothing refused: a Primitive whose only route to Python is a
+declaration, called from a game that writes no block. The product was rowed
+whole before the fix, so the five cells that already held are cells rather
+than absences.
 """
 
 from __future__ import annotations
@@ -148,8 +165,10 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
+    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
@@ -517,6 +536,123 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
     )
     assert "tichu_dragon_won" in message
     assert "primitives" in message
+
+
+# --- axis 1 x the Primitive's own home: the regime product ------------------
+#
+# A Primitive is reachable from one home or from two. `DECLARED_ONLY_CALL_FUNCS`
+# names the ones `runtime/primitives.py` holds no `call` arm for, so a
+# declaration is the ONLY route to their Python; every other Primitive keeps
+# the legacy arm as well. Crossed with the regime — a block that declares the
+# name, a block that does not, no block at all — that is a six-cell product,
+# and each cell's outcome is stated once here rather than in six places.
+
+# `Type` constructor -> (its declarable spelling, a literal of that type). A
+# representative's signature is read from `CALL_SIGS` and rendered through this
+# table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
+# sampled at whichever member it holds — a member whose signature reaches a
+# type with no row fails by NAME rather than producing a sentence the parser
+# rejects for the wrong reason.
+_SPELLINGS: dict[str, tuple[str, str]] = {
+    "TPlayer": ("Player", "0"),
+    "TInteger": ("Integer", "0"),
+    "TBoolean": ("Boolean", "true"),
+    "TString": ("String", '"x"'),
+}
+
+# The `score[0] := …` shape each return spelling lands in, so a rendered call
+# sits in a position that types.
+_ASSIGNMENTS: dict[str, str] = {
+    "Integer": "    score[0] := {call}",
+    "Boolean": "    score[0] := if {call} then 1 else 0",
+}
+
+
+def _spelling_of(t: Type) -> tuple[str, str]:
+    row = _SPELLINGS.get(type(t).__name__)
+    assert row is not None, (
+        f"no spelling for {type(t).__name__}: a Primitive's signature reaches "
+        f"a type this product cannot render — add its row above"
+    )
+    return row
+
+
+def _entry_and_body(name: str) -> tuple[str, str]:
+    """One Primitive as a `primitives { }` entry and as a call in a body, both
+    rendered from `CALL_SIGS` — the signature its implementation states, so the
+    entry cannot disagree with the shape check by construction."""
+    sig = CALL_SIGS[name]
+    params = ", ".join(f"a{i} : {_spelling_of(p)[0]}" for i, p in enumerate(sig.params))
+    args = ", ".join(_spelling_of(p)[1] for p in sig.params)
+    ret = _spelling_of(sig.ret)[0]
+    assignment = _ASSIGNMENTS.get(ret)
+    assert assignment is not None, f"no assignment shape for a {ret} return"
+    return f"{name}({params}) : {ret}", assignment.format(call=f"{name}({args})")
+
+
+# The legacy-half representative, checked against the registry rather than
+# assumed: chosen for taking no arguments, which keeps its rendered sentence
+# the shortest of the half.
+_LEGACY_HALF_NAME = "tichu_dragon_won"
+
+# (the Primitive's home, the game's regime) -> whether the call CHECKS. The
+# home axis is the registry partition; the regime axis is `Regime` crossed with
+# the block's own contents, which is what `call_namespace` reads.
+_REGIME_PRODUCT: dict[tuple[str, str], bool] = {
+    ("declared-only", "block declares it"): True,
+    ("declared-only", "block omits it"): False,
+    ("declared-only", "no block"): False,
+    ("legacy-arm too", "block declares it"): True,
+    ("legacy-arm too", "block omits it"): False,
+    ("legacy-arm too", "no block"): True,
+}
+
+
+def _homes() -> dict[str, list[str]]:
+    """The two homes, as the registries state them. The declared-only arm is
+    every member, so the product below covers the registry; the legacy arm is
+    the one representative, asserted to be in the complement."""
+    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
+    assert _LEGACY_HALF_NAME in legacy_half, (
+        f"{_LEGACY_HALF_NAME} is no longer a Primitive with a legacy `call` "
+        f"arm — pick another representative from {sorted(legacy_half)[:3]}…"
+    )
+    return {
+        "declared-only": sorted(DECLARED_ONLY_CALL_FUNCS),
+        "legacy-arm too": [_LEGACY_HALF_NAME],
+    }
+
+
+@pytest.mark.parametrize(
+    "home,regime_label,name",
+    [
+        (home, regime_label, name)
+        for (home, regime_label) in sorted(_REGIME_PRODUCT)
+        for name in _homes()[home]
+    ],
+)
+def test_the_regime_product_admits_exactly_its_three_cells(
+    home: str, regime_label: str, name: str
+) -> None:
+    """The product's cells, run.
+
+    The one that was ever in doubt is (declared-only, no block): the name IS in
+    `CALL_FUNCS`, so the legacy namespace admits it, and the dispatch it then
+    reaches has no arm for it. A refusal here is what keeps the declared-only
+    half from being a namespace a game can enter without declaring anything.
+
+    red under: drop the declared-only arm from resolve's `_validate_refs`."""
+    entry, body = _entry_and_body(name)
+    block = {"block declares it": entry, "block omits it": "", "no block": None}[
+        regime_label
+    ]
+    source = _game(block=block, body=body)
+    if _REGIME_PRODUCT[(home, regime_label)]:
+        assert name in call_namespace(_checks(source))
+        return
+    message = _refused(source)
+    assert name in message, message
+    assert "primitives" in message, message
 
 
 def test_a_second_block_is_refused() -> None:
