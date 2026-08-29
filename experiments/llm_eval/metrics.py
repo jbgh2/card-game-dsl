@@ -131,7 +131,7 @@ class Play:
     @property
     def forced(self) -> bool:
         """No truthful play existed: the actor held none of the claimed rank,
-        and `play_one` is always legal, so every option was a lie."""
+        and a count of 1 is always legal, so every option was a lie."""
         return self.truthful_available == 0
 
 

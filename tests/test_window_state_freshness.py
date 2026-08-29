@@ -198,10 +198,10 @@ EPISODES: dict[str, Episode] = {
         ),
     ),
     "cheat.cardlang": Episode(
-        # One play: the announce, the face-down discard, the challenge window.
-        # `claim_rank` is the table's cycle position, not the play's — it
-        # advances once per play and belongs to no episode.
-        entry=("play_one", "play_two", "play_three", "play_four"),
+        # One play: the announce, the count, the face-down discard, the
+        # challenge window. `claim_rank` is the table's cycle position, not the
+        # play's — it advances once per play and belongs to no episode.
+        entry=("play_cards",),
         idle=(
             ("claimant", None),
             ("claim_count", 0),

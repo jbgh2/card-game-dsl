@@ -300,7 +300,7 @@ its denominator, and a rate over **zero** opportunities is `null`, never `0.0` �
 |--------|------------|
 | `win_rate` | wins / games that reached a terminal state |
 | `lying_rate` | plays where any card's rank ≠ the claimed rank, over all plays |
-| `forced_lie_rate` | of all plays, those where the actor held **none** of the claimed rank (no truthful play existed at any count, since `play_one` is always legal) |
+| `forced_lie_rate` | of all plays, those where the actor held **none** of the claimed rank (no truthful play existed at any count, since a count of 1 is always legal) |
 | `elective_lie_rate` | lies over the plays where a truthful option **did** exist — the deception number |
 | `challenge_rate` | challenges made / challenge opportunities offered |
 | `challenge_precision` | challenges where the claim really was false / challenges made |
