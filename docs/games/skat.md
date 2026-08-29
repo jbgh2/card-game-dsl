@@ -64,6 +64,18 @@ game Skat {
   ranking: ace-ten
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
 
+  // The two this game borrows from outside the DSL. `skat_next_bid` takes no
+  // `reads` clause: the ladder is a table, pure over its argument, and resolve
+  // refuses a clause on an entry that never receives one. `skat_matadors`
+  // counts the run from the club Jack down the trump order over ONE hand plus
+  // the widow, so `hand[p]` narrows to the hand the call names while `skat`
+  // and the three contract variables are whole-value reads.
+  primitives {
+    skat_next_bid(value : Integer) : Integer
+    skat_matadors(p : Player) : Integer
+        reads is_null, is_grand, trump_suit, hand[p], skat
+  }
+
   // The declared contract decides the order, so the rows read it off the
   // public state the declaration wrote (`is_null`, `is_grand`, `trump_suit`).
   // Suit and Grand: the four jacks are trumps, banded above everything, clubs

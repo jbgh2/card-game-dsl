@@ -133,14 +133,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "skat_next_bid":
-            from cardlang.runtime.skat import skat_next_bid
-
-            return skat_next_bid(args[0])
-        case "skat_matadors":
-            from cardlang.runtime.skat import ROW, skat_matadors
-
-            return skat_matadors(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 

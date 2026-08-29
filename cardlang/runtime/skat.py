@@ -21,8 +21,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Player
 
-ROW = reads.row("cardlang/runtime/skat.py", "skat.cardlang")
-
 # The legal Reizen bid sequence (reachable game values).
 _BID_SEQUENCE = (
     18, 20, 22, 23, 24, 27, 30, 33, 35, 36, 40, 44, 45, 46, 48, 50,

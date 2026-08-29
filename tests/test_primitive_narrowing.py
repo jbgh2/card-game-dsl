@@ -395,7 +395,6 @@ NARROWED: frozenset[str] = frozenset(
         "president.py::president_lead_options",
         "president.py::president_universe",
         "salvo.py::salvo_combos",
-        "skat.py::ROW",
         "skat.py::skat_matadors",
         "skat.py::skat_next_bid",
         "stud.py::ROW",
