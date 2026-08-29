@@ -5349,10 +5349,10 @@ def _check_row_call(
         )
         return
     if nd.func in {f.name for f in game.functions}:
-        # A designer function, walked on its own. The arm below meant to admit
-        # one all along and used `not in CALL_FUNCS` as the proxy; a declared
-        # game may now legally name a function after an absent Primitive, and
-        # that spelling IS in `CALL_FUNCS`, so the test is stated directly.
+        # A designer function, walked on its own. Tested directly rather than
+        # through the arm below's `not in CALL_FUNCS`: a declared game may
+        # legally name a function after a Primitive absent from ITS namespace,
+        # and that spelling is in `CALL_FUNCS` all the same.
         return
     if nd.func in TRICK_ORDER_ROW_CALLS or nd.func not in CALL_FUNCS:
         return  # allowed, or a name no native registry claims

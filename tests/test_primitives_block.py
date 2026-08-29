@@ -1691,25 +1691,58 @@ def test_library_provided_state_reaches_the_reads_clause(
 # registry would then fire on a call the runtime dispatches to the user
 # function. The axis is those registries, crossed with the legacy Primitive
 # set: a nonempty intersection is a registry whose names a designer function
-# can now legally take.
+# may legally take.
 
 
 def _collidable_native_registries() -> dict[str, frozenset[str]]:
-    """Native name registries whose members a designer function may now take,
-    DERIVED — each registry intersected with the legacy Primitive set, since a
-    Builtin's name is still refused to a designer function in every regime."""
+    """Native name registries whose members a designer function may take.
+
+    The candidate list is AUTHORED and its completeness argument is a GUARD
+    census rather than a registry one: the class is "a compile-stage guard
+    that keys a call by its native NAME", and a guard may key any set, so no
+    registry defines the class. The census below is the set every such site
+    keys, read off the two passes that hold them:
+
+        grep -n '\\.func in \\|\\.func not in ' cardlang/resolve.py \\
+            cardlang/typecheck.py
+
+    Sites keying a set of the GAME's own names (`fn_names`,
+    `defined_functions`) are outside the class by construction — they answer
+    about designer functions rather than about them. `DECLARED_ONLY_CALL_FUNCS`
+    is outside it by ORDER: `_check_native_flavor`'s designer-function arm
+    precedes every arm below it in the same `match`.
+
+    What is DERIVED is which of the census members can collide at all: each
+    crossed with the legacy Primitive set, since a Builtin's name is refused to
+    a designer function under every regime. The empty ones are kept as members
+    so the boundary is computed here rather than asserted — a Primitive landing
+    in one of them turns it into a cell."""
     from cardlang.builtins.functions import (
         ARRIVAL_RECORD_CALLS,
         BOARD_ONLY_CALL_FUNCS,
         DECK_ONLY_CALL_FUNCS,
+        TRICK_ORDER_EXCLUDED_FUNCS,
+        TRICK_ORDER_GATED_FUNCS,
+        TRICK_ORDER_READERS,
     )
+    from cardlang.resolve import _FRAME_CALL_FUNCS
     from cardlang.typecheck import RANKING_GATED_FUNCS
 
     candidates = {
+        # resolve's content-flavor guard, and its boardless sibling.
         "DECK_ONLY_CALL_FUNCS": DECK_ONLY_CALL_FUNCS,
-        "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
         "BOARD_ONLY_CALL_FUNCS": BOARD_ONLY_CALL_FUNCS,
+        # resolve's two-seat frame guard, inside the board-call check.
+        "_FRAME_CALL_FUNCS": frozenset(_FRAME_CALL_FUNCS),
+        # typecheck's `ranking:`-required call gate.
+        "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
+        # resolve's arrival-record gate, over the winners that read one.
         "ARRIVAL_RECORD_CALLS": frozenset(ARRIVAL_RECORD_CALLS),
+        # The Trick Order's presence partition: what a block gates, what it
+        # excludes, and what reads one.
+        "TRICK_ORDER_GATED_FUNCS": TRICK_ORDER_GATED_FUNCS,
+        "TRICK_ORDER_EXCLUDED_FUNCS": TRICK_ORDER_EXCLUDED_FUNCS,
+        "TRICK_ORDER_READERS": frozenset(TRICK_ORDER_READERS),
         # The Trick Order row check refuses every CALL_FUNCS member outside its
         # own allow-list, so its collidable set is the whole Primitive half.
         "TRICK_ORDER_ROW_CALLS": PRIMITIVE_CALL_FUNCS,
@@ -1717,14 +1750,17 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     return {k: v & PRIMITIVE_CALL_FUNCS for k, v in candidates.items()}
 
 
-def test_the_collidable_registry_axis_is_derived() -> None:
+def test_the_collidable_registry_intersections_are_derived() -> None:
     """Anti-vacuity, and the boundary stated: exactly the registries with a
     nonempty intersection need a designer-function cell, and the empty ones are
     empty because they hold Builtin names only — which a designer function may
-    not take under any regime.
+    not take under any regime. The intersection is what this pins; the
+    candidate list is authored, and `_collidable_native_registries` states the
+    argument for it.
 
     red under: add a Primitive's name to `BOARD_ONLY_CALL_FUNCS`."""
     collidable = _collidable_native_registries()
+    assert len(collidable) > 5, sorted(collidable)
     nonempty = {k for k, v in collidable.items() if v}
     assert nonempty == {
         "DECK_ONLY_CALL_FUNCS",
@@ -2238,7 +2274,7 @@ def _reconcile(
     # binders bind them at load, so deleting one to satisfy a game-grain claim
     # would kill the mechanic rather than end a duplication.
     assert _SHARED_DISPATCH_MODULE not in _implementation_modules(implementations), (
-        f"{_SHARED_DISPATCH_MODULE} implements a call Primitive now, so "
+        f"{_SHARED_DISPATCH_MODULE} implements a call Primitive, so "
         f"exempting its rows per module would exempt a row a declared block "
         f"replaces; give that half of the exemption a per-row basis"
     )
