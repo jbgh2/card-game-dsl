@@ -3150,11 +3150,11 @@ game Declarer {
   cards: standard52
   max_length: 100
   positions { slot : 1..4 }
-  zones { deck : Deck  hand[player] : Hand<player> }
+  zones { deck : Deck  hand[player] : Hand<player>  pile : TrickPile }
   state { score[player] : Integer = 0 }
   phase play {
     active_rules: [r]
-    round play_to_trick from 0 over all players source hand into deck
+    round play_to_trick from 0 over all players source hand into pile
       winner highest_of_led_suit
     run pr()
     score[0] := f() + d_use()
@@ -3168,8 +3168,22 @@ type T = { x : Integer }
 define dd -> { w(Integer) } { produce w(0) }
 move_type mt { effect { score[0] := 0 } }
 procedure pr() { score[0] := 0 }
-rule r { constrains: play_to_trick  demands: cards in hand  if_impossible: hand }
+rule r {
+  constrains: play_to_trick
+  demands: cards in hand where card.suit is hearts
+  if_impossible: hand
+}
 """
+
+
+def test_the_declaration_level_host_is_valid_on_its_own() -> None:
+    """The control every cell below leans on. Each asserts that some guard names
+    the clash the library brings in; a host the language rejects for an
+    unrelated reason would still let those assertions run, and would quietly
+    move what they are measured against.
+
+    red under: drop the `where` from the host's `demands:` clause."""
+    resolve(parse_text(_DECLARER_HOST, "declarer.cardlang"))
 
 # One name per bucket `_game_bindings` reports, chosen so a library providing it
 # collides with the game above at declaration level.
