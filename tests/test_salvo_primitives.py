@@ -43,7 +43,11 @@ covered:    every cell below, parametrized. The declaration's agreement with
             that the game as a whole plays with the Primitive in it is the
             arena rig's mirror pin
             (`experiments/salvo/triage.py`), which restates the table
-            independently and compares on every playout.
+            independently and compares on every playout. That the rigs' table
+            IS a second authoring — never an import of the module it mirrors,
+            which would make the comparison one statement against itself — is
+            a property of their source rather than of this domain, and carries
+            its own ledger at the pin that scrapes them.
 sampled:    the of-a-kind ladder's top rung is `>= 4` rather than exactly 4:
             standard54 holds four cards of a natural rank, so five is
             unreachable from any deal and the rung is written as a floor.
@@ -57,10 +61,13 @@ does not prove: nothing here says the VALUES are right. They are DESIGN.md's
             five-card inputs only, which is the designed table rather than the
             reachable one (the game does not bend to the harness).
 
-Born red: the bare run of this module while `cardlang/runtime/salvo.py` held
-its five functions as `NotImplementedError` signatures and nothing else —
-`44 failed, 0 passed`, every cell on its own call rather than on one collection
-error, so each names the behaviour it wants.
+Red under the stub, replayed 2026-08-29 at this module's current width: the
+bare run while `cardlang/runtime/salvo.py` holds its five functions as
+`NotImplementedError` signatures and nothing else — `45 failed, 3 passed`.
+Every combo cell fails on its own call rather than on one collection error, so
+each names the behaviour it wants; the three that pass are the rig-mirror pins
+at the foot of this module, which read the rigs' own source and never the
+module the stub replaces.
 
 red under: one mutation of `cardlang/runtime/salvo.py` per family, each run
     rather than argued — pair 4 -> 5 (13 failed); the run scale keeping the
@@ -73,6 +80,8 @@ red under: one mutation of `cardlang/runtime/salvo.py` per family, each run
 
 from __future__ import annotations
 
+import ast
+import pathlib
 import random
 
 import pytest
@@ -328,3 +337,85 @@ def test_wrapper_refuses_a_location_outside_the_three(loc: int) -> None:
     with pytest.raises(OwnerGuardError) as exc:
         salvo_combos(*_bundles(armies, 0), 0, loc)
     assert "salvo_combos" in str(exc.value) and "0..2" in str(exc.value)
+
+
+# --- the rig mirrors are a second authoring, not a second reference ---------
+
+_SALVO_DIR = pathlib.Path(GAME).resolve().parent
+_MIRRORS = ("triage.py", "probe_liveness.py")
+_RUNTIME_MODULE = "cardlang.runtime.salvo"
+
+
+def _imported_modules(path: pathlib.Path) -> frozenset[str]:
+    """Every module one rig imports, as `ast` reads it: the dotted name of an
+    `import x.y`, the module of a `from x.y import z`, and that module joined
+    to each imported name so `from cardlang.runtime import salvo` is seen for
+    what it is.
+
+    Parsed, never searched. `triage.py`'s own docstring names
+    `cardlang/runtime/salvo.py` — it is the file saying it must not import it —
+    so a substring scrape would report the prose it exists to protect."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return frozenset(names)
+
+
+@pytest.mark.parametrize("rig", _MIRRORS)
+def test_a_rig_mirror_imports_no_salvo_runtime(rig: str) -> None:
+    """The rigs' combo scorer is a SECOND authoring of DESIGN.md's table, and
+    the arena's mirror-drift assertions compare it against the DSL's settle
+    math on every playout. An import of `cardlang/runtime/salvo.py` would make
+    those two statements one statement compared with itself — every playout
+    still green, and the differential gone.
+
+    property:   neither rig imports the module the game declares, by any
+                spelling `ast` can see.
+    domain:     the two rig modules under `experiments/salvo/` that run the
+                game; the sibling test below is what keeps their own
+                cross-imports inside that domain.
+    registry:   the file names above. They are the whole rig surface, so the
+                domain is listed rather than globbed — a third rig is a new
+                row here, and the glob in the sibling test is what makes that
+                omission fail rather than pass.
+    does not prove: only that the import is absent from these two files. A
+                module they import from OUTSIDE their own directory could
+                still reach the runtime module; the LLM rigs reach for `grimp`
+                where that matters, and here the two files are short enough to
+                read.
+
+    red under: add `from cardlang.runtime.salvo import combo_score` to either
+    rig."""
+    imports = _imported_modules(_SALVO_DIR / rig)
+    assert any(m.startswith("cardlang.") for m in imports), (
+        f"{rig}: the scrape found no `cardlang` import at all — it would not "
+        f"see {_RUNTIME_MODULE} either"
+    )
+    assert _RUNTIME_MODULE not in imports, (
+        f"{rig} imports {_RUNTIME_MODULE}: the mirror and the engine would be "
+        f"one authoring, and the arena's drift assertions would compare it "
+        f"with itself"
+    )
+
+
+def test_the_mirror_scrape_covers_every_rig_module_the_rigs_reach() -> None:
+    """The pin above is per-FILE, and `probe_liveness.py` reaches the game
+    through `triage`. This is what makes that hop part of the scrape rather
+    than an assumption about it: every module a rig imports from its own
+    directory is itself a scraped rig, so no third file can become the route.
+
+    red under: add `import tune_sighted` to either rig."""
+    scraped = {pathlib.Path(m).stem for m in _MIRRORS}
+    local = {p.stem for p in _SALVO_DIR.glob("*.py")}
+    assert local - scraped, "every rig module is scraped; the glob proves nothing"
+    for rig in _MIRRORS:
+        reached = {m for m in _imported_modules(_SALVO_DIR / rig) if m in local}
+        assert reached <= scraped, (
+            f"{rig} imports the unscraped rig module(s) {sorted(reached - scraped)} "
+            f"— add them to `_MIRRORS` or the hop leaves the domain"
+        )
