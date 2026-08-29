@@ -242,3 +242,33 @@ def test_bluff_prob_produces_elective_lies(game: object) -> None:
 
     assert measure(0.0) == 0.0
     assert measure(0.8) > 0.3, "raising bluff_prob did not produce elective lies"
+
+
+def test_rule_agent_never_claims_more_cards_than_a_rank_can_hold(game: object) -> None:
+    """The bluffer over-claims by one, and one deck holds four of a rank — so a
+    claim of five is not a bluff, it is a free catch.
+
+    Run with bluffing ON, or the arm under test never executes. Every seat
+    bluffs so the sweep reaches the case that matters: an actor holding all
+    four of the claimed rank, where "one more than I hold" leaves the plausible
+    range entirely.
+    """
+    seen_bluff = False
+    for seed in range(12):
+        seats = {
+            i: RuleAgent(seed=seed * 100 + i, challenge_prob=0.1, bluff_prob=0.4)
+            for i in range(4)
+        }
+        record = play_game(
+            game, seats, seed=seed, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
+        )
+        for d in record.decisions:
+            if d.facts.get("kind") != "count":
+                continue
+            claimed, held = d.facts["claimed_count"], d.facts["truthful_available"]
+            assert claimed <= 4, (
+                f"seed {seed}: claimed {claimed} of a rank holding only four "
+                f"copies — provably false to every seat without looking"
+            )
+            seen_bluff = seen_bluff or claimed > held
+    assert seen_bluff, "no seat ever over-claimed, so the bluff arm went unexercised"

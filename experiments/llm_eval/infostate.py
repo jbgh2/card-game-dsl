@@ -292,6 +292,11 @@ def decision_kind(legal_strings: list[str]) -> str:
     arise (a count range starts at 1, so "1" is always present and is not a
     rank), but the ordering means the guard does not depend on that argument.
     """
+    if not legal_strings:
+        # `all(...)` over an empty list is True, so without this the FIRST arm
+        # below would claim an empty decision is an announce. A decision with no
+        # legal action is not a shape this game has; it is a broken transcript.
+        raise ValueError("a decision offered no legal action at all")
     if legal_strings == ["allow", "call_cheat"]:
         return "window"
     if all(s.startswith("play_") for s in legal_strings):

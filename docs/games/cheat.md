@@ -184,7 +184,7 @@ move_type allow {
   }
 }
 
-// The whole adjudication, run from every play_N effect: the clockwise
+// The whole adjudication, run from the play_cards effect: the clockwise
 // window (first call closes it), then flip-judge-collect or a quiet merge,
 // the shed-out check, and the cycle step.
 procedure resolve_play(who : Player) {

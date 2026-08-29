@@ -1,8 +1,16 @@
 AUDIT TRAIL — every reported number, with the raw counts behind it.
 
-Regenerate (reads the committed .jsonl.gz directly, no unzip needed):
+Produced by the --deep audit at the tree this archive was published from.
+Deep replay needs action ids that still name moves the game has, and Cheat's
+no longer do (this archive predates the removal of the four-card play cap), so
+reproducing the DEEP form means checking out that tag. The shallow audit still
+recomputes every number below from the transcripts:
+
   python -m experiments.llm_eval.verify           # independent recomputation
-  python -m experiments.llm_eval.verify --deep    # + replay every fact from (seed, history)
+
+Its per-arm DENOMINATORS now read lower than those recorded here, because a
+forced decision (one legal action) has left them; every RATE VALUE below is
+unchanged.
 
 verify.py deliberately does NOT call metrics.aggregate: it re-derives every
 statistic with its own arithmetic, so a bug in the metrics layer cannot hide

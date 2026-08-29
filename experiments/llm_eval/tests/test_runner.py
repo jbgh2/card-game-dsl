@@ -909,6 +909,16 @@ def test_verify_agrees_with_aggregate_for_multi_seat_agents(tmp_path: Path) -> N
         assert c["games"] == a["games"], f"{who}: seat-games disagree"
         assert c["wins"] == a["wins"], f"{who}: wins disagree"
         assert c["decisions"] == a["decisions"], f"{who}: decisions disagree"
+        # `open_decisions` is the denominator of `fallback_rate`, which is read
+        # against a publication threshold — so the two folds must reach it
+        # independently and agree, exactly like the counts around it.
+        assert c["open_decisions"] == a["open_decisions"], (
+            f"{who}: open decisions disagree"
+        )
+        assert 0 < a["open_decisions"] < a["decisions"], (
+            f"{who}: this matchup must contain BOTH forced and open decisions, "
+            f"or the agreement above is over a quantity nothing distinguishes"
+        )
         assert c["plays"] == a["plays"], f"{who}: plays disagree"
         assert c["windows"] == a["challenge_opportunities"], f"{who}: windows disagree"
         assert c["provable_faced"] == a["provable_opportunities"]

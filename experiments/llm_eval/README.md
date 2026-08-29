@@ -123,8 +123,11 @@ python -m experiments.llm_eval.compare \
 python -m experiments.llm_eval.study --figure
 ```
 
-`verify --deep` additionally replays every game through the engine; `verify
---order` audits a response-format arm from the raw replies. [`REVIEWER.md`](REVIEWER.md)
+`verify --order` audits a response-format arm from the raw replies. `verify
+--deep` additionally replays every game through the engine, which needs an
+archive whose action ids still name moves the game has — the Cheat archive's
+do not (it predates the removal of the four-card play cap), and the auditor
+says so rather than failing obscurely. [`REVIEWER.md`](REVIEWER.md)
 explains what each check rules out.
 
 ---
@@ -439,7 +442,8 @@ Cheat's half:
 ```
 infostate.py   Pure parser over the engine's information-state string
 render.py      Information state as English, plus its inverse for round-tripping
-verify.py      Independent recomputation; --deep replays, --order audits an arm
+verify.py      Independent recomputation; --order audits an arm (--deep replays,
+               where the archive's action ids still match the game)
 compare.py     Two matchups side by side, with the pre-registered endpoint
 study.py       Rebuild the study summary + figure from the archive
 figure.py      The one matplotlib figure

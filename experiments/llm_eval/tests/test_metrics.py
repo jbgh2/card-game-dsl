@@ -194,10 +194,25 @@ def test_win_rate_uses_returns() -> None:
     assert agents["a1"]["wins"] == 0 and agents["a1"]["win_rate"] == 0.0
 
 
+def _first_open(decisions: list[dict[str, Any]], player: int) -> dict[str, Any]:
+    """That seat's first decision that OFFERED a choice.
+
+    Selected by shape, not by index: a fallback planted on a forced decision
+    pins arithmetic the live runner cannot produce — the denominator excludes
+    it, so the rate could exceed 1 and this test would still pass. Index
+    literals also drift silently whenever the fixture gains a decision, which
+    is how this pin came to sit on a forced one.
+    """
+    for d in decisions:
+        if d["player"] == player and len(d["legal"]) > 1:
+            return d
+    raise AssertionError(f"seat {player} has no open decision in this fixture")
+
+
 def test_fallback_rate_counts_llm_fallbacks() -> None:
     record = _record()
-    record["decisions"][0]["llm"] = {"fallback": True}
-    record["decisions"][4]["llm"] = {"fallback": False}
+    _first_open(record["decisions"], 0)["llm"] = {"fallback": True}
+    _first_open(record["decisions"], 1)["llm"] = {"fallback": False}
     agents = aggregate([record])["agents"]
     assert agents["a0"]["fallbacks"] == 1
     # Over the decisions that OFFERED a choice, not every decision: a forced
@@ -208,6 +223,9 @@ def test_fallback_rate_counts_llm_fallbacks() -> None:
         "distinction below is untested"
     )
     assert agents["a0"]["fallback_rate"] == 1 / agents["a0"]["open_decisions"]
+    # a1 carries an llm record whose `fallback` is FALSE — not an absent one.
+    # Without that, `.get("fallback")` and `"fallback" in ...` behave alike here
+    # and the mutation between them goes uncaught.
     assert agents["a1"]["fallbacks"] == 0
 
 

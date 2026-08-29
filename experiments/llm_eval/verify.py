@@ -335,7 +335,12 @@ HOLDEM_RATES: list[tuple[str, str, str]] = [
     # game's baseline did exactly that.
     ("mean_net_chips", "net_total", "terminal_games"),
     ("win_rate", "wins", "terminal_games"),
-    ("fallback_rate", "fallbacks", "open_decisions"),
+    # `decisions`, matching `holdem.HoldemStats.rates` — the published fold this
+    # one exists to recompute. Hold'em's own forced decisions dilute both sides
+    # equally, which is a real defect but a PRE-EXISTING one (issue #481);
+    # correcting it on this side alone would make the auditor compute a
+    # different quantity from the summary it audits.
+    ("fallback_rate", "fallbacks", "decisions"),
 ] + [
     (f"{verb}_rate", f"{verb}_chosen", f"{verb}_offered")
     for verb in holdem.ACTION_VERBS
@@ -501,13 +506,16 @@ def report_arm(label: str, c: Counter[str]) -> None:
             f"{calls:<6} = {c['parse_errors'] / calls:.4f}"
         )
         print(f"    {'output_tokens_per_call':32} {c['output_tokens'] / calls:>13.1f}")
-    if c["open_decisions"]:
-        offered = c["open_decisions"]
+    if decisions:
+        # `arm_audit` counts only decisions carrying an llm trace, and a forced
+        # move records none — so `decisions` here already means "decisions the
+        # model was asked about". It needs no `open_decisions` correction, and
+        # gating on one silently drops both rates below.
         print(
             f"    {'fallback_rate':32} {c['fallbacks']:>6} / "
-            f"{offered:<6} = {c['fallbacks'] / offered:.4f}"
+            f"{decisions:<6} = {c['fallbacks'] / decisions:.4f}"
         )
-        print(f"    {'calls_per_decision':32} {calls / offered:>13.4f}")
+        print(f"    {'calls_per_decision':32} {calls / decisions:>13.4f}")
 
 
 def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:

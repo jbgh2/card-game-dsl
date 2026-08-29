@@ -154,7 +154,7 @@ Three further checks, each answering a different objection:
 #   games — separate code paths, so agreement is evidence.
 
 # "Are the transcripts internally consistent?"  (needs the openspiel extra)
-PYTHONPATH=. python3 -m experiments.llm_eval.verify --deep
+PYTHONPATH=. python3 -m experiments.llm_eval.verify
 
 # "Did the Cheat A/B actually manipulate anything?"
 PYTHONPATH=. python3 -m experiments.llm_eval.verify --order \

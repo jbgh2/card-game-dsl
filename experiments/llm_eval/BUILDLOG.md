@@ -220,13 +220,15 @@ straight from the transcripts, deliberately *without* calling
 `metrics.aggregate`, so a bug in the metrics layer cannot hide behind a checker
 that shares its code. `--deep` goes further: it discards the recorded
 per-decision facts and recomputes them by replaying each game through the
-engine. Both agree to the last digit, and `results/AUDIT.txt` is their output —
+engine — available only where the archive's action ids still name moves the
+game has, which the Cheat archive's no longer do (it predates the removal of
+the four-card play cap; deep-audit it at the tag it was published under).
+Both agree to the last digit, and `results/AUDIT.txt` is their output —
 every rate printed as `numerator / denominator`, so the arithmetic can be redone
 by hand.
 
 ```bash
 python -m experiments.llm_eval.verify
-python -m experiments.llm_eval.verify --deep --matchup llm_mid_rendered_bluffer
 ```
 
 **Transcripts are complete without being enormous.** Each game records its seed

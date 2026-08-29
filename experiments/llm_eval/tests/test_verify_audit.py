@@ -223,6 +223,12 @@ def test_deep_lets_a_current_format_replay_failure_through() -> None:
     itself. Translating it too would answer a live defect with a pointer to an
     irrelevant tag, which is the more expensive failure: the audit would read
     as explained rather than broken.
+
+    What this pins exactly: that the `legacy` FLAG, and nothing about the
+    failure's shape, decides whether the explanation is attached. The
+    underlying error here is still the legacy one — scrubbing the actions
+    cannot make the recorded history current — so the test proves the branch
+    is flag-driven, not that it can classify an unrelated corruption.
     """
     from ..verify import deep_facts
 
@@ -234,7 +240,9 @@ def test_deep_lets_a_current_format_replay_failure_through() -> None:
         **record,
         "decisions": [{**d, "action": "play_cards"} for d in record["decisions"]],
     }
+    # `SystemExit` does not inherit from `ValueError`, so this raises-clause is
+    # itself the assertion that the explanation was NOT attached.
     with pytest.raises(ValueError) as excinfo:
         deep_facts(current)
-    assert not isinstance(excinfo.value, SystemExit)
     assert "not among the live candidates" in str(excinfo.value)
+    assert "four-card play cap" not in str(excinfo.value)

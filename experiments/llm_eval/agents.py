@@ -121,6 +121,11 @@ class RandomAgent:
         return {}
 
 
+#: Copies of any one rank in a single 52-card deck. The ceiling on a claim that
+#: could conceivably be true, and so on a bluff worth making.
+RANK_COPIES = 4
+
+
 @dataclass
 class RuleAgent:
     """A competent non-learning baseline, decided entirely from the info state.
@@ -187,7 +192,13 @@ class RuleAgent:
             # policy below plays every truthful card first and pads with junk,
             # so claiming one more than we hold yields a minimally-implausible
             # bluff rather than an obvious dump.
-            over = [n for n in counts if n > truthful]
+            #
+            # Never past FOUR. One deck holds four of a rank, so a claim of
+            # five is false to every seat at the table without anyone looking
+            # at their own hand — a free catch for the challenge metrics this
+            # agent is the opponent in, not a bluff. Holding all four, there is
+            # no plausible over-claim left, so the truthful claim below stands.
+            over = [n for n in counts if truthful < n <= RANK_COPIES]
             if over:
                 return view.legal_actions[view.legal_strings.index(str(min(over)))]
         # The largest count we can back truthfully; 1 when we hold none of the

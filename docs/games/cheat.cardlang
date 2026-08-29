@@ -99,7 +99,7 @@ game Cheat {
 
     // The turn loop owns rotation (decisions.md "The `turns` form"); the
     // whole play — face-down discard, challenge window, resolution — lives
-    // in the play_N move effects, Coup's shape. The loop stops the moment a
+    // in the play_cards move effect, Coup's shape. The loop stops the moment a
     // play's owner survives its window with an empty hand.
     turns t from 0 over all players
           until any player where won[player] {
@@ -153,7 +153,7 @@ move_type allow {
   }
 }
 
-// The whole adjudication, run from every play_N effect with the player who
+// The whole adjudication, run from the play_cards effect with the player who
 // played bound once, up front (decisions.md "Named procedures").
 //
 // The window: each other player, clockwise from the claimant's left, is
