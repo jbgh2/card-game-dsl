@@ -30,8 +30,9 @@ adds no new vocabulary, and it fails loudly (via `render`'s own
 candidate shape it does not recognize. This is a stronger, verified
 guarantee than hashseed-pinning (see pairing.py's docstring for the
 empirical four-game cross-hashseed check); `PYTHONHASHSEED` is therefore not
-pinned here either, a deliberate deviation from the plan's literal wording
-that the plan's own T1 predecessor already made and verified.
+pinned here either — the same deliberate choice T1 made and verified, which
+grammar-fuzzing.md states as the constraint rather than as a deviation from
+one.
 
 Termination. Corpus games (and their mutants) are not guaranteed to reach a
 natural end under a small step budget — `tests/metamorphic/pairing.py`
