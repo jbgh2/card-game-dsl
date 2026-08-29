@@ -75,5 +75,19 @@
       "Edit(//Users/benh/Projects/cardlang-fleet/**/.github/**)",
       "Write(//Users/benh/Projects/cardlang-fleet/**/.github/**)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' 2>/dev/null | { read -r f; case \"$f\" in */tests/*.py|*/cardlang/*.py) jq -n --arg m 'This file is under tests/ or cardlang/, so it is a new ROW in the module-enumerating census pins. Those read source as TEXT, so mypy and any targeted test selection are blind to them. A new test module importing cardlang.openspiel.game dies at COLLECTION without the pyspiel extra, taking every test it holds. Editing CONTENT under cardlang/ trips the content-keyed pins too, so the trigger is touched, not created; those are the test modules matching walk_packages, iter_modules, or a glob over *.py -- about a dozen under tests/ -- and they must be run as well. Before pushing, run exactly this and nothing appended: pytest tests/test_optional_pyspiel.py tests/test_empty_axis_guard.py -q' '{hookSpecificOutput:{hookEventName:\"PostToolUse\",additionalContext:$m}}' ;; esac; } 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
