@@ -590,11 +590,15 @@ def test_a_playout_is_hash_seed_independent(name: str) -> None:
     does not prove: that a game reaches, at its first seed, every branch a
     hash-ordered collection could sit on — the seed axis is SAMPLED at one seed
     per game, and a branch first entered later is unswept here. The continuous
-    instrument for that is every CI run: the suite reproduces all of these
-    goldens, at all of their seeds, under whatever hash seed the run happens to
-    draw, so the seeds this pin does not sweep are swept there at the same
-    grain. Nor does it prove a capture is stable across interpreter versions:
-    both subprocesses run the interpreter running the suite.
+    instrument for those seeds is every CI run: the suite reproduces all of
+    these goldens, at all of their seeds, under whatever hash seed the run
+    happens to draw. It sweeps them at EACH GOLDEN'S OWN grain, though, which
+    for the summary-only vectors is the coarse one measured above — so a
+    divergence can need several seeds to surface there where one suffices here.
+    Getaway is that case both ways round (measured 2026-08-29): invisible at
+    one seed, its whole fifty-seed vector moves. Nor does this prove a capture
+    is stable across interpreter versions: both subprocesses run the
+    interpreter running the suite.
     """
     seeds = 1
     captures = {h: _capture_under_hashseed(name, seeds, h) for h in _HASHSEEDS}
