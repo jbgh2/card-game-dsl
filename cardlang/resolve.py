@@ -1229,15 +1229,19 @@ def _check_provided_readonly(
 # can fix a collision with a provided name, and therefore which fix the
 # diagnostic prescribes.
 #
-# Membership is the claim "the game's own text fixes this spelling, so its author
-# can respell it". A free `NAME` token is NOT the test, and reading it that way
-# mis-sorts both borders: `each <role> simultaneously` takes a free `NAME` that
-# `SIMULTANEOUS_ROLES` admits exactly one spelling for, and `n.DomainQuery`'s
-# bare form takes its noun from the game's own `positions { }` row. `DomainQuery`
-# is filed under the language because the only sub-position that is the author's
-# is one `_game_bindings` holds, which
-# `_check_provided_shadowed_by_binder` skips — so no cell reaching the guard
-# through this kind is respellable. Pinned against `_node_binders`'s own domain by
+# Membership is one claim: the spelling is the AUTHOR'S TO CHOOSE — respelling it
+# is an edit that leaves the game otherwise unchanged. Neither "the grammar has a
+# free `NAME` there" nor "some text of the game's fixes it" is that test, and each
+# mis-sorts a member. `each <role> simultaneously` takes a free `NAME`, but
+# `SIMULTANEOUS_ROLES` admits one spelling, so there is no other name to write. A
+# transfer filter's noun follows `cards:`/`pieces:`, which is the game's own text,
+# but changing it means writing a game of the other content kind rather than
+# renaming a binder. And `n.DomainQuery`'s bare form takes its noun from the
+# game's own `positions { }` row, which IS the author's to choose — that kind is
+# filed under the language because the only sub-position that is theirs is one
+# `_game_bindings` holds, and `_check_provided_shadowed_by_binder` skips those, so
+# no cell reaching the guard through this kind is respellable. Pinned against
+# `_node_binders`'s own domain by
 # `tests/test_family_libraries.py::test_the_author_chosen_split_classifies_every_
 # binding_kind`, so a new binding node kind must be filed under one side or the
 # other rather than defaulting to either.
@@ -1320,9 +1324,9 @@ def _check_provided_shadowed_by_binder(
             bag.error(
                 f"library '{library}' provides state '{name}', and this form "
                 f"binds '{name}' — inside its scope the bare name is the binder, "
-                f"so the provided variable cannot be read here. The language "
-                f"fixes this binder's spelling, so no game can rename it: rename "
-                f"the library's variable",
+                f"so the provided variable cannot be read here. The spelling is "
+                f"not this game's to choose, so there is nothing here to rename: "
+                f"rename the library's variable",
                 span,
             )
 

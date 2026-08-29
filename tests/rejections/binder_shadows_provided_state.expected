@@ -1,0 +1,1 @@
+binder_shadows_provided_state.cardlang:22:5: error: binder 'limit' is spelled like state 'limit', which library 'poker_betting' provides — inside this scope the bare name is the binder, so the provided variable cannot be read here, and nothing in this file says the spelling was taken: rename the binder

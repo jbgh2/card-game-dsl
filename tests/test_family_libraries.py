@@ -3165,8 +3165,13 @@ def test_a_declaration_level_collision_is_reported_by_another_guard(
     one author-respellable sub-position is a declared position domain, and that
     is a bucket here.
 
-    red under: delete the `positions` row from `_INJECTABLE_TARGETS` (the
-    `position domain` cell then accepts)."""
+    Each cell asserts the OWNING guard's own sentence, naming the bucket it
+    reports — asserting only that the name appears would pass on any unrelated
+    diagnostic that happened to quote it, which several of these hosts' names
+    do.
+
+    red under: give `_check_library_shadows_game` a `continue` for
+    `game_noun == "position domain"` — measured, and it reddens this cell alone."""
     name = _DECLARATION_LEVEL_NAME[noun]
     _patch_libraries(
         monkeypatch,
@@ -3180,7 +3185,14 @@ def test_a_declaration_level_collision_is_reported_by_another_guard(
     source = _DECLARER_HOST.replace("game Declarer {", "game Declarer {\n  uses provider", 1)
     with pytest.raises(DiagnosticError) as exc:
         resolve(parse_text(source, "declarer.cardlang"))
-    assert f"'{name}'" in str(exc.value), str(exc.value)
+    # The state-variable bucket is `_check_state_claims`'s; every other bucket is
+    # the injection guard's, whose sentence names the bucket.
+    expected = (
+        f"state '{name}' is declared by this game and also provided by library"
+        if noun == "state variable"
+        else f"this game already uses '{name}' as a {noun}"
+    )
+    assert expected in str(exc.value), str(exc.value)
 
 
 def test_a_library_may_bind_its_own_provided_name(
