@@ -629,9 +629,9 @@ def test_a_declaration_disagreeing_with_its_implementation_is_refused(
     entry: str, call: str
 ) -> None:
     """Every field of the declared entry, against the signature the Python side
-    states. Each of these compiled clean and died mid-playout — a `TypeError`
-    for a wrong arity, a `KeyError` for a wrong parameter type — which is the
-    designer's error arriving in the runtime's channel."""
+    states. Unrefused, each would compile clean and die mid-playout — a
+    `TypeError` for a wrong arity, a `KeyError` for a wrong parameter type —
+    which is the designer's error arriving in the runtime's channel."""
     body = f"    score[0] := if {call} >= 0 then 1 else 0" if "Boolean" not in entry \
         else "    score[0] := 1"
     message = _refused(_game(block=entry, body=body))
@@ -847,9 +847,9 @@ def test_the_contract_and_reads_shape_cross(cell: tuple[str, str]) -> None:
 def test_a_repeated_reads_name_is_refused(clause: str) -> None:
     """A `reads` clause is a SET of declarations, and the materialization keys
     by name — so a repeat is not additive, it is one entry silently winning.
-    `hand, hand[p]` played to completion returning a value computed from ONE
-    hand while the declaration said every hand: a silent wrong answer, which is
-    why the whole multiset is refused rather than the colliding pair."""
+    `hand, hand[p]` would play to completion returning a value computed from
+    ONE hand while the declaration says every hand: a silent wrong answer, which
+    is why the whole multiset is refused rather than the colliding pair."""
     entry = f"gin_knock_ok(p : Player, q : Card) : Boolean reads {clause}"
     message = _refused(_game(block=entry, body="    score[0] := 1"))
     assert "reads" in message
@@ -962,9 +962,9 @@ def test_a_state_name_shadowed_by_a_phase_is_refused() -> None:
 
     The classifier matches the game-level declaration and the runtime resolves
     the innermost frame, so the primitive silently receives the phase's value
-    while that phase runs — it played to completion scoring meld under the
-    wrong trump. The declaration cannot say which of the two it means, so the
-    ambiguity is refused rather than resolved by whichever end happens to
+    while that phase runs, so it would play to completion scoring meld under
+    the wrong trump. The declaration cannot say which of the two it means, so
+    the ambiguity is refused rather than resolved by whichever end happens to
     win."""
     source = (
         "game Probe {\n"

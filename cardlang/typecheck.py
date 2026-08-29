@@ -1024,9 +1024,9 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
 
     The shape check is the both-ways check's THIRD leg. Existence and contract
     category are the other two, and a declaration can pass both while
-    disagreeing about arity, parameter types or return type — which compiled
-    clean and died mid-playout as a `TypeError` or a `KeyError`, the designer's
-    error arriving in the runtime's channel."""
+    disagreeing about arity, parameter types or return type — which would
+    compile clean and die mid-playout as a `TypeError` or a `KeyError`, the
+    designer's error arriving in the runtime's channel."""
     if game.primitives is None:
         return
     declared = declared_primitive_sigs(game)

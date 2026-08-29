@@ -4866,9 +4866,9 @@ def _check_primitive_reads(
     params = {p.name for p in decl.params}
     # A clause is a SET of declarations: the row it becomes is keyed by name,
     # and so is the per-call key map, so a repeat is not additive — one entry
-    # silently wins. `hand, hand[p]` played to completion returning a value
-    # computed from ONE hand while the declaration said every hand, which is a
-    # wrong answer with no failure anywhere. Refused as a multiset before any
+    # silently wins. `hand, hand[p]` would play to completion returning a
+    # value computed from ONE hand while the declaration says every hand, which
+    # is a wrong answer with no failure anywhere. Refused as a multiset before any
     # per-entry check, so the diagnostic names the repeat rather than whichever
     # of the two copies happens to be malformed.
     # The parameter list is a SET for the same reason, one slot over: the type
