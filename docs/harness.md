@@ -132,7 +132,15 @@ threads answered. Armed-then-reviewed would collapse Merge Lane C into
 D. The one predicate the server cannot enforce is that a review has
 happened at all — a green PR with no threads merges when armed,
 reviewed or not — so that predicate belongs to the arming hand, never
-assumed from the platform. The operator arms any lane at will.
+assumed from the platform. The arm binds to a head, not to the PR: the
+lane's requirements must hold for the head that merges, and a push to
+an armed PR creates a head the review never saw while the platform
+keeps the arm riding (any write-permission push leaves auto-merge
+enabled). So a head change disarms in doctrine even though it does not
+on the server: disarm before pushing (`gh pr merge <N>
+--disable-auto`), and re-arm only once the gate's evidence — lane
+call, review, threads — stands against the new head. The operator arms
+any lane at will.
 
 ## Review threads
 
