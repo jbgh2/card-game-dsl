@@ -98,8 +98,8 @@ depth by target extremity, initiative effects) are a round-2 probe.
   in principle be overturned by a policy that holds *cleverly* (e.g.
   sandbagging to win the last-flip information race). The mini +
   exact tier remains the ground-truth instrument.
-- **No combos and no jokers in the games measured here** (they arrive
-  in round 5). Combos are self-synergy and would, if anything,
+- **No combos and no jokers in the games measured here** (§12 measures
+  them). Combos are self-synergy and would, if anything,
   soften the interaction verdict's margin — they cannot rescue a
   double-solitaire core, which is why the base game was tested first.
 - **Sighted's knobs are hand-tuned** (WON/LOST margin 25, opponent
@@ -127,7 +127,9 @@ depth by target extremity, initiative effects) are a round-2 probe.
    designed?).
 3. **salvo-mini + exact tier**: equilibrium mixing at the first
    committer's staging, value of the count channel, per DESIGN.md.
-4. Combos + jokers (needs the stdlib combo primitive decision).
+4. **Combos + jokers** (needs the stdlib combo primitive decision) →
+   run; see sections 12-14. **Both skill axes survive and every edge
+   shrinks; two priced combo rows turn out to be unreachable.**
 
 ## 7. Round 2 — the zero-centered curve A/B (hypothesis refuted)
 
@@ -309,8 +311,8 @@ second and both above chance.
 Caveats, standing: all numbers are heuristic-tier lower bounds (the
 sweep is coarse, one knob family, references are simple policies);
 the exact-tier mini remains the ground-truth instrument for
-equilibrium questions, and combos/jokers (round 5) will move every
-number.
+equilibrium questions, and combos/jokers moved every number in the
+direction §12 records.
 
 One caveat is specific and bounded: the ADOPTED game's scoreboard above
 is measured on deals disjoint from the tuning sweep, but rounds 1-3's
@@ -388,7 +390,68 @@ differential scale; `results_mini_seed{0,3,14}.json`):
   Undertow-style fast-sim speed twin with an adapter crosscheck. The
   long-run contract's calibration-first discipline earns its keep here.
 
-## 12. Round 5 (combos + jokers) — implemented; the measurement is open
+## 12. Round 5 (combos + jokers) — the full game's scoreboard
+
+The game file now carries DESIGN.md's full rules: the `standard54` deck
+with its two jokers, and combo scoring through the declared
+`salvo_combos` Primitive. Instrument: the same arena at the same tuned
+knobs, 1000 games per pairing, on seeds 2000-2499 — disjoint from the
+tuning sweep (0-199), from round 4's scoreboard (200-699) and from its
+liveness probe (200-1199), and recorded as `seed_start` in the artifact.
+Data: `results_triage_base_r5.json`. The mirror pin now covers the combo
+table and the joker branch as well as proximity and affinity, still
+written from DESIGN.md rather than from `cardlang/runtime/salvo.py`, and
+it was green on all 10000 playouts.
+
+| pairing | win rate | reading |
+|---|---|---|
+| sighted vs blind | **59.4 / 40.6** | full skill vs commit-max |
+| sighted vs sighted_nohold | **55.8 / 44.1** | holding, given sight |
+| sighted vs blind_hold | 51.8 / 47.8 | sight, given holding |
+| blind_hold vs blind | 54.7 / 45.2 | holding, blind |
+| sighted_nohold vs blind | 48.6 / 51.1 | sight alone, no holding |
+
+**Both skill axes survive, and every one of them shrinks.** Round 4's
+profile is intact: restraint carries the head of the skill (blind_hold
+over blind by +9.5 net points; +11.7 with sight), opponent-reading
+stacks on top of restraint (51.8 against blind_hold), and redirection
+alone is neutral. But all five pairings fall against §9, by 2.2 to 5.0
+points of win rate, and none rises. Redirection alone crosses to the
+losing side of even (48.6/51.1 against round 4's 50.8/48.8) — a move
+well inside one standard error, so the reading stays "neutral" rather
+than reversing. §13 measures the mechanism: both of this round's
+additions pay VOLUME, and volume is what restraint gives up.
+
+**Commitment count is still a real decision (question 1).** Commit-max
+does not dominate: `blind_hold` beats never-holding `blind` 54.7/45.2
+using no opponent state at all, and full sighted play beats it
+59.4/40.6. Tuned play commits ~8.7-9.7 cards and holds ~2 per game
+against commit-max's 11 — the recon dial is still exercised, not maxed.
+Decision divergence holds at 16-21%, round 4's band, so choices remain
+opponent-contingent.
+
+**Seat symmetry (question 5).** The arena now records `seat_win_rate`
+per pairing, pooled by SEAT across both seatings, which cancels the
+policy difference and leaves whatever the seat itself is worth. Seat 0
+takes 46.3-51.4% across the ten pairings; every pairing is within about
+two standard errors of even, and the three mirror pairings — where the
+seat is the only difference at all — disagree on the direction (51.4%
+for random, 47.8% for blind, 48.0% for sighted). No seat effect this
+instrument can resolve. The caveat is that all ten pairings run the
+SAME 500 deals, so their ten numbers are not ten independent samples; a
+deal window that favors one seat would tilt them together. Separating a
+window from a structural first-mover wants a per-pairing window, which
+this artifact does not have.
+
+**What the round-4 comparison is and is not.** Rounds 4 and 5 differ in
+two things at once — the game gained jokers and combos, and the deal
+window moved — so this is not a controlled A/B, and no pairing here
+isolates the window the way §9's `blind_hold vs blind` control did (the
+game changed under every pairing). What carries the reading is the
+direction being unanimous across five pairings and the volume mechanism
+being independently measured in §13. A combo-free build of the current
+file, run on seeds 2000-2499, is the instrument that would settle the
+split; it does not exist.
 
 Expressing the combo bonus table requires combinatorial-structure
 queries over a zone (same-rank groups, runs, flushes) that the language
@@ -409,7 +472,119 @@ belongs to no other game's namespace. The joker half needed no
 language decision (joker cards, rankings, and filtered deals all
 exist) — only the `standard54` deck row, which the same change adds.
 
-Both are in the game file and the rigs. The arena run and its verdicts
-are what this round still owes: the point values are DESIGN.md's
-starting values, and question 4 (combo incidence) is the instrument
-that moves them.
+The point values the scoreboard above was measured against are
+DESIGN.md's starting values; §13 is the instrument that prices them.
+
+## 13. Combo incidence and the bonus table (evaluation question 4)
+
+Instrument and deals as §12. The table reads the `sighted vs sighted`
+pairing of `results_triage_base_r5.json` — competent play on both
+sides. Two things about the denominator, because both are easy to
+misread: it is EVERY settled army, two players times three locations
+per game, including the empty and one-card armies that can never score;
+and each family is flagged on its largest instance only, so `pair`
+means "the biggest set in this army is exactly two", never "this army
+holds a pair".
+
+| combo | bonus | armies | per army |
+|---|---|---|---|
+| pair | 4 | 1568 | 26.1% |
+| trips | 12 | 110 | 1.8% |
+| quads | 20 | 4 | 0.1% |
+| run3 | 6 | 748 | 12.5% |
+| run4 | 10 | 128 | 2.1% |
+| run5 | 15 | 0 | 0.0% |
+| flush3 | 5 | 682 | 11.4% |
+| flush4 | 9 | 68 | 1.1% |
+| flush5 | 14 | 0 | 0.0% |
+
+**Two priced rows cannot be reached at all, and a third never is.** The
+capacity adopted in round 3 caps an army at four cards, so a five-card
+run and a five-card flush are not rare — they are unconstructible.
+Neither scored once in any pairing this round measured, 60000 settled
+armies. Quads needs an army that is four of a kind and nothing else,
+which is reachable and landed 4 times in 6000. The bonus table was
+written before capacity existed, and its top row of each family is now
+surface the rules cannot produce. The designer's choices are to
+re-anchor the ladders on what four cards can hold (run of four and
+flush of four as the top rows), to raise capacity, or to delete the
+three rows; leaving them priced is the one option that says something
+false about the game.
+
+**Combos do not dwarf proximity.** Combo bonuses carry 7.46% of all
+army points under tuned mirror play. The weight sits almost entirely in
+the cheap rows: pairs, run3 and flush3 together are about four fifths
+of the combo points scored, and everything above them is the rest.
+Question 4's second clause passes with room — if anything the layer is
+quiet enough that a designer wanting combos to be felt has headroom to
+raise the reachable rows.
+
+**Combos pay volume, which is what shrank §12's edges.** The layer is
+worth more to the player who commits more, because a fourth card in an
+army can only add chances at a set, a run or a flush. Commit-max
+against itself (11.0 commits per player) scores pairs in 34.7% of
+armies, run3 in 14.7% and flush3 in 17.1%, for a combo share of 8.55%;
+tuned play against itself (8.67 commits) scores 26.1%, 12.5% and 11.4%,
+for 7.46%. So the combo layer is a standing counter-incentive to the
+recon draw — the rule round 3 adopted to make restraint pay — and §12's
+uniformly smaller restraint edges are what that costs. Both remain
+positive; the axes coexist.
+
+**Jokers reach armies, and tuned play seeks them.** Under tuned mirror
+play 1.016 jokers settle per game, 15.77% of armies hold at least one,
+and they carry 5.64% of all army points — two cards worth nearly as
+much of the point total as the entire nine-row combo table. Commit-max,
+which plays every card it draws, settles FEWER of them (0.86 per game
+on twice as many committed cards): a joker is a flat 13, the best score
+available anywhere, so restraint spends its scarcer commits on jokers
+first. That is the one place this round's two additions pull opposite
+ways.
+
+**What this does not settle.** Every policy in the arena is
+combo-BLIND: `blind`, `blind_hold` and `sighted` all score through the
+proximity-and-affinity value function alone, and the sighted knobs were
+swept on the pre-combo game. So the incidence above is combos FORMING,
+not combos SOUGHT — a floor on how much the table hands out, and no
+measurement at all of what a player who plays for shape could extract.
+Repricing the reachable rows on this evidence would be repricing
+against a player nobody will be. A combo-aware policy is the instrument
+question 4 needs before the numbers move.
+
+## 14. Location liveness under combos
+
+Instrument: `probe_liveness.py` re-run on the full game, 1000 mirror
+playouts per policy over seeds 3000-3999 — disjoint from every window
+above and recorded as `seed_start`. Data: `results_liveness_r5.json`;
+round 4's `results_liveness.json` is left as recorded.
+
+Under tuned sighted play:
+
+| bin | cards | card-distance | affinity | margin | unclaimed | least-contested (vs share) |
+|---|---|---|---|---|---|---|
+| mid | 6.11 | 1.89 | 47.1% | 17.7 | 1.9% | 19.6% (22.8%) |
+| near | 5.93 | 1.74 | 42.5% | 18.4 | 2.3% | 29.1% (31.4%) |
+| edge | 5.60 | 1.84 | 37.7% | 19.4 | 1.8% | 51.4% (45.8%) |
+
+**The designed personalities hold, minus one.** Edge targets still draw
+fewer cards than mid ones (5.60 against 6.11) and still buy less
+affinity rescue (37.7% against 47.1%) — the volume-versus-precision
+gradient §10 found. The one gradient that does not survive is
+card-distance: §10 read edge slightly looser than mid (1.92 against
+1.84) and this round reads it slightly tighter (1.84 against 1.89).
+Both differences are a twentieth of a rank; the honest reading is that
+committed cards sit close to their target everywhere and this
+instrument resolves no gradient in tightness.
+
+**Combos widen margins and close ties.** Every bin's mean margin rises
+against §10 (17.7/18.4/19.4 against 14.5/15.0/16.6) and every bin's
+unclaimed rate falls (1.9/2.3/1.8% against 5.0/4.4/2.5%). A combo is a
+lumpy 4-to-12 point step, so armies land further apart and exact ties
+get rarer. Liveness is unharmed — the effect is on how locations are
+WON, not on whether they are contested.
+
+**The Blotto abandonment watch stays healthy.** Edge locations are the
+game's thinnest battlefield 51.4% of the time against a 45.8%
+appearance share, a ratio of 1.12 against §10's 1.18 — still a lean,
+still not a script, and slightly softer than before. Blind play remains
+the scriptier one (67.3% against the same 45.8%, ratio 1.47, against
+§10's 1.51). Question 3's verdict is unchanged by the full rules.

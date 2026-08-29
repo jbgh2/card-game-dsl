@@ -60,7 +60,8 @@ where, how much, and what is the opponent committing *right now*.
 ## Rules (full game)
 
 All point values below are starting values, expected to move at the
-simulation step; the mechanisms are the design.
+simulation step (REPORT.md section 13 measures the combo table's); the
+mechanisms are the design.
 
 **Setup.** Shuffle 54 cards (standard 52 plus two jokers). Deal three
 cards face-up in a row: the **locations**. (A joker dealt as a location
@@ -138,7 +139,10 @@ locations wins; if that also ties, the game is a draw.
   distance into a playable commit — and it aims the long game: a flush
   in the location's own suit stacks both bonuses.
 - **Combos reward planning across turns** and justify off-target
-  commits, which keeps hands from being priced by proximity alone.
+  commits, which keeps hands from being priced by proximity alone. The
+  capacity of four bounds what one army can hold, so the five-card rung
+  of the run and flush ladders is unreachable and the four-card rung is
+  the ceiling in play (REPORT.md section 13).
 - **The commit-count axis needs an economy, not a value curve —
   settled empirically across three arena rounds** (REPORT.md sections
   3, 7, 8). Under the base rules committing the maximum is
