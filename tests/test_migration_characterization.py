@@ -25,9 +25,12 @@ domain order the auction form enumerates) and the two hash-sensitive seeds (32,
 settlement bug (its six-way settlement has no other independent-recompute net —
 see issue #83).
 
-`rules.legal_cards` returns a `set`, so the chooser sees candidates in
-hash-dependent order — the per-seed scores vary with `PYTHONHASHSEED`. We capture
-in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
+A playout does not depend on `PYTHONHASHSEED`: the same (game, seed) capture is
+byte-identical across hash seeds, which `test_a_playout_is_hash_seed_independent`
+below pins over one trick game and one climbing game. So no capture here pins
+the environment, and every run reproduces these goldens under whatever hash seed
+it happens to draw. The captures run in a subprocess for interpreter isolation —
+a fresh process per game, holding nothing the test session already imported.
 
 A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` COMPLETES a standing bet short of the
@@ -348,12 +351,10 @@ print(json.dumps(out))
 """
 
 
-def _capture_pinned(name: str) -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
+def _capture_results(name: str) -> dict[str, Any]:
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE, name, str(seeds_for(name))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -365,7 +366,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
 @pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
-    assert_golden_seeds(name, _capture_pinned(name), expected)
+    assert_golden_seeds(name, _capture_results(name), expected)
 
 
 # --- what every golden in this module reproduces under ------------------------
@@ -485,11 +486,9 @@ print(json.dumps(out))
 
 
 def _capture_per_hand_stacks(name: str) -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _PER_HAND_CAPTURE, name, str(seeds_for(name))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -569,11 +568,9 @@ print(json.dumps(out))
 
 
 def _capture_tichu() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _TICHU_CAPTURE, str(seeds_for("tichu"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -637,11 +634,9 @@ print(json.dumps(out))
 
 
 def _capture_tichu_hands() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _TICHU_HANDS_CAPTURE, str(seeds_for("tichu"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -660,9 +655,8 @@ def test_tichu_ws5_pins_per_hand_results() -> None:
 # scoring — onto the kernel `climb` construct alongside Tichu. The migration must
 # reproduce the monolith's chooser-draw sequence, so the per-seed results stay
 # byte-identical. We pin `scores` + `winner` (Big Two has no `scoring` phase, so
-# the driver's hand counter reads 0, as for Tichu). Its engine is set-free, so the
-# capture is hash-independent, but we still pin under `PYTHONHASHSEED=0` to match
-# the harness. Pinned pre-migration.
+# the driver's hand counter reads 0, as for Tichu). Its engine is set-free, so
+# the capture is hash-independent. Pinned pre-migration.
 _BIGTWO_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -682,11 +676,9 @@ print(json.dumps(out))
 
 
 def _capture_bigtwo() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _BIGTWO_CAPTURE, str(seeds_for("bigtwo"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -716,8 +708,7 @@ def test_bigtwo_migration_preserves_per_seed_results() -> None:
 # `scoring`, so the driver's hand counter reads 0 both before and after — the
 # per-hand vector list length already carries that information. Cribbage's
 # chooser candidate lists are hand-ordered lists (never sets), so this capture
-# is hash-independent; `PYTHONHASHSEED=0` is kept for harness consistency, as
-# for Big Two. Pinned pre-migration.
+# is hash-independent, as Big Two's is. Pinned pre-migration.
 _CRIBBAGE_CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -740,11 +731,9 @@ print(json.dumps(out))
 
 
 def _capture_cribbage_hands() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _CRIBBAGE_CAPTURE, str(seeds_for("cribbage"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -792,11 +781,9 @@ print(json.dumps(out))
 
 
 def _capture_schnapsen_hands() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _SCHNAPSEN_CAPTURE, str(seeds_for("schnapsen"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -843,11 +830,9 @@ print(json.dumps(out))
 
 
 def _capture_skat_hands() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _SKAT_CAPTURE, str(seeds_for("skat"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -870,8 +855,8 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # (tests/playout_trace.py; the golden's values were pinned while the game's
 # own `coup_reveal` trace still emitted them, so byte-identity here doubles
 # as the derivation's standing witness), plus final coins, the alive vector,
-# and the winner, over 40 seeds under PYTHONHASHSEED=0 (the WS5
-# behaviour-change re-pin — see kernel-migration.md, Workstream 5).
+# and the winner, over 40 seeds (the WS5 behaviour-change re-pin — see
+# kernel-migration.md, Workstream 5).
 # Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys
@@ -905,11 +890,9 @@ print(json.dumps(out))
 
 
 def _capture_coup() -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _COUP_CAPTURE, str(seeds_for("coup"))],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,

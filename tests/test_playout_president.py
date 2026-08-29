@@ -10,13 +10,15 @@ one player still holding at game end), that every hand's score delta is
 exactly +2 and +1 to two distinct players (everyone else unchanged), that
 cumulative scores never decrease, and termination at the 11-point target with
 the highest total winning. A 40-seed exact-score golden is captured in a
-PYTHONHASHSEED=0 subprocess (the repo's exact-score convention).
+subprocess for interpreter isolation; the scores do not depend on
+PYTHONHASHSEED, which for this game is what
+test_migration_characterization.py's `test_a_playout_is_hash_seed_independent`
+pins directly.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import random
 import subprocess
 import sys
@@ -194,9 +196,10 @@ def test_30_random_games_satisfy_invariants() -> None:
         )
 
 
-# Exact-score golden: the repo's exact-score convention pins PYTHONHASHSEED=0
-# in a subprocess (chooser candidate order elsewhere in the stack can be
-# hash-dependent; the pinned environment makes the capture byte-stable).
+# Exact-score golden, captured in a subprocess for interpreter isolation.
+# President is one of the two games test_migration_characterization.py's
+# `test_a_playout_is_hash_seed_independent` captures under two hash seeds, so
+# this vector reproduces under whatever seed a run draws.
 _CAPTURE = """
 import json, random
 from pathlib import Path
@@ -216,11 +219,9 @@ print(json.dumps(out))
 
 
 def test_per_seed_scores_match_golden() -> None:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
