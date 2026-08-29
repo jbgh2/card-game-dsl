@@ -1,0 +1,26 @@
+// A binder spelled like a variable `poker_betting` PROVIDES. Inside the loop
+// body the bare `limit` is the binder, so the street's bet size — which is what
+// the author means by `limit` — cannot be read there at all, and nothing in this
+// file says the spelling was taken.
+game BinderShadowsProvided {
+  uses poker_betting
+  players: 2
+  cards: kuhn3
+  max_length: 100
+  zones { deck : Deck }
+  state {
+    stack[player]     : Integer = 2
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 2
+  }
+  phase play {
+    for each player limit: stack[limit] += 0
+    run open_street(1)
+  }
+  winner: highest stack
+}

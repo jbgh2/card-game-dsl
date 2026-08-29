@@ -49,7 +49,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer. And a named trump nobody
+              rather than in the type layer. And, for a game that ``uses`` a
+              library, a game-introduced binder or declaration parameter
+              spelled like a variable the library PROVIDES, where the game
+              does not already bind that spelling at declaration level
+              (``_check_provided_shadowed_by_binder``, decisions.md "Family
+              libraries"). Like every other rule about provided state it is
+              settled inside ``_apply_uses``, before the splice — afterwards
+              the two are one flat declaration block and the distinction no
+              longer exists to check. And a named trump nobody
               reads: a game-level ``trump:`` that is not a suit of the deck
               or that no trick round inherits, and a round ``trump`` clause
               on a winner whose body reads no trump
@@ -843,6 +851,7 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     claims = _check_state_claims(game, libraries, bag)
     _check_library_shadows_game(game, libraries, bag)
     _check_provided_readonly(game, claims.provided, bag)
+    _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
         _check_library_encapsulation(library, bag)
@@ -1200,9 +1209,11 @@ def _check_provided_readonly(
     a flat game after. That is sound for the class this Owner Guard owns: a write
     target must classify as a state variable (`_bad_write_target`), and a provided
     name IS one. The one case where the two readings differ is a game-local binder
-    named after a provided variable, which this Owner Guard reports as the write it
-    refuses rather than as the shadow `_bad_write_target` would call it — a
-    different sentence about the same defect, and the fix (rename) is the same.
+    named after a provided variable; the shadow itself belongs to
+    `_check_provided_shadowed_by_binder` below, and a write THROUGH such a binder
+    draws both diagnostics — two true sentences about one name, with the same fix
+    — rather than the write going unreported because some other construct in the
+    game happens to bind the same word.
 
     Reported to the GAME's author, unlike `_check_library_encapsulation` next
     door: the game's author wrote the assignment and is the only one who can
@@ -1219,6 +1230,128 @@ def _check_provided_readonly(
             f"the library expose a procedure that makes the change",
             getattr(node, "span", None),
         )
+
+
+# Binder-introducing node kinds whose introduced SPELLING is the game AUTHOR'S TO
+# CHOOSE, as against the kinds nobody writing a game gets to name (`any player
+# where` always binds `player`, an aggregation always binds `card`, a transfer
+# filter binds the content noun, a position query binds the domain's noun). Both
+# halves shadow identically, so this is not a scoping table: it decides only
+# whether a collision with a provided name has anything at the refusal site to
+# rename, and therefore which fix the diagnostic prescribes.
+#
+# Membership is one claim: the spelling is the AUTHOR'S TO CHOOSE — respelling it
+# is an edit that leaves the game otherwise unchanged. Neither "the grammar has a
+# free `NAME` there" nor "some text of the game's fixes it" is that test, and each
+# mis-sorts a member. `each <role> simultaneously` takes a free `NAME`, but
+# `SIMULTANEOUS_ROLES` admits one spelling, so there is no other name to write. A
+# transfer filter's noun follows `cards:`/`pieces:`, which is the game's own text,
+# but changing it means writing a game of the other content kind rather than
+# renaming a binder. And `n.DomainQuery`'s bare form takes its noun from the
+# game's own `positions { }` row, which IS the author's to choose — that kind is
+# filed under the language because the only sub-position that is theirs is one
+# `_game_bindings` holds, and `_check_provided_shadowed_by_binder` skips those, so
+# no cell reaching the guard through this kind is respellable. Pinned against
+# `_node_binders`'s own domain by
+# `tests/test_family_libraries.py::test_the_author_chosen_split_classifies_every_
+# binding_kind`, so a new binding node kind must be filed under one side or the
+# other rather than defaulting to either.
+_AUTHOR_CHOSEN_BINDERS: frozenset[type] = frozenset(
+    {n.ForEach, n.Turns, n.LetStmt, n.ProduceArm, n.TypeDef}
+)
+
+
+def _check_provided_shadowed_by_binder(
+    game: n.Game, provided: dict[str, str], bag: DiagnosticBag
+) -> None:
+    """A name the GAME introduces into a scope narrower than the game may not be
+    spelled like a library-provided state variable.
+
+    The binder face of `_check_library_shadows_game`, turning on the same
+    visibility asymmetry. `_classify` tries `locals` before `state_vars`, so
+    inside the binder's scope the bare name IS the binder and the provided
+    variable cannot be read there — and the game's author never opens the
+    library file to learn that the spelling was taken. That invisibility is what
+    puts this outside the base language's shadowing carve-out, whose whole
+    justification is that a binder is scoped strictly narrower than a same-named
+    outer declaration the author WROTE (`RESERVED_VALUE_NAMES`'s docstring).
+
+    The class is closed at the two registries that own it: `_introduced_binders`
+    for the binders a body walk meets, and `_PARAM_BEARING` for the declaration
+    parameters, which scope to their own guard/effect/body and so are
+    deliberately not in the first. A `_PARAM_BEARING` row whose parameters scope
+    no DSL body is skipped by that declared property: a Primitive's parameters
+    label a Python signature and key its `reads` binders, so no DSL text sits
+    inside their scope and there is nothing to shadow.
+
+    A spelling the game already binds at DECLARATION level is left to the two
+    Owner Guards that own that level — its own `state { }`, phase-local blocks
+    included, is `_check_state_claims`, and its zones, positions, deck values and
+    definitions are `_check_library_shadows_game`. For a provided name in
+    `_game_bindings` one of those refuses the clash in full and with the fix on
+    the side that can take it, so a second sentence here would add nothing; over
+    a declared position domain, whose noun a position query binds, it would add a
+    false one, since that spelling is the author's own `positions { }` row to
+    respell. One clash, one diagnostic — the skip
+    `_check_library_shadows_game` already keeps for its own two siblings.
+
+    The game's flavor is passed rather than defaulted, unlike
+    `_check_reserved_binders` next door: the transfer/reveal filter binder is the
+    one binder whose spelling varies with content kind, and a piece game's
+    `piece` is exactly as shadowing as a card game's `card`.
+
+    Runs BEFORE the splice, for the reason every rule in `_apply_uses` does:
+    after it a provided variable is one of the game's own declarations, and a
+    binder shadowing one of those is the ordinary idiom the base language allows.
+    That also scopes the rule correctly — a LIBRARY's own binder over its own
+    provided state is ordinary shadowing, since its author wrote and can see
+    both.
+
+    Reported to the GAME's author either way — that is where the shadow is
+    written, and the file they have open — but the prescribed fix follows the
+    binder, because only one of the two sides can take it. A spelling the author
+    chose is theirs to respell. One they did not choose is not respellable at
+    all, so the only text that can change is the library's declaration, and
+    "rename the binder" there would be advice nobody can follow."""
+    if not provided:
+        return
+    declared = _game_bindings(game)
+
+    def check(name: str, noun: str, chosen: bool, span: Span | None) -> None:
+        library = provided.get(name)
+        if library is None or name in declared:
+            return
+        if chosen:
+            bag.error(
+                f"{noun} '{name}' is spelled like state '{name}', which library "
+                f"'{library}' provides — wherever this name is in scope the bare "
+                f"word is the {noun}, so the provided variable cannot be read "
+                f"there, and nothing in this file says the spelling was taken: "
+                f"rename the {noun}",
+                span,
+            )
+        else:
+            bag.error(
+                f"library '{library}' provides state '{name}', and this form "
+                f"binds '{name}' — inside its scope the bare name is the binder, "
+                f"so the provided variable cannot be read here. The spelling is "
+                f"not this game's to choose, so there is nothing here to rename: "
+                f"rename the library's variable",
+                span,
+            )
+
+    for node in _walk(game):
+        chosen = type(node) in _AUTHOR_CHOSEN_BINDERS
+        # One node, one sentence per spelling: a `let` binds `name` and `index`
+        # from one span, and `let limit[limit] = 1` spells them the same.
+        for name in dict.fromkeys(_introduced_binders(node, game.content_flavor)):
+            check(name, "binder", chosen, getattr(node, "span", None))
+    for row in _PARAM_BEARING.values():
+        if not row.scopes_body:
+            continue
+        for decl in row.reach(game):
+            for param in decl.params:
+                check(param.name, row.noun, True, param.span)
 
 
 @dataclass(frozen=True)
@@ -4271,6 +4404,18 @@ class _ParamBearing:
     a Primitive declaration has no library home — stated here so the family-
     library sweep derives which kinds it must cover instead of intersecting
     two name lists that happen to coincide."""
+    scopes_body: bool
+    """Whether DSL text sits inside these parameters' scope — the region where a
+    bare `NameRef` means the parameter rather than a state variable. True for
+    the four kinds `_classify_names` widens `cats.locals` for; False for a
+    Primitive declaration, whose parameters label a Python signature and key its
+    `reads` binders, so no DSL body is scoped by them and nothing can shadow.
+    Declared rather than read off `library_field is None`, which happens to
+    agree today and means something else entirely — the sweeps that must skip a
+    body-less kind ask this question, so a sixth row answers it rather than
+    inheriting an answer. Pinned against `_rewrite`'s own params-scoping arms by
+    `tests/test_family_libraries.py::test_every_param_bearing_row_agrees_with_
+    the_pass_that_scopes_it`."""
 
 
 _PARAM_BEARING: dict[type, _ParamBearing] = {
@@ -4279,24 +4424,35 @@ _PARAM_BEARING: dict[type, _ParamBearing] = {
         "function parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
         "functions",
+        scopes_body=True,
     ),
     n.ProcedureDef: _ParamBearing(
         lambda game: game.procedures,
         "procedure parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
         "procedures",
+        scopes_body=True,
     ),
     n.MoveTypeDef: _ParamBearing(
-        lambda game: game.move_types, "move-type parameter", RESERVED_VALUE_NAMES, "move_types"
+        lambda game: game.move_types,
+        "move-type parameter",
+        RESERVED_VALUE_NAMES,
+        "move_types",
+        scopes_body=True,
     ),
     n.RuleDef: _ParamBearing(
-        lambda game: game.rules, "rule parameter", RESERVED_VALUE_NAMES, "rules"
+        lambda game: game.rules,
+        "rule parameter",
+        RESERVED_VALUE_NAMES,
+        "rules",
+        scopes_body=True,
     ),
     n.PrimitiveDecl: _ParamBearing(
         lambda game: () if game.primitives is None else game.primitives.decls,
         "Primitive parameter",
         RESERVED_VALUE_NAMES,
         None,
+        scopes_body=False,
     ),
 }
 

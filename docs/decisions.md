@@ -4367,6 +4367,38 @@ language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose
 the runtime clears at each turn boundary — because a rule that covered only the
 obvious one would be two thirds of a guarantee.
 
+**Nor may the game shadow provided state with a name of its own.** Read-only
+governs writing; this governs reading. A binder or a declaration parameter the
+game introduces — `for each player limit:`, `function f(limit : Integer)`, a
+`let`, a `produces:` payload, a struct field — may not be spelled like a
+provided variable, because wherever that name is in scope the bare word is the
+binder and the provided variable cannot be read there at all. A struct field is
+in the list for a narrower reason and the rule keeps it deliberately: its scope
+is the type's `derived { }` bodies, so a struct without one scopes the spelling
+nowhere, and the refusal is the conservative one — adding a single derived field
+makes the shadow live, and the author who would add it is the one who cannot see
+the other half. It is the same visibility
+asymmetry the injection rule below turns on, arriving from the other side: the
+base language lets a binder shadow a same-named declaration precisely because
+the author wrote both and can see both, and that reasoning does not survive a
+declaration in a file they never open. A name the library merely `requires`
+stays shadowable — the game declared it, so the author did write both. So does a
+spelling the game already binds at declaration level, which the injection rule
+refuses first: one clash draws one refusal.
+
+Which fix the refusal prescribes follows the binder, and turns on one question:
+is the spelling the author's to choose? Where they picked it, renaming the binder
+is the fix. Where they did not — `any player where` always binds `player`, an
+aggregation always binds `card`, a transfer filter binds the game's content noun
+— there is nothing at the refusal site to rename, so the library's variable is
+what must change instead. Both are reported in the GAME, which is where the
+shadow is written and the file the author has open.
+
+A Primitive's parameters are the one declaration parameters the rule does not
+reach, and not by exemption: they label the Python signature and key the entry's
+`reads` binders, so no DSL text sits inside their scope and there is nothing for
+them to shadow.
+
 **A provided default may not read the contract.** Provided state splices in
 front of the game's own, so a `requires` name — which only the game can declare
 — is never in scope where a provided default runs. This is the declare-order
