@@ -64,7 +64,11 @@ domain:     the block's own surface — clause placement x {game, library},
             collision between a provided name and a game's own declaration is
             refused upstream by `_apply_uses` — so the library cells command
             the splice (a provided name classifies as game state) and cite
-            that Owner for the rest.
+            that Owner for the rest; that a block READING a provided name has
+            no playing witness is issue #496. The product is over a `reads`
+            name; an ENTRY name colliding with a keyed declaration is the
+            other direction and its outcome is undecided (issue #497), so it
+            is not a cell here.
             The regime axis is crossed once in full: the Primitive's HOME
             (`DECLARED_ONLY_CALL_FUNCS` against its complement in
             `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
