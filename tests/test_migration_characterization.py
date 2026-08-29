@@ -368,6 +368,88 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
     assert_golden_seeds(name, _capture_pinned(name), expected)
 
 
+# --- what every golden in this module reproduces under ------------------------
+
+
+# The two hash seeds the pin below captures under. `0` disables the salt
+# outright; `999` is an arbitrary non-zero one, so a capture that agreed only
+# because the salt was switched off fails here.
+_HASHSEEDS: tuple[str, str] = ("0", "999")
+
+
+def _capture_under_hashseed(name: str, seeds: int, hashseed: str) -> str:
+    """The generic capture's RAW stdout, under an explicit `PYTHONHASHSEED`.
+
+    Deliberately not routed through `seeds_for`: the games this pin sweeps need
+    not be games this module holds a golden for, and under
+    `CARDLANG_GOLDEN_SEEDS=full` `seeds_for` asks `CAPTURE_GOLDENS` for a width
+    a game with no entry there cannot supply.
+    """
+    proc = subprocess.run(
+        [sys.executable, "-c", _CAPTURE, name, str(seeds)],
+        cwd=REPO,
+        env=dict(os.environ, PYTHONHASHSEED=hashseed),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", ["president", "bridge"])
+def test_a_playout_is_hash_seed_independent(name: str) -> None:
+    """One (game, seed) playout captured twice under different hash seeds is
+    byte-identical.
+
+    This is the property the goldens here — and in every per-game playout
+    module that captures exact scores — reproduce under. A collection iterated
+    in hash order anywhere on the decision path breaks it, and breaks it
+    invisibly: the capture keeps agreeing with itself within one process.
+
+    Two games because the candidate path forks. A trick game reaches
+    `rules.legal_cards`'s demand cascade; a climbing game reaches the
+    combination engine instead, which `legal_cards` never sees. President is
+    also where the candidate lists are longest, so a set's iteration order has
+    the most room there to differ from the order it was built in.
+
+    red under: RUN, not predicted. In `runtime/chooser.py::random_chooser`,
+    order the pool through a set of string keys before sampling —
+
+        _keyed = {f"{i}:{c!r}": c for i, c in enumerate(candidates)}
+        return rng.sample([_keyed[k] for k in set(_keyed)], n)
+
+    — and both games diverge on seed 0 alone: different scores, different
+    winner, and for bridge a different number of hands played. The keys are
+    strings deliberately. `PYTHONHASHSEED` salts `str` and little else a
+    candidate carries, and the obvious plant instead — `list(set(candidates))`
+    — turns this pin red run-to-run rather than seed-to-seed, because a move's
+    parameter tuple carries `None`, whose hash is address-derived on the oldest
+    interpreter this project supports. Both plants make the pin fail; only the
+    string-keyed one makes it fail for the reason the pin is named after.
+
+    does not prove: that a game outside this pair is hash-seed independent, nor
+    that a capture is stable across interpreter versions. The domain is two
+    games at one seed, chosen to cross both candidate paths.
+    """
+    seeds = 1
+    captures = {h: _capture_under_hashseed(name, seeds, h) for h in _HASHSEEDS}
+    # Two empty captures are byte-identical, so the comparison is worth nothing
+    # until each side is known to hold the seeds it was asked for.
+    for hashseed, raw in captures.items():
+        got = len(json.loads(raw))
+        assert got == seeds, (
+            f"{name}: the capture under PYTHONHASHSEED={hashseed} produced "
+            f"{got} seeds, asked for {seeds}"
+        )
+    low, high = captures[_HASHSEEDS[0]], captures[_HASHSEEDS[1]]
+    assert low == high, (
+        f"{name}: the same seed captured differently under PYTHONHASHSEED "
+        f"{_HASHSEEDS[0]} and {_HASHSEEDS[1]} — something on the decision path "
+        f"iterates in hash order\n{low}\n{high}"
+    )
+
+
 # Stud's end-of-game scores are degenerate — the winner always holds all 400
 # chips — so the generic capture above would pin only `winner` + `hands_played`,
 # too coarse to catch a chooser-draw divergence that doesn't flip the eventual
