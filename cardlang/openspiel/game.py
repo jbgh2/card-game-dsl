@@ -171,8 +171,8 @@ def _register(short_name: str, filename: str) -> None:
         # over-approximation and stays sound for every consumer. What makes
         # the perfect-information games here perfect-information is that their
         # one count-projected zone is EMPTY at every decision node, a fact
-        # about the run that no zone type states:
-        # `trivial` is the most hidden projection rather than an inert one
+        # about the run that no zone type states. `trivial` does not state it
+        # either, being the most hidden projection rather than an inert one
         # (`observe.view_of` renders it None), which is why Hold'em's muck
         # carries it. Hence the asymmetry with `chance_mode` above — that
         # field has a cheap sound static answer (`runtime.chance.chance_sites`)
