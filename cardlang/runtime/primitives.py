@@ -219,18 +219,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
             return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
-        case "five_hundred_next_bid":
-            from cardlang.runtime.five_hundred import five_hundred_next_bid
-
-            return five_hundred_next_bid(args[0], args[1])
-        case "five_hundred_bid_value":
-            from cardlang.runtime.five_hundred import five_hundred_bid_value
-
-            return five_hundred_bid_value(args[0])
-        case "five_hundred_bid_level":
-            from cardlang.runtime.five_hundred import five_hundred_bid_level
-
-            return five_hundred_bid_level(args[0])
         case "belote_royal_player":
             from cardlang.runtime.belote import ROW, belote_royal_player
 

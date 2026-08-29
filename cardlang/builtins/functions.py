@@ -252,7 +252,14 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 # admits it, and a declaration is its only route to Python. Stage 3b
 # inverts the set (docs/design-notes/primitive-sidecars.md section 5):
 # every Primitive becomes declared and the legacy arms go with the window.
-DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset({"salvo_combos"})
+DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
+    {
+        "five_hundred_bid_level",
+        "five_hundred_bid_value",
+        "five_hundred_next_bid",
+        "salvo_combos",
+    }
+)
 
 # The whole call namespace: what resolve accepts as a known `f(...)` name, and
 # the surface CALL_SIGS must cover. DERIVED from the two homes, so a name can

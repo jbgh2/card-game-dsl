@@ -21,8 +21,9 @@
 // suitless joker — is declared as the game's Trick Order, which reads the
 // contract off the public state the auction wrote, so follow legality and
 // the winner are both the language's; the ladder ordinal and the contract
-// values stay game-local primitives
-// (cardlang/runtime/five_hundred.py). The tricks
+// values stay game-local primitives, declared in this game's own
+// `primitives { }` block and implemented in
+// `cardlang/runtime/five_hundred.py`. The tricks
 // are single-actor filtered movements (the Skat/Doppelkopf shape), three
 // per trick in a misère. The open-misère reveal is a plain movement into
 // `exposed[declarer]` — a PublicHand zone, identity to every observer — so
@@ -43,6 +44,16 @@ game FiveHundred {
 
   cards: five_hundred43
   ranking: Joker A K Q J 10 9 8 7 6 5 4
+
+  // The three ladder functions this game borrows from outside the DSL. No
+  // entry carries a `reads` clause: each is a pure function of its arguments
+  // — the ladder is a table, not a reading of the world — so the dispatch
+  // hands it the coerced arguments and no bundle at all.
+  primitives {
+    five_hundred_next_bid(standing : Integer, strain : Suit?) : Integer
+    five_hundred_bid_value(rank : Integer) : Integer
+    five_hundred_bid_level(rank : Integer) : Integer
+  }
 
   // The auction decides the order, so the rows read what it wrote onto the
   // public state (`trump_suit`, `joker_suit`).
