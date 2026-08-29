@@ -28,6 +28,7 @@ from collections import Counter
 from collections.abc import Mapping
 
 from cardlang.runtime import reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
@@ -119,7 +120,7 @@ def salvo_combos(
         gr.families["army_c"][p],
     )
     if not 0 <= loc < len(LOCATIONS):
-        raise ValueError(
+        raise OwnerGuardError(
             f"salvo_combos: location {loc} is outside 0..2 — the three "
             f"locations are {', '.join(LOCATIONS)}"
         )

@@ -79,6 +79,7 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.pipeline import check_source
 from cardlang.runtime import narrowing, reads
+from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.salvo import (
     combo_score,
     flush_bonus,
@@ -316,8 +317,13 @@ def test_wrapper_reads_the_player_it_is_asked_about(loc: int) -> None:
 def test_wrapper_refuses_a_location_outside_the_three(loc: int) -> None:
     """The Integer type admits every integer; the three locations are the
     domain, and one outside it is refused by name rather than answered from
-    whichever family a modulus would land on."""
+    whichever family a modulus would land on.
+
+    In the game author's channel: a designer writing `salvo_combos(p, 3)`
+    typechecks — nothing statically bounds an Integer — so this guard is the
+    one statement of which three mean something, and it addresses the person
+    who can fix it."""
     armies = {family: {0: _cards("7s")} for family in _LOC_FAMILY.values()}
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(OwnerGuardError) as exc:
         salvo_combos(*_bundles(armies, 0), 0, loc)
     assert "salvo_combos" in str(exc.value) and "0..2" in str(exc.value)

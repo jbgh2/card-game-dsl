@@ -178,7 +178,10 @@ _COINCIDENT_ROLE_LITERALS: dict[str, list[str]] = {
     # unrelated to the domain table's roles.
     "runtime/skat.py": ["suit"],
     "runtime/state.py": ["rank", "rank", "suit", "suit"],
-    "runtime/values.py": ["rank"] * 14 + ["suit"] * 14,
+    # One ("suit", "rank") axes pair per COMPONENT_SETS card row, plus the
+    # `Deck`/`ComponentSet` invariant messages: the deck registry's axis
+    # SPELLINGS, unrelated to the domain table's roles.
+    "runtime/values.py": ["rank"] * 15 + ["suit"] * 15,
     "typecheck.py": ["player", "player", "rank", "suit", "team", "team"],
 }
 
