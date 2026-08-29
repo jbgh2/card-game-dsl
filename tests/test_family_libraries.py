@@ -2755,8 +2755,7 @@ class _Site(typing.NamedTuple):
 
 
 _INTRODUCE: tuple[_Site, ...] = (
-    # --- spellings the game's own text fixes, and the author can therefore
-    # --- respell ------------------------------------------------------------
+    # --- spellings the author chooses, and can therefore respell ------------
     _Site("ForEach", "shared", True, "for each player shared: score[shared] := 1"),
     _Site(
         "Turns", "shared", True,
