@@ -51,6 +51,13 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           game but is not a binder; the pronoun rebinds, whose spellings a
           library may not provide; a Primitive's parameters, which scope no DSL
           body; and a spelling a registry admits that no game text can reach.
+          The grid quantifies over WHICH sentences the bag holds, not over
+          where each one points: a parameter row is reported at its own
+          parameter and a binder row at the construct that introduces it, which
+          for a struct or a `produces:` arm is the declaration rather than the
+          field. The rendered span of one sentence is pinned where it is pinned
+          at all — `tests/rejections/binder_shadows_provided_state.expected`,
+          byte-for-byte, for the case the issue itself names.
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_guards,
           which owns the other half of the same absorption class and pins the
@@ -240,7 +247,10 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           spelling fixed and moves only which library clause claims it, so a
           guard refusing every collision with a library NAME rather than a
           library-OWNED one fails there; `neither` proves each row's game text
-          valid on its own. Around the grid, four claims it leans on, each
+          valid on its own. Both columns read the WHOLE bag (`_whole_bag`), not
+          the diagnostic the stage leads with — the `already` row asserts that
+          this guard adds no second sentence, and against `str(exc)` alone that
+          assertion cannot fail. Around the grid, four claims it leans on, each
           executed rather than asserted, since "closed elsewhere" is the claim
           that rots: `test_a_library_may_bind_its_own_provided_name` bounds the
           guard from the other side (a library's own binders are spliced into
@@ -2692,6 +2702,18 @@ _UNREACHABLE_SPELLINGS: dict[tuple[str, str], str] = {
 }
 
 
+def _whole_bag(exc: DiagnosticError) -> str:
+    """Every diagnostic the stage collected, not only the one it leads with.
+
+    `str(DiagnosticError)` renders the FIRST diagnostic; a stage that collected
+    more attaches the rest as a note (`cardlang/cli.py`'s rendering reads the
+    same two places). A cell asserting on `str` alone therefore measures
+    whichever guard happened to fire first, and an assertion that some sentence
+    is ABSENT from the bag is vacuous against it — which is exactly what the
+    `already` row below asserts."""
+    return "\n".join([str(exc), *getattr(exc, "__notes__", [])])
+
+
 class _Site(typing.NamedTuple):
     """One way a game introduces a name into a scope narrower than the game.
 
@@ -3059,8 +3081,11 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
     the file the author has open — and names the library, because the other half
     is text they never see. Which fix it prescribes follows the binder: a
     spelling the author chose is theirs to respell, and one they did not choose
-    is not, so those rows ask for the library's variable to be renamed
-    instead."""
+    is not, so those rows ask for the library's variable to be renamed instead.
+
+    red under: delete `or name in declared` from
+    `_check_provided_shadowed_by_binder`'s `check` — measured, and it reddens
+    the `already` row alone."""
     site = _INTRODUCE[index]
     _patch_libraries(monkeypatch, {"provider": _shadow_library(site, claim)})
     source, file_name = _shadow_source(site, claim)
@@ -3070,7 +3095,7 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
         return
     with pytest.raises(DiagnosticError) as exc:
         resolve(game)
-    message = str(exc.value)
+    message = _whole_bag(exc.value)
     assert f"'{site.binds}'" in message, message
     assert "library 'provider'" in message, message
     assert f"{file_name}:" in message, (
@@ -3079,6 +3104,16 @@ def test_a_game_introduced_name_may_not_shadow_provided_state(
     )
     if site.already:
         assert "this game already uses" in message, message
+        # The skip's own claim, and the only assertion that fails when it is
+        # removed: the bag collects every diagnostic, so asserting the owning
+        # guard's sentence is PRESENT stays true whether or not a second one
+        # joins it. One clash, one diagnostic.
+        assert "and this form binds" not in message, (
+            f"a spelling the game binds at declaration level belongs to the "
+            f"guard that owns that level, and this row's second sentence would "
+            f"be false — the author's own `positions {{ }}` row is theirs to "
+            f"respell:\n{message}"
+        )
     elif site.chosen:
         assert "is spelled like state" in message, message
         assert "rename the" in message, message
@@ -3193,7 +3228,7 @@ def test_a_declaration_level_collision_is_reported_by_another_guard(
         if noun == "state variable"
         else f"this game already uses '{name}' as a {noun}"
     )
-    assert expected in str(exc.value), str(exc.value)
+    assert expected in _whole_bag(exc.value), _whole_bag(exc.value)
 
 
 def test_a_library_may_bind_its_own_provided_name(
