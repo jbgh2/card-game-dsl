@@ -315,6 +315,23 @@ class LLMAgent:
         self._arm = response_arm(self.arm)
 
     def choose(self, view: DecisionView) -> int:
+        if len(view.legal_actions) == 1:
+            # A FORCED decision: there is nothing to choose. Asking anyway
+            # spends a billed call (two, when the first reply needs a retry),
+            # and lands in `llm_calls_per_game` and `fallback_rate` as though a
+            # choice had been made — inflating the cost of a run and diluting
+            # the very rates that decide whether it is publishable. Cheat opens
+            # every play with one of these: the `play_cards` announce, whose
+            # actual content is the count decision that follows it.
+            #
+            # An EMPTY trace, like the non-LLM agents': a trace is what makes a
+            # decision count as this agent's in the transcript, so recording one
+            # here would put forced moves back into `llm_decisions` and
+            # `llm_calls_per_game` — the same distortion, one field along. That
+            # the move was forced stays derivable from its own record, whose
+            # legal-action list has exactly one entry.
+            self._trace = {}
+            return view.legal_actions[0]
         state = self._render(view.infostate) if self.render else view.infostate
         prompt = build_prompt(
             self.rules, state, view.legal_strings, self._arm.instruction

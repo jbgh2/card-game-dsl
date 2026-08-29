@@ -613,8 +613,17 @@ def test_per_game_token_usage_is_recorded_and_aggregated(tmp_path: Path) -> None
         tally = record["usage"]["fake_llm"]
         assert tally["llm_calls"] > 0
         assert tally["input_tokens"] > 0
-        # One call per decision when nothing needs retrying.
-        llm_decisions = sum(1 for d in record["decisions"] if d["agent"] == "fake_llm")
+        # One call per decision the model was actually ASKED about, when
+        # nothing needs retrying. A decision with a single legal action
+        # short-circuits before the provider, so it costs nothing and must not
+        # be counted here — guarded non-empty so the filter cannot empty the
+        # comparison and pass on 0 == 0.
+        llm_decisions = sum(
+            1
+            for d in record["decisions"]
+            if d["agent"] == "fake_llm" and len(d["legal"]) > 1
+        )
+        assert llm_decisions > 0, "no open decision ever reached the model"
         assert tally["llm_calls"] == llm_decisions
 
     stats = aggregate(records)["agents"]["fake_llm"]

@@ -49,7 +49,14 @@ def test_fake_provider_game_reaches_a_terminal_state(game: object) -> None:
     assert record.terminal, "the canned-reply game never terminated"
     llm_decisions = [d for d in record.decisions if d.agent == "fake_llm"]
     assert llm_decisions, "the fake LLM never moved"
-    assert not any(d.llm["fallback"] for d in llm_decisions), (
+    # A decision with one legal action short-circuits before the provider and
+    # carries no trace, so it has no fallback to report. Selected by the
+    # decision's OWN shape rather than by whether a trace exists — the trace is
+    # what produces the thing under test — and guarded non-empty so the filter
+    # cannot quietly turn the claim vacuous.
+    consulted = [d for d in llm_decisions if len(d.legal) > 1]
+    assert consulted, "the fake LLM was never offered a real choice"
+    assert not any(d.llm["fallback"] for d in consulted), (
         "a well-formed canned reply must never fall back"
     )
 

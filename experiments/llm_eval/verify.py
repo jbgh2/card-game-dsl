@@ -515,9 +515,19 @@ def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
     from .referee import load_game, replay_views
 
     game = load_game("cardlang_cheat")
+    # Whether THIS record predates the change, decided from the record rather
+    # than from the shape of the failure: any other ValueError out of the
+    # replay — a corrupted id, a real replay regression — must reach the
+    # auditor as itself, not wearing an explanation that sends them to an
+    # irrelevant tag.
+    legacy = any(
+        d.get("action") in LEGACY_ANNOUNCE_COUNTS for d in record["decisions"]
+    )
     try:
         views = replay_views(game, record["seed"], record["history"])
     except ValueError as e:
+        if not legacy:
+            raise
         # A DESIGNED limit, not a defect to fix: a history is a sequence of
         # action IDS, so it only means anything against the action space it
         # was recorded in. Cheat's changed when the four-card play cap was

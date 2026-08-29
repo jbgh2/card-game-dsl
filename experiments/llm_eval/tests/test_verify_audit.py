@@ -212,3 +212,29 @@ def test_deep_refuses_the_cheat_archive_in_its_own_voice() -> None:
     assert "--deep" in message and "SHALLOW" in message, (
         "the refusal must name the audit that still covers this archive"
     )
+
+
+def test_deep_lets_a_current_format_replay_failure_through() -> None:
+    """The other side of that refusal: only a transcript that DEMONSTRABLY
+    predates the change gets the historical explanation.
+
+    A replay failure on a current-format record is a real integrity problem —
+    a corrupted action id, a replay regression — and must reach the auditor as
+    itself. Translating it too would answer a live defect with a pointer to an
+    irrelevant tag, which is the more expensive failure: the audit would read
+    as explained rather than broken.
+    """
+    from ..verify import deep_facts
+
+    cheat_archive = Path(__file__).parent.parent / "results" / "transcripts"
+    record = next(iter(iter_jsonl(str(cheat_archive / "rule_vs_random.jsonl.gz"))))
+    # Same corrupt history, but with every legacy marker removed, so the record
+    # no longer proves it predates the change.
+    current = {
+        **record,
+        "decisions": [{**d, "action": "play_cards"} for d in record["decisions"]],
+    }
+    with pytest.raises(ValueError) as excinfo:
+        deep_facts(current)
+    assert not isinstance(excinfo.value, SystemExit)
+    assert "not among the live candidates" in str(excinfo.value)

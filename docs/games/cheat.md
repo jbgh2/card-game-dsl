@@ -159,10 +159,14 @@ game Cheat {
 
 move_type play_cards {
   effect {
-    claimant := actor
+    // The count is chosen BEFORE `claimant` is set, so the play's fields go
+    // from idle to standing together — the count decision itself must not
+    // observe a claimant with a count of 0.
+    //
     // `up to 52` reserves the OpenSpiel action-id block; it cannot bind,
     // because a hand can never exceed the deck it was dealt from.
     claim_count := choose integer in 1 .. (number of cards in hand[actor]) up to 52
+    claimant := actor
     move chosen claim_count cards from hand[actor] to played
     run resolve_play(actor)
   }
