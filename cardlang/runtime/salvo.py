@@ -15,10 +15,10 @@ The run family's adjacency is the game's declared `ranking:`, which arrives as
 
 Contract
 --------
-Assumes: `cards` are one player's army at one location, and `rank_index` ranks
-every rank they carry.
+Assumes: `cards` are one player's army at one location.
 Establishes: DESIGN.md's table over those cards, with jokers excluded from
-every family.
+every family; an army rank the game's `ranking:` does not cover is refused
+in the runtime's typed channel (`rank_strength`), never assumed away.
 Illegal after: reading a joker as a member of any combination.
 """
 
