@@ -2780,7 +2780,8 @@ _INTRODUCE: tuple[_Site, ...] = (
     # field makes the shadow live, and the author who would add it is the one
     # who cannot see the other half. The refusal's sentence is what has to hold
     # for both, which is why it speaks of wherever the name is in scope rather
-    # than asserting a scope that may be empty.
+    # than asserting a scope that may be empty. The registry answering with
+    # field names for a struct that scopes them nowhere is issue #503.
     _Site(
         "TypeDef", "shared", True, "score[0] := 0",
         extra="type T = { shared : Integer }",

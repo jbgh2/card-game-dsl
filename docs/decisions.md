@@ -4371,8 +4371,13 @@ obvious one would be two thirds of a guarantee.
 governs writing; this governs reading. A binder or a declaration parameter the
 game introduces — `for each player limit:`, `function f(limit : Integer)`, a
 `let`, a `produces:` payload, a struct field — may not be spelled like a
-provided variable, because inside its scope the bare name is the binder and the
-provided variable cannot be read there at all. It is the same visibility
+provided variable, because wherever that name is in scope the bare word is the
+binder and the provided variable cannot be read there at all. A struct field is
+in the list for a narrower reason and the rule keeps it deliberately: its scope
+is the type's `derived { }` bodies, so a struct without one scopes the spelling
+nowhere, and the refusal is the conservative one — adding a single derived field
+makes the shadow live, and the author who would add it is the one who cannot see
+the other half. It is the same visibility
 asymmetry the injection rule below turns on, arriving from the other side: the
 base language lets a binder shadow a same-named declaration precisely because
 the author wrote both and can see both, and that reasoning does not survive a
