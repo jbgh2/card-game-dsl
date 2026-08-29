@@ -28,7 +28,7 @@ per-deck-shape sample plus every full-permutation ranking in
 early rather than raising from `deck_ranks` on a name it cannot look up). An
 undeclared (empty) `ranking:` is likewise a no-op — nothing to validate.
 
-Sampled: not every one of the 8 decks in `DECKS` gets its own dedicated
+Sampled: not every deck in `DECKS` gets its own dedicated
 misuse-probe test (standard52 and coup15 stand in for the French-suited and
 non-French shapes); every deck's `ranking:` shape when one IS declared is
 still exhaustively checked by the corpus sweep, which iterates every

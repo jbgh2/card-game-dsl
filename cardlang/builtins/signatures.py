@@ -114,6 +114,7 @@ CALL_SIGS: dict[str, Sig] = {
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
     "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
+    "salvo_combos": Sig((TPlayer(), TInteger()), TInteger()),  # Salvo: an army's combo bonus at one location
     "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
     "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
     "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand

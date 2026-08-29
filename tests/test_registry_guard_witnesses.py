@@ -683,6 +683,14 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
+    # Salvo's location argument, bounded by the registry's own LENGTH: the
+    # Integer a call writes indexes `LOCATIONS`, so a location added to the
+    # game widens the guard with it and there is no hard-coded row to go
+    # stale. An Owner Guard — the Integer type admits every integer, and this
+    # is the only statement of which three mean something — witnessed at
+    # tests/test_salvo_primitives.py::test_wrapper_refuses_a_location_outside_
+    # the_three.
+    "runtime/salvo.py": ["not 0 <= loc < len(LOCATIONS)"],
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"
     ],

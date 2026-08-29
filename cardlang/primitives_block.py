@@ -195,6 +195,7 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
     "peg_run_points": Implementation("cardlang.runtime.cribbage", "peg_run_points", InvocationContract.SITE_READ),
     "pinochle_meld_value": Implementation("cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED),
     "pot_share": Implementation("cardlang.runtime.stud", "pot_share", InvocationContract.BUNDLED),
+    "salvo_combos": Implementation("cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED),
     "skat_matadors": Implementation("cardlang.runtime.skat", "skat_matadors", InvocationContract.BUNDLED),
     "skat_next_bid": Implementation("cardlang.runtime.skat", "skat_next_bid", InvocationContract.PURE),
     "tarot_excuse_player": Implementation("cardlang.runtime.tarot", "tarot_excuse_player", InvocationContract.BUNDLED),

@@ -28,12 +28,14 @@ registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             so a new deck or convention fails loudly until classified in
             _FRENCH_EXPANSIONS / _NON_FRENCH_DECKS below (the two-way pin
             idiom).
-covered:    all 28 French cells (7 decks x 4 conventions, frozen expected
-            tuples); all 20 non-French cells (5 decks x 4 conventions, guard
-            probed through real source per deck and per convention); the
+covered:    every French cell (the decks outside `_NON_FRENCH_DECKS` x
+            RANKING_CONVENTIONS, frozen expected tuples); every non-French
+            cell (`_NON_FRENCH_DECKS` x RANKING_CONVENTIONS, guard probed
+            through real source per deck and per convention); the
             unknown-deck degrade; registry↔grammar reconciliation in both
-            directions; the reserved-spelling pin; the 14 corpus migration
-            equivalences (pre-migration literals frozen here verbatim).
+            directions; the reserved-spelling pin; every corpus migration
+            equivalence (`_PRE_MIGRATION`, pre-migration literals frozen here
+            verbatim).
 sampled:    the "did you mean" hint is probed on four representative
             misspellings (word flip, case flip, space-for-hyphen, plausible
             non-convention), not on every string within edit distance of a
@@ -70,24 +72,29 @@ from cardlang.runtime.values import (
     expand_ranking_convention,
 )
 
-GAMES = Path(__file__).parent.parent / "docs" / "games"
+ROOT = Path(__file__).parent.parent
+GAMES = ROOT / "docs" / "games"
 
-# One corpus file per deck — the probe vehicle: real source with the
-# `ranking:` line swapped (or inserted after `cards:` for the games that
-# declare none). Pinned two-way against DECKS below.
+# One game file per deck — the probe vehicle: real source with the `ranking:`
+# line swapped (or inserted after `cards:` for the games that declare none).
+# A vehicle is any real game declaring the deck, root-relative because the
+# corpus is not the only place one lives: an experiment's game
+# (`experiments/salvo/`) is the witness for a deck no corpus game takes.
+# Pinned two-way against DECKS below.
 _DECK_GAME: dict[str, str] = {
-    "standard52": "hearts.cardlang",
-    "schnapsen20": "schnapsen.cardlang",
-    "pinochle48": "pinochle.cardlang",
-    "doppelkopf48": "doppelkopf.cardlang",
-    "skat32": "skat.cardlang",
-    "tarot78": "french-tarot.cardlang",
-    "tichu56": "tichu.cardlang",
-    "five_hundred43": "five-hundred.cardlang",
-    "coup15": "coup.cardlang",
-    "canasta108": "canasta.cardlang",
-    "kuhn3": "kuhn-poker.cardlang",
-    "leduc6": "leduc-poker.cardlang",
+    "standard52": "docs/games/hearts.cardlang",
+    "standard54": "experiments/salvo/salvo.cardlang",
+    "schnapsen20": "docs/games/schnapsen.cardlang",
+    "pinochle48": "docs/games/pinochle.cardlang",
+    "doppelkopf48": "docs/games/doppelkopf.cardlang",
+    "skat32": "docs/games/skat.cardlang",
+    "tarot78": "docs/games/french-tarot.cardlang",
+    "tichu56": "docs/games/tichu.cardlang",
+    "five_hundred43": "docs/games/five-hundred.cardlang",
+    "coup15": "docs/games/coup.cardlang",
+    "canasta108": "docs/games/canasta.cardlang",
+    "kuhn3": "docs/games/kuhn-poker.cardlang",
+    "leduc6": "docs/games/leduc-poker.cardlang",
 }
 
 # The frozen expansion table: every (deck, convention) cell for the decks
@@ -136,17 +143,18 @@ _FRENCH_EXPANSIONS: dict[tuple[str, str], tuple[str, ...]] = {
 
 # The decks a convention must REJECT (ranks outside the French set). One
 # non-French rank rejects the whole convention (the game enumerates
-# explicitly instead): five_hundred43 and canasta108 are otherwise French
-# but for the Joker (canasta108 an otherwise-French double pack).
+# explicitly instead): five_hundred43, canasta108 and standard54 are otherwise
+# French but for the Joker (canasta108 an otherwise-French double pack,
+# standard54 the single pack plus two).
 _NON_FRENCH_DECKS = frozenset(
-    {"tarot78", "tichu56", "coup15", "five_hundred43", "canasta108"}
+    {"tarot78", "tichu56", "coup15", "five_hundred43", "canasta108", "standard54"}
 )
 
 
 def _probe_source(deck: str, ranking_clause: str) -> str:
     """The deck's corpus game with its `ranking:` clause replaced by (or, for
     the games that declare none, inserted as) `ranking_clause`."""
-    text = (GAMES / _DECK_GAME[deck]).read_text()
+    text = (ROOT / _DECK_GAME[deck]).read_text()
     if re.search(r"^\s*ranking:.*$", text, flags=re.MULTILINE):
         return re.sub(r"^(\s*)ranking:.*$", rf"\g<1>{ranking_clause}", text, count=1, flags=re.MULTILINE)
     return text.replace(f"cards: {deck}", f"cards: {deck}\n  {ranking_clause}", 1)

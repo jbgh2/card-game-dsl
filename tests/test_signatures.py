@@ -188,12 +188,27 @@ def test_call_funcs_are_dispatchable() -> None:
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
 
+    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
+
     for name in CALL_FUNCS:
+        # A declared-only Primitive reaches its Python through `call_declared`
+        # off the table a game's `primitives { }` block derives, so the legacy
+        # `call` MUST refuse it — asserting the complement rather than
+        # excluding the name keeps the exclusion from quietly growing to cover
+        # one that should have an arm. Shadow Guard: the Owner Guard for which
+        # names have an arm is tests/test_native_dispatch_split.py::
+        # test_call_arm_home, and for whether the index resolves to real Python
+        # it is tests/test_primitives_block.py::
+        # test_every_indexed_implementation_resolves.
+        declared_only = name in DECLARED_ONLY_CALL_FUNCS
         try:
             call(name, [], ctx)
         except AssertionError as e:
-            assert "unknown native function" not in str(e), (
+            fell_through = "unknown native function" in str(e)
+            assert fell_through == declared_only, (
                 f"{name!r} falls through call()'s default arm: {e}"
+                if fell_through
+                else f"{name!r} has a legacy `call` arm and is declared-only"
             )
         except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
             pass  # dispatched; the channel split is guarded by test_assert_triage.py
@@ -256,6 +271,39 @@ def _call_dispatch_facts() -> dict[str, _DispatchFact]:
     facts: dict[str, _DispatchFact] = {}
     for module in (rt_builtins, rt_primitives):
         facts.update(_facts_in(ast.parse(inspect.getsource(module)), module))
+    facts.update(_declared_facts())
+    return facts
+
+
+def _declared_facts() -> dict[str, _DispatchFact]:
+    """The third route to a Primitive's Python: the table a game's own
+    `primitives { }` block derives at load (`runtime/primitives.py`,
+    `call_declared`). Such a name has no `call` arm to scrape, so its fact is
+    built from the implementation index instead — the same both-ways
+    reconciliation, against the index's statement of where the Python lives
+    rather than against an arm's.
+
+    The shape is the invocation contract's: a BUNDLED implementation takes the
+    two value bundles first (two positions the annotation check skips) and the
+    declared arguments after, a PURE one the arguments alone."""
+    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
+    from cardlang.primitives_block import (
+        PRIMITIVE_IMPLEMENTATIONS,
+        InvocationContract,
+    )
+
+    facts: dict[str, _DispatchFact] = {}
+    for name in DECLARED_ONLY_CALL_FUNCS:
+        impl = PRIMITIVE_IMPLEMENTATIONS[name]
+        arity = len(CALL_SIGS[name].params)
+        bundles: list[object] = (
+            [None, None] if impl.contract is InvocationContract.BUNDLED else []
+        )
+        facts[name] = _DispatchFact(
+            arity=arity,
+            helper=getattr(importlib.import_module(impl.module), impl.attribute),
+            helper_args=tuple(bundles + list(range(arity))),
+        )
     return facts
 
 

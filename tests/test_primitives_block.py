@@ -1517,12 +1517,22 @@ GAMES_DIR = ROOT_DIR / "docs" / "games"
 WITNESS = pathlib.Path(__file__).resolve().parent / "fixtures" / "primitives_witness.cardlang"
 
 
-def _game_sources() -> list[pathlib.Path]:
-    """Every game the pin quantifies over: the corpus glob, plus the witness
-    fixture. The fixture is IN the domain deliberately — in 3a no corpus game
-    declares a block, so without it the declared arm of every check below would
-    be empty and green by having nothing to look at."""
-    return sorted(GAMES_DIR.glob("*.cardlang")) + [WITNESS]
+def game_sources() -> list[pathlib.Path]:
+    """Every game whose declarations couple to the package tables: the corpus
+    glob, the witness fixture, and the experiment games that declare a block.
+
+    The fixture is IN the domain deliberately — no corpus game declares a
+    block, so without it the declared arm of every check below would be empty
+    and green by having nothing to look at. Salvo is in for the other
+    direction: it declares the only Primitive no corpus game reaches, and a
+    package registration nothing in this domain declares is refused below as an
+    orphan. The experiment games are named one by one rather than globbed:
+    Salvo's mini and its zc variant declare nothing, and a glob would quantify
+    over every future experiment file whether or not it is a game."""
+    return sorted(GAMES_DIR.glob("*.cardlang")) + [
+        WITNESS,
+        ROOT_DIR / "experiments" / "salvo" / "salvo.cardlang",
+    ]
 
 
 @functools.cache
@@ -1530,7 +1540,7 @@ def _checked_games() -> tuple[tuple[str, n.Game], ...]:
     """(game-file basename, checked game) for every source, through the
     pipeline's own entry point — so a block written in a `.md` game reaches
     this pin by the same extraction the runtime uses."""
-    return tuple((p.name, check_source(p)) for p in _game_sources())
+    return tuple((p.name, check_source(p)) for p in game_sources())
 
 
 def _reconcile(

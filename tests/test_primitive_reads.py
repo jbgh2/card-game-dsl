@@ -1,21 +1,28 @@
 """The declared-reads registry's two-way pins — completeness ledger.
 
 property:   every zone/state name a game-local Python primitive reads is
-            declared in `PRIMITIVE_READS` (cardlang/runtime/reads.py),
-            agrees exactly with both the module's source and the game
-            file's declarations, and every failed read is a typed
-            `PrimitiveReadError` naming the registry — a rename on either
-            side of the coupling fails a static test here, never a bare
-            `KeyError` mid-playout.
+            DECLARED — in `PRIMITIVE_READS` (cardlang/runtime/reads.py) or in
+            the `primitives { }` block of a game declaring that module's
+            Primitive, the two sites the coexistence window holds open and
+            which no game may use at once — agrees exactly with both the
+            module's source and the game file's declarations, and every failed
+            read is a typed `PrimitiveReadError` naming the registry — a
+            rename on either side of the coupling fails a static test here,
+            never a bare `KeyError` mid-playout.
 domain:     name-keyed `RuntimeState`/`ZoneStore` access (`get`/`set`/
             `declare`/`single`/`instance`/`is_family`/`families[...]`/
             `singles[...]`, from `state.py`'s API — the forbidden-pattern
             axis derives from the API, not from the patterns modules
             happen to use today) × every module under `cardlang/runtime/`
             (default-scanned glob; exemptions explicit and pinned
-            non-stale) × every registry row's game file.
-registry:   `PRIMITIVE_READS` (rows), `cardlang/runtime/*.py` (module
-            axis), `docs/games/*.cardlang` declarations (validation side).
+            non-stale) × every registry row's game file, and × every
+            declaring game's block.
+registry:   `PRIMITIVE_READS` (rows), `PRIMITIVE_IMPLEMENTATIONS` (which
+            module a declared Primitive's reads belong to),
+            `cardlang/runtime/*.py` (module axis), the declarations of
+            `tests.test_primitives_block.game_sources` (validation side, and
+            the one home for that domain), classified through
+            `primitives_block.classify_read`.
 covered:    (a) registry↔game-file: every row's every name against the
             parsed game's state/zone declarations, per kind, with
             kind-mismatch detection — exhaustive over rows;
@@ -327,14 +334,76 @@ def _scan_module(path: Path) -> ScanResult:
     return _scan_source(path.read_text(encoding="utf-8"), path.name)
 
 
+@cache
+def _declared_for_module(module: str) -> dict[str, set[str]]:
+    """What the GAME FILES say one module reads, per kind.
+
+    A [[primitive]] a game declares in its own `primitives { }` block states
+    its reads there, not in `PRIMITIVE_READS` — and a game may not state them
+    in both (tests/test_primitives_block.py's dual-definition pin). The
+    coupling this scan exists for is unchanged by that move, only its
+    declaration site is, so the expectation reads the block through the same
+    exhaustive classifier the driver builds the row with.
+
+    The dotted module path the index writes is the repo-relative path this
+    scan keys by; the game domain is `game_sources`, the one home for "every
+    game whose declarations couple to the package tables"."""
+    from cardlang.primitives_block import (
+        PRIMITIVE_IMPLEMENTATIONS,
+        ReadKind,
+        classify_read,
+        declared_names,
+    )
+    from tests.test_primitives_block import game_sources
+
+    mine = {
+        name
+        for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
+        if impl.module.replace(".", "/") + ".py" == module
+    }
+    kind_of = {
+        ReadKind.STATE_VAR: "state",
+        ReadKind.INDEXED_STATE_VAR: "state",
+        ReadKind.ZONE_FAMILY: "family",
+        ReadKind.SINGLE_ZONE: "single",
+    }
+    found: dict[str, set[str]] = {k: set() for k in ("state", "family", "single", "arrival")}
+    if not mine:
+        return found
+    for path in game_sources():
+        game = parse_corpus_game(path) if path.parent == GAMES_DIR else _parse_game(path)
+        if game.primitives is None or not (declared_names(game) & mine):
+            continue
+        for decl in game.primitives.decls:
+            if decl.name not in mine:
+                continue
+            for read in decl.reads:
+                kind = classify_read(game, read.name)
+                assert kind is not None, (
+                    f"{path.name} declares a read {read.name!r} that classifies "
+                    f"as nothing — resolve refuses this, so the scan cannot see it"
+                )
+                found[kind_of[kind]].add(read.name)
+    return found
+
+
+def _parse_game(path: Path) -> n.Game:
+    from cardlang.parse import parse_text
+
+    return parse_text(path.read_text(encoding="utf-8"), str(path))
+
+
 def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tuple[str, str]]]:
-    """What the registry says one module reads: per-kind name unions over its
-    rows, and the exact (module, game) keys it must look up."""
+    """What a module's DECLARATIONS say it reads: per-kind name unions over
+    both declaration sites — its `PRIMITIVE_READS` rows and the blocks of the
+    games declaring its Primitives — and the exact (module, game) keys it must
+    look up through `reads.row`, which is the legacy site's alone."""
     rows = [r for r in PRIMITIVE_READS if r.module == module]
-    state: set[str] = set()
-    families: set[str] = set()
-    singles: set[str] = set()
-    arrivals: set[str] = set()
+    declared = _declared_for_module(module)
+    state: set[str] = set(declared["state"])
+    families: set[str] = set(declared["family"])
+    singles: set[str] = set(declared["single"])
+    arrivals: set[str] = set(declared["arrival"])
     for r in rows:
         state |= r.state_vars
         families |= r.zone_families
