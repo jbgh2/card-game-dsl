@@ -65,9 +65,17 @@ def bin_of(extremity: int) -> str:
 
 
 def drive(
-    space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int], mid_idx: int
+    space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int], mid_idx: int,
+    ladder: dict[str, int],
 ) -> list[dict[str, Any]]:
-    """One mirror playout; returns three location records."""
+    """One mirror playout; returns three location records.
+
+    This rig scores locations itself rather than through `triage.playout`, so
+    it carries its own mirror pin at the foot: the per-location values it
+    reports must reproduce the DSL's terminal returns exactly. Without it a
+    scoring rule the game does not use would publish as `margin` and
+    `unclaimed` — and a tie, which is what leaves a location unclaimed, is
+    exactly what a missing bonus moves."""
     rng = random.Random(seed * 7919 + 13)
     history: list[int] = []
     ctx = triage.Ctx()
@@ -100,6 +108,7 @@ def drive(
                 break
 
     records = []
+    all_vals: list[list[int]] = []
     for l in triage.LOCS:
         target = triage.zone_cards(rp.rs, f"location_{l}")[0]
         t_idx = ridx[target.rank]
@@ -110,7 +119,8 @@ def drive(
             if pend is not None and pend_loc == l and p == rp.player:
                 cs = cs + [pend]
             cards_by_p.append(cs)
-            vals.append(sum(lv(c, target) for c in cs))
+            vals.append(sum(lv(c, target) for c in cs) + triage.combo_bonus(cs, ladder))
+        all_vals.append(vals)
         records.append(
             {
                 "extremity": abs(t_idx - mid_idx),
@@ -127,6 +137,16 @@ def drive(
                 "margin": abs(vals[0] - vals[1]),
                 "tied": vals[0] == vals[1],
             }
+        )
+    # Mirror pin: locations won and grand totals recomputed above must equal
+    # the terminal returns' encoding (final = locations * 1000 + total).
+    locs_won = [round(x / 1000) for x in r.returns]
+    totals = [int(x) - 1000 * lw for x, lw in zip(r.returns, locs_won)]
+    for p in (0, 1):
+        won = sum(1 for v in all_vals if v[p] > v[1 - p])
+        assert won == locs_won[p], f"mirror drift: locs_won {won} != {locs_won[p]}"
+        assert sum(v[p] for v in all_vals) == totals[p], (
+            f"mirror drift: totals {sum(v[p] for v in all_vals)} != {totals[p]}"
         )
     return records
 
@@ -147,6 +167,7 @@ def main() -> None:
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
     mid_idx = mid_index(ridx)
+    ladder = triage.natural_ladder(tuple(game_ast.ranking))
 
     out: dict[str, Any] = {"seeds": args.seeds, "seed_start": args.seed_start, "policies": {}}
     for policy in ("sighted", "blind", "random"):
@@ -155,7 +176,7 @@ def main() -> None:
             for name, _, _ in BINS
         }
         for seed in range(args.seed_start, args.seed_start + args.seeds):
-            recs = drive(space, policy, seed, lv, ridx, mid_idx)
+            recs = drive(space, policy, seed, lv, ridx, mid_idx, ladder)
             least_n = min(r["n_cards"] for r in recs)
             for r in recs:
                 b = per_bin[bin_of(r["extremity"])]
