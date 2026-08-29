@@ -51,7 +51,7 @@ from cardlang.builtins.functions import (
 from cardlang.primitives_block import Regime, implementation_sig, regime
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import require_role, role_type
+from cardlang.domains import require_role, role_of, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -992,13 +992,19 @@ def _index_domain_type(game: Game, index: str, env: TypeEnv) -> Type | None:
 
     One conversion for both keyed declaration kinds — a zone family's `index`
     and an indexed state variable's are the same slot, drawn from the same
-    registry (a role, or one of the game's position domains)."""
+    registry (a role, or one of the game's position domains).
+
+    `role_of`, not `require_role`: the two readings of one lookup exist so a
+    caller can say whether a miss is an author's error or a compiler bug, and
+    an index resolve did not classify is the former — resolve owns that
+    diagnostic, and this returns None so the binder check declines rather than
+    reporting the same error twice. `require_role` would raise the compiler
+    channel's `AssertionError` here, and catching THAT would swallow the
+    registry divergence it exists to announce."""
     if index in env.positions:
         return env.positions[index]
-    try:
-        return _role_type(index)
-    except Exception:  # noqa: BLE001 - resolve owns the unknown-index diagnostic
-        return None
+    role = role_of(index)
+    return role_type(role) if role is not None else None
 
 
 def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
