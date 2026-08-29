@@ -224,6 +224,13 @@ class AgentStats:
     games_scored: int = 0
     wins: int = 0
     decisions: int = 0
+    #: Decisions that OFFERED a choice — more than one legal action. The
+    #: denominator every per-decision rate below actually means: a forced move
+    #: cannot fall back and costs no call, so counting it dilutes both rates
+    #: toward zero. Cheat opens every play with one, so the dilution is
+    #: systematic rather than incidental, and `fallback_rate` is read against a
+    #: publication threshold.
+    open_decisions: int = 0
     fallbacks: int = 0
     llm_calls: int = 0
     input_tokens: int = 0
@@ -258,7 +265,7 @@ class AgentStats:
             "output_tokens_per_game": _rate(self.output_tokens, self.games),
             "llm_calls_per_game": _rate(self.llm_calls, self.games),
             "win_rate": _rate(self.wins, self.games_scored),
-            "fallback_rate": _rate(self.fallbacks, self.decisions),
+            "fallback_rate": _rate(self.fallbacks, self.open_decisions),
             "lying_rate": _rate(self.lies, self.plays),
             "forced_lie_rate": _rate(self.forced_lies, self.plays),
             "elective_lie_rate": _rate(
@@ -324,6 +331,8 @@ def aggregate(
             s = stat(seats[d["player"]])
             s.decisions += 1
             total_decisions += 1
+            if len(d["legal"]) > 1:
+                s.open_decisions += 1
             if d.get("llm", {}).get("fallback"):
                 s.fallbacks += 1
 

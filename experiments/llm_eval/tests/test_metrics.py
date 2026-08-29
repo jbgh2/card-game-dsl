@@ -61,7 +61,12 @@ def _card(step: int, player: int, card: str, rank: str) -> dict[str, Any]:
         "player": player,
         "agent": f"a{player}",
         "action": card,
-        "legal": [card],
+        # A real card pick offers the whole hand, and the LENGTH of this list is
+        # semantic: a one-entry list marks a FORCED decision, which is excluded
+        # from the per-decision rate denominators. The filler ranks (9, J) are
+        # none of the claim ranks this fixture uses, so widening the list cannot
+        # turn a lie into a truthful-option-was-offered.
+        "legal": [card, "9♦", "J♣"],
         "facts": {"kind": "card", "card": card, "rank": card[:-1], "claim_rank": rank},
         "llm": {},
     }
@@ -195,7 +200,14 @@ def test_fallback_rate_counts_llm_fallbacks() -> None:
     record["decisions"][4]["llm"] = {"fallback": False}
     agents = aggregate([record])["agents"]
     assert agents["a0"]["fallbacks"] == 1
-    assert agents["a0"]["fallback_rate"] == 1 / agents["a0"]["decisions"]
+    # Over the decisions that OFFERED a choice, not every decision: a forced
+    # move cannot fall back, so counting it would understate the rate that
+    # decides whether a run is publishable.
+    assert agents["a0"]["open_decisions"] < agents["a0"]["decisions"], (
+        "this fixture must contain a forced decision, or the denominator "
+        "distinction below is untested"
+    )
+    assert agents["a0"]["fallback_rate"] == 1 / agents["a0"]["open_decisions"]
     assert agents["a1"]["fallbacks"] == 0
 
 

@@ -122,8 +122,12 @@ machine-generated and terse. Its layout is:
       * ('move', <from>, <n>, <to>, <what>) — n cards moved. `<what>` is a
         tuple of card names if you were entitled to see them, or a bare number
         if you only saw the count.
-      * ('announce', <seat>, <move>) — a public announcement.
-      * ('chose', <card>) — a card YOU selected.
+      * ('announce', <seat>, <what>) — a public announcement. `<what>` is a
+        move name, or a NUMBER when a seat announced how many cards it is
+        playing; everyone hears both.
+      * ('chose', <what>) — something YOU selected: a card, a move name, or
+        the number of cards you announced. Your card choices are private;
+        the count you chose was announced to the table as well.
 
 This log is the reason you know what you played even though `played` and `pile`
 show you only counts: your own choices are in your log, and nobody else's are
@@ -250,8 +254,12 @@ entries look like:
   * ('move', <from>, <n>, <to>, <what>) — n cards moved between zones. `<what>`
     is a tuple of card names if you were entitled to see them, or a bare number
     if you only saw the count.
-  * ('announce', <seat>, <move>) — a public announcement.
-  * ('chose', <card>) — a card YOU selected.
+  * ('announce', <seat>, <what>) — a public announcement. `<what>` is a move
+    name, or a NUMBER when a seat announced how many cards it is playing;
+    everyone hears both.
+  * ('chose', <what>) — something YOU selected: a card, a move name, or the
+    number of cards you announced. Your card choices are private; the count
+    you chose was announced to the table as well.
 
 The log is the reason you know what you played even though the pile and the
 face-down cards show you only counts: your own choices are in your log, and

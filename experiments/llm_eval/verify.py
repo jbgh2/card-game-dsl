@@ -236,6 +236,11 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
             if d["player"] not in mine:
                 continue
             c["decisions"] += 1
+            # See `metrics.AgentStats.open_decisions`: a forced move cannot
+            # fall back and costs no call, so it belongs in neither rate's
+            # denominator. Derived here from the decision's own legal list,
+            # independently of the trace the other fold reads.
+            c["open_decisions"] += len(d["legal"]) > 1
             c["fallbacks"] += bool(d.get("llm", {}).get("fallback"))
             if d["facts"].get("kind") == "card":
                 c["card_picks"] += 1
@@ -309,6 +314,7 @@ def holdem_tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
             if seats[d["player"]] != who:
                 continue
             c["decisions"] += 1
+            c["open_decisions"] += len(d["legal"]) > 1
             if d.get("llm", {}).get("fallback"):
                 c["fallbacks"] += 1
             for verb in holdem.ACTION_VERBS:
@@ -329,7 +335,7 @@ HOLDEM_RATES: list[tuple[str, str, str]] = [
     # game's baseline did exactly that.
     ("mean_net_chips", "net_total", "terminal_games"),
     ("win_rate", "wins", "terminal_games"),
-    ("fallback_rate", "fallbacks", "decisions"),
+    ("fallback_rate", "fallbacks", "open_decisions"),
 ] + [
     (f"{verb}_rate", f"{verb}_chosen", f"{verb}_offered")
     for verb in holdem.ACTION_VERBS
@@ -352,7 +358,7 @@ AUDITS: dict[str, Any] = {}
 
 RATES: list[tuple[str, str, str]] = [
     ("win_rate", "wins", "terminal_games"),
-    ("fallback_rate", "fallbacks", "decisions"),
+    ("fallback_rate", "fallbacks", "open_decisions"),
     ("skip_truthful_rate", "skipped_truthful", "card_picks"),
     ("lying_rate", "lies", "plays"),
     ("elective_lie_rate", "elective_lies", "plays_with_truthful_option"),
@@ -495,12 +501,13 @@ def report_arm(label: str, c: Counter[str]) -> None:
             f"{calls:<6} = {c['parse_errors'] / calls:.4f}"
         )
         print(f"    {'output_tokens_per_call':32} {c['output_tokens'] / calls:>13.1f}")
-    if decisions:
+    if c["open_decisions"]:
+        offered = c["open_decisions"]
         print(
             f"    {'fallback_rate':32} {c['fallbacks']:>6} / "
-            f"{decisions:<6} = {c['fallbacks'] / decisions:.4f}"
+            f"{offered:<6} = {c['fallbacks'] / offered:.4f}"
         )
-        print(f"    {'calls_per_decision':32} {calls / decisions:>13.4f}")
+        print(f"    {'calls_per_decision':32} {calls / offered:>13.4f}")
 
 
 def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
