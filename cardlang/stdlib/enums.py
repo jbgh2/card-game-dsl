@@ -30,6 +30,7 @@ SEAT_DIRECTION_VALUES: frozenset[str] = frozenset({"left", "right", "across", "h
 # `len(runtime.build_deck(name))` by a drift test.
 _DECK_SIZE: dict[str, int] = {
     "standard52": 52,
+    "standard54": 54,
     "schnapsen20": 20,
     "pinochle48": 48,
     "doppelkopf48": 48,

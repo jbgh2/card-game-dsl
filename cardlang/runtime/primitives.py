@@ -286,9 +286,19 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
             return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
         case _:
+            # Shadow Guard behind resolve's `_validate_refs`, which refuses
+            # both names this arm can meet: one no registry holds (the
+            # unknown-name arm) and one whose only route to Python is a
+            # `primitives { }` declaration (the declared-only arm). The
+            # message says LEGACY, because a registered Primitive is not
+            # unknown to the engine — only to this dispatch.
             raise AssertionError(
-                f"unknown native function '{name}' — neither a Builtin "
-                f"(cardlang/runtime/builtins.py) nor a Primitive"
+                f"unknown legacy native function '{name}' — the legacy "
+                f"dispatch keys the Builtins (cardlang/runtime/builtins.py) "
+                f"and the Primitives that carry an arm here; a declared-only "
+                f"Primitive (cardlang/builtins/functions.py, "
+                f"DECLARED_ONLY_CALL_FUNCS) reaches its Python through "
+                f"`call_declared` off its game's `primitives {{ }}` block"
             )
 
 

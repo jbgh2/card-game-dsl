@@ -1,0 +1,1 @@
+primitives_declared_only_no_block.cardlang:14:17: error: `salvo_combos` is a Primitive a game reaches only by declaring it, and this game writes no `primitives { }` block; declare it in one to call it

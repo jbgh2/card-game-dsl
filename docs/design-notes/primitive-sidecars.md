@@ -309,15 +309,21 @@ the moved files (a corpus-adjacent directory vs beside the game
 docs) is the implementing session's one open decision. Goldens
 byte-identical.
 
-**Stage 5 — Salvo round 5 rides it (back in the experiment).** The
-`standard54` deck row with registry-derived test coverage; salvo.cardlang
-takes the deck, an explicit ranking with `Joker`, the joker branch in
-`loc_value`, the filtered location deal, and a `primitives {
-salvo_combos(p : Player, loc : Integer) : Integer }` sidecar
-carrying the frequency-core table (it migrates to the `combinations`
-construct when tier 1 lands — the visible burn-down §6 promises);
-the triage mirror updates alongside (its per-game mirror pin proves
-sidecar/mirror parity); arena re-runs and REPORT verdicts close the
+**Stage 5 — Salvo round 5 rides it (back in the experiment). Landed;
+the arena run is what the round still owes.** The `standard54` deck row
+carries registry-derived test coverage; salvo.cardlang takes the deck, an
+explicit ranking with `Joker`, the joker branch in `loc_value`, the
+filtered location deal, and a `primitives { salvo_combos(p : Player,
+loc : Integer) : Integer }` sidecar carrying the frequency-core table (it
+migrates to the `combinations` construct when tier 1 lands — the visible
+burn-down §6 promises). The rig mirrors are written from Salvo's DESIGN.md
+rather than from the sidecar, so their per-playout pins compare two
+independent authorings of the table; the arena reports per-type combo
+incidence, which is what re-tunes the values. This is also the stage that
+made the coexistence window's third dispatch route explicit: a Primitive
+reached only by declaration has no `call` arm, which the dispatch-split
+grid, the signature reconciliation and the declared-reads scan each now
+state rather than assume. Arena re-runs and REPORT verdicts close the
 round.
 
 ## 6. One pressure to preserve

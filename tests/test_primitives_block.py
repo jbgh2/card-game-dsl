@@ -3,8 +3,8 @@
 The block declares the [[primitive]]s a game borrows from outside the DSL —
 typed signature and declared reads — and its PRESENCE partitions the game's
 native-call namespace in both directions (docs/design-notes/primitive-sidecars.md
-§2; epic #142, stage 3a). This module is that change's grid, authored red
-before the implementation: the born-red counts at the foot of this docstring
+section 2; epic #142, stage 3a). This module is that change's grid, authored
+red before the implementation: the born-red counts at the foot of this docstring
 are its provenance.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
@@ -42,6 +42,14 @@ domain:     the block's own surface — clause placement x {game, library},
             zone, unknown} — crossed with the REGIME axis (declared /
             legacy) wherever a cell's outcome differs between them, and with
             the six Primitive namespaces of `cardlang/builtins/functions.py`.
+            The regime axis is crossed once in full: the Primitive's HOME
+            (`DECLARED_ONLY_CALL_FUNCS` against its complement in
+            `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
+            block}, total over the declared-only registry and sampled at one
+            named member of the legacy half. Both directions of the partition
+            are cells of that product: a declared game reaching a Primitive it
+            did not declare, and an undeclared game reaching one no legacy
+            dispatch arm serves.
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
@@ -64,8 +72,10 @@ domain:     the block's own surface — clause placement x {game, library},
             concrete entry: no registered implementation takes one, so the
             shape check refuses every `cell`-typed declaration. The two guards
             answer different questions and the grid runs the gate's.
-registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
-            and `BUILTIN_CALL_FUNCS`); `cardlang/primitives_block.py`
+registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces,
+            `BUILTIN_CALL_FUNCS`, and `DECLARED_ONLY_CALL_FUNCS` — which of
+            the Primitives a declaration is the only route to);
+            `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
             `DECLARABLE_BUILTIN_TYPE_NAMES`, `UNDECLARABLE_TYPE_CONSTRUCTORS`,
             `InvocationContract`); `cardlang.types.Type` (the constructor
@@ -129,12 +139,22 @@ runtime resolved the other. Red a fifth time, at `4 failed`, on a read name
 denoting two declarations at once, and on the native name-based guards that
 still answered about a call the runtime dispatches to a designer function.
 Each class was derived and rowed before its fix, on the same order.
+
+Red a sixth time, at `1 failed, 5 passed` over the regime product's own six
+cells (`-k regime_product`, 2026-08-29), on the one direction of the
+partition nothing refused: a Primitive whose only route to Python is a
+declaration, called from a game that writes no block. The product was rowed
+whole before the fix, so the five cells that already held are cells rather
+than absences.
 """
 
 from __future__ import annotations
 
+import ast
 import dataclasses
 import functools
+import importlib
+import inspect
 import pathlib
 import random
 import typing
@@ -145,8 +165,10 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
+    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
+from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
@@ -249,14 +271,126 @@ def test_every_indexed_implementation_resolves(name: str) -> None:
     strings answerable.
 
     red under: misspell any row's `attribute`."""
-    import importlib
-
     impl = PRIMITIVE_IMPLEMENTATIONS[name]
     module = importlib.import_module(impl.module)
     assert callable(getattr(module, impl.attribute, None)), (
         f"{impl.module}.{impl.attribute} — the index names it for {name!r}, "
         f"and the module does not define it"
     )
+
+
+# --- the ranking gate, derived from the implementations ----------------------
+
+
+@functools.cache
+def _module_function_sources(module: str) -> dict[str, str]:
+    """One runtime module's own top-level functions, name -> source text.
+
+    Functions the module IMPORTS are excluded (`__module__` keys them), so a
+    walk that follows a call name stays inside the home module."""
+    mod = importlib.import_module(module)
+    return {
+        attr: inspect.getsource(obj)
+        for attr, obj in vars(mod).items()
+        if inspect.isfunction(obj) and getattr(obj, "__module__", None) == module
+    }
+
+
+def _implementation_source(name: str) -> str:
+    """The Python one registered Primitive runs, as text: its entry point plus
+    every top-level function of its home module reachable from it by call name.
+
+    The closure is what makes the read visible when the entry point delegates —
+    a scrape of the entry point alone would miss a helper's read, and a scrape
+    of the whole module would report every sibling that merely shares the
+    file."""
+    impl = PRIMITIVE_IMPLEMENTATIONS[name]
+    sources = _module_function_sources(impl.module)
+    seen: set[str] = set()
+    frontier = [impl.attribute]
+    chunks: list[str] = []
+    while frontier:
+        attr = frontier.pop()
+        if attr in seen or attr not in sources:
+            continue
+        seen.add(attr)
+        chunks.append(sources[attr])
+        for node in ast.walk(ast.parse(sources[attr])):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                frontier.append(node.func.id)
+    assert seen, (
+        f"{name}: the index names {impl.module}.{impl.attribute}, which is not "
+        f"a top-level function of that module — the scrape below would report "
+        f"it as reading nothing"
+    )
+    return "\n".join(chunks)
+
+
+def _rank_index_readers() -> frozenset[str]:
+    """Every registered Primitive whose Python names `rank_index`. The domain
+    is the whole index — `_implementation_source` refuses a row it cannot
+    resolve, so a green here cannot come from a shrunken one."""
+    return frozenset(
+        name
+        for name in PRIMITIVE_IMPLEMENTATIONS
+        if "rank_index" in _implementation_source(name)
+    )
+
+
+def test_every_rank_index_reading_primitive_is_ranking_gated() -> None:
+    """A Primitive that reads the declared rank order is gated on the game
+    declaring one.
+
+    property:   membership of `typecheck.RANKING_GATED_FUNCS` covers every
+                registered Primitive whose implementation reads a rank index.
+                Nothing derives that membership today — a name is added by
+                hand — so an ungated reader checks clean in a game with no
+                `ranking:` and meets an empty order at playout.
+    domain:     `PRIMITIVE_IMPLEMENTATIONS`, every row, resolved to the source
+                of the Python it names.
+    registry:   the gate is `cardlang/typecheck.py`'s `RANKING_GATED_FUNCS`;
+                the reader set is derived from the index rather than listed,
+                so a Primitive registered later is scraped without an edit
+                here.
+    does not prove: only that the NAME is gated. That the reader also reaches
+                the runtime's typed channel on a PARTIAL `ranking:` is
+                tests/test_trump_slot_class.py's driver grid, whose member
+                axis is this registry's union with the two slot registries.
+                And the walk follows call names inside the implementation's
+                own home module: a reader that takes the order under some
+                other name and hands it to a function in a DIFFERENT module
+                names `rank_index` nowhere the walk looks. No registered
+                Primitive is shaped that way; the shape is what a green here
+                does not exclude.
+
+    red under: drop `salvo_combos` from `RANKING_GATED_FUNCS`."""
+    from cardlang.typecheck import RANKING_GATED_FUNCS
+
+    ungated = _rank_index_readers() - RANKING_GATED_FUNCS
+    assert not ungated, (
+        f"registered Primitives reading a rank index but ungated: "
+        f"{sorted(ungated)} — add each to `typecheck.RANKING_GATED_FUNCS` "
+        f"(and give it a driver in tests/test_trump_slot_class.py)"
+    )
+
+
+def test_the_rank_index_scrape_sees_a_reader_and_separates_two_file_mates() -> None:
+    """Anti-vacuity floor and discrimination floor in one, because the pin
+    above is a SUBSET assertion: an empty reader set satisfies it vacuously,
+    and a module-granular scrape satisfies it by over-reporting.
+
+    The control pair is the two cribbage pegging scorers, which share
+    `cardlang/runtime/cribbage.py` and sit on opposite sides of typecheck's
+    own census — `peg_run_points` reads the order to find a run,
+    `peg_pair_points` compares ranks for equality and reads no order. A
+    scrape that reported both would be answering about the FILE.
+
+    red under: read the whole module's source instead of the call closure —
+    `peg_pair_points` joins the reader set."""
+    readers = _rank_index_readers()
+    assert readers, "the scrape found no reader at all"
+    assert "peg_run_points" in readers, sorted(readers)
+    assert "peg_pair_points" not in readers, sorted(readers)
 
 
 def test_every_invocation_contract_has_a_member() -> None:
@@ -402,6 +536,137 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
     )
     assert "tichu_dragon_won" in message
     assert "primitives" in message
+
+
+# --- axis 1 x the Primitive's own home: the regime product ------------------
+#
+# A Primitive is reachable from one home or from two. `DECLARED_ONLY_CALL_FUNCS`
+# names the ones `runtime/primitives.py` holds no `call` arm for, so a
+# declaration is the ONLY route to their Python; every other Primitive keeps
+# the legacy arm as well. Crossed with the regime — a block that declares the
+# name, a block that does not, no block at all — that is a six-cell product,
+# and each cell's outcome is stated once here rather than in six places.
+
+# `Type` constructor -> (its declarable spelling, a literal of that type). A
+# representative's signature is read from `CALL_SIGS` and rendered through this
+# table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
+# sampled at whichever member it holds — a member whose signature reaches a
+# type with no row fails by NAME rather than producing a sentence the parser
+# rejects for the wrong reason.
+_SPELLINGS: dict[str, tuple[str, str]] = {
+    "TPlayer": ("Player", "0"),
+    "TInteger": ("Integer", "0"),
+    "TBoolean": ("Boolean", "true"),
+    "TString": ("String", '"x"'),
+}
+
+# The `score[0] := …` shape each return spelling lands in, so a rendered call
+# sits in a position that types.
+_ASSIGNMENTS: dict[str, str] = {
+    "Integer": "    score[0] := {call}",
+    "Boolean": "    score[0] := if {call} then 1 else 0",
+}
+
+
+def _spelling_of(t: Type) -> tuple[str, str]:
+    row = _SPELLINGS.get(type(t).__name__)
+    assert row is not None, (
+        f"no spelling for {type(t).__name__}: a Primitive's signature reaches "
+        f"a type this product cannot render — add its row above"
+    )
+    return row
+
+
+def _entry_and_body(name: str) -> tuple[str, str]:
+    """One Primitive as a `primitives { }` entry and as a call in a body, both
+    rendered from `CALL_SIGS` — the signature its implementation states, so the
+    entry cannot disagree with the shape check by construction."""
+    sig = CALL_SIGS[name]
+    params = ", ".join(f"a{i} : {_spelling_of(p)[0]}" for i, p in enumerate(sig.params))
+    args = ", ".join(_spelling_of(p)[1] for p in sig.params)
+    ret = _spelling_of(sig.ret)[0]
+    assignment = _ASSIGNMENTS.get(ret)
+    assert assignment is not None, f"no assignment shape for a {ret} return"
+    return f"{name}({params}) : {ret}", assignment.format(call=f"{name}({args})")
+
+
+# The legacy-half representative, checked against the registry rather than
+# assumed: chosen for taking no arguments, which keeps its rendered sentence
+# the shortest of the half.
+_LEGACY_HALF_NAME = "tichu_dragon_won"
+
+# (the Primitive's home, the game's regime) -> whether the call CHECKS. The
+# home axis is the registry partition; the regime axis is `Regime` crossed with
+# the block's own contents, which is what `call_namespace` reads.
+_REGIME_PRODUCT: dict[tuple[str, str], bool] = {
+    ("declared-only", "block declares it"): True,
+    ("declared-only", "block omits it"): False,
+    ("declared-only", "no block"): False,
+    ("legacy-arm too", "block declares it"): True,
+    ("legacy-arm too", "block omits it"): False,
+    ("legacy-arm too", "no block"): True,
+}
+
+
+def _homes() -> dict[str, list[str]]:
+    """The two homes, as the registries state them. The declared-only arm is
+    every member, so the product below covers the registry; the legacy arm is
+    the one representative, whose membership the test beside it checks.
+
+    A plain lookup, deliberately: this runs inside the `parametrize` list, so
+    anything that raised here would be a COLLECTION error — the whole module
+    deselected on a fact about one representative, reported as a broken test
+    file rather than as the registry change it is."""
+    return {
+        "declared-only": sorted(DECLARED_ONLY_CALL_FUNCS),
+        "legacy-arm too": [_LEGACY_HALF_NAME],
+    }
+
+
+def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
+    """The product's legacy arm is sampled at one name, and the sample means
+    nothing if the name has moved homes: `DECLARED_ONLY_CALL_FUNCS` grows as
+    stage 3b migrates games, and every migration is a name leaving this half.
+
+    red under: set `_LEGACY_HALF_NAME` to a declared-only Primitive."""
+    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
+    assert _LEGACY_HALF_NAME in legacy_half, (
+        f"{_LEGACY_HALF_NAME} no longer has a legacy `call` arm — the product "
+        f"below samples its half at this name; pick another from "
+        f"{sorted(legacy_half)[:3]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "home,regime_label,name",
+    [
+        (home, regime_label, name)
+        for (home, regime_label) in sorted(_REGIME_PRODUCT)
+        for name in _homes()[home]
+    ],
+)
+def test_the_regime_product_lands_where_the_table_says(
+    home: str, regime_label: str, name: str
+) -> None:
+    """The product's cells, run.
+
+    The one that was ever in doubt is (declared-only, no block): the name IS in
+    `CALL_FUNCS`, so the legacy namespace admits it, and the dispatch it then
+    reaches has no arm for it. A refusal here is what keeps the declared-only
+    half from being a namespace a game can enter without declaring anything.
+
+    red under: drop the declared-only arm from resolve's `_validate_refs`."""
+    entry, body = _entry_and_body(name)
+    block = {"block declares it": entry, "block omits it": "", "no block": None}[
+        regime_label
+    ]
+    source = _game(block=block, body=body)
+    if _REGIME_PRODUCT[(home, regime_label)]:
+        assert name in call_namespace(_checks(source))
+        return
+    message = _refused(source)
+    assert name in message, message
+    assert "primitives" in message, message
 
 
 def test_a_second_block_is_refused() -> None:
@@ -1517,12 +1782,22 @@ GAMES_DIR = ROOT_DIR / "docs" / "games"
 WITNESS = pathlib.Path(__file__).resolve().parent / "fixtures" / "primitives_witness.cardlang"
 
 
-def _game_sources() -> list[pathlib.Path]:
-    """Every game the pin quantifies over: the corpus glob, plus the witness
-    fixture. The fixture is IN the domain deliberately — in 3a no corpus game
-    declares a block, so without it the declared arm of every check below would
-    be empty and green by having nothing to look at."""
-    return sorted(GAMES_DIR.glob("*.cardlang")) + [WITNESS]
+def game_sources() -> list[pathlib.Path]:
+    """Every game whose declarations couple to the package tables: the corpus
+    glob, the witness fixture, and the experiment games that declare a block.
+
+    The fixture is IN the domain deliberately — no corpus game declares a
+    block, so without it the declared arm of every check below would be empty
+    and green by having nothing to look at. Salvo is in for the other
+    direction: it declares the only Primitive no corpus game reaches, and a
+    package registration nothing in this domain declares is refused below as an
+    orphan. The experiment games are named one by one rather than globbed:
+    Salvo's mini and its zc variant declare nothing, and a glob would quantify
+    over every future experiment file whether or not it is a game."""
+    return sorted(GAMES_DIR.glob("*.cardlang")) + [
+        WITNESS,
+        ROOT_DIR / "experiments" / "salvo" / "salvo.cardlang",
+    ]
 
 
 @functools.cache
@@ -1530,7 +1805,7 @@ def _checked_games() -> tuple[tuple[str, n.Game], ...]:
     """(game-file basename, checked game) for every source, through the
     pipeline's own entry point — so a block written in a `.md` game reaches
     this pin by the same extraction the runtime uses."""
-    return tuple((p.name, check_source(p)) for p in _game_sources())
+    return tuple((p.name, check_source(p)) for p in game_sources())
 
 
 def _reconcile(

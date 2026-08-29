@@ -21,15 +21,18 @@ domain:          (a) every `experiments/*/results_*.json`, classified by
                  sweep is the glob, so an artifact joins it by being written,
                  and `test_the_tuned_population_is_not_empty` is what stops the
                  classification going vacuous when no artifact carries the
-                 knobs. (b) every table under the two covered sections of
+                 knobs. (b) every table under the sections `_BOUND` names in
                  `experiments/salvo/REPORT.md`, crossed with its rows and its
                  mapped columns, with the row axis pinned to what each table
                  is bound to, so a deleted row shrinks the checked population
                  loudly rather than in silence:
-                 `test_the_liveness_table_prints_every_bin_it_is_bound_to`,
-                 `test_the_scoreboard_prints_the_rows_it_is_bound_to`.
+                 `test_every_record_table_prints_the_rows_it_is_bound_to`,
+                 `test_the_scoreboard_prints_the_rows_it_is_bound_to`; and
+                 the binders themselves are an axis, pinned mutually exclusive
+                 by `test_no_table_is_claimed_by_two_binders`.
                  Boundaries, each a limit on this module rather than a
-                 gap in the report. Only salvo's two adopted-game sections are
+                 gap in the report. Only the sections describing an adopted
+                 game are
                  bound: §2's and §8's tables describe rounds 1-3 and want a
                  per-cell filename convention derived from
                  `experiments/salvo/triage.py` (issue #419), and
@@ -47,8 +50,9 @@ registry:        the tuned knobs and the sweep's extent are read from
                  `sweep_seeds`), never restated here, so re-tuning moves the
                  predicate with the artifact; the artifact axis is the glob in
                  `_artifacts`; the table axis is `_tables`, parsed from the
-                 report; the column bindings are `_LIVENESS` with
-                 `_LIVENESS_PARENTHETICAL`, and `_SCOREBOARD_VALUES`; the
+                 report; the bound tables, and the artifact each one reads, are
+                 `_BOUND`, one entry per table, and the column bindings are the
+                 `columns` and `parentheticals` those entries carry; the
                  deal-range spellings are `_SEED_START_FIELDS`. The `--seed-start`
                  default that this module's absent-means-zero reading matches:
                  `experiments/salvo/triage.py`.
@@ -68,7 +72,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -385,26 +389,82 @@ def _tables(md: str) -> list[Table]:
     return out
 
 
-# The report's own section names, by the substring that identifies each. The
-# scoreboard's heading wraps two lines; matching on a substring keeps that
-# detail out of the map.
-_SCOREBOARD_SECTION = "adopted game's scoreboard"
-_LIVENESS_SECTION = "10. Location liveness"
+RecordMap = Mapping[str, Mapping[str, Any]]
 
-# §9: rows join `pairings[].pairing`; the `win rate` cell prints the two sides
-# of that pairing in the order the label names them. `reading` is authored
-# prose and cites nothing.
-_SCOREBOARD_ARTIFACT = "results_triage_base.json"
+
+@dataclass(frozen=True)
+class Pairings:
+    """A scoreboard table: each row label names two policies, and its value
+    cell prints their two win rates in that order. `rows` is a declaration
+    rather than the artifact's own key set, because a scoreboard quotes the
+    subset of measured pairings that carries its argument."""
+
+    section: str
+    artifact: str
+    rows: frozenset[str]
+
+
+@dataclass(frozen=True)
+class Records:
+    """A table whose rows ARE an artifact's named records: the row label
+    selects the record, and each mapped column prints one of its fields.
+    `read` is what finds those records, because artifacts spell the same
+    row-keyed shape differently."""
+
+    section: str
+    artifact: str
+    key: str
+    columns: Mapping[str, tuple[str, bool]]  # column header -> (field, is percent)
+    parentheticals: Mapping[str, tuple[str, bool]]  # column -> its second field
+    read: Callable[[Any], RecordMap | str]  # the doc -> records, or why not
+
+
+def _under_policy(policy: str) -> Callable[[Any], RecordMap | str]:
+    """`probe_liveness.py`'s shape: bins keyed by name under one policy."""
+
+    def read(doc: Any) -> RecordMap | str:
+        policies = doc.get("policies") if isinstance(doc, Mapping) else None
+        bins = policies.get(policy) if isinstance(policies, Mapping) else None
+        if not isinstance(bins, Mapping):
+            return f"records no `{policy}` policy"
+        return bins
+
+    return read
+
+
+def _combos_of(pairing: str) -> Callable[[Any], RecordMap | str]:
+    """`triage.py`'s shape, transposed: the artifact keys each FIELD by combo
+    type, and the table keys each ROW by combo type."""
+
+    def read(doc: Any) -> RecordMap | str:
+        entries = doc.get("pairings") if isinstance(doc, Mapping) else None
+        if not isinstance(entries, list):
+            return "records no `pairings` list"
+        entry = next(
+            (e for e in entries if isinstance(e, Mapping) and e.get("pairing") == pairing),
+            None,
+        )
+        if entry is None:
+            return f"records no `{pairing}` pairing"
+        by_type: dict[str, dict[str, Any]] = {}
+        for field, _ in _COMBO_COLUMNS.values():
+            values = entry.get(field)
+            if not isinstance(values, Mapping):
+                return f"`{pairing}` records no `{field}`"
+            for name, value in values.items():
+                by_type.setdefault(name, {})[field] = value
+        return by_type
+
+    return read
+
+
+# The column maps: the one axis this module cannot derive, so a renamed column
+# must fail rather than drop its check.
 _SCOREBOARD_KEY = "pairing"
 _SCOREBOARD_VALUES = "win rate"
 _SCOREBOARD_PROSE = ("reading",)
 
-# §10: rows are the three bins under the `sighted` policy, which the prose
-# above the table selects. The last column prints two fields in one cell.
-_LIVENESS_ARTIFACT = "results_liveness.json"
-_LIVENESS_KEY = "bin"
-_LIVENESS_POLICY = "sighted"
-_LIVENESS: dict[str, tuple[str, bool]] = {
+_LIVENESS_COLUMNS: dict[str, tuple[str, bool]] = {
     "cards": ("mean_cards", False),
     "card-distance": ("mean_distance", False),
     "affinity": ("affinity_rate", True),
@@ -412,8 +472,59 @@ _LIVENESS: dict[str, tuple[str, bool]] = {
     "unclaimed": ("unclaimed_rate", True),
     "least-contested (vs share)": ("least_contested_share", True),
 }
-_LIVENESS_LAST_COLUMN = "least-contested (vs share)"
-_LIVENESS_PARENTHETICAL = ("appearance_share", True)
+_LIVENESS_PARENTHETICALS: dict[str, tuple[str, bool]] = {
+    "least-contested (vs share)": ("appearance_share", True),
+}
+_COMBO_COLUMNS: dict[str, tuple[str, bool]] = {
+    "bonus": ("combo_points_table", False),
+    "armies": ("combo_incidence", False),
+    "per army": ("combo_rate_per_army", True),
+}
+
+# The scoreboards quote the five pairings that carry the skill argument.
+_SKILL_PAIRINGS = frozenset(
+    {
+        "sighted vs blind",
+        "sighted vs sighted_nohold",
+        "sighted vs blind_hold",
+        "blind_hold vs blind",
+        "sighted_nohold vs blind",
+    }
+)
+
+# Every bound table, by the substring of its heading that identifies it, with
+# the artifact its cells are read from. A heading may wrap two `##` lines (§9
+# does); matching on a substring keeps that detail out of the map. The
+# substrings are mutually exclusive, which
+# `test_no_table_is_claimed_by_two_binders` pins rather than assumes.
+_BOUND: tuple[Pairings | Records, ...] = (
+    Pairings("adopted game's scoreboard", "results_triage_base.json", _SKILL_PAIRINGS),
+    Pairings("full game's scoreboard", "results_triage_base_r5.json", _SKILL_PAIRINGS),
+    Records(
+        "10. Location liveness",
+        "results_liveness.json",
+        "bin",
+        _LIVENESS_COLUMNS,
+        _LIVENESS_PARENTHETICALS,
+        _under_policy("sighted"),
+    ),
+    Records(
+        "14. Location liveness",
+        "results_liveness_r5.json",
+        "bin",
+        _LIVENESS_COLUMNS,
+        _LIVENESS_PARENTHETICALS,
+        _under_policy("sighted"),
+    ),
+    Records(
+        "13. Combo incidence",
+        "results_triage_base_r5.json",
+        "combo",
+        _COMBO_COLUMNS,
+        {},
+        _combos_of("sighted vs sighted"),
+    ),
+)
 
 # Tables in the report that no binder claims yet, held as a named set so a
 # table added to the report fails `test_every_table_in_the_report_is_accounted_
@@ -438,11 +549,17 @@ def cell_mismatches(report: str) -> list[str]:
     """
     found: list[str] = []
     for table in _tables(report):
-        if _SCOREBOARD_SECTION in table.section:
-            found += _scoreboard_mismatches(table)
-        elif _LIVENESS_SECTION in table.section:
-            found += _liveness_mismatches(table)
+        for bound in _binders_for(table):
+            found += (
+                _scoreboard_mismatches(table, bound)
+                if isinstance(bound, Pairings)
+                else _record_mismatches(table, bound)
+            )
     return found
+
+
+def _binders_for(table: Table) -> list[Pairings | Records]:
+    return [bound for bound in _BOUND if bound.section in table.section]
 
 
 def _artifact(name: str) -> Any:
@@ -454,13 +571,13 @@ def _columns(table: Table, wanted: list[str]) -> tuple[dict[str, int], list[str]
     return index, [w for w in wanted if w not in index]
 
 
-def _scoreboard_mismatches(table: Table) -> list[str]:
+def _scoreboard_mismatches(table: Table, bound: Pairings) -> list[str]:
     """Each row names its two policies; the cell prints their two win rates in
     that order, as percentages of the artifact's fractions."""
-    doc = _artifact(_SCOREBOARD_ARTIFACT)
+    doc = _artifact(bound.artifact)
     pairings = doc.get("pairings") if isinstance(doc, Mapping) else None
     if not isinstance(pairings, list):
-        return [f"{_SCOREBOARD_ARTIFACT} records no `pairings` list"]
+        return [f"{bound.artifact} records no `pairings` list"]
     by_pairing = {
         entry["pairing"]: entry
         for entry in pairings
@@ -477,11 +594,11 @@ def _scoreboard_mismatches(table: Table) -> list[str]:
         label = row[index[_SCOREBOARD_KEY]]
         entry = by_pairing.get(label)
         if entry is None:
-            found.append(f"{label}: no pairing of that name in {_SCOREBOARD_ARTIFACT}")
+            found.append(f"{label}: no pairing of that name in {bound.artifact}")
             continue
         rates = entry.get("win_rate")
         if not isinstance(rates, Mapping):
-            found.append(f"{label}: no win_rate recorded in {_SCOREBOARD_ARTIFACT}")
+            found.append(f"{label}: no win_rate recorded in {bound.artifact}")
             continue
         sides = [side.strip() for side in label.split(" vs ")]
         printed = _numbers(row[index[_SCOREBOARD_VALUES]])
@@ -491,37 +608,37 @@ def _scoreboard_mismatches(table: Table) -> list[str]:
         for side, text in zip(sides, printed):
             source = rates.get(side)
             if not isinstance(source, (int, float)):
-                found.append(f"{label}: {side} has no win rate in {_SCOREBOARD_ARTIFACT}")
+                found.append(f"{label}: {side} has no win rate in {bound.artifact}")
             elif not cited_matches(text, source * 100.0):
                 found.append(f"{label}: {side} printed {text}, artifact has {source * 100:.3f}")
     return found
 
 
-def _liveness_mismatches(table: Table) -> list[str]:
-    """Each row is one bin of the policy the prose selects; the last column
-    prints a second field in parentheses."""
-    doc = _artifact(_LIVENESS_ARTIFACT)
-    policies = doc.get("policies") if isinstance(doc, Mapping) else None
-    bins = policies.get(_LIVENESS_POLICY) if isinstance(policies, Mapping) else None
-    if not isinstance(bins, Mapping):
-        return [f"{_LIVENESS_ARTIFACT} records no `{_LIVENESS_POLICY}` policy"]
-    index, missing = _columns(table, [_LIVENESS_KEY, *_LIVENESS])
+def _record_mismatches(table: Table, bound: Records) -> list[str]:
+    """Each row is one named record of the artifact; a column may print a
+    second field in parentheses beside its own."""
+    records = bound.read(_artifact(bound.artifact))
+    if isinstance(records, str):
+        return [f"{bound.artifact} {records}"]
+    index, missing = _columns(table, [bound.key, *bound.columns])
     if missing:
-        return [f"the liveness table no longer prints {missing}"]
+        return [f"the {bound.key} table no longer prints {missing}"]
     found: list[str] = []
     for row in table.rows:
         if len(row) < len(table.header):
-            found.append(f"a liveness row prints {len(row)} cells for {len(table.header)} columns")
+            found.append(
+                f"a {bound.key} row prints {len(row)} cells for {len(table.header)} columns"
+            )
             continue
-        name = row[index[_LIVENESS_KEY]]
-        record = bins.get(name)
+        name = row[index[bound.key]]
+        record = records.get(name)
         if not isinstance(record, Mapping):
-            found.append(f"{name}: no bin of that name under {_LIVENESS_POLICY}")
+            found.append(f"{name}: no {bound.key} of that name in {bound.artifact}")
             continue
-        for header, mapped in _LIVENESS.items():
+        for header, mapped in bound.columns.items():
             fields = [mapped]
-            if mapped[0] == _LIVENESS[_LIVENESS_LAST_COLUMN][0]:
-                fields.append(_LIVENESS_PARENTHETICAL)
+            if header in bound.parentheticals:
+                fields.append(bound.parentheticals[header])
             printed = _numbers(row[index[header]])
             if len(printed) != len(fields):
                 found.append(
@@ -557,63 +674,59 @@ def _row_labels(section: str) -> list[str]:
     ]
 
 
-def test_the_liveness_table_prints_every_bin_it_is_bound_to() -> None:
+_RECORD_TABLES = [b for b in _BOUND if isinstance(b, Records)]
+_PAIRING_TABLES = [b for b in _BOUND if isinstance(b, Pairings)]
+
+
+@pytest.mark.parametrize("bound", _RECORD_TABLES, ids=[b.section for b in _RECORD_TABLES])
+def test_every_record_table_prints_the_rows_it_is_bound_to(bound: Records) -> None:
     """Rows are an axis of the domain, and `cell_mismatches` walks the rows the
     REPORT prints — so a deleted row leaves the population silently and the
-    citation pin stays green over what remains. The liveness table's row set is
-    not a matter of taste: it is the policy's bins, so it is pinned equal to
-    them rather than merely non-empty.
+    citation pin stays green over what remains. A record table's row set is not
+    a matter of taste: it is the artifact's own records, so it is pinned equal
+    to them rather than merely non-empty.
 
-    red under: delete any bin row from the §10 table of
-    experiments/salvo/REPORT.md."""
-    bins = _artifact(_LIVENESS_ARTIFACT)["policies"][_LIVENESS_POLICY]
-    assert set(_row_labels(_LIVENESS_SECTION)) == set(bins), (
-        f"the liveness table prints {sorted(_row_labels(_LIVENESS_SECTION))} for bins "
-        f"{sorted(bins)}"
+    red under: delete any bin row from the §10 or §14 table, or any combo row
+    from the §13 table, of experiments/salvo/REPORT.md."""
+    records = bound.read(_artifact(bound.artifact))
+    assert not isinstance(records, str), f"{bound.artifact} {records}"
+    printed = set(_row_labels(bound.section))
+    assert printed == set(records), (
+        f"the {bound.section} table prints {sorted(printed)} for {sorted(records)}"
     )
 
 
-# The scoreboard quotes a chosen subset of the artifact's pairings — the five
-# that carry the skill argument — so its row set is a declaration rather than
-# the artifact's own. Naming it here is what makes a deleted row loud.
-_SCOREBOARD_ROWS = frozenset(
-    {
-        "sighted vs blind",
-        "sighted vs sighted_nohold",
-        "sighted vs blind_hold",
-        "blind_hold vs blind",
-        "sighted_nohold vs blind",
-    }
-)
+@pytest.mark.parametrize("bound", _PAIRING_TABLES, ids=[b.section for b in _PAIRING_TABLES])
+def test_the_scoreboard_prints_the_rows_it_is_bound_to(bound: Pairings) -> None:
+    """A scoreboard quotes a chosen subset of the artifact's pairings, so its
+    row set is a declaration rather than the artifact's own. Pinning it is what
+    makes a deleted row loud.
 
-
-def test_the_scoreboard_prints_the_rows_it_is_bound_to() -> None:
-    """red under: delete any row from the §9 table of
+    red under: delete any row from the §9 or §12 table of
     experiments/salvo/REPORT.md."""
-    printed = set(_row_labels(_SCOREBOARD_SECTION))
-    assert printed == _SCOREBOARD_ROWS, f"the scoreboard prints {sorted(printed)}"
-    recorded = {entry["pairing"] for entry in _artifact(_SCOREBOARD_ARTIFACT)["pairings"]}
-    assert _SCOREBOARD_ROWS <= recorded, (
-        f"{sorted(_SCOREBOARD_ROWS - recorded)} is quoted but not measured"
-    )
+    printed = set(_row_labels(bound.section))
+    assert printed == bound.rows, f"the {bound.section} table prints {sorted(printed)}"
+    recorded = {entry["pairing"] for entry in _artifact(bound.artifact)["pairings"]}
+    assert bound.rows <= recorded, f"{sorted(bound.rows - recorded)} is quoted but not measured"
 
 
-def test_each_bound_section_names_the_artifact_its_cells_are_read_from() -> None:
+@pytest.mark.parametrize("bound", _BOUND, ids=[b.section for b in _BOUND])
+def test_each_bound_section_names_the_artifact_its_cells_are_read_from(
+    bound: Pairings | Records,
+) -> None:
     """The binder holds the filename and the section's prose tells a reader
     which file to check. Nothing makes those the same string, so the report can
     send a reader to one artifact while the gate reads another — and a citation
     reported correct would be correct about the wrong file.
 
-    red under: change either `results_*.json` filename in the prose of §9 or
-    §10 of experiments/salvo/REPORT.md."""
+    red under: change the `results_*.json` filename in the prose of any bound
+    section of experiments/salvo/REPORT.md."""
     report = _REPORT.read_text()
-    for section, artifact in (
-        (_SCOREBOARD_SECTION, _SCOREBOARD_ARTIFACT),
-        (_LIVENESS_SECTION, _LIVENESS_ARTIFACT),
-    ):
-        start = report.index(section)
-        body = report[start : start + 2500]
-        assert artifact in body, f"§{section!r} never names {artifact}, which its cells come from"
+    start = report.index(bound.section)
+    body = report[start : start + 2500]
+    assert bound.artifact in body, (
+        f"{bound.section!r} never names {bound.artifact}, which its cells come from"
+    )
 
 
 def test_every_table_in_the_report_is_accounted_for() -> None:
@@ -625,11 +738,27 @@ def test_every_table_in_the_report_is_accounted_for() -> None:
 
     red under: add a markdown table under any other section of
     experiments/salvo/REPORT.md."""
-    known = (_SCOREBOARD_SECTION, _LIVENESS_SECTION, *_UNBOUND_SECTIONS)
     for table in _tables(_REPORT.read_text()):
-        assert any(k in table.section for k in known), (
+        assert _binders_for(table) or any(k in table.section for k in _UNBOUND_SECTIONS), (
             f"the table under {table.section!r} is neither bound to an artifact "
             f"nor listed as unbound"
+        )
+
+
+def test_no_table_is_claimed_by_two_binders() -> None:
+    """`cell_mismatches` runs every binder whose section substring matches, so
+    two binders over one table would check it twice against different artifacts
+    — and a section substring that is a prefix of another's is how that
+    happens. The dispatch does not assume the substrings are exclusive; this
+    is what makes them so.
+
+    red under: change any `_BOUND` section to a substring of another's, e.g.
+    both scoreboards to `game's scoreboard`."""
+    for table in _tables(_REPORT.read_text()):
+        claimed = _binders_for(table)
+        assert len(claimed) <= 1, (
+            f"the table under {table.section!r} is claimed by "
+            f"{[b.section for b in claimed]}"
         )
 
 
@@ -637,31 +766,38 @@ def test_the_bound_tables_are_present() -> None:
     """The other half of the superset: a section renamed out from under a
     binder would leave its cells unchecked while everything above stayed green.
 
-    red under: rename either bound section heading in
+    red under: rename any bound section heading in
     experiments/salvo/REPORT.md."""
     sections = [t.section for t in _tables(_REPORT.read_text())]
-    for name in (_SCOREBOARD_SECTION, _LIVENESS_SECTION):
-        assert any(name in s for s in sections), f"no table sits under {name!r}"
+    for bound in _BOUND:
+        assert any(bound.section in s for s in sections), f"no table sits under {bound.section!r}"
 
 
-def test_every_liveness_column_is_mapped() -> None:
+def _bound_table(section: str) -> Table:
+    (table,) = [t for t in _tables(_REPORT.read_text()) if section in t.section]
+    return table
+
+
+@pytest.mark.parametrize("bound", _RECORD_TABLES, ids=[b.section for b in _RECORD_TABLES])
+def test_every_record_column_is_mapped(bound: Records) -> None:
     """The column map is hand-written — the one axis this module cannot derive
     — so a renamed column must fail rather than drop its check.
 
-    red under: rename a column header in the §10 table of
+    red under: rename a column header in the §10, §13 or §14 table of
     experiments/salvo/REPORT.md."""
-    (table,) = [t for t in _tables(_REPORT.read_text()) if _LIVENESS_SECTION in t.section]
-    assert set(table.header) == {_LIVENESS_KEY} | set(_LIVENESS), (
-        f"the liveness table prints {sorted(table.header)}, the map covers "
-        f"{sorted({_LIVENESS_KEY} | set(_LIVENESS))}"
+    header = set(_bound_table(bound.section).header)
+    assert header == {bound.key} | set(bound.columns), (
+        f"the {bound.section} table prints {sorted(header)}, the map covers "
+        f"{sorted({bound.key} | set(bound.columns))}"
     )
 
 
-def test_every_scoreboard_column_is_mapped() -> None:
-    """red under: rename a column header in the §9 table of
+@pytest.mark.parametrize("bound", _PAIRING_TABLES, ids=[b.section for b in _PAIRING_TABLES])
+def test_every_scoreboard_column_is_mapped(bound: Pairings) -> None:
+    """red under: rename a column header in the §9 or §12 table of
     experiments/salvo/REPORT.md."""
-    (table,) = [t for t in _tables(_REPORT.read_text()) if _SCOREBOARD_SECTION in t.section]
-    assert set(table.header) == {_SCOREBOARD_KEY, _SCOREBOARD_VALUES, *_SCOREBOARD_PROSE}
+    header = set(_bound_table(bound.section).header)
+    assert header == {_SCOREBOARD_KEY, _SCOREBOARD_VALUES, *_SCOREBOARD_PROSE}
 
 
 # --- misuse probes: the mutations the born-green pins above cannot run -----
@@ -703,3 +839,57 @@ def test_a_row_label_matching_no_record_is_refused() -> None:
     )
     found = cell_mismatches(mutated)
     assert any("blind_hold_10" in m for m in found), found
+
+
+def _mutate_under(section: str, old: str, new: str) -> str:
+    """The report with one cell changed, at its FIRST occurrence at or after
+    `section`. A bare `str.replace` would reach the same cell text under every
+    section that prints it, so a probe aimed at one binder could be answered by
+    another — which is exactly what these probes exist to tell apart."""
+    report = _REPORT.read_text()
+    start = report.index(section)
+    mutated = report[:start] + report[start:].replace(old, new, 1)
+    assert mutated != report, f"the probe did not apply: {old!r} not found under {section!r}"
+    return mutated
+
+
+def test_the_second_scoreboard_is_reached_by_its_own_binder() -> None:
+    """Two scoreboards read two artifacts, and the §9 binder would report §12's
+    rows as unmeasured rather than as wrong if the dispatch pooled them. The
+    mutation is one printed place under §12 only.
+
+    red under: drop the `full game's scoreboard` entry from `_BOUND`."""
+    found = cell_mismatches(
+        _mutate_under("12. Round 5", "**59.4 / 40.6**", "**59.4 / 40.7**")
+    )
+    assert any("printed 40.7" in m for m in found), found
+
+
+def test_a_combo_price_that_drifts_from_the_run_is_caught() -> None:
+    """The `bonus` column prints the prices the incidence beside it was
+    measured against. A report re-priced without a re-run is the drift this
+    catches, and it is the field that reaches `_combos_of`'s transposed read.
+
+    red under: drop the `13. Combo incidence` entry from `_BOUND`."""
+    found = cell_mismatches(_mutate_under("13. Combo incidence", "| pair | 4 |", "| pair | 5 |"))
+    assert any(m.startswith("pair/bonus:") for m in found), found
+
+
+def test_a_combo_row_matching_no_record_is_refused() -> None:
+    """The row-label refusal, on the transposed reader: the artifact keys each
+    field by combo type, so a row naming no type must fail rather than drop out
+    of the population."""
+    found = cell_mismatches(_mutate_under("13. Combo incidence", "| flush5 |", "| flush6 |"))
+    assert any("flush6" in m for m in found), found
+
+
+def test_the_second_liveness_table_is_reached_by_its_own_binder() -> None:
+    """§10 and §14 print the same columns for the same bins from two different
+    runs, so a dispatch that sent both to one artifact would read §14's cells
+    against round 4's numbers.
+
+    red under: drop the `14. Location liveness` entry from `_BOUND`."""
+    found = cell_mismatches(
+        _mutate_under("14. Location liveness", "| 51.4% (45.8%) |", "| 51.4% (46.8%) |")
+    )
+    assert any(m.startswith("edge/least-contested") for m in found), found

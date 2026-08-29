@@ -69,6 +69,13 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               members in enumerate(game.teams) for p in members}`` — the
               driver, the returns path, and the readiness proofs — may
               therefore read it as one.
+              And a call, in a game that writes no ``primitives { }`` block,
+              to a Primitive that has no legacy dispatch arm
+              (``DECLARED_ONLY_CALL_FUNCS``, the declared-only arm of
+              ``_validate_refs``): the name is in the legacy namespace, so
+              the unknown-name arm cannot speak for it, and a declaration is
+              its only route to Python. ``runtime/primitives.py``'s
+              ``call`` fallthrough is the Shadow Guard behind this.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -90,6 +97,7 @@ from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
+    DECLARED_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CALL_FUNCS,
@@ -6663,6 +6671,30 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # earlier (in `resolve`, before deep name resolution) so its
                 # diagnostic is not masked by the pred's unresolved binder.
                 _check_board_call(nd, game, bag)
+            case n.Call() if (
+                regime(game) is Regime.LEGACY
+                and nd.func in DECLARED_ONLY_CALL_FUNCS
+            ):
+                # The regime partition's other direction, and the Owner Guard
+                # for it. A declared-only Primitive is one
+                # `runtime/primitives.py` holds no `call` arm for, so a
+                # declaration is the ONLY route to its Python — yet the name IS
+                # a Primitive, so the legacy namespace (`CALL_FUNCS`) admits it
+                # and the unknown-name arm above says nothing. Without this the
+                # call checks clean and the dispatch falls through to a
+                # compiler-bug assert: the wrong channel, about a name the
+                # registry does hold.
+                #
+                # AFTER the flavor arms deliberately: a piece game cannot fix
+                # this call by writing a block — the deck-only refusal stands
+                # either way — so the reason that speaks there is the one whose
+                # fix is real (`_check_primitive_name`'s ordering rule).
+                bag.error(
+                    f"`{nd.func}` is a Primitive a game reaches only by "
+                    f"declaring it, and this game writes no `primitives {{ }}` "
+                    f"block; declare it in one to call it",
+                    nd.span,
+                )
             case n.StructLit() if nd.type_name not in defined_types:
                 bag.error(f"unknown type '{nd.type_name}'", nd.span)
             case n.NamedArg():

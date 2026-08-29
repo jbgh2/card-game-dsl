@@ -1,0 +1,93 @@
+{
+  "seeds": 1000,
+  "seed_start": 3000,
+  "policies": {
+    "sighted": {
+      "mid": {
+        "appearance_share": 0.2277,
+        "mean_cards": 6.11,
+        "mean_distance": 1.89,
+        "affinity_rate": 0.4708,
+        "margin_mean": 17.72,
+        "unclaimed_rate": 0.019,
+        "least_contested_share": 0.1957
+      },
+      "near": {
+        "appearance_share": 0.3143,
+        "mean_cards": 5.93,
+        "mean_distance": 1.74,
+        "affinity_rate": 0.4246,
+        "margin_mean": 18.36,
+        "unclaimed_rate": 0.0233,
+        "least_contested_share": 0.2908
+      },
+      "edge": {
+        "appearance_share": 0.458,
+        "mean_cards": 5.6,
+        "mean_distance": 1.84,
+        "affinity_rate": 0.3769,
+        "margin_mean": 19.38,
+        "unclaimed_rate": 0.0182,
+        "least_contested_share": 0.5135
+      }
+    },
+    "blind": {
+      "mid": {
+        "appearance_share": 0.2277,
+        "mean_cards": 7.63,
+        "mean_distance": 2.54,
+        "affinity_rate": 0.3986,
+        "margin_mean": 10.06,
+        "unclaimed_rate": 0.0512,
+        "least_contested_share": 0.128
+      },
+      "near": {
+        "appearance_share": 0.3143,
+        "mean_cards": 7.58,
+        "mean_distance": 2.58,
+        "affinity_rate": 0.3703,
+        "margin_mean": 10.67,
+        "unclaimed_rate": 0.0265,
+        "least_contested_share": 0.1995
+      },
+      "edge": {
+        "appearance_share": 0.458,
+        "mean_cards": 7.02,
+        "mean_distance": 3.14,
+        "affinity_rate": 0.343,
+        "margin_mean": 13.55,
+        "unclaimed_rate": 0.0233,
+        "least_contested_share": 0.6725
+      }
+    },
+    "random": {
+      "mid": {
+        "appearance_share": 0.2277,
+        "mean_cards": 5.12,
+        "mean_distance": 3.36,
+        "affinity_rate": 0.2325,
+        "margin_mean": 16.49,
+        "unclaimed_rate": 0.0234,
+        "least_contested_share": 0.2358
+      },
+      "near": {
+        "appearance_share": 0.3143,
+        "mean_cards": 5.27,
+        "mean_distance": 3.8,
+        "affinity_rate": 0.2186,
+        "margin_mean": 16.0,
+        "unclaimed_rate": 0.0255,
+        "least_contested_share": 0.2798
+      },
+      "edge": {
+        "appearance_share": 0.458,
+        "mean_cards": 5.14,
+        "mean_distance": 5.3,
+        "affinity_rate": 0.2264,
+        "margin_mean": 14.75,
+        "unclaimed_rate": 0.0226,
+        "least_contested_share": 0.4843
+      }
+    }
+  }
+}

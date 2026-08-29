@@ -10,10 +10,11 @@
 // player who commits FEWER THAN TWO cards in a round draws one extra card at
 // round end (the recon draw — restraint buys card advantage; REPORT.md
 // section 8 is the evidence this rule is what makes the count a decision).
-// Highest army total takes a location; most locations wins, grand total
-// breaks ties (encoded as final = locations * 1000 + total).
+// An army also scores for its own structure — pairs, runs, flushes. Highest
+// army total takes a location; most locations wins, grand total breaks ties
+// (encoded as final = locations * 1000 + total).
 //
-// Deliberate encoding choices and remaining reductions (per DESIGN.md):
+// Deliberate encoding choices (per DESIGN.md):
 //
 // - STAGED-ALTERNATING COMMITS, not pure-sealed simultaneity. The sealed
 //   `each player simultaneously:` body is one fixed-destination chosen
@@ -24,12 +25,15 @@
 //   (where and how many, never what) — the existence-only channel Marvel
 //   Snap itself shows as face-down card-backs at locations. Initiative
 //   alternates each round to balance the information edge.
-// - NO COMBOS yet: cribbage-style combination scoring lives in a registered
-//   Primitive, not in-DSL combinators; a salvo primitive is future
-//   work. Base-game sims isolated the interaction question first (combos are
-//   self-synergy — if the base game were double solitaire, combos would
-//   worsen it).
-// - NO JOKERS yet: they ride the same future change.
+// - COMBO SCORING IS A DECLARED PRIMITIVE. The bonus an army's own structure
+//   earns (of-a-kind, run, flush — DESIGN.md's table) is a combination count
+//   the DSL has no combinator for, so it is the Primitive `salvo_combos`,
+//   declared in this game's own `primitives { }` block and implemented in
+//   `cardlang/runtime/salvo.py`. It migrates into the language when the
+//   `combinations` construct lands (docs/design-notes/combination-scoring.md).
+// - JOKERS RIDE THE DECK. `standard54` carries two; a joker is a flat perfect
+//   hit at any location (the `loc_value` branch), matches no affinity suit,
+//   and joins no combo.
 //
 // The staged piles are HiddenPile<player> — identity to the owner, a bare
 // count to the opponent — so the flip is just a movement to the public
@@ -41,8 +45,24 @@ game Salvo {
   direction: clockwise
   max_length: 300
 
-  cards: standard52
-  ranking: aces low                // A=0 .. K=12; dist() reads this scale
+  cards: standard54
+  // The natural ranks are the linear aces-low scale `dist` reads: the engine
+  // indexes this order A=0 .. K=12 with Joker=13, and only deltas matter, so
+  // Joker at the head shifts nothing. Joker sits outside the scale —
+  // `loc_value` branches on the joker suit before `dist` ever sees it — and
+  // is listed because every rank the deck holds must be ranked to be
+  // strength-read at all.
+  ranking: Joker K Q J 10 9 8 7 6 5 4 3 2 A
+
+  // `salvo_combos(p, loc)` is the bonus `p`'s army at `loc` earns for its own
+  // structure. `loc` is 0/1/2 for locations a/b/c — the mapping the Integer
+  // type cannot show. The reads are the three army families and nothing else:
+  // a combo is pure army structure, and the rank order the runs need arrives
+  // as an engine fact, which a `reads` clause does not spell.
+  primitives {
+    salvo_combos(p : Player, loc : Integer) : Integer
+        reads army_a[p], army_b[p], army_c[p]
+  }
 
   zones {
     deck             : Deck
@@ -74,9 +94,19 @@ game Salvo {
 
   phase setup {
     shuffle deck
-    move one card from deck to location_a
-    move one card from deck to location_b
-    move one card from deck to location_c
+    // Locations are joker-free: a joker broadcasts no target rank and no
+    // affinity suit, so it can set no location. The `where` filter is what
+    // buys that, and it buys only that: a filtered draw takes the first
+    // card the filter admits and leaves every card it passes over where it
+    // lies, so the jokers it steps past sit at the head of what remains and
+    // the seat dealt first meets them more often than the seat dealt second.
+    // The shuffle below buys the other half of DESIGN.md's
+    // set-aside-replace-reshuffle rule — it returns the residual deck to a
+    // uniform order, so the two seats face the same odds of a joker.
+    move one card from deck where card.suit is not joker to location_a
+    move one card from deck where card.suit is not joker to location_b
+    move one card from deck where card.suit is not joker to location_c
+    shuffle deck
     deal 5 cards from deck to hand[0]
     deal 5 cards from deck to hand[1]
   }
@@ -120,9 +150,9 @@ game Salvo {
   }
 
   phase settle {
-    for each player p: pts_a[p] := sum of loc_value(card, top_of(location_a)) over cards in army_a[p]
-    for each player p: pts_b[p] := sum of loc_value(card, top_of(location_b)) over cards in army_b[p]
-    for each player p: pts_c[p] := sum of loc_value(card, top_of(location_c)) over cards in army_c[p]
+    for each player p: pts_a[p] := (sum of loc_value(card, top_of(location_a)) over cards in army_a[p]) + salvo_combos(p, 0)
+    for each player p: pts_b[p] := (sum of loc_value(card, top_of(location_b)) over cards in army_b[p]) + salvo_combos(p, 1)
+    for each player p: pts_c[p] := (sum of loc_value(card, top_of(location_c)) over cards in army_c[p]) + salvo_combos(p, 2)
 
     if pts_a[0] > pts_a[1] { locs_won[0] += 1 } else { if pts_a[1] > pts_a[0] { locs_won[1] += 1 } }
     if pts_b[0] > pts_b[1] { locs_won[0] += 1 } else { if pts_b[1] > pts_b[0] { locs_won[1] += 1 } }
@@ -141,8 +171,10 @@ game Salvo {
 function dist(c : Card, l : Card) = if rank_value(c) >= rank_value(l) then rank_value(c) - rank_value(l) else rank_value(l) - rank_value(c)
 
 // A committed card's worth at a location: proximity (13 for a bullseye down
-// to 1 for the farthest miss) plus the affinity bonus for a matching suit.
-function loc_value(c : Card, l : Card) = (13 - dist(c, l)) + (if c.suit is l.suit then 3 else 0)
+// to 1 for the farthest miss) plus the affinity bonus for a matching suit. A
+// joker is a flat perfect hit and takes no affinity — its suit matches no
+// location's, since a location is never a joker.
+function loc_value(c : Card, l : Card) = if c.suit is joker then 13 else (13 - dist(c, l)) + (if c.suit is l.suit then 3 else 0)
 
 // --- commit vocabulary: one move_type per location, Cheat's pattern ---
 // The hidden card pick is the in-effect chosen movement; WHICH location

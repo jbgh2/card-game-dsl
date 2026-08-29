@@ -170,7 +170,8 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 #   call forms, gated below: rank_value (builtins.py), the
 #     highest_trump_or_led_suit call form (builtins.py, the Arrival Record
 #     winner), peg_run_points / cribbage_show_value / cribbage_crib_value
-#     (cribbage.py show/run scoring orders).
+#     (cribbage.py show/run scoring orders), salvo_combos (salvo.py's run
+#     family walks the declared scale for adjacency).
 #   winner callbacks, gated via RANKING_GATED_WINNERS at the trick round's
 #     `winner` slot: highest_of_led_suit, highest_trump_or_led_suit
 #     (winners.py). NON-member: highest_by_trick_order, whose strengths are
@@ -196,6 +197,7 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
         "peg_run_points",
         "cribbage_show_value",
         "cribbage_crib_value",
+        "salvo_combos",
     }
 )
 RANKING_GATED_WINNERS: frozenset[str] = frozenset(

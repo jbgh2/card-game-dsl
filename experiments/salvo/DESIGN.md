@@ -34,8 +34,10 @@ original composition.
   (bluffing frequencies with interior probabilities), and the lab battery
   should demonstrate that, not just assert it.
 - **Small DSL footprint**: zero new constructs — the commit runs on
-  Cheat's per-option move_type pattern over offer windows; only the
-  pure-simultaneous variant (parked, below) would need new surface.
+  Cheat's per-option move_type pattern over offer windows, and the one
+  thing the language cannot say, the combo table, is a declared Primitive
+  rather than new surface; only the pure-simultaneous variant (parked,
+  below) would need any.
 
 ## The idea
 
@@ -58,12 +60,14 @@ where, how much, and what is the opponent committing *right now*.
 ## Rules (full game)
 
 All point values below are starting values, expected to move at the
-simulation step; the mechanisms are the design.
+simulation step (REPORT.md section 13 measures the combo table's); the
+mechanisms are the design.
 
 **Setup.** Shuffle 54 cards (standard 52 plus two jokers). Deal three
 cards face-up in a row: the **locations**. (A joker dealt as a location
-is set aside, replaced from the deck, then shuffled back in; jokers only
-ever live in hands.) Deal each
+is set aside, replaced from the deck, then shuffled back in: a joker
+broadcasts no target rank and no affinity suit, so it can never be a
+location. Jokers reach the table only from a hand.) Deal each
 player a hand of five. The rest is the face-down **deck**. Ranks run
 ace low: A=1, 2..10, J=11, Q=12, K=13, linear, no wraparound.
 
@@ -103,12 +107,13 @@ army there:
 
 - **Proximity**: 13 minus distance-to-target, per card.
 - **Affinity**: +3 per card of the location's suit.
-- **Combos**, within one player's army at one location. Each combo type
-  scores once per location, best instance only; one card may serve
-  several types (7 of spades + 7 of hearts + 8 of spades + 9 of spades
-  scores a pair, a run of three, and a flush of three):
-  - pair +4; three of a kind +12; four of a kind +20 (within the
-    of-a-kind family only the largest scores)
+- **Combos**, within one player's army at one location. There are three
+  families — of-a-kind, run, flush. Each family scores once per location
+  and on its largest instance only (a run of four and a run of three in
+  the same army score the four, not both); one card may serve several
+  families (7 of spades + 7 of hearts + 8 of spades + 9 of spades scores
+  a pair, a run of three, and a flush of three):
+  - pair +4; three of a kind +12; four of a kind +20
   - run of three +6; run of four +10; run of five or longer +15
   - flush of three +5; flush of four +9; flush of five or longer +14
 - **Jokers**: a joker scores as a perfect hit (13) at any location, has
@@ -134,7 +139,10 @@ locations wins; if that also ties, the game is a draw.
   distance into a playable commit — and it aims the long game: a flush
   in the location's own suit stacks both bonuses.
 - **Combos reward planning across turns** and justify off-target
-  commits, which keeps hands from being priced by proximity alone.
+  commits, which keeps hands from being priced by proximity alone. The
+  capacity of four bounds what one army can hold, so the five-card rung
+  of the run and flush ladders is unreachable and the four-card rung is
+  the ceiling in play (REPORT.md section 13).
 - **The commit-count axis needs an economy, not a value curve —
   settled empirically across three arena rounds** (REPORT.md sections
   3, 7, 8). Under the base rules committing the maximum is
@@ -221,22 +229,31 @@ channel; the flip is a plain movement to public piles. Locations are
 the turned-card-as-rule-parameter family; scoring is `sum of f(card,
 top_of(...)) over cards in ...`.
 
-Would need new surface, both parked: the pure-simultaneous variant (a
-set-valued sealed commit — also what the capstone eventually needs),
-and the combo bonus table (a stdlib scoring primitive in cribbage's
-registered-primitive mold, unless its machinery generalizes). No
-per-game Python is anticipated either way.
+The combo bonus table is the one thing the DSL has no combinator for, so
+it is a Primitive — `salvo_combos`, which the game file declares in its own
+`primitives { }` block with its typed signature and the three army families
+it reads. That is the sanctioned shape for game-local Python
+(`docs/design-notes/primitive-sidecars.md`), and the declaration is what
+makes the borrowing visible: the block doubles as this game's inventory of
+what is not yet expressible, and the entry retires when the `combinations`
+construct lands.
+
+Would need new surface, parked: the pure-simultaneous variant (a
+set-valued sealed commit — also what the capstone eventually needs).
 
 ## Evaluation plan
 
 The standard loop: check, play, simulate; then the battery
 (`experiments/game-to-artifact-plan.md`), probe tier for the full game,
-exact tier for salvo-mini. The round-1 instrument is `triage.py`
+exact tier for salvo-mini. The arena instrument is `triage.py`
 (playout arena over `salvo.cardlang`: random / blind-greedy /
 sighted-adaptive policies under manual projection discipline, with a
 per-game mirror pin proving its value function equals the DSL's settle
-math), run before any solver work; it covers the base game — combos
-and jokers enter at round 2.
+math), run before any solver work. Its mirror covers the whole scoring
+rule — proximity, affinity, jokers and the combo table — and is written
+from this file rather than from the engine's Primitive, so the pin
+compares two independent authorings on every playout rather than one with
+itself. It reports each combo type's incidence, which is question 4 below.
 
 Decision questions, in priority order:
 

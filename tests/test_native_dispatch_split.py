@@ -4,22 +4,28 @@ property:   every name the checker registers as a native call dispatches from
             exactly one runtime home -- `runtime/builtins.py` (Builtins:
             generic native functions the language ships) or
             `runtime/primitives.py` (Primitives: sanctioned game-local
-            Python) -- with nothing in both and nothing in neither, and every
-            name-keyed dispatcher lives in the home its kind belongs to
-domain:     CALL_FUNCS (the whole registry) x {builtins, primitives};
-            every name-keyed dispatcher in either home x its home; the
-            retired `runtime/stdlib.py` x {exists, imported}
+            Python) -- with nothing in both and nothing in neither, EXCEPT the
+            Primitives a game reaches only by declaring them, whose dispatch
+            derives from the declaration and which therefore have an arm in
+            neither home; and every name-keyed dispatcher lives in the home its
+            kind belongs to
+domain:     CALL_FUNCS (the whole registry) x {builtins, primitives,
+            declared}; every name-keyed dispatcher in either home x its home;
+            the retired `runtime/stdlib.py` x {exists, imported}
 registry:   `cardlang/builtins/functions.py` for BOTH name axes --
             `BUILTIN_CALL_FUNCS` / `PRIMITIVE_CALL_FUNCS` give the expected
-            home and `CALL_FUNCS` their derived union; each home module's OWN
+            home, `DECLARED_ONLY_CALL_FUNCS` the third value, and `CALL_FUNCS`
+            the first two's derived union; each home module's OWN
             `call` match AST for the actual home (scraped from the source,
             never hand-listed); each home module's module-level `match name:`
             functions for the dispatcher axis
 covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
-            member, crossed against the scraped home;
+            member, crossed against the scraped home, including the
+            declared-only row whose expected home is no arm at all;
             `test_homes_partition_the_call_registry` (scraped union ==
-            CALL_FUNCS, scraped intersection == empty, and each scraped home
-            == its declared set both ways);
+            CALL_FUNCS minus the declared-only names, scraped intersection ==
+            empty, each scraped home == its declared set both ways, and the
+            declared-only set inside the Primitive registry);
             `test_dispatcher_home[<dispatcher>]`, one row per scraped
             dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
             so a NEW dispatcher cannot land unplaced (the dispatcher column
@@ -60,6 +66,7 @@ import cardlang
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
+    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
 
@@ -151,8 +158,18 @@ def _call_arms(path: Path) -> frozenset[str]:
 def _expected_home(name: str) -> str:
     """From the DECLARATION side, so this grid crosses two independent
     statements of the same fact rather than checking the implementation
-    against a copy of itself."""
-    return "builtins" if name in BUILTIN_CALL_FUNCS else "primitives"
+    against a copy of itself.
+
+    Three values, because a Primitive has two routes to its Python: the `call`
+    match, and the table a game's own `primitives { }` block derives at load
+    (`runtime/primitives.py`, `Declared`). A declared-only name has NO arm in
+    either home, and expecting one would force a dead legacy arm into the
+    module whose docstring says there will never be one. The default is
+    "primitives", so a newly registered declared-only name is red here until
+    `DECLARED_ONLY_CALL_FUNCS` classifies it."""
+    if name in BUILTIN_CALL_FUNCS:
+        return "builtins"
+    return "declared" if name in DECLARED_ONLY_CALL_FUNCS else "primitives"
 
 
 def _actual_homes(name: str) -> list[str]:
@@ -166,27 +183,37 @@ def _actual_homes(name: str) -> list[str]:
 
 @pytest.mark.parametrize("name", sorted(CALL_FUNCS))
 def test_call_arm_home(name: str) -> None:
-    """Each registered call dispatches from exactly the home its kind says."""
-    assert _actual_homes(name) == [_expected_home(name)], (
-        f"{name!r} should dispatch from {_expected_home(name)}.py, but its "
+    """Each registered call dispatches from exactly the home its kind says —
+    and a declared-only Primitive from NEITHER, because its dispatch derives
+    from the declaration rather than from an arm."""
+    expected = [] if _expected_home(name) == "declared" else [_expected_home(name)]
+    assert _actual_homes(name) == expected, (
+        f"{name!r} should dispatch from {_expected_home(name)}, but its "
         f"`call` arm was found in {_actual_homes(name) or 'neither home'}"
     )
 
 
 def test_homes_partition_the_call_registry() -> None:
-    """The two homes cover the registry exactly. Stated over the SCRAPED arm
-    sets rather than by subtraction, so an arm in neither home (or in both)
-    fails here by name rather than being absorbed into a complement."""
+    """The two homes cover the arm-dispatched registry exactly. Stated over
+    the SCRAPED arm sets rather than by subtraction, so an arm in neither home
+    (or in both) fails here by name rather than being absorbed into a
+    complement. The declared-only names are the registry's third part: they
+    have no arm anywhere, and the set naming them is checked against the
+    registry both ways so it can neither go stale nor absorb a name."""
     builtins_arms, primitives_arms = _call_arms(_BUILTINS), _call_arms(_PRIMITIVES)
-    assert builtins_arms | primitives_arms == CALL_FUNCS, (
-        f"unhomed: {sorted(CALL_FUNCS - builtins_arms - primitives_arms)}; "
+    assert DECLARED_ONLY_CALL_FUNCS <= PRIMITIVE_CALL_FUNCS, (
+        f"declared-only names outside the Primitive registry: "
+        f"{sorted(DECLARED_ONLY_CALL_FUNCS - PRIMITIVE_CALL_FUNCS)}"
+    )
+    assert builtins_arms | primitives_arms == CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS, (
+        f"unhomed: {sorted(CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS - builtins_arms - primitives_arms)}; "
         f"unregistered: {sorted((builtins_arms | primitives_arms) - CALL_FUNCS)}"
     )
     assert builtins_arms.isdisjoint(primitives_arms), (
         f"dispatched from both homes: {sorted(builtins_arms & primitives_arms)}"
     )
     assert builtins_arms == BUILTIN_CALL_FUNCS
-    assert primitives_arms == PRIMITIVE_CALL_FUNCS
+    assert primitives_arms == PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
 
 
 @pytest.mark.parametrize("dispatcher", sorted(DISPATCHER_HOMES))

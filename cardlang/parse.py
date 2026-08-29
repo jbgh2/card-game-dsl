@@ -414,7 +414,7 @@ class _Builder(Transformer[Token, n.Game]):
             )
         )
 
-    # --- the primitives block (design-notes/primitive-sidecars.md §2) -------
+    # --- the primitives block (design-notes/primitive-sidecars.md section 2) ---
     #
     # An entry's NAME is validated nowhere here: which names may be declared is
     # a question about the game's own namespaces and the implementation index,

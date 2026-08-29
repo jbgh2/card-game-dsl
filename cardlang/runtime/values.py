@@ -109,6 +109,17 @@ def _five_hundred43() -> tuple[tuple[str, str], ...]:
     return tuple(cards)
 
 
+def _standard54() -> tuple[tuple[str, str], ...]:
+    """The 54-card pack: the standard 52 plus two jokers. An explicit list
+    rather than the suits×ranks cross product because the jokers sit outside it
+    (their own `joker` suit, like Tichu's `special`); the two are spelled by
+    repetition, so the deck holds duplicate identical Card values (the
+    pinochle48 precedent — zones are multisets)."""
+    cards = [(r, s) for s in SUITS for r in RANKS]
+    cards += [("Joker", "joker")] * 2
+    return tuple(cards)
+
+
 def _canasta108() -> tuple[tuple[str, str], ...]:
     """The 108-card Canasta pack: two standard 52-card packs plus four jokers.
     An explicit list rather than `copies=2` because the jokers sit outside the
@@ -161,6 +172,12 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
     # 43-card Australian 500 pack (non-uniform): A..5 black, A..4 red, one joker.
     "five_hundred43": ComponentSet(
         "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_five_hundred43())
+    ),
+    # 54-card pack: the standard 52 plus two jokers. A joker's worth is a
+    # scoring fact of the game (Salvo prices it as a perfect hit at any
+    # location), so nothing about it lives here beyond the two cards.
+    "standard54": ComponentSet(
+        "card", ("suit", "rank"), Deck(suits=SUITS, ranks=(), cards=_standard54())
     ),
     # 108-card Canasta pack: two standard 52s plus four jokers. Canasta's
     # card points are a scoring fact of the game — canasta.cardlang's

@@ -21,8 +21,9 @@ registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
             derived unions (`CALL_FUNCS`, `TRICK_WINNER_NAMES`,
             `VALUE_NAMES`) carry neither prefix, so they cannot double-count
             a name into a home; the flavor/board partitions
-            (`DECK_ONLY_*`, `ANY_FLAVOR_*`, `BOARD_ONLY_*`) are orthogonal
-            classifications and carry neither prefix either. The file walk
+            (`DECK_ONLY_*`, `ANY_FLAVOR_*`, `BOARD_ONLY_*`) and the dispatch
+            route (`DECLARED_ONLY_*`) are orthogonal classifications and carry
+            neither prefix either. The file walk
             is `git ls-files`; the adjacency forms are `_ADJACENCY`.
 covered:    `test_no_prose_mislabels_a_native_function` over the full walk,
             plus `test_each_adjacency_form_is_matched` -- one row per form,

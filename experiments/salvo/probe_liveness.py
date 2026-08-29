@@ -44,8 +44,22 @@ from cardlang.openspiel import replay
 
 HERE = Path(__file__).resolve().parent
 
-MID_IDX = 6  # rank 7 on the aces-low A..K line
+# Versioned the way `triage.CURVES[...]["results"]` is: each round's committed
+# output is a dated artifact the report cites, so the name moves with the round
+# rather than a re-run overwriting the round the report still quotes.
+RESULTS = "results_liveness_r5.json"
+
 BINS = (("mid", 0, 1), ("near", 2, 3), ("edge", 4, 6))
+
+
+def mid_index(ridx: dict[str, int]) -> int:
+    """The middle rung of the natural A..K line — rank 7 — as the game's own
+    rank index spells it. Derived rather than written down because the joker
+    takes a slot in the declared ranking and shifts every natural rank past
+    it; extremity is a distance along the natural scale either way, and a
+    location is never a joker (the deal filters them out)."""
+    natural = sorted((v for r, v in ridx.items() if r != "Joker"))
+    return natural[len(natural) // 2]
 
 
 def bin_of(extremity: int) -> str:
@@ -55,8 +69,18 @@ def bin_of(extremity: int) -> str:
     raise AssertionError(extremity)
 
 
-def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> list[dict[str, Any]]:
-    """One mirror playout; returns three location records."""
+def drive(
+    space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int], mid_idx: int,
+    ladder: dict[str, int],
+) -> list[dict[str, Any]]:
+    """One mirror playout; returns three location records.
+
+    This rig scores locations itself rather than through `triage.playout`, so
+    it carries its own mirror pin at the foot: the per-location values it
+    reports must reproduce the DSL's terminal returns exactly. Without it a
+    scoring rule the game does not use would publish as `margin` and
+    `unclaimed` — and a tie, which is what leaves a location unclaimed, is
+    exactly what a missing bonus moves."""
     rng = random.Random(seed * 7919 + 13)
     history: list[int] = []
     ctx = triage.Ctx()
@@ -89,6 +113,7 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
                 break
 
     records = []
+    all_vals: list[list[int]] = []
     for l in triage.LOCS:
         target = triage.zone_cards(rp.rs, f"location_{l}")[0]
         t_idx = ridx[target.rank]
@@ -99,16 +124,34 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
             if pend is not None and pend_loc == l and p == rp.player:
                 cs = cs + [pend]
             cards_by_p.append(cs)
-            vals.append(sum(lv(c, target) for c in cs))
+            vals.append(sum(lv(c, target) for c in cs) + triage.combo_bonus(cs, ladder))
+        all_vals.append(vals)
         records.append(
             {
-                "extremity": abs(t_idx - MID_IDX),
+                "extremity": abs(t_idx - mid_idx),
                 "n_cards": len(cards_by_p[0]) + len(cards_by_p[1]),
-                "distances": [abs(ridx[c.rank] - t_idx) for cs in cards_by_p for c in cs],
+                # Jokers are outside the rank scale — they score a flat
+                # perfect hit — so they carry no distance to average.
+                "distances": [
+                    abs(ridx[c.rank] - t_idx)
+                    for cs in cards_by_p
+                    for c in cs
+                    if c.suit != "joker"
+                ],
                 "affinity": sum(1 for cs in cards_by_p for c in cs if c.suit == target.suit),
                 "margin": abs(vals[0] - vals[1]),
                 "tied": vals[0] == vals[1],
             }
+        )
+    # Mirror pin: locations won and grand totals recomputed above must equal
+    # the terminal returns' encoding (final = locations * 1000 + total).
+    locs_won = [round(x / 1000) for x in r.returns]
+    totals = [int(x) - 1000 * lw for x, lw in zip(r.returns, locs_won)]
+    for p in (0, 1):
+        won = sum(1 for v in all_vals if v[p] > v[1 - p])
+        assert won == locs_won[p], f"mirror drift: locs_won {won} != {locs_won[p]}"
+        assert sum(v[p] for v in all_vals) == totals[p], (
+            f"mirror drift: totals {sum(v[p] for v in all_vals)} != {totals[p]}"
         )
     return records
 
@@ -128,6 +171,8 @@ def main() -> None:
     game_ast, space = replay.load(triage.GAME_PATH)
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
+    mid_idx = mid_index(ridx)
+    ladder = triage.natural_ladder(tuple(game_ast.ranking))
 
     out: dict[str, Any] = {"seeds": args.seeds, "seed_start": args.seed_start, "policies": {}}
     for policy in ("sighted", "blind", "random"):
@@ -136,7 +181,7 @@ def main() -> None:
             for name, _, _ in BINS
         }
         for seed in range(args.seed_start, args.seed_start + args.seeds):
-            recs = drive(space, policy, seed, lv, ridx)
+            recs = drive(space, policy, seed, lv, ridx, mid_idx, ladder)
             least_n = min(r["n_cards"] for r in recs)
             for r in recs:
                 b = per_bin[bin_of(r["extremity"])]
@@ -169,8 +214,8 @@ def main() -> None:
         print(json.dumps({policy: summary}))
         sys.stdout.flush()
 
-    (HERE / "results_liveness.json").write_text(json.dumps(out, indent=2))
-    print(f"wrote {HERE / 'results_liveness.json'}")
+    (HERE / RESULTS).write_text(json.dumps(out, indent=2))
+    print(f"wrote {HERE / RESULTS}")
 
 
 if __name__ == "__main__":

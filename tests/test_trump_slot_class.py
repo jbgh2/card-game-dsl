@@ -935,6 +935,14 @@ def _drive_cribbage_show(is_crib: bool) -> Callable[[], None]:
     return drive
 
 
+def _drive_salvo_combos() -> None:
+    from cardlang.runtime import salvo
+
+    salvo.run_bonus(
+        [Card("2", "clubs"), Card("3", "hearts"), Card("4", "spades")], _PARTIAL
+    )
+
+
 def _drive_president(query: str) -> Callable[[], None]:
     def drive() -> None:
         from cardlang.runtime import president, reads
@@ -975,6 +983,7 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "peg_run_points": _drive_peg_run_points,
     "cribbage_show_value": _drive_cribbage_show(False),
     "cribbage_crib_value": _drive_cribbage_show(True),
+    "salvo_combos": _drive_salvo_combos,
     "president_lead_options": _drive_president("president_lead_options"),
     "president_follows": _drive_president("president_follows"),
 }
