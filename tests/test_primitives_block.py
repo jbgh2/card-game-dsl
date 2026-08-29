@@ -27,8 +27,9 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             binders key the domain their declaration is indexed by, so no entry
             of a clause can silently replace another and no binder can key an
             instance the declaration has none of; and a `reads` name is
-            GAME-scoped state, never a phase's own, because the row is
-            materialized on every call.
+            GAME-scoped state, never a phase's own and never a name both
+            levels declare, because the row is materialized on every call and
+            the runtime resolves the innermost frame.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -118,8 +119,11 @@ and the reads clause as a multiset. Red a third time, at `5 failed`, on four
 more: the parameter list as a multiset (the reads rule's sibling one slot
 over, which the first sweep of that class missed), the namespace a
 function-shadow check asks, phase-local state in a reads clause, and the
-binder compared by erased type rather than by domain identity. Each class
-was derived and rowed before its fix, on the same order.
+binder compared by erased type rather than by domain identity. Red a fourth
+time, at `1 failed`, on cross-level state shadowing — a name the game and a
+phase both declare, where the classifier matched one declaration and the
+runtime resolved the other. Each class was derived and rowed before its fix,
+on the same order.
 """
 
 from __future__ import annotations
