@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from cardlang.ast import nodes as n
+from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
@@ -349,6 +350,24 @@ def engine_fact_names() -> frozenset[str]:
 
 
 # --- reconciliation ----------------------------------------------------------
+
+
+def implementation_sig(name: str) -> Sig | None:
+    """The signature the PYTHON side states for `name`, or None if unregistered.
+
+    `CALL_SIGS` is that statement today: it is the table the legacy call sites
+    type against, so it is what every registered implementation is written to.
+    Reading it through this function rather than importing the table at each
+    consumer is what keeps the move to a signature column on
+    `PRIMITIVE_IMPLEMENTATIONS` — which is where it goes when 3b deletes the
+    Primitive half of `CALL_SIGS` — a one-site change.
+
+    This is the reconciliation side of the both-ways check: a declaration and
+    an implementation are independently authored, so agreeing about EXISTENCE
+    is only one leg. Agreeing about shape is the other."""
+    if name not in PRIMITIVE_IMPLEMENTATIONS:
+        return None
+    return CALL_SIGS.get(name)
 
 
 def unimplemented(names: frozenset[str]) -> frozenset[str]:

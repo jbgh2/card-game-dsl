@@ -14,12 +14,19 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             owns the class — never parsed and ignored; (2) a game's Primitive
             regime is a CHECKED partition, so an undeclared game keeps the
             legacy namespace exactly and a declared game can reach no other
-            game's Primitive; (3) the declared signature is what freezes the
-            arguments and what the call site is checked against, so no
-            declared spelling can hand an implementation a raw engine value;
+            game's Primitive; (3) a declaration AGREES with the implementation
+            it names — about existence, about invocation contract, and about
+            SHAPE (arity, parameter types, return type) — so a checked game
+            cannot call Python with arguments it does not take; and that
+            declared signature is what freezes the arguments and what the call
+            site is checked against, so no declared spelling can hand an
+            implementation a raw engine value;
             (4) a declared `reads` clause bounds what the implementation
             receives, per primitive and per call, and an undeclared name is
-            ABSENT rather than merely unfetched.
+            ABSENT rather than merely unfetched — with every clause a SET whose
+            binders key the domain their declaration is indexed by, so no entry
+            of a clause can silently replace another and no binder can key an
+            instance the declaration has none of.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -47,6 +54,10 @@ domain:     the block's own surface — clause placement x {game, library},
             collection parameter, which no declared spelling produces
             (issue #472), so the joint-codec pairing obligation the position
             carries is 3b's to meet, not a cell this grid can run.
+            `TCell` is reachable at the TYPE-NAME gate and unusable in a
+            concrete entry: no registered implementation takes one, so the
+            shape check refuses every `cell`-typed declaration. The two guards
+            answer different questions and the grid runs the gate's.
 registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
             and `BUILTIN_CALL_FUNCS`); `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
@@ -59,7 +70,12 @@ registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
             derived table is `runtime/driver.play_game`, the one
             `RuntimeState(` construction in `cardlang/` — every path that can
             reach `native_call`, the OpenSpiel adapter included, replays
-            through it (`openspiel/replay.py`).
+            through it (`openspiel/replay.py`); the implementation's own
+            signature comes from `primitives_block.implementation_sig`, the one
+            site that reads the Python side's statement of it; the validation
+            ORDER against minted names is pinned by
+            `test_the_only_minted_position_domain_source_is_the_board`, which
+            derives the minting sites from resolve's source.
 covered:    the parametrized cells below. The clause's duplication and
             absorption cells are tests/test_game_clause_guards.py's, whose
             axes derive from `?game_item` and so cover this clause without
@@ -91,6 +107,13 @@ block-bearing cell died at the block's own line, and the 51 that passed are
 the registry reconciliations above, which pin tables the same commit added
 and are green by construction rather than by the implementation. Every cell
 has since flipped, so no mark remains.
+
+Red a second time, at `14 failed`, when review found five defect CLASSES the
+first domain statement did not reach — the declaration's shape against the
+implementation's, the index binder's domain, the validation order against
+minted names, the invocation contract crossed with the reads-clause shape,
+and the reads clause as a multiset. Each class was derived and rowed before
+its fix, on the same order.
 """
 
 from __future__ import annotations
@@ -569,6 +592,260 @@ def test_an_engine_fact_name_names_its_deferral() -> None:
     assert "#474" in message
 
 
+# --- axis 15: the both-ways check's THIRD leg — shape agreement -------------
+#
+# Existence and contract category are two legs; a declaration that names a real
+# implementation of the right category can still DISAGREE with it about arity,
+# parameter types or return type. The class is every field of the declared
+# entry crossed against the implementation's own signature, and the whole class
+# lands in one comparison because the two sides are `Sig`s.
+
+
+@pytest.mark.parametrize(
+    "entry,call",
+    [
+        ("pinochle_meld_value() : Integer reads hand, trump_suit",
+         "pinochle_meld_value()"),
+        ("pinochle_meld_value(p : Player, q : Player) : Integer reads hand, trump_suit",
+         "pinochle_meld_value(0, 1)"),
+        ("pinochle_meld_value(c : Card) : Integer reads hand, trump_suit",
+         "pinochle_meld_value(A of spades)"),
+        ("pinochle_meld_value(p : Player) : Boolean reads hand, trump_suit",
+         "0"),
+    ],
+    ids=["arity-short", "arity-long", "param-type", "return-type"],
+)
+def test_a_declaration_disagreeing_with_its_implementation_is_refused(
+    entry: str, call: str
+) -> None:
+    """Every field of the declared entry, against the signature the Python side
+    states. Each of these compiled clean and died mid-playout — a `TypeError`
+    for a wrong arity, a `KeyError` for a wrong parameter type — which is the
+    designer's error arriving in the runtime's channel."""
+    body = f"    score[0] := if {call} >= 0 then 1 else 0" if "Boolean" not in entry \
+        else "    score[0] := 1"
+    message = _refused(_game(block=entry, body=body))
+    assert "pinochle_meld_value" in message
+    assert "implement" in message or "signature" in message
+
+
+def test_a_declaration_agreeing_with_its_implementation_is_admitted() -> None:
+    """The positive control: the shape check must not refuse the agreeing
+    declaration, or every cell above would pass for the wrong reason."""
+    game = _checks(_game(body=_SCORE_FROM_PRIMITIVE))
+    assert declared_names(game) == {"pinochle_meld_value"}
+
+
+# --- axis 9: the index binder's DOMAIN, not just its name -------------------
+
+
+def _index_domain_names(game: n.Game) -> frozenset[str]:
+    """Every index domain a declaration in the probe game can be keyed by —
+    the roles a zone family or indexed state variable may carry, plus the
+    game's own position domains. Derived so a role added to the registry
+    arrives here as an uncovered spelling rather than silently."""
+    from cardlang.domains import ZONE_INDEX_ROLES, role_names
+
+    return frozenset(role_names(ZONE_INDEX_ROLES)) | {p.name for p in game.positions}
+
+
+def test_the_binder_domain_axis_is_derived() -> None:
+    """Anti-vacuity for the cells below: the wrong-domain axis is the index
+    domains MINUS the one the read actually carries, so a registry with one
+    member would make every rejection cell disappear."""
+    probe = _checks(_game(block="", body="    score[0] := 1"))
+    assert len(_index_domain_names(probe)) >= 2
+
+
+@pytest.mark.parametrize(
+    "param_type,read,accepted",
+    [
+        ("Player", "hand[x]", True),
+        ("Suit", "hand[x]", False),
+        ("Team", "hand[x]", False),
+        ("Player", "seen[x]", True),
+        ("Rank", "seen[x]", False),
+    ],
+    ids=["player-family-ok", "suit-keys-player-family", "team-keys-player-family",
+         "player-state-ok", "rank-keys-player-state"],
+)
+def test_an_index_binders_declared_type_must_match_the_index_domain(
+    param_type: str, read: str, accepted: bool
+) -> None:
+    """A binder keys an INSTANCE, so its declared type must be the domain the
+    declaration is indexed by. Checking only that the name is a parameter let
+    `reads hand[s]` with `s : Suit` compile clean and fail at playout, in the
+    runtime's channel, on a compile-time fact."""
+    entry = f"pinochle_meld_value(x : {param_type}) : Integer reads {read}, trump_suit"
+    source = _game(block=entry, body="    score[0] := 1")
+    if accepted:
+        # The shape check owns the disagreement with the implementation, which
+        # every cell here provokes; what must NOT appear is the domain refusal.
+        try:
+            _checks(source)
+        except DiagnosticError as exc:
+            assert "index domain" not in str(exc)
+    else:
+        assert "index domain" in _refused(source)
+
+
+def test_the_binder_domain_guard_fires_without_the_shape_check() -> None:
+    """The binder guard, ALONE.
+
+    Every cell above provokes the shape check too — a single-parameter entry's
+    binder IS its parameter, so a wrong binder type is also a wrong signature,
+    and the two co-report. A guard only ever seen beside a broader sibling is
+    a guard nobody has watched work: this entry's signature AGREES with the
+    implementation exactly, and only the binder is wrong.
+
+    red under: delete the binder arm from `_check_primitive_signatures`."""
+    source = _game(
+        block="gin_knock_ok(p : Player, c : Card) : Boolean reads hand[c]",
+        body="    score[0] := if gin_knock_ok(0, A of spades) then 1 else 0",
+    )
+    message = _refused(source)
+    assert "index domain" in message
+    assert "is not the signature" not in message
+
+
+# --- axis 3: validation ordering against every minted-domain source ---------
+
+
+def test_the_only_minted_position_domain_source_is_the_board() -> None:
+    """The ordering class, derived rather than remembered: a name minted AFTER
+    the block is validated is a name the block cannot spell, however the
+    partition describes it. `game.positions` is the only declarable-name source
+    resolve extends, and `_resolve_board` is the only site that extends it — so
+    the ordering obligation has exactly one member, and this is what would fail
+    if a second minting site appeared."""
+    import re
+
+    source = (ROOT_DIR / "cardlang" / "resolve.py").read_text()
+    minting = re.findall(r"replace\((?:game|result), positions=[^)]*\)", source)
+    assert len(minting) == 1, (
+        f"resolve mints into `game.positions` at {len(minting)} sites — the "
+        f"block's type-name validation must run after every one of them"
+    )
+
+
+def test_a_board_minted_cell_reaches_the_declarable_type_names() -> None:
+    """The ordering claim: `cell` exists only after `_resolve_board` mints it,
+    so a block validated before that point refuses a name the rest of the
+    pipeline accepts — the signature builder maps the resolved named-member
+    position to `TCell`, and the constructor partition calls that constructor
+    reachable.
+
+    The gate is what this asserts, not a whole declaration: no registered
+    implementation takes a `TCell`, so the shape check refuses every concrete
+    `cell`-typed entry — a SECOND guard, for a different reason, and the one
+    that bounds the cell in practice until an implementation takes one.
+
+    red under: move `_check_primitives_block` back above `_resolve_board`."""
+    from cardlang.primitives_block import declarable_type_names
+
+    board = _checks(_board_game())
+    assert any(p.name == "cell" for p in board.positions)
+    assert "cell" in declarable_type_names(board)
+
+
+def test_a_declared_position_domain_reaches_them_too() -> None:
+    """The control the ordering cell needs: a domain the DESIGNER declares is
+    in `game.positions` from the start, so it would pass at either validation
+    point — which is why it cannot stand in for the minted one."""
+    from cardlang.primitives_block import declarable_type_names
+
+    game = _checks(
+        _game(block="", body="    score[0] := 1").replace(
+            "  zones {", "  positions { column : 1..3 }\n  zones {", 1
+        )
+    )
+    assert "column" in declarable_type_names(game)
+
+
+# --- axis 22: the contract category crossed with the reads-clause shape -----
+
+
+def _declarable_contract_names() -> dict[str, str]:
+    """One registered Primitive per declarable contract, DERIVED — so a
+    contract admitted later arrives here as a missing key rather than a cell
+    nobody wrote."""
+    out: dict[str, str] = {}
+    for name, impl in sorted(PRIMITIVE_IMPLEMENTATIONS.items()):
+        if impl.contract in DECLARABLE_CONTRACTS:
+            out.setdefault(impl.contract.value, name)
+    return out
+
+
+def test_every_declarable_contract_has_a_reads_shape_cell() -> None:
+    """The cross below is complete over the contracts the block admits.
+
+    red under: admit a third contract in `DECLARABLE_CONTRACTS`."""
+    assert set(_declarable_contract_names()) == {
+        c.value for c in DECLARABLE_CONTRACTS
+    }
+    assert set(_READS_SHAPE_CELLS) == {
+        (c.value, shape)
+        for c in DECLARABLE_CONTRACTS
+        for shape in ("empty", "nonempty")
+    }
+
+
+# contract x reads-clause shape -> whether the declaration is admitted. A PURE
+# implementation never receives the bundle, so a `reads` clause on one declares
+# a dependency the dispatch cannot honour — accepted-but-ignored, refused.
+_READS_SHAPE_CELLS: dict[tuple[str, str], bool] = {
+    ("bundled", "empty"): True,
+    ("bundled", "nonempty"): True,
+    ("pure", "empty"): True,
+    ("pure", "nonempty"): False,
+}
+
+
+@pytest.mark.parametrize("cell", sorted(_READS_SHAPE_CELLS))
+def test_the_contract_and_reads_shape_cross(cell: tuple[str, str]) -> None:
+    contract, shape = cell
+    name = _declarable_contract_names()[contract]
+    params = "(p : Player)" if contract == "bundled" else "(x : Integer)"
+    ret = "Integer" if contract == "bundled" else "Integer"
+    reads = " reads trump_suit" if shape == "nonempty" else ""
+    entry = f"{name}{params} : {ret}{reads}"
+    source = _game(block=entry, body="    score[0] := 1")
+    if _READS_SHAPE_CELLS[cell]:
+        try:
+            _checks(source)
+        except DiagnosticError as exc:
+            assert "reads" not in str(exc), str(exc)
+    else:
+        message = _refused(source)
+        assert "reads" in message
+        assert name in message
+
+
+# --- axis 7: the reads clause as a MULTISET ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        "hand, hand, trump_suit",
+        "hand[p], hand[q], trump_suit",
+        "hand, hand[p], trump_suit",
+        "trump_suit, trump_suit",
+    ],
+    ids=["bare-twice", "two-binders", "family-and-instance", "state-twice"],
+)
+def test_a_repeated_reads_name_is_refused(clause: str) -> None:
+    """A `reads` clause is a SET of declarations, and the materialization keys
+    by name — so a repeat is not additive, it is one entry silently winning.
+    `hand, hand[p]` played to completion returning a value computed from ONE
+    hand while the declaration said every hand: a silent wrong answer, which is
+    why the whole multiset is refused rather than the colliding pair."""
+    entry = f"gin_knock_ok(p : Player, q : Card) : Boolean reads {clause}"
+    message = _refused(_game(block=entry, body="    score[0] := 1"))
+    assert "reads" in message
+    assert "once" in message or "repeat" in message
+
+
 # --- axis 12: the namespace walls -------------------------------------------
 
 
@@ -831,7 +1108,8 @@ def _live_state_and_row() -> tuple[RuntimeState, PrimitiveReads]:
 # authored `PRIMITIVE_READS` registry, and two statements of one fact drift.
 # The pin below is what keeps the window checked rather than merely scheduled.
 
-GAMES_DIR = pathlib.Path(__file__).resolve().parent.parent / "docs" / "games"
+ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
+GAMES_DIR = ROOT_DIR / "docs" / "games"
 WITNESS = pathlib.Path(__file__).resolve().parent / "fixtures" / "primitives_witness.cardlang"
 
 

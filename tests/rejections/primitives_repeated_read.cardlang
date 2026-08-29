@@ -1,0 +1,21 @@
+// Guard: resolve.py's `_check_primitive_reads`, the multiset arm. A `reads`
+// clause is a SET: the row it becomes is keyed by name, and so is the per-call
+// key map, so naming one declaration twice is not additive — one entry wins
+// silently. This sentence is the sharpest member, because it PLAYS: without
+// the guard the game runs to completion and scores from ONE hand while the
+// declaration says every hand, which is a wrong answer with no failure.
+game PrimitivesRepeatedRead {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand, hand[p], trump_suit
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { trump_suit : Suit? = none  score[player] : Integer = 0 }
+  phase play {
+    score[0] := pinochle_meld_value(0)
+  }
+  winner: highest score
+}

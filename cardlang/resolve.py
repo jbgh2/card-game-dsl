@@ -111,6 +111,7 @@ from cardlang.builtins.functions import (
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.primitives_block import (
     BINDABLE_READ_KINDS,
+    PRIMITIVE_IMPLEMENTATIONS,
     InvocationContract,
     Regime,
     call_namespace,
@@ -2053,10 +2054,6 @@ def resolve(game: n.Game) -> n.Game:
     # Before `_resolve_trump`, which returns early on a block game: R1 owns the
     # game-clause-beside-a-block cell, so the two never co-report on it.
     _check_trick_order_partition(game, bag)
-    # Before `_validate_refs`, which resolves calls against the namespace the
-    # block defines: a game whose block is wrong should hear about the block
-    # rather than about every call that then fails to resolve.
-    _check_primitives_block(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
     _check_zone_type_names_are_not_taken(game, bag)
@@ -2072,6 +2069,15 @@ def resolve(game: n.Game) -> n.Game:
     # checks below.
     game = _resolve_board(game, bag, position_names)
     position_names = frozenset(p.name for p in game.positions)
+    # AFTER the board has minted its `cell` domain, because an entry's type
+    # slot may spell any of the game's position domains and `_resolve_board` is
+    # the one site that adds one. Validating earlier refused a name the rest of
+    # the pipeline accepts — the signature builder maps the resolved
+    # named-member position to `TCell`. Still before `_validate_refs`, which
+    # resolves calls against the namespace the block defines: a game whose
+    # block is wrong should hear about the block rather than about every call
+    # that then fails to resolve.
+    _check_primitives_block(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag, position_names)
 
@@ -4849,6 +4855,37 @@ def _check_primitive_reads(
     left to read as ordinary unknowns, so the deferral is loud and cites its
     issue."""
     params = {p.name for p in decl.params}
+    # A clause is a SET of declarations: the row it becomes is keyed by name,
+    # and so is the per-call key map, so a repeat is not additive — one entry
+    # silently wins. `hand, hand[p]` played to completion returning a value
+    # computed from ONE hand while the declaration said every hand, which is a
+    # wrong answer with no failure anywhere. Refused as a multiset before any
+    # per-entry check, so the diagnostic names the repeat rather than whichever
+    # of the two copies happens to be malformed.
+    seen: set[str] = set()
+    for read in decl.reads:
+        if read.name in seen:
+            bag.error(
+                f"`{decl.name}` reads `{read.name}` more than once — a `reads` "
+                f"clause names each declaration at most once, and the repeat "
+                f"would silently replace the first; keep one",
+                read.span or decl.span,
+            )
+            return
+        seen.add(read.name)
+    # A PURE implementation never receives the bundle (`primitives.call_declared`
+    # hands it the coerced arguments and nothing else), so a `reads` clause on
+    # one declares a dependency the dispatch cannot honour — accepted-and-
+    # ignored, which is the defect class this block exists to end.
+    impl = PRIMITIVE_IMPLEMENTATIONS.get(decl.name)
+    if decl.reads and impl is not None and impl.contract is InvocationContract.PURE:
+        bag.error(
+            f"`{decl.name}` is implemented pure over its arguments, so it "
+            f"never receives the declared reads — a `reads` clause on it would "
+            f"be accepted and ignored; drop the clause",
+            decl.span,
+        )
+        return
     for read in decl.reads:
         kind = classify_read(game, read.name)
         if kind is None:

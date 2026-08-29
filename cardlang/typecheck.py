@@ -48,7 +48,7 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
-from cardlang.primitives_block import Regime, regime
+from cardlang.primitives_block import Regime, implementation_sig, regime
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import require_role, role_type
@@ -985,6 +985,79 @@ def declared_primitive_sigs(game: Game) -> dict[str, Sig]:
         )
         for decl in game.primitives.decls
     }
+
+
+def _index_domain_type(game: Game, index: str, env: TypeEnv) -> Type | None:
+    """The member type of the domain a keyed declaration is indexed by.
+
+    One conversion for both keyed declaration kinds — a zone family's `index`
+    and an indexed state variable's are the same slot, drawn from the same
+    registry (a role, or one of the game's position domains)."""
+    if index in env.positions:
+        return env.positions[index]
+    try:
+        return _role_type(index)
+    except Exception:  # noqa: BLE001 - resolve owns the unknown-index diagnostic
+        return None
+
+
+def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A declaration must agree with the implementation it names, and an index
+    binder with the domain it keys.
+
+    Both are TYPE facts, which is why they live here rather than beside
+    resolve's name checks: resolve settles that the name exists, is not walled,
+    is not a collision, and that each `reads` name is one of the game's own
+    declarations — none of which needs a `Sig`. What is left is the comparison
+    of two signatures and the comparison of a parameter's type against an index
+    domain's, and this pass is the one that has both.
+
+    The shape check is the both-ways check's THIRD leg. Existence and contract
+    category are the other two, and a declaration can pass both while
+    disagreeing about arity, parameter types or return type — which compiled
+    clean and died mid-playout as a `TypeError` or a `KeyError`, the designer's
+    error arriving in the runtime's channel."""
+    if game.primitives is None:
+        return
+    declared = declared_primitive_sigs(game)
+    keyed: dict[str, str] = {z.name: z.index for z in game.zones if z.index}
+    for block in _state_blocks(game):
+        for sd in block.decls:
+            if sd.index is not None:
+                keyed[sd.name] = sd.index
+    for decl in game.primitives.decls:
+        want = implementation_sig(decl.name)
+        got = declared[decl.name]
+        if want is not None and got != want:
+            bag.error(
+                f"`{decl.name}`'s declared signature "
+                f"{_render_sig(got)} is not the signature its implementation "
+                f"takes, {_render_sig(want)} — a declaration and its Python are "
+                f"authored separately, so agreeing that the name EXISTS is only "
+                f"half the check",
+                decl.span,
+            )
+        params = {p.name: p for p in decl.params}
+        for read in decl.reads:
+            if read.binder is None or read.binder not in params:
+                continue  # resolve owns the undeclared-binder diagnostic
+            index = keyed.get(read.name)
+            if index is None:
+                continue  # resolve owns the not-indexed diagnostic
+            expected = _index_domain_type(game, index, env)
+            actual = _param_type(params[read.binder], env)
+            if expected is not None and not coercible(actual, expected):
+                bag.error(
+                    f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
+                    f"is declared {_type_name(actual)} — `{read.name}` is indexed "
+                    f"by the {index} index domain, so its binder carries "
+                    f"{_type_name(expected)}",
+                    read.span or decl.span,
+                )
+
+
+def _render_sig(sig: Sig) -> str:
+    return f"({', '.join(_type_name(p) for p in sig.params)}) : {_type_name(sig.ret)}"
 
 
 def native_call_sigs(game: Game) -> Mapping[str, Sig]:
@@ -3631,6 +3704,7 @@ def typecheck(game: Game) -> Game:
         outcome = outcomes.get(define.name)
         if outcome is not None:
             _check_define_outcomes(define, outcome, env, bag)
+    _check_primitive_signatures(game, env, bag)
     _check_misplaced_produce(game, outcomes, env, bag)
     _check_outcome_scope(game, bag)
     _check_outcome_name_collisions(game, bag)
