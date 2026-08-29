@@ -27,7 +27,7 @@ see issue #83).
 
 A playout does not depend on `PYTHONHASHSEED`: the same (game, seed) capture is
 byte-identical across hash seeds, which `test_a_playout_is_hash_seed_independent`
-below pins over one trick game and one climbing game. So no capture here pins
+below pins over a trick game and a climbing game. So no capture here pins
 the environment, and every run reproduces these goldens under whatever hash seed
 it happens to draw. The captures run in a subprocess for interpreter isolation —
 a fresh process per game, holding nothing the test session already imported.

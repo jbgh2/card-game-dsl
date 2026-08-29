@@ -11,9 +11,8 @@ exactly +2 and +1 to two distinct players (everyone else unchanged), that
 cumulative scores never decrease, and termination at the 11-point target with
 the highest total winning. A 40-seed exact-score golden is captured in a
 subprocess for interpreter isolation; the scores do not depend on
-PYTHONHASHSEED, which for this game is what
-test_migration_characterization.py's `test_a_playout_is_hash_seed_independent`
-pins directly.
+PYTHONHASHSEED, which test_migration_characterization.py's
+`test_a_playout_is_hash_seed_independent` pins for this game directly.
 """
 
 from __future__ import annotations
@@ -197,7 +196,7 @@ def test_30_random_games_satisfy_invariants() -> None:
 
 
 # Exact-score golden, captured in a subprocess for interpreter isolation.
-# President is one of the two games test_migration_characterization.py's
+# President is one of the games test_migration_characterization.py's
 # `test_a_playout_is_hash_seed_independent` captures under two hash seeds, so
 # this vector reproduces under whatever seed a run draws.
 _CAPTURE = """
