@@ -188,6 +188,15 @@ def combo_bonus(cards: list[Card], ladder: dict[str, int]) -> int:
     return sum(COMBO_POINTS[t] for t, on in combo_breakdown(cards, ladder).items() if on)
 
 
+# What the settled armies are MADE of, tallied alongside the incidence counts.
+# Incidence answers only the first half of DESIGN.md's question 4; the second
+# half — combos matter without dwarfing proximity — is a share of points, and a
+# share needs its denominator measured in the same pass. Jokers ride here for
+# the same reason: they are a scoring layer whose weight is a fraction, not a
+# count.
+TALLY_KEYS = ("army_points", "combo_points", "joker_points", "joker_cards", "joker_armies")
+
+
 # --- world views under manual projection discipline ------------------------
 
 
@@ -397,6 +406,7 @@ class GameStats:
     margins: list[int]  # per-location |pts0 - pts1|
     unclaimed: int
     combos: dict[str, int]  # per combo type, armies that scored it (DESIGN.md Q4)
+    tally: dict[str, int]  # TALLY_KEYS over the same armies
     commits: dict[int, int]
     holds: dict[int, int]
     decisions: int
@@ -460,7 +470,7 @@ def playout(
     # state at the LAST pause plus the final committed cards. Cheaper and
     # exact: run the replay with the full history and read zones from the
     # last DecisionNode before terminal — instead we recompute from scratch below.
-    margins, unclaimed, pts, combos = _final_margins(space, seed, tuple(history), lv, ladder)
+    margins, unclaimed, pts, combos, tally = _final_margins(space, seed, tuple(history), lv, ladder)
     # Mirror pin: the Python value function must reproduce the DSL's settle
     # math exactly — locations won and grand totals recomputed from the last
     # pause's world must equal the terminal returns' encoding.
@@ -477,6 +487,7 @@ def playout(
         margins=margins,
         unclaimed=unclaimed,
         combos=combos,
+        tally=tally,
         commits=dict(ctx.commits),
         holds=dict(ctx.holds),
         decisions=ctx.decisions[0] + ctx.decisions[1],
@@ -488,8 +499,9 @@ def playout(
 def _final_margins(
     space: Any, seed: int, history: tuple[int, ...], lv: Any,
     ladder: dict[str, int] | None,
-) -> tuple[list[int], int, list[list[int]], dict[str, int]]:
-    """Per-location final margins, and how often each combo type scored. The
+) -> tuple[list[int], int, list[list[int]], dict[str, int], dict[str, int]]:
+    """Per-location final margins, how often each combo type scored, and what
+    the settled armies are made of (`TALLY_KEYS`). The
     terminal result hides the world, so walk to the last pause (full history
     minus one action), apply the final action's effect implicitly by scoring
     armies + staged (everything staged at that point flips before settle;
@@ -523,6 +535,7 @@ def _final_margins(
                 break
     all_pts: list[list[int]] = []
     incidence = {t: 0 for t in COMBO_TYPES}
+    tally = {k: 0 for k in TALLY_KEYS}
     for l in LOCS:
         target = locs[l]
         pts = []
@@ -535,16 +548,22 @@ def _final_margins(
             if pend is not None and pend_loc == l and p == r.player:
                 army.append(pend)
             v = sum(lv(c, target) for c in army)
+            jokers = [c for c in army if c.suit == "joker"]
+            tally["joker_cards"] += len(jokers)
+            tally["joker_points"] += sum(lv(c, target) for c in jokers)
+            tally["joker_armies"] += 1 if jokers else 0
             if ladder is not None:
                 for combo, on in combo_breakdown(army, ladder).items():
                     incidence[combo] += on
                     v += COMBO_POINTS[combo] * on
+                    tally["combo_points"] += COMBO_POINTS[combo] * on
+            tally["army_points"] += v
             pts.append(v)
         all_pts.append(pts)
         margins.append(abs(pts[0] - pts[1]))
         if pts[0] == pts[1]:
             unclaimed += 1
-    return margins, unclaimed, all_pts, incidence
+    return margins, unclaimed, all_pts, incidence, tally
 
 
 # --- the arena --------------------------------------------------------------
@@ -565,6 +584,12 @@ def arena(
     result was produced with — selecting and reporting on one deal set is only
     a bias when the SAME knobs were chosen on it."""
     wins = {a: 0, b: 0, "draw": 0}
+    # DESIGN.md question 5: seat symmetry. Each policy occupies each seat for
+    # exactly half the games, so pooling by SEAT rather than by policy cancels
+    # the policy difference and leaves the structural first-committer effect —
+    # the one reading a mirror pairing's pooled `win_rate` column cannot give
+    # (same-name seating collapses both its keys into one).
+    seat_wins = {"0": 0, "1": 0, "draw": 0}
     locs_a: list[int] = []
     margins: list[int] = []
     unclaimed = 0
@@ -572,12 +597,17 @@ def arena(
     holds = {a: [], b: []}  # type: dict[str, list[int]]
     div, comp = 0, 0
     combos = {t: 0 for t in COMBO_TYPES}
+    tally = {k: 0 for k in TALLY_KEYS}
     for swap in (False, True):
         seats = {0: b, 1: a} if swap else {0: a, 1: b}
         for seed in range(seed_start, seed_start + n_seeds):
             gs = playout(space, seats, seed, lv, ridx, measure_divergence=("sighted" in (a, b)), seat_tuns=tuns, ladder=ladder)
             for combo, n in gs.combos.items():
                 combos[combo] += n
+            for key, n in gs.tally.items():
+                tally[key] += n
+            r0, r1 = gs.returns[0], gs.returns[1]
+            seat_wins["0" if r0 > r1 else "1" if r1 > r0 else "draw"] += 1
             ia = 1 if swap else 0
             ra, rb = gs.returns[ia], gs.returns[1 - ia]
             if ra > rb:
@@ -600,6 +630,7 @@ def arena(
         "pairing": f"{a} vs {b}",
         "games": games,
         "win_rate": {k: round(v / games, 4) for k, v in wins.items()},
+        "seat_win_rate": {k: round(v / games, 4) for k, v in seat_wins.items()},
         "mean_locs_won": {a: round(statistics.mean(locs_a), 3)},
         "margin_mean": round(statistics.mean(margins), 2),
         "margin_median": statistics.median(margins),
@@ -610,12 +641,30 @@ def arena(
     if comp:
         out["sighted_divergence_rate"] = round(div / comp, 4)
     if ladder is not None:
+        # The full game's scoring layer — combos and jokers arrive together and
+        # the zc variant carries neither, so one gate covers both.
+        #
         # DESIGN.md's evaluation question 4: how often does each combo type
         # score? The denominator is armies scored — two players x three
-        # locations per game — so a rate reads directly as "per army".
+        # locations per game, EVERY army, including the empty and one-card ones
+        # that can never score — so a rate reads directly as "per army".
+        # `combo_breakdown` flags a family's largest instance only, so `pair`
+        # means "the biggest set here is exactly two".
         armies = games * 6
+        # The prices the incidence below was measured against. Recorded rather
+        # than left to DESIGN.md so a report quoting both reads one artifact,
+        # and a re-pricing moves the quoted values with the run that measured
+        # them.
+        out["combo_points_table"] = dict(COMBO_POINTS)
         out["combo_incidence"] = {t: combos[t] for t in COMBO_TYPES}
         out["combo_rate_per_army"] = {t: round(combos[t] / armies, 4) for t in COMBO_TYPES}
+        # Question 4's second clause — combos matter without DWARFING proximity
+        # — is a share of points, not a count.
+        out["settle_tally"] = dict(tally)
+        out["combo_points_share"] = round(tally["combo_points"] / tally["army_points"], 4)
+        out["joker_points_share"] = round(tally["joker_points"] / tally["army_points"], 4)
+        out["joker_rate_per_army"] = round(tally["joker_armies"] / armies, 4)
+        out["joker_cards_per_game"] = round(tally["joker_cards"] / games, 4)
     return out
 
 

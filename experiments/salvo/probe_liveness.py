@@ -44,6 +44,11 @@ from cardlang.openspiel import replay
 
 HERE = Path(__file__).resolve().parent
 
+# Versioned the way `triage.CURVES[...]["results"]` is: each round's committed
+# output is a dated artifact the report cites, so the name moves with the round
+# rather than a re-run overwriting the round the report still quotes.
+RESULTS = "results_liveness_r5.json"
+
 BINS = (("mid", 0, 1), ("near", 2, 3), ("edge", 4, 6))
 
 
@@ -209,8 +214,8 @@ def main() -> None:
         print(json.dumps({policy: summary}))
         sys.stdout.flush()
 
-    (HERE / "results_liveness.json").write_text(json.dumps(out, indent=2))
-    print(f"wrote {HERE / 'results_liveness.json'}")
+    (HERE / RESULTS).write_text(json.dumps(out, indent=2))
+    print(f"wrote {HERE / RESULTS}")
 
 
 if __name__ == "__main__":
