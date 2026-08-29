@@ -46,9 +46,6 @@ from . import holdem
 from . import infostate as istate
 from . import layout
 
-ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
-
-
 def _stem(path: Path) -> str:
     """The matchup name, with `.jsonl` or `.jsonl.gz` stripped."""
     name = path.name
@@ -160,7 +157,8 @@ def resolve_dir(explicit: str | None, run: str | None) -> Path:
 
 
 def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reconstruct plays from scratch — announce, its cards, then its windows.
+    """Reconstruct plays from scratch — announce, its count, its cards, then
+    its windows.
 
     Independent of `metrics.reconstruct_plays`: same structure, written again,
     so a grouping bug has to occur identically in two places to go unnoticed.
@@ -172,7 +170,11 @@ def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if d["facts"].get("kind") != "announce":
             i += 1
             continue
-        count = ANNOUNCE_COUNTS[d["action"]]
+        i += 1
+        if i >= len(decisions):
+            break  # truncated between the announce and its count
+        assert decisions[i]["facts"]["kind"] == "count", "play structure broken"
+        count = int(decisions[i]["action"])
         cards: list[str] = []
         i += 1
         while i < len(decisions) and len(cards) < count:

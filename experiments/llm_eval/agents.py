@@ -161,6 +161,8 @@ class RuleAgent:
             return self._challenge(view, info)
         if kind == "announce":
             return self._announce(view, info)
+        if kind == "count":
+            return self._count(view, info)
         return self._card(view, info)
 
     def _challenge(self, view: DecisionView, info: istate.Info) -> int:
@@ -169,26 +171,30 @@ class RuleAgent:
         return view.legal_actions[view.legal_strings.index("call_cheat" if call else "allow")]
 
     def _announce(self, view: DecisionView, info: istate.Info) -> int:
+        # Opening a play is forced — `play_cards` is the only legal action, and
+        # the size of the play is the next decision. Kept as its own branch so
+        # that a second play-opening move would surface here rather than fall
+        # through to the card policy.
+        return view.legal_actions[0]
+
+    def _count(self, view: DecisionView, info: istate.Info) -> int:
+        """How many cards to claim — the public half of the claim, and so
+        where this agent's bluff lives."""
         truthful = info.count_of_rank(info.claim_rank)
-        counts = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
-        # The largest legal announce we can back truthfully; `play_one` when we
-        # hold none of the claimed rank (it is always legal, so this never
-        # falls through).
-        legal = {nm: n for nm, n in counts.items() if nm in view.legal_strings}
+        counts = [int(s) for s in view.legal_strings]
         if truthful and self._rng.random() < self.bluff_prob:
             # Over-claim by the SMALLEST margin that is still a lie: the card
             # policy below plays every truthful card first and pads with junk,
-            # so announcing one more than we hold yields a minimally-implausible
-            # bluff rather than an obvious four-card dump.
-            over = sorted(nm for nm, n in legal.items() if n > truthful)
+            # so claiming one more than we hold yields a minimally-implausible
+            # bluff rather than an obvious dump.
+            over = [n for n in counts if n > truthful]
             if over:
-                pick = min(over, key=lambda nm: counts[nm])
-                return view.legal_actions[view.legal_strings.index(pick)]
-        best = "play_one"
-        for name, n in legal.items():
-            if n <= truthful and n > counts[best]:
-                best = name
-        return view.legal_actions[view.legal_strings.index(best)]
+                return view.legal_actions[view.legal_strings.index(str(min(over)))]
+        # The largest count we can back truthfully; 1 when we hold none of the
+        # claimed rank (a count of 1 is always legal, so this never falls
+        # through).
+        best = max((n for n in counts if n <= truthful), default=1)
+        return view.legal_actions[view.legal_strings.index(str(best))]
 
     def _card(self, view: DecisionView, info: istate.Info) -> int:
         want = info.claim_rank

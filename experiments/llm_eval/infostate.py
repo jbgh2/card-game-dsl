@@ -277,7 +277,7 @@ def provably_false(
 
 
 def decision_kind(legal_strings: list[str]) -> str:
-    """Which of Cheat's three decision shapes a decision is, from its legal
+    """Which of Cheat's four decision shapes a decision is, from its legal
     moves alone. Raises on anything else rather than guessing: a new decision
     shape must be handled deliberately, not silently routed to the card branch.
 
@@ -285,11 +285,19 @@ def decision_kind(legal_strings: list[str]) -> str:
     `DecisionView`, because the classification is Cheat's and `DecisionView` is
     the harness's game-neutral carrier. A Cheat classifier living on the shared
     type is what makes a second game look like a violation of it.
+
+    The `count` arm sits ABOVE the `card` arm deliberately. A count range is
+    rendered as bare integers, and "10" is also a rank spelling — so a range
+    that happened to be exactly ["10"] would satisfy the card arm. It cannot
+    arise (a count range starts at 1, so "1" is always present and is not a
+    rank), but the ordering means the guard does not depend on that argument.
     """
     if legal_strings == ["allow", "call_cheat"]:
         return "window"
     if all(s.startswith("play_") for s in legal_strings):
         return "announce"
+    if legal_strings and all(s.isdigit() for s in legal_strings):
+        return "count"
     if all(rank_of(s) in RANKS for s in legal_strings):
         return "card"
     raise ValueError(f"unrecognized decision shape: {legal_strings}")

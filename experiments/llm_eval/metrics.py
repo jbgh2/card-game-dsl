@@ -30,8 +30,6 @@ from . import holdem
 from . import kuhn
 from .agents import DecisionView
 
-_ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
-
 #: The OpenSpiel short name each supported game registers under, mapped to the
 #: harness's own key. Derived from the loaded game rather than passed alongside
 #: it, so a run cannot compute one game's metrics over another game's
@@ -66,10 +64,20 @@ def decision_facts(
     info = istate.parse(view.infostate)
     kind = istate.decision_kind(view.legal_strings)
     if kind == "announce":
+        # Opening a play is forced (`play_cards` is the only legal action), so
+        # this decision carries no choice — it marks where a play begins. The
+        # claimed COUNT is the next decision.
         return {
             "kind": "announce",
             "claim_rank": info.claim_rank,
-            "claimed_count": _ANNOUNCE_COUNTS[action],
+            "truthful_available": info.count_of_rank(info.claim_rank),
+            "hand_size": info.hand_size(view.player),
+        }
+    if kind == "count":
+        return {
+            "kind": "count",
+            "claim_rank": info.claim_rank,
+            "claimed_count": int(action),
             # How many of the claimed rank the actor actually holds: zero means
             # every play at this point in the cycle is a forced lie.
             "truthful_available": info.count_of_rank(info.claim_rank),
@@ -127,10 +135,11 @@ class Play:
 def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
     """Group a game's decisions into plays.
 
-    A play is an `announce` decision, the `claimed_count` card decisions by the
-    same seat that follow it, and the `window` decisions after those. The shape
-    is guaranteed by the game description (`docs/games/cheat.md`): a `play_N`
-    effect moves exactly N chosen cards, then runs the window.
+    A play is an `announce` decision, the `count` decision that follows it, the
+    `claimed_count` card decisions by the same seat after that, and the
+    `window` decisions after those. The shape is guaranteed by the game
+    description (`docs/games/cheat.md`): `play_cards` chooses its count as a
+    public integer, moves exactly that many chosen cards, then runs the window.
     """
     plays: list[Play] = []
     i = 0
@@ -140,10 +149,22 @@ def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
         if facts.get("kind") != "announce":
             i += 1
             continue
+        i += 1
+        # The count is its own decision, immediately after the announce. A
+        # transcript truncated between the two is a play that never happened.
+        if i >= len(decisions):
+            break
+        cnt = decisions[i]
+        if cnt["facts"].get("kind") != "count":
+            raise ValueError(
+                f"the play announced at step {d['step']} was followed by a "
+                f"{cnt['facts'].get('kind')!r} decision, not the count "
+                f"— the transcript does not match Cheat's move structure"
+            )
         play = Play(
             actor=d["player"],
             claim_rank=facts["claim_rank"],
-            claimed_count=facts["claimed_count"],
+            claimed_count=cnt["facts"]["claimed_count"],
             truthful_available=facts["truthful_available"],
             cards=[],
         )
@@ -152,9 +173,9 @@ def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
             nxt = decisions[i]
             if nxt["facts"].get("kind") != "card":
                 raise ValueError(
-                    f"play_{play.claimed_count} at step {d['step']} was followed "
-                    f"by a {nxt['facts'].get('kind')!r} decision, not a card pick "
-                    f"— the transcript does not match Cheat's move structure"
+                    f"the {play.claimed_count}-card play at step {d['step']} was "
+                    f"followed by a {nxt['facts'].get('kind')!r} decision, not a "
+                    f"card pick — the transcript does not match Cheat's move structure"
                 )
             play.cards.append(nxt["facts"]["card"])
             i += 1

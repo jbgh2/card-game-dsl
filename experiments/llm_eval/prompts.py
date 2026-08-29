@@ -45,9 +45,11 @@ Aces. The cycle advances by exactly one step per play and never resets — a
 challenge does not restart it. You do not choose the rank you claim; the cycle
 does.
 
-A TURN. On your turn you discard one to four cards FACE DOWN onto the pile and
-call them as the cycle's current rank ("two Sevens"). The count you announce is
-the count you actually played — miscounting is not part of this game. The RANKS
+A TURN. On your turn you discard one or more cards FACE DOWN onto the pile and
+call them as the cycle's current rank ("two Sevens"). You may play as many cards
+as you hold. You announce the count first, then choose that many cards from your
+hand; the count you announce is the count you actually played — miscounting is
+not part of this game. The RANKS
 are your own business: you do not need to hold the called rank at all. With the
 wrong hand at the wrong point in the cycle, lying is not merely allowed, it is
 forced.
