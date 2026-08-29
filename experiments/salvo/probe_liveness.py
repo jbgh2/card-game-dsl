@@ -44,8 +44,17 @@ from cardlang.openspiel import replay
 
 HERE = Path(__file__).resolve().parent
 
-MID_IDX = 6  # rank 7 on the aces-low A..K line
 BINS = (("mid", 0, 1), ("near", 2, 3), ("edge", 4, 6))
+
+
+def mid_index(ridx: dict[str, int]) -> int:
+    """The middle rung of the natural A..K line — rank 7 — as the game's own
+    rank index spells it. Derived rather than written down because the joker
+    takes a slot in the declared ranking and shifts every natural rank past
+    it; extremity is a distance along the natural scale either way, and a
+    location is never a joker (the deal filters them out)."""
+    natural = sorted((v for r, v in ridx.items() if r != "Joker"))
+    return natural[len(natural) // 2]
 
 
 def bin_of(extremity: int) -> str:
@@ -55,7 +64,9 @@ def bin_of(extremity: int) -> str:
     raise AssertionError(extremity)
 
 
-def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> list[dict[str, Any]]:
+def drive(
+    space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int], mid_idx: int
+) -> list[dict[str, Any]]:
     """One mirror playout; returns three location records."""
     rng = random.Random(seed * 7919 + 13)
     history: list[int] = []
@@ -102,9 +113,16 @@ def drive(space: Any, policy: str, seed: int, lv: Any, ridx: dict[str, int]) -> 
             vals.append(sum(lv(c, target) for c in cs))
         records.append(
             {
-                "extremity": abs(t_idx - MID_IDX),
+                "extremity": abs(t_idx - mid_idx),
                 "n_cards": len(cards_by_p[0]) + len(cards_by_p[1]),
-                "distances": [abs(ridx[c.rank] - t_idx) for cs in cards_by_p for c in cs],
+                # Jokers are outside the rank scale — they score a flat
+                # perfect hit — so they carry no distance to average.
+                "distances": [
+                    abs(ridx[c.rank] - t_idx)
+                    for cs in cards_by_p
+                    for c in cs
+                    if c.suit != "joker"
+                ],
                 "affinity": sum(1 for cs in cards_by_p for c in cs if c.suit == target.suit),
                 "margin": abs(vals[0] - vals[1]),
                 "tied": vals[0] == vals[1],
@@ -128,6 +146,7 @@ def main() -> None:
     game_ast, space = replay.load(triage.GAME_PATH)
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
+    mid_idx = mid_index(ridx)
 
     out: dict[str, Any] = {"seeds": args.seeds, "seed_start": args.seed_start, "policies": {}}
     for policy in ("sighted", "blind", "random"):
@@ -136,7 +155,7 @@ def main() -> None:
             for name, _, _ in BINS
         }
         for seed in range(args.seed_start, args.seed_start + args.seeds):
-            recs = drive(space, policy, seed, lv, ridx)
+            recs = drive(space, policy, seed, lv, ridx, mid_idx)
             least_n = min(r["n_cards"] for r in recs)
             for r in recs:
                 b = per_bin[bin_of(r["extremity"])]

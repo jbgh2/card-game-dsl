@@ -45,13 +45,17 @@ SWEEP_SEEDS = 200
 FINAL_SEEDS = 500
 
 
-def cell(tun: dict[str, Any], space: Any, lv: Any, ridx: Any, seeds: int) -> dict[str, Any]:
+def cell(
+    tun: dict[str, Any], space: Any, lv: Any, ridx: Any, seeds: int,
+    ladder: dict[str, int] | None,
+) -> dict[str, Any]:
     vs_bh = triage.arena(
         space, "sighted", "blind_hold", seeds, lv, ridx,
-        tuns={"sighted": tun, "blind_hold": REF_BLIND_HOLD},
+        tuns={"sighted": tun, "blind_hold": REF_BLIND_HOLD}, ladder=ladder,
     )
     vs_b = triage.arena(
         space, "sighted", "blind", seeds, lv, ridx, tuns={"sighted": tun},
+        ladder=ladder,
     )
     w_bh = vs_bh["win_rate"]["sighted"]
     w_b = vs_b["win_rate"]["sighted"]
@@ -69,6 +73,9 @@ def main() -> None:
     game_ast, space = replay.load(triage.GAME_PATH)
     ridx = triage.rank_index_map(game_ast)
     lv = triage.make_loc_value(ridx, triage.CURVES["base"]["base"])
+    # The base game scores combos, so the arena's mirror must too — its
+    # `mirror drift` assert compares against the DSL's settle math.
+    ladder = triage.natural_ladder(tuple(game_ast.ranking))
 
     results: dict[str, Any] = {
         "sweep_seeds": SWEEP_SEEDS,
@@ -83,7 +90,7 @@ def main() -> None:
     for hb in (7.0, 9.0, 10.0, 11.0, 12.0):
         for wm in (8.0, 10.0, 12.0, 16.0, 25.0):
             tun = dict(OLD, hold_below=hb, won_margin=wm, lost_margin=wm)
-            c = cell(tun, space, lv, ridx, SWEEP_SEEDS)
+            c = cell(tun, space, lv, ridx, SWEEP_SEEDS, ladder)
             results["stage_a"].append(c)
             print(json.dumps(c))
             sys.stdout.flush()
@@ -100,7 +107,7 @@ def main() -> None:
             tun = dict(OLD)
             tun.update(a_knobs)
             tun.update(urgency_w=uw, opp_staged_est=est)
-            c = cell(tun, space, lv, ridx, SWEEP_SEEDS)
+            c = cell(tun, space, lv, ridx, SWEEP_SEEDS, ladder)
             results["stage_b"].append(c)
             print(json.dumps(c))
             sys.stdout.flush()
@@ -124,20 +131,20 @@ def main() -> None:
     final = {
         "tuned_vs_blind": triage.arena(
             space, "sighted", "blind", FINAL_SEEDS, lv, ridx,
-            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS, ladder=ladder,
         ),
         "tuned_vs_blind_hold10": triage.arena(
             space, "sighted", "blind_hold", FINAL_SEEDS, lv, ridx,
             tuns={"sighted": tuned, "blind_hold": REF_BLIND_HOLD},
-            seed_start=SWEEP_SEEDS,
+            seed_start=SWEEP_SEEDS, ladder=ladder,
         ),
         "tuned_vs_old": triage.arena(
             space, "sighted", "sighted_old", FINAL_SEEDS, lv, ridx,
-            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS, ladder=ladder,
         ),
         "tuned_mirror": triage.arena(
             space, "sighted", "sighted", FINAL_SEEDS, lv, ridx,
-            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS,
+            tuns={"sighted": tuned}, seed_start=SWEEP_SEEDS, ladder=ladder,
         ),
     }
     results["final"] = final
