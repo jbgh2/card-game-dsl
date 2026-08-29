@@ -1438,11 +1438,11 @@ def test_the_collision_namespace_axis_is_derived() -> None:
     from `ReadKind` itself.
 
     The same read settles the library cross. A family library holds no `zones`
-    clause, so no library can contribute a zone to the collision domain — the
-    reachable library cell is provided STATE against a game's zone, which
-    `test_library_provided_state_is_in_the_collision_domain` runs. The day
-    `?library_item` admits zones, that cell's sibling becomes constructible and
-    this pin reddens rather than the gap going unnoticed.
+    clause, so no library can contribute a zone to the collision domain — what
+    a library reaches is provided STATE, and
+    `test_library_provided_state_reaches_the_reads_clause` runs that boundary.
+    The day `?library_item` admits zones, a library-contributed zone becomes
+    constructible and this pin reddens rather than the gap going unnoticed.
 
     red under: delete `state_block` from `?phase_item`, or add a fifth zone
     kind to `ReadKind`."""
