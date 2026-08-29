@@ -631,7 +631,7 @@ def _homes() -> dict[str, list[str]]:
         for name in _homes()[home]
     ],
 )
-def test_the_regime_product_admits_exactly_its_three_cells(
+def test_the_regime_product_lands_where_the_table_says(
     home: str, regime_label: str, name: str
 ) -> None:
     """The product's cells, run.

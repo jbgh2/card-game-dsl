@@ -198,7 +198,7 @@ def test_call_funcs_are_dispatchable() -> None:
         # one that should have an arm. No game description reaches that
         # refusal: resolve's declared-only arm (`_validate_refs`) is the Owner
         # Guard, witnessed at
-        # test_the_regime_product_admits_exactly_its_three_cells
+        # test_the_regime_product_lands_where_the_table_says
         # (tests/test_primitives_block.py) and pinned as a rendered message at
         # tests/rejections/primitives_declared_only_no_block. The fallthrough
         # stands behind it, which is why the message says LEGACY: a registered
