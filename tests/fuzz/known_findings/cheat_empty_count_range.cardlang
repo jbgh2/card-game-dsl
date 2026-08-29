@@ -1,0 +1,211 @@
+// Cheat — the basic game per Pagat (a.k.a. I Doubt It / Bullshit), 4 players,
+// standard 52-card deck.
+//
+// Rules source: https://www.pagat.com/beating/cheat.html (fetched live per
+// CLAUDE.md). The whole deck is dealt out — 13 cards each at four players.
+// Play is clockwise from seat 0. A turn is one play: discard one or more
+// cards FACE DOWN onto the pile while calling them as the required rank —
+// Aces from the first player, then Twos, Threes, ... Tens, Jacks, Queens,
+// Kings, and back to Aces, advancing one step per play and never resetting
+// (a challenge does not restart the cycle). The cards played need not match
+// the call — lying is the game. After each play, any other player may call
+// "Cheat!": the played cards are turned face up for all to see. If every one
+// matches the called rank, the wrong challenger picks up the whole pile into
+// their hand; if any card differs, the liar picks it all up. Either way play
+// continues clockwise with the next rank. The first player to shed their
+// whole hand and survive any challenge on that final play wins.
+//
+// One declared variant choice, named per corpus convention:
+// - Pagat's "any player may call" is a real-time race; the DSL's decision
+//   model is sequential (matching OpenSpiel), so the window is serialized
+//   clockwise from the claimant's left, the first call closing it — the same
+//   faithful serialization decisions.md records for Coup's windows
+//   ("Simultaneous moves and atomic effect", Coup's challenge and block
+//   windows). Seat order decides who gets first refusal on a catch; every
+//   other rule is untouched.
+//
+// The information-set shape is the point of this game (decisions.md
+// "Hidden information lives only in zones; state is public"): the claim —
+// whose play it is, the called rank, how many cards — is PUBLIC state, while
+// the truth it may misrepresent sits in face-down zones (`played`, `pile`)
+// whose projections hide it. The challenge outcome is a public Boolean
+// function of hidden content (do ALL the flipped cards match the claimed
+// rank?), delivered by routing the played cards through `flipped`, a
+// Discard (identity to all): the flip is the reveal, exactly the mechanism a
+// `reveal` builtin would perform. A pile pickup lands in the loser's Hand,
+// so the loser learns what they collected (owner-identity projection) while
+// everyone else sees only the count — no per-game observation rule anywhere.
+// This is the corpus's compound hidden-function probe for
+// open-questions/structural-infoset-proofs.md: the proof module
+// (tests/openspiel_ready/test_cheat.py) drives its constructive world
+// generator through this channel.
+//
+// The claim vocabulary is OPEN — the called rank ranges over all 13 ranks,
+// where Coup's challengeable claims are five characters — making this the
+// second challenge-window instance after Coup toward the `challenge` stdlib
+// promotion at a third instance (decisions.md "Interactive decisions: a kernel and an in-DSL standard library";
+// issue #140). The window stays a game-local procedure until then.
+
+game Cheat {
+
+  players: 4
+  direction: clockwise
+  // Measured over seeded random playouts (tests/test_playout_cheat.py):
+  // random lines are long — challenges keep recycling the pile into hands —
+  // but bounded (200 seeds, measured 2026-08-28: p50 413, p95 1168, max 1945
+  // decisions). Ample headroom over the observed max; raise only with a
+  // measurement.
+  max_length: 20000
+
+  cards: standard52
+  // Cheat never compares rank strength; the convention only fixes the Rank
+  // enumeration order. Aces low matches the claim cycle's A -> K reading.
+  ranking: aces low
+
+  zones {
+    deck         : Deck             // used once, for the deal
+    hand[player] : Hand<player>     // private hands: identity to owner, count to others
+    played       : FaceDownPile     // this play's face-down cards, pre-adjudication
+    pile         : FaceDownPile     // the accumulated, unchallenged, never-revealed discards
+    flipped      : Discard          // challenge exposure: identity to all, empty between challenges
+  }
+
+  // The public claim is state BECAUSE it is public (decisions.md "Hidden
+  // information lives only in zones; state is public"): every player always
+  // knows whose play stands, what rank it was called as, and how many cards
+  // it claims to be; only the cards' true identities are hidden, and that is
+  // the zones' job. Window state mirrors Coup's.
+  state {
+    // `claim_rank` belongs to the TABLE: it is the cycle's position, so it
+    // names what a standing play is called as while one stands and what the
+    // next play must call between plays. Every other field below belongs to
+    // one PLAY, and holds its idle value whenever no play stands — the
+    // announce sets them, `resolve_play` clears them, and a seat asked for
+    // its turn therefore reads nothing about the play that just resolved.
+    claim_rank  : Rank?   = none    // the cycle's position; the table's, not a play's
+    claim_count : Integer = 0       // cards the standing play claims (0: none stands)
+    claimant    : Player? = none    // whose play stands, announce to resolution
+    challenged  : Boolean = false   // did anyone call "Cheat!" on it?
+    challenger  : Player? = none    // who called
+    responder   : Player? = none    // the open window's rotation cursor
+    window_open : Boolean = false
+    won[player] : Boolean = false   // set for the survivor of the winning play
+  }
+
+  phase play {
+    shuffle deck
+    claim_rank := A                  // the first player must call Aces
+
+    // The turn loop owns rotation (decisions.md "The `turns` form"); the
+    // whole play — face-down discard, challenge window, resolution — lives
+    // in the play_N move effects, Coup's shape. The loop stops the moment a
+    // play's owner survives its window with an empty hand.
+    turns t from 0 over all players
+          until any player where won[player] {
+      offer to t one of [play_cards]
+    }
+  }
+
+  winner: highest won
+}
+
+// --- the turn vocabulary: play one or more cards face down, calling them as
+// the required rank. The COUNT is a public integer decision — `choose` emits
+// the chosen value to every observer (decisions.md "`choose` as expression"),
+// which is exactly the announced claim of how many; the chosen movement that
+// follows is the hidden card decision; the claimed RANK is forced by the
+// cycle, so calling it is not a decision at all — it is the public
+// `claim_rank` state every observer already reads. The turn-holder always
+// has a card (an empty hand ends the game first), so the count's range is
+// never empty and the single offered move is always legal
+// (decisions.md "No implicit actions").
+
+move_type play_cards {
+  effect {
+    claimant := actor
+    // `up to 52` reserves the OpenSpiel action-id block; it cannot bind,
+    // because a hand can never exceed the deck it was dealt from. An
+    // encoding bound, not a rule — Pagat's play is "one or more cards".
+    claim_count := choose integer in 1 .. (number of cards in hand[actor]) up to 52
+    move chosen claim_count cards from hand[actor] to played
+    run resolve_play(actor)
+  }
+}
+
+// --- the window vocabulary: always legal when offered, like Coup's ---
+
+move_type call_cheat {
+  effect {
+    challenged := true
+    challenger := actor
+  }
+}
+
+move_type allow {
+  effect {
+  }
+}
+
+// The whole adjudication, run from every play_N effect with the player who
+// played bound once, up front (decisions.md "Named procedures").
+//
+// The window: each other player, clockwise from the claimant's left, is
+// offered [call_cheat, allow]; the first call closes the window (Coup's
+// challenge_window, verbatim shape). A call flips the played cards face up
+// into `flipped` — the reveal — and the claim is judged against the public
+// `claim_rank`: all matching, the challenger was wrong and collects the
+// flipped cards and the whole pile into their hand; any mismatch, the liar
+// does. No call: the play joins the face-down pile unseen. A player whose
+// hand ends its own play's adjudication empty has shed out and survived —
+// Pagat's winning condition verbatim, since a caught lie always refills the
+// liar's hand. The claimed rank then advances one step, challenged or not.
+procedure resolve_play(who : Player) {
+  challenged := false
+  window_open := true
+  responder := who
+  repeat until not window_open {
+    responder := responder offset_by left
+    if responder is who { window_open := false }
+    if window_open {
+      offer to responder one of [call_cheat, allow]
+      if challenged { window_open := false }
+    }
+  }
+  if challenged {
+    move all cards from played to flipped
+    if all cards in flipped where card.rank is claim_rank {
+      move all cards from flipped to hand[challenger]
+      move all cards from pile to hand[challenger]
+    } else {
+      move all cards from flipped to hand[who]
+      move all cards from pile to hand[who]
+    }
+  } else {
+    move all cards from played to pile
+  }
+  if hand[who] is empty { won[who] := true }
+  claim_rank := next_rank(claim_rank)
+  // The play stops standing here, so its fields stop describing anything.
+  claimant := none
+  claim_count := 0
+  challenged := false
+  challenger := none
+  responder := none
+}
+
+// The fixed claim cycle: A, 2, ... 10, J, Q, K, back to A. Written as the
+// rulebook says it — one step per play.
+function next_rank(r : Rank?) =
+  if r is A then "2"
+  elif r is "2" then "3"
+  elif r is "3" then "4"
+  elif r is "4" then "5"
+  elif r is "5" then "6"
+  elif r is "6" then "7"
+  elif r is "7" then "8"
+  elif r is "8" then "9"
+  elif r is "9" then "10"
+  elif r is "10" then J
+  elif r is J then Q
+  elif r is Q then K
+  else A

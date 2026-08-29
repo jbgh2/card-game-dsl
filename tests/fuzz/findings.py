@@ -151,6 +151,24 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         ),
     ),
     Finding(
+        slug="cheat_empty_count_range",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="OwnerGuardError",
+        message_substring="has no value to choose (empty range)",
+        note=(
+            "docs/games/cheat.cardlang, `delete_line` seed 0, deleting the "
+            "setup `deal 13 cards from deck to each hand` (line 97 at "
+            "discovery time). Every hand stays empty, so the first play's "
+            "`choose integer in 1 .. (number of cards in hand[actor])` is "
+            "asked for a value from the empty range 1 .. 0 and refuses — "
+            "crashes on the FIRST decision. The same missing-deal shape as "
+            "`getaway_missing_deal_no_hand_holder`, surfacing through the "
+            "integer-choice channel rather than a card lookup: the count's "
+            "range is bounded by a hand the setup never filled."
+        ),
+    ),
+    Finding(
         slug="gops_empty_legal_set",
         classification="accepted-then-crashes-at-playout",
         stage="playout",
