@@ -40,8 +40,8 @@ execute its round exactly as chartered:
 4. Run ./tools/branch-sweep.sh once — the one acting script (the
    charter's Branch sweep chore owns the semantics; every deletion is
    self-guarded). Its `kept` and `remains` lines go into the report
-   verbatim; never re-attempt a deletion it refused, and never spell
-   any `git branch` deletion yourself.
+   verbatim; a `kept` ref is the operator's to adjudicate — never
+   spell any `git branch` deletion yourself.
 5. Produce the counts report: flagged, skipped-as-already-flagged,
    cleared, reaped, swept, escalated, filed — and every DENIED command,
    if any.

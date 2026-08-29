@@ -95,13 +95,18 @@ clock (below), so markers carry an instance, not just a gap:
    only its own side. The sweep deletes exactly two proven classes —
    ancestor-merged branches, where `git branch -d`'s own refusal is the
    guard (unmerged or checked-out refs survive it), and
-   `claude/`-namespace branches whose upstream is gone AND whose merge
-   GitHub records as a merged PR: the squash case, which ancestry
-   cannot show. Everything else — never-pushed work, live upstreams,
-   other namespaces' unmerged refs — appears as a `remains` line and is
-   never touched. `kept` lines (a refusal, or upstream gone with no
-   recorded PR) go in the report verbatim; a `kept` that persists
-   across rounds is the operator's to adjudicate, never re-attempted.
+   `claude/`-namespace branches whose upstream is gone AND for which
+   GitHub records a merged PR whose head is the branch's current tip:
+   the squash case, which ancestry cannot show — the name alone is no
+   proof, the tip match is. Everything else — never-pushed work, live
+   upstreams, other namespaces' unmerged refs — appears as a `remains`
+   line and is never touched. `kept` lines (a refusal, or a missing or
+   tip-mismatched merge proof) go in the report verbatim. The sweep
+   holds no state between rounds: every ref is re-examined each round
+   and deletes only on a proof the current round establishes — so no
+   past `kept` can license a deletion, and none needs to forbid one. A
+   `kept` that keeps appearing is the operator's signal to adjudicate
+   that ref by hand.
    Worktree pruning clears admin records of already-deleted directories
    only. The sweep cleans the checkout it runs in; reaching into
    another workspace is out of bounds.
