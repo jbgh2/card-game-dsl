@@ -88,14 +88,16 @@ derived from the AST the way `execute.py`/`evaluate.py` read a
 surfaced that coupling, empirically, as a `KeyError` at PLAYOUT time (the
 tree passes resolve/typecheck/expand — the pipeline has no way to know). The
 coupling is now DECLARED rather than latent: every such read goes through
-the typed accessors of `cardlang/runtime/reads.py`, whose `PRIMITIVE_READS`
-registry is pinned two ways by tests/test_primitive_reads.py — every
-declared name against the game file's actual declarations, and every
-module's accessor-call literals against its rows, exactly. This transform
-derives its exclusions from that registry (`_coupled_names` below) instead
-of keeping a copy that could drift: a primitive that starts or stops reading
-a name updates the registry (the source pin forces it), and the exclusion
-set follows automatically. Because the registry is pinned EXACT in both
+the typed accessors of `cardlang/runtime/reads.py`, and it is declared in one
+of two places — the game's own `primitives { }` entry, or the
+`PRIMITIVE_READS` registry for a game that writes no block. Both are pinned
+two ways by tests/test_primitive_reads.py — every declared name against the
+game file's actual declarations, and every module's accessor-call literals
+against the union of both sites, exactly. This transform derives its
+exclusions from those declarations (`_coupled_names` below) instead of
+keeping a copy that could drift: a primitive that starts or stops reading a
+name updates one of them (the source pin forces it), and the exclusion set
+follows automatically. Because the declarations are pinned EXACT in both
 directions, the exclusion is never generous — every excluded name really is
 read by some primitive — and never short: a missing declaration fails the
 static pin before this suite would meet it at playout.
@@ -119,7 +121,6 @@ from cardlang.diagnostics import Span
 from cardlang.libraries import library_names, load_library
 from cardlang.resolve import _introduced_binders
 from cardlang.resolve import _walk as _resolve_walk
-from cardlang.primitives_block import Regime, regime
 from cardlang.runtime.reads import PRIMITIVE_READS
 from tests.metamorphic.pairing import Event
 
@@ -138,24 +139,24 @@ def _coupled_names(game: n.Game, game_file: str) -> frozenset[str]:
     must NOT rename — because the reading side is Python this transform cannot
     reach.
 
-    Which names those are depends on WHERE the coupling is declared, and the
-    two regimes answer differently:
+    What the declaration site is does NOT change that. A `primitives { }`
+    entry's `reads` clause renames with the zone, in one file, and the checker
+    refuses a name that resolves to nothing — but the IMPLEMENTATION still
+    spells the name as a Python string literal (`gr.state["is_null"]`), and a
+    renamed declaration only re-keys the bundle the literal then misses. What
+    the block moves is where the exclusion is DERIVED from: a declared game's
+    is its own text, a legacy game's is `PRIMITIVE_READS`.
 
-    * A game with a `primitives { }` block declares its Primitive reads in its
-      own file, so the declaration renames WITH the zone — one edit, one file,
-      and the checker refuses a `reads` name that resolves to nothing. Nothing
-      is excluded: every name of such a game is in this transform's reach.
-    * A game without one is coupled to `PRIMITIVE_READS`, which this transform
-      cannot rewrite: the rows are authored Python in the language package.
-      Those names stay excluded, derived from the registry.
+    The union, not a choice between them: a game may hold both at once — a
+    block for its call-position Primitives and a surviving row for a walled
+    namespace its block does not cover.
 
     The transform is what first surfaced this class empirically, as a playout
-    `KeyError` — so what the block changes is not that the coupling is safe but
-    that it is STRUCTURAL, and a structural coupling is not something an
-    instrument has to observe."""
-    if regime(game) is Regime.DECLARED:
-        return frozenset()
+    `KeyError`, and it is what surfaces a wrong exclusion too: an under-excluded
+    name fails as a bundle miss naming the primitive, in the same run."""
     names: set[str] = set()
+    if game.primitives is not None:
+        names |= {r.name for d in game.primitives.decls for r in d.reads}
     for row in PRIMITIVE_READS:
         if row.game_file == game_file:
             names |= row.state_vars | row.zone_families | row.single_zones
