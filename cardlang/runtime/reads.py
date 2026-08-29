@@ -505,8 +505,32 @@ def _arrival_pairs(
     return [(a.actor, a.card) for a in single(rs, r, name).arrivals]
 
 
-def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
-    """Materialize `r`'s whole declared row from live state.
+def _narrow(value: Any, key: int | str | None) -> Any:
+    """One keyed value, narrowed to `key` — or whole when no key is given.
+
+    A key the live value does not hold is refused rather than silently
+    narrowing to nothing: a bundle whose family came back empty reads to the
+    implementation exactly like a family with no members, which is the
+    silent-wrong-answer shape these accessors exist to prevent."""
+    if key is None:
+        return value
+    if not isinstance(value, _Mapping) or key not in value:
+        held = sorted(value) if isinstance(value, _Mapping) else "no instances"
+        raise PrimitiveReadError(
+            f"a declared read narrowed to instance {key!r}, which the live "
+            f"value does not hold (it has {held}) — an index binder keys the "
+            f"instance the CALL names, so a miss is the calling primitive's "
+            f"argument"
+        )
+    return {key: value[key]}
+
+
+def game_reads(
+    rs: RuntimeState,
+    r: PrimitiveReads,
+    keys: Mapping[str, int | str] | None = None,
+) -> GameReads:
+    """Materialize `r`'s declared row from live state.
 
     Built here rather than in the binder because this is the sanctioned
     raw-access site: the row's names are data, so the accessor calls below
@@ -516,12 +540,31 @@ def game_reads(rs: RuntimeState, r: PrimitiveReads) -> GameReads:
     declaration by construction. Every materialized value is `deep_freeze`d,
     so an indexed state variable's `{player: value}` dict — and anything
     nested inside a state value — is a snapshot the primitive cannot mutate,
-    not the live engine object."""
+    not the live engine object.
+
+    `keys` narrows an INDEXED name to one instance: a `primitives { }` entry's
+    `reads hand[p]` grants the hand the call names and no other. It is a
+    per-call argument rather than part of the row because the key IS one, and
+    it applies here, at the one materialization site, so what a primitive
+    receives and what its declaration says can never be two derivations."""
+    keys = keys or {}
+    unknown = sorted(set(keys) - r.state_vars - r.zone_families)
+    if unknown:
+        raise PrimitiveReadError(
+            f"{r.module} (serving {r.game_file}) narrows {unknown} to an "
+            f"instance, but its row declares neither as an indexed read — a "
+            f"key narrows a declared indexed name, never one the row omits"
+        )
     return GameReads(
-        state=deep_freeze({n: state(rs, r, n) for n in sorted(r.state_vars)}),
+        state=deep_freeze(
+            {n: _narrow(state(rs, r, n), keys.get(n)) for n in sorted(r.state_vars)}
+        ),
         families=deep_freeze(
             {
-                n: {k: list(z.cards) for k, z in family(rs, r, n).items()}
+                n: _narrow(
+                    {k: list(z.cards) for k, z in family(rs, r, n).items()},
+                    keys.get(n),
+                )
                 for n in sorted(r.zone_families)
             }
         ),

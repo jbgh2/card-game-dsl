@@ -67,6 +67,7 @@ require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
 game: _GAME_KW NAME "{" game_item* "}"
 
 ?game_item: uses_decl
+          | primitives_block
           | players
           | direction
           | cards
@@ -91,6 +92,41 @@ game: _GAME_KW NAME "{" game_item* "}"
 // meant to read like the rulebook sentence it stands in for ("betting proceeds
 // as in standard poker"). Whole-library, never a named-definitions manifest.
 uses_decl: _USES_KW NAME
+
+// The game's `primitives { }` block (docs/design-notes/primitive-sidecars.md
+// §2): what this game borrows from outside the DSL. An entry is a COLON-ROW
+// like every other declaration here (`zones`, `state`, `card_points`,
+// `require`) — a typed parameter list, a colon, the return type, and the
+// load-bearing clause: the state and zones the implementation reads. Entries
+// reuse `parameter`, so a Primitive's parameters and a `move_type`'s are one
+// shape rather than two spellings of the same thing.
+//
+// Entry-STAR, unlike `card_points` and `trick_order`: an empty block is a
+// declaration, not a syntax error. It says the game borrows no Python, which
+// is a different state from writing no block at all — the presence, not the
+// contents, picks the game's Primitive regime.
+//
+// A read is `<name>` or `<name>[<binder>]`, the binder naming a parameter of
+// the entry it sits in: bare grants the whole family, indexed narrows to the
+// one instance the call names. It reuses `index`, the same `[...]` a zone or
+// state declaration writes.
+//
+// Two reject-with-replacement twins (the `card_points_table` mechanism): the
+// colon habit, and the ARROW — the spelling the design note sketched before
+// the block had a surface, so it is the first thing a reader of that note
+// writes. A `= <expr>` default is the third: an entry declares a signature,
+// never a body, and the state-row habit is what puts one there. Each reject
+// arm's tail admits the well-formed spelling too, so ONE wrong entry among
+// right ones reaches the designer-voice rejection rather than the lexer's.
+primitives_block: _PRIMITIVES_KW "{" primitive_decl* "}"
+                | _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
+                | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
+                | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
+primitive_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [primitive_reads]
+primitive_arrow_decl: NAME "(" [parameter ("," parameter)*] ")" "->" payload_type [primitive_reads]
+primitive_default_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [primitive_reads] "=" expr
+primitive_reads: _READS_KW primitive_read ("," primitive_read)*
+primitive_read: NAME [index]
 
 players: _PLAYERS_KW ":" players_spec
 players_spec: INT ".." INT   -> players_range
@@ -733,7 +769,7 @@ field_init: NAME ":" expr
 // exclusion an empty expression slot absorbs `card_values { A: 1 }` as a
 // struct literal (the wrong spelling vanishing at parse, resurfacing as a
 // wrong-currency unknown-type at resolve). Same absorbable shape, same fix.
-STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+STRUCT_TYPE_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|derived|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|requires|move_type|rule|type|define|function|procedure|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 card_literal: card_rank _OF_KW NAME
 // Ranks and suits are values a game's deck defines, not language keywords: a
@@ -746,7 +782,7 @@ card_literal: card_rank _OF_KW NAME
 // `state { uses : Integer }` keeps working. Pinned against `?game_item` by
 // tests/test_game_clause_guards.py::test_card_rank_excludes_every_clause_keyword.
 card_rank: CARD_RANK_NAME | INT
-CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+CARD_RANK_NAME: /(?!(?:always|all|one|some|jointly|not|is|number|uses|players|direction|cards|card_points|card_values|pieces|board|ranking|trump|trick_order|teams|max_length|positions|zones|state|phase|winner|loser|primitives)\b)[a-zA-Z_][a-zA-Z0-9_]*/
 
 // The card-point table's rank-key terminal: `ranking:`'s key position (a NAME
 // or a bare INT — the INT arm is on `card_points_key`), carrying NAME's base
@@ -910,6 +946,7 @@ _PIECES_KW: "pieces" /(?![A-Za-z0-9_])/
 _PLAYER_KW: "player" /(?![A-Za-z0-9_])/
 _PLAYERS_KW: "players" /(?![A-Za-z0-9_])/
 _POSITIONS_KW: "positions" /(?![A-Za-z0-9_])/
+_PRIMITIVES_KW: "primitives" /(?![A-Za-z0-9_])/
 _PROCEDURE_KW: "procedure" /(?![A-Za-z0-9_])/
 _PRODUCE_KW: "produce" /(?![A-Za-z0-9_])/
 _PRODUCES_KW: "produces" /(?![A-Za-z0-9_])/
@@ -917,6 +954,7 @@ _RANDOM_KW: "random" /(?![A-Za-z0-9_])/
 _RANK_KW: "rank" /(?![A-Za-z0-9_])/
 _RANKING_KW: "ranking" /(?![A-Za-z0-9_])/
 _RANKS_KW: "ranks" /(?![A-Za-z0-9_])/
+_READS_KW: "reads" /(?![A-Za-z0-9_])/
 _REPEAT_KW: "repeat" /(?![A-Za-z0-9_])/
 _REQUIRES_KW: "requires" /(?![A-Za-z0-9_])/
 _REVEAL_KW: "reveal" /(?![A-Za-z0-9_])/

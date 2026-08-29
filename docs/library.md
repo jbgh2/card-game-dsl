@@ -791,13 +791,21 @@ the variable is not allocated.
 
 Standard helpers available across games. A function below (or a game-local
 primitive in the same shape) that reads live zones or state does so by the
-game's declared names — a coupling the pipeline cannot see — so every such
-read is declared in the `PRIMITIVE_READS` registry
-(`cardlang/runtime/reads.py`) and made through its typed accessors:
-`tests/test_primitive_reads.py` pins the declarations against the game
-file's actual zone/state declarations and against each module's source, so
-renaming either side fails a static test rather than key-erroring
-mid-playout.
+game's declared names — a coupling that is declared in one of two places,
+and which one is the game's own choice:
+
+- A game that writes a `primitives { }` block declares each primitive's
+  reads there, beside its typed signature (decisions.md's design note,
+  `design-notes/primitive-sidecars.md` §2). The declaration and the zone
+  then live in one file, so renaming either moves both; the block's presence
+  also means the game names its own primitives and no other game's.
+- A game that writes no block is coupled to the `PRIMITIVE_READS` registry
+  (`cardlang/runtime/reads.py`), which declares the same names on its behalf
+  and is reached through the same typed accessors:
+  `tests/test_primitive_reads.py` pins those declarations against the game
+  file's actual zone/state declarations and against each module's source, so
+  renaming either side fails a static test rather than key-erroring
+  mid-playout.
 
 - `best_five_card_hand(cards: Set<Card>) → HandRank` — given a set of
   cards (typically 7 for Stud, 5 for draw poker, 2+5 community for

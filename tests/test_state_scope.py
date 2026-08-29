@@ -285,7 +285,12 @@ def test_every_game_field_is_decided() -> None:
         # side) rather than skipped.
         "board", "card_points", "content_flavor", "deck", "direction", "loser",
         "max_length",
-        "name", "players", "positions", "ranking", "ranking_convention", "span",
+        "name", "players", "positions",
+        # `primitives` holds names and type names only — no expression, so no
+        # state reference to find; walked, the conservative side, like
+        # `card_points`.
+        "primitives",
+        "ranking", "ranking_convention", "span",
         "teams", "trick_order", "trump", "types", "uses", "winner", "zones",
     ], (
         f"`Game` gained or lost a field: {walked}. Decide whether a state "

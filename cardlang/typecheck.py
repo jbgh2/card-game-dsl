@@ -43,10 +43,15 @@ from typing import assert_never
 from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
-from cardlang.builtins.functions import TRICK_ORDER_GATED_WINNERS, TRICK_ORDER_ROWS
+from cardlang.builtins.functions import (
+    BUILTIN_CALL_FUNCS,
+    TRICK_ORDER_GATED_WINNERS,
+    TRICK_ORDER_ROWS,
+)
+from cardlang.primitives_block import Regime, implementation_sig, regime
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import require_role, role_type
+from cardlang.domains import require_role, role_of, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -546,6 +551,15 @@ class TypeEnv:
     # typecheck (cardlang/expand.py): once a body is spliced inline there is no
     # call site left to check.
     procedures: Mapping[str, Sig] = field(default_factory=dict)
+    # The native call signatures THIS game's calls check against. A game with
+    # a `primitives { }` block declares its own Primitives, so its table is the
+    # Builtins plus the block's materialized signatures; a game without one
+    # gets `CALL_SIGS` whole. Materialized here rather than looked up
+    # try-then-fall at each call site: the regime is decided once, and a
+    # classified lookup is what keeps a declared name from ever reading a
+    # signature the corpus-wide registry happens to hold under the same
+    # spelling.
+    call_sigs: Mapping[str, Sig] = field(default_factory=lambda: CALL_SIGS)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
     max_players: int = 0  # the game's maximum seat count — bounds player literals
     max_teams: int = 0  # len(game.teams) — bounds team literals (0: no teams)
@@ -667,17 +681,17 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
             # already in the bag). Gradual, not a lookup miss.
             return obj.element if isinstance(obj, TCollection) else TAny()
         case n.Call():
-            sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
+            sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
             if sig is None:
                 # `CALL_SIGS` covers `CALL_FUNCS` exactly (pinned by
                 # tests/test_permissive_top.py), and resolve rejects a call to
                 # any name that is neither a native function nor a declared
                 # one — so a missing signature is a registry divergence.
                 raise AssertionError(
-                    f"call to '{e.func}' has no signature in CALL_SIGS and no "
-                    f"declared function — resolve rejects unknown calls before "
-                    f"this pass, so the native signature registry has drifted "
-                    f"from the native function registry"
+                    f"call to '{e.func}' has no signature in this game's native "
+                    f"table and no declared function — resolve rejects unknown "
+                    f"calls before this pass, so the native signature registry "
+                    f"has drifted from the native function registry"
                 )
             return sig.ret
         case n.BinOp():
@@ -948,6 +962,129 @@ def _direction_types(game: Game) -> dict[str, Type]:
     return {name: TDir() for name in directions_of(game)}
 
 
+def declared_primitive_sigs(game: Game) -> dict[str, Sig]:
+    """The `Sig` each `primitives { }` entry declares, materialized.
+
+    This pass's contract makes inferred types EPHEMERAL and names the one
+    exception: a downstream consumer that needs a type is a signal to
+    materialize it here. The runtime's `coerce_args` is exactly such a consumer
+    — it is signature-driven, and for a declared Primitive the signature is the
+    DECLARATION's — so the table is built once, here, and the driver reads it
+    rather than rebuilding a `Sig` from the type names a second time.
+
+    Empty for a game with no block, and for one whose block is empty."""
+    if game.primitives is None:
+        return {}
+    env = TypeEnv(structs={}, positions=_position_types(game))
+    return {
+        decl.name: Sig(
+            tuple(_param_type(p, env) for p in decl.params),
+            _param_type(
+                n.Parameter(name="", type_name=decl.return_type), env
+            ),
+        )
+        for decl in game.primitives.decls
+    }
+
+
+def _index_domain_spelling(index: str, env: TypeEnv) -> str | None:
+    """The type name a binder over `index` must be DECLARED with.
+
+    Identity, not erasure. `coercible` is a coercion relation — an Integer may
+    stand where a Player is wanted, which is right for an operand and wrong for
+    a key — and two position domains both type as `TInteger`, so a comparison
+    of TYPES admits a binder whose domain has a different member range. The
+    declaration names a domain, so the comparison is with that domain's own
+    spelling: a position domain is spelled by its name, a role by the declared
+    type its members carry.
+
+    `role_of`, not `require_role`: the two readings of one lookup exist so a
+    caller can say whether a miss is an author's error or a compiler bug, and
+    an index resolve did not classify is the former — resolve owns that
+    diagnostic, and this returns None so the binder check declines rather than
+    reporting the same error twice. `require_role` would raise the compiler
+    channel's `AssertionError` here, and catching THAT would swallow the
+    registry divergence it exists to announce."""
+    if index in env.positions:
+        return index
+    role = role_of(index)
+    return _type_name(role_type(role)) if role is not None else None
+
+
+def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A declaration must agree with the implementation it names, and an index
+    binder with the domain it keys.
+
+    Both are TYPE facts, which is why they live here rather than beside
+    resolve's name checks: resolve settles that the name exists, is not walled,
+    is not a collision, and that each `reads` name is one of the game's own
+    declarations — none of which needs a `Sig`. What is left is the comparison
+    of two signatures and the comparison of a parameter's type against an index
+    domain's, and this pass is the one that has both.
+
+    The shape check is the both-ways check's THIRD leg. Existence and contract
+    category are the other two, and a declaration can pass both while
+    disagreeing about arity, parameter types or return type — which would
+    compile clean and die mid-playout as a `TypeError` or a `KeyError`, the
+    designer's error arriving in the runtime's channel."""
+    if game.primitives is None:
+        return
+    declared = declared_primitive_sigs(game)
+    keyed: dict[str, str] = {z.name: z.index for z in game.zones if z.index}
+    for block in _state_blocks(game):
+        for sd in block.decls:
+            if sd.index is not None:
+                keyed[sd.name] = sd.index
+    for decl in game.primitives.decls:
+        want = implementation_sig(decl.name)
+        got = declared[decl.name]
+        if want is not None and got != want:
+            bag.error(
+                f"`{decl.name}`'s declared signature "
+                f"{_render_sig(got)} is not the signature its implementation "
+                f"takes, {_render_sig(want)} — a declaration and its Python are "
+                f"authored separately, so agreeing that the name EXISTS is only "
+                f"half the check",
+                decl.span,
+            )
+        params = {p.name: p for p in decl.params}
+        for read in decl.reads:
+            if read.binder is None or read.binder not in params:
+                continue  # resolve owns the undeclared-binder diagnostic
+            index = keyed.get(read.name)
+            if index is None:
+                continue  # resolve owns the not-indexed diagnostic
+            expected = _index_domain_spelling(index, env)
+            if expected is None:
+                continue  # resolve owns the unclassified-index diagnostic
+            written = params[read.binder].type_name.removesuffix("?")
+            if written != expected:
+                bag.error(
+                    f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
+                    f"is declared `{written}` — `{read.name}` is indexed by the "
+                    f"`{index}` index domain, so its binder is declared "
+                    f"`{expected}`",
+                    read.span or decl.span,
+                )
+
+
+def _render_sig(sig: Sig) -> str:
+    return f"({', '.join(_type_name(p) for p in sig.params)}) : {_type_name(sig.ret)}"
+
+
+def native_call_sigs(game: Game) -> Mapping[str, Sig]:
+    """The native signatures a call in `game` checks against — the game's
+    regime, made into a table.
+
+    A declared game's table is the Builtins plus its own entries: the legacy
+    `PRIMITIVE_CALL_FUNCS` half is absent, which is what makes a neighbouring
+    game's Primitive unspellable rather than merely unresolvable."""
+    if regime(game) is Regime.LEGACY:
+        return CALL_SIGS
+    builtin = {name: sig for name, sig in CALL_SIGS.items() if name in BUILTIN_CALL_FUNCS}
+    return {**builtin, **declared_primitive_sigs(game)}
+
+
 def env_from_game(
     game: Game, structs: Mapping[str, TStruct] | None = None
 ) -> TypeEnv:
@@ -1034,6 +1171,7 @@ def env_from_game(
     return TypeEnv(
         state_vars=state_vars,
         zones=zones,
+        call_sigs=native_call_sigs(game),
         zone_families=zone_families,
         value_enums=value_enum_map(game),
         structs=structs,
@@ -2351,7 +2489,7 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
     if isinstance(e, n.Call):
-        sig = CALL_SIGS.get(e.func) or env.functions.get(e.func)
+        sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
         if sig is not None:
             args = _arg_exprs(e.args)
             if len(args) != len(sig.params):
@@ -2367,7 +2505,11 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
-        if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
+        if (
+            e.func in RANKING_GATED_FUNCS
+            and e.func not in env.functions
+            and not env.has_ranking
+        ):
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
                 f"but the game declares no ranking: — declare one, or declare "
@@ -3578,6 +3720,7 @@ def typecheck(game: Game) -> Game:
         outcome = outcomes.get(define.name)
         if outcome is not None:
             _check_define_outcomes(define, outcome, env, bag)
+    _check_primitive_signatures(game, env, bag)
     _check_misplaced_produce(game, outcomes, env, bag)
     _check_outcome_scope(game, bag)
     _check_outcome_name_collisions(game, bag)

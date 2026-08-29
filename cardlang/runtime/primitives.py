@@ -29,6 +29,7 @@ the dependency absent is what makes the two arm counts independently readable.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from cardlang.runtime import narrowing, reads, winners
@@ -58,6 +59,38 @@ def _emit(ctx: Ctx, events: tuple[narrowing.TraceEvent, ...]) -> None:
     in the order the primitive returned them (cardlang/runtime/narrowing.py)."""
     for event, payload in events:
         ctx.trace(event, payload)
+
+
+@dataclass(frozen=True, slots=True)
+class Declared:
+    """One `primitives { }` entry, materialized for dispatch.
+
+    Everything a call needs, resolved once at load: the implementation the
+    index named, the row the entry's `reads` clause declares, which of those
+    reads a parameter keys, and the contract the implementation answers. There
+    is no arm for a declared Primitive and there never will be — the whole
+    point of the block is that the dispatch DERIVES."""
+
+    name: str
+    impl: Callable[..., Any]
+    row: reads.PrimitiveReads
+    binders: tuple[tuple[str, int], ...]
+    """Declared read name -> the index of the parameter that keys it, for the
+    indexed reads an entry narrowed (`reads hand[p]`). Empty for an entry whose
+    reads are all whole."""
+    bundled: bool
+    """Whether the implementation takes the [[primitive-bundle]] — `False` for
+    one pure over its arguments (`primitives_block.InvocationContract`)."""
+
+
+def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
+    """Invoke one declared Primitive. Arguments arrive already coerced against
+    the DECLARED signature, so what the implementation receives is what the
+    game file says it receives."""
+    if not entry.bundled:
+        return entry.impl(*args)
+    keys = {name: args[i] for name, i in entry.binders}
+    return entry.impl(*narrowing.bind(ctx.rs, ctx.current_player, entry.row, keys), *args)
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:

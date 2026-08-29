@@ -23,11 +23,15 @@ its [[primitive-bundle]], plain values and nothing else:
                  tuples, so an undeclared zone is absent rather than merely
                  unfetched.
 
-Scope (docs/design-notes/primitive-sidecars.md §5, stage 2): the bundles are
-MODULE-granular. The design note's §2 end state is per-PRIMITIVE declared
-reads, which arrives with the `primitives { }` block in stage 3; until then a
-primitive can still see a declared name it does not personally need. What it
-can no longer do is mutate, decide, emit, or reach a name its module never
+Scope (docs/design-notes/primitive-sidecars.md §5): the two halves are
+declared at different granularities, and the difference is the live one.
+`GameReads` is PER-PRIMITIVE for a game that declares a `primitives { }`
+block — its row is built from that entry's own `reads` clause, and an indexed
+read narrows to the instance the CALL names — and per-MODULE for a game that
+declares none, where `PRIMITIVE_READS` is the declaration. `EngineFacts` is
+whole either way: its field names are not spellable in a `reads` clause, so
+every primitive receives every fact (issue #474). What no primitive can do,
+under either regime, is mutate, decide, emit, or reach a name nothing
 declared.
 
 Contract:
@@ -45,7 +49,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from cardlang.runtime import reads
 from cardlang.runtime.state import RuntimeState
@@ -71,8 +75,10 @@ class EngineFacts:
 
     Every field mirrors one named engine expression, pinned per field by
     tests/test_primitive_narrowing.py. The set is closed on purpose: it is
-    the second half of what a primitive reads (the first being its declared
-    zone/state names), and stage 3's `reads` clause narrows it per primitive.
+    the second half of what a primitive reads, the first being its declared
+    zone and state names. Narrowing THIS half per primitive — admitting these
+    names into a `reads` clause — is issue #474; a declaration that spells one
+    is refused at resolve rather than accepted and dropped.
     """
 
     seating: Seating
@@ -124,8 +130,27 @@ def engine_facts(rs: RuntimeState, actor: Player | None) -> EngineFacts:
     return EngineFacts(**{name: reads.deep_freeze(value) for name, value in raw.items()})
 
 
+class PrimitiveBundle(NamedTuple):
+    """The [[primitive-bundle]]: what one narrowed primitive receives.
+
+    A NamedTuple rather than a bare pair, so the two halves carry their names
+    at every site that holds the whole thing — and still unpack positionally,
+    which is how every primitive's signature reads them."""
+
+    facts: EngineFacts
+    reads: reads.GameReads
+
+
 def bind(
-    rs: RuntimeState, actor: Player | None, r: reads.PrimitiveReads
-) -> tuple[EngineFacts, reads.GameReads]:
-    """The dispatch layer's one call: both bundles for one primitive call."""
-    return engine_facts(rs, actor), reads.game_reads(rs, r)
+    rs: RuntimeState,
+    actor: Player | None,
+    r: reads.PrimitiveReads,
+    keys: Mapping[str, int | str] | None = None,
+) -> PrimitiveBundle:
+    """The dispatch layer's one call: both bundles for one primitive call.
+
+    `keys` narrows an INDEXED declared read to the one instance a call names —
+    the granularity a `primitives { }` entry's `reads hand[p]` buys, applied
+    per call because the key is an argument. None materializes the whole row,
+    which is what a module-granular declaration means."""
+    return PrimitiveBundle(engine_facts(rs, actor), reads.game_reads(rs, r, keys))

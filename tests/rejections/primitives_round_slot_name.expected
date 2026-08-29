@@ -1,0 +1,1 @@
+primitives_round_slot_name.cardlang:12:5: error: `bridge_auction_outcome` is an auction outcome (a `round auction ... outcome` slot), not a call-position Primitive, so the `primitives` block cannot declare it — its signature is the mechanic's, not a parameter list; the round slots take their own declaration form (issue #142)

@@ -1,0 +1,20 @@
+// Guard: resolve.py's `_check_primitive_name`, the walled-namespace arm. The
+// block covers the CALL-position Primitives; a round-slot query's signature is
+// the mechanic's, not a parameter list, so the block cannot declare one. The
+// name IS a Primitive, so "nothing implements it" would be false — the
+// diagnostic names the namespace instead.
+game PrimitivesRoundSlotName {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    bridge_auction_outcome() : Integer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}

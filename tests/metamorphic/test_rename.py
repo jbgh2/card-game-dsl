@@ -38,6 +38,17 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
                 a nonempty safe set (`test_every_game_renames_something`),
                 so no game is entirely excluded from the property this
                 suite checks.
+                The exclusion is REGIME-scoped, and a game that declares a
+                `primitives { }` block is outside it: its Primitive reads
+                are declared in its own file, so the transform renames the
+                declaration along with the zone and the checker refuses a
+                `reads` name that no longer resolves. What this transform
+                can no longer observe for such a game is the coupling
+                itself — there is nothing left to observe, because one edit
+                in one file moves both sides, which is a stronger statement
+                than the exclusion it replaces. The names it excludes are
+                exactly those whose reading side is Python this transform
+                cannot rewrite.
 
             A FOURTH residual, on the interaction between (3) and the
             gather rather than on any one field. `move all cards to <zone>`

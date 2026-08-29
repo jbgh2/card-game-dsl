@@ -1,0 +1,1 @@
+primitives_undeclared_read.cardlang:10:62: error: `pinochle_meld_value` reads `skat`, which this game declares in neither `zones { }` nor `state { }`

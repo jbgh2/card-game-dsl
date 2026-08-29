@@ -1731,7 +1731,11 @@ def _param_bearing_library_kinds() -> list[str]:
     """The `_PARAM_BEARING` collections a library can hold — all of them, since a
     library holds every definition kind a game does. Derived so the sweep below
     cannot silently stop covering one."""
-    kinds = {collection for collection, _, _ in _PARAM_BEARING.values()}
+    kinds = {
+        row.library_field
+        for row in _PARAM_BEARING.values()
+        if row.library_field is not None
+    }
     return sorted(kinds & {field for field, _ in _LIBRARY_DEF_KINDS})
 
 

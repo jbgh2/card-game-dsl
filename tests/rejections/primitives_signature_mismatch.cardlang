@@ -1,0 +1,21 @@
+// Guard: typecheck.py's `_check_primitive_signatures`, the shape arm. A
+// declaration and its Python are authored separately, so agreeing that the
+// name EXISTS is only one leg of the both-ways check: this entry names a real
+// implementation of a declarable contract and disagrees with it about arity.
+// Without the shape check it compiles clean and dies mid-playout as a
+// `TypeError` — the designer's error in the runtime's channel.
+game PrimitivesSignatureMismatch {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    pinochle_meld_value() : Integer reads hand, trump_suit
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { trump_suit : Suit? = none  score[player] : Integer = 0 }
+  phase play {
+    score[0] := pinochle_meld_value()
+  }
+  winner: highest score
+}

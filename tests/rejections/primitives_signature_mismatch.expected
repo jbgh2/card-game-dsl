@@ -1,0 +1,1 @@
+primitives_signature_mismatch.cardlang:13:5: error: `pinochle_meld_value`'s declared signature () : Integer is not the signature its implementation takes, (Player) : Integer — a declaration and its Python are authored separately, so agreeing that the name EXISTS is only half the check

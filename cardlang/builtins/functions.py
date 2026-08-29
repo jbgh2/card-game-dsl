@@ -285,9 +285,13 @@ TRICK_ORDER_EXCLUDED_FUNCS: frozenset[str] = (
 # ALLOW-LIST, and its complement is listed explicitly rather than derived, so a
 # newly registered Builtin lands unclassified and the partition test names it
 # (tests/test_trick_order.py::test_row_callable_partition_is_total) instead of
-# being absorbed silently into either side. Every `PRIMITIVE_CALL_FUNCS` member
-# is uncallable by construction (a row calls no game-local Python), which is
-# why only the Builtin half is partitioned here.
+# being absorbed silently into either side. Only the Builtin half is
+# partitioned here because a row calls no game-local Python at all: every
+# `PRIMITIVE_CALL_FUNCS` member is uncallable because this allow-list admits
+# none of it, and a [[primitive]] a game's own `primitives { }` block declares
+# — which is in no registry here — is refused by name at
+# `resolve._check_row_call`. The reason is one for both halves: a row is
+# HERMETIC, and a Primitive reads whatever its `reads` clause names.
 TRICK_ORDER_ROW_CALLS: frozenset[str] = frozenset(
     {
         "rank_value",  # the declared `ranking:` order -- what strength defaults to

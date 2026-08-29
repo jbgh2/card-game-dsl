@@ -1,0 +1,19 @@
+// Guard: parse.py's `primitives_arrow_reject`. A `primitives { }` entry names
+// its return type after a colon, like every other declaration row in this
+// language; the arrow is the spelling an earlier design sketch carried, so it
+// gets a rejection naming the colon form rather than a bare syntax error.
+game PrimitivesArrowReturn {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    pinochle_meld_value(p : Player) -> Integer reads hand[p], trump_suit
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { trump_suit : Suit? = none  score[player] : Integer = 0 }
+  phase play {
+    score[0] := pinochle_meld_value(0)
+  }
+  winner: highest score
+}
