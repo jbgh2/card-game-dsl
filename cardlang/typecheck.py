@@ -1052,7 +1052,13 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
                 continue  # resolve owns the not-indexed diagnostic
             expected = _index_domain_type(game, index, env)
             actual = _param_type(params[read.binder], env)
-            if expected is not None and not coercible(actual, expected):
+            if expected is None:
+                continue  # resolve owns the unclassified-index diagnostic
+            # Both sides are DECLARED types — a parameter's annotation against
+            # an index domain's member type — so there is no operand
+            # expression to range-check, and `_check_operand` wants the node an
+            # integer literal was written at.
+            if not coercible(actual, expected):  # choke-point-exempt: two declared types, no operand expression
                 bag.error(
                     f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
                     f"is declared {_type_name(actual)} — `{read.name}` is indexed "
