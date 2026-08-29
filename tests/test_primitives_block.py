@@ -3,8 +3,8 @@
 The block declares the [[primitive]]s a game borrows from outside the DSL —
 typed signature and declared reads — and its PRESENCE partitions the game's
 native-call namespace in both directions (docs/design-notes/primitive-sidecars.md
-§2; epic #142, stage 3a). This module is that change's grid, authored red
-before the implementation: the born-red counts at the foot of this docstring
+section 2; epic #142, stage 3a). This module is that change's grid, authored
+red before the implementation: the born-red counts at the foot of this docstring
 are its provenance.
 
 Completeness ledger (decisions.md "Closed-domain completeness")

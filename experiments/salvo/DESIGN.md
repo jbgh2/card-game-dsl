@@ -106,12 +106,13 @@ army there:
 
 - **Proximity**: 13 minus distance-to-target, per card.
 - **Affinity**: +3 per card of the location's suit.
-- **Combos**, within one player's army at one location. Each combo type
-  scores once per location, best instance only; one card may serve
-  several types (7 of spades + 7 of hearts + 8 of spades + 9 of spades
-  scores a pair, a run of three, and a flush of three):
-  - pair +4; three of a kind +12; four of a kind +20 (within the
-    of-a-kind family only the largest scores)
+- **Combos**, within one player's army at one location. There are three
+  families — of-a-kind, run, flush. Each family scores once per location
+  and on its largest instance only (a run of four and a run of three in
+  the same army score the four, not both); one card may serve several
+  families (7 of spades + 7 of hearts + 8 of spades + 9 of spades scores
+  a pair, a run of three, and a flush of three):
+  - pair +4; three of a kind +12; four of a kind +20
   - run of three +6; run of four +10; run of five or longer +15
   - flush of three +5; flush of four +9; flush of five or longer +14
 - **Jokers**: a joker scores as a perfect hit (13) at any location, has

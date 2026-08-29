@@ -246,8 +246,8 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 # home modules rather than checking either against a copy of itself. A
 # Primitive absent from this set is expected to carry an arm, so a newly
 # registered declared-only name lands red until it is classified here. Stage 3b
-# inverts the set (docs/design-notes/primitive-sidecars.md §5): every Primitive
-# becomes declared and the legacy arms go with the window.
+# inverts the set (docs/design-notes/primitive-sidecars.md section 5):
+# every Primitive becomes declared and the legacy arms go with the window.
 DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset({"salvo_combos"})
 
 # The whole call namespace: what resolve accepts as a known `f(...)` name, and

@@ -2,8 +2,8 @@
 
 A game declares the [[primitive]]s it borrows from outside the DSL in a
 `primitives { }` block beside `uses`
-(docs/design-notes/primitive-sidecars.md §2). The block's PRESENCE partitions
-the game's native-call namespace in both directions, the `trick_order { }`
+(docs/design-notes/primitive-sidecars.md section 2). The block's PRESENCE
+partitions the game's native-call namespace in both directions, the `trick_order { }`
 mechanism one construct over: a game with a block names its own declared
 primitives and no other game's, and a game without one keeps the hand-authored
 `PRIMITIVE_CALL_FUNCS` namespace. `regime` below is the ONE site that asks
@@ -148,7 +148,7 @@ class Implementation:
     to answer "does anything implement the name this game declares?", which is
     the half of the both-ways check a game file cannot state — declarations
     and implementations are independently authored, and reconciling them IS
-    the check (docs/design-notes/primitive-sidecars.md §2)."""
+    the check (docs/design-notes/primitive-sidecars.md section 2)."""
 
     module: str
     attribute: str

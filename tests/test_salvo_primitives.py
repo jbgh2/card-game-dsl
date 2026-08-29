@@ -39,8 +39,9 @@ registry:   the ladders are DESIGN.md's table, transcribed here rather than
 covered:    every cell below, parametrized. The declaration's agreement with
             the implementation — existence, contract, and signature shape —
             is tests/test_primitives_block.py's reconciliation pin, whose
-            domain gained this game with this change; that the game as a whole
-            plays with the Primitive in it is the arena rig's mirror pin
+            domain is every game that declares a block, this one among them;
+            that the game as a whole plays with the Primitive in it is the
+            arena rig's mirror pin
             (`experiments/salvo/triage.py`), which restates the table
             independently and compares on every playout.
 sampled:    the of-a-kind ladder's top rung is `>= 4` rather than exactly 4:

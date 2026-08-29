@@ -624,10 +624,10 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # protects is that every Primitive name has an implementation row and every
     # row is a Primitive name — the both-ways check the `primitives { }` block
     # rests on. Its reddening mutation is executed in
-    # tests/test_primitives_block.py::test_the_implementation_index_covers_the_
-    # primitive_namespace, and the CORPUS-side question it cannot ask (is the
-    # implementation reached by any game) is the reconciliation pin's, whose
-    # own plants are demonstrated there.
+    # test_the_implementation_index_covers_the_primitive_namespace
+    # (tests/test_primitives_block.py), and the CORPUS-side question it cannot
+    # ask (is the implementation reached by any game) is the reconciliation
+    # pin's, whose own plants are demonstrated there.
     "primitives_block.py": ["frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS"],
     "openspiel/replay.py": ["game.winner.rank_dir not in RANK_DIR_TO_SIGN"],
     # Both are the same shape: the builder validating a grammar-admitted
@@ -678,8 +678,8 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # namespace first (`_validate_refs`). What it protects is that a declared
     # game never falls through to the legacy dispatch, which is the property
     # the regime partition exists for; the Owner Guard's witness is
-    # tests/test_primitives_block.py::test_an_empty_block_refuses_a_legacy_
-    # primitive_call.
+    # test_an_empty_block_refuses_a_legacy_primitive_call
+    # (tests/test_primitives_block.py).
     "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
@@ -688,8 +688,8 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # game widens the guard with it and there is no hard-coded row to go
     # stale. An Owner Guard — the Integer type admits every integer, and this
     # is the only statement of which three mean something — witnessed at
-    # tests/test_salvo_primitives.py::test_wrapper_refuses_a_location_outside_
-    # the_three.
+    # test_wrapper_refuses_a_location_outside_the_three
+    # (tests/test_salvo_primitives.py).
     "runtime/salvo.py": ["not 0 <= loc < len(LOCATIONS)"],
     "runtime/state.py": [
         "role_of(decl.index) not in ZONE_INDEX_ROLES and decl.index not in positions"

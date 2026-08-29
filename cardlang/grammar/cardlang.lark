@@ -94,7 +94,8 @@ game: _GAME_KW NAME "{" game_item* "}"
 uses_decl: _USES_KW NAME
 
 // The game's `primitives { }` block (docs/design-notes/primitive-sidecars.md
-// §2): what this game borrows from outside the DSL. An entry is a COLON-ROW
+// section 2): what this game borrows from outside the DSL. An entry is a
+// COLON-ROW
 // like every other declaration here (`zones`, `state`, `card_points`,
 // `require`) — a typed parameter list, a colon, the return type, and the
 // load-bearing clause: the state and zones the implementation reads. Entries

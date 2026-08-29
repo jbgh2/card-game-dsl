@@ -1137,7 +1137,7 @@ class PrimitiveDecl:
 class PrimitivesBlock:
     """The `primitives { }` clause: the [[primitive]]s this game borrows from
     outside the DSL, with their typed signatures and their declared reads
-    (docs/design-notes/primitive-sidecars.md §2).
+    (docs/design-notes/primitive-sidecars.md section 2).
 
     Entries are held in SOURCE order and each name appears at most once
     (resolve). An EMPTY block is a declaration, not an absence: it says this

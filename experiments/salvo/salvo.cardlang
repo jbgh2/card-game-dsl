@@ -46,11 +46,12 @@ game Salvo {
   max_length: 300
 
   cards: standard54
-  // The natural ranks are the linear aces-low scale `dist` reads: A=1 .. K=13
-  // by index delta, and only deltas matter, so Joker at the head shifts
-  // nothing. Joker sits outside the scale — `loc_value` branches on the joker
-  // suit before `dist` ever sees it — and is listed because every rank the
-  // deck holds must be ranked to be strength-read at all.
+  // The natural ranks are the linear aces-low scale `dist` reads: the engine
+  // indexes this order A=0 .. K=12 with Joker=13, and only deltas matter, so
+  // Joker at the head shifts nothing. Joker sits outside the scale —
+  // `loc_value` branches on the joker suit before `dist` ever sees it — and
+  // is listed because every rank the deck holds must be ranked to be
+  // strength-read at all.
   ranking: Joker K Q J 10 9 8 7 6 5 4 3 2 A
 
   // `salvo_combos(p, loc)` is the bonus `p`'s army at `loc` earns for its own
@@ -94,12 +95,18 @@ game Salvo {
   phase setup {
     shuffle deck
     // Locations are joker-free: a joker broadcasts no target rank and no
-    // affinity suit, so it can set no location. This filtered draw IS
-    // DESIGN.md's set-aside-replace-reshuffle rule — both leave the locations
-    // joker-free and the residual deck a uniform shuffle of everything else.
+    // affinity suit, so it can set no location. The `where` filter is what
+    // buys that, and it buys only that: a filtered draw takes the first
+    // card the filter admits and leaves every card it passes over where it
+    // lies, so the jokers it steps past sit at the head of what remains and
+    // the seat dealt first meets them more often than the seat dealt second.
+    // The shuffle below buys the other half of DESIGN.md's
+    // set-aside-replace-reshuffle rule — it returns the residual deck to a
+    // uniform order, so the two seats face the same odds of a joker.
     move one card from deck where card.suit is not joker to location_a
     move one card from deck where card.suit is not joker to location_b
     move one card from deck where card.suit is not joker to location_c
+    shuffle deck
     deal 5 cards from deck to hand[0]
     deal 5 cards from deck to hand[1]
   }
