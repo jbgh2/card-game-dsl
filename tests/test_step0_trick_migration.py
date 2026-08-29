@@ -11,15 +11,16 @@ or early-termination regression), not a redesign.
 (Bridge's play trick also migrates in Step 0; it is already pinned by
 `golden/bridge_scores.json` via test_migration_characterization.py.)
 
-`rules.legal_cards` returns a `set`, so the chooser sees candidates in
-hash-dependent order — the per-seed results vary with `PYTHONHASHSEED`. We
-capture in a `PYTHONHASHSEED=0` subprocess so the goldens are reproducible.
+A playout does not depend on `PYTHONHASHSEED`
+(test_migration_characterization.py's
+`test_a_playout_is_hash_seed_independent`), so these goldens reproduce under
+whatever hash seed a run draws. The capture runs in a subprocess for
+interpreter isolation, not to pin the environment.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +30,13 @@ import pytest
 
 REPO = Path(__file__).parent.parent
 GOLDEN = Path(__file__).parent / "golden"
+
+# The games this module captures. A constant rather than a literal in the
+# parametrize below because the hash-seed pin
+# (test_migration_characterization.py) derives part of its own axis from it:
+# these captures pin no environment, so every game named here is one that pin
+# has to cover, and a game added here has to widen it without being copied there.
+TRICK_GAMES: tuple[str, ...] = ("hearts", "spades", "getaway")
 
 _CAPTURE = """
 import json, random, sys
@@ -51,12 +59,10 @@ print(json.dumps(out))
 """
 
 
-def _capture_pinned(name: str) -> dict[str, Any]:
-    env = dict(os.environ, PYTHONHASHSEED="0")
+def _capture_results(name: str) -> dict[str, Any]:
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE, name],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -65,7 +71,7 @@ def _capture_pinned(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["hearts", "spades", "getaway"])
+@pytest.mark.parametrize("name", TRICK_GAMES)
 def test_trick_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_trick_scores.json").read_text())
-    assert _capture_pinned(name) == expected
+    assert _capture_results(name) == expected

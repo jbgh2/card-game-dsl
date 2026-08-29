@@ -493,14 +493,15 @@ asserted, and both are gaps today:
   sequence — not an opaque list.** OpenSpiel needs a stable bijection
   between each candidate and an integer action ID, consistent across
   information-set-equivalent states. Today `legal_cards` returns a
-  *set* whose iteration order is `PYTHONHASHSEED`-dependent (the reason
-  exact-score tests pin the seed), and the sole adapter hardcodes a
-  52-card single-card action space. A multi-card climb *combination*
-  has no encoding under that space at all. Requiring `candidates` to
-  yield a canonical ordered sequence, and requiring each construct to
-  supply a canonical candidate↔action-ID encoding (or the interpreter
-  to derive one), closes the determinism gap and the multi-card-
-  encoding gap in one constraint — and flags that the fixed 52-card
+  *list* in the runtime's own internal order — reproducible, but nowhere
+  declared, so nothing outside the function's body says what that order
+  is or holds it fixed across a refactor — and the sole adapter
+  hardcodes a 52-card single-card action space. A multi-card climb
+  *combination* has no encoding under that space at all. Requiring
+  `candidates` to yield a canonical ordered sequence, and requiring each
+  construct to supply a canonical candidate↔action-ID encoding (or the
+  interpreter to derive one), closes the declared-order gap and the
+  multi-card-encoding gap in one constraint — and flags that the fixed 52-card
   action space must generalize before any non-single-card construct
   reaches the AI target.
 
@@ -691,7 +692,7 @@ call_and_response
 
 The auction surface reads because it is **homogeneous** (one vocabulary, one ring) and **multiply instantiated** (Bridge/Pinochle/Tarot/Stud). Reizen is **heterogeneous** (two contests, two vocabularies, seat reorder, shared ladder, asymmetric close) and **singly instantiated** — it fails the three-instance gate the note wields in §7. This corrects the specific hope in `decisions.md:325–327`.
 
-**(4) Signature stability.** The paper-proof **passes the §9 step-1 gate**: Reizen adds only **new values** on the six hooks — no reshaped signature, no seventh slot, `outcome`'s `Player | (tag,payloads) | None` union already carries throw-in (`None`) and declarer (`Player`) with no change. Therefore **§9 step 2 (unify the four `run_*` forms behind the goldens) is unblocked and need not wait on a signature redesign.** One caveat to the "byte-identical / draw-for-draw" framing: the original short-circuits on ladder exhaustion (`skat.py:120` skips the chooser when no rung remains), but the fixed loop cannot return an empty candidate set, so the interpreter must emit a forced 1-element `["pass"]` node — one extra draw. It is unreachable in a real hand (requires bidding past 264) but, given the documented `PYTHONHASHSEED` score-sensitivity, is worth naming so nobody assumes the unify is draw-identical *in principle*.
+**(4) Signature stability.** The paper-proof **passes the §9 step-1 gate**: Reizen adds only **new values** on the six hooks — no reshaped signature, no seventh slot, `outcome`'s `Player | (tag,payloads) | None` union already carries throw-in (`None`) and declarer (`Player`) with no change. Therefore **§9 step 2 (unify the four `run_*` forms behind the goldens) is unblocked and need not wait on a signature redesign.** One caveat to the "byte-identical / draw-for-draw" framing: the original short-circuits on ladder exhaustion (`skat.py:120` skips the chooser when no rung remains), but the fixed loop cannot return an empty candidate set, so the interpreter must emit a forced 1-element `["pass"]` node — one extra draw. It is unreachable in a real hand (requires bidding past 264) but is worth naming so nobody assumes the unify is draw-identical *in principle*: an extra draw shifts every later one, and a golden that never reaches the node cannot say otherwise.
 
 **(5) The contrast — where the interpreter boundary actually sits.** Reizen proves the loop absorbs asymmetric, reordering, role-vocabulary sequencing as *hook values*. Out-of-turn Tichu bombs sharpen the boundary from the other side. The permit-vs-constrain inversion they seem to introduce is a **front-end/model.md framing** concern, invisible to the loop: a `candidates` hook that unions in a bomb under a `bomb_window` predicate is indistinguishable to the shell from any other candidate. The one thing the one-draw-per-step loop *structurally forbids* is **true simultaneity** (`EachSimultaneous` — actors choosing without seeing each other), and bombs do **not** need it: bombs are reactive to the table, so serializing eligible bombers in seat order is faithful (a higher bomb over-bombs a lower one it sees on the table; highest stands, order-independent). The single arbitrary choice — two equal-strength bombs, resolved by reflex in real time — must be a flagged modeling decision (seat-order tiebreak), not a derived rule. So bombs are the *same mechanism as Reizen* (a `State` cursor driving function-valued `next_actor`/`candidates`), a **reshaped-hook value, not a seventh slot**; `EachSimultaneous` remains the genuine boundary the note already names.
 

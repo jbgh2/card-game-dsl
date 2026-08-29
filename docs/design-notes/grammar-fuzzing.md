@@ -63,8 +63,9 @@ Hypothesis fights the Lark dialect — decided at implementation time.
   rejection-corpus case (`tests/rejections/`) — the fuzzer *feeds* the
   rejection corpus, it does not replace it. That rule lives in the oracle
   module's docstring and in building.md.
-- **Playout invariants pin `PYTHONHASHSEED`** (set-iteration nondeterminism
-  in `legal_cards`).
+- **Playout invariants declare their candidate order** rather than pinning
+  `PYTHONHASHSEED`: the oracle's chooser sorts by the runtime's own `render`
+  of each candidate, so a run reproduces under any hash seed.
 - **The ledger states the honest residual up front**: generation is
   depth-bounded and weighted, so deep nesting and rare-terminal combinations
   are sampled, not covered.

@@ -32,7 +32,6 @@ order in Python below.
 from __future__ import annotations
 
 import json
-import os
 import random
 import subprocess
 import sys
@@ -359,9 +358,11 @@ def test_15_games_without_announcements_have_a_winner_every_hand() -> None:
     assert branches["no_winner"] == 0, branches
 
 
-# Exact-score golden: rules.legal_cards iterates a set, so chooser candidate
-# order — and therefore per-seed results — is hash-dependent; the capture
-# runs in a PYTHONHASHSEED=0 subprocess (the repo's exact-score convention).
+# Exact-score golden, captured in a subprocess for interpreter isolation.
+# `rules.legal_cards` hands back a list in hand order and the per-seed results
+# do not depend on PYTHONHASHSEED (test_migration_characterization.py's
+# `test_a_playout_is_hash_seed_independent`), so the capture needs no pinned
+# environment to reproduce.
 _CAPTURE = """
 import json, random
 from pathlib import Path
@@ -381,11 +382,9 @@ print(json.dumps(out))
 
 
 def test_per_seed_scores_match_golden() -> None:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,

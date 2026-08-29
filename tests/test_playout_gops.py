@@ -14,7 +14,6 @@ the driver's final scores, winner, and routing movements must match exactly.
 from __future__ import annotations
 
 import json
-import os
 import random
 import subprocess
 import sys
@@ -127,8 +126,10 @@ def test_40_random_games_recompute_exactly() -> None:
     assert decided > 0
 
 
-# Exact-score golden, captured in a PYTHONHASHSEED=0 subprocess (the repo's
-# exact-score convention; see docs/decisions.md on playout nondeterminism).
+# Exact-score golden, captured in a subprocess for interpreter isolation. The
+# scores do not depend on PYTHONHASHSEED (test_migration_characterization.py's
+# `test_a_playout_is_hash_seed_independent`), so the capture reproduces under
+# whatever hash seed the run draws.
 _CAPTURE = """
 import json, random
 from pathlib import Path
@@ -148,11 +149,9 @@ print(json.dumps(out))
 
 
 def test_per_seed_scores_match_golden() -> None:
-    env = dict(os.environ, PYTHONHASHSEED="0")
     proc = subprocess.run(
         [sys.executable, "-c", _CAPTURE],
         cwd=REPO,
-        env=env,
         capture_output=True,
         text=True,
         check=True,

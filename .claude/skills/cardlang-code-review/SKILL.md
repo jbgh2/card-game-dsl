@@ -187,8 +187,11 @@ dominant cause of misses.
   without this grep.
   Check goldens were verified rather than regenerated-to-match where the
   change claims semantic neutrality (byte-identical trace goldens are the
-  proof; regenerated IR goldens need a stated reason). Exact-score tests pin
-  `PYTHONHASHSEED`.
+  proof; regenerated IR goldens need a stated reason). Playout results do not
+  depend on `PYTHONHASHSEED` — pinned by
+  `test_a_playout_is_hash_seed_independent`
+  (tests/test_migration_characterization.py) — so an exact-score test that
+  needs an env pin to reproduce is itself a finding, not a convention.
 - **H. Spec-lockstep sweeper** *(docs, surface, or naming changes)*. The corpus
   (`docs/games/`) and every doc table/example use the current register —
   where cheap, parse doc examples rather than eyeballing them. The docs that

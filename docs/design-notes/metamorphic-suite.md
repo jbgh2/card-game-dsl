@@ -55,8 +55,11 @@ comparing (identity for transforms that rename nothing). A new
 `tests/metamorphic/` package holds the pairing harness and one module per
 transform, parametrized over the corpus glob; each module carries its
 completeness ledger (domain: corpus games × seeds; registry: the corpus
-glob). `PYTHONHASHSEED` is pinned in every paired playout — `legal_cards`
-returns a set, and unpinned hash randomization makes trace comparison flaky.
+glob). No paired playout pins `PYTHONHASHSEED`: the harness sorts each
+candidate list by the runtime's own `render` of each candidate instead, so the
+comparison order is declared by the harness rather than inherited from the
+order the runtime builds — a guarantee that holds under any hash seed, where a
+pin would hold only inside the run it is set for.
 The suite is additive proof machinery: no runtime changes, no golden churn.
 
 ## The four transforms
