@@ -59,6 +59,12 @@ def test_ismcts_bot_cannot_step_a_cardlang_state() -> None:
     )
     state = game.new_initial_state()
     state.apply_action(0)
+    # Step past the forced `play_cards` announce. ISMCTS returns a lone legal
+    # action without simulating, so it never resamples at a one-action node and
+    # the seam under test would not be reached — the bot must be asked a
+    # question it has to search to answer.
+    while len(state.legal_actions()) == 1:
+        state.apply_action(state.legal_actions()[0])
     with pytest.raises(pyspiel.SpielError, match="ResampleFromInfostate"):
         bot.step(state)
 

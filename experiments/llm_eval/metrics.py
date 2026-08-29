@@ -118,6 +118,9 @@ class Play:
     claim_rank: str
     claimed_count: int
     truthful_available: int
+    #: The actor's hand size when the count was chosen — the count's own upper
+    #: bound, since a play draws from the hand it is announced over.
+    hand_size: int
     cards: list[str]
     windows: list[dict[str, Any]] = field(default_factory=list)
 
@@ -166,6 +169,7 @@ def reconstruct_plays(decisions: list[dict[str, Any]]) -> list[Play]:
             claim_rank=facts["claim_rank"],
             claimed_count=cnt["facts"]["claimed_count"],
             truthful_available=facts["truthful_available"],
+            hand_size=cnt["facts"]["hand_size"],
             cards=[],
         )
         i += 1

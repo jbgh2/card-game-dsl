@@ -49,7 +49,11 @@ def _log(tmp_path: Path) -> SpendLog:
 def _config(**overrides: Any) -> dict[str, Any]:
     config: dict[str, Any] = {
         "game": "cardlang_cheat",
-        "max_decisions": 400,
+        # Enough for the rule-vs-random matchup below to REACH a terminal state,
+        # which is what makes a game scored. Every play spends one decision on
+        # its count before any card is picked, so the budget a full game needs
+        # scales with the number of plays, not only with the cards moved.
+        "max_decisions": 800,
         "models": {"m": FAKE_MODEL},
         "matchups": [],
     }
