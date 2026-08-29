@@ -1,9 +1,9 @@
 // Cheat — the basic game per Pagat (a.k.a. I Doubt It / Bullshit), 4 players,
-// standard 52-card deck, plays capped at four cards.
+// standard 52-card deck.
 //
 // Rules source: https://www.pagat.com/beating/cheat.html (fetched live per
 // CLAUDE.md). The whole deck is dealt out — 13 cards each at four players.
-// Play is clockwise from seat 0. A turn is one play: discard one to four
+// Play is clockwise from seat 0. A turn is one play: discard one or more
 // cards FACE DOWN onto the pile while calling them as the required rank —
 // Aces from the first player, then Twos, Threes, ... Tens, Jacks, Queens,
 // Kings, and back to Aces, advancing one step per play and never resetting
@@ -15,11 +15,7 @@
 // continues clockwise with the next rank. The first player to shed their
 // whole hand and survive any challenge on that final play wins.
 //
-// Two declared variant choices, named per corpus convention:
-// - Pagat's basic game allows "one or more cards" per play; this file caps a
-//   play at FOUR — a common table cap (any claim of five-plus of one rank is
-//   an automatic lie with a single deck). The cap bounds the play decision's
-//   action space and changes no other rule.
+// One declared variant choice, named per corpus convention:
 // - Pagat's "any player may call" is a real-time race; the DSL's decision
 //   model is sequential (matching OpenSpiel), so the window is serialized
 //   clockwise from the claimant's left, the first call closing it — the same
@@ -56,8 +52,9 @@ game Cheat {
   direction: clockwise
   // Measured over seeded random playouts (tests/test_playout_cheat.py):
   // random lines are long — challenges keep recycling the pile into hands —
-  // but bounded (200 seeds: p50 849, p95 2454, max 3942 decisions). ~5x
-  // headroom over the observed max; raise only with a measurement.
+  // but bounded (200 seeds, measured 2026-08-28: p50 413, p95 1168, max 1945
+  // decisions). Ample headroom over the observed max; raise only with a
+  // measurement.
   max_length: 20000
 
   cards: standard52
@@ -106,56 +103,32 @@ game Cheat {
     // play's owner survives its window with an empty hand.
     turns t from 0 over all players
           until any player where won[player] {
-      offer to t one of [play_one, play_two, play_three, play_four]
+      offer to t one of [play_cards]
     }
   }
 
   winner: highest won
 }
 
-// --- the turn vocabulary: play N cards face down, calling them as the
-// required rank. The announce is the public claim of COUNT; the chosen
-// movement inside is the hidden card decision; the claimed RANK is forced by
-// the cycle, so calling it is not a decision at all — it is the public
-// `claim_rank` state every observer already reads. play_one is unguarded
-// (the turn-holder always has a card: an empty hand ends the game first), so
-// every play offer has a legal move (decisions.md "No implicit actions").
+// --- the turn vocabulary: play one or more cards face down, calling them as
+// the required rank. The COUNT is a public integer decision — `choose` emits
+// the chosen value to every observer (decisions.md "`choose` as expression"),
+// which is exactly the announced claim of how many; the chosen movement that
+// follows is the hidden card decision; the claimed RANK is forced by the
+// cycle, so calling it is not a decision at all — it is the public
+// `claim_rank` state every observer already reads. The turn-holder always
+// has a card (an empty hand ends the game first), so the count's range is
+// never empty and the single offered move is always legal
+// (decisions.md "No implicit actions").
 
-move_type play_one {
+move_type play_cards {
   effect {
     claimant := actor
-    claim_count := 1
-    move chosen one card from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_two {
-  when: (number of cards in hand[actor]) >= 2
-  effect {
-    claimant := actor
-    claim_count := 2
-    move chosen 2 cards from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_three {
-  when: (number of cards in hand[actor]) >= 3
-  effect {
-    claimant := actor
-    claim_count := 3
-    move chosen 3 cards from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_four {
-  when: (number of cards in hand[actor]) >= 4
-  effect {
-    claimant := actor
-    claim_count := 4
-    move chosen 4 cards from hand[actor] to played
+    // `up to 52` reserves the OpenSpiel action-id block; it cannot bind,
+    // because a hand can never exceed the deck it was dealt from. An
+    // encoding bound, not a rule — Pagat's play is "one or more cards".
+    claim_count := choose integer in 1 .. (number of cards in hand[actor]) up to 52
+    move chosen claim_count cards from hand[actor] to played
     run resolve_play(actor)
   }
 }
