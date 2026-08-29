@@ -2400,6 +2400,33 @@ def test_the_narrowing_exempts_the_climb_row_its_binder_binds(
 # --- the witness fixture, played --------------------------------------------
 
 
+def test_an_under_declared_reads_clause_fails_in_the_typed_channel() -> None:
+    """Whether a declared read SUFFICES for its implementation is a fact about
+    Python, so the compile stage cannot settle it and the playout is where an
+    under-declaring clause surfaces. What the designer meets there is the
+    block's own failure channel: the primitive, the name its implementation
+    wanted, and the clause to extend — never a bare `KeyError` from a module
+    the reader has no reason to suspect.
+
+    The witness fixture with one read removed is the shape every hand-authored
+    block can take, which is what makes this the wave's channel rather than one
+    game's."""
+    from cardlang.runtime.reads import PrimitiveReadError
+
+    whole = WITNESS.read_text()
+    source = whole.replace("reads hand[p], trump_suit", "reads hand[p]")
+    assert source != whole, (
+        "the under-declaration did not apply — the fixture's clause moved"
+    )
+    game = check_dsl(source, "under_declared.cardlang")
+    with pytest.raises(PrimitiveReadError) as exc:
+        play_game(game, random.Random(0))
+    message = str(exc.value)
+    assert "pinochle_meld_value" in message, message
+    assert "trump_suit" in message, message
+    assert "reads" in message and "primitives" in message, message
+
+
 def test_the_witness_fixture_plays() -> None:
     """A complete game that declares a Primitive, calls it, and reaches a
     result — the one cell in this module where the whole path runs rather than

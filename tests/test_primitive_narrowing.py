@@ -53,7 +53,10 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             an `object.__setattr__` leak), which is how `seating` slipped;
             (d) `GameReads`: the bundle carries exactly the module's
             declared row and nothing else — an undeclared name is absent,
-            not merely unfetched; and NOTHING mutable is reachable through
+            not merely unfetched, and reading one fails in the declaration's
+            own typed channel rather than as a bare `KeyError`, over every
+            half `GameReads` declares rather than the halves a corpus
+            primitive happens to read; and NOTHING mutable is reachable through
             either bundle at any depth or shape (`deep_freeze`), proven by
             descending the whole materialized structure over a fixture that
             crosses every mutable shape the DSL can produce — nested
@@ -998,6 +1001,39 @@ def test_game_reads_carries_exactly_the_declared_row() -> None:
         "the bundle exposed a zone the row does not declare — the binder is "
         "handing over more than the declaration bounds"
     )
+
+
+def test_every_bundle_half_refuses_an_absent_name_typed() -> None:
+    """An undeclared name is ABSENT from the bundle, which makes reading one a
+    lookup miss — and a miss on a plain mapping is a bare `KeyError` naming the
+    key and nothing else, in a module the reader has no reason to suspect. The
+    declaration is what bounds the bundle, so the miss is the declaration's
+    error and says so.
+
+    Quantified over `GameReads`' own fields rather than the two halves a
+    corpus primitive happens to read, so a fifth half arrives covered."""
+    import dataclasses as _dc
+
+    bundle = reads_mod.game_reads(_bundle_state(), _bundle_row())
+    halves = [f.name for f in _dc.fields(bundle)]
+    assert halves, "GameReads carries no half — the cells below would be vacuous"
+    for half in halves:
+        with pytest.raises(reads_mod.PrimitiveReadError, match="no_such_name"):
+            getattr(bundle, half)["no_such_name"]
+
+
+def test_a_bundle_half_stays_immutable_and_iterable() -> None:
+    """The typed miss is a facet of the half, not a replacement for it: the
+    bundle is still a read-only mapping a primitive iterates, and still refuses
+    a write. A half that gained a miss and lost the freeze would trade one
+    silent-wrong-answer shape for a worse one."""
+    row = _bundle_row()
+    bundle = reads_mod.game_reads(_bundle_state(), row)
+    assert frozenset(bundle.state) == row.state_vars
+    assert dict(bundle.state) == {n: bundle.state[n] for n in row.state_vars}
+    assert "no_such_name" not in bundle.state
+    with pytest.raises(TypeError):
+        bundle.state["injected"] = 1  # type: ignore[index]
 
 
 def test_game_reads_cards_are_immutable() -> None:

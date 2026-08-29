@@ -90,7 +90,9 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
     if not entry.bundled:
         return entry.impl(*args)
     keys = {name: args[i] for name, i in entry.binders}
-    return entry.impl(*narrowing.bind(ctx.rs, ctx.current_player, entry.row, keys), *args)
+    return entry.impl(
+        *narrowing.bind(ctx.rs, ctx.current_player, entry.row, keys, entry.name), *args
+    )
 
 
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
