@@ -5,6 +5,7 @@
       "Bash(./tools/tracker-sweeps.sh:*)",
       "Bash(./tools/stale-leases.sh:*)",
       "Bash(./tools/unresolved-threads.sh:*)",
+      "Bash(./tools/branch-sweep.sh:*)",
       "Bash(./tools/lane-of.sh:*)",
       "Bash(./tools/merge-gate.sh:*)",
       "Bash(./tools/pr-watch.sh:*)",
