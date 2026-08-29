@@ -27,10 +27,13 @@ see issue #83).
 
 A playout does not depend on `PYTHONHASHSEED`: the same (game, seed) capture is
 byte-identical across hash seeds, which `test_a_playout_is_hash_seed_independent`
-below pins over a trick game and a climbing game. So no capture here pins
+below pins over `HASHSEED_AXIS` — every game whose captures pin no environment,
+derived from the capture registries rather than named. So no capture here pins
 the environment, and every run reproduces these goldens under whatever hash seed
-it happens to draw. The captures run in a subprocess for interpreter isolation —
-a fresh process per game, holding nothing the test session already imported.
+it happens to draw. `test_only_the_hash_seed_pin_sets_the_hash_seed` is what
+keeps that true of captures nobody has written yet. The captures run in a
+subprocess for interpreter isolation — a fresh process per game, holding nothing
+the test session already imported.
 
 A SIXTH sanctioned regeneration covers `seven-card-stud_hands.json` on every
 seed it holds: `poker_betting`'s `raise` COMPLETES a standing bet short of the
@@ -171,6 +174,7 @@ regeneration is a real divergence.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -180,8 +184,11 @@ from typing import Any
 
 import pytest
 
+from tests.test_step0_trick_migration import TRICK_GAMES
+
 REPO = Path(__file__).parent.parent
 GOLDEN = Path(__file__).parent / "golden"
+GAMES = REPO / "docs" / "games"
 
 # Each capture sweeps this many seeds. A game may choose its own — the sweeps
 # differ in what a single seed is worth (Stud plays ~170 hands per match,
@@ -377,17 +384,158 @@ def test_migration_preserves_per_seed_results(name: str) -> None:
 # because the salt was switched off fails here.
 _HASHSEEDS: tuple[str, str] = ("0", "999")
 
+# `CAPTURE_GOLDENS` is keyed by golden stem. The stem is the corpus game's own
+# name for every entry but one, and the pin below plays the corpus file, so the
+# two spellings have to be reconciled somewhere. Here, under a rule that holds
+# both ways: an alias is REQUIRED where the stem names no corpus file, and
+# REFUSED where it names one — a needless alias is a second spelling for a game
+# the derivation already reaches. `test_every_hash_seed_axis_entry_names_a_corpus_game`
+# holds this table to that rule, so a stem added to the registry either resolves
+# or fails loudly rather than dropping out of the axis.
+_GOLDEN_STEM_TO_GAME: dict[str, str] = {"bigtwo": "big-two"}
+
+# The games whose captures pin no environment — the axis the pin below sweeps.
+#
+# DERIVED, not chosen. Every capture in this repo that used to run under a
+# pinned `PYTHONHASHSEED` now runs under whatever the interpreter draws, so the
+# property has to be shown for each of their games, not for a pair standing in
+# for them. The registry half comes from `CAPTURE_GOLDENS` — this module's own
+# capture domain, so a game added there widens this axis without being named
+# twice. `TRICK_GAMES` is the same derivation one module out. The three
+# remaining entries are single-game modules with no registry to derive from,
+# and each names the file whose captures it covers.
+HASHSEED_AXIS: tuple[str, ...] = tuple(
+    sorted(
+        {
+            *(_GOLDEN_STEM_TO_GAME.get(stem, stem) for stem in CAPTURE_GOLDENS),
+            *TRICK_GAMES,
+            "doppelkopf",  # tests/test_playout_doppelkopf.py
+            "gops",  # tests/test_playout_gops.py
+            "president",  # tests/test_playout_president.py
+        }
+    )
+)
+
+
+def test_every_hash_seed_axis_entry_names_a_corpus_game() -> None:
+    """The axis resolves: every entry is a game the pin can actually play, and
+    the table that resolves the registry stems holds no key it does not need.
+
+    All three directions, because each failure is silent on its own. An
+    unresolved stem reaches the pin as a name with no corpus file and dies
+    inside a subprocess, where the message is a traceback about a missing path
+    rather than a registry that has outgrown its table; a stale alias survives
+    the game being renamed and quietly maps to nothing. Neither shows up in a
+    green axis.
+    """
+    unknown = sorted(set(_GOLDEN_STEM_TO_GAME) - set(CAPTURE_GOLDENS))
+    assert not unknown, (
+        f"aliases {unknown} name no key of CAPTURE_GOLDENS, so they resolve a "
+        f"stem this module never captures"
+    )
+    needless = sorted(s for s in _GOLDEN_STEM_TO_GAME if (GAMES / f"{s}.cardlang").exists())
+    assert not needless, (
+        f"stems {needless} already name a corpus file, so the alias is a second "
+        f"spelling for a game the derivation reaches on its own"
+    )
+    missing = sorted(g for g in HASHSEED_AXIS if not (GAMES / f"{g}.cardlang").exists())
+    assert not missing, (
+        f"the hash-seed axis names {missing}, which are not corpus games — an "
+        f"axis entry that cannot be played is a parametrization that cannot pin"
+    )
+
+
+# The pin's capture. Deliberately NOT `_CAPTURE`: that program records the
+# driver's return and nothing else, which is at or above the grain of several
+# goldens here — a divergence visible in a per-hand vector but not in the final
+# summary would flake those goldens while a summary-grain pin stayed green.
+#
+# This one records the run rather than its result: every field of `GameResult`
+# (derived from the dataclass, so a field added there enters the record without
+# being listed again), every tracer event, and every per-observer observation
+# event, in emission order. Those three channels are what every golden in the
+# removal's domain is computed from — driver return (all five modules), the
+# `hand_end` trace (the per-hand vectors here), and the observation stream
+# (`playout_trace`'s TichuHands and CoupReveals) — so this record is at or
+# below the grain of each of them.
+#
+# The record is `repr`-based and ORDER-SENSITIVE: two runs whose events carry
+# equal values in a different order still differ here, which is the point. It
+# also means a value type without a stable `__repr__` reddens the pin for a
+# reason that is not hash order; `_HASHSEEDS` compares two subprocesses, so an
+# address-derived repr shows up as a diff rather than hiding.
+#
+# Tichu takes its reference policy, as its own captures do: the uniform chooser
+# does not finish a Tichu match (the unbounded-lines witness — it exceeds the
+# declared `max_length`), so playing it uniformly here would capture a refusal
+# instead of a playout.
+_HASHSEED_CAPTURE = """
+import dataclasses, json, random, sys
+from pathlib import Path
+from cardlang.pipeline import check_dsl
+from cardlang.runtime.driver import GameResult, play_game
+
+name = sys.argv[1]
+game = check_dsl(Path(f"docs/games/{name}.cardlang").read_text(), f"{name}.cardlang")
+fields = [f.name for f in dataclasses.fields(GameResult)]
+out = {}
+for seed in range(int(sys.argv[2])):
+    rng = random.Random(seed)
+    record = []
+
+    def tracer(event, data, _r=record):
+        _r.append(["trace", event, repr(data)])
+
+    def observer(player, event, _r=record):
+        _r.append(["observe", repr(player), repr(event)])
+
+    chooser = None
+    if name == "tichu":
+        from tests.test_playout_tichu import tichu_reference_policy
+        chooser = tichu_reference_policy(rng)
+    result = play_game(game, rng, tracer, chooser, observer=observer)
+    out[str(seed)] = {
+        "result": {f: repr(getattr(result, f)) for f in fields},
+        "record": record,
+    }
+print(json.dumps(out))
+"""
+
+
+def _first_divergence(low: str, high: str, window: int = 240) -> str:
+    """Where two captures first differ, with the surrounding bytes.
+
+    The captures run to megabytes — the record is every event of a whole match
+    — so printing both sides in full buries the one position that matters under
+    the thousands of events that agree. The record is emitted in order, so the
+    first difference is the earliest point the two playouts parted, which is
+    the event a reader wants.
+    """
+    at = next(
+        (i for i, (a, b) in enumerate(zip(low, high)) if a != b),
+        min(len(low), len(high)),
+    )
+    start = max(0, at - window // 2)
+    return (
+        f"first difference at byte {at} of {len(low)}/{len(high)}\n"
+        f"  {_HASHSEEDS[0]}: ...{low[start : at + window]}...\n"
+        f"  {_HASHSEEDS[1]}: ...{high[start : at + window]}..."
+    )
+
 
 def _capture_under_hashseed(name: str, seeds: int, hashseed: str) -> str:
-    """The generic capture's RAW stdout, under an explicit `PYTHONHASHSEED`.
+    """`_HASHSEED_CAPTURE`'s RAW stdout, under an explicit `PYTHONHASHSEED`.
 
     Deliberately not routed through `seeds_for`: the games this pin sweeps need
     not be games this module holds a golden for, and under
     `CARDLANG_GOLDEN_SEEDS=full` `seeds_for` asks `CAPTURE_GOLDENS` for a width
     a game with no entry there cannot supply.
+
+    The one place under `tests/` that may still set `PYTHONHASHSEED`, and
+    `test_only_the_hash_seed_pin_sets_the_hash_seed` is what keeps it the one.
     """
     proc = subprocess.run(
-        [sys.executable, "-c", _CAPTURE, name, str(seeds)],
+        [sys.executable, "-c", _HASHSEED_CAPTURE, name, str(seeds)],
         cwd=REPO,
         env=dict(os.environ, PYTHONHASHSEED=hashseed),
         capture_output=True,
@@ -398,21 +546,23 @@ def _capture_under_hashseed(name: str, seeds: int, hashseed: str) -> str:
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("name", ["president", "bridge"])
+@pytest.mark.parametrize("name", HASHSEED_AXIS)
 def test_a_playout_is_hash_seed_independent(name: str) -> None:
     """One (game, seed) playout captured twice under different hash seeds is
-    byte-identical.
+    byte-identical, over every game whose captures pin no environment.
 
-    This is the property the goldens here — and in every per-game playout
-    module that captures exact scores — reproduce under. A collection iterated
+    This is the property those captures reproduce under. A collection iterated
     in hash order anywhere on the decision path breaks it, and breaks it
-    invisibly: the capture keeps agreeing with itself within one process.
+    invisibly: a capture keeps agreeing with itself within one process.
 
-    Two games because the candidate path forks. A trick game reaches
-    `rules.legal_cards`'s demand cascade; a climbing game reaches the
-    combination engine instead, which `legal_cards` never sees. President is
-    also where the candidate lists are longest, so a set's iteration order has
-    the most room there to differ from the order it was built in.
+    domain: the env pins existed for one purpose — that a committed golden
+    reproduces. So the property they were buying is hash-seed independence AT
+    THE GOLDEN'S OWN GRAIN, and a divergence invisible at that grain was never
+    in their protected domain, because it could not have made a golden flake.
+    `HASHSEED_AXIS` derives the games from the capture registries rather than
+    naming them, and `_HASHSEED_CAPTURE` records the three channels every one
+    of those goldens is computed from — so this comparison is at or below the
+    grain of each, not merely at the grain of the coarsest.
 
     red under: RUN, not predicted. In `runtime/chooser.py::random_chooser`,
     order the pool through a set of string keys before sampling —
@@ -420,34 +570,147 @@ def test_a_playout_is_hash_seed_independent(name: str) -> None:
         _keyed = {f"{i}:{c!r}": c for i, c in enumerate(candidates)}
         return rng.sample([_keyed[k] for k in set(_keyed)], n)
 
-    — and both games diverge on seed 0 alone: different scores, different
-    winner, and for bridge a different number of hands played. The keys are
-    strings deliberately. `PYTHONHASHSEED` salts `str` and little else a
-    candidate carries, and the obvious plant instead — `list(set(candidates))`
+    — and every game on the axis goes red (measured 2026-08-29, 17 of 17). The
+    keys are strings deliberately. `PYTHONHASHSEED` salts `str` and little else
+    a candidate carries, and the obvious plant instead — `list(set(candidates))`
     — turns this pin red run-to-run rather than seed-to-seed, because a move's
     parameter tuple carries `None`, whose hash is address-derived on the oldest
     interpreter this project supports. Both plants make the pin fail; only the
     string-keyed one makes it fail for the reason the pin is named after.
 
-    does not prove: that a game outside this pair is hash-seed independent, nor
-    that a capture is stable across interpreter versions. The domain is two
-    games at one seed, chosen to cross both candidate paths.
+    The record's grain is what carries two of those seventeen. Under the same
+    plant, captured at the driver's return alone — `_CAPTURE`'s grain — Coup
+    and Getaway do NOT move: their playouts part at the first decision and
+    still land on the same scores, winner and hand count (measured 2026-08-29;
+    14 of 17 move at that grain, and Tichu cannot be captured at it at all).
+    So a summary-grain pin over this same axis would report those two games
+    hash-independent while their playouts diverged, which is the reason this
+    capture records the run and not its result.
+
+    does not prove: that a game reaches, at its first seed, every branch a
+    hash-ordered collection could sit on — the seed axis is SAMPLED at one seed
+    per game, and a branch first entered later is unswept here. The continuous
+    instrument for that is every CI run: the suite reproduces all of these
+    goldens, at all of their seeds, under whatever hash seed the run happens to
+    draw, so the seeds this pin does not sweep are swept there at the same
+    grain. Nor does it prove a capture is stable across interpreter versions:
+    both subprocesses run the interpreter running the suite.
     """
     seeds = 1
     captures = {h: _capture_under_hashseed(name, seeds, h) for h in _HASHSEEDS}
     # Two empty captures are byte-identical, so the comparison is worth nothing
-    # until each side is known to hold the seeds it was asked for.
+    # until each side is known to hold the seeds it was asked for AND to have
+    # recorded a run: a game that emitted no event would compare two empty
+    # records and pass at whatever grain it liked.
     for hashseed, raw in captures.items():
-        got = len(json.loads(raw))
-        assert got == seeds, (
+        parsed = json.loads(raw)
+        assert len(parsed) == seeds, (
             f"{name}: the capture under PYTHONHASHSEED={hashseed} produced "
-            f"{got} seeds, asked for {seeds}"
+            f"{len(parsed)} seeds, asked for {seeds}"
+        )
+        empty = sorted(s for s, cap in parsed.items() if not cap["record"])
+        assert not empty, (
+            f"{name}: seeds {empty} captured under PYTHONHASHSEED={hashseed} "
+            f"recorded no trace or observation event, so this comparison would "
+            f"hold whatever the playout did"
         )
     low, high = captures[_HASHSEEDS[0]], captures[_HASHSEEDS[1]]
     assert low == high, (
         f"{name}: the same seed captured differently under PYTHONHASHSEED "
         f"{_HASHSEEDS[0]} and {_HASHSEEDS[1]} — something on the decision path "
-        f"iterates in hash order\n{low}\n{high}"
+        f"iterates in hash order\n{_first_divergence(low, high)}"
+    )
+
+
+# --- and what keeps the retired convention retired ----------------------------
+
+
+# The name a capture used to pin, and the one site still allowed to set it.
+_HASHSEED_VAR = "PYTHONHASHSEED"
+_HASHSEED_PIN_SITE = ("test_migration_characterization.py", "_capture_under_hashseed")
+
+# A file under `tests/` that MENTIONS the variable in prose and lives in a
+# subdirectory. It is the scrape's control on both counts: that the walk
+# recurses past the top level, and that prose is not what it matches.
+_SCRAPE_CONTROL = Path("metamorphic") / "pairing.py"
+
+
+def _sets_hash_seed(node: ast.AST) -> bool:
+    """Whether this node SETS `PYTHONHASHSEED` — as a keyword argument, a dict
+    key, or a subscript.
+
+    Matched on the syntax rather than the text, because the text is where the
+    variable legitimately appears: docstrings and comments name it throughout
+    this repo, and one of them is an assertion message in this very module that
+    spells `PYTHONHASHSEED=`. None of those are any of these node kinds.
+
+    A superset deliberately: a subscript matches a READ of the variable too,
+    and a dict key matches one built for something other than an environment.
+    Over-reporting is the safe direction for a check whose whole job is that
+    nothing slips past it.
+    """
+    if isinstance(node, ast.keyword):
+        return node.arg == _HASHSEED_VAR
+    if isinstance(node, ast.Dict):
+        return any(
+            isinstance(k, ast.Constant) and k.value == _HASHSEED_VAR for k in node.keys
+        )
+    if isinstance(node, ast.Subscript):
+        return isinstance(node.slice, ast.Constant) and node.slice.value == _HASHSEED_VAR
+    return False
+
+
+def _hash_seed_sites() -> tuple[list[tuple[str, str]], list[Path]]:
+    """Every place under `tests/` that sets `PYTHONHASHSEED`, and the files walked.
+
+    Returns the walked files too: a scrape that reports nothing because it read
+    nothing is the failure this pair exists to make visible.
+    """
+    root = Path(__file__).parent
+    walked = sorted(root.rglob("*.py"))
+    sites: list[tuple[str, str]] = []
+
+    def visit(node: ast.AST, where: str, enclosing: str) -> None:
+        here = (
+            node.name
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            else enclosing
+        )
+        if _sets_hash_seed(node):
+            sites.append((where, here))
+        for child in ast.iter_child_nodes(node):
+            visit(child, where, here)
+
+    for path in walked:
+        visit(ast.parse(path.read_text()), path.name, "<module>")
+    return sites, walked
+
+
+def test_only_the_hash_seed_pin_sets_the_hash_seed() -> None:
+    """No capture under `tests/` pins `PYTHONHASHSEED` except the pin's own
+    helper — and that one still does.
+
+    The convention these captures used to follow is retired, not deprecated: a
+    playout does not depend on the hash seed, so a capture that pins one is
+    reproducing under an environment no run outside it has, and a test that
+    needs the pin to pass is reporting a defect rather than avoiding one. That
+    is a rule about code nobody has written yet, which no green suite can
+    enforce — hence this.
+
+    Asserted as an EQUALITY against the one allowed site, never as an absence
+    elsewhere. An absence check goes green when `_capture_under_hashseed` is
+    deleted, which is the state where the property has no witness at all.
+    """
+    sites, walked = _hash_seed_sites()
+    assert (Path(__file__).parent / _SCRAPE_CONTROL) in walked, (
+        f"the walk did not reach {_SCRAPE_CONTROL} — a scrape that reads only "
+        f"the top level of tests/ reports a clean tree it never opened"
+    )
+    assert sorted(set(sites)) == [_HASHSEED_PIN_SITE], (
+        f"the sites setting {_HASHSEED_VAR} under tests/ are {sorted(set(sites))}, "
+        f"expected exactly {[_HASHSEED_PIN_SITE]}. A capture that pins the hash "
+        f"seed reproduces under an environment no other run has; if the pin's own "
+        f"helper is what went missing, the property it holds has no witness left."
     )
 
 

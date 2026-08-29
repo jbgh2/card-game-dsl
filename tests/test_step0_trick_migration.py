@@ -31,6 +31,13 @@ import pytest
 REPO = Path(__file__).parent.parent
 GOLDEN = Path(__file__).parent / "golden"
 
+# The games this module captures. A constant rather than a literal in the
+# parametrize below because the hash-seed pin
+# (test_migration_characterization.py) derives part of its own axis from it:
+# these captures pin no environment, so every game named here is one that pin
+# has to cover, and a game added here has to widen it without being copied there.
+TRICK_GAMES: tuple[str, ...] = ("hearts", "spades", "getaway")
+
 _CAPTURE = """
 import json, random, sys
 from pathlib import Path
@@ -64,7 +71,7 @@ def _capture_results(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["hearts", "spades", "getaway"])
+@pytest.mark.parametrize("name", TRICK_GAMES)
 def test_trick_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_trick_scores.json").read_text())
     assert _capture_results(name) == expected
