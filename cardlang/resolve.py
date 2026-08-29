@@ -76,6 +76,15 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               the unknown-name arm cannot speak for it, and a declaration is
               its only route to Python. ``runtime/primitives.py``'s
               ``call`` fallthrough is the Shadow Guard behind this.
+              And a ``primitives { }`` entry whose ``reads`` clause names a
+              declaration the game states in more than one of the four
+              namespaces such a name can be declared in — the game's own
+              ``state { }``, a phase's, an indexed ``zones { }`` declaration,
+              an unindexed one (``_check_primitive_reads``, over
+              ``primitives_block``'s three collision predicates). Every name
+              reaching ``classify_read`` is therefore single-membership,
+              which is what lets ``runtime/driver``'s materialization call
+              the same classifier with no refusal of its own.
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -126,7 +135,9 @@ from cardlang.primitives_block import (
     classify_read,
     declared_names,
     ambiguous_read_names,
+    declaring_phases,
     phase_local_state_names,
+    phase_state_zone_names,
     shadowed_state_names,
     declarable_type_names,
     engine_fact_names,
@@ -4863,6 +4874,12 @@ def _check_primitive_name(
         )
 
 
+def _phase_list(phases: frozenset[str]) -> str:
+    """The declaring phases, as a diagnostic reads them."""
+    names = "`, `".join(sorted(phases))
+    return f"phase `{names}`" if len(phases) == 1 else f"phases `{names}`"
+
+
 def _check_primitive_reads(
     game: n.Game, decl: n.PrimitiveDecl, bag: DiagnosticBag
 ) -> None:
@@ -4919,8 +4936,18 @@ def _check_primitive_reads(
             decl.span,
         )
         return
+    # The four name-membership sets, computed ONCE for the clause: each is a
+    # walk of the game's declarations, and the question they answer is about the
+    # game, not about the read — asking per read would re-walk the whole game
+    # per name. They are consulted BEFORE `classify_read`, which is
+    # collision-unaware by design: it is also the loader's materialization call
+    # (`runtime/driver.declared_primitives`), where a refusal could never fire.
+    ambiguous = ambiguous_read_names(game)
+    shadowed = shadowed_state_names(game)
+    phase_zone = phase_state_zone_names(game)
+    phase_local = phase_local_state_names(game)
     for read in decl.reads:
-        if read.name in ambiguous_read_names(game):
+        if read.name in ambiguous:
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which this game declares "
                 f"as BOTH a state variable and a zone — the declaration cannot "
@@ -4929,7 +4956,7 @@ def _check_primitive_reads(
                 read.span or decl.span,
             )
             continue
-        if read.name in shadowed_state_names(game):
+        if read.name in shadowed:
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which the game AND a phase "
                 f"both declare — the declaration cannot say which, and at run "
@@ -4938,9 +4965,22 @@ def _check_primitive_reads(
                 read.span or decl.span,
             )
             continue
+        if read.name in phase_zone:
+            bag.error(
+                f"`{decl.name}` reads `{read.name}`, which "
+                f"{_phase_list(declaring_phases(game, read.name))} declares as "
+                f"state while this game declares it as a zone — the declaration "
+                f"cannot say which, and a `reads` name classifies against the "
+                f"zones and the GAME's state, so the phase's variable is not "
+                f"what it denotes; rename one of the two (a phase-local "
+                f"variable is unreadable by a declaration either way — the row "
+                f"is materialized on every call)",
+                read.span or decl.span,
+            )
+            continue
         kind = classify_read(game, read.name)
         if kind is None:
-            if read.name in phase_local_state_names(game):
+            if read.name in phase_local:
                 bag.error(
                     f"`{decl.name}` reads `{read.name}`, which a PHASE declares "
                     f"— a Primitive's row is materialized on every call, so a "

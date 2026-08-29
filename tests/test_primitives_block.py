@@ -26,13 +26,17 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             ABSENT rather than merely unfetched — with every clause a SET whose
             binders key the domain their declaration is indexed by, so no entry
             of a clause can silently replace another and no binder can key an
-            instance the declaration has none of; and a `reads` name is
-            GAME-scoped state, never a phase's own and never a name both
-            levels declare, because the row is materialized on every call and
-            the runtime resolves the innermost frame, and never a name the
-            game declares in two namespaces at once; and (5) a call that
-            resolves to a designer function is not a native call, so no
-            registry keyed by native NAME answers about it.
+            instance the declaration has none of; and a `reads` name denotes
+            exactly ONE declaration — it is GAME-scoped state, never a
+            phase's own, because the row is materialized on every call while
+            the runtime resolves the innermost frame; and it belongs to at
+            most one of the four namespaces a keyed name can be declared in
+            (the game's `state { }`, a phase's, an indexed `zones { }`
+            declaration, an unindexed one), so a name in two of them is
+            refused rather than classified by whichever the classifier
+            consults first; and (5) a call that resolves to a designer
+            function is not a native call, so no registry keyed by native
+            NAME answers about it.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -42,6 +46,25 @@ domain:     the block's own surface — clause placement x {game, library},
             zone, unknown} — crossed with the REGIME axis (declared /
             legacy) wherever a cell's outcome differs between them, and with
             the six Primitive namespaces of `cardlang/builtins/functions.py`.
+            A `reads` name's MEMBERSHIP across the four namespaces a keyed
+            declaration can live in is crossed whole: the powerset of {the
+            game's `state { }`, a phase's, an indexed `zones { }`
+            declaration, an unindexed one}, one commanded cell per vector.
+            Pairwise membership settles the whole product, and the argument
+            is that each collision predicate is a set INTERSECTION — adding a
+            third membership never removes a name from a refusing pair, so a
+            refusal is monotone in the vector and the three- and four-way
+            cells command "at least one arm speaks" rather than a particular
+            one. The within-namespace repeats are the same product's
+            self-pairs and their Owner is `_check_duplicate_names`, cited by
+            a cell per namespace rather than re-covered: shadowing ACROSS
+            levels is settled-legal, so the refusal class is reads-clause
+            level and no wider. A family library reaches the product through
+            provided state alone — it holds no `zones` clause, and every
+            collision between a provided name and a game's own declaration is
+            refused upstream by `_apply_uses` — so the library cells command
+            the splice (a provided name classifies as game state) and cite
+            that Owner for the rest.
             The regime axis is crossed once in full: the Primitive's HOME
             (`DECLARED_ONLY_CALL_FUNCS` against its complement in
             `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
@@ -1367,6 +1390,285 @@ def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> Non
     message = _refused(source)
     assert "hand" in message
     assert "zone" in message and "state" in message
+
+
+# --- axis 7: a reads name's MEMBERSHIP across the four name namespaces ------
+#
+# A `reads` clause merges into ONE flat name namespace what the game's syntax
+# keeps in four: the game's own `state { }`, a phase's `state { }`, an indexed
+# `zones { }` declaration, and an unindexed one. The domain is the membership
+# product over those four, and the grid below is its powerset — one cell per
+# vector, each commanded accept (with the kind the name classifies as) or
+# refuse (with the fragment that says WHICH arm speaks).
+#
+# Pairwise coverage is the whole domain, by monotonicity: each collision
+# predicate is a set INTERSECTION, so membership in a third namespace never
+# removes a name from a refusing pair — a refusal is never un-said by adding a
+# declaration. The three- and four-way vectors are therefore commanded "at
+# least one arm speaks" rather than pinned to a particular one.
+
+_NAME_NAMESPACES = ("game_state", "phase_state", "zone_family", "single_zone")
+_PROBE_NAME = "pot"
+
+
+def _grammar_alternatives(nonterminal: str) -> frozenset[str]:
+    """One `?nonterminal:` production's alternatives, read off the grammar."""
+    import re
+
+    grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
+    body = re.search(rf"\{nonterminal}:(.*?)\n\n", grammar, re.S)
+    assert body is not None, f"{nonterminal} is not a production of the grammar"
+    return frozenset(a.strip().lstrip("| ") for a in body.group(1).split("\n"))
+
+
+def test_the_collision_namespace_axis_is_derived() -> None:
+    """The four namespaces a `reads` name can be declared in, read off the two
+    registries that define them rather than remembered: the state LEVELS from
+    the grammar productions that admit a `state_block`, and the two zone kinds
+    from `ReadKind` itself.
+
+    The same read settles the library cross. A family library holds no `zones`
+    clause, so no library can contribute a zone to the collision domain — the
+    reachable library cell is provided STATE against a game's zone, which
+    `test_library_provided_state_is_in_the_collision_domain` runs. The day
+    `?library_item` admits zones, that cell's sibling becomes constructible and
+    this pin reddens rather than the gap going unnoticed.
+
+    red under: delete `state_block` from `?phase_item`, or add a fifth zone
+    kind to `ReadKind`."""
+    from cardlang.primitives_block import ReadKind
+
+    levels = {
+        level
+        for level, production in (
+            ("game_state", "?game_item"),
+            ("phase_state", "?phase_item"),
+        )
+        if "state_block" in _grammar_alternatives(production)
+    }
+    zone_kinds = {k.name.lower() for k in ReadKind if "ZONE" in k.name}
+    assert levels | zone_kinds == set(_NAME_NAMESPACES), sorted(levels | zone_kinds)
+    assert "zones" not in _grammar_alternatives("?library_item")
+
+
+def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
+    """The attribution walk is a SECOND walk over the same declarations — the
+    engine-wide one (`n.state_blocks`) cannot carry the declaring phase — so
+    the two are pinned equal on a game whose phases NEST, which is the shape a
+    walk that only looks at `game.phases` gets wrong.
+
+    red under: drop the `n.Phase` recursion from
+    `primitives_block._phase_state_declarations`."""
+    from cardlang.primitives_block import _phase_state_declarations
+
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase outer {\n"
+        "    state { shallow : Integer = 0 }\n"
+        "    phase inner {\n"
+        "      state { deep : Integer = 0 }\n"
+        "      score[0] := 1\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    game = _checks(source)
+    engine = {
+        sd.name
+        for block in n.state_blocks(game)
+        for sd in block.decls
+        if block is not game.state
+    }
+    assert {name for _, name in _phase_state_declarations(game)} == engine
+    assert engine == {"shallow", "deep"}, sorted(engine)
+    assert set(_phase_state_declarations(game)) == {("outer", "shallow"), ("inner", "deep")}
+
+
+def _collision_source(namespaces: frozenset[str], repeat: str | None = None) -> str:
+    """A probe game declaring `_PROBE_NAME` in exactly `namespaces`, read by the
+    block's one entry. `repeat` declares it TWICE in one namespace — the
+    within-list duplicate, whose Owner Guard is `_check_duplicate_names`."""
+
+    def times(namespace: str) -> int:
+        return (1 if namespace in namespaces else 0) + (1 if repeat == namespace else 0)
+
+    zones = "".join(
+        f"  {_PROBE_NAME}[player] : Discard" for _ in range(times("zone_family"))
+    ) + "".join(f"  {_PROBE_NAME} : Discard" for _ in range(times("single_zone")))
+    game_state = "".join(
+        f"  {_PROBE_NAME} : Integer = 0" for _ in range(times("game_state"))
+    )
+    phase_state = (
+        "    state { "
+        + "  ".join(f"{_PROBE_NAME} : Integer = 0" for _ in range(times("phase_state")))
+        + " }\n"
+        if times("phase_state")
+        else ""
+    )
+    return (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer"
+        f" reads {_PROBE_NAME} }}\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>" + zones + " }\n"
+        "  state { score[player] : Integer = 0" + game_state + " }\n"
+        "  phase play {\n" + phase_state + "    score[0] := 1\n  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+
+
+# The commanded outcome per membership vector: a `ReadKind` for a vector the
+# clause accepts (the kind the name classifies as), or the message fragments a
+# refusal must carry. The keys are checked against the derived powerset below,
+# so a fifth namespace lands as a missing cell rather than an unnoticed gap.
+_COLLISION_OUTCOMES: dict[frozenset[str], str | tuple[str, ...]] = {
+    frozenset(): ("neither `zones",),
+    frozenset({"game_state"}): "STATE_VAR",
+    frozenset({"phase_state"}): ("a PHASE declares",),
+    frozenset({"zone_family"}): "ZONE_FAMILY",
+    frozenset({"single_zone"}): "SINGLE_ZONE",
+    frozenset({"game_state", "phase_state"}): ("game AND a phase",),
+    frozenset({"game_state", "zone_family"}): ("BOTH a state variable and a zone",),
+    frozenset({"game_state", "single_zone"}): ("BOTH a state variable and a zone",),
+    frozenset({"phase_state", "zone_family"}): ("phase `play`", "zone"),
+    frozenset({"phase_state", "single_zone"}): ("phase `play`", "zone"),
+    frozenset({"zone_family", "single_zone"}): ("duplicate zone",),
+    frozenset({"game_state", "phase_state", "zone_family"}): (_PROBE_NAME,),
+    frozenset({"game_state", "phase_state", "single_zone"}): (_PROBE_NAME,),
+    frozenset({"game_state", "zone_family", "single_zone"}): (_PROBE_NAME,),
+    frozenset({"phase_state", "zone_family", "single_zone"}): (_PROBE_NAME,),
+    frozenset(_NAME_NAMESPACES): (_PROBE_NAME,),
+}
+
+
+def _membership_vectors() -> list[frozenset[str]]:
+    import itertools
+
+    return [
+        frozenset(combo)
+        for size in range(len(_NAME_NAMESPACES) + 1)
+        for combo in itertools.combinations(_NAME_NAMESPACES, size)
+    ]
+
+
+def test_the_membership_product_is_covered_whole() -> None:
+    """Anti-vacuity for the grid below: its commanded outcomes are exactly the
+    powerset of the derived axis, so a namespace added to `_NAME_NAMESPACES`
+    doubles the cells instead of leaving half the product unspoken.
+
+    red under: delete any key from `_COLLISION_OUTCOMES`."""
+    assert set(_COLLISION_OUTCOMES) == set(_membership_vectors())
+
+
+@pytest.mark.parametrize(
+    "vector",
+    _membership_vectors(),
+    ids=lambda v: "-".join(sorted(v)) or "declared-nowhere",
+)
+def test_a_reads_name_declared_in_two_namespaces_is_refused(
+    vector: frozenset[str],
+) -> None:
+    """One cell of the membership product. An accepted vector classifies as the
+    commanded kind; a refused one names the probe and carries the fragment of
+    the arm that owns it."""
+    from cardlang.primitives_block import classify_read
+
+    expected = _COLLISION_OUTCOMES[vector]
+    source = _collision_source(vector)
+    if isinstance(expected, str):
+        game = _checks(source)
+        kind = classify_read(game, _PROBE_NAME)
+        assert kind is not None and kind.name == expected
+        return
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    for fragment in expected:
+        assert fragment in message, message
+
+
+@pytest.mark.parametrize(
+    "namespace,noun",
+    [
+        ("game_state", "duplicate state variable"),
+        ("phase_state", "duplicate state variable"),
+        ("zone_family", "duplicate zone"),
+        ("single_zone", "duplicate zone"),
+    ],
+    ids=_NAME_NAMESPACES,
+)
+def test_a_name_repeated_in_ONE_namespace_is_the_duplicate_guards(
+    namespace: str, noun: str
+) -> None:
+    """The self-pairs of the product, whose Owner is `_check_duplicate_names`:
+    duplication is rejected WITHIN one declaration list, while shadowing ACROSS
+    levels stays legal. Cited rather than re-covered — the collision arms above
+    would over-refuse if they spoke here, and the diagnostic a designer reads
+    for a repeat is the duplicate one."""
+    message = _refused(_collision_source(frozenset({namespace}), repeat=namespace))
+    assert noun in message, message
+    assert _PROBE_NAME in message, message
+
+
+def _with_provider(source: str) -> str:
+    return source.replace("game Probe {\n", "game Probe {\n  uses provider\n", 1)
+
+
+def _provider_library() -> n.Library:
+    from cardlang.parse import parse_library
+
+    return parse_library(
+        f"library provider {{ state {{ {_PROBE_NAME} : Integer = 0 }} }}",
+        "docs/libraries/provider.cardlang",
+    )
+
+
+@pytest.mark.parametrize(
+    "vector,fragment",
+    [
+        (frozenset(), None),
+        (frozenset({"zone_family"}), "already uses"),
+        (frozenset({"phase_state"}), "provided by library"),
+    ],
+    ids=["provided-alone", "provided-vs-zone", "provided-vs-phase-state"],
+)
+def test_library_provided_state_reaches_the_reads_clause(
+    vector: frozenset[str], fragment: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The library path's boundary in this domain, stated positively.
+
+    A library's provided state splices into the game's own `state { }` BEFORE
+    the block is checked, so a `reads` name may denote it and classifies as
+    game-level state — the first cell. Every collision between a provided name
+    and one the game declares is refused UPSTREAM, by `_apply_uses`'s own
+    collision Owner Guards, which is why the arms above meet only provided
+    names the game does not redeclare.
+
+    A library-contributed ZONE is not constructible at all: a family library
+    holds no `zones` clause, which
+    `test_the_collision_namespace_axis_is_derived` reads off the grammar."""
+    from cardlang.primitives_block import ReadKind, classify_read
+    from tests.test_family_libraries import _patch_libraries
+
+    _patch_libraries(monkeypatch, {"provider": _provider_library()})
+    source = _with_provider(_collision_source(vector))
+    if fragment is None:
+        game = _checks(source)
+        assert classify_read(game, _PROBE_NAME) is ReadKind.STATE_VAR
+        return
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    assert fragment in message, message
 
 
 # --- axis 16/17: a call that resolves to a DESIGNER function is not native --

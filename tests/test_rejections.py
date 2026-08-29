@@ -94,8 +94,9 @@ covered:    one case per named guard class (the directory glob is the
             entry spelled with an arrow return, a `reads` clause naming one
             declaration twice, an entry naming a round-slot Primitive, an
             entry whose signature disagrees with the implementation's, a
-            `reads` name the game declares nowhere, and a call to a
-            declared-only Primitive from a game that writes no block.
+            `reads` name the game declares nowhere, a `reads` name a phase
+            declares as state while the game declares it as a zone, and a call
+            to a declared-only Primitive from a game that writes no block.
 sampled:    the guard-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language

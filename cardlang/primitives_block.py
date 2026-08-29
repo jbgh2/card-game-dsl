@@ -29,14 +29,23 @@ Assumes:      a parsed `Game` — `regime` and `declared_names` read the parse
               stamp alone and hold before resolve has validated anything.
 Establishes:  ONE classification of a game's Primitive regime, and ONE
               statement of which Python each registered Primitive name is
-              implemented by.
+              implemented by. Also the ONE classification of a `reads` name
+              (`classify_read`) and the collision predicates over the four
+              namespaces such a name can be declared in — the game's own
+              `state { }`, a phase's, an indexed `zones { }` declaration and
+              an unindexed one — with the phase attribution the diagnostics
+              need (`declaring_phases`).
 Now illegal:  a consumer deciding the regime by testing `game.primitives`
-              itself, and any front-end module importing a game's runtime
-              module to learn what it implements.
+              itself; any front-end module importing a game's runtime module
+              to learn what it implements; and any consumer testing a name's
+              membership against the state or zone walks itself rather than
+              asking the predicates here.
 Verified by:  tests/test_primitives_block.py (the index reconciled against
               `PRIMITIVE_CALL_FUNCS` and against the live attributes; the
               declarable-type partition; the wall's totality over the six
-              namespaces).
+              namespaces; the reads name's membership product over the four
+              namespaces, with the phase-carrying walk pinned against the
+              engine's own).
 """
 
 from __future__ import annotations
@@ -346,14 +355,41 @@ def _game_level_state_names(game: n.Game) -> frozenset[str]:
     return frozenset(d.name for d in game.state.decls) if game.state else frozenset()
 
 
+def _phase_state_declarations(game: n.Game) -> tuple[tuple[str, str], ...]:
+    """(declaring phase's name, state name) for every name a PHASE's own
+    `state { }` declares — nested phases included.
+
+    The walk carries the phase because a diagnostic about a phase-declared name
+    is unusable without it: the addressee is a designer who has to FIND the
+    declaration. `_phase_state_names` derives from this rather than walking
+    again, so the set and the attribution can never disagree; that they agree
+    with the engine-wide walk (`n.state_blocks`) is
+    tests/test_primitives_block.py's."""
+    found: list[tuple[str, str]] = []
+
+    def rec(phase: n.Phase) -> None:
+        for item in phase.items:
+            if isinstance(item, n.StateBlock):
+                found.extend((phase.name, sd.name) for sd in item.decls)
+            elif isinstance(item, n.Phase):
+                rec(item)
+
+    for phase in game.phases:
+        rec(phase)
+    return tuple(found)
+
+
 def _phase_state_names(game: n.Game) -> frozenset[str]:
-    """Every name a PHASE's own `state { }` declares, from the same walk the
-    rest of the engine uses."""
+    """Every name a PHASE's own `state { }` declares."""
+    return frozenset(name for _, name in _phase_state_declarations(game))
+
+
+def declaring_phases(game: n.Game, name: str) -> frozenset[str]:
+    """The phases whose own `state { }` declares `name` — what a diagnostic
+    about a phase-declared name says instead of leaving the designer to search
+    for it."""
     return frozenset(
-        sd.name
-        for block in n.state_blocks(game)
-        for sd in block.decls
-        if game.state is None or block is not game.state
+        phase for phase, declared in _phase_state_declarations(game) if declared == name
     )
 
 
@@ -392,6 +428,25 @@ def shadowed_state_names(game: n.Game) -> frozenset[str]:
     state name the engine can see, which is what lets each arm's diagnostic
     name the right fix."""
     return _phase_state_names(game) & _game_level_state_names(game)
+
+
+def phase_state_zone_names(game: n.Game) -> frozenset[str]:
+    """Names a PHASE declares as state while the game declares them as a zone —
+    the third collision, and the one nothing about the classification reveals.
+
+    `classify_read` consults the game's zones and its GAME-level state and
+    never a phase's, so a colliding name classifies as the zone with no sign
+    that the declaration also names something else. The zone is then what the
+    primitive receives whenever it is called, including from inside the phase
+    whose variable the designer meant.
+
+    Disjoint from both siblings by construction: it intersects with
+    `phase_local_state_names`, which subtracts the game-level set, so a name
+    here is in neither `ambiguous_read_names` nor `shadowed_state_names` — the
+    three arms partition the collisions a `reads` name can carry, and each
+    names its own fix."""
+    zones = frozenset(z.name for z in game.zones)
+    return phase_local_state_names(game) & zones
 
 
 def engine_fact_names() -> frozenset[str]:

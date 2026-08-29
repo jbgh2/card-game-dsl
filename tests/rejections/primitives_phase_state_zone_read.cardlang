@@ -1,0 +1,22 @@
+// Guard: resolve.py's `_check_primitive_reads`, over
+// `primitives_block.phase_state_zone_names`. A `reads` name is classified
+// against the game's zones and its GAME-level state, so `pot` — a zone here
+// and a phase's own state variable there — classifies as the zone while the
+// declaration reads as if it names the variable. The two are different
+// values; the declaration cannot say which it means.
+game PrimitivesPhaseStateZoneRead {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads pot
+  }
+  zones { deck : Deck  hand[player] : Hand<player>  pot : Discard }
+  state { score[player] : Integer = 0 }
+  phase play {
+    state { pot : Integer = 0 }
+    score[0] := pinochle_meld_value(0)
+  }
+  winner: highest score
+}
