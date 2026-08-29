@@ -128,6 +128,15 @@ observer's own cards, and a raise has no such check.
 Transcripts of every game are committed, gzipped. The analysis code reads them
 with the standard library only.
 
+**Which Cheat these transcripts play.** They were recorded against the tag
+`masf202608`, where a Cheat play is one to four cards. The corpus game has
+since been corrected to Pagat's basic rule — one or more, up to the whole hand
+— so `docs/games/cheat.md` at HEAD describes a game these transcripts do not
+play. Every rate below still recomputes from the transcripts at HEAD, because
+the numbers live in the transcripts; what needs the tag is anything that
+REPLAYS them through the engine, since their recorded action ids name moves the
+corrected game no longer has (`verify --deep`, and `git checkout masf202608`).
+
 ```bash
 git clone <repo> && cd card-game-dsl
 

@@ -1,6 +1,7 @@
 AUDIT TRAIL — every reported number, with the raw counts behind it.
 
-Produced by the --deep audit at the tree this archive was published from.
+Produced by the --deep audit at tag masf202608, the tree this archive was
+published from.
 Deep replay needs action ids that still name moves the game has, and Cheat's
 no longer do (this archive predates the removal of the four-card play cap), so
 reproducing the DEEP form means checking out that tag. The shallow audit still
