@@ -163,6 +163,19 @@ def _register(short_name: str, filename: str) -> None:
             if chance_free
             else pyspiel.GameType.ChanceMode.EXPLICIT_STOCHASTIC
         ),
+        # Asserted, not derived, and the obvious derivation is a wall rather
+        # than an oversight (issue #441). "Perfect iff every declared zone
+        # type projects identity to all" (`stdlib.zones.identity_to_all`)
+        # answers IMPERFECT for every game in `GAMES`, a constant wearing a
+        # function; IMPERFECT_INFORMATION is meanwhile the conservative
+        # over-approximation and stays sound for every consumer. What makes a
+        # board game here perfect-information is that its count-projected box
+        # is EMPTY at every decision node, and no zone type states that:
+        # `trivial` is the most hidden projection rather than an inert one
+        # (`observe.view_of` renders it None), which is why Hold'em's muck
+        # carries it. Hence the asymmetry with `chance_mode` above — that
+        # field has a cheap sound static answer (`runtime.chance.chance_sites`)
+        # and this one has none.
         information=pyspiel.GameType.Information.IMPERFECT_INFORMATION,
         utility=pyspiel.GameType.Utility.GENERAL_SUM,
         reward_model=pyspiel.GameType.RewardModel.TERMINAL,
