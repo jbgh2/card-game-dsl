@@ -80,8 +80,10 @@ co-location stage's declaration slots (#142 stage 4).
    materialization call, where a refusal could never fire). The grid covers
    the pairwise name-membership product over {game-level state, phase-local
    state, zone family, single zone}, with the monotonicity argument written
-   into the ledger (each predicate is an intersection, so a third membership
-   never un-refuses — pairwise covers every multi-membership vector), one
+   into the ledger (every game-state-carrying vector is owned by the two
+   existing arms, and the phase x zone arm's game-level subtraction can only
+   hand a name to them, never to acceptance — so pairwise ownership covers
+   every multi-membership vector), one
    three-way probe, the phase axis crossed with BOTH zone kinds, self-pair
    cells citing `_check_duplicate_names` as their Owner, and the library
    path's boundary. That boundary is narrower than the counsel's

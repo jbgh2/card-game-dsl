@@ -51,8 +51,12 @@ domain:     the block's own surface — clause placement x {game, library},
             game's `state { }`, a phase's, an indexed `zones { }`
             declaration, an unindexed one}, one commanded cell per vector.
             Pairwise membership settles the whole product, and the argument
-            is that each collision predicate is a set INTERSECTION — adding a
-            third membership never removes a name from a refusing pair, so a
+            is OWNERSHIP, not bare intersection: every vector carrying
+            game-state membership is refused by `ambiguous_read_names` or
+            `shadowed_state_names` (raw intersections a third membership
+            never shrinks), and the one game-state-free pair is refused by
+            `phase_state_zone_names`, whose game-level subtraction can only
+            hand a name TO those two arms, never to acceptance — so a
             refusal is monotone in the vector and the three- and four-way
             cells command "at least one arm speaks" rather than a particular
             one. The within-namespace repeats are the same product's
@@ -1421,11 +1425,14 @@ def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> Non
 # vector, each commanded accept (with the kind the name classifies as) or
 # refuse (with the fragment that says WHICH arm speaks).
 #
-# Pairwise coverage is the whole domain, by monotonicity: each collision
-# predicate is a set INTERSECTION, so membership in a third namespace never
-# removes a name from a refusing pair — a refusal is never un-said by adding a
-# declaration. The three- and four-way vectors are therefore commanded "at
-# least one arm speaks" rather than pinned to a particular one.
+# Pairwise coverage is the whole domain, by ownership: every game-state-
+# carrying vector is refused by `ambiguous_read_names` or
+# `shadowed_state_names` — raw intersections a third membership never
+# shrinks — and the one game-state-free pair by `phase_state_zone_names`,
+# whose game-level subtraction can only hand a name TO those two arms, never
+# to acceptance. A refusal is never un-said by adding a declaration; the
+# three- and four-way vectors are therefore commanded "at least one arm
+# speaks" rather than pinned to a particular one.
 
 _NAME_NAMESPACES = ("game_state", "phase_state", "zone_family", "single_zone")
 _PROBE_NAME = "pot"
@@ -1727,9 +1734,11 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
 
     Sites keying a set of the GAME's own names (`fn_names`,
     `defined_functions`) are outside the class by construction — they answer
-    about designer functions rather than about them. `DECLARED_ONLY_CALL_FUNCS`
-    is outside it by ORDER: `_check_native_flavor`'s designer-function arm
-    precedes every arm below it in the same `match`.
+    about designer functions rather than about them. Sites exempt by ORDER —
+    a designer-function arm preceding them in their own function — are
+    `DECLARED_ONLY_CALL_FUNCS` in `_check_native_flavor`, and the derivation
+    query's two other hits, the `CALL_FUNCS` and `native_namespace` guards in
+    resolve, each behind its function's own designer arm.
 
     What is DERIVED is which of the census members can collide at all: each
     crossed with the legacy Primitive set, since a Builtin's name is refused to

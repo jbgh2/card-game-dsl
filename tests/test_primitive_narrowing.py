@@ -1038,7 +1038,12 @@ def test_every_bundle_half_refuses_an_absent_name_typed() -> None:
     error and says so.
 
     Quantified over `GameReads`' own fields rather than the two halves a
-    corpus primitive happens to read, so a fifth half arrives covered."""
+    corpus primitive happens to read, so a fifth half arrives covered.
+
+    does not prove: the INSTANCE grain — an absent instance key inside a
+    present half (`families[name][seat]`, a narrowed half's seat, an indexed
+    state variable's inner dict) is still a bare `KeyError`, because the
+    typed miss guards the half's outer mapping only (issue #501)."""
     bundle = reads_mod.game_reads(_bundle_state(), _bundle_row())
     halves = [f.name for f in _dc_fields(bundle)]
     assert halves, "GameReads carries no half — the cells below would be vacuous"

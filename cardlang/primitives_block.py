@@ -443,7 +443,8 @@ def phase_state_zone_names(game: n.Game) -> frozenset[str]:
     Disjoint from both siblings by construction: it intersects with
     `phase_local_state_names`, which subtracts the game-level set, so a name
     here is in neither `ambiguous_read_names` nor `shadowed_state_names` — the
-    three arms partition the collisions a `reads` name can carry, and each
+    three arms partition the CROSS-namespace collisions a `reads` name can
+    carry (the within-zones pair is `_check_duplicate_names`' own), and each
     names its own fix."""
     zones = frozenset(z.name for z in game.zones)
     return phase_local_state_names(game) & zones
