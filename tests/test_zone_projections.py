@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import pytest
 
+from cardlang.openspiel.registry import GAMES, _GAMES_DIR
+from cardlang.openspiel.replay import load
 from cardlang.stdlib.zones import (
     LIBRARY_ZONE_TYPES,
     ZONE_PROJECTIONS,
@@ -39,7 +41,12 @@ def test_unknown_type_fails_loudly() -> None:
         zone_projection("NoSuchZoneType", is_owner=False)
 
 
-def test_no_corpus_game_is_perfect_information_by_zone_type_alone() -> None:
+@pytest.mark.parametrize(
+    "short_name,filename", sorted(GAMES.items()), ids=sorted(GAMES)
+)
+def test_no_corpus_game_is_perfect_information_by_zone_type_alone(
+    short_name: str, filename: str
+) -> None:
     """The wall behind the adapter's asserted `information` field
     (`cardlang/openspiel/game.py::_register`), and what can contradict it.
 
@@ -50,27 +57,23 @@ def test_no_corpus_game_is_perfect_information_by_zone_type_alone() -> None:
     `_register` states that wall; this is the check that can redden it, on the
     day a corpus game's declared zone types alone make it perfect-information.
 
-    A green does not say the corpus holds no perfect-information game — it
-    holds two, and `tests/openspiel_ready/` proves them. It says only that
-    what makes them so is unreachable from zone types, being a fact about the
-    run: their one count-projected zone empties at setup and is populated at
-    no decision node.
-    """
-    from cardlang.openspiel.registry import GAMES, _GAMES_DIR
-    from cardlang.openspiel.replay import load
+    Born green, and reddened by giving `Deck` an identity-to-all projection in
+    `ZONE_PROJECTIONS`: the games whose only below-identity type is `Deck`
+    declare no other, so their rows fail and name the `_register` site.
 
-    for short_name, filename in GAMES.items():
-        game, _ = load(str(_GAMES_DIR / filename))
-        below = sorted(
-            {
-                z.type_ref.name
-                for z in game.zones
-                if not identity_to_all(z.type_ref.name)
-            }
-        )
-        assert below, (
-            f"{short_name} declares only identity-to-all zone types, so the "
-            f"zone-type derivation of GameType.information is no longer "
-            f"vacuous — revisit the wall stated at "
-            f"cardlang/openspiel/game.py::_register"
-        )
+    A green does not say the corpus holds no perfect-information game -- the
+    proof modules under `tests/openspiel_ready/` assert the singleton
+    partition for several. It says only that what makes them so is
+    unreachable from zone types, being a fact about the run: their one
+    count-projected zone empties before play and is populated at no decision
+    node.
+    """
+    game, _ = load(str(_GAMES_DIR / filename))
+    below = sorted(
+        {z.type_ref.name for z in game.zones if not identity_to_all(z.type_ref.name)}
+    )
+    assert below, (
+        f"{short_name} declares only identity-to-all zone types, so the "
+        f"zone-type derivation of GameType.information is no longer vacuous "
+        f"-- revisit the wall stated at cardlang/openspiel/game.py::_register"
+    )
