@@ -318,9 +318,17 @@ def classify_read(game: n.Game, name: str) -> ReadKind | None:
     The ONE classifier. resolve refuses the None, and the driver dispatches on
     the answer to build the primitive's row — neither re-derives the other's,
     which is what keeps the row a primitive receives and the entry a designer
-    wrote from being two readings of the same text."""
-    for block in n.state_blocks(game):
-        for sd in block.decls:
+    wrote from being two readings of the same text.
+
+    GAME-level state only, never a phase's own block: the row is materialized
+    on EVERY call, so a phase-local variable is readable only while that
+    phase's frame stands, and a Primitive called from anywhere else would meet
+    a runtime refusal on a name its declaration said it had. The declaration is
+    a game clause, so what it may read is game-scoped —
+    `phase_local_state_names` is what turns that into a diagnostic naming the
+    phase rather than an unhelpful "declares no such name"."""
+    if game.state is not None:
+        for sd in game.state.decls:
             if sd.name == name:
                 return (
                     ReadKind.INDEXED_STATE_VAR
@@ -331,6 +339,19 @@ def classify_read(game: n.Game, name: str) -> ReadKind | None:
         if z.name == name:
             return ReadKind.ZONE_FAMILY if z.index is not None else ReadKind.SINGLE_ZONE
     return None
+
+
+def phase_local_state_names(game: n.Game) -> frozenset[str]:
+    """State variables a PHASE declares, which a `reads` clause may not name.
+
+    The complement `classify_read` excludes, derived from the same walk the
+    rest of the engine uses (`nodes.state_blocks`) minus the game-level block —
+    so a name is in exactly one of the two sets and the diagnostic can say
+    which."""
+    game_level = frozenset(d.name for d in game.state.decls) if game.state else frozenset()
+    return frozenset(
+        sd.name for block in n.state_blocks(game) for sd in block.decls
+    ) - game_level
 
 
 def engine_fact_names() -> frozenset[str]:

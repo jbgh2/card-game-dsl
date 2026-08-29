@@ -90,17 +90,13 @@ def test_choke_point_holds_exactly_one_coercible() -> None:
 
 
 def test_exemptions_are_only_the_documented_ones() -> None:
-    """The whitelist is exactly three reasons: the symmetric equality check (two
-    operands, no single `expected` -- two calls), the `again` Boolean check (a
-    state-var NAME resolved to a type, not an operand expression -- one call),
-    and the `primitives { }` index-binder check (a parameter's declared
-    annotation against an index domain's member type -- two DECLARED types, so
-    there is no operand expression to range-check -- one call).
-    Pinning the count means a FOURTH exemption cannot be slipped in without a
-    test noticing and a reviewer having to bless it."""
+    """The whitelist is exactly two reasons: the symmetric equality check (two
+    operands, no single `expected` -- two calls) and the `again` Boolean check (a
+    state-var NAME resolved to a type, not an operand expression -- one call).
+    Pinning the count means a THIRD exemption cannot be slipped in without a test
+    noticing and a reviewer having to bless it."""
     marked = [c for c in _coercible_calls() if _marked(c)]
-    assert len(marked) == 4, (
-        f"expected 4 marked-exempt coercible() calls (equality x2, again x1, "
-        f"primitive index binder x1), "
+    assert len(marked) == 3, (
+        f"expected 3 marked-exempt coercible() calls (equality x2, again x1), "
         f"found {len(marked)} at line(s) {sorted(c.lineno for c in marked)}"
     )

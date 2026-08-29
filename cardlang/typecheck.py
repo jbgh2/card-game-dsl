@@ -987,12 +987,16 @@ def declared_primitive_sigs(game: Game) -> dict[str, Sig]:
     }
 
 
-def _index_domain_type(game: Game, index: str, env: TypeEnv) -> Type | None:
-    """The member type of the domain a keyed declaration is indexed by.
+def _index_domain_spelling(index: str, env: TypeEnv) -> str | None:
+    """The type name a binder over `index` must be DECLARED with.
 
-    One conversion for both keyed declaration kinds — a zone family's `index`
-    and an indexed state variable's are the same slot, drawn from the same
-    registry (a role, or one of the game's position domains).
+    Identity, not erasure. `coercible` is a coercion relation — an Integer may
+    stand where a Player is wanted, which is right for an operand and wrong for
+    a key — and two position domains both type as `TInteger`, so a comparison
+    of TYPES admits a binder whose domain has a different member range. The
+    declaration names a domain, so the comparison is with that domain's own
+    spelling: a position domain is spelled by its name, a role by the declared
+    type its members carry.
 
     `role_of`, not `require_role`: the two readings of one lookup exist so a
     caller can say whether a miss is an author's error or a compiler bug, and
@@ -1002,9 +1006,9 @@ def _index_domain_type(game: Game, index: str, env: TypeEnv) -> Type | None:
     channel's `AssertionError` here, and catching THAT would swallow the
     registry divergence it exists to announce."""
     if index in env.positions:
-        return env.positions[index]
+        return index
     role = role_of(index)
-    return role_type(role) if role is not None else None
+    return _type_name(role_type(role)) if role is not None else None
 
 
 def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -1050,20 +1054,16 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
             index = keyed.get(read.name)
             if index is None:
                 continue  # resolve owns the not-indexed diagnostic
-            expected = _index_domain_type(game, index, env)
-            actual = _param_type(params[read.binder], env)
+            expected = _index_domain_spelling(index, env)
             if expected is None:
                 continue  # resolve owns the unclassified-index diagnostic
-            # Both sides are DECLARED types — a parameter's annotation against
-            # an index domain's member type — so there is no operand
-            # expression to range-check, and `_check_operand` wants the node an
-            # integer literal was written at.
-            if not coercible(actual, expected):  # choke-point-exempt: two declared types, no operand expression
+            written = params[read.binder].type_name.removesuffix("?")
+            if written != expected:
                 bag.error(
                     f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
-                    f"is declared {_type_name(actual)} — `{read.name}` is indexed "
-                    f"by the {index} index domain, so its binder carries "
-                    f"{_type_name(expected)}",
+                    f"is declared `{written}` — `{read.name}` is indexed by the "
+                    f"`{index}` index domain, so its binder is declared "
+                    f"`{expected}`",
                     read.span or decl.span,
                 )
 

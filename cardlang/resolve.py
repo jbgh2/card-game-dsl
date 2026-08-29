@@ -117,6 +117,7 @@ from cardlang.primitives_block import (
     call_namespace,
     classify_read,
     declared_names,
+    phase_local_state_names,
     declarable_type_names,
     engine_fact_names,
     regime,
@@ -918,6 +919,13 @@ def _check_library_collisions(
                     rule.span,
                 )
         for fn in library.functions:
+            # The WHOLE registry, unlike the namespace `_library_slot_names`
+            # gives a library's CALLS: naming and calling are different
+            # questions. A library body may not CALL a game-local Primitive,
+            # but a library function that TAKES one's name shadows it in every
+            # legacy game that imports the library — and a library cannot know
+            # which games those are, so the widest namespace is the only sound
+            # one here, and it reports to the library's own author.
             if fn.name in CALL_FUNCS:
                 bag.error(
                     f"library '{library.name}' defines function '{fn.name}', "
@@ -4862,6 +4870,21 @@ def _check_primitive_reads(
     # wrong answer with no failure anywhere. Refused as a multiset before any
     # per-entry check, so the diagnostic names the repeat rather than whichever
     # of the two copies happens to be malformed.
+    # The parameter list is a SET for the same reason, one slot over: the type
+    # pass reads it as a map (last wins) while the driver resolves a binder by
+    # its INDEX (first wins), so a repeat makes the two halves of one
+    # declaration disagree about which parameter a binder names.
+    seen_params: set[str] = set()
+    for param in decl.params:
+        if param.name in seen_params:
+            bag.error(
+                f"`{decl.name}` declares the parameter `{param.name}` more than "
+                f"once — each parameter is named once, and the repeat would "
+                f"silently replace the first; rename one",
+                param.span or decl.span,
+            )
+            return
+        seen_params.add(param.name)
     seen: set[str] = set()
     for read in decl.reads:
         if read.name in seen:
@@ -4889,6 +4912,16 @@ def _check_primitive_reads(
     for read in decl.reads:
         kind = classify_read(game, read.name)
         if kind is None:
+            if read.name in phase_local_state_names(game):
+                bag.error(
+                    f"`{decl.name}` reads `{read.name}`, which a PHASE declares "
+                    f"— a Primitive's row is materialized on every call, so a "
+                    f"phase-local variable is readable only while that phase "
+                    f"runs; declare it in the game's `state {{ }}` block, or "
+                    f"pass the value as an argument",
+                    read.span or decl.span,
+                )
+                continue
             hint = (
                 f" — `{read.name}` is an engine fact a Primitive receives "
                 f"whole today; the `reads` clause names this game's own zones "
@@ -5771,8 +5804,13 @@ def _check_functions(game: n.Game, bag: DiagnosticBag) -> None:
         f.name: {c.func for c in _walk(f.body) if isinstance(c, n.Call) and c.func in fn_names}
         for f in game.functions
     }
+    native = call_namespace(game)
     for fn in game.functions:
-        if fn.name in CALL_FUNCS:
+        # The GAME's namespace, not the corpus-wide registry: a Primitive this
+        # game cannot call shadows nothing here, and refusing the name anyway
+        # would make the declared regime narrower than the legacy one it
+        # replaces — the opposite of the isolation it promises.
+        if fn.name in native:
             # A reader is MINTED from a row, so the designer who wrote one very
             # likely meant to write the row instead of a function beside it:
             # the hint names that fix, without changing the class this guard

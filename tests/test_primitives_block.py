@@ -846,6 +846,138 @@ def test_a_repeated_reads_name_is_refused(clause: str) -> None:
     assert "once" in message or "repeat" in message
 
 
+# --- axis 6/7: the entry's own name lists, as multisets ---------------------
+
+
+def test_a_duplicate_parameter_name_is_refused() -> None:
+    """The parameter list is a SET too — the sibling of the reads-multiset rule
+    one slot over, and the same failure: the type check reads the list as a map
+    (last wins) while the driver's binder resolves a binder by `index` (first
+    wins), so the two halves of one declaration disagree about which parameter
+    a binder names."""
+    entry = "gin_lay_ok_a(x : Card, x : Player) : Boolean reads meldA[x]"
+    source = _game(
+        block=entry,
+        body="    score[0] := if gin_lay_ok_a(A of spades, 0) then 1 else 0",
+    ).replace(
+        "          discard : Discard }",
+        "          meldA[player] : PlayerPile<player>\n          discard : Discard }",
+    )
+    message = _refused(source)
+    assert "x" in message
+    assert "once" in message or "repeat" in message
+
+
+# --- axis 13/17: the namespace a SHADOW check asks -------------------------
+
+
+def test_a_declared_game_may_define_a_function_named_after_a_walled_primitive() -> None:
+    """The regime's isolation runs both ways. A Primitive absent from this
+    game's namespace cannot be called here, so a user function of that name
+    shadows nothing — refusing it would make the declared regime narrower than
+    the legacy one it replaces, which is the opposite of what it promises."""
+    source = "function tichu_dragon_won() = true\n" + _game(
+        block="", body="    score[0] := if tichu_dragon_won() then 1 else 0"
+    )
+    game = _checks(source)
+    result = play_game(game, random.Random(0))
+    assert result.scores == {0: 1, 1: 0}
+
+
+def test_a_legacy_game_still_may_not_shadow_a_primitive() -> None:
+    """The control: without a block the whole registry IS the namespace, so the
+    shadow guard must still fire — a namespace-scoped check that stopped firing
+    for legacy games would trade one silent dispatch for another."""
+    source = "function tichu_dragon_won() = true\n" + _game(
+        block=None, body="    score[0] := 1"
+    )
+    assert "shadows" in _refused(source)
+
+
+# --- axis 7: a reads name must be GAME-scoped state -------------------------
+
+
+def test_a_phase_local_state_read_is_refused() -> None:
+    """A `reads` name is materialized on EVERY call, so a phase-local variable
+    is readable only while that phase's frame stands — and a Primitive called
+    from anywhere else meets a `PrimitiveReadError` on a name its declaration
+    said it had. The declaration is game-level, so its reads are too."""
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer"
+        " reads hand[p], trump_suit }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase setup {\n"
+        "    state { trump_suit : Suit? = none }\n"
+        "    trump_suit := spades\n"
+        "  }\n"
+        "  phase play { score[0] := pinochle_meld_value(0) }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    message = _refused(source)
+    assert "trump_suit" in message
+    assert "phase" in message
+
+
+# --- axis 9: the binder's domain IDENTITY, not its erased type --------------
+
+
+@pytest.mark.parametrize(
+    "entry,zones,ok",
+    [
+        ("tarot_per_opp(x : Integer) : Integer reads hand[x]", "", False),
+        ("gin_deadwood(x : Player) : Integer reads hand[x]", "", True),
+    ],
+    ids=["integer-erases-to-player", "player-keys-player"],
+)
+def test_a_binder_is_compared_by_domain_identity(
+    entry: str, zones: str, ok: bool
+) -> None:
+    """`coercible` is a COERCION relation — an Integer may stand where a Player
+    is wanted, which is right for an operand and wrong for a key. Two position
+    domains both erase to Integer as well, so an erased comparison admits a
+    binder whose domain has a different member range. The declaration names a
+    domain; the comparison is with that domain."""
+    source = _game(block=entry, body="    score[0] := 1")
+    if ok:
+        try:
+            _checks(source)
+        except DiagnosticError as exc:
+            assert "index domain" not in str(exc)
+    else:
+        assert "index domain" in _refused(source)
+
+
+def test_two_position_domains_do_not_erase_together() -> None:
+    """The second half of the identity claim, which no player/team cell can
+    reach: both domains type as `TInteger`, so only an identity comparison
+    tells them apart."""
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  positions { col : 1..3  slot : 1..9 }\n"
+        "  primitives { tarot_per_opp(x : slot) : Integer reads pile[x] }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>"
+        "  pile[col] : Discard }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase play { score[0] := tarot_per_opp(1) }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    message = _refused(source)
+    assert "index domain" in message
+    assert "col" in message
+
+
 # --- axis 12: the namespace walls -------------------------------------------
 
 
