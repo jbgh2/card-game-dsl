@@ -225,6 +225,34 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           that keeps the guard from passing by making provided state unwritable
           because unreachable. `test_game_text_may_read_library_provided_state`
           is the other control: read-only has to permit the read.
+          The shadow grid — introducer sub-position x claim, every cell executed
+          by `test_a_game_introduced_name_may_not_shadow_provided_state`. The
+          `provided` column is commanded REJECT, except two rows that say why
+          they are not: a DECLARED position domain is refused a door earlier by
+          the injection guard and is commanded against that guard's sentence
+          instead, and a Primitive parameter is a designed non-error commanded
+          ACCEPT, because no DSL text sits inside its scope. Every commanded
+          rejection ran red under `xfail(strict=True,
+          raises=pytest.fail.Exception)` before the guard existed —
+          constrained, so a broken fixture could not have counted as the
+          designed red — and the transition is in this branch's history. The two
+          accepting columns are different controls: `requires` holds the
+          spelling fixed and moves only which library clause claims it, so a
+          guard refusing every collision with a library NAME rather than a
+          library-OWNED one fails there; `neither` proves each row's game text
+          valid on its own. Around the grid, four claims it leans on, each
+          executed rather than asserted, since "closed elsewhere" is the claim
+          that rots: `test_a_library_may_bind_its_own_provided_name` bounds the
+          guard from the other side (a library's own binders are spliced into
+          the same Game the sweep walks, so a guard one line later would refuse
+          a file the game's author cannot edit — its reddening edit was RUN);
+          `test_a_declaration_level_collision_is_reported_by_another_guard`
+          holds every bucket the guard skips to a diagnostic;
+          `test_a_phase_local_declaration_of_a_provided_name_is_refused` and
+          `test_no_provided_name_can_be_a_pronoun` hold the two name
+          introductions that are not binders; and
+          `test_a_piece_game_reveal_is_refused_before_it_binds` holds the one
+          spelling a registry admits and no game text reaches.
           The claim grid — 6 one-library cells
           (`test_one_library_claiming_a_state_name`) and 6 two-library cells
           (`test_two_libraries_claiming_one_state_name`), each asserting the
@@ -273,6 +301,13 @@ residual: one on provided state, deliberate and named here so its absence from
           dependent games from the corpus — the hand-written version of that
           list named four games of which three were wrong, and named Stud, which
           the same change that wrote it had just made wrong.
+
+          none of the shadow grid. Its one boundary is the other side of the same
+          collision: a library may PROVIDE state spelled like a binder the
+          language fixes, and nothing refuses it, so the grid's language-fixed
+          rows prescribe a fix no guard makes the library take. That belongs at
+          the library's own `state { }` declaration, addressed to its author —
+          issue #499.
 
           ONE residual outside it, recorded in issue #138:
 
@@ -2906,32 +2941,11 @@ def _shadow_library(site: _Site, claim: str) -> n.Library:
 
 
 def _shadow_cells() -> list[object]:
-    """The commanded cells. A `state` cell is REJECT unless another guard owns
-    it (`already`) or it is a designed non-error (`accepts`); the other two
-    columns accept.
-
-    The commanded rejections carry a strict `xfail` constrained to the outcome
-    assertion's own failure, because `_apply_uses` runs no shadow guard: an
-    unconstrained mark would count a broken fixture or an import error as the
-    designed red, which is the vacuously-green class wearing red."""
+    """The commanded cells. A `state` cell is REJECT unless another Owner Guard
+    owns it (`already`) or it is a designed non-error (`accepts`); the other two
+    columns accept."""
     return [
-        pytest.param(
-            index,
-            claim,
-            id=f"{site.kind}-{site.binds}-{claim}",
-            marks=(
-                [
-                    pytest.mark.xfail(
-                        strict=True,
-                        raises=pytest.fail.Exception,
-                        reason="no guard refuses a game-introduced name spelled "
-                        "like provided state",
-                    )
-                ]
-                if claim == "state" and not site.already and not site.accepts
-                else []
-            ),
-        )
+        pytest.param(index, claim, id=f"{site.kind}-{site.binds}-{claim}")
         for index, site in enumerate(_INTRODUCE)
         for claim in ("state", "requires", "neither")
     ]

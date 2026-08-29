@@ -4367,6 +4367,32 @@ language has — `:=`/`+=`/`-=`, `rotate`, and a `turns … again <flag>`, whose
 the runtime clears at each turn boundary — because a rule that covered only the
 obvious one would be two thirds of a guarantee.
 
+**Nor may the game shadow provided state with a name of its own.** Read-only
+governs writing; this governs reading. A binder or a declaration parameter the
+game introduces — `for each player limit:`, `function f(limit : Integer)`, a
+`let`, a `produces:` payload, a struct field — may not be spelled like a
+provided variable, because inside its scope the bare name is the binder and the
+provided variable cannot be read there at all. It is the same visibility
+asymmetry the injection rule below turns on, arriving from the other side: the
+base language lets a binder shadow a same-named declaration precisely because
+the author wrote both and can see both, and that reasoning does not survive a
+declaration in a file they never open. A name the library merely `requires`
+stays shadowable — the game declared it, so the author did write both. So does a
+spelling the game already binds at declaration level, which the injection rule
+refuses first: one clash draws one refusal.
+
+Which fix the refusal prescribes follows the binder. Where the game's own text
+picked the spelling, renaming the binder is the fix. Where the language picked it
+— `any player where` always binds `player`, an aggregation always binds `card`, a
+transfer filter binds the game's content noun — no game can respell it, so the
+library's variable is what must change instead. Both are reported in the GAME,
+which is where the shadow is written and the file the author has open.
+
+A Primitive's parameters are the one declaration parameters the rule does not
+reach, and not by exemption: they label the Python signature and key the entry's
+`reads` binders, so no DSL text sits inside their scope and there is nothing for
+them to shadow.
+
 **A provided default may not read the contract.** Provided state splices in
 front of the game's own, so a `requires` name — which only the game can declare
 — is never in scope where a provided default runs. This is the declare-order
