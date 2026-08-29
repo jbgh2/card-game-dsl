@@ -341,17 +341,42 @@ def classify_read(game: n.Game, name: str) -> ReadKind | None:
     return None
 
 
-def phase_local_state_names(game: n.Game) -> frozenset[str]:
-    """State variables a PHASE declares, which a `reads` clause may not name.
+def _game_level_state_names(game: n.Game) -> frozenset[str]:
+    return frozenset(d.name for d in game.state.decls) if game.state else frozenset()
 
-    The complement `classify_read` excludes, derived from the same walk the
-    rest of the engine uses (`nodes.state_blocks`) minus the game-level block —
-    so a name is in exactly one of the two sets and the diagnostic can say
-    which."""
-    game_level = frozenset(d.name for d in game.state.decls) if game.state else frozenset()
+
+def _phase_state_names(game: n.Game) -> frozenset[str]:
+    """Every name a PHASE's own `state { }` declares, from the same walk the
+    rest of the engine uses."""
     return frozenset(
-        sd.name for block in n.state_blocks(game) for sd in block.decls
-    ) - game_level
+        sd.name
+        for block in n.state_blocks(game)
+        for sd in block.decls
+        if game.state is None or block is not game.state
+    )
+
+
+def phase_local_state_names(game: n.Game) -> frozenset[str]:
+    """State a PHASE declares and the game does not — unreadable by a
+    declaration, because the row is materialized on every call and the frame
+    stands only while that phase runs."""
+    return _phase_state_names(game) - _game_level_state_names(game)
+
+
+def shadowed_state_names(game: n.Game) -> frozenset[str]:
+    """State declared at BOTH levels — also unreadable by a declaration, and
+    for a worse reason.
+
+    `classify_read` matches the game-level declaration while the runtime
+    resolves the innermost frame, so a primitive declaring the name receives
+    the PHASE's value whenever that phase runs: a wrong answer with no failure
+    anywhere. The declaration cannot say which of the two it means, so the
+    ambiguity is refused rather than settled by whichever end happens to win.
+
+    With `phase_local_state_names` and the game-level set this partitions every
+    state name the engine can see, which is what lets each arm's diagnostic
+    name the right fix."""
+    return _phase_state_names(game) & _game_level_state_names(game)
 
 
 def engine_fact_names() -> frozenset[str]:

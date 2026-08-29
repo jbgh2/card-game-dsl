@@ -931,6 +931,60 @@ def test_a_legacy_game_still_may_not_shadow_a_primitive() -> None:
 # --- axis 7: a reads name must be GAME-scoped state -------------------------
 
 
+def test_the_shadowable_read_kinds_are_derived() -> None:
+    """Which declarable read kinds a PHASE can shadow at all — the class of the
+    two cells below, read off the grammar rather than remembered. A phase
+    declares state and nothing else, so state is the only kind whose runtime
+    resolution can differ from the declaration the classifier matched.
+
+    red under: add another declaration block to `?phase_item` in the grammar."""
+    import re
+
+    grammar = (
+        ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark"
+    ).read_text()
+    body = re.search(r"\?phase_item:(.*?)\n\n", grammar, re.S)
+    assert body is not None
+    alternatives = {a.strip().lstrip("| ") for a in body.group(1).split("\n")}
+    declaring = alternatives & {"state_block", "zones", "positions", "type_def"}
+    assert declaring == {"state_block"}, (
+        f"a phase now declares {sorted(declaring)} — every declarable read kind "
+        f"it can carry needs a shadowing cell beside the state one"
+    )
+
+
+def test_a_state_name_shadowed_by_a_phase_is_refused() -> None:
+    """A declared read of a name a phase ALSO declares.
+
+    The classifier matches the game-level declaration and the runtime resolves
+    the innermost frame, so the primitive silently receives the phase's value
+    while that phase runs — it played to completion scoring meld under the
+    wrong trump. The declaration cannot say which of the two it means, so the
+    ambiguity is refused rather than resolved by whichever end happens to
+    win."""
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: pinochle48\n"
+        "  ranking: A 10 K Q J 9\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer"
+        " reads hand[p], trump_suit }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { trump_suit : Suit? = spades  score[player] : Integer = 0 }\n"
+        "  phase play {\n"
+        "    state { trump_suit : Suit? = hearts }\n"
+        "    deal 12 cards from deck to each hand\n"
+        "    score[0] := pinochle_meld_value(0)\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    message = _refused(source)
+    assert "trump_suit" in message
+    assert "phase" in message
+
+
 def test_a_phase_local_state_read_is_refused() -> None:
     """A `reads` name is materialized on EVERY call, so a phase-local variable
     is readable only while that phase's frame stands — and a Primitive called

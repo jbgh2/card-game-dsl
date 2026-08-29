@@ -118,6 +118,7 @@ from cardlang.primitives_block import (
     classify_read,
     declared_names,
     phase_local_state_names,
+    shadowed_state_names,
     declarable_type_names,
     engine_fact_names,
     regime,
@@ -4910,6 +4911,15 @@ def _check_primitive_reads(
         )
         return
     for read in decl.reads:
+        if read.name in shadowed_state_names(game):
+            bag.error(
+                f"`{decl.name}` reads `{read.name}`, which the game AND a phase "
+                f"both declare — the declaration cannot say which, and at run "
+                f"time the phase's value wins while that phase is active; "
+                f"rename one of the two",
+                read.span or decl.span,
+            )
+            continue
         kind = classify_read(game, read.name)
         if kind is None:
             if read.name in phase_local_state_names(game):
