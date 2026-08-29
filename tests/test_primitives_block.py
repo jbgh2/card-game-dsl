@@ -26,7 +26,9 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             ABSENT rather than merely unfetched — with every clause a SET whose
             binders key the domain their declaration is indexed by, so no entry
             of a clause can silently replace another and no binder can key an
-            instance the declaration has none of.
+            instance the declaration has none of; and a `reads` name is
+            GAME-scoped state, never a phase's own, because the row is
+            materialized on every call.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -112,8 +114,12 @@ Red a second time, at `14 failed`, when review found five defect CLASSES the
 first domain statement did not reach — the declaration's shape against the
 implementation's, the index binder's domain, the validation order against
 minted names, the invocation contract crossed with the reads-clause shape,
-and the reads clause as a multiset. Each class was derived and rowed before
-its fix, on the same order.
+and the reads clause as a multiset. Red a third time, at `5 failed`, on four
+more: the parameter list as a multiset (the reads rule's sibling one slot
+over, which the first sweep of that class missed), the namespace a
+function-shadow check asks, phase-local state in a reads clause, and the
+binder compared by erased type rather than by domain identity. Each class
+was derived and rowed before its fix, on the same order.
 """
 
 from __future__ import annotations
