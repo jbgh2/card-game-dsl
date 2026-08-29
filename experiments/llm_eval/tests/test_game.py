@@ -49,7 +49,14 @@ def test_fake_provider_game_reaches_a_terminal_state(game: object) -> None:
     assert record.terminal, "the canned-reply game never terminated"
     llm_decisions = [d for d in record.decisions if d.agent == "fake_llm"]
     assert llm_decisions, "the fake LLM never moved"
-    assert not any(d.llm["fallback"] for d in llm_decisions), (
+    # A decision with one legal action short-circuits before the provider and
+    # carries no trace, so it has no fallback to report. Selected by the
+    # decision's OWN shape rather than by whether a trace exists — the trace is
+    # what produces the thing under test — and guarded non-empty so the filter
+    # cannot quietly turn the claim vacuous.
+    consulted = [d for d in llm_decisions if len(d.legal) > 1]
+    assert consulted, "the fake LLM was never offered a real choice"
+    assert not any(d.llm["fallback"] for d in consulted), (
         "a well-formed canned reply must never fall back"
     )
 
@@ -84,14 +91,21 @@ def test_history_replays_to_the_same_views(game: object) -> None:
 
 
 def test_every_decision_shape_is_recognized(game: object) -> None:
-    """Cheat poses exactly three decision shapes; `DecisionView.kind` raises on
-    anything else, so a long random walk that never raises is the coverage
-    claim — and all three must actually appear, or the walk proves nothing."""
+    """Cheat poses exactly four decision shapes; `DecisionView.kind` raises on
+    anything else, so a long walk that never raises is the coverage claim — and
+    all four must actually appear, or the walk proves nothing.
+
+    Walked with rule agents rather than random ones. A uniform agent picks its
+    count uniformly too, so it dumps its whole hand on the opening play about
+    one game in thirteen and wins outright whenever the table lets it through
+    — a walk too short to be the coverage claim this test makes.
+    """
+    seats = {i: RuleAgent(seed=i, challenge_prob=0.1) for i in range(4)}
     record = play_game(
-        game, _seats("random"), seed=3, matchup="t", game_index=0, max_decisions=600  # type: ignore[arg-type]
+        game, seats, seed=3, matchup="t", game_index=0, max_decisions=600  # type: ignore[arg-type]
     )
     kinds = {d.facts["kind"] for d in record.decisions}
-    assert kinds == {"announce", "card", "window"}
+    assert kinds == {"announce", "count", "card", "window"}
 
 
 def test_claim_cycle_order_matches_the_game(game: object) -> None:
@@ -102,8 +116,11 @@ def test_claim_cycle_order_matches_the_game(game: object) -> None:
     """
     from ..infostate import RANKS
 
+    # Rule agents, for the reason given in the decision-shape test above: the
+    # cycle can only be checked by a walk that makes enough plays to wrap it.
+    seats = {i: RuleAgent(seed=i, challenge_prob=0.1) for i in range(4)}
     record = play_game(
-        game, _seats("random"), seed=6, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
+        game, seats, seed=6, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
     )
     claims = [
         d.facts["claim_rank"] for d in record.decisions if d.facts["kind"] == "announce"
@@ -124,7 +141,9 @@ def test_reconstructed_plays_match_the_announcements(game: object) -> None:
     assert plays
     for play in plays:
         assert len(play.cards) == play.claimed_count
-        assert 1 <= play.claimed_count <= 4
+        # The count is bounded by the hand it is drawn from, and by nothing
+        # else — Pagat's play is "one or more cards".
+        assert 1 <= play.claimed_count <= play.hand_size
 
 
 def test_rule_agent_never_lies_when_it_can_tell_the_truth(game: object) -> None:
@@ -223,3 +242,33 @@ def test_bluff_prob_produces_elective_lies(game: object) -> None:
 
     assert measure(0.0) == 0.0
     assert measure(0.8) > 0.3, "raising bluff_prob did not produce elective lies"
+
+
+def test_rule_agent_never_claims_more_cards_than_a_rank_can_hold(game: object) -> None:
+    """The bluffer over-claims by one, and one deck holds four of a rank — so a
+    claim of five is not a bluff, it is a free catch.
+
+    Run with bluffing ON, or the arm under test never executes. Every seat
+    bluffs so the sweep reaches the case that matters: an actor holding all
+    four of the claimed rank, where "one more than I hold" leaves the plausible
+    range entirely.
+    """
+    seen_bluff = False
+    for seed in range(12):
+        seats = {
+            i: RuleAgent(seed=seed * 100 + i, challenge_prob=0.1, bluff_prob=0.4)
+            for i in range(4)
+        }
+        record = play_game(
+            game, seats, seed=seed, matchup="t", game_index=0, max_decisions=400  # type: ignore[arg-type]
+        )
+        for d in record.decisions:
+            if d.facts.get("kind") != "count":
+                continue
+            claimed, held = d.facts["claimed_count"], d.facts["truthful_available"]
+            assert claimed <= 4, (
+                f"seed {seed}: claimed {claimed} of a rank holding only four "
+                f"copies — provably false to every seat without looking"
+            )
+            seen_bluff = seen_bluff or claimed > held
+    assert seen_bluff, "no seat ever over-claimed, so the bluff arm went unexercised"

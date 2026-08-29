@@ -121,6 +121,11 @@ class RandomAgent:
         return {}
 
 
+#: Copies of any one rank in a single 52-card deck. The ceiling on a claim that
+#: could conceivably be true, and so on a bluff worth making.
+RANK_COPIES = 4
+
+
 @dataclass
 class RuleAgent:
     """A competent non-learning baseline, decided entirely from the info state.
@@ -161,6 +166,8 @@ class RuleAgent:
             return self._challenge(view, info)
         if kind == "announce":
             return self._announce(view, info)
+        if kind == "count":
+            return self._count(view, info)
         return self._card(view, info)
 
     def _challenge(self, view: DecisionView, info: istate.Info) -> int:
@@ -169,26 +176,36 @@ class RuleAgent:
         return view.legal_actions[view.legal_strings.index("call_cheat" if call else "allow")]
 
     def _announce(self, view: DecisionView, info: istate.Info) -> int:
+        # Opening a play is forced — `play_cards` is the only legal action, and
+        # the size of the play is the next decision. Kept as its own branch so
+        # that a second play-opening move would surface here rather than fall
+        # through to the card policy.
+        return view.legal_actions[0]
+
+    def _count(self, view: DecisionView, info: istate.Info) -> int:
+        """How many cards to claim — the public half of the claim, and so
+        where this agent's bluff lives."""
         truthful = info.count_of_rank(info.claim_rank)
-        counts = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
-        # The largest legal announce we can back truthfully; `play_one` when we
-        # hold none of the claimed rank (it is always legal, so this never
-        # falls through).
-        legal = {nm: n for nm, n in counts.items() if nm in view.legal_strings}
+        counts = [int(s) for s in view.legal_strings]
         if truthful and self._rng.random() < self.bluff_prob:
             # Over-claim by the SMALLEST margin that is still a lie: the card
             # policy below plays every truthful card first and pads with junk,
-            # so announcing one more than we hold yields a minimally-implausible
-            # bluff rather than an obvious four-card dump.
-            over = sorted(nm for nm, n in legal.items() if n > truthful)
+            # so claiming one more than we hold yields a minimally-implausible
+            # bluff rather than an obvious dump.
+            #
+            # Never past FOUR. One deck holds four of a rank, so a claim of
+            # five is false to every seat at the table without anyone looking
+            # at their own hand — a free catch for the challenge metrics this
+            # agent is the opponent in, not a bluff. Holding all four, there is
+            # no plausible over-claim left, so the truthful claim below stands.
+            over = [n for n in counts if truthful < n <= RANK_COPIES]
             if over:
-                pick = min(over, key=lambda nm: counts[nm])
-                return view.legal_actions[view.legal_strings.index(pick)]
-        best = "play_one"
-        for name, n in legal.items():
-            if n <= truthful and n > counts[best]:
-                best = name
-        return view.legal_actions[view.legal_strings.index(best)]
+                return view.legal_actions[view.legal_strings.index(str(min(over)))]
+        # The largest count we can back truthfully; 1 when we hold none of the
+        # claimed rank (a count of 1 is always legal, so this never falls
+        # through).
+        best = max((n for n in counts if n <= truthful), default=1)
+        return view.legal_actions[view.legal_strings.index(str(best))]
 
     def _card(self, view: DecisionView, info: istate.Info) -> int:
         want = info.claim_rank
@@ -309,6 +326,23 @@ class LLMAgent:
         self._arm = response_arm(self.arm)
 
     def choose(self, view: DecisionView) -> int:
+        if len(view.legal_actions) == 1:
+            # A FORCED decision: there is nothing to choose. Asking anyway
+            # spends a billed call (two, when the first reply needs a retry),
+            # and lands in `llm_calls_per_game` and `fallback_rate` as though a
+            # choice had been made — inflating the cost of a run and diluting
+            # the very rates that decide whether it is publishable. Cheat opens
+            # every play with one of these: the `play_cards` announce, whose
+            # actual content is the count decision that follows it.
+            #
+            # An EMPTY trace, like the non-LLM agents': a trace is what makes a
+            # decision count as this agent's in the transcript, so recording one
+            # here would put forced moves back into `llm_decisions` and
+            # `llm_calls_per_game` — the same distortion, one field along. That
+            # the move was forced stays derivable from its own record, whose
+            # legal-action list has exactly one entry.
+            self._trace = {}
+            return view.legal_actions[0]
         state = self._render(view.infostate) if self.render else view.infostate
         prompt = build_prompt(
             self.rules, state, view.legal_strings, self._arm.instruction

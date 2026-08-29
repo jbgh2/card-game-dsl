@@ -6,7 +6,7 @@ shedding game where every play is a possible lie: cards go down **face
 down**, called out as a rank the player may or may not actually be holding,
 and the only way to find out is to accuse them. This corpus entry fixes the
 **basic game** described on Pagat, at **four players** on a standard 52-card
-deck, with a play capped at **four cards**. Source:
+deck. Source:
 [Pagat](https://www.pagat.com/beating/cheat.html).
 
 Setup and play:
@@ -19,9 +19,10 @@ Setup and play:
   Kings, and back to Aces. The cycle advances by exactly one step per play
   and never resets — a challenge does not restart it.
 - **A turn.** Play goes clockwise from seat 0. On your turn you discard
-  **one to four cards face down** onto the pile and call them as the
-  cycle's current rank — "two Sevens". The count you announce is the count
-  you played (miscounting is not part of this variant); the *ranks* are
+  **one or more cards face down** onto the pile and call them as the
+  cycle's current rank — "two Sevens". You may play as many as you hold:
+  six Sevens go down as six. The count you announce is the count
+  you played (miscounting is not part of this game); the *ranks* are
   your own business. You do not need to hold the called rank at all: with
   the wrong hand at the wrong point of the cycle, lying is not just
   allowed, it is forced.
@@ -46,16 +47,19 @@ Setup and play:
   is called honestly, or not called at all, ends the game on the spot.
 
 The turn structure runs on the kernel's `turns` form (decisions.md "The
-`turns` form"): the form owns rotation, and each turn is one `offer` over
-the four count announces `play_one` … `play_four` — the announce is the
-public claim of *count*, the `move chosen` inside it is the hidden card
-decision, and the claimed *rank* is not a decision at all, because the cycle
-forces it: it is the public `claim_rank` state everyone already reads. The
-whole adjudication — window, flip, verdict, pickup, cycle step — is one
+`turns` form"): the form owns rotation, and each turn is one `offer` of the
+single move `play_cards`, whose effect opens with a public integer decision
+— `choose integer in 1 .. (number of cards in hand[actor])`, which announces
+the *count* to the whole table — and then makes the hidden card decision,
+`move chosen claim_count cards`. The claimed *rank* is not a decision at
+all, because the cycle forces it: it is the public `claim_rank` state
+everyone already reads. The whole adjudication — window, flip, verdict,
+pickup, cycle step — is one
 named procedure run from every play's effect, Coup's challenge-window shape
 with an **open** claim vocabulary (all 13 ranks, where Coup's is five
-characters). `play_one` is unguarded, so the turn-holder always has a legal
-move: an empty hand ends the game before its owner is ever offered a turn.
+characters). `play_cards` is unguarded and its count range is never empty,
+so the turn-holder always has a legal move: an empty hand ends the game
+before its owner is ever offered a turn.
 
 Zones and visibility: `hand[player]` is a private `Hand<player>` — owner
 sees all, others see a count. `played` (this play's face-down cards) and
@@ -106,7 +110,7 @@ game Cheat {
   players: 4
   direction: clockwise
   // Measured over seeded random playouts (tests/test_playout_cheat.py):
-  // 200 seeds: p50 849, p95 2454, max 3942 decisions.
+  // 200 seeds, measured 2026-08-28: p50 413, p95 1168, max 1945 decisions.
   max_length: 20000
 
   cards: standard52
@@ -146,48 +150,24 @@ game Cheat {
 
     turns t from 0 over all players
           until any player where won[player] {
-      offer to t one of [play_one, play_two, play_three, play_four]
+      offer to t one of [play_cards]
     }
   }
 
   winner: highest won
 }
 
-move_type play_one {
+move_type play_cards {
   effect {
+    // The count is chosen BEFORE `claimant` is set, so the play's fields go
+    // from idle to standing together — the count decision itself must not
+    // observe a claimant with a count of 0.
+    //
+    // `up to 52` reserves the OpenSpiel action-id block; it cannot bind,
+    // because a hand can never exceed the deck it was dealt from.
+    claim_count := choose integer in 1 .. (number of cards in hand[actor]) up to 52
     claimant := actor
-    claim_count := 1
-    move chosen one card from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_two {
-  when: (number of cards in hand[actor]) >= 2
-  effect {
-    claimant := actor
-    claim_count := 2
-    move chosen 2 cards from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_three {
-  when: (number of cards in hand[actor]) >= 3
-  effect {
-    claimant := actor
-    claim_count := 3
-    move chosen 3 cards from hand[actor] to played
-    run resolve_play(actor)
-  }
-}
-
-move_type play_four {
-  when: (number of cards in hand[actor]) >= 4
-  effect {
-    claimant := actor
-    claim_count := 4
-    move chosen 4 cards from hand[actor] to played
+    move chosen claim_count cards from hand[actor] to played
     run resolve_play(actor)
   }
 }
@@ -204,7 +184,7 @@ move_type allow {
   }
 }
 
-// The whole adjudication, run from every play_N effect: the clockwise
+// The whole adjudication, run from the play_cards effect: the clockwise
 // window (first call closes it), then flip-judge-collect or a quiet merge,
 // the shed-out check, and the cycle step.
 procedure resolve_play(who : Player) {

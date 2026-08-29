@@ -19,23 +19,40 @@ from typing import Any
 from ..metrics import aggregate, reconstruct_plays
 
 
-def _announce(step: int, player: int, rank: str, count: int, truthful: int) -> dict[str, Any]:
-    names = {1: "play_one", 2: "play_two", 3: "play_three", 4: "play_four"}
-    return {
-        "step": step,
-        "player": player,
-        "agent": f"a{player}",
-        "action": names[count],
-        "legal": ["play_one", "play_two"],
-        "facts": {
-            "kind": "announce",
-            "claim_rank": rank,
-            "claimed_count": count,
-            "truthful_available": truthful,
-            "hand_size": 13,
+def _announce(
+    step: int, player: int, rank: str, count: int, truthful: int
+) -> list[dict[str, Any]]:
+    """A play's opening PAIR: the forced `play_cards` announce, then the public
+    count. Two decisions, because the count is its own decision — returning the
+    pair keeps every fixture below reading as one play per call."""
+    common = {"player": player, "agent": f"a{player}", "llm": {}}
+    return [
+        {
+            **common,
+            "step": step,
+            "action": "play_cards",
+            "legal": ["play_cards"],
+            "facts": {
+                "kind": "announce",
+                "claim_rank": rank,
+                "truthful_available": truthful,
+                "hand_size": 13,
+            },
         },
-        "llm": {},
-    }
+        {
+            **common,
+            "step": step + 1,
+            "action": str(count),
+            "legal": [str(n) for n in range(1, 14)],
+            "facts": {
+                "kind": "count",
+                "claim_rank": rank,
+                "claimed_count": count,
+                "truthful_available": truthful,
+                "hand_size": 13,
+            },
+        },
+    ]
 
 
 def _card(step: int, player: int, card: str, rank: str) -> dict[str, Any]:
@@ -44,7 +61,12 @@ def _card(step: int, player: int, card: str, rank: str) -> dict[str, Any]:
         "player": player,
         "agent": f"a{player}",
         "action": card,
-        "legal": [card],
+        # A real card pick offers the whole hand, and the LENGTH of this list is
+        # semantic: a one-entry list marks a FORCED decision, which is excluded
+        # from the per-decision rate denominators. The filler ranks (9, J) are
+        # none of the claim ranks this fixture uses, so widening the list cannot
+        # turn a lie into a truthful-option-was-offered.
+        "legal": [card, "9♦", "J♣"],
         "facts": {"kind": "card", "card": card, "rank": card[:-1], "claim_rank": rank},
         "llm": {},
     }
@@ -74,20 +96,20 @@ def _window(
 
 def _record() -> dict[str, Any]:
     decisions = [
-        _announce(0, 0, "A", 1, truthful=1),
-        _card(1, 0, "A♠", "A"),
-        _window(2, 1, "A", 1, 0, called=False, provable=False),
-        _window(3, 2, "A", 1, 0, called=True, provable=False),
-        _announce(4, 1, "2", 2, truthful=2),
-        _card(5, 1, "K♦", "2"),
-        _card(6, 1, "K♣", "2"),
-        _window(7, 2, "2", 2, 1, called=True, provable=False),
-        _announce(8, 2, "3", 1, truthful=0),
-        _card(9, 2, "9♥", "3"),
-        _window(10, 3, "3", 1, 2, called=False, provable=False),
-        _announce(11, 3, "4", 1, truthful=0),
-        _card(12, 3, "7♠", "4"),
-        _window(13, 0, "4", 1, 3, called=False, provable=True),
+        *_announce(0, 0, "A", 1, truthful=1),
+        _card(2, 0, "A♠", "A"),
+        _window(3, 1, "A", 1, 0, called=False, provable=False),
+        _window(4, 2, "A", 1, 0, called=True, provable=False),
+        *_announce(5, 1, "2", 2, truthful=2),
+        _card(7, 1, "K♦", "2"),
+        _card(8, 1, "K♣", "2"),
+        _window(9, 2, "2", 2, 1, called=True, provable=False),
+        *_announce(10, 2, "3", 1, truthful=0),
+        _card(12, 2, "9♥", "3"),
+        _window(13, 3, "3", 1, 2, called=False, provable=False),
+        *_announce(14, 3, "4", 1, truthful=0),
+        _card(16, 3, "7♠", "4"),
+        _window(17, 0, "4", 1, 3, called=False, provable=True),
     ]
     return {
         "matchup": "fixture",
@@ -172,13 +194,38 @@ def test_win_rate_uses_returns() -> None:
     assert agents["a1"]["wins"] == 0 and agents["a1"]["win_rate"] == 0.0
 
 
+def _first_open(decisions: list[dict[str, Any]], player: int) -> dict[str, Any]:
+    """That seat's first decision that OFFERED a choice.
+
+    Selected by shape, not by index: a fallback planted on a forced decision
+    pins arithmetic the live runner cannot produce — the denominator excludes
+    it, so the rate could exceed 1 and this test would still pass. Index
+    literals also drift silently whenever the fixture gains a decision, which
+    is how this pin came to sit on a forced one.
+    """
+    for d in decisions:
+        if d["player"] == player and len(d["legal"]) > 1:
+            return d
+    raise AssertionError(f"seat {player} has no open decision in this fixture")
+
+
 def test_fallback_rate_counts_llm_fallbacks() -> None:
     record = _record()
-    record["decisions"][0]["llm"] = {"fallback": True}
-    record["decisions"][4]["llm"] = {"fallback": False}
+    _first_open(record["decisions"], 0)["llm"] = {"fallback": True}
+    _first_open(record["decisions"], 1)["llm"] = {"fallback": False}
     agents = aggregate([record])["agents"]
     assert agents["a0"]["fallbacks"] == 1
-    assert agents["a0"]["fallback_rate"] == 1 / agents["a0"]["decisions"]
+    # Over the decisions that OFFERED a choice, not every decision: a forced
+    # move cannot fall back, so counting it would understate the rate that
+    # decides whether a run is publishable.
+    assert agents["a0"]["open_decisions"] < agents["a0"]["decisions"], (
+        "this fixture must contain a forced decision, or the denominator "
+        "distinction below is untested"
+    )
+    assert agents["a0"]["fallback_rate"] == 1 / agents["a0"]["open_decisions"]
+    # a1 carries an llm record whose `fallback` is FALSE — not an absent one.
+    # Without that, `.get("fallback")` and `"fallback" in ...` behave alike here
+    # and the mutation between them goes uncaught.
     assert agents["a1"]["fallbacks"] == 0
 
 
@@ -213,9 +260,9 @@ def test_a_play_truncated_mid_selection_is_dropped(  ) -> None:
     record = _record()
     # Keep the last announce and its FIRST card, drop the rest (claimed 1 of 1
     # here, so extend the claim to 2 to leave it genuinely incomplete).
-    decisions = record["decisions"][:11]
-    decisions.append(_announce(11, 3, "4", 2, truthful=2))
-    decisions.append(_card(12, 3, "4♠", "4"))   # only 1 of the 2 announced
+    decisions = record["decisions"][:14]
+    decisions.extend(_announce(14, 3, "4", 2, truthful=2))
+    decisions.append(_card(16, 3, "4♠", "4"))   # only 1 of the 2 announced
     record["decisions"] = decisions
     record["terminal"] = False
     record["truncated"] = True
@@ -235,6 +282,7 @@ def test_a_play_truncated_mid_selection_is_dropped(  ) -> None:
 def test_a_complete_play_at_the_very_end_is_kept() -> None:
     """The complement: a play whose last card is the final decision is complete
     and must still count. Dropping it would trade one bug for another."""
-    decisions = _record()["decisions"][:2]  # announce play_one + its single card
+    # announce + count + the single card it claimed
+    decisions = _record()["decisions"][:3]
     plays = reconstruct_plays(decisions)
     assert len(plays) == 1 and plays[0].cards == ["A♠"]

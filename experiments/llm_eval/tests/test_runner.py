@@ -49,7 +49,11 @@ def _log(tmp_path: Path) -> SpendLog:
 def _config(**overrides: Any) -> dict[str, Any]:
     config: dict[str, Any] = {
         "game": "cardlang_cheat",
-        "max_decisions": 400,
+        # Enough for the rule-vs-random matchup below to REACH a terminal state,
+        # which is what makes a game scored. Every play spends one decision on
+        # its count before any card is picked, so the budget a full game needs
+        # scales with the number of plays, not only with the cards moved.
+        "max_decisions": 800,
         "models": {"m": FAKE_MODEL},
         "matchups": [],
     }
@@ -609,8 +613,17 @@ def test_per_game_token_usage_is_recorded_and_aggregated(tmp_path: Path) -> None
         tally = record["usage"]["fake_llm"]
         assert tally["llm_calls"] > 0
         assert tally["input_tokens"] > 0
-        # One call per decision when nothing needs retrying.
-        llm_decisions = sum(1 for d in record["decisions"] if d["agent"] == "fake_llm")
+        # One call per decision the model was actually ASKED about, when
+        # nothing needs retrying. A decision with a single legal action
+        # short-circuits before the provider, so it costs nothing and must not
+        # be counted here — guarded non-empty so the filter cannot empty the
+        # comparison and pass on 0 == 0.
+        llm_decisions = sum(
+            1
+            for d in record["decisions"]
+            if d["agent"] == "fake_llm" and len(d["legal"]) > 1
+        )
+        assert llm_decisions > 0, "no open decision ever reached the model"
         assert tally["llm_calls"] == llm_decisions
 
     stats = aggregate(records)["agents"]["fake_llm"]
@@ -896,6 +909,16 @@ def test_verify_agrees_with_aggregate_for_multi_seat_agents(tmp_path: Path) -> N
         assert c["games"] == a["games"], f"{who}: seat-games disagree"
         assert c["wins"] == a["wins"], f"{who}: wins disagree"
         assert c["decisions"] == a["decisions"], f"{who}: decisions disagree"
+        # `open_decisions` is the denominator of `fallback_rate`, which is read
+        # against a publication threshold — so the two folds must reach it
+        # independently and agree, exactly like the counts around it.
+        assert c["open_decisions"] == a["open_decisions"], (
+            f"{who}: open decisions disagree"
+        )
+        assert 0 < a["open_decisions"] < a["decisions"], (
+            f"{who}: this matchup must contain BOTH forced and open decisions, "
+            f"or the agreement above is over a quantity nothing distinguishes"
+        )
         assert c["plays"] == a["plays"], f"{who}: plays disagree"
         assert c["windows"] == a["challenge_opportunities"], f"{who}: windows disagree"
         assert c["provable_faced"] == a["provable_opportunities"]

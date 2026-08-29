@@ -189,3 +189,60 @@ def test_each_archive_resolves_to_its_own_game(archive: str, expected: str | Non
 
 def _load_records(path: Path) -> list[dict[str, object]]:
     return list(iter_jsonl(str(path)))
+
+
+def test_deep_refuses_the_cheat_archive_in_its_own_voice() -> None:
+    """The Cheat archive cannot be deep-audited against today's game, and the
+    auditor must SAY so rather than surface an encoder error four frames down.
+
+    A history is a sequence of action ids, so it means something only against
+    the action space it was recorded in; Cheat's changed when the four-card
+    play cap was removed. Pinned because a refusal nothing exercises is a
+    message no one has read — and because the shallow audit, which DOES still
+    cover this archive, is the remedy the message has to name.
+    """
+    from ..verify import deep_facts
+
+    cheat_archive = Path(__file__).parent.parent / "results" / "transcripts"
+    record = next(iter(iter_jsonl(str(cheat_archive / "rule_vs_random.jsonl.gz"))))
+    with pytest.raises(SystemExit) as excinfo:
+        deep_facts(record)
+    message = str(excinfo.value)
+    assert "four-card play cap" in message, "the refusal must name the cause"
+    assert "--deep" in message and "SHALLOW" in message, (
+        "the refusal must name the audit that still covers this archive"
+    )
+
+
+def test_deep_lets_a_current_format_replay_failure_through() -> None:
+    """The other side of that refusal: only a transcript that DEMONSTRABLY
+    predates the change gets the historical explanation.
+
+    A replay failure on a current-format record is a real integrity problem —
+    a corrupted action id, a replay regression — and must reach the auditor as
+    itself. Translating it too would answer a live defect with a pointer to an
+    irrelevant tag, which is the more expensive failure: the audit would read
+    as explained rather than broken.
+
+    What this pins exactly: that the `legacy` FLAG, and nothing about the
+    failure's shape, decides whether the explanation is attached. The
+    underlying error here is still the legacy one — scrubbing the actions
+    cannot make the recorded history current — so the test proves the branch
+    is flag-driven, not that it can classify an unrelated corruption.
+    """
+    from ..verify import deep_facts
+
+    cheat_archive = Path(__file__).parent.parent / "results" / "transcripts"
+    record = next(iter(iter_jsonl(str(cheat_archive / "rule_vs_random.jsonl.gz"))))
+    # Same corrupt history, but with every legacy marker removed, so the record
+    # no longer proves it predates the change.
+    current = {
+        **record,
+        "decisions": [{**d, "action": "play_cards"} for d in record["decisions"]],
+    }
+    # `SystemExit` does not inherit from `ValueError`, so this raises-clause is
+    # itself the assertion that the explanation was NOT attached.
+    with pytest.raises(ValueError) as excinfo:
+        deep_facts(current)
+    assert "not among the live candidates" in str(excinfo.value)
+    assert "four-card play cap" not in str(excinfo.value)

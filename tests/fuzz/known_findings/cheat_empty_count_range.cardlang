@@ -94,12 +94,11 @@ game Cheat {
 
   phase play {
     shuffle deck
-    deal 13 cards from deck to each hand
     claim_rank := A                  // the first player must call Aces
 
     // The turn loop owns rotation (decisions.md "The `turns` form"); the
     // whole play — face-down discard, challenge window, resolution — lives
-    // in the play_cards move effect, Coup's shape. The loop stops the moment a
+    // in the play_N move effects, Coup's shape. The loop stops the moment a
     // play's owner survives its window with an empty hand.
     turns t from 0 over all players
           until any player where won[player] {
@@ -123,17 +122,11 @@ game Cheat {
 
 move_type play_cards {
   effect {
-    // The count is chosen BEFORE `claimant` is set, so the play's fields go
-    // from idle to standing together. Setting `claimant` first would leave
-    // the count decision itself observing a claimant with a count of 0 —
-    // a state the state block above says means "no play stands", read at a
-    // decision point where one is being made.
-    //
+    claimant := actor
     // `up to 52` reserves the OpenSpiel action-id block; it cannot bind,
     // because a hand can never exceed the deck it was dealt from. An
     // encoding bound, not a rule — Pagat's play is "one or more cards".
     claim_count := choose integer in 1 .. (number of cards in hand[actor]) up to 52
-    claimant := actor
     move chosen claim_count cards from hand[actor] to played
     run resolve_play(actor)
   }
@@ -153,7 +146,7 @@ move_type allow {
   }
 }
 
-// The whole adjudication, run from the play_cards effect with the player who
+// The whole adjudication, run from every play_N effect with the player who
 // played bound once, up front (decisions.md "Named procedures").
 //
 // The window: each other player, clockwise from the claimant's left, is

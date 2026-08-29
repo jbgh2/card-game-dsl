@@ -220,13 +220,15 @@ straight from the transcripts, deliberately *without* calling
 `metrics.aggregate`, so a bug in the metrics layer cannot hide behind a checker
 that shares its code. `--deep` goes further: it discards the recorded
 per-decision facts and recomputes them by replaying each game through the
-engine. Both agree to the last digit, and `results/AUDIT.txt` is their output —
+engine — available only where the archive's action ids still name moves the
+game has, which the Cheat archive's no longer do (it predates the removal of
+the four-card play cap; deep-audit it at the tag it was published under).
+Both agree to the last digit, and `results/AUDIT.txt` is their output —
 every rate printed as `numerator / denominator`, so the arithmetic can be redone
 by hand.
 
 ```bash
 python -m experiments.llm_eval.verify
-python -m experiments.llm_eval.verify --deep --matchup llm_mid_rendered_bluffer
 ```
 
 **Transcripts are complete without being enormous.** Each game records its seed
@@ -300,7 +302,7 @@ its denominator, and a rate over **zero** opportunities is `null`, never `0.0` �
 |--------|------------|
 | `win_rate` | wins / games that reached a terminal state |
 | `lying_rate` | plays where any card's rank ≠ the claimed rank, over all plays |
-| `forced_lie_rate` | of all plays, those where the actor held **none** of the claimed rank (no truthful play existed at any count, since `play_one` is always legal) |
+| `forced_lie_rate` | of all plays, those where the actor held **none** of the claimed rank (no truthful play existed at any count, since a count of 1 is always legal) |
 | `elective_lie_rate` | lies over the plays where a truthful option **did** exist — the deception number |
 | `challenge_rate` | challenges made / challenge opportunities offered |
 | `challenge_precision` | challenges where the claim really was false / challenges made |

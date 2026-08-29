@@ -110,7 +110,7 @@ def test_all_three_adjudication_branches_fire() -> None:
 def test_seed0_characterization() -> None:
     # Byte-identity pin for the whole game at seed 0: any change to the
     # decision sequence (turns rotation, window order, offer order, the
-    # chosen-card pool order) moves this vector. Measured hash-independent
+    # played-count range, the chosen-card pool order) moves this vector. Measured hash-independent
     # (identical under PYTHONHASHSEED 0, 1, 7, 42): every collection on the
     # decision path is ordered (source-order pools, offer lists, seating
     # rings), so the in-process pin is sound without a subprocess seed pin.
@@ -119,6 +119,6 @@ def test_seed0_characterization() -> None:
     result = play_game(
         game, random.Random(0), on_first_decision=lambda rs: rs_box.append(rs)
     )
-    assert result.winner == 2
-    assert result.scores == {0: False, 1: False, 2: True, 3: False}
-    assert rs_box[0].decisions_made == 684
+    assert result.winner == 3
+    assert result.scores == {0: False, 1: False, 2: False, 3: True}
+    assert rs_box[0].decisions_made == 151

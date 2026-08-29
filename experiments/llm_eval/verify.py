@@ -46,7 +46,9 @@ from . import holdem
 from . import infostate as istate
 from . import layout
 
-ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
+#: Pre-change transcripts named the play size in the move type. The committed
+#: archive was recorded against that shape, so the audit still decodes it.
+LEGACY_ANNOUNCE_COUNTS = {"play_one": 1, "play_two": 2, "play_three": 3, "play_four": 4}
 
 
 def _stem(path: Path) -> str:
@@ -160,7 +162,8 @@ def resolve_dir(explicit: str | None, run: str | None) -> Path:
 
 
 def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reconstruct plays from scratch — announce, its cards, then its windows.
+    """Reconstruct plays from scratch — announce, its count, its cards, then
+    its windows.
 
     Independent of `metrics.reconstruct_plays`: same structure, written again,
     so a grouping bug has to occur identically in two places to go unnoticed.
@@ -172,9 +175,19 @@ def _regroup(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if d["facts"].get("kind") != "announce":
             i += 1
             continue
-        count = ANNOUNCE_COUNTS[d["action"]]
-        cards: list[str] = []
         i += 1
+        if d["action"] in LEGACY_ANNOUNCE_COUNTS:
+            # A PRE-CHANGE transcript: the count was the move type's identity.
+            # Decoded from the ACTION, like the live arm below, so this
+            # re-derivation stays independent of the recorded facts.
+            count = LEGACY_ANNOUNCE_COUNTS[d["action"]]
+        else:
+            if i >= len(decisions):
+                break  # truncated between the announce and its count
+            assert decisions[i]["facts"]["kind"] == "count", "play structure broken"
+            count = int(decisions[i]["action"])
+            i += 1
+        cards: list[str] = []
         while i < len(decisions) and len(cards) < count:
             assert decisions[i]["facts"]["kind"] == "card", "play structure broken"
             cards.append(decisions[i]["action"])
@@ -223,6 +236,11 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
             if d["player"] not in mine:
                 continue
             c["decisions"] += 1
+            # See `metrics.AgentStats.open_decisions`: a forced move cannot
+            # fall back and costs no call, so it belongs in neither rate's
+            # denominator. Derived here from the decision's own legal list,
+            # independently of the trace the other fold reads.
+            c["open_decisions"] += len(d["legal"]) > 1
             c["fallbacks"] += bool(d.get("llm", {}).get("fallback"))
             if d["facts"].get("kind") == "card":
                 c["card_picks"] += 1
@@ -296,6 +314,7 @@ def holdem_tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
             if seats[d["player"]] != who:
                 continue
             c["decisions"] += 1
+            c["open_decisions"] += len(d["legal"]) > 1
             if d.get("llm", {}).get("fallback"):
                 c["fallbacks"] += 1
             for verb in holdem.ACTION_VERBS:
@@ -316,6 +335,11 @@ HOLDEM_RATES: list[tuple[str, str, str]] = [
     # game's baseline did exactly that.
     ("mean_net_chips", "net_total", "terminal_games"),
     ("win_rate", "wins", "terminal_games"),
+    # `decisions`, matching `holdem.HoldemStats.rates` — the published fold this
+    # one exists to recompute. Hold'em's own forced decisions dilute both sides
+    # equally, which is a real defect but a PRE-EXISTING one (issue #481);
+    # correcting it on this side alone would make the auditor compute a
+    # different quantity from the summary it audits.
     ("fallback_rate", "fallbacks", "decisions"),
 ] + [
     (f"{verb}_rate", f"{verb}_chosen", f"{verb}_offered")
@@ -339,7 +363,7 @@ AUDITS: dict[str, Any] = {}
 
 RATES: list[tuple[str, str, str]] = [
     ("win_rate", "wins", "terminal_games"),
-    ("fallback_rate", "fallbacks", "decisions"),
+    ("fallback_rate", "fallbacks", "open_decisions"),
     ("skip_truthful_rate", "skipped_truthful", "card_picks"),
     ("lying_rate", "lies", "plays"),
     ("elective_lie_rate", "elective_lies", "plays_with_truthful_option"),
@@ -483,6 +507,10 @@ def report_arm(label: str, c: Counter[str]) -> None:
         )
         print(f"    {'output_tokens_per_call':32} {c['output_tokens'] / calls:>13.1f}")
     if decisions:
+        # `arm_audit` counts only decisions carrying an llm trace, and a forced
+        # move records none — so `decisions` here already means "decisions the
+        # model was asked about". It needs no `open_decisions` correction, and
+        # gating on one silently drops both rates below.
         print(
             f"    {'fallback_rate':32} {c['fallbacks']:>6} / "
             f"{decisions:<6} = {c['fallbacks'] / decisions:.4f}"
@@ -502,7 +530,36 @@ def deep_facts(record: dict[str, Any]) -> list[dict[str, Any]]:
     from .referee import load_game, replay_views
 
     game = load_game("cardlang_cheat")
-    views = replay_views(game, record["seed"], record["history"])
+    # Whether THIS record predates the change, decided from the record rather
+    # than from the shape of the failure: any other ValueError out of the
+    # replay — a corrupted id, a real replay regression — must reach the
+    # auditor as itself, not wearing an explanation that sends them to an
+    # irrelevant tag.
+    legacy = any(
+        d.get("action") in LEGACY_ANNOUNCE_COUNTS for d in record["decisions"]
+    )
+    try:
+        views = replay_views(game, record["seed"], record["history"])
+    except ValueError as e:
+        if not legacy:
+            raise
+        # A DESIGNED limit, not a defect to fix: a history is a sequence of
+        # action IDS, so it only means anything against the action space it
+        # was recorded in. Cheat's changed when the four-card play cap was
+        # removed, and no decoder can bridge that — the old ids name moves the
+        # game no longer has. Refused here, in the auditor's own voice, because
+        # the alternative is this surfacing as an encoder error four frames
+        # down that reads like a bug in the replay.
+        raise SystemExit(
+            f"--deep cannot replay this transcript: {e}\n"
+            f"Its action ids were recorded against a different Cheat action "
+            f"space (the archive predates the removal of the four-card play "
+            f"cap), so replaying them against today's game would not be a "
+            f"weaker audit but a meaningless one. Deep-audit this archive at "
+            f"the tag it was published under. The SHALLOW audit — the same "
+            f"command without --deep — recomputes every published number from "
+            f"the transcript itself and still covers it."
+        ) from e
     out = []
     for view, d in zip(views, record["decisions"], strict=True):
         assert view.player == d["player"], "replay diverged from the transcript"

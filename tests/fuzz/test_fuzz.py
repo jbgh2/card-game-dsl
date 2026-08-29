@@ -127,6 +127,7 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     # REJECTED at parse (unbalanced braces), so the old excuse would excuse
     # nothing (the vacuously-green class). The finding itself stays in the
     # ledger under its frozen fixture, which still reproduces it.
+    ("cheat.cardlang", "delete_line", 0): "cheat_empty_count_range",
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
