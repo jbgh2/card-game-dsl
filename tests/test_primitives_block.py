@@ -855,6 +855,34 @@ def test_a_repeated_reads_name_is_refused(clause: str) -> None:
 # --- axis 6/7: the entry's own name lists, as multisets ---------------------
 
 
+def _block_name_lists() -> set[tuple[str, str]]:
+    """Every name-bearing LIST the block's nodes carry, derived from the AST.
+
+    The duplicate rule's domain. It was swept once for `reads` and the
+    parameter list escaped, which is what a remembered domain does — so the
+    axis is read off the nodes and a fourth list arrives as an uncovered
+    member rather than as the next review finding."""
+    return {
+        (cls.__name__, f.name)
+        for cls in (n.PrimitivesBlock, n.PrimitiveDecl)
+        for f in dataclasses.fields(cls)
+        if f.name != "span" and "tuple" in str(f.type)
+    }
+
+
+def test_every_name_list_the_block_carries_refuses_duplicates() -> None:
+    """The class, closed by derivation: entries, parameters and reads are the
+    three lists, and each has a cell below refusing a repeat.
+
+    red under: add a name-bearing tuple field to `PrimitiveDecl` or
+    `PrimitivesBlock` without a duplicate cell for it."""
+    assert _block_name_lists() == {
+        ("PrimitivesBlock", "decls"),  # test_a_duplicate_entry_is_refused
+        ("PrimitiveDecl", "params"),  # test_a_duplicate_parameter_name_is_refused
+        ("PrimitiveDecl", "reads"),  # test_a_repeated_reads_name_is_refused
+    }
+
+
 def test_a_duplicate_parameter_name_is_refused() -> None:
     """The parameter list is a SET too — the sibling of the reads-multiset rule
     one slot over, and the same failure: the type check reads the list as a map
