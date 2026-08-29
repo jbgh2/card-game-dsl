@@ -94,9 +94,10 @@ covered:    one case per named guard class (the directory glob is the
             entry spelled with an arrow return, a `reads` clause naming one
             declaration twice, an entry naming a round-slot Primitive, an
             entry whose signature disagrees with the implementation's, a
-            `reads` name the game declares nowhere, and a call to a
-            declared-only Primitive from a game that writes no block, and a
-            game binder spelled like a variable the library it `uses`
+            `reads` name the game declares nowhere, a `reads` name a phase
+            declares as state while the game declares it as a zone, a call
+            to a declared-only Primitive from a game that writes no block,
+            and a game binder spelled like a variable the library it `uses`
             PROVIDES — the corpus's first case reaching a real family
             library, so the rendered message names a library the reader can
             go and open.

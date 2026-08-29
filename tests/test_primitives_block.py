@@ -26,13 +26,17 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             ABSENT rather than merely unfetched — with every clause a SET whose
             binders key the domain their declaration is indexed by, so no entry
             of a clause can silently replace another and no binder can key an
-            instance the declaration has none of; and a `reads` name is
-            GAME-scoped state, never a phase's own and never a name both
-            levels declare, because the row is materialized on every call and
-            the runtime resolves the innermost frame, and never a name the
-            game declares in two namespaces at once; and (5) a call that
-            resolves to a designer function is not a native call, so no
-            registry keyed by native NAME answers about it.
+            instance the declaration has none of; and a `reads` name denotes
+            exactly ONE declaration — it is GAME-scoped state, never a
+            phase's own, because the row is materialized on every call while
+            the runtime resolves the innermost frame; and it belongs to at
+            most one of the four namespaces a keyed name can be declared in
+            (the game's `state { }`, a phase's, an indexed `zones { }`
+            declaration, an unindexed one), so a name in two of them is
+            refused rather than classified by whichever the classifier
+            consults first; and (5) a call that resolves to a designer
+            function is not a native call, so no registry keyed by native
+            NAME answers about it.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -42,6 +46,33 @@ domain:     the block's own surface — clause placement x {game, library},
             zone, unknown} — crossed with the REGIME axis (declared /
             legacy) wherever a cell's outcome differs between them, and with
             the six Primitive namespaces of `cardlang/builtins/functions.py`.
+            A `reads` name's MEMBERSHIP across the four namespaces a keyed
+            declaration can live in is crossed whole: the powerset of {the
+            game's `state { }`, a phase's, an indexed `zones { }`
+            declaration, an unindexed one}, one commanded cell per vector.
+            Pairwise membership settles the whole product, and the argument
+            is OWNERSHIP, not bare intersection: every vector carrying
+            game-state membership is refused by `ambiguous_read_names` or
+            `shadowed_state_names` (raw intersections a third membership
+            never shrinks), and the one game-state-free pair is refused by
+            `phase_state_zone_names`, whose game-level subtraction can only
+            hand a name TO those two arms, never to acceptance — so a
+            refusal is monotone in the vector and the three- and four-way
+            cells command "at least one arm speaks" rather than a particular
+            one. The within-namespace repeats are the same product's
+            self-pairs and their Owner is `_check_duplicate_names`, cited by
+            a cell per namespace rather than re-covered: shadowing ACROSS
+            levels is settled-legal, so the refusal class is reads-clause
+            level and no wider. A family library reaches the product through
+            provided state alone — it holds no `zones` clause, and every
+            collision between a provided name and a game's own declaration is
+            refused upstream by `_apply_uses` — so the library cells command
+            the splice (a provided name classifies as game state) and cite
+            that Owner for the rest; that a block READING a provided name has
+            no playing witness is issue #496. The product is over a `reads`
+            name; an ENTRY name colliding with a keyed declaration is the
+            other direction and its outcome is undecided (issue #497), so it
+            is not a cell here.
             The regime axis is crossed once in full: the Primitive's HOME
             (`DECLARED_ONLY_CALL_FUNCS` against its complement in
             `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
@@ -53,11 +84,16 @@ domain:     the block's own surface — clause placement x {game, library},
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
-            scope; and the corpus is outside it by construction in 3a — no
+            scope; and the corpus is outside it by construction while no
             corpus game declares a block, so the reconciliation pin's
             declared arm has the witness fixture as its only member, which
-            `test_reconciliation_reddens_on_a_planted_orphan` and its dual
-            keep from being vacuous.
+            `test_reconciliation_reddens_on_a_planted_orphan` and the three
+            row-grain plants beside it keep from being vacuous. That pin's
+            own domain is the ROWS table it is handed crossed with the
+            declared games, and its exemption is the rows a walled binder
+            binds — the climb binder's answers over the two climb registries,
+            plus the shared dispatch module's rows under an assert that no
+            call implementation names that module.
             Two boundaries the domain has by construction rather than by
             omission. The walled-namespace cells sample one member per
             namespace, and `PRIMITIVE_TRICK_WINNERS` is EMPTY — deliberately,
@@ -116,6 +152,13 @@ does not prove: a green here says nothing about whether a declared read is
             divergence to observe which table is read, and the behavioral
             distinction becomes visible only when 3b's declarations differ
             from the registry they replace.
+            And the reconciliation pin's exemption is only as right as the
+            climb binder it asks: `primitives.climb_row` is a consumer of the
+            rows, not the artifact being judged, so a green here says a
+            declared game keeps exactly the rows THAT BINDER names — a binder
+            answering with the wrong row reshapes the exemption without
+            reddening anything in this module, and the climb machinery's own
+            tests are what hold that fault.
 
 Born red (the bare run on this branch, before any of the block's grammar,
 resolve, typecheck or runtime existed): `58 failed, 51 passed`. Every
@@ -157,6 +200,7 @@ import importlib
 import inspect
 import pathlib
 import random
+import sys
 import typing
 
 import pytest
@@ -1205,6 +1249,16 @@ def test_a_legacy_game_still_may_not_shadow_a_primitive() -> None:
 # --- axis 7: a reads name must be GAME-scoped state -------------------------
 
 
+def _grammar_alternatives(nonterminal: str) -> frozenset[str]:
+    """One `?nonterminal:` production's alternatives, read off the grammar."""
+    import re
+
+    grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
+    body = re.search(rf"\{nonterminal}:(.*?)\n\n", grammar, re.S)
+    assert body is not None, f"{nonterminal} is not a production of the grammar"
+    return frozenset(a.strip().lstrip("| ") for a in body.group(1).split("\n"))
+
+
 def test_the_shadowable_read_kinds_are_derived() -> None:
     """Which declarable read kinds a PHASE can shadow at all — the class of the
     two cells below, read off the grammar rather than remembered. A phase
@@ -1212,14 +1266,7 @@ def test_the_shadowable_read_kinds_are_derived() -> None:
     resolution can differ from the declaration the classifier matched.
 
     red under: add another declaration block to `?phase_item` in the grammar."""
-    import re
-
-    grammar = (
-        ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark"
-    ).read_text()
-    body = re.search(r"\?phase_item:(.*?)\n\n", grammar, re.S)
-    assert body is not None
-    alternatives = {a.strip().lstrip("| ") for a in body.group(1).split("\n")}
+    alternatives = _grammar_alternatives("?phase_item")
     declaring = alternatives & {"state_block", "zones", "positions", "type_def"}
     assert declaring == {"state_block"}, (
         f"a phase now declares {sorted(declaring)} — every declarable read kind "
@@ -1369,6 +1416,300 @@ def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> Non
     assert "zone" in message and "state" in message
 
 
+# --- axis 7: a reads name's MEMBERSHIP across the four name namespaces ------
+#
+# A `reads` clause merges into ONE flat name namespace what the game's syntax
+# keeps in four: the game's own `state { }`, a phase's `state { }`, an indexed
+# `zones { }` declaration, and an unindexed one. The domain is the membership
+# product over those four, and the grid below is its powerset — one cell per
+# vector, each commanded accept (with the kind the name classifies as) or
+# refuse (with the fragment that says WHICH arm speaks).
+#
+# Pairwise coverage is the whole domain, by ownership: every game-state-
+# carrying vector is refused by `ambiguous_read_names` or
+# `shadowed_state_names` — raw intersections a third membership never
+# shrinks — and the one game-state-free pair by `phase_state_zone_names`,
+# whose game-level subtraction can only hand a name TO those two arms, never
+# to acceptance. A refusal is never un-said by adding a declaration; the
+# three- and four-way vectors are therefore commanded "at least one arm
+# speaks" rather than pinned to a particular one.
+
+_NAME_NAMESPACES = ("game_state", "phase_state", "zone_family", "single_zone")
+_PROBE_NAME = "pot"
+
+
+def test_the_collision_namespace_axis_is_derived() -> None:
+    """The four namespaces a `reads` name can be declared in, read off the two
+    registries that define them rather than remembered: the state LEVELS from
+    the grammar productions that admit a `state_block`, and the two zone kinds
+    from `ReadKind` itself.
+
+    The same read settles the library cross. A family library holds no `zones`
+    clause, so no library can contribute a zone to the collision domain — what
+    a library reaches is provided STATE, and
+    `test_library_provided_state_reaches_the_reads_clause` runs that boundary.
+    The day `?library_item` admits zones, a library-contributed zone becomes
+    constructible and this pin reddens rather than the gap going unnoticed.
+
+    red under: delete `state_block` from `?phase_item`, or add a fifth zone
+    kind to `ReadKind`."""
+    from cardlang.primitives_block import ReadKind
+
+    levels = {
+        level
+        for level, production in (
+            ("game_state", "?game_item"),
+            ("phase_state", "?phase_item"),
+        )
+        if "state_block" in _grammar_alternatives(production)
+    }
+    zone_kinds = {k.name.lower() for k in ReadKind if "ZONE" in k.name}
+    assert levels | zone_kinds == set(_NAME_NAMESPACES), sorted(levels | zone_kinds)
+    assert "zones" not in _grammar_alternatives("?library_item")
+
+
+def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
+    """The attribution walk is a SECOND walk over the same declarations — the
+    engine-wide one (`n.state_blocks`) cannot carry the declaring phase — so
+    the two are pinned equal on a game whose phases NEST, which is the shape a
+    walk that only looks at `game.phases` gets wrong.
+
+    red under: drop the `n.Phase` recursion from
+    `primitives_block._phase_state_declarations`."""
+    from cardlang.primitives_block import _phase_state_declarations
+
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase outer {\n"
+        "    state { shallow : Integer = 0 }\n"
+        "    phase inner {\n"
+        "      state { deep : Integer = 0 }\n"
+        "      score[0] := 1\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    game = _checks(source)
+    engine = {
+        sd.name
+        for block in n.state_blocks(game)
+        for sd in block.decls
+        if block is not game.state
+    }
+    assert {name for _, name in _phase_state_declarations(game)} == engine
+    assert engine == {"shallow", "deep"}, sorted(engine)
+    assert set(_phase_state_declarations(game)) == {("outer", "shallow"), ("inner", "deep")}
+
+
+def _collision_source(namespaces: frozenset[str], repeat: str | None = None) -> str:
+    """A probe game declaring `_PROBE_NAME` in exactly `namespaces`, read by the
+    block's one entry. `repeat` declares it TWICE in one namespace — the
+    within-list duplicate, whose Owner Guard is `_check_duplicate_names`."""
+
+    def times(namespace: str) -> int:
+        return (1 if namespace in namespaces else 0) + (1 if repeat == namespace else 0)
+
+    zones = "".join(
+        f"  {_PROBE_NAME}[player] : Discard" for _ in range(times("zone_family"))
+    ) + "".join(f"  {_PROBE_NAME} : Discard" for _ in range(times("single_zone")))
+    game_state = "".join(
+        f"  {_PROBE_NAME} : Integer = 0" for _ in range(times("game_state"))
+    )
+    phase_state = (
+        "    state { "
+        + "  ".join(f"{_PROBE_NAME} : Integer = 0" for _ in range(times("phase_state")))
+        + " }\n"
+        if times("phase_state")
+        else ""
+    )
+    return (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer"
+        f" reads {_PROBE_NAME} }}\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>" + zones + " }\n"
+        "  state { score[player] : Integer = 0" + game_state + " }\n"
+        "  phase play {\n" + phase_state + "    score[0] := 1\n  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+
+
+# The commanded outcome per membership vector: a `ReadKind` for a vector the
+# clause accepts (the kind the name classifies as), or the message fragments a
+# refusal must carry. The keys are checked against the derived powerset below,
+# so a fifth namespace lands as a missing cell rather than an unnoticed gap.
+_COLLISION_OUTCOMES: dict[frozenset[str], str | tuple[str, ...]] = {
+    frozenset(): ("neither `zones",),
+    frozenset({"game_state"}): "STATE_VAR",
+    frozenset({"phase_state"}): ("a PHASE declares",),
+    frozenset({"zone_family"}): "ZONE_FAMILY",
+    frozenset({"single_zone"}): "SINGLE_ZONE",
+    frozenset({"game_state", "phase_state"}): ("game AND a phase",),
+    frozenset({"game_state", "zone_family"}): ("BOTH a state variable and a zone",),
+    frozenset({"game_state", "single_zone"}): ("BOTH a state variable and a zone",),
+    frozenset({"phase_state", "zone_family"}): ("phase `play`", "zone"),
+    frozenset({"phase_state", "single_zone"}): ("phase `play`", "zone"),
+    frozenset({"zone_family", "single_zone"}): ("duplicate zone",),
+    frozenset({"game_state", "phase_state", "zone_family"}): (_PROBE_NAME,),
+    frozenset({"game_state", "phase_state", "single_zone"}): (_PROBE_NAME,),
+    frozenset({"game_state", "zone_family", "single_zone"}): (_PROBE_NAME,),
+    frozenset({"phase_state", "zone_family", "single_zone"}): (_PROBE_NAME,),
+    frozenset(_NAME_NAMESPACES): (_PROBE_NAME,),
+}
+
+
+def _membership_vectors() -> list[frozenset[str]]:
+    import itertools
+
+    return [
+        frozenset(combo)
+        for size in range(len(_NAME_NAMESPACES) + 1)
+        for combo in itertools.combinations(_NAME_NAMESPACES, size)
+    ]
+
+
+def test_the_membership_product_is_covered_whole() -> None:
+    """Anti-vacuity for the grid below: its commanded outcomes are exactly the
+    powerset of the derived axis, so a namespace added to `_NAME_NAMESPACES`
+    doubles the cells instead of leaving half the product unspoken.
+
+    red under: delete any key from `_COLLISION_OUTCOMES`."""
+    assert set(_COLLISION_OUTCOMES) == set(_membership_vectors())
+
+
+@pytest.mark.parametrize(
+    "vector",
+    _membership_vectors(),
+    ids=lambda v: "-".join(sorted(v)) or "declared-nowhere",
+)
+def test_a_reads_name_declared_in_two_namespaces_is_refused(
+    vector: frozenset[str],
+) -> None:
+    """One cell of the membership product. An accepted vector classifies as the
+    commanded kind; a refused one names the probe and carries the fragment of
+    the arm that owns it."""
+    from cardlang.primitives_block import classify_read
+
+    expected = _COLLISION_OUTCOMES[vector]
+    source = _collision_source(vector)
+    if isinstance(expected, str):
+        game = _checks(source)
+        kind = classify_read(game, _PROBE_NAME)
+        assert kind is not None and kind.name == expected
+        return
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    for fragment in expected:
+        assert fragment in message, message
+
+
+@pytest.mark.parametrize(
+    "vector",
+    [
+        frozenset({"game_state", "zone_family"}),
+        frozenset({"phase_state", "zone_family"}),
+    ],
+    ids=["ambiguous", "phase-state-zone"],
+)
+def test_a_collision_speaks_before_the_binder_arms(vector: frozenset[str]) -> None:
+    """The product crossed with the BINDER, at the two vectors where a binder
+    is even well-formed (the colliding name is a zone family either way). The
+    collision arms run before `classify_read`, so they own a colliding name
+    whether the read carries a binder or not — a binder diagnostic here would
+    be answering about a kind the declaration cannot be said to have."""
+    source = _collision_source(vector).replace(
+        f"reads {_PROBE_NAME} }}", f"reads {_PROBE_NAME}[p] }}"
+    )
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    assert "index binder" not in message and "no instances to key" not in message, message
+
+
+@pytest.mark.parametrize(
+    "namespace,noun",
+    [
+        ("game_state", "duplicate state variable"),
+        ("phase_state", "duplicate state variable"),
+        ("zone_family", "duplicate zone"),
+        ("single_zone", "duplicate zone"),
+    ],
+    ids=_NAME_NAMESPACES,
+)
+def test_a_name_repeated_in_ONE_namespace_is_the_duplicate_guards(
+    namespace: str, noun: str
+) -> None:
+    """The self-pairs of the product, whose Owner is `_check_duplicate_names`:
+    duplication is rejected WITHIN one declaration list, while shadowing ACROSS
+    levels stays legal. Cited rather than re-covered — the collision arms above
+    would over-refuse if they spoke here, and the diagnostic a designer reads
+    for a repeat is the duplicate one."""
+    message = _refused(_collision_source(frozenset({namespace}), repeat=namespace))
+    assert noun in message, message
+    assert _PROBE_NAME in message, message
+
+
+def _with_provider(source: str) -> str:
+    return source.replace("game Probe {\n", "game Probe {\n  uses provider\n", 1)
+
+
+def _provider_library() -> n.Library:
+    from cardlang.parse import parse_library
+
+    return parse_library(
+        f"library provider {{ state {{ {_PROBE_NAME} : Integer = 0 }} }}",
+        "docs/libraries/provider.cardlang",
+    )
+
+
+@pytest.mark.parametrize(
+    "vector,fragment",
+    [
+        (frozenset(), None),
+        (frozenset({"zone_family"}), "already uses"),
+        (frozenset({"phase_state"}), "provided by library"),
+    ],
+    ids=["provided-alone", "provided-vs-zone", "provided-vs-phase-state"],
+)
+def test_library_provided_state_reaches_the_reads_clause(
+    vector: frozenset[str], fragment: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The library path's boundary in this domain, stated positively.
+
+    A library's provided state splices into the game's own `state { }` BEFORE
+    the block is checked, so a `reads` name may denote it and classifies as
+    game-level state — the first cell. Every collision between a provided name
+    and one the game declares is refused UPSTREAM, by `_apply_uses`'s own
+    collision Owner Guards, which is why the arms above meet only provided
+    names the game does not redeclare.
+
+    A library-contributed ZONE is not constructible at all: a family library
+    holds no `zones` clause, which
+    `test_the_collision_namespace_axis_is_derived` reads off the grammar."""
+    from cardlang.primitives_block import ReadKind, classify_read
+    from tests.test_family_libraries import _patch_libraries
+
+    _patch_libraries(monkeypatch, {"provider": _provider_library()})
+    source = _with_provider(_collision_source(vector))
+    if fragment is None:
+        game = _checks(source)
+        assert classify_read(game, _PROBE_NAME) is ReadKind.STATE_VAR
+        return
+    message = _refused(source)
+    assert _PROBE_NAME in message, message
+    assert fragment in message, message
+
+
 # --- axis 16/17: a call that resolves to a DESIGNER function is not native --
 #
 # A declared game may define a function named after a Primitive absent from its
@@ -1376,25 +1717,60 @@ def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> Non
 # registry would then fire on a call the runtime dispatches to the user
 # function. The axis is those registries, crossed with the legacy Primitive
 # set: a nonempty intersection is a registry whose names a designer function
-# can now legally take.
+# may legally take.
 
 
 def _collidable_native_registries() -> dict[str, frozenset[str]]:
-    """Native name registries whose members a designer function may now take,
-    DERIVED — each registry intersected with the legacy Primitive set, since a
-    Builtin's name is still refused to a designer function in every regime."""
+    """Native name registries whose members a designer function may take.
+
+    The candidate list is AUTHORED and its completeness argument is a GUARD
+    census rather than a registry one: the class is "a compile-stage guard
+    that keys a call by its native NAME", and a guard may key any set, so no
+    registry defines the class. The census below is the set every such site
+    keys, read off the two passes that hold them:
+
+        grep -n '\\.func in \\|\\.func not in ' cardlang/resolve.py \\
+            cardlang/typecheck.py
+
+    Sites keying a set of the GAME's own names (`fn_names`,
+    `defined_functions`) are outside the class by construction — they answer
+    about designer functions rather than about them. Sites exempt by ORDER —
+    a designer-function arm preceding them in their own function — are
+    `DECLARED_ONLY_CALL_FUNCS` in `_check_native_flavor`, and the derivation
+    query's two other hits, the `CALL_FUNCS` and `native_namespace` guards in
+    resolve, each behind its function's own designer arm.
+
+    What is DERIVED is which of the census members can collide at all: each
+    crossed with the legacy Primitive set, since a Builtin's name is refused to
+    a designer function under every regime. The empty ones are kept as members
+    so the boundary is computed here rather than asserted — a Primitive landing
+    in one of them turns it into a cell."""
     from cardlang.builtins.functions import (
         ARRIVAL_RECORD_CALLS,
         BOARD_ONLY_CALL_FUNCS,
         DECK_ONLY_CALL_FUNCS,
+        TRICK_ORDER_EXCLUDED_FUNCS,
+        TRICK_ORDER_GATED_FUNCS,
+        TRICK_ORDER_READERS,
     )
+    from cardlang.resolve import _FRAME_CALL_FUNCS
     from cardlang.typecheck import RANKING_GATED_FUNCS
 
     candidates = {
+        # resolve's content-flavor guard, and its boardless sibling.
         "DECK_ONLY_CALL_FUNCS": DECK_ONLY_CALL_FUNCS,
-        "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
         "BOARD_ONLY_CALL_FUNCS": BOARD_ONLY_CALL_FUNCS,
+        # resolve's two-seat frame guard, inside the board-call check.
+        "_FRAME_CALL_FUNCS": frozenset(_FRAME_CALL_FUNCS),
+        # typecheck's `ranking:`-required call gate.
+        "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
+        # resolve's arrival-record gate, over the winners that read one.
         "ARRIVAL_RECORD_CALLS": frozenset(ARRIVAL_RECORD_CALLS),
+        # The Trick Order's presence partition: what a block gates, what it
+        # excludes, and what reads one.
+        "TRICK_ORDER_GATED_FUNCS": TRICK_ORDER_GATED_FUNCS,
+        "TRICK_ORDER_EXCLUDED_FUNCS": TRICK_ORDER_EXCLUDED_FUNCS,
+        "TRICK_ORDER_READERS": frozenset(TRICK_ORDER_READERS),
         # The Trick Order row check refuses every CALL_FUNCS member outside its
         # own allow-list, so its collidable set is the whole Primitive half.
         "TRICK_ORDER_ROW_CALLS": PRIMITIVE_CALL_FUNCS,
@@ -1402,14 +1778,17 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     return {k: v & PRIMITIVE_CALL_FUNCS for k, v in candidates.items()}
 
 
-def test_the_collidable_registry_axis_is_derived() -> None:
+def test_the_collidable_registry_intersections_are_derived() -> None:
     """Anti-vacuity, and the boundary stated: exactly the registries with a
     nonempty intersection need a designer-function cell, and the empty ones are
     empty because they hold Builtin names only — which a designer function may
-    not take under any regime.
+    not take under any regime. The intersection is what this pins; the
+    candidate list is authored, and `_collidable_native_registries` states the
+    argument for it.
 
     red under: add a Primitive's name to `BOARD_ONLY_CALL_FUNCS`."""
     collidable = _collidable_native_registries()
+    assert len(collidable) > 5, sorted(collidable)
     nonempty = {k for k, v in collidable.items() if v}
     assert nonempty == {
         "DECK_ONLY_CALL_FUNCS",
@@ -1776,6 +2155,15 @@ def _live_state_and_row() -> tuple[RuntimeState, PrimitiveReads]:
 # Primitive coupling can be stated in its own `primitives { }` block or in the
 # authored `PRIMITIVE_READS` registry, and two statements of one fact drift.
 # The pin below is what keeps the window checked rather than merely scheduled.
+#
+# It quantifies per ROW, not per game, because a game's rows are not all its
+# block's to replace. The block covers the call-position namespace; the walled
+# namespaces keep their own rows and their binders bind them at load, so a
+# declared game legitimately keeps the rows those binders name and no others.
+# The exemption is derived by asking the binders rather than authored beside
+# them: an authored copy is a second statement of a fact its consumers already
+# hold, hand-edited once per migration, and its drift check would be this pin
+# again with one more table.
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
 GAMES_DIR = ROOT_DIR / "docs" / "games"
@@ -1808,9 +2196,65 @@ def _checked_games() -> tuple[tuple[str, n.Game], ...]:
     return tuple((p.name, check_source(p)) for p in game_sources())
 
 
+_SHARED_DISPATCH_MODULE = "cardlang/runtime/primitives.py"
+
+
+def _implementation_modules(implementations: dict[str, Implementation]) -> frozenset[str]:
+    """The implementation index's modules in `PrimitiveReads.module` spelling.
+
+    The index states an importable DOTTED path and a row a repo-relative FILE,
+    and this is the one site that compares them — the normalization
+    `runtime/driver.declared_primitives` performs when it builds a declared
+    entry's row, so the exemption below and the rows it exempts are spelled
+    alike. `test_the_module_spellings_meet` is the control under it: a
+    normalization that produced nothing would make that assert pass forever."""
+    return frozenset(
+        impl.module.replace(".", "/") + ".py" for impl in implementations.values()
+    )
+
+
+def _climb_bound_rows() -> frozenset[tuple[str, str]]:
+    """The declared-reads rows the CLIMB binder binds, asked of the binder.
+
+    A climb query is invoked by the round machinery rather than through the
+    call dispatch, and `primitives.climb_row` is what hands it its module's
+    row — at ROUND time, off a module-level binding made at import. So the
+    set is derived by asking that binder about every registered climb name
+    rather than authored a second time here, where it would drift the day a
+    climb home moves."""
+    from cardlang.builtins.functions import (
+        PRIMITIVE_CLIMB_FOLLOWS,
+        PRIMITIVE_CLIMB_LEADS,
+    )
+    from cardlang.runtime import primitives as dispatch
+
+    rows = [
+        dispatch.climb_row(name)
+        for name in sorted(PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS)
+    ]
+    return frozenset((r.module, r.game_file) for r in rows)
+
+
+def _walled_binder_rows(rows: tuple[PrimitiveReads, ...]) -> frozenset[tuple[str, str]]:
+    """The rows a WALLED namespace's binder binds, keyed as the rows table keys
+    them — the rows a declared game's block does NOT replace, because the block
+    covers the call-position namespace alone.
+
+    Two sources, both consumer-derived: the climb binder's own answers, and the
+    shared dispatch module's rows, which serve the auction outcomes and
+    cribbage's pegging call sites. The second is stated per MODULE, which is
+    only safe while that module implements no call Primitive — `_reconcile`
+    asserts exactly that, so a call implementation landing there reddens the
+    pin instead of silently widening the exemption."""
+    return _climb_bound_rows() | frozenset(
+        (r.module, r.game_file) for r in rows if r.module == _SHARED_DISPATCH_MODULE
+    )
+
+
 def _reconcile(
     games: tuple[tuple[str, n.Game], ...],
     implementations: dict[str, Implementation],
+    rows: tuple[PrimitiveReads, ...],
 ) -> None:
     """The pin's body, over supplied tables so the mutations below can plant.
 
@@ -1850,18 +2294,31 @@ def _reconcile(
         f"declares and nothing calls is dead Python in the language package"
     )
 
-    # (3) one definition site per game. A game whose block declares its
-    # Primitives must not ALSO have authored `PRIMITIVE_READS` rows: the same
-    # coupling stated twice is the dual-definition-site state the coexistence
-    # window is priced to keep impossible.
-    with_rows = {row.game_file for row in PRIMITIVE_READS}
+    # (3) one definition site per ROW. A game whose block declares its
+    # Primitives must not ALSO have an authored `PRIMITIVE_READS` row for the
+    # coupling the block states: the same fact stated twice drifts. Quantified
+    # per row rather than per game because a game's rows are not all the
+    # block's to replace — the walled namespaces keep their own, and their
+    # binders bind them at load, so deleting one to satisfy a game-grain claim
+    # would kill the mechanic rather than end a duplication.
+    assert _SHARED_DISPATCH_MODULE not in _implementation_modules(implementations), (
+        f"{_SHARED_DISPATCH_MODULE} implements a call Primitive, so "
+        f"exempting its rows per module would exempt a row a declared block "
+        f"replaces; give that half of the exemption a per-row basis"
+    )
+    declared_files = {name for name, game in games if regime(game) is Regime.DECLARED}
+    exempt = _walled_binder_rows(rows)
     both = sorted(
-        {name for name, game in games if regime(game) is Regime.DECLARED} & with_rows
+        f"{row.game_file} ({row.module})"
+        for row in rows
+        if row.game_file in declared_files
+        and (row.module, row.game_file) not in exempt
     )
     assert not both, (
-        f"games stating their Primitive reads twice: {both} — a `primitives "
-        f"{{ }}` block and a PRIMITIVE_READS row declare the same coupling, "
-        f"and two statements of one fact drift"
+        f"rows stating a Primitive coupling their game's block states too: "
+        f"{both} — a `primitives {{ }}` block and a PRIMITIVE_READS row "
+        f"declare the same coupling, and two statements of one fact drift; a "
+        f"row a walled binder binds is exempt and survives its game's block"
     )
 
 
@@ -1881,7 +2338,35 @@ def test_the_corpus_reconciles_in_every_direction() -> None:
         "no game in the pin's domain declares a block — the declared arm would "
         "be green by having nothing to look at"
     )
-    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS))
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
+
+
+def test_the_module_spellings_meet() -> None:
+    """The control under claim (3)'s backing assert. The index spells a module
+    dotted and a row spells it as a path, so an assert written in the wrong one
+    matches nothing and passes forever — this is what says the normalization
+    produces the rows' spelling and that the set it produces is not empty.
+
+    red under: drop the `.replace(".", "/")` from `_implementation_modules`."""
+    modules = _implementation_modules(dict(PRIMITIVE_IMPLEMENTATIONS))
+    assert "cardlang/runtime/pinochle.py" in modules, sorted(modules)
+    assert modules & {r.module for r in PRIMITIVE_READS}, sorted(modules)
+
+
+def test_the_walled_exemption_names_the_rows_the_binders_bind() -> None:
+    """The exemption is derived from two consumers, and this is what says it
+    landed on real rows rather than on a key shape nothing in the registry
+    uses. Both halves are asserted non-empty separately: a climb binder that
+    answered nothing and a shared module with no rows would each leave the
+    exemption silently narrower than it reads.
+
+    red under: return `frozenset()` from `_climb_bound_rows`."""
+    keys = {(r.module, r.game_file) for r in PRIMITIVE_READS}
+    climb = _climb_bound_rows()
+    shared = _walled_binder_rows(PRIMITIVE_READS) - climb
+    assert climb and climb <= keys, sorted(climb)
+    assert shared and shared <= keys, sorted(shared)
+    assert ("cardlang/runtime/tichu.py", "tichu.cardlang") in climb
 
 
 @pytest.mark.slow
@@ -1894,23 +2379,116 @@ def test_reconciliation_reddens_on_a_planted_orphan() -> None:
         "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED
     )
     with pytest.raises(AssertionError, match="orphan_primitive"):
-        _reconcile(_checked_games(), planted)
+        _reconcile(_checked_games(), planted, PRIMITIVE_READS)
 
 
 @pytest.mark.slow
 def test_reconciliation_reddens_on_a_dual_definition_site() -> None:
-    """A game declaring a block while its authored `PRIMITIVE_READS` rows still
-    stand — the exact state 3b removes, planted here so the window is checked
-    while it is open."""
-    dual = _checked_games() + ((
-        "pinochle.cardlang",
-        check_source(WITNESS),
-    ),)
-    with pytest.raises(AssertionError, match="pinochle.cardlang"):
-        _reconcile(dual, dict(PRIMITIVE_IMPLEMENTATIONS))
+    """A declared game whose authored `PRIMITIVE_READS` row still stands — the
+    exact state the corpus sweep removes, planted here so the window is checked
+    while it is open.
+
+    The plant is a ROW, keyed to the declaring witness game, because the claim
+    quantifies over rows: a game-shaped plant would say only that SOME row of
+    that game's remains, which the walled survivors make true for games that
+    are correctly migrated."""
+    planted = PRIMITIVE_READS + (
+        PrimitiveReads(
+            module="cardlang/runtime/pinochle.py",
+            game_file=WITNESS.name,
+            zone_families=frozenset({"hand"}),
+        ),
+    )
+    with pytest.raises(AssertionError, match=WITNESS.name):
+        _reconcile(_checked_games(), dict(PRIMITIVE_IMPLEMENTATIONS), planted)
+
+
+@pytest.mark.slow
+def test_the_narrowing_exempts_a_surviving_auction_row() -> None:
+    """The exemption exempts something. A game declaring a block while the
+    shared dispatch module still holds its AUCTION row is the day-one state of
+    the wave — the block covers the call-position namespace, the auction
+    outcome takes its own declaration slot later (issue #142), and the row
+    stays because the outcome's dispatch reads it.
+
+    The unnarrowed membership is asserted non-empty on the same state, so the
+    pass is the narrowing's doing and not an empty intersection. The rows table
+    is restricted to the shared module's own: the game's OTHER row — the one
+    its block replaces — is exactly what claim (3) must still refuse, and
+    leaving it in would prove the cell for the wrong reason."""
+    games = _checked_games() + (("pinochle.cardlang", check_source(WITNESS)),)
+    rows = tuple(r for r in PRIMITIVE_READS if r.module == _SHARED_DISPATCH_MODULE)
+    assert {"pinochle.cardlang"} & {r.game_file for r in rows}, (
+        "the shared module holds no pinochle row — the cell would pass by "
+        "having nothing to exempt"
+    )
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), rows)
+
+
+@pytest.mark.slow
+def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> None:
+    """The exemption states the shared dispatch module's rows per MODULE, which
+    is sound only while nothing there is a call Primitive. A call
+    implementation landing in that module would make one of those rows a row a
+    block replaces, and the module-grain half would exempt it silently — so the
+    condition is asserted rather than assumed, and this is the plant that says
+    the assert can speak."""
+    planted = dict(PRIMITIVE_IMPLEMENTATIONS)
+    planted["pinochle_meld_value"] = Implementation(
+        "cardlang.runtime.primitives", "call", InvocationContract.BUNDLED
+    )
+    with pytest.raises(AssertionError, match=_SHARED_DISPATCH_MODULE):
+        _reconcile(_checked_games(), planted, PRIMITIVE_READS)
+
+
+@pytest.mark.slow
+def test_the_narrowing_exempts_the_climb_row_its_binder_binds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tichu's carve-out, which the corpus sweep meets for real: the module
+    implements a call Primitive AND is a climb home, its row is what the climb
+    binder imports at load, and the block does not cover climb queries — so the
+    row outlives the block, and deleting it to satisfy a coarser claim would
+    crash the climb machinery at load rather than end a duplication.
+
+    red under (run): drop the climb half of the exemption."""
+    games = _checked_games() + (("tichu.cardlang", check_source(WITNESS)),)
+    _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_climb_bound_rows", lambda: frozenset()
+    )
+    with pytest.raises(AssertionError, match="tichu.cardlang"):
+        _reconcile(games, dict(PRIMITIVE_IMPLEMENTATIONS), PRIMITIVE_READS)
 
 
 # --- the witness fixture, played --------------------------------------------
+
+
+def test_an_under_declared_reads_clause_fails_in_the_typed_channel() -> None:
+    """Whether a declared read SUFFICES for its implementation is a fact about
+    Python, so the compile stage cannot settle it and the playout is where an
+    under-declaring clause surfaces. What the designer meets there is the
+    block's own failure channel: the primitive, the name its implementation
+    wanted, and the clause to extend — never a bare `KeyError` from a module
+    the reader has no reason to suspect.
+
+    The witness fixture with one read removed is the shape every hand-authored
+    block can take, which is what makes this the wave's channel rather than one
+    game's."""
+    from cardlang.runtime.reads import PrimitiveReadError
+
+    whole = WITNESS.read_text()
+    source = whole.replace("reads hand[p], trump_suit", "reads hand[p]")
+    assert source != whole, (
+        "the under-declaration did not apply — the fixture's clause moved"
+    )
+    game = check_dsl(source, "under_declared.cardlang")
+    with pytest.raises(PrimitiveReadError) as exc:
+        play_game(game, random.Random(0))
+    message = str(exc.value)
+    assert "pinochle_meld_value" in message, message
+    assert "trump_suit" in message, message
+    assert "reads" in message and "primitives" in message, message
 
 
 def test_the_witness_fixture_plays() -> None:

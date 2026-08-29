@@ -31,10 +31,16 @@ Contract:
   assumes      the game file named by a row parses and declares the names
                the row lists (pinned statically by tests/test_primitive_reads.py;
                re-checked at runtime by the accessors).
-  establishes  every name-keyed primitive read is declared in
-               `PRIMITIVE_READS` and fails as a typed `PrimitiveReadError`
-               naming this registry — never a bare `KeyError` — when either
-               side of the coupling drifts.
+  establishes  every name-keyed primitive read is declared — in
+               `PRIMITIVE_READS`, or in the `reads` clause of the game's own
+               `primitives { }` entry — and fails as a typed
+               `PrimitiveReadError` naming the declaration to extend, never
+               as a bare `KeyError`, when either side of the coupling
+               drifts. That holds through both doors onto a declared read:
+               the accessors below, and a `GameReads` bundle's own halves,
+               whose miss is the one the compile stage cannot pre-empt (that
+               a declared read SUFFICES for its implementation is a fact
+               about Python).
   illegal after it
                direct name-keyed `RuntimeState`/`ZoneStore` access
                (`rs.get`/`rs.set`/`zones.single`/`zones.instance`/
@@ -455,6 +461,71 @@ def instance(rs: RuntimeState, r: PrimitiveReads, name: str, key: int | str) -> 
         ) from None
 
 
+class _BundleHalf(dict[str, Any]):
+    """One half of a `GameReads` bundle, whose MISS is typed.
+
+    An undeclared name is absent from the bundle by design — that absence IS
+    the narrowing — so reading one is a lookup miss, and a miss on a plain
+    mapping raises a bare `KeyError` carrying the key and nothing else, from a
+    module the reader has no reason to suspect. Whether a declared read
+    SUFFICES for the implementation is the one thing the compile stage cannot
+    settle (it is a fact about Python), so this miss is the channel that
+    question is answered in, and it names the declaration to extend.
+
+    A `dict` subclass rather than a wrapper, so `in`, iteration, equality and
+    the freeze walk all behave exactly as before; the mapping the bundle holds
+    is this wrapped in a `MappingProxyType`, which is what keeps a primitive
+    from writing through the subclass's own mutability."""
+
+    __slots__ = ("_kind", "_row", "_primitive")
+
+    def __init__(
+        self,
+        values: Mapping[str, Any],
+        kind: str,
+        row: PrimitiveReads,
+        primitive: str | None,
+    ) -> None:
+        super().__init__(values)
+        self._kind = kind
+        self._row = row
+        self._primitive = primitive
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """A miss refuses here too, default or no default.
+
+        `dict.__missing__` fires on the SUBSCRIPT alone, so `.get` would walk
+        past the whole guarantee and hand back `None` — an undeclared read
+        reading exactly like a declared one whose value happens to be absent,
+        which is the silent-wrong-answer shape this half exists to close. What
+        a bundle carries is not a question with a sensible default: the
+        declaration answers it exactly."""
+        return self[key]
+
+    def __missing__(self, key: str) -> Any:
+        if self._primitive is not None:
+            raise PrimitiveReadError(
+                f"the Primitive `{self._primitive}` read the {self._kind} "
+                f"{key!r}, which its bundle does not carry — a bundle holds "
+                f"exactly the declared reads ({sorted(self)}), so extend that "
+                f"entry's `reads` clause in {self._row.game_file}'s "
+                f"`primitives {{ }}` block, or read a name it already names"
+            )
+        raise PrimitiveReadError(
+            f"{self._row.module} (serving {self._row.game_file}) read the "
+            f"{self._kind} {key!r}, which its bundle does not carry — a bundle "
+            f"holds exactly the declared reads ({sorted(self)}); declare the "
+            f"read in {_REGISTRY_NAME}"
+        )
+
+
+def _half(
+    values: Mapping[str, Any], kind: str, row: PrimitiveReads, primitive: str | None
+) -> Mapping[str, Any]:
+    """One materialized half, read-only and with its miss typed."""
+    return MappingProxyType(_BundleHalf(values, kind, row, primitive))
+
+
 @dataclass(frozen=True, slots=True)
 class GameReads:
     """One module's declared reads, materialized as plain immutable values.
@@ -529,6 +600,7 @@ def game_reads(
     rs: RuntimeState,
     r: PrimitiveReads,
     keys: Mapping[str, int | str] | None = None,
+    primitive: str | None = None,
 ) -> GameReads:
     """Materialize `r`'s declared row from live state.
 
@@ -546,7 +618,12 @@ def game_reads(
     `reads hand[p]` grants the hand the call names and no other. It is a
     per-call argument rather than part of the row because the key IS one, and
     it applies here, at the one materialization site, so what a primitive
-    receives and what its declaration says can never be two derivations."""
+    receives and what its declaration says can never be two derivations.
+
+    `primitive` is the DECLARED entry's name, when a declaration is what built
+    the row. It appears only in the miss message, where the addressee's fix
+    differs by regime: a declared entry's is its own `reads` clause, an
+    authored row's is `PRIMITIVE_READS`. The legacy binders pass none."""
     keys = keys or {}
     unknown = sorted(set(keys) - r.state_vars - r.zone_families)
     if unknown:
@@ -556,23 +633,43 @@ def game_reads(
             f"key narrows a declared indexed name, never one the row omits"
         )
     return GameReads(
-        state=deep_freeze(
-            {n: _narrow(state(rs, r, n), keys.get(n)) for n in sorted(r.state_vars)}
+        state=_half(
+            deep_freeze(
+                {n: _narrow(state(rs, r, n), keys.get(n)) for n in sorted(r.state_vars)}
+            ),
+            "state variable",
+            r,
+            primitive,
         ),
-        families=deep_freeze(
-            {
-                n: _narrow(
-                    {k: list(z.cards) for k, z in family(rs, r, n).items()},
-                    keys.get(n),
-                )
-                for n in sorted(r.zone_families)
-            }
+        families=_half(
+            deep_freeze(
+                {
+                    n: _narrow(
+                        {k: list(z.cards) for k, z in family(rs, r, n).items()},
+                        keys.get(n),
+                    )
+                    for n in sorted(r.zone_families)
+                }
+            ),
+            "zone family",
+            r,
+            primitive,
         ),
-        singles=deep_freeze(
-            {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+        singles=_half(
+            deep_freeze(
+                {n: list(single(rs, r, n).cards) for n in sorted(r.single_zones)}
+            ),
+            "single zone",
+            r,
+            primitive,
         ),
-        arrivals=deep_freeze(
-            {n: _arrival_pairs(rs, r, n) for n in sorted(r.arrival_zones)}
+        arrivals=_half(
+            deep_freeze(
+                {n: _arrival_pairs(rs, r, n) for n in sorted(r.arrival_zones)}
+            ),
+            "arrival record",
+            r,
+            primitive,
         ),
     )
 

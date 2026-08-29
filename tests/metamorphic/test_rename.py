@@ -42,11 +42,9 @@ residual:   Three exclusion categories, each on its own `RenamePlan` field,
                 `primitives { }` block is outside it: its Primitive reads
                 are declared in its own file, so the transform renames the
                 declaration along with the zone and the checker refuses a
-                `reads` name that no longer resolves. What this transform
-                can no longer observe for such a game is the coupling
-                itself — there is nothing left to observe, because one edit
-                in one file moves both sides, which is a stronger statement
-                than the exclusion it replaces. The names it excludes are
+                `reads` name that resolves to nothing. Such a game has no
+                latent coupling for this transform to observe: one edit in
+                one file moves both sides. The names it excludes are
                 exactly those whose reading side is Python this transform
                 cannot rewrite.
 
