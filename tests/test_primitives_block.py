@@ -611,16 +611,30 @@ _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
 def _homes() -> dict[str, list[str]]:
     """The two homes, as the registries state them. The declared-only arm is
     every member, so the product below covers the registry; the legacy arm is
-    the one representative, asserted to be in the complement."""
-    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
-    assert _LEGACY_HALF_NAME in legacy_half, (
-        f"{_LEGACY_HALF_NAME} is no longer a Primitive with a legacy `call` "
-        f"arm — pick another representative from {sorted(legacy_half)[:3]}…"
-    )
+    the one representative, whose membership the test beside it checks.
+
+    A plain lookup, deliberately: this runs inside the `parametrize` list, so
+    anything that raised here would be a COLLECTION error — the whole module
+    deselected on a fact about one representative, reported as a broken test
+    file rather than as the registry change it is."""
     return {
         "declared-only": sorted(DECLARED_ONLY_CALL_FUNCS),
         "legacy-arm too": [_LEGACY_HALF_NAME],
     }
+
+
+def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
+    """The product's legacy arm is sampled at one name, and the sample means
+    nothing if the name has moved homes: `DECLARED_ONLY_CALL_FUNCS` grows as
+    stage 3b migrates games, and every migration is a name leaving this half.
+
+    red under: set `_LEGACY_HALF_NAME` to a declared-only Primitive."""
+    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
+    assert _LEGACY_HALF_NAME in legacy_half, (
+        f"{_LEGACY_HALF_NAME} no longer has a legacy `call` arm — the product "
+        f"below samples its half at this name; pick another from "
+        f"{sorted(legacy_half)[:3]}"
+    )
 
 
 @pytest.mark.parametrize(
