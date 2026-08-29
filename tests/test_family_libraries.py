@@ -262,7 +262,10 @@ covered:  the parse grid — item x neighbour, all 49 truncated cells executed b
           `test_no_provided_name_can_be_a_pronoun` hold the two name
           introductions that are not binders; and
           `test_a_piece_game_reveal_is_refused_before_it_binds` holds the one
-          spelling a registry admits and no game text reaches.
+          spelling a registry admits and no game text reaches. Beside them
+          `test_one_node_spelling_a_name_twice_draws_one_sentence` holds what the
+          grid's cells cannot see at all — how MANY times the bag says a thing,
+          where a `let` binds twice from one span.
           The claim grid — 6 one-library cells
           (`test_one_library_claiming_a_state_name`) and 6 two-library cells
           (`test_two_libraries_claiming_one_state_name`), each asserting the
@@ -2771,6 +2774,17 @@ _INTRODUCE: tuple[_Site, ...] = (
         "TypeDef", "shared", True, "score[0] := 0",
         extra="type T = { shared : Integer } derived { twice = shared + shared }",
     ),
+    # The same declaration with no `derived { }` block scopes its field names
+    # over no DSL text at all — `_classify_type_derived` only scopes them inside
+    # derived bodies. Refused all the same, conservatively: adding one derived
+    # field makes the shadow live, and the author who would add it is the one
+    # who cannot see the other half. The refusal's sentence is what has to hold
+    # for both, which is why it speaks of wherever the name is in scope rather
+    # than asserting a scope that may be empty.
+    _Site(
+        "TypeDef", "shared", True, "score[0] := 0",
+        extra="type T = { shared : Integer }",
+    ),
     _Site(
         "FunctionDef", "shared", True, "score[0] := f(1)",
         extra="function f(shared : Integer) = shared",
@@ -3229,6 +3243,27 @@ def test_a_declaration_level_collision_is_reported_by_another_guard(
         else f"this game already uses '{name}' as a {noun}"
     )
     assert expected in _whole_bag(exc.value), _whole_bag(exc.value)
+
+
+def test_one_node_spelling_a_name_twice_draws_one_sentence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`let <name>[<index>]` binds twice, from one span, and nothing stops an
+    author spelling the two the same. The registry answers with both, so a
+    refusal per returned name would print the identical sentence twice at the
+    identical position — noise a reader has to decide is not two problems.
+
+    The grid cannot catch this: its cells assert what the bag SAYS, not how many
+    times.
+
+    red under: drop the `dict.fromkeys` around `_introduced_binders` in
+    `_check_provided_shadowed_by_binder`."""
+    _patch_libraries(monkeypatch, {"provider": _provider()})
+    source = _WRITE_HOST.replace("WRITE", "let prov[prov] = 1\n    score[0] := 0")
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(source, "writer.cardlang"))
+    message = _whole_bag(exc.value)
+    assert message.count("is spelled like state 'prov'") == 1, message
 
 
 def test_a_library_may_bind_its_own_provided_name(

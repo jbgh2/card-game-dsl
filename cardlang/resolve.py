@@ -1313,10 +1313,10 @@ def _check_provided_shadowed_by_binder(
         if chosen:
             bag.error(
                 f"{noun} '{name}' is spelled like state '{name}', which library "
-                f"'{library}' provides — inside this scope the bare name is the "
-                f"{noun}, so the provided variable cannot be read here, and "
-                f"nothing in this file says the spelling was taken: rename the "
-                f"{noun}",
+                f"'{library}' provides — wherever this name is in scope the bare "
+                f"word is the {noun}, so the provided variable cannot be read "
+                f"there, and nothing in this file says the spelling was taken: "
+                f"rename the {noun}",
                 span,
             )
         else:
@@ -1331,7 +1331,9 @@ def _check_provided_shadowed_by_binder(
 
     for node in _walk(game):
         chosen = type(node) in _AUTHOR_CHOSEN_BINDERS
-        for name in _introduced_binders(node, game.content_flavor):
+        # One node, one sentence per spelling: a `let` binds `name` and `index`
+        # from one span, and `let limit[limit] = 1` spells them the same.
+        for name in dict.fromkeys(_introduced_binders(node, game.content_flavor)):
             check(name, "binder", chosen, getattr(node, "span", None))
     for row in _PARAM_BEARING.values():
         if not row.scopes_body:
