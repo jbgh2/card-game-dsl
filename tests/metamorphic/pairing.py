@@ -23,22 +23,23 @@ A transformed tree that fails the pipeline is a harness bug (the transform
 produced an invalid tree), not a metamorphic finding, and fails loudly via
 `AssertionError` rather than being swallowed.
 
-The chooser. Every corpus game's `legal_cards` returns a `set`
-(docs/decisions.md via CLAUDE.md memory: "legal_cards returns a set"), so raw
-chooser-candidate order is Python hash-seed dependent. Rather than pinning
-`PYTHONHASHSEED` (the plan's stated approach, for cross-process golden
-reproducibility), this harness sorts every candidate list by
-`repr(observe.render(candidate))` before picking — `render` is the runtime's
-own closed-domain, deterministic candidate rendering (`runtime/observe.py`,
-already used to build the "chose"/"announce" event payloads), so the sort key
-needs no new vocabulary and fails loudly (via `render`'s own `AssertionError`)
-on any candidate shape it does not know. This is a STRONGER guarantee than
-hashseed-pinning: two playouts under the same seed agree regardless of
-`PYTHONHASHSEED`, verified empirically (four corpus games, seed 5, hashseed 0
-vs. 42, byte-identical traces) rather than merely asserted. `PYTHONHASHSEED`
-is therefore not pinned by this harness; this is a deliberate, verified
-deviation from the plan's literal wording, recorded here rather than silently
-dropped.
+The chooser. Rather than pinning `PYTHONHASHSEED` (the plan's stated approach,
+for cross-process golden reproducibility), this harness sorts every candidate
+list by `repr(observe.render(candidate))` before picking — `render` is the
+runtime's own closed-domain, deterministic candidate rendering
+(`runtime/observe.py`, already used to build the "chose"/"announce" event
+payloads), so the sort key needs no new vocabulary and fails loudly (via
+`render`'s own `AssertionError`) on any candidate shape it does not know. The
+sort is what makes the comparison order DECLARED here rather than inherited
+from the order the runtime builds — a property of this harness, holding for
+whatever any decision site hands over, where a pin is a property of the
+environment one run is launched in. This is a STRONGER
+guarantee than hashseed-pinning: two playouts under the same seed agree
+regardless of `PYTHONHASHSEED`, verified empirically (four corpus games, seed
+5, hashseed 0 vs. 42, byte-identical traces) rather than merely asserted.
+`PYTHONHASHSEED` is therefore not pinned by this harness; this is a
+deliberate, verified deviation from the plan's literal wording, recorded here
+rather than silently dropped.
 
 Termination. A greedy/deterministic policy does not make every corpus game's
 line terminate in affordable steps — the OpenSpiel readiness harness

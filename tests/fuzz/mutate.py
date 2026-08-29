@@ -13,9 +13,10 @@ Determinism (grammar-fuzzing.md, "CI is deterministic"). `mutate_text` seeds
 builtin `hash()` — `random.Random(str)` has a documented, PYTHONHASHSEED-
 independent seeding algorithm (it hashes the string's bytes with its own
 stable scheme), so the same triple reproduces the identical mutant across
-processes and interpreters. This mirrors the repo's standing PYTHONHASHSEED
-caution (CLAUDE.md memory: "legal_cards returns a set") by construction,
-rather than by pinning the environment variable.
+processes and interpreters. The builtin would not: `hash(str)` carries the
+`PYTHONHASHSEED` salt, so a mutant keyed on it reproduces only inside the one
+process that produced it — a reproduction the environment owns rather than
+this module.
 
 These operators are deliberately syntax-unaware: they see the corpus file as
 lines and tokens, not as a parse tree. That is the point — a mutation that
