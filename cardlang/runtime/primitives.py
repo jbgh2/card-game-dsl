@@ -4,8 +4,12 @@ A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
 are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
 (`reads.GameReads`); the pair is the [[primitive-bundle]]. The arms below are
-the dispatch seam, and their count is the elimination metric: it trends to zero
-as `design-notes/primitive-inventory.md`'s constructs land in the language.
+the LEGACY dispatch seam, and an arm goes for either of two reasons: the
+construct that replaces its Primitive lands in the language, or the calling
+game declares the Primitive and `call_declared` derives the call instead. Only
+the first is elimination, so the metric is the REGISTRY
+(`PRIMITIVE_CALL_FUNCS`, `design-notes/primitive-inventory.md`) and never the
+count of arms here.
 
 Its two siblings are deliberately separate words: **[[builtins]]** are the
 generic native functions the language ships (`cardlang/runtime/builtins.py`),
