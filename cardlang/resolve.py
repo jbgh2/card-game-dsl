@@ -1210,6 +1210,31 @@ def _check_provided_readonly(
         )
 
 
+# Binder-introducing node kinds whose introduced SPELLING the GAME's own text
+# fixes, as against the kinds the LANGUAGE fixes it for (`any player where`
+# always binds `player`, an aggregation always binds `card`, a transfer filter
+# binds the content noun, a position query binds the domain's noun). Both halves
+# shadow identically, so this is not a scoping table: it decides only WHOSE text
+# can fix a collision with a provided name, and therefore which fix the
+# diagnostic prescribes.
+#
+# Membership is the claim "the game's own text fixes this spelling, so its author
+# can respell it". A free `NAME` token is NOT the test, and reading it that way
+# mis-sorts both borders: `each <role> simultaneously` takes a free `NAME` that
+# `SIMULTANEOUS_ROLES` admits exactly one spelling for, and `n.DomainQuery`'s
+# bare form takes its noun from the game's own `positions { }` row. `DomainQuery`
+# is filed under the language because the only sub-position that is the author's
+# is one `_game_bindings` holds, which
+# `_check_provided_shadowed_by_binder` skips — so no cell reaching the guard
+# through this kind is respellable. Pinned against `_node_binders`'s own domain by
+# `tests/test_family_libraries.py::test_the_author_chosen_split_classifies_every_
+# binding_kind`, so a new binding node kind must be filed under one side or the
+# other rather than defaulting to either.
+_AUTHOR_CHOSEN_BINDERS: frozenset[type] = frozenset(
+    {n.ForEach, n.Turns, n.LetStmt, n.ProduceArm, n.TypeDef}
+)
+
+
 @dataclass(frozen=True)
 class _SlotLeak:
     """One bare-string reference in a library that names something the library
@@ -4260,6 +4285,18 @@ class _ParamBearing:
     a Primitive declaration has no library home — stated here so the family-
     library sweep derives which kinds it must cover instead of intersecting
     two name lists that happen to coincide."""
+    scopes_body: bool
+    """Whether DSL text sits inside these parameters' scope — the region where a
+    bare `NameRef` means the parameter rather than a state variable. True for
+    the four kinds `_classify_names` widens `cats.locals` for; False for a
+    Primitive declaration, whose parameters label a Python signature and key its
+    `reads` binders, so no DSL body is scoped by them and nothing can shadow.
+    Declared rather than read off `library_field is None`, which happens to
+    agree today and means something else entirely — the sweeps that must skip a
+    body-less kind ask this question, so a sixth row answers it rather than
+    inheriting an answer. Pinned against `_rewrite`'s own params-scoping arms by
+    `tests/test_family_libraries.py::test_every_param_bearing_row_agrees_with_
+    the_pass_that_scopes_it`."""
 
 
 _PARAM_BEARING: dict[type, _ParamBearing] = {
@@ -4268,24 +4305,35 @@ _PARAM_BEARING: dict[type, _ParamBearing] = {
         "function parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
         "functions",
+        scopes_body=True,
     ),
     n.ProcedureDef: _ParamBearing(
         lambda game: game.procedures,
         "procedure parameter",
         RESERVED_VALUE_NAMES - _CALL_SITE_PRONOUNS,
         "procedures",
+        scopes_body=True,
     ),
     n.MoveTypeDef: _ParamBearing(
-        lambda game: game.move_types, "move-type parameter", RESERVED_VALUE_NAMES, "move_types"
+        lambda game: game.move_types,
+        "move-type parameter",
+        RESERVED_VALUE_NAMES,
+        "move_types",
+        scopes_body=True,
     ),
     n.RuleDef: _ParamBearing(
-        lambda game: game.rules, "rule parameter", RESERVED_VALUE_NAMES, "rules"
+        lambda game: game.rules,
+        "rule parameter",
+        RESERVED_VALUE_NAMES,
+        "rules",
+        scopes_body=True,
     ),
     n.PrimitiveDecl: _ParamBearing(
         lambda game: () if game.primitives is None else game.primitives.decls,
         "Primitive parameter",
         RESERVED_VALUE_NAMES,
         None,
+        scopes_body=False,
     ),
 }
 

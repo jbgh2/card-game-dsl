@@ -38,7 +38,19 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           required. (e) The STATE-CLAIM space: which claims on one state name may
           coexist — a library's claim subset {requires, state, both} times
           whether the game declares it, and the two-library cross of {requires,
-          state} times the same.
+          state} times the same. (f) PROVIDED state's other half: every way the
+          GAME introduces a name into a scope narrower than the game — a binder,
+          a declaration parameter — times what the library does with that
+          spelling {provides, requires, neither}. (d) is the write face of
+          ownership and this is the READ face: a shadowed provided variable is
+          not written, it becomes unreadable. The introduction axis runs to
+          sub-positions, not node kinds: a kind whose spelling the LANGUAGE
+          fixes has as many introductions as the registry fixing it has members.
+          Outside (f), and each with an executed probe rather than a prose
+          claim: a phase-local `state { }` block, which is narrower than the
+          game but is not a binder; the pronoun rebinds, whose spellings a
+          library may not provide; a Primitive's parameters, which scope no DSL
+          body; and a spelling a registry admits that no game text can reach.
 registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_guards,
           which owns the other half of the same absorption class and pins the
@@ -70,6 +82,39 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           the CLAIM-KIND axis from `n.Library`'s state clauses — its fields minus
           its name, its span and the definition kinds — pinned by
           `test_claim_axis_covers_every_library_state_clause`;
+          the INTRODUCER axis from the union of the two registries owning the
+          ways a game narrows a scope — `_binding_node_kinds()` scrapes
+          `resolve._node_binders`'s own match arms (an arm returning a non-empty
+          tuple binds a name, which is why `Transfer`/`EpistemicOp` count through
+          their guarded arms and not their plain ones), and `resolve._PARAM_
+          BEARING` supplies the declaration parameters that registry deliberately
+          excludes. Crossed against the grid's rows by `test_introducer_axis_
+          covers_every_way_a_game_introduces_a_name`, which also asserts the two
+          registries disjoint, so neither can quietly absorb the other's members.
+          Under it, the SUB-POSITION axis: `_fixed_spellings()` reads each
+          language-fixed kind's spellings off the registry that fixes them —
+          `domains.DOMAINS` for the quantifier nouns, `SIMULTANEOUS_ROLES` for
+          `each … simultaneously`, `runtime.values.content_noun` crossed with
+          `types.Flavor` and singular/plural for the transfer and reveal filters,
+          `resolve._COLLECTION_NOUNS` with `board_domains.BOARD_DOMAIN` for the
+          position queries — pinned by `test_the_fixed_binder_spellings_come_
+          from_their_registries`, with `_UNREACHABLE_SPELLINGS` carrying the one
+          a registry admits and no game text reaches. The author-chosen /
+          language-fixed split the guard's two diagnostics turn on is pinned to
+          the same scrape by `test_the_author_chosen_split_classifies_every_
+          binding_kind` — an unfiled kind would not fail, it would take the
+          language-fixed branch and tell an author to edit a library over a
+          binder they could have respelled;
+          the DECLARATION-LEVEL axis from `resolve._game_bindings`'s own output
+          over a game populating each of its buckets
+          (`test_the_declaration_level_axis_covers_every_game_binding_bucket`),
+          which is the domain of the names the shadow guard leaves to the
+          injection guard;
+          the BODY-SCOPING answer on each `_PARAM_BEARING` row read back off
+          `resolve._rewrite`'s params-scoping arms
+          (`test_every_param_bearing_row_agrees_with_the_pass_that_scopes_it`),
+          so the row states a fact the pass owns rather than a comment with a
+          type;
           the SLOT axis from `resolve._REFERENCE_SLOTS` (whose own key set is
           pinned to the AST by tests/test_reference_slots.py) intersected with
           the node kinds a library can hold — computed here by walking
@@ -283,8 +328,10 @@ from lark import Tree
 from lark.exceptions import VisitError
 
 from cardlang.ast import nodes as n
+from cardlang.board_domains import BOARD_DOMAIN
 from cardlang.builtins.functions import CALL_FUNCS, VALUE_NAMES
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
+from cardlang.domains import DOMAINS, SIMULTANEOUS_ROLES, Role, role_names
 from cardlang.libraries import library_names, load_library
 from cardlang.parse import (
     _Builder,
@@ -294,24 +341,30 @@ from cardlang.parse import (
     parse_to_tree,
 )
 from cardlang.resolve import (
+    _AUTHOR_CHOSEN_BINDERS,
+    _COLLECTION_NOUNS,
     _CONTEXTUAL_SLOTS,
     _LIBRARY_DEF_KINDS,
     _LIBRARY_UNSWEPT,
     _PARAM_BEARING,
     _REFERENCE_SLOTS,
     _STATE_WRITE_SITES,
+    RESERVED_VALUE_NAMES,
     _Categories,
     _check_contract_shapes,
+    _game_bindings,
     _library_reach,
     _library_slot_names,
     _resolve_zone,
     resolve,
 )
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.values import content_noun
 from cardlang.stdlib.moves import LIBRARY_MOVE_TYPES
 from cardlang.stdlib.rules import stdlib_rules
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.typecheck import KNOWN_TYPE_NAMES
+from cardlang.types import Flavor
 from tests.test_game_clause_guards import library_item_alternatives
 
 # A minimal game that satisfies `poker_betting`'s whole `requires` contract. Every
@@ -2437,6 +2490,790 @@ def test_game_text_may_read_library_provided_state(
     _patch_libraries(monkeypatch, {"provider": _provider()})
     source = _WRITE_HOST.replace("WRITE", "score := prov_int + 1")
     resolve(parse_text(source, "writer.cardlang"))
+
+
+# --- PROVIDED state: shadowed by a name the GAME introduces -------------------
+#
+# The READ face of the read-only rule above. That rule closes the WRITE, and the
+# injection guard further up closes the game's DECLARATION level. What is left is
+# a name the game introduces into a scope NARROWER than the game — a binder, a
+# declaration parameter — spelled like a provided variable: inside that scope the
+# bare name is the binder (`_classify` tries `locals` before `state_vars`), so the
+# provided variable cannot be read there, and the game's author never opens the
+# library file to learn the spelling was taken. That invisibility is why the base
+# language's shadowing carve-out — a binder is scoped strictly narrower than a
+# same-named outer declaration the author WROTE (`RESERVED_VALUE_NAMES`) — does
+# not reach here.
+
+_RESOLVE_PY = Path(__file__).resolve().parent.parent / "cardlang" / "resolve.py"
+
+
+def _binding_node_kinds() -> frozenset[str]:
+    """The AST node kinds that BIND a name, derived from `_node_binders`'s own
+    match arms rather than spelled here.
+
+    An arm whose every `return` is the empty tuple is a non-binding arm; any
+    other arm binds. `Transfer`/`EpistemicOp` appear in both a guarded binding
+    arm and a plain non-binding one, so the union is taken over binding arms
+    rather than by subtracting the non-binding ones.
+
+    An arm this cannot read — one naming node kinds but returning from inside a
+    branch rather than at its top level — stops loudly rather than falling to
+    either answer. Defaulting it to non-binding is the failure that matters: the
+    kind would vanish from the axis, and every grid built on the axis would go
+    green with one fewer row than the language has.
+
+    Derived because a hand-list is how this axis would silently stop covering a
+    binder: `TypeDef` and `ProduceArm` both escaped the registry itself (see
+    `_node_binders`'s docstring), and neither is a member of the `Expr` or `Stmt`
+    unions, so no union walk would have found them either."""
+    tree = pyast.parse(_RESOLVE_PY.read_text())
+    fn = next(
+        f
+        for f in pyast.walk(tree)
+        if isinstance(f, pyast.FunctionDef) and f.name == "_node_binders"
+    )
+    match_stmt = next(s for s in fn.body if isinstance(s, pyast.Match))
+    binding: set[str] = set()
+    for case in match_stmt.cases:
+        named = {
+            node.cls.attr
+            for node in pyast.walk(case.pattern)
+            if isinstance(node, pyast.MatchClass) and isinstance(node.cls, pyast.Attribute)
+        }
+        if not named:
+            continue  # the `case _:` wildcard, which names no node kind
+        returns = [s for s in case.body if isinstance(s, pyast.Return)]
+        assert returns, (
+            f"cannot read the `_node_binders` arm for {sorted(named)}: it returns "
+            f"from inside a branch rather than at the arm's top level. Teach this "
+            f"scrape to read it — silently calling it non-binding would drop those "
+            f"kinds from the axis and leave every grid over the axis green"
+        )
+        if all(isinstance(r.value, pyast.Tuple) and not r.value.elts for r in returns):
+            continue
+        binding |= named
+    assert binding, (
+        f"the `_node_binders` match scrape of {_RESOLVE_PY.name} found no binding "
+        f"arms — it has gone stale, and a stale scrape makes the grid vacuous"
+    )
+    return frozenset(binding)
+
+
+def _param_scoping_kinds() -> frozenset[str]:
+    """The declaration kinds whose parameters `_rewrite` puts into `locals` —
+    read off the pass that does the scoping, which is the fact
+    `_ParamBearing.scopes_body` restates.
+
+    Derived rather than listed, because the value of the declared field is that a
+    new row must ANSWER the question; a hand-list here would let a row answer it
+    wrongly and nothing would notice."""
+    tree = pyast.parse(_RESOLVE_PY.read_text())
+    fn = next(
+        f
+        for f in pyast.walk(tree)
+        if isinstance(f, pyast.FunctionDef) and f.name == "_rewrite"
+    )
+    kinds: set[str] = set()
+    for branch in fn.body:
+        if not isinstance(branch, pyast.If):
+            continue
+        named = {
+            attr.attr
+            for call in pyast.walk(branch.test)
+            if isinstance(call, pyast.Call)
+            and isinstance(call.func, pyast.Name)
+            and call.func.id == "isinstance"
+            for attr in pyast.walk(call.args[1])
+            if isinstance(attr, pyast.Attribute)
+        }
+        scopes = any(
+            isinstance(gen.iter, pyast.Attribute) and gen.iter.attr == "params"
+            for comp in pyast.walk(branch)
+            if isinstance(comp, pyast.SetComp)
+            for gen in comp.generators
+        )
+        if named and scopes:
+            kinds |= named
+    assert kinds, (
+        f"the `_rewrite` params-scoping scrape of {_RESOLVE_PY.name} found no "
+        f"arms — it has gone stale, and a stale scrape makes the pin vacuous"
+    )
+    return frozenset(kinds)
+
+
+def test_every_param_bearing_row_agrees_with_the_pass_that_scopes_it() -> None:
+    """`_ParamBearing.scopes_body` says whether DSL text sits inside a
+    declaration's parameters' scope. `_rewrite` is what puts them there, so the
+    two must agree — otherwise the field is a comment with a type, and the sweeps
+    that read it (which parameters can shadow a name, which cannot) would be
+    running on a claim nobody checks.
+
+    red under: flip `scopes_body` on the `n.PrimitiveDecl` row, or delete
+    `_rewrite`'s `n.FunctionDef` params-scoping arm."""
+    declared = {cls.__name__ for cls, row in _PARAM_BEARING.items() if row.scopes_body}
+    assert declared == _param_scoping_kinds(), (
+        f"rows claiming a scoped body {sorted(declared)} != the kinds `_rewrite` "
+        f"scopes parameters for {sorted(_param_scoping_kinds())}"
+    )
+
+
+def _fixed_spellings() -> dict[str, frozenset[str]]:
+    """Per binding node kind, the spellings the LANGUAGE fixes — each read from
+    the registry that fixes it, so a member added there is an uncovered row
+    rather than a hole. A kind absent from this map is one whose binder the
+    author spells.
+
+    `DomainQuery` is the one kind with a spelling from BOTH sides: the bare form
+    over a declared `positions { }` domain takes the author's own noun, and that
+    sub-position is not here because the guard never reaches it (see
+    `test_a_declaration_level_collision_is_reported_by_another_guard`)."""
+    flavors = typing.get_args(Flavor)
+    content = {content_noun(f, plural=p) for f in flavors for p in (False, True)}
+    card = content_noun("card", plural=False)
+    return {
+        "Quantifier": frozenset(role_names(frozenset(d.id for d in DOMAINS))),
+        "EachSimultaneous": frozenset(role_names(SIMULTANEOUS_ROLES)),
+        "PlayerQuery": frozenset(role_names(frozenset({Role.PLAYER}))),
+        "CardQuery": frozenset({card}),
+        "Comprehension": frozenset({card}),
+        "TrickOrderRow": frozenset({card}),
+        "Transfer": frozenset(content),
+        "EpistemicOp": frozenset(content_noun(f, plural=False) for f in flavors),
+        "DomainQuery": _COLLECTION_NOUNS | {BOARD_DOMAIN},
+    }
+
+
+# A spelling its registry admits that no game text can reach, mapped to the guard
+# that refuses it. Each carries an executed probe, because "refused over there" is
+# the claim that rots; without this map the spelling pin below would demand a row
+# nobody can write, and widening the pin to admit it would make it vacuous.
+_UNREACHABLE_SPELLINGS: dict[tuple[str, str], str] = {
+    ("EpistemicOp", "piece"): (
+        "`reveal one card` identifies a deck card, so a piece game's reveal is "
+        "refused by the flavor guard before a binder exists "
+        "(test_a_piece_game_reveal_is_refused_before_it_binds)"
+    ),
+}
+
+
+class _Site(typing.NamedTuple):
+    """One way a game introduces a name into a scope narrower than the game.
+
+    `kind` names the AST node the introduction belongs to — what the axis pin
+    matches against the two registries. `binds` is the spelling the construct
+    introduces: free text where the author names the binder, and the fixed noun
+    where the language spells it. `chosen` records which, because that is what
+    decides whose text can fix a collision, and so which of the two diagnostics
+    the refusal owes.
+
+    `already` marks the row whose spelling is refused a door earlier, by
+    `_check_library_shadows_game`: a DECLARED position domain is one of the
+    game's own declarations, so the injection guard sees the clash before any
+    binder is reached. The cell stays in the grid — a cell is not covered by
+    belonging to someone else — but it is commanded against that guard's
+    sentence, and it is held out of the two registry pins below: the shadow
+    guard never speaks for it, so neither its `chosen` column nor its spelling
+    is a claim about that guard's tables. Its `chosen` records the honest
+    reading all the same — the author wrote the `positions { }` row and can
+    respell it.
+
+    `accepts` marks the row that is a designed NON-error: a Primitive's
+    parameters scope no DSL body, so no game text sits inside their scope and
+    there is nothing to shadow."""
+
+    kind: str
+    binds: str
+    chosen: bool
+    body: str
+    extra: str = ""
+    prelude: str = ""
+    clauses: str = ""
+    board: bool = False
+    already: bool = False
+    accepts: bool = False
+
+
+_INTRODUCE: tuple[_Site, ...] = (
+    # --- spellings the game's own text fixes, and the author can therefore
+    # --- respell ------------------------------------------------------------
+    _Site("ForEach", "shared", True, "for each player shared: score[shared] := 1"),
+    _Site(
+        "Turns", "shared", True,
+        "turns shared from 0 over all players until true { score[shared] := 1 }",
+    ),
+    _Site("LetStmt", "shared", True, "let shared = 5\n    score[0] := shared"),
+    # `index` is `LetStmt`'s OTHER binder, scoped to its own `value` alone.
+    _Site("LetStmt", "shared", True, "let m[shared] = shared\n    score[0] := m[0]"),
+    _Site(
+        "ProduceArm", "shared", True,
+        "pick produces:\n      won(shared) { score[0] := shared }",
+        prelude="define pick -> { won(Integer) } { produce won(0) }",
+    ),
+    _Site(
+        "TypeDef", "shared", True, "score[0] := 0",
+        extra="type T = { shared : Integer } derived { twice = shared + shared }",
+    ),
+    _Site(
+        "FunctionDef", "shared", True, "score[0] := f(1)",
+        extra="function f(shared : Integer) = shared",
+    ),
+    _Site(
+        "ProcedureDef", "shared", True, "run pr(1)",
+        extra="procedure pr(shared : Integer) { score[0] := shared }",
+    ),
+    _Site(
+        "MoveTypeDef", "shared", True, "offer to 0 one of [mt]",
+        extra="move_type mt(shared : Suit) { effect { score[0] := 0 } }",
+    ),
+    # A rule template's parameter shadows by SUBSTITUTION rather than by scoping
+    # — `_instantiate_rules` replaces it by name before classification — which
+    # reaches the same end: the body's `shared` is the argument, never the
+    # provided variable.
+    _Site(
+        "RuleDef", "shared", True,
+        "active_rules: [r(hearts)]\n"
+        "    round play_to_trick from 0 over all players source hand "
+        "into discard winner highest_of_led_suit",
+        extra="rule r(shared : Suit) {\n"
+        "  constrains: play_to_trick\n"
+        "  demands: cards in hand where card.suit is not shared\n"
+        "  if_impossible: hand\n}",
+    ),
+    # A Primitive's parameters label a Python signature and key its `reads`
+    # binders. No DSL body is scoped by them, so the spelling shadows nothing.
+    _Site(
+        "PrimitiveDecl", "shared", True, "score[0] := belote_decl_size(0)",
+        clauses="primitives { belote_decl_size(shared : Player) : Integer reads score }",
+        accepts=True,
+    ),
+    # --- spellings the language fixes, which no game can respell -------------
+    _Site("Quantifier", "player", False, "if any player where player is 0 { score[0] := 1 }"),
+    _Site("Quantifier", "team", False, "if all teams where true { score[0] := 1 }"),
+    _Site("Quantifier", "suit", False, "if any suit where suit is hearts { score[0] := 1 }"),
+    _Site("Quantifier", "rank", False, "if any rank where rank is A { score[0] := 1 }"),
+    _Site("PlayerQuery", "player", False, "score[0] := number of players where player is 0"),
+    _Site(
+        "EachSimultaneous", "player", False,
+        "each player simultaneously: move chosen 1 card from hand[player] to discard",
+    ),
+    _Site(
+        "CardQuery", "card", False,
+        "if any card in deck where card.suit is hearts { score[0] := 1 }",
+    ),
+    _Site("Comprehension", "card", False, "score[0] := sum of 1 over cards in deck"),
+    _Site(
+        "TrickOrderRow", "card", False,
+        "let w = highest_by_trick_order(pile)\n    score[w] += 1",
+        clauses="trick_order { trump: card.suit is hearts }",
+    ),
+    _Site(
+        "Transfer", "card", False,
+        "move 1 card from deck where card.suit is hearts to hand[0]",
+    ),
+    # `where jointly` binds the candidate SET, so its noun is the plural.
+    _Site(
+        "Transfer", "cards", False,
+        "move chosen 2 cards from hand[0] where jointly "
+        "(number of cards in cards) is 2 to discard",
+    ),
+    _Site(
+        "EpistemicOp", "card", False,
+        "reveal one card from deck where card.suit is hearts",
+    ),
+    # The board-minted `cell` domain, which the injection guard cannot see:
+    # `_resolve_board` mints it after `_apply_uses` has read `game.positions`.
+    _Site(
+        "DomainQuery", "cell", False,
+        "if all cells where square[cell] is empty { result[0] := 1 }",
+        board=True,
+    ),
+    _Site(
+        "DomainQuery", "line", False,
+        "if any line in lines(3) where true { result[0] := 1 }",
+        board=True,
+    ),
+    # A DECLARED position domain: the noun is the author's own `positions { }`
+    # row, so it is one of the game's declarations and the injection guard
+    # refuses the clash first.
+    _Site(
+        "DomainQuery", "slot", True,
+        "if any slot where slot is 1 { score[0] := 1 }",
+        clauses="positions { slot : 1..4 }",
+        already=True,
+    ),
+    # The two binders whose spelling follows `Game.content_flavor`.
+    _Site(
+        "Transfer", "piece", False,
+        "move all pieces from box where piece.side is x to reserve[0]",
+        board=True,
+    ),
+    _Site(
+        "Transfer", "pieces", False,
+        "move chosen 2 pieces from box where jointly true to reserve[0]",
+        board=True,
+    ),
+)
+
+
+# The game the card-flavored rows are written in. `{declared}` carries the game's
+# own declaration of the shared spelling, which only the `requires` column needs.
+_SHADOW_HOST = """{prelude}
+game Host {{
+  uses provider
+  players: 4
+  cards: standard52
+  ranking: aces high
+  max_length: 100
+  teams: [[0, 2], [1, 3]]
+  {clauses}
+  zones {{ deck : Deck  hand[player] : Hand<player>  discard : Discard  pile : TrickPile }}
+  state {{ score[player] : Integer = 0 {declared} }}
+  phase play {{
+    {body}
+  }}
+  winner: highest score
+}}
+{extra}
+"""
+
+# The piece/board host for the rows the card host cannot express: a board mints
+# the `cell` domain and supplies the `line` collection, and a piece game's
+# transfer filter binds `piece`/`pieces`.
+_SHADOW_BOARD_HOST = """{prelude}
+game Board {{
+  uses provider
+  players: 2
+  direction: clockwise
+  max_length: 30
+  board: grid(3, 3)
+  pieces: xo_marks
+  {clauses}
+  zones {{
+    box             : Deck
+    square[cell]    : Cell<cell>
+    reserve[player] : PlayerPile<player>
+  }}
+  state {{ result[player] : Integer = 0 {declared} }}
+  phase setup {{
+    {body}
+    move all pieces from box to reserve[1]
+  }}
+  phase play {{
+    turns t from 0 over all players until true {{ offer to t one of [place] }}
+  }}
+  winner: highest result
+}}
+move_type place(at : cell) {{
+  when: square[at] is empty
+  effect {{ move one piece from reserve[actor] to square[at] }}
+}}
+{extra}
+"""
+
+
+def _shadow_source(site: _Site, claim: str) -> tuple[str, str]:
+    """The game text for one cell, plus the file name it is reported under."""
+    host = _SHADOW_BOARD_HOST if site.board else _SHADOW_HOST
+    # The `requires` column is the control: the same spelling, claimed by the
+    # library's `requires` instead of its `state`, which obliges the GAME to
+    # declare it — so the author wrote both and the shadow is theirs to see.
+    declared = f" {site.binds} : Integer = 0" if claim == "requires" else ""
+    return (
+        host.format(
+            prelude=site.prelude,
+            body=site.body,
+            extra=site.extra,
+            clauses=site.clauses,
+            declared=declared,
+        ),
+        "board.cardlang" if site.board else "host.cardlang",
+    )
+
+
+def _shadow_library(site: _Site, claim: str) -> n.Library:
+    clause = {
+        "state": f"state {{ {site.binds} : Integer = 0 }}",
+        "requires": f"requires {{ {site.binds} : Integer }}",
+        # The third column claims the spelling nowhere, so the row's game text is
+        # proven valid on its own — without it a fixture broken for an unrelated
+        # reason would read as the guard firing.
+        "neither": "state { untouched : Integer = 0 }",
+    }[claim]
+    return parse_library(
+        f"library provider {{ {clause} }}", "docs/libraries/provider.cardlang"
+    )
+
+
+def _shadow_cells() -> list[object]:
+    """The commanded cells. A `state` cell is REJECT unless another guard owns
+    it (`already`) or it is a designed non-error (`accepts`); the other two
+    columns accept.
+
+    The commanded rejections carry a strict `xfail` constrained to the outcome
+    assertion's own failure, because `_apply_uses` runs no shadow guard: an
+    unconstrained mark would count a broken fixture or an import error as the
+    designed red, which is the vacuously-green class wearing red."""
+    return [
+        pytest.param(
+            index,
+            claim,
+            id=f"{site.kind}-{site.binds}-{claim}",
+            marks=(
+                [
+                    pytest.mark.xfail(
+                        strict=True,
+                        raises=pytest.fail.Exception,
+                        reason="no guard refuses a game-introduced name spelled "
+                        "like provided state",
+                    )
+                ]
+                if claim == "state" and not site.already and not site.accepts
+                else []
+            ),
+        )
+        for index, site in enumerate(_INTRODUCE)
+        for claim in ("state", "requires", "neither")
+    ]
+
+
+def test_introducer_axis_covers_every_way_a_game_introduces_a_name() -> None:
+    """The registry pin, run in both directions. The union of the two registries
+    — the node kinds `_node_binders` binds a name for, and the declaration kinds
+    `_PARAM_BEARING` holds parameters for — IS the set of ways a game introduces
+    a name into a narrower scope, and the grid's rows cover it exactly. A binding
+    node kind with no row is a hole that looks closed; a row for a kind neither
+    registry knows is a cell measuring nothing.
+
+    The two registries are disjoint on purpose, and that is asserted rather than
+    assumed: `_node_binders` files the parameter-bearing declarations under
+    NON-binding (their parameters scope their own body, which `_classify_names`
+    implements per declaration), so a kind in both would mean one of the two had
+    changed meaning under the grid.
+
+    red under: delete a row from `_INTRODUCE`, or add an arm to `_node_binders`
+    that binds a name."""
+    binding = _binding_node_kinds()
+    params = {cls.__name__ for cls in _PARAM_BEARING}
+    assert not (binding & params), (
+        f"{sorted(binding & params)} is in both registries — the grid's axis "
+        f"assumes they partition the introductions"
+    )
+    covered = {site.kind for site in _INTRODUCE}
+    assert covered == binding | params, (
+        f"grid rows {sorted(covered)} != the registries' {sorted(binding | params)}"
+    )
+
+
+def test_the_fixed_binder_spellings_come_from_their_registries() -> None:
+    """The sub-position pin. A node kind is one row of the axis above, but a kind
+    whose spelling the language fixes has as many introductions as its registry
+    has members — a quantifier binds each `DOMAINS` role noun, a transfer filter
+    each `content_noun` of each `Flavor`. Rows are crossed against those
+    registries here, so a fifth role or a third content flavor is an uncovered
+    row rather than a silent gap.
+
+    A spelling a registry admits that no game text can reach carries its guard in
+    `_UNREACHABLE_SPELLINGS` and an executed probe beside it; admitting it by
+    widening this assertion instead would make the pin vacuous.
+
+    red under: add a `Domain` to `cardlang/domains.py`, or drop the `Quantifier`
+    row for `suit`."""
+    for kind, spellings in _fixed_spellings().items():
+        rows = {
+            site.binds
+            for site in _INTRODUCE
+            if site.kind == kind and not site.chosen and not site.already
+        }
+        unreachable = {noun for (k, noun) in _UNREACHABLE_SPELLINGS if k == kind}
+        assert rows | unreachable == spellings, (
+            f"{kind}: rows {sorted(rows)} plus unreachable {sorted(unreachable)} "
+            f"!= the registry's {sorted(spellings)}"
+        )
+    assert set(_fixed_spellings()) <= _binding_node_kinds(), (
+        "a fixed-spelling registry names a kind that binds nothing"
+    )
+
+
+def test_the_author_chosen_split_classifies_every_binding_kind() -> None:
+    """`_AUTHOR_CHOSEN_BINDERS` decides which of two fixes the refusal
+    prescribes, so an unfiled node kind does not fail — it takes the
+    language-fixed branch and tells the author to go and edit a library over a
+    binder they could have respelled themselves. That is a wrong-advice default,
+    which is why the split is pinned to the binder registry rather than left to a
+    membership test.
+
+    The parameter kinds are author-chosen by construction (a parameter name is a
+    free NAME in every one of their productions), so they are asserted to need no
+    entry rather than listed.
+
+    red under: add `n.Quantifier` to `_AUTHOR_CHOSEN_BINDERS`, or drop
+    `n.ForEach` from it."""
+    chosen = {cls.__name__ for cls in _AUTHOR_CHOSEN_BINDERS}
+    binding = _binding_node_kinds()
+    assert chosen <= binding, (
+        f"{sorted(chosen - binding)} is filed as an author-chosen BINDER but "
+        f"binds nothing"
+    )
+    assert chosen == {
+        site.kind
+        for site in _INTRODUCE
+        if site.chosen and not site.already and site.kind in binding
+    }
+    assert not (chosen & {cls.__name__ for cls in _PARAM_BEARING}), (
+        "parameters are author-chosen through `_PARAM_BEARING`, not through the "
+        "binder split"
+    )
+
+
+@pytest.mark.parametrize("index,claim", _shadow_cells())
+def test_a_game_introduced_name_may_not_shadow_provided_state(
+    index: int, claim: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A name the game introduces into a narrower scope may not be spelled like a
+    library-PROVIDED state variable.
+
+    The `state` column is the guard. The other two accept, and each rules out a
+    different way the guard could be passing for the wrong reason: `requires`
+    holds the spelling fixed and moves only WHICH library clause claims it, so a
+    guard refusing every collision with a library NAME (rather than with a
+    library-OWNED one) fails there; `neither` proves the row's game text valid on
+    its own, so a fixture broken for an unrelated reason cannot read as a
+    rejection.
+
+    The refusal is located in the GAME — that is where the shadow is written, and
+    the file the author has open — and names the library, because the other half
+    is text they never see. Which fix it prescribes follows the binder: a
+    spelling the author chose is theirs to respell, and one the language fixes is
+    not, so those rows ask for the library's variable to be renamed instead."""
+    site = _INTRODUCE[index]
+    _patch_libraries(monkeypatch, {"provider": _shadow_library(site, claim)})
+    source, file_name = _shadow_source(site, claim)
+    game = parse_text(source, file_name)
+    if claim != "state" or site.accepts:
+        resolve(game)
+        return
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(game)
+    message = str(exc.value)
+    assert f"'{site.binds}'" in message, message
+    assert "library 'provider'" in message, message
+    assert f"{file_name}:" in message, (
+        f"the shadow is written in the GAME, so that is where it is reported:"
+        f"\n{message}"
+    )
+    if site.already:
+        assert "this game already uses" in message, message
+    elif site.chosen:
+        assert "is spelled like state" in message, message
+        assert "rename the" in message, message
+    else:
+        assert "provides state" in message, message
+        assert "rename the library's variable" in message, message
+
+
+def _declaration_level_nouns() -> list[str]:
+    """Every noun `_game_bindings` reports, derived by running it over a game
+    that populates each of its buckets rather than by listing them — the axis of
+    the skip below, and `_check_library_shadows_game`'s own domain."""
+    game = parse_text(_DECLARER_HOST, "declarer.cardlang")
+    return sorted({noun for noun, _ in _game_bindings(game).values()})
+
+
+_DECLARER_HOST = """
+game Declarer {
+  players: 2
+  cards: standard52
+  max_length: 100
+  positions { slot : 1..4 }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    active_rules: [r]
+    round play_to_trick from 0 over all players source hand into deck
+      winner highest_of_led_suit
+    run pr()
+    score[0] := f() + d_use()
+  }
+  winner: highest score
+}
+function fn() = 1
+function d_use() = 1
+function f() = 1
+type T = { x : Integer }
+define dd -> { w(Integer) } { produce w(0) }
+move_type mt { effect { score[0] := 0 } }
+procedure pr() { score[0] := 0 }
+rule r { constrains: play_to_trick  demands: cards in hand  if_impossible: hand }
+"""
+
+# One name per bucket `_game_bindings` reports, chosen so a library providing it
+# collides with the game above at declaration level.
+_DECLARATION_LEVEL_NAME: dict[str, str] = {
+    "state variable": "score",
+    "zone": "deck",
+    "position domain": "slot",
+    "suit value": "hearts",
+    "rank value": "A",
+    "direction value": "left",
+    "function": "fn",
+    "type": "T",
+    "define": "dd",
+    "move type": "mt",
+    "rule": "r",
+    "procedure": "pr",
+    "standard-library value": "highest_of_led_suit",
+}
+
+
+def test_the_declaration_level_axis_covers_every_game_binding_bucket() -> None:
+    """The skip below is only honest while every bucket it skips is spoken for.
+    Its axis is `_game_bindings`'s own output, so a namespace added there joins
+    this grid instead of silently widening the skip.
+
+    red under: delete a row from `_DECLARATION_LEVEL_NAME`, or add a bucket to
+    `_game_bindings`."""
+    assert sorted(_DECLARATION_LEVEL_NAME) == _declaration_level_nouns()
+
+
+@pytest.mark.parametrize("noun", sorted(_DECLARATION_LEVEL_NAME))
+def test_a_declaration_level_collision_is_reported_by_another_guard(
+    noun: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Why the binder guard stays silent on a spelling the game already binds at
+    declaration level: something else has already refused it, in full, with the
+    fix on the side that can take it. Executed per bucket rather than asserted,
+    because "refused over there" is the claim that rots — and because the skip
+    reads `_game_bindings` wholesale, so a bucket nobody probes is a hole with a
+    guard's name on it.
+
+    This is also what keeps `DomainQuery` honestly filed as language-fixed: its
+    one author-respellable sub-position is a declared position domain, and that
+    is a bucket here.
+
+    red under: delete the `positions` row from `_INJECTABLE_TARGETS` (the
+    `position domain` cell then accepts)."""
+    name = _DECLARATION_LEVEL_NAME[noun]
+    _patch_libraries(
+        monkeypatch,
+        {
+            "provider": parse_library(
+                f"library provider {{ state {{ {name} : Integer = 0 }} }}",
+                "docs/libraries/provider.cardlang",
+            )
+        },
+    )
+    source = _DECLARER_HOST.replace("game Declarer {", "game Declarer {\n  uses provider", 1)
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(source, "declarer.cardlang"))
+    assert f"'{name}'" in str(exc.value), str(exc.value)
+
+
+def test_a_library_may_bind_its_own_provided_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The guard's blast radius, from the other side. A library's own definitions
+    bind names too, and they are spliced into the same `Game` the sweep walks —
+    so a guard placed one line later would refuse the library for shadowing its
+    own variable, in a file the game's author did not write and cannot edit.
+
+    It stays legal because it is not the defect: the library's author wrote both
+    the provision and the binder and can see both, which is the ordinary
+    shadowing the base language allows. The whole guard turns on the game author
+    NOT being able to see the library.
+
+    Both halves are exercised — a parameter and a body binder — because they
+    reach the sweep through the two different registries.
+
+    red under: move `_check_provided_shadowed_by_binder`'s call below the splice
+    at the end of `_apply_uses`."""
+    library = parse_library(
+        """
+        library provider {
+          state { limit : Integer = 0  touched[player] : Boolean = false }
+          function scaled(limit : Integer) = limit + 1
+          procedure widen(step : Integer) {
+            for each player limit: touched[limit] := true
+          }
+        }
+        """,
+        "docs/libraries/provider.cardlang",
+    )
+    _patch_libraries(monkeypatch, {"provider": library})
+    source = _WRITE_HOST.replace("WRITE", "run widen(1)\n    score := scaled(2)")
+    resolve(parse_text(source, "writer.cardlang"))
+
+
+def test_a_phase_local_declaration_of_a_provided_name_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one narrower-than-game name introduction that is NOT a binder, and so
+    has no row in the grid: a phase's own `state { }` block. It is refused
+    already, and by a guard two doors up rather than by this one — but "refused
+    elsewhere" is the claim that rots silently, so it is executed here rather
+    than asserted in the ledger's prose.
+
+    red under: narrow `_check_state_claims`'s `declared` sweep from `_walk(game)`
+    to `game.state.decls`."""
+    _patch_libraries(monkeypatch, {"provider": _provider()})
+    source = _WRITE_HOST.replace("WRITE", "score := 1").replace(
+        "phase play {", "phase play { state { prov : Integer = 1 }", 1
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(source, "writer.cardlang"))
+    assert "also provided by library 'provider'" in str(exc.value), str(exc.value)
+
+
+@pytest.mark.parametrize("word", sorted(RESERVED_VALUE_NAMES))
+def test_no_provided_name_can_be_a_pronoun(
+    word: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Why the pronoun rebinds need no row in the grid. `as`, `offer`, a round's
+    `winner` and `state.` namespace, a move effect, `transition_to … where` and
+    `demands: actions where` each narrow what a fixed spelling means inside a
+    region, exactly as a binder does — but the spellings are the
+    `RESERVED_VALUE_NAMES` words, and a library cannot provide one: the reserved
+    sweep runs after the splice, so it holds a provided declaration to the same
+    bar as the game's own. No provided name can collide, so there is nothing for
+    a guard to catch.
+
+    Reported in the LIBRARY, which is the only text that can change.
+
+    red under: drop `reserved=True` from `_check_duplicate_names`'s
+    `game.state.decls` sweep."""
+    library = parse_library(
+        f"library provider {{ state {{ {word} : Integer = 0 }} }}",
+        "docs/libraries/provider.cardlang",
+    )
+    _patch_libraries(monkeypatch, {"provider": library})
+    source = _WRITE_HOST.replace("WRITE", "score := 1")
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(source, "writer.cardlang"))
+    message = str(exc.value)
+    assert f"state variable '{word}' is a reserved word" in message, message
+    assert "provider.cardlang:" in message, message
+
+
+def test_a_piece_game_reveal_is_refused_before_it_binds() -> None:
+    """`_UNREACHABLE_SPELLINGS`'s one entry, executed. `content_noun` gives
+    `EpistemicOp` a `piece` binder for a piece game, but `reveal one card` names
+    a deck card, so the flavor guard refuses the statement outright and the
+    binder never exists. The spelling is therefore absent from the grid because
+    no game can write it, not because nobody thought of it.
+
+    red under: delete the piece-game arm of `_reject_card_content_clauses`'s
+    reveal check."""
+    source, _ = _shadow_source(
+        _Site(
+            "EpistemicOp", "piece", False,
+            "reveal one card from box where piece.side is x",
+            board=True,
+        ),
+        "neither",
+    )
+    with pytest.raises(DiagnosticError) as exc:
+        resolve(parse_text(source.replace("uses provider\n", ""), "board.cardlang"))
+    assert "reveal one card" in str(exc.value), str(exc.value)
 
 
 # --- the claim grid: who may claim one state name -----------------------------
