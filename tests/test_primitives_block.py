@@ -29,7 +29,10 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             instance the declaration has none of; and a `reads` name is
             GAME-scoped state, never a phase's own and never a name both
             levels declare, because the row is materialized on every call and
-            the runtime resolves the innermost frame.
+            the runtime resolves the innermost frame, and never a name the
+            game declares in two namespaces at once; and (5) a call that
+            resolves to a designer function is not a native call, so no
+            registry keyed by native NAME answers about it.
 domain:     the block's own surface — clause placement x {game, library},
             entry cardinality x {absent, empty, one, many, second block},
             arity x {0, 1, many}, declared type name x {parameter, return}
@@ -122,8 +125,10 @@ function-shadow check asks, phase-local state in a reads clause, and the
 binder compared by erased type rather than by domain identity. Red a fourth
 time, at `1 failed`, on cross-level state shadowing — a name the game and a
 phase both declare, where the classifier matched one declaration and the
-runtime resolved the other. Each class was derived and rowed before its fix,
-on the same order.
+runtime resolved the other. Red a fifth time, at `4 failed`, on a read name
+denoting two declarations at once, and on the native name-based guards that
+still answered about a call the runtime dispatches to a designer function.
+Each class was derived and rowed before its fix, on the same order.
 """
 
 from __future__ import annotations
@@ -1068,6 +1073,181 @@ def test_two_position_domains_do_not_erase_together() -> None:
     message = _refused(source)
     assert "index domain" in message
     assert "col" in message
+
+
+# --- axis 7: a read name must denote ONE declaration ------------------------
+
+
+def test_a_name_declared_as_both_a_state_variable_and_a_zone_is_refused() -> None:
+    """A game may legally give a state variable and a zone the same name, and
+    the classifier consults the two namespaces in order — so it would pick
+    state silently and the derived row would carry the name in `state_vars`
+    with `zone_families` empty, while a bundled implementation reads
+    `gr.families[...]`. The declaration cannot say which it means."""
+    source = (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: pinochle48\n"
+        "  ranking: A 10 K Q J 9\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer"
+        " reads hand[p], trump_suit }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { hand[player] : Integer = 0  trump_suit : Suit? = spades\n"
+        "          score[player] : Integer = 0 }\n"
+        "  phase play { score[0] := pinochle_meld_value(0) }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    message = _refused(source)
+    assert "hand" in message
+    assert "zone" in message and "state" in message
+
+
+# --- axis 16/17: a call that resolves to a DESIGNER function is not native --
+#
+# A declared game may define a function named after a Primitive absent from its
+# namespace. Every guard keyed on the name against a corpus-wide native
+# registry would then fire on a call the runtime dispatches to the user
+# function. The axis is those registries, crossed with the legacy Primitive
+# set: a nonempty intersection is a registry whose names a designer function
+# can now legally take.
+
+
+def _collidable_native_registries() -> dict[str, frozenset[str]]:
+    """Native name registries whose members a designer function may now take,
+    DERIVED — each registry intersected with the legacy Primitive set, since a
+    Builtin's name is still refused to a designer function in every regime."""
+    from cardlang.builtins.functions import (
+        ARRIVAL_RECORD_CALLS,
+        BOARD_ONLY_CALL_FUNCS,
+        DECK_ONLY_CALL_FUNCS,
+    )
+    from cardlang.typecheck import RANKING_GATED_FUNCS
+
+    candidates = {
+        "DECK_ONLY_CALL_FUNCS": DECK_ONLY_CALL_FUNCS,
+        "RANKING_GATED_FUNCS": RANKING_GATED_FUNCS,
+        "BOARD_ONLY_CALL_FUNCS": BOARD_ONLY_CALL_FUNCS,
+        "ARRIVAL_RECORD_CALLS": frozenset(ARRIVAL_RECORD_CALLS),
+        # The Trick Order row check refuses every CALL_FUNCS member outside its
+        # own allow-list, so its collidable set is the whole Primitive half.
+        "TRICK_ORDER_ROW_CALLS": PRIMITIVE_CALL_FUNCS,
+    }
+    return {k: v & PRIMITIVE_CALL_FUNCS for k, v in candidates.items()}
+
+
+def test_the_collidable_registry_axis_is_derived() -> None:
+    """Anti-vacuity, and the boundary stated: exactly the registries with a
+    nonempty intersection need a designer-function cell, and the empty ones are
+    empty because they hold Builtin names only — which a designer function may
+    not take under any regime.
+
+    red under: add a Primitive's name to `BOARD_ONLY_CALL_FUNCS`."""
+    collidable = _collidable_native_registries()
+    nonempty = {k for k, v in collidable.items() if v}
+    assert nonempty == {
+        "DECK_ONLY_CALL_FUNCS",
+        "RANKING_GATED_FUNCS",
+        "TRICK_ORDER_ROW_CALLS",
+    }, sorted(nonempty)
+
+
+def test_a_designer_function_named_after_an_absent_primitive_escapes_the_flavor_guard() -> None:
+    """DECK_ONLY: a piece game's designer function whose spelling reads a
+    card's rank in the legacy registry, but which the runtime dispatches to the
+    user function.
+
+    Checked rather than played, like its ranking-gate sibling: the guard under
+    test is a compile-stage one, and the playout that proves a designer
+    function of a shadowing name actually RUNS is
+    `test_a_declared_game_may_define_a_function_named_after_a_walled_primitive`,
+    which plays a card game where the driver has a deck to open."""
+    name = min(_collidable_native_registries()["DECK_ONLY_CALL_FUNCS"])
+    source = (
+        f"function {name}() = true\n"
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  pieces: xo_marks\n"
+        "  primitives { }\n"
+        "  zones { supply : Discard }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        f"  phase play {{ score[0] := if {name}() then 1 else 0 }}\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    assert declared_names(_checks(source)) == frozenset()
+
+
+def test_a_designer_function_named_after_an_absent_primitive_escapes_the_ranking_gate() -> None:
+    """RANKING_GATED: the same shape at the type layer, in a game with no
+    `ranking:` — the gate reads the name against a registry, and the name is
+    the user's."""
+    name = min(_collidable_native_registries()["RANKING_GATED_FUNCS"])
+    source = (
+        f"function {name}(p : Player) = 1\n"
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  primitives { }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        f"  phase play {{ score[0] := {name}(0) }}\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    assert declared_names(_checks(source)) == frozenset()
+
+
+def test_a_designer_function_named_after_an_absent_primitive_may_be_called_from_a_row() -> None:
+    """TRICK_ORDER_ROW: a row calls the card and public state only, and a
+    designer function is neither native nor a Primitive — the original arm
+    already meant to let one through, using `not in CALL_FUNCS` as the proxy,
+    which a shadowing spelling defeats."""
+    source = (
+        "function tichu_dragon_won(c : Card) = true\n"
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  primitives { }\n"
+        "  trick_order { trump: tichu_dragon_won(card) }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player>"
+        "  trick_pile : TrickPile }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  phase play {\n"
+        "    move all cards from deck as-equally-as-possible to each hand\n"
+        "    let w = highest_by_trick_order(trick_pile)\n"
+        "    score[0] := 1\n"
+        "  }\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    assert declared_names(_checks(source)) == frozenset()
+
+
+def test_a_legacy_game_still_meets_every_native_guard() -> None:
+    """The control for all three above: without a block the Primitive IS in the
+    namespace, the shadow guard refuses the designer function outright, and no
+    native guard is skipped. A fix that stopped applying them to legacy games
+    would trade one silent dispatch for another."""
+    name = min(_collidable_native_registries()["DECK_ONLY_CALL_FUNCS"])
+    source = (
+        f"function {name}() = true\n"
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 1000\n"
+        "  pieces: xo_marks\n"
+        "  zones { supply : Discard }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        f"  phase play {{ score[0] := if {name}() then 1 else 0 }}\n"
+        "  winner: highest score\n"
+        "}\n"
+    )
+    assert "shadows" in _refused(source)
 
 
 # --- axis 12: the namespace walls -------------------------------------------

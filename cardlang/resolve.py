@@ -117,6 +117,7 @@ from cardlang.primitives_block import (
     call_namespace,
     classify_read,
     declared_names,
+    ambiguous_read_names,
     phase_local_state_names,
     shadowed_state_names,
     declarable_type_names,
@@ -4911,6 +4912,15 @@ def _check_primitive_reads(
         )
         return
     for read in decl.reads:
+        if read.name in ambiguous_read_names(game):
+            bag.error(
+                f"`{decl.name}` reads `{read.name}`, which this game declares "
+                f"as BOTH a state variable and a zone — the declaration cannot "
+                f"say which, and the two are materialized into different halves "
+                f"of what the implementation receives; rename one of the two",
+                read.span or decl.span,
+            )
+            continue
         if read.name in shadowed_state_names(game):
             bag.error(
                 f"`{decl.name}` reads `{read.name}`, which the game AND a phase "
@@ -5290,8 +5300,14 @@ def _check_row_call(
             nd.span or row.span,
         )
         return
+    if nd.func in {f.name for f in game.functions}:
+        # A designer function, walked on its own. The arm below meant to admit
+        # one all along and used `not in CALL_FUNCS` as the proxy; a declared
+        # game may now legally name a function after an absent Primitive, and
+        # that spelling IS in `CALL_FUNCS`, so the test is stated directly.
+        return
     if nd.func in TRICK_ORDER_ROW_CALLS or nd.func not in CALL_FUNCS:
-        return  # allowed, or a designer function (walked on its own)
+        return  # allowed, or a name no native registry claims
     if nd.func in TRICK_ORDER_GATED_FUNCS - frozenset(TRICK_ORDER_READERS):
         bag.error(
             f"`{row.key}:` calls `{nd.func}(...)`, which reads every row of "
@@ -6604,6 +6620,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                     + _undeclared_primitive_hint(game, nd.func),
                     nd.span,
                 )
+            case n.Call() if nd.func in defined_functions:
+                # A call the game's OWN `function` defines. Every arm below
+                # keys a name against a corpus-wide native registry, and a
+                # declared game may legally define a function named after a
+                # Primitive absent from its namespace — so those registries
+                # would answer about Python this call never reaches. The
+                # runtime dispatches a defined function first
+                # (`evaluate.Call`), and this arm is what keeps resolve's
+                # reading of the name the same as the runtime's.
+                pass
             case n.Call() if (
                 game.content_flavor == "piece" and nd.func in DECK_ONLY_CALL_FUNCS
             ):

@@ -363,6 +363,20 @@ def phase_local_state_names(game: n.Game) -> frozenset[str]:
     return _phase_state_names(game) - _game_level_state_names(game)
 
 
+def ambiguous_read_names(game: n.Game) -> frozenset[str]:
+    """Names a game declares as BOTH a game-level state variable and a zone.
+
+    `classify_read` consults the two namespaces in order, so it would pick one
+    silently — and the pick decides which half of the bundle the name is
+    materialized into, `GameReads.state` or `.families`. An implementation
+    reading the other half meets a bundle that simply does not carry the name.
+    The two namespaces are flat and independent (a game may legally use one
+    spelling in each), so the declaration cannot say which it means and the
+    ambiguity is refused."""
+    zones = frozenset(z.name for z in game.zones)
+    return _game_level_state_names(game) & zones
+
+
 def shadowed_state_names(game: n.Game) -> frozenset[str]:
     """State declared at BOTH levels — also unreadable by a declaration, and
     for a worse reason.

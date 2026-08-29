@@ -2505,7 +2505,11 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
                         f"{e.func}() expects {_type_name(param)}, got {_type_name(got)}",
                         e.span,
                     )
-        if e.func in RANKING_GATED_FUNCS and not env.has_ranking:
+        if (
+            e.func in RANKING_GATED_FUNCS
+            and e.func not in env.functions
+            and not env.has_ranking
+        ):
             bag.error(
                 f"{e.func}() reads a card's rank strength from ranking:, "
                 f"but the game declares no ranking: — declare one, or declare "
