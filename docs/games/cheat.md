@@ -22,7 +22,7 @@ Setup and play:
   **one or more cards face down** onto the pile and call them as the
   cycle's current rank — "two Sevens". You may play as many as you hold:
   six Sevens go down as six. The count you announce is the count
-  you played (miscounting is not part of this variant); the *ranks* are
+  you played (miscounting is not part of this game); the *ranks* are
   your own business. You do not need to hold the called rank at all: with
   the wrong hand at the wrong point of the cycle, lying is not just
   allowed, it is forced.
@@ -53,8 +53,8 @@ single move `play_cards`, whose effect opens with a public integer decision
 the *count* to the whole table — and then makes the hidden card decision,
 `move chosen claim_count cards`. The claimed *rank* is not a decision at
 all, because the cycle forces it: it is the public `claim_rank` state
-everyone already reads. The
-whole adjudication — window, flip, verdict, pickup, cycle step — is one
+everyone already reads. The whole adjudication — window, flip, verdict,
+pickup, cycle step — is one
 named procedure run from every play's effect, Coup's challenge-window shape
 with an **open** claim vocabulary (all 13 ranks, where Coup's is five
 characters). `play_cards` is unguarded and its count range is never empty,
