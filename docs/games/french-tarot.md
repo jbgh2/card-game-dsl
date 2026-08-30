@@ -18,8 +18,8 @@ Each hand:
 3. **Chien** — at Petite/Garde the taker takes the chien and discards six,
    HIDDEN from the opponents (the discards still count to the taker). The
    discard may never contain a King or a bout; atouts go in only when the
-   taker holds fewer than six other cards, and any atout discarded is shown
-   to the whole table first. At Garde sans the chien counts to the taker
+   taker holds fewer than six plain non-King cards, and any atout discarded
+   is shown to the whole table first. At Garde sans the chien counts to the taker
    unseen; at Garde contre it counts to the opponents.
 4. **Play** — eighteen tricks; atouts are trumps. Follow suit; if void you must
    trump, and you must over-trump if you can. The Excuse may be played at any
@@ -168,7 +168,8 @@ game FrenchTarot {
             move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
           } else {
             move all cards from hand[taker] where is_pref_discard(card) to discard[taker]
-            move chosen (6 - (number of cards in discard[taker])) cards from hand[taker]
+            let atouts_owed = 6 - (number of cards in discard[taker])
+            move chosen atouts_owed cards from hand[taker]
                  where card.suit is atouts and not is_bout(card)
                  to shown_atouts
             move all cards from shown_atouts to discard[taker]

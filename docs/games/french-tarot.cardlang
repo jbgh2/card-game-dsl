@@ -145,7 +145,8 @@ game FrenchTarot {
             move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
           } else {
             move all cards from hand[taker] where is_pref_discard(card) to discard[taker]
-            move chosen (6 - (number of cards in discard[taker])) cards from hand[taker]
+            let atouts_owed = 6 - (number of cards in discard[taker])
+            move chosen atouts_owed cards from hand[taker]
                  where card.suit is atouts and not is_bout(card)
                  to shown_atouts
             move all cards from shown_atouts to discard[taker]

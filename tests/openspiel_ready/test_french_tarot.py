@@ -55,6 +55,15 @@ def test_discard_derives_hidden_observations() -> None:
     the discard directly, rather than relying only on the harness's
     swap-based leak-closure proof (which never positively confirms an
     event's *shape*, per the Pinochle/Stud precedent).
+
+    This line takes the PREFERRED discard branch (six plain non-Kings exist
+    on every manifest seed), so every discard event below is count-only to a
+    defender. The forced branch is the game's one deliberate exception to
+    that concealment: its topping-up atouts arrive in `shown_atouts` with
+    identity to every seat before joining the hidden discard. No natural
+    seed reaches it, so this module's driven line never will; the branch is
+    proven end to end (offer, per-observer arrivals, conservation) by the
+    stacked-deal witness in tests/test_playout_french_tarot.py.
     """
     path = str(GAMES_DIR / "french-tarot.cardlang")
     _game, space = load(path)

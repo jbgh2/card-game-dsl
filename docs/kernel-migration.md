@@ -174,8 +174,10 @@ consecutive passes), typed outcome = a contract outcome. Then per game, supplyin
   `direction`). The whole post-auction hand then followed onto the kernel too:
   the chien discard (at Petite/Garde) is a filtered movement — the new
   movement `where <lambda>` clause, narrowing the source pool to the matching
-  cards before the selection draws from it (preferring non-trump non-King
-  cards, falling back to any non-bout) — and the eighteen atout-trump tricks
+  cards before the selection draws from it (six chosen plain non-Kings; a
+  taker holding fewer than six discards them all and tops up with chosen
+  non-bout atouts, shown through the public `shown_atouts` zone) — and the
+  eighteen atout-trump tricks
   run on the trick form of `round` under a new `ExcuseIsExempt`/
   `MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump` rule cascade,
   whose three demands now read the game's declared `trick_order { }`. The Excuse's

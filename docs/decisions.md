@@ -1823,12 +1823,12 @@ unaffected — the filter is a genuinely separate code path
 so no existing game's card-selection behaviour changed when this clause was
 added.
 
-French Tarot's chien discard is the corpus's first use: the taker's kept
-chien cards must exclude every bout while preferring plain non-King cards
-when six exist (`cards in hand where is_pref_discard(card)`, falling back to
-`cards in hand where not is_bout(card)` when fewer than six such cards remain) — a
-per-card predicate over which cards a decision may even draw from, distinct
-from the *count* a plain `chosen N cards` transfer already expressed.
+French Tarot's chien discard is the corpus's first use: the discard is six
+chosen plain non-Kings (`cards in hand where is_pref_discard(card)`), and
+when fewer than six exist the forced top-up draws from the non-bout atouts
+alone (`where card.suit is atouts and not is_bout(card)`) — a per-card
+predicate over which cards a decision may even draw from, distinct from the
+*count* a plain `chosen N cards` transfer already expressed.
 
 **Epistemic** — changing knowledge or order without relocating anything:
 `reveal`, `peek`, `hide`, `announce`, `expose_top`, `forget`, `shuffle`. A

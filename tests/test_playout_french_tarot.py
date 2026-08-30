@@ -49,7 +49,7 @@ Where every fact comes from, and why that source
 Non-vacuity is asserted, not hoped for, and the assertion is DERIVED from the
 auction rather than hard-coded: a hand where somebody took owes eighteen tricks
 of four plays each, and a hand where all four seats passed owes none.
-`_check_seed` pins the observed counts against that BEFORE any recomputation
+`_verify` pins the observed counts against that BEFORE any recomputation
 loop runs. Without it an emptied observation stream would leave every loop
 iterating zero times -- a green run proving nothing (the empty-input-set class,
 decisions.md "Closed-domain completeness"). The arm census
@@ -76,7 +76,11 @@ Ledger note -- what the observation stream cannot pin
    they pass through `shown_atouts : Discard` (identity to every seat) on
    their way into the hidden discard, so the table DOES see them --
    `_Table._moved` records the arrivals, and `_hand_value` holds each shown
-   card against the conservation complement.
+   card against the conservation complement. A Garde sans / Garde contre
+   hand moves no discard, so `shown` stays empty there and the shown checks
+   are vacuous outside Petite/Garde -- carried as this sentence rather than
+   as an assertion, because no current line can redden one (the only reach
+   is a stacked forced deal, and the stacked witness bids Petite).
 2. The trick winner is read off the DRAIN's destination (`trick_pile ->
    captured[w]`) and cross-checked against ROUTING -- the winner leads the next
    trick -- for tricks 1..17 of every hand. The EIGHTEENTH has no next trick,
@@ -113,6 +117,14 @@ toothless:
   took in them".
 * `SEEDS = 2` -- `assert not thin`, naming every cascade arm now under
   `WITNESS_SEEDS`, `excuse-lead-must-trump` among them at one seed.
+* the forced branch's force-move dropped (one chosen-six pick over `not
+  is_bout`, Kings offered) -- `_discard_pool`'s "the discard pick was offered
+  while 3 plain non-Kings were still in hand" assert, via the stacked
+  witness (executed 2026-08-30, against the game text this module's rule
+  rewrite preceded).
+* `shown_atouts` demoted to `FaceDownPile` (count-only) -- `_Table._moved`'s
+  "the zone must project identity to every seat" assert, before any
+  stacked-test comparison runs (executed 2026-08-30).
 """
 
 from __future__ import annotations
@@ -273,8 +285,9 @@ def _discard_pool(hand: list[Card]) -> tuple[list[Card], int, str]:
     before the pick, so the live hand holds none, and the pick tops the discard
     up to six from the non-bout atouts -- Kings and bouts are never
     discardable, and an atout is discardable only for want of anything else.
-    The size falls out of the same arithmetic on either branch: the hand
-    holds 24 minus what was force-moved, and leaves it holding 18."""
+    The preferred pick is always `CHIEN`; the forced pick's size is the
+    24-card arithmetic -- the live hand holds 24 minus the force-moved
+    count, and the pick returns it to 18."""
     pref = [c for c in hand if _is_pref_discard(c)]
     if len(pref) >= CHIEN:
         return pref, CHIEN, "discard-preferred"
@@ -410,6 +423,11 @@ class _Table:
             # as every other seat does. (The onward tuck into `discard[taker]`
             # needs no branch: its destination is hidden and its cards are
             # these.)
+            assert isinstance(dst_view, tuple), (
+                f"shown_atouts arrived as {dst_view!r} in observer 0's public "
+                f"stream -- the zone must project identity to every seat, or "
+                f"the forced discard's reveal does not exist"
+            )
             self._hand.shown.extend(_parse(str(c)) for c in dst_view)
 
     # --- the legality rules, judged on the OFFER against the true holding ---
@@ -532,10 +550,6 @@ def _hand_value(h: _Hand, arms: Counter[str]) -> int:
 
     taker_doubled = sum(_doubled_points(c) for c in h.captured.get(h.taker, []))
     bouts = sum(1 for c in h.captured.get(h.taker, []) if _is_bout(c))
-    assert not h.shown or h.level <= 2, (
-        f"atouts {[str(c) for c in h.shown]} were shown on a level-{h.level} "
-        f"contract, which moves no discard at all"
-    )
     if h.level <= 2:
         # The discards still count to the taker, and both discard filters
         # exclude every bout by construction, so they can never add one.
@@ -731,7 +745,7 @@ SEEDS = 8
 #   2160 hands of seeds 0-59, the first at seed 11.
 # * a THROWN-IN hand -- all four seats pass -- occurs at seeds 20, 35, 50 and
 #   51 of the first sixty and NOWHERE in seeds 0-7, so before this the `owed =
-#   0` arm of `_check_seed` and its "four passes" assertion ran zero times:
+#   0` arm of `_verify` and its "four passes" assertion ran zero times:
 #   written, never executed. (The predecessor of this module counted an
 #   all-zero score delta as a thrown-in hand, which a settled hand worth
 #   nothing also produces -- so its `hand_thrown_in` arm was green over
@@ -748,7 +762,7 @@ _CENSUS_SEEDS: tuple[int, ...] = (
 
 # Every cell the census requires. The cascade and discard arms guard a RULE;
 # the rest are the settlement arithmetic's own branches, each of which some
-# assertion in `_hand_value` or `_check_seed` would otherwise take vacuously.
+# assertion in `_hand_value` or `_verify` would otherwise take vacuously.
 #
 # `discard-forced` and `forced-atouts-shown` are deliberately NOT here: the
 # taker would have to hold fewer than six plain non-Kings among 24 cards,
@@ -789,7 +803,7 @@ _CENSUS_CELLS: tuple[str, ...] = (
 def _sweep() -> tuple[dict[int, Counter[str]], tuple[tuple[int, _Witness], ...]]:
     """Every census seed, replayed and recomputed once. Cached because four
     tests read the same sweep and a tarot match is 36 hands of 18 tricks; the
-    assertions live in `_check_seed`, so a failing seed fails every reader
+    assertions live in `_verify`, so a failing seed fails every reader
     rather than one."""
     game = check_source(TAROT)
     per_seed: dict[int, Counter[str]] = {}
@@ -803,7 +817,7 @@ def _sweep() -> tuple[dict[int, Counter[str]], tuple[tuple[int, _Witness], ...]]
 
 def test_random_games_recompute_exactly() -> None:
     """The sweep itself: every seed's whole match recomputes to the driver's
-    own scores (the assertions are `_check_seed`'s), and no cascade arm rests
+    own scores (the assertions are `_verify`'s), and no cascade arm rests
     on a single deal."""
     per_seed, _ = _sweep()
     witnessed: dict[str, list[int]] = {}

@@ -1009,10 +1009,10 @@
                           }
                         },
                         {
-                          "kind": "transfer",
-                          "verb": "move",
-                          "selection_mode": "chosen",
-                          "amount": {
+                          "kind": "let",
+                          "name": "atouts_owed",
+                          "index": null,
+                          "value": {
                             "kind": "binop",
                             "op": "-",
                             "left": {
@@ -1036,6 +1036,16 @@
                                 }
                               }
                             }
+                          }
+                        },
+                        {
+                          "kind": "transfer",
+                          "verb": "move",
+                          "selection_mode": "chosen",
+                          "amount": {
+                            "kind": "name",
+                            "name": "atouts_owed",
+                            "ref": "local"
                           },
                           "item": "cards",
                           "source": {
