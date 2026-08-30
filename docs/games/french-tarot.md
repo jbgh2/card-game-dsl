@@ -16,9 +16,11 @@ Each hand:
    < Garde contre le chien. The highest bidder is the taker; if all pass, the
    hand is thrown in.
 3. **Chien** — at Petite/Garde the taker takes the chien and discards six,
-   HIDDEN from the opponents (the discards still count to the taker); at
-   Garde sans the chien counts to the taker unseen; at Garde contre it counts
-   to the opponents.
+   HIDDEN from the opponents (the discards still count to the taker). The
+   discard may never contain a King or a bout; atouts go in only when the
+   taker holds fewer than six other cards, and any atout discarded is shown
+   to the whole table first. At Garde sans the chien counts to the taker
+   unseen; at Garde contre it counts to the opponents.
 4. **Play** — eighteen tricks; atouts are trumps. Follow suit; if void you must
    trump, and you must over-trump if you can. The Excuse may be played at any
    time, never wins, and stays with its team (transferring a low card to the
@@ -33,12 +35,17 @@ The whole hand runs in the DSL. The four-level bid runs on the kernel `round`
 (a counterclockwise single-pass ring over the move vocabulary below, settling
 on a taker via `tarot_auction_outcome`). The chien discard is a filtered
 movement (`move chosen 6 cards from hand[p] where is_pref_discard(card) to
-discard[p]`, preferring plain non-King cards and falling back to any non-bout)
-into a genuinely hidden `discard[player]` zone — a deliberate departure from
-the printed rules' physical table layout, where the discard sits face down in
-front of the taker but is not itself secret information the opponents lack;
-here it is modelled as hidden because the opponents cannot see which specific
-cards were set aside, only that six were. The atouts, the follow classes and
+discard[p]`) into a genuinely hidden `discard[player]` zone — a deliberate
+departure from the printed rules' physical table layout, where the discard
+sits face down in front of the taker but is not itself secret information the
+opponents lack; here it is modelled as hidden because the opponents cannot
+see which specific cards were set aside, only that six were. When fewer than
+six plain non-Kings exist among the taker's 24, the forced branch moves every
+one of them in and tops the discard up with chosen non-bout atouts routed
+through `shown_atouts`, a public zone: each forced atout arrives there with
+identity to all four seats before joining the hidden discard, so the
+opponents' information sets carry exactly what the real game shows them —
+the forced atouts — and nothing else of the discard. The atouts, the follow classes and
 the card strengths are one declared `trick_order { }` block that the trick
 winner, the follow demand and the over-trump comparison all read: the Excuse
 belongs to no class, so it never wins and a led Excuse sets no suit, neither
@@ -53,10 +60,7 @@ card points from `captured` + the hidden `discard`, petit-au-bout, bid
 multiplier); the `for each player` scoring statement applies it 3:1 zero-sum.
 Card points are kept in doubled integer units (the 78 cards sum to 182);
 the `card_points { }` clause carries the rank-keyed part of that table.
-Real FFT forces the taker to discard atouts/the Excuse/a King face up when
-fewer than six other cards remain to discard — out of scope here (a 24-card
-taker hand+chien essentially never runs short of plain non-King cards).
-poignée declaration and the Excuse half-point IOU deferral are also out of
+poignée declaration and the Excuse half-point IOU deferral are out of
 scope.
 
 ```
@@ -99,6 +103,7 @@ game FrenchTarot {
     trick_pile       : TrickPile
     captured[player] : PlayerPile<player>
     discard[player]  : HiddenPile<player>  // the taker's discarded chien cards, hidden from opponents
+    shown_atouts     : Discard             // forced-discard atouts pause here, identity to every seat, then join discard[taker]
   }
 
   state {
@@ -147,9 +152,12 @@ game FrenchTarot {
         petit_in_last : Boolean = false
       }
 
-      // Chien, by contract level. At Petite/Garde the taker merges the chien and
-      // discards six, HIDDEN from the opponents — bouts are never discardable,
-      // and plain non-King cards are preferred whenever six exist. At Garde
+      // Chien, by contract level. At Petite/Garde the taker merges the chien
+      // and discards six, HIDDEN from the opponents — Kings and bouts are
+      // never discardable, so the discard is six chosen plain non-Kings
+      // whenever six exist; when fewer do, every plain non-King goes in and
+      // chosen non-bout atouts top the discard up to six, SHOWN to the table
+      // through the public `shown_atouts` on their way in. At Garde
       // sans / Garde contre the chien is NOT moved: it stays in its zone and
       // is counted at scoring — moving it would reorder the next hand's
       // pre-shuffle gather.
@@ -159,7 +167,11 @@ game FrenchTarot {
           if (number of cards in hand[taker] where is_pref_discard(card)) >= 6 {
             move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
           } else {
-            move chosen 6 cards from hand[taker] where not is_bout(card) to discard[taker]
+            move all cards from hand[taker] where is_pref_discard(card) to discard[taker]
+            move chosen (6 - (number of cards in discard[taker])) cards from hand[taker]
+                 where card.suit is atouts and not is_bout(card)
+                 to shown_atouts
+            move all cards from shown_atouts to discard[taker]
           }
         }
       }

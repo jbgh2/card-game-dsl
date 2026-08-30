@@ -72,7 +72,11 @@ Ledger note -- what the observation stream cannot pin
    of the 78 that no seat played -- which is public arithmetic and needs no
    privileged read. Which of the two zones those six sit in is decided by the
    announced bid level, so the settlement's chien branch is judged from public
-   facts throughout.
+   facts throughout. The ONE public exception is the forced discard's atouts:
+   they pass through `shown_atouts : Discard` (identity to every seat) on
+   their way into the hidden discard, so the table DOES see them --
+   `_Table._moved` records the arrivals, and `_hand_value` holds each shown
+   card against the conservation complement.
 2. The trick winner is read off the DRAIN's destination (`trick_pile ->
    captured[w]`) and cross-checked against ROUTING -- the winner leads the next
    trick -- for tricks 1..17 of every hand. The EIGHTEENTH has no next trick,
@@ -115,6 +119,7 @@ from __future__ import annotations
 
 import random
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -159,14 +164,18 @@ def _parse(text: str) -> Card:
     return Card(text[:-1], _SUIT_GLYPH[text[-1]])
 
 
-def _full_deck() -> Counter[tuple[str, str]]:
+def _pack() -> list[Card]:
     """The 78-card tarot pack, written out rather than read from the engine's
     deck registry: conservation is what this module checks, so its expectation
     may not come from the thing under test."""
-    cards = [(r, s) for s in _PLAIN_SUITS for r in _PLAIN_RANKS]
-    cards += [(str(n), "atouts") for n in range(1, 22)]
-    cards.append(("Excuse", "excuse"))
-    return Counter(cards)
+    cards = [Card(r, s) for s in _PLAIN_SUITS for r in _PLAIN_RANKS]
+    cards += [Card(str(n), "atouts") for n in range(1, 22)]
+    cards.append(Card("Excuse", "excuse"))
+    return cards
+
+
+def _full_deck() -> Counter[tuple[str, str]]:
+    return Counter((c.rank, c.suit) for c in _pack())
 
 
 def _is_bout(c: Card) -> bool:
@@ -254,12 +263,27 @@ def _is_pref_discard(c: Card) -> bool:
     return c.suit not in ("atouts", "excuse") and c.rank != "K"
 
 
-def _discard_pool(hand: list[Card]) -> tuple[list[Card], str]:
-    """The pool the taker discards six from, and which branch chose it."""
+def _discard_pool(hand: list[Card]) -> tuple[list[Card], int, str]:
+    """The pool the taker's discard pick draws from, the pick's size, and which
+    branch chose it -- recomputed over the acting seat's LIVE hand at the
+    decision (french-tarot.md, "Chien").
+
+    Preferred: six chosen from the plain non-Kings. Forced (fewer than six
+    exist): every plain non-King has already been force-moved into the discard
+    before the pick, so the live hand holds none, and the pick tops the discard
+    up to six from the non-bout atouts -- Kings and bouts are never
+    discardable, and an atout is discardable only for want of anything else.
+    The size falls out of the same arithmetic on either branch: the hand
+    holds 24 minus what was force-moved, and leaves it holding 18."""
     pref = [c for c in hand if _is_pref_discard(c)]
     if len(pref) >= CHIEN:
-        return pref, "discard-preferred"
-    return [c for c in hand if not _is_bout(c)], "discard-fallback"
+        return pref, CHIEN, "discard-preferred"
+    assert not pref, (
+        f"the discard pick was offered while {len(pref)} plain non-Kings were "
+        f"still in hand -- the forced branch moves ALL of them first"
+    )
+    atouts = [c for c in hand if c.suit == "atouts" and not _is_bout(c)]
+    return atouts, len(hand) - 18, "discard-forced"
 
 
 # --- what a seat at the table writes down ---------------------------------
@@ -290,6 +314,10 @@ class _Hand:
     # Seat -> what ended in its capture pile, Excuse routing and the low-card
     # repayment included.
     captured: dict[Player, list[Card]] = field(default_factory=dict)
+    # The forced discard's atouts, read off their public arrival in
+    # `shown_atouts` -- empty on any hand whose taker discards six plain
+    # non-Kings.
+    shown: list[Card] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -347,7 +375,7 @@ class _Table:
             hand.taker, hand.level = who, level
 
     def _moved(self, event: tuple[Any, ...]) -> None:
-        _, src, src_view, dst, _dst_view = event
+        _, src, src_view, dst, dst_view = event
         src, dst = str(src), str(dst)
         if src == "deck" and dst == "chien":
             # One deal into the chien per hand, and the only movement into that
@@ -355,7 +383,7 @@ class _Table:
             self.hands.append(_Hand())
             self._pending.clear()
         elif src.startswith("hand[") and dst == "trick_pile":
-            (card_str,) = _dst_view  # one card per play
+            (card_str,) = dst_view  # one card per play
             play = (Player(int(src[src.index("[") + 1 : -1])), _parse(str(card_str)))
             self._hand.plays.append(play)
             self._pending.append(play)
@@ -375,6 +403,14 @@ class _Table:
             for c in (_parse(str(x)) for x in src_view):
                 self._hand.captured[frm].remove(c)
                 self._hand.captured.setdefault(to, []).append(c)
+        elif dst == "shown_atouts":
+            # The forced discard's atouts, shown to the whole table on their way
+            # into the hidden discard: `shown_atouts : Discard` projects
+            # identity to every observer, so seat 0 reads the arrivals exactly
+            # as every other seat does. (The onward tuck into `discard[taker]`
+            # needs no branch: its destination is hidden and its cards are
+            # these.)
+            self._hand.shown.extend(_parse(str(c)) for c in dst_view)
 
     # --- the legality rules, judged on the OFFER against the true holding ---
     #
@@ -396,10 +432,18 @@ class _Table:
             return  # the auction: an announcement vocabulary, not cards
         pool = list(rs.zones.instance("hand", player).cards)
         prefix = [c for _, c in self._pending]
-        if n == CHIEN:
-            # The chien discard -- a six-card pick, so `n` alone tells it from a
-            # play. Its filter is the game's own two-branch rule.
-            expected, arm = _discard_pool(pool)
+        if len(pool) > 18:
+            # The discard pick: only there does the acting seat hold more than a
+            # trick hand's 18 cards (24 on the preferred branch, 24 minus the
+            # force-moved plain non-Kings on the forced one -- at least 19
+            # either way). `n` no longer discriminates: the forced pick is
+            # sized 6 minus the force-moved count, which reaches 1.
+            expected, want_n, arm = _discard_pool(pool)
+            assert n == want_n, (
+                f"hand {len(self.hands) - 1}: P{player}'s discard pick is sized "
+                f"{n}, but the rules over its {len(pool)}-card holding size "
+                f"it {want_n} ({arm})"
+            )
         else:
             assert n == 1, f"an unrecognized {n}-card decision for P{player}"
             expected, arm = _legal(prefix, pool)
@@ -430,23 +474,39 @@ class _Table:
             )
 
 
-def _play(game: Any, seed: int) -> tuple[_Table, Any]:
+def _play(
+    game: Any,
+    rng: random.Random,
+    script: Callable[[Player, list[Any], int], list[Any] | None] | None = None,
+    tap: Callable[[Player, tuple[Any, ...]], None] | None = None,
+) -> tuple[_Table, Any]:
+    """One full match against the table's record. `script` may claim any
+    decision (return None to leave it to the random pick); `tap` sees every
+    observer's raw event stream where `_Table` keeps only seat 0's."""
     tbl = _Table()
     rs_box: list[Any] = []
-    rng = random.Random(seed)
     pick = random_chooser(rng)
 
     def chooser(player: Player, candidates: list[Any], n: int) -> list[Any]:
         if rs_box:
             tbl.offered(rs_box[0], player, candidates, n)
+        if script is not None:
+            scripted = script(player, candidates, n)
+            if scripted is not None:
+                return scripted
         return pick(player, candidates, n)
+
+    def observe(player: Player, event: tuple[Any, ...]) -> None:
+        if tap is not None:
+            tap(player, event)
+        tbl.observe(player, event)
 
     result = play_game(
         game,
         rng,
         None,
         chooser,
-        observer=tbl.observe,
+        observer=observe,
         on_first_decision=lambda rs: rs_box.append(rs),
     )
     return tbl, result
@@ -472,12 +532,32 @@ def _hand_value(h: _Hand, arms: Counter[str]) -> int:
 
     taker_doubled = sum(_doubled_points(c) for c in h.captured.get(h.taker, []))
     bouts = sum(1 for c in h.captured.get(h.taker, []) if _is_bout(c))
+    assert not h.shown or h.level <= 2, (
+        f"atouts {[str(c) for c in h.shown]} were shown on a level-{h.level} "
+        f"contract, which moves no discard at all"
+    )
     if h.level <= 2:
         # The discards still count to the taker, and both discard filters
         # exclude every bout by construction, so they can never add one.
         assert not any(_is_bout(c) for c in leftover), (
             f"a bout reached the taker's discard: {[str(c) for c in leftover]}"
         )
+        # The shown atouts are discard cards the whole table saw: each is a
+        # non-bout atout and sits among the six the conservation complement
+        # recovers. A preferred-branch hand shows nothing.
+        remainder = Counter((c.rank, c.suit) for c in leftover)
+        for c in h.shown:
+            assert c.suit == "atouts" and not _is_bout(c), (
+                f"{c} was shown into the discard, but only a non-bout atout is "
+                f"ever forced there"
+            )
+            assert remainder[(c.rank, c.suit)] > 0, (
+                f"{c} was shown into the discard yet is not among the six cards "
+                f"the table never saw played"
+            )
+            remainder[(c.rank, c.suit)] -= 1
+        if h.shown:
+            arms["forced-atouts-shown"] += 1
         taker_doubled += sum(_doubled_points(c) for c in leftover)
         arms["chien-discarded"] += 1
     elif h.level == 3:
@@ -502,13 +582,19 @@ def _hand_value(h: _Hand, arms: Counter[str]) -> int:
 
 
 def _check_seed(game: Any, seed: int) -> tuple[_Table, Counter[str]]:
-    table, result = _play(game, seed)
+    table, result = _play(game, random.Random(seed))
+    return table, _verify(table, result, f"seed {seed}")
+
+
+def _verify(table: _Table, result: Any, label: str) -> Counter[str]:
+    """Every claim this module makes about one match, over the table's own
+    record -- shared by the seed sweep and the stacked-deal witness."""
     arms = Counter(table.arms)
 
     # The legality rules, judged on the CANDIDATE SETS the acting seats were
     # offered rather than on the cards that came out of them.
     assert not table.offer_failures, (
-        f"seed {seed}: " + "\n  ".join(table.offer_failures[:4])
+        f"{label}: " + "\n  ".join(table.offer_failures[:4])
     )
 
     # Non-vacuity, DERIVED from the auction and asserted BEFORE any
@@ -519,34 +605,34 @@ def _check_seed(game: Any, seed: int) -> tuple[_Table, Counter[str]]:
     # partial loss takes: lose one hand's announcements and the hand looks
     # thrown in, and every claim below silently skips it.
     assert len(table.hands) == HANDS, (
-        f"seed {seed}: the stream shows {len(table.hands)} hands, expected "
+        f"{label}: the stream shows {len(table.hands)} hands, expected "
         f"{HANDS}"
     )
     lost = [i for i, h in enumerate(table.hands) if h.taker is None and h.plays]
     assert not lost, (
-        f"seed {seed}: hand(s) {lost} of {len(table.hands)} were played but no "
+        f"{label}: hand(s) {lost} of {len(table.hands)} were played but no "
         f"seat took in them -- the observation stream lost those announcements, "
         f"and every claim below would skip the hand as thrown in"
     )
     played = [h for h in table.hands if h.taker is not None]
     assert played, (
-        f"seed {seed}: no hand reached a contract, so every count below would "
+        f"{label}: no hand reached a contract, so every count below would "
         f"read 0 == 0 and this block would prove nothing"
     )
     for i, h in enumerate(table.hands):
         owed = TRICKS_PER_HAND if h.taker is not None else 0
         assert len(h.tricks) == owed and len(h.plays) == SEATS * owed, (
-            f"seed {seed} hand {i}: the auction owes {owed} tricks "
+            f"{label} hand {i}: the auction owes {owed} tricks "
             f"({'taken' if h.taker is not None else 'thrown in'}), the stream "
             f"shows {len(h.tricks)} tricks / {len(h.plays)} plays"
         )
         assert len(h.bids) == SEATS, (
-            f"seed {seed} hand {i}: {len(h.bids)} announcements, expected one "
+            f"{label} hand {i}: {len(h.bids)} announcements, expected one "
             f"per seat"
         )
         if h.taker is None:
             assert all(name == "pass" for _, name in h.bids), (
-                f"seed {seed} hand {i}: a thrown-in hand is four passes"
+                f"{label} hand {i}: a thrown-in hand is four passes"
             )
             arms["hand-thrown-in"] += 1
         else:
@@ -557,20 +643,20 @@ def _check_seed(game: Any, seed: int) -> tuple[_Table, Counter[str]]:
         for t, (drained_to, cards) in enumerate(h.tricks):
             group = h.plays[SEATS * t : SEATS * (t + 1)]
             assert {p for p, _ in group} == set(range(SEATS)), (
-                f"seed {seed} hand {i} trick {t}: a seat played twice"
+                f"{label} hand {i} trick {t}: a seat played twice"
             )
             assert tuple(c for _, c in group) == cards
             w = _winner(group)
             assert w == drained_to, (
-                f"seed {seed} hand {i} trick {t}: recomputed winner P{w}, the "
+                f"{label} hand {i} trick {t}: recomputed winner P{w}, the "
                 f"pile drained to P{drained_to}"
             )
             assert next(c for p, c in group if p == w).suit != "excuse", (
-                f"seed {seed} hand {i} trick {t}: the Excuse won the trick"
+                f"{label} hand {i} trick {t}: the Excuse won the trick"
             )
             if t + 1 < TRICKS_PER_HAND:
                 assert h.plays[SEATS * (t + 1)][0] == w, (
-                    f"seed {seed} hand {i} trick {t}: P{w} won but did not lead "
+                    f"{label} hand {i} trick {t}: P{w} won but did not lead "
                     f"the next"
                 )
             trumped = any(c.suit == "atouts" for _, c in group)
@@ -586,10 +672,10 @@ def _check_seed(game: Any, seed: int) -> tuple[_Table, Counter[str]]:
         for p in range(SEATS):
             scores[p] += 3 * v if p == h.taker else -v
 
-    assert sum(scores.values()) == 0, f"seed {seed}: the settlement is not zero-sum"
-    assert scores == result.scores, f"seed {seed}: {scores} != {result.scores}"
+    assert sum(scores.values()) == 0, f"{label}: the settlement is not zero-sum"
+    assert scores == result.scores, f"{label}: {scores} != {result.scores}"
     assert result.winner == max(result.scores, key=lambda p: result.scores[p])
-    return table, arms
+    return arms
 
 
 # --- the sweep, run once ---------------------------------------------------
@@ -613,7 +699,7 @@ _CASCADE_ARMS: frozenset[str] = frozenset(
         "excuse-lead-no-trump",
     }
 )
-_DISCARD_ARMS: frozenset[str] = frozenset({"discard-preferred", "discard-fallback"})
+_DISCARD_ARMS: frozenset[str] = frozenset({"discard-preferred", "discard-forced"})
 
 # Every CASCADE arm not riding a named seed must fire on at least this many
 # DISTINCT seeds of the sweep. One witness would be satisfiable by a single
@@ -664,11 +750,13 @@ _CENSUS_SEEDS: tuple[int, ...] = (
 # the rest are the settlement arithmetic's own branches, each of which some
 # assertion in `_hand_value` or `_check_seed` would otherwise take vacuously.
 #
-# `discard-fallback` is deliberately NOT here: the taker would have to hold
-# fewer than six plain non-Kings among 24 cards, which does not occur in the
-# 2160 hands of seeds 0-59 (measured 2026-08-19). A cell whose only witness
-# would be a deal nothing reaches must not read as covered; the branch is
-# exercised as a unit instead (`test_the_discard_fallback_branch_is_a_unit`).
+# `discard-forced` and `forced-atouts-shown` are deliberately NOT here: the
+# taker would have to hold fewer than six plain non-Kings among 24 cards,
+# which does not occur in the 2160 hands of seeds 0-59 (measured 2026-08-19,
+# on the same deal path). A cell whose only witness would be a deal nothing
+# reaches must not read as covered; the branch rides a stacked first shuffle
+# instead (`test_the_forced_discard_shows_its_atouts_to_the_table`), which
+# drives the ENGINE through it and holds both cells non-zero there.
 _CENSUS_CELLS: tuple[str, ...] = (
     *sorted(_CASCADE_ARMS),
     "discard-preferred",
@@ -800,23 +888,103 @@ def test_the_excuse_lead_quirk_is_preserved() -> None:
         )
 
 
-def test_the_discard_fallback_branch_is_a_unit() -> None:
-    """`_discard_pool`'s fallback arm, which no deal in seeds 0-59 reaches
-    (`_CENSUS_CELLS`' note), exercised directly.
+class _RiggedFirstShuffle(random.Random):
+    """A Random whose FIRST shuffle deals a chosen order and every later draw
+    is honest. `shuffle deck` is the deal's only rng consumer and the deal
+    then slices deterministically (18 off the top per seat, the last 6 to the
+    chien), so overriding one call stacks exactly one deal without touching
+    the engine's own shuffle/deal statements."""
 
-    The branch exists in the game file (`else { move chosen 6 cards ... where
-    not is_bout(card) }`), so the recomputation must carry it; a branch the
-    sweep cannot reach and no unit drives is code nothing executes."""
-    hand = [Card(str(n), "atouts") for n in range(2, 21)] + [
-        Card("K", "clubs"), Card("K", "hearts"), Card("K", "spades"),
-        Card("1", "atouts"), Card("Excuse", "excuse"),
-    ]
-    pool, arm = _discard_pool(hand)
-    assert arm == "discard-fallback"
-    assert all(not _is_bout(c) for c in pool)
-    assert len(pool) == len(hand) - 2  # the petit and the Excuse are bouts
-    plain = [Card(str(n), "hearts") for n in range(1, 11)]
-    assert _discard_pool(plain + hand)[1] == "discard-preferred"
+    def __init__(self, seed: int, first_order: list[Card]) -> None:
+        super().__init__(seed)
+        self._first: list[Card] | None = list(first_order)
+
+    def shuffle(self, x: Any) -> None:
+        if self._first is not None:
+            x[:] = self._first
+            self._first = None
+        else:
+            super().shuffle(x)
+
+
+def test_the_forced_discard_shows_its_atouts_to_the_table() -> None:
+    """The forced discard, end to end through the ENGINE: a taker holding fewer
+    than six plain non-Kings puts every one of them in the discard, tops it up
+    with chosen non-bout atouts -- never a King, never a bout -- and those
+    atouts are SHOWN, arriving in `shown_atouts` with identity to all four
+    seats before they join the hidden discard.
+
+    The deal rides a stacked first shuffle rather than a seed search: the
+    taker needs at least 19 of its 24 cards from the 26 atouts-Kings-Excuse,
+    which no deal in seeds 0-59 produces and no feasible search would (the
+    go-fish opening-quad precedent searched a ~0.1%-per-deal event; this one
+    is astronomically past that). Hand 0 is the stacked hand at Petite; every
+    later auction passes, so the other 35 hands are thrown in and the match
+    stays one played hand.
+
+    Seat 0's 18 dealt cards are the atouts 2..19 and the chien is 20, 21,
+    K-2-3-4 of clubs, so the merged 24 hold exactly three plain non-Kings:
+    the forced pick is 3 from the 19 non-bout atouts (`_discard_pool` sizes
+    and pools it; a wrong offer lands in `table.offer_failures` and a wrong
+    size fails `offered`'s own assert). The petit and the Excuse sit with the
+    defenders, keeping the stacked side simple: the 21 is the hand's one
+    bout, and it may never be discarded."""
+    game = check_source(TAROT)
+    seat0 = [Card(str(v), "atouts") for v in range(2, 20)]
+    chien = [Card("20", "atouts"), Card("21", "atouts"), Card("K", "clubs"),
+             Card("2", "clubs"), Card("3", "clubs"), Card("4", "clubs")]
+    rest = [c for c in _pack() if c not in seat0 + chien]
+    stacked = seat0 + rest + chien
+    assert len(stacked) == 78
+
+    auction_calls = [0]
+
+    def script(player: Player, candidates: list[Any], n: int) -> list[Any] | None:
+        if candidates and isinstance(candidates[0], Card):
+            return None  # card decisions stay with the random pick
+        auction_calls[0] += 1
+        names = [str(c[0]) for c in candidates]
+        if auction_calls[0] <= SEATS and player == 0:
+            return [candidates[names.index("bid_petite")]]
+        return [candidates[names.index("pass")]]
+
+    hops: list[tuple[Player, tuple[Any, ...]]] = []
+
+    def tap(player: Player, event: tuple[Any, ...]) -> None:
+        if event[0] == "move" and "shown_atouts" in (str(event[1]), str(event[3])):
+            hops.append((player, event))
+
+    table, result = _play(
+        game, _RiggedFirstShuffle(0, stacked), script=script, tap=tap
+    )
+    arms = _verify(table, result, "stacked discard")
+
+    # The stacked hand went as scripted, and the branch actually fired -- the
+    # census note names this test as the forced arm's only witness.
+    h0 = table.hands[0]
+    assert h0.taker == 0 and h0.level == 1
+    assert arms["discard-forced"] == 1, arms
+    assert arms["forced-atouts-shown"] == 1
+    assert len(h0.shown) == 3 and all(
+        c.suit == "atouts" and not _is_bout(c) for c in h0.shown
+    ), h0.shown
+
+    # The reveal derives to EVERY seat, not just observer 0's stream: each of
+    # the four observers sees the same three identities arrive in
+    # `shown_atouts` (count-only out of the taker's hidden hand), and the
+    # onward tuck shows the same identities leaving while the hidden discard
+    # takes them as a bare count.
+    shown = tuple(sorted(str(c) for c in h0.shown))
+    arrivals = {p: e for p, e in hops if str(e[3]) == "shown_atouts"}
+    tucks = {p: e for p, e in hops if str(e[1]) == "shown_atouts"}
+    assert set(arrivals) == set(tucks) == set(range(SEATS))
+    for p in range(SEATS):
+        arr, tuck = arrivals[p], tucks[p]
+        assert tuple(sorted(str(c) for c in arr[4])) == shown, f"P{p}: {arr}"
+        assert tuple(sorted(str(c) for c in tuck[2])) == shown, f"P{p}: {tuck}"
+        if p != 0:
+            assert arr[2] == 3, f"P{p} saw inside the taker's hand: {arr}"
+            assert tuck[4] == 3, f"P{p} saw inside the discard: {tuck}"
 
 
 def test_seed0_characterization() -> None:
@@ -826,7 +994,7 @@ def test_seed0_characterization() -> None:
     collection on the decision path is ordered (hand-order pools, seating
     rings)."""
     game = check_source(TAROT)
-    table, result = _play(game, 0)
+    table, result = _play(game, random.Random(0))
     assert result.scores == {0: 842, 1: 1142, 2: -1542, 3: -442}
     assert result.winner == 1
     assert len(table.hands) == HANDS
