@@ -3,8 +3,10 @@
 property:   every zone/state name a game-local Python primitive reads is
             DECLARED — in `PRIMITIVE_READS` (cardlang/runtime/reads.py) or in
             the `primitives { }` block of a game declaring that module's
-            Primitive, the two sites the coexistence window holds open and
-            which no game may use at once — agrees exactly with both the
+            Primitive, the two sites the coexistence window holds open — one
+            per COUPLING: a game may hold a block and a surviving
+            walled-namespace row at once (tichu's shape), never both sites
+            for the same call-namespace coupling — agrees exactly with both the
             module's source and the game file's declarations, and every failed
             read is a typed `PrimitiveReadError` naming the registry — a
             rename on either side of the coupling fails a static test here,

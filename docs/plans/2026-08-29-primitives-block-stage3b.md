@@ -183,7 +183,9 @@ doctrine for this stage):
    covers `RANKING_GATED_FUNCS`; sibling-query the rest).
 5. Run the full-width byte-identical playout-golden proof; regenerate the
    game's IR golden with the block-nodes reason stated; move the
-   kernel-migration status line.
+   workstream status line in `docs/design-notes/primitive-sidecars.md`
+   section 5 (`docs/kernel-migration.md` carries no 3b line — nothing there
+   goes false as games migrate).
 
 - **Batch A (landed):** holdem-heads-up, skat, five-hundred. Seven-card-stud
   and holdem walled out at the recipe's step-2 gate (issue #504) — their
@@ -200,8 +202,14 @@ doctrine for this stage):
   chosen path lands for them (their surviving auction rows make pinochle
   and french-tarot the pin carve-out's other exercisers when they arrive).
 
-Proving artifact per game: the quoted full-width byte-identical run, and the
-corpus reconcile pin green (its domain covers every corpus game by glob).
+Proving artifact per game: the quoted full-width byte-identical run where the
+game HAS a per-seed golden, and the corpus reconcile pin green (its domain
+covers every corpus game by glob). A game with no per-seed vector
+(holdem-heads-up — the class issue #427 records for its sibling) substitutes
+the strongest instruments it has, quoted: its playout-invariant suite, its
+openspiel_ready proofs, and a measured main-vs-branch playout differential —
+the full-width run cannot fail for such a game, so quoting it alone proves
+nothing.
 
 ## Closing steps, gated — recorded here so the end state is one place
 
