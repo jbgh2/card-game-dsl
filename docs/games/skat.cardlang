@@ -17,9 +17,11 @@
 // unordered, where the reference draws from hand-ordered legality — and run
 // as three single-actor filtered movements per trick. The contract's order is
 // declared as the game's Trick Order, which reads the contract off the public
-// state, so follow legality and the winner are both the language's; matadors
-// stay a game-local Primitive (skat_matadors) and the overbid arithmetic is
-// rounded division in the game text.
+// state, so follow legality and the winner are both the language's; the bid
+// ladder and matador counting stay game-local Primitives, declared in this
+// game's own `primitives { }` block and implemented in
+// `cardlang/runtime/skat.py`, and the overbid arithmetic is rounded division
+// in the game text.
 
 game Skat {
 
@@ -30,6 +32,18 @@ game Skat {
   cards: skat32
   ranking: ace-ten
   card_points { A: 11  10: 10  K: 4  Q: 3  J: 2  9: 0  8: 0  7: 0 }
+
+  // The two this game borrows from outside the DSL. `skat_next_bid` takes no
+  // `reads` clause: the ladder is a table, pure over its argument, and resolve
+  // refuses a clause on an entry that never receives one. `skat_matadors`
+  // counts the run from the club Jack down the trump order over ONE hand plus
+  // the widow, so `hand[p]` narrows to the hand the call names while `skat`
+  // and the three contract variables are whole-value reads.
+  primitives {
+    skat_next_bid(value : Integer) : Integer
+    skat_matadors(p : Player) : Integer
+        reads is_null, is_grand, trump_suit, hand[p], skat
+  }
 
   // The declared contract decides the order, so the rows read it off the
   // public state the declaration wrote (`is_null`, `is_grand`, `trump_suit`).

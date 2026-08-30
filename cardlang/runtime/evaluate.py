@@ -28,8 +28,8 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
 
     The chain lives here rather than in either half so that neither half
     depends on the other — `builtins.py`'s and `primitives.py`'s arm counts
-    are then independently readable, which is what makes the Primitive count
-    usable as the elimination metric. Arguments are coerced ONCE, before the
+    are then independently readable, against the Primitive REGISTRY that is
+    the elimination metric. Arguments are coerced ONCE, before the
     chain, because `deep_freeze` dominates playout cost.
 
     A game that declares a `primitives { }` block takes the DERIVED half of

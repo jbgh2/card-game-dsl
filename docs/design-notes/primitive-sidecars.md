@@ -302,13 +302,30 @@ completeness ledger in `tests/test_primitives_block.py`, the misuse
 probes there, and the corpus reconciliation pin with both reddening
 mutations demonstrated.
 
-**Stage 3b — the corpus sweep and the legacy deletion.** Every game with
-a primitive gains its block (the lockstep rule), the authored
+**Stage 3b — the corpus sweep and the legacy deletion. In progress.** Every
+game with a primitive gains its block (the lockstep rule), the authored
 `PRIMITIVE_READS` rows and the hand-written dispatch arms for those names
 go, and the coexistence window closes. Its own plan; blocked on the
 signatures that have no declared spelling (issue #472) and the two
 cribbage pegging primitives that read at the dispatch site (issue #473).
 Behavior unchanged, goldens byte-identical.
+
+Which games have migrated is a query, not a number: the games whose
+`primitives { }` block the corpus holds
+(`rg -l 'primitives \{' docs/games/`), against the call-namespace rows
+`PRIMITIVE_READS` still carries.
+
+A THIRD wall the cohort derivation did not predict, and the one the wave
+meets most: `classify_read` classifies a `reads` name against the game's
+GAME-level state, and a row may name a variable a PHASE declares — an
+asymmetry the authored row tolerates, because a row materializes against
+the live frame while a declaration is a game clause. Seven-Card Stud and
+three-handed Hold'em each hit it on `committed` / `folded` / `in_hand`,
+which their betting phase declares; both are refused at compile and stay
+legacy until the variable is game-level or the value is passed as an
+argument. Hoisting the declaration to game level is not a neutral edit —
+a `repeat until` phase re-initializes its state block on re-entry — so it
+is a game change, not a migration step.
 
 **Stage 4 — co-locate (M).** Implementations move out of
 `cardlang/runtime/` to live with their games; the loader resolves

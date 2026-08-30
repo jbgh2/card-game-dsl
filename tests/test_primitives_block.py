@@ -233,7 +233,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
-from cardlang.types import Type
+from cardlang.types import TEnum, TOptional, Type
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -591,17 +591,24 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
 # name, a block that does not, no block at all — that is a six-cell product,
 # and each cell's outcome is stated once here rather than in six places.
 
-# `Type` constructor -> (its declarable spelling, a literal of that type). A
+# LEAF `Type` -> (its declarable spelling, a literal of that type). A
 # representative's signature is read from `CALL_SIGS` and rendered through this
 # table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
 # sampled at whichever member it holds — a member whose signature reaches a
 # type with no row fails by NAME rather than producing a sentence the parser
 # rejects for the wrong reason.
+#
+# `TEnum` is keyed by the enum's own name, not the constructor's: `Suit` and
+# `Rank` are two spellings and two literals behind one Python class. The
+# COMBINATOR over these leaves — `?` — is structural in `_spelling_of` rather
+# than a row here, because it composes with every leaf and a row per
+# combination would be the product written out by hand.
 _SPELLINGS: dict[str, tuple[str, str]] = {
     "TPlayer": ("Player", "0"),
     "TInteger": ("Integer", "0"),
     "TBoolean": ("Boolean", "true"),
     "TString": ("String", '"x"'),
+    "Suit": ("Suit", "spades"),
 }
 
 # The `score[0] := …` shape each return spelling lands in, so a rendered call
@@ -613,9 +620,15 @@ _ASSIGNMENTS: dict[str, str] = {
 
 
 def _spelling_of(t: Type) -> tuple[str, str]:
-    row = _SPELLINGS.get(type(t).__name__)
+    if isinstance(t, TOptional):
+        # `none` inhabits every optional, so the literal is the combinator's
+        # own; the inner leaf still has to render, which is what keeps an
+        # unknown leaf loud behind a `?`.
+        return f"{_spelling_of(t.inner)[0]}?", "none"
+    key = t.name if isinstance(t, TEnum) else type(t).__name__
+    row = _SPELLINGS.get(key)
     assert row is not None, (
-        f"no spelling for {type(t).__name__}: a Primitive's signature reaches "
+        f"no spelling for {key}: a Primitive's signature reaches "
         f"a type this product cannot render — add its row above"
     )
     return row

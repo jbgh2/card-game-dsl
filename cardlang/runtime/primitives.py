@@ -4,8 +4,12 @@ A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
 are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
 (`reads.GameReads`); the pair is the [[primitive-bundle]]. The arms below are
-the dispatch seam, and their count is the elimination metric: it trends to zero
-as `design-notes/primitive-inventory.md`'s constructs land in the language.
+the LEGACY dispatch seam, and an arm goes for either of two reasons: the
+construct that replaces its Primitive lands in the language, or the calling
+game declares the Primitive and `call_declared` derives the call instead. Only
+the first is elimination, so the metric is the REGISTRY
+(`PRIMITIVE_CALL_FUNCS`, `design-notes/primitive-inventory.md`) and never the
+count of arms here.
 
 Its two siblings are deliberately separate words: **[[builtins]]** are the
 generic native functions the language ships (`cardlang/runtime/builtins.py`),
@@ -114,13 +118,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.holdem import ROW, holdem_pot_share
 
             return holdem_pot_share(*_bind(ctx, ROW), args[0])
-        case "holdem_heads_up_pot_share":
-            from cardlang.runtime.holdem_heads_up import (
-                ROW,
-                holdem_heads_up_pot_share,
-            )
-
-            return holdem_heads_up_pot_share(*_bind(ctx, ROW), args[0])
         case "pinochle_meld_value":
             from cardlang.runtime.pinochle import ROW, pinochle_meld_value
 
@@ -133,14 +130,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "skat_next_bid":
-            from cardlang.runtime.skat import skat_next_bid
-
-            return skat_next_bid(args[0])
-        case "skat_matadors":
-            from cardlang.runtime.skat import ROW, skat_matadors
-
-            return skat_matadors(*_bind(ctx, ROW), args[0])
         case "tichu_dragon_won":
             from cardlang.runtime.tichu import ROW, tichu_dragon_won
 
@@ -219,18 +208,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
             return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
-        case "five_hundred_next_bid":
-            from cardlang.runtime.five_hundred import five_hundred_next_bid
-
-            return five_hundred_next_bid(args[0], args[1])
-        case "five_hundred_bid_value":
-            from cardlang.runtime.five_hundred import five_hundred_bid_value
-
-            return five_hundred_bid_value(args[0])
-        case "five_hundred_bid_level":
-            from cardlang.runtime.five_hundred import five_hundred_bid_level
-
-            return five_hundred_bid_level(args[0])
         case "belote_royal_player":
             from cardlang.runtime.belote import ROW, belote_royal_player
 

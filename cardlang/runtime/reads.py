@@ -277,13 +277,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="president.cardlang",
     ),
     PrimitiveReads(
-        module="cardlang/runtime/skat.py",
-        game_file="skat.cardlang",
-        state_vars=_fs("is_null", "is_grand", "trump_suit"),
-        zone_families=_fs("hand"),
-        single_zones=_fs("skat"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/stud.py",
         game_file="seven-card-stud.cardlang",
         state_vars=_fs("stack", "folded", "committed", "in_hand"),
@@ -292,18 +285,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
     PrimitiveReads(
         module="cardlang/runtime/holdem.py",
         game_file="holdem.cardlang",
-        state_vars=_fs("in_hand", "committed", "folded"),
-        zone_families=_fs("hole", "shown"),
-        single_zones=_fs("board"),
-    ),
-    # The same declarations, for the heads-up variant. Deliberately a second
-    # row rather than a second game on the row above: a module binds one row at
-    # import, so the two games' showdowns cannot share one without the row
-    # naming a game it does not serve (issue #232, and the module docstring of
-    # cardlang/runtime/holdem_heads_up.py).
-    PrimitiveReads(
-        module="cardlang/runtime/holdem_heads_up.py",
-        game_file="holdem-heads-up.cardlang",
         state_vars=_fs("in_hand", "committed", "folded"),
         zone_families=_fs("hole", "shown"),
         single_zones=_fs("board"),

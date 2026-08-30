@@ -21,9 +21,11 @@ Illegal after: nothing — this module holds no state.
 
 This module must not import `runtime/primitives.py`. Which half of the registry
 a name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
-the dependency absent is what makes the two arm counts independently readable:
-the Primitive count is the elimination metric, the Builtin count the irreducible
-core it is measured against.
+the dependency absent is what makes the two arm counts independently readable.
+The elimination metric is the Primitive REGISTRY rather than either arm count:
+a legacy arm also goes when its game declares the Primitive, which moves no
+Python out of the package. The Builtin registry is the irreducible core the
+Primitive one is measured against.
 """
 
 from __future__ import annotations

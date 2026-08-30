@@ -100,12 +100,13 @@ Seven-Card Stud and three-handed Hold'em. `fold` is the game's own, because it
 touches the game's zones — the folded hand mucks unseen, so a fold reveals
 nothing.
 
-The showdown calls one primitive, `holdem_heads_up_pot_share`, which holds no
-arithmetic: the payout layering is family-wide (`cardlang/runtime/poker.py`) and
-the "hole cards plus the shared board" fact is Hold'em-wide
-(`cardlang/runtime/holdem.py`). It exists as its own name only because a
-primitive module binds one declared-reads row, keyed on (module, game file) —
-see issue #232.
+The showdown calls one primitive, `holdem_heads_up_pot_share`, declared in the
+game's own `primitives { }` block and holding no arithmetic: the payout
+layering is family-wide (`cardlang/runtime/poker.py`) and the "hole cards plus
+the shared board" fact is Hold'em-wide (`cardlang/runtime/holdem.py`). It
+exists as its own name because three-handed Hold'em writes no block, so
+`holdem_pot_share` reaches its reads through a registry row bound to
+`holdem.cardlang` alone — see issue #232.
 
 ```
 game HoldemHeadsUp {
@@ -118,6 +119,16 @@ game HoldemHeadsUp {
 
   cards: standard52
   ranking: aces high
+
+  // The one this game borrows from outside the DSL. Every read is WHOLE, none
+  // narrowed to the argument: the settlement ranks every entrant's holding
+  // against every other's and layers the pot by commitment, so it needs all
+  // the hands and all the commitments; `p` picks which share of that
+  // settlement comes back, not which cards go into it.
+  primitives {
+    holdem_heads_up_pot_share(p : Player) : Integer
+        reads in_hand, committed, folded, hole, shown, board
+  }
 
   zones {
     deck          : Deck

@@ -52,11 +52,18 @@ Derivation: `PRIMITIVE_IMPLEMENTATIONS` (contract per name) x `CALL_SIGS`
 (signature spellability against `DECLARABLE_BUILTIN_TYPE_NAMES` + the
 `payload_optional` spelling) x the owning game per module.
 
-**Ready (ten):** seven-card-stud, holdem, holdem-heads-up, pinochle, skat,
-canasta, tichu, belote, five-hundred, french-tarot — every primitive BUNDLED
-or PURE, every signature spellable (optionals included).
+**Ready (five):** holdem-heads-up, skat, five-hundred (migrated in batch A),
+belote, tichu — every primitive BUNDLED or PURE, every signature spellable
+(optionals included), and every row name game-level.
 
-**Walled (three, each tracked):** gin-rummy behind issue #472 (`TCollection`
+**Walled (eight, each tracked):** seven-card-stud, holdem, pinochle,
+french-tarot, and canasta behind issue #504 — their call-namespace rows name
+PHASE-local state (stud/holdem's betting vars, pinochle's `trump_suit`,
+french-tarot's `bid_level`/`taker`, canasta's meld vars), which the block's
+game-scoped reads rule refuses by design while the legacy row reads the live
+frame; the issue holds the three candidate paths and the derivation query
+(row `state_vars` intersected with `phase_local_state_names`, run per game,
+never trusted from a list). gin-rummy behind issue #472 (`TCollection`
 parameters); cribbage behind issue #473 (the SITE_READ pegging scorers); coup
 behind the `coup_game_summary` trace-emitter eviction (its own step under
 #142).
@@ -176,29 +183,44 @@ doctrine for this stage):
    covers `RANKING_GATED_FUNCS`; sibling-query the rest).
 5. Run the full-width byte-identical playout-golden proof; regenerate the
    game's IR golden with the block-nodes reason stated; move the
-   kernel-migration status line.
+   workstream status line in `docs/design-notes/primitive-sidecars.md`
+   section 5 (`docs/kernel-migration.md` carries no 3b line — nothing there
+   goes false as games migrate).
 
-- **Batch A:** seven-card-stud, holdem, holdem-heads-up, skat, five-hundred.
-- **Batch B:** pinochle, french-tarot, belote (pinochle and french-tarot
-  carry surviving auction rows — the day-one exercise of 3b-0's pin grain;
-  belote carries none).
-- **Batch C:** canasta, tichu (the fat read rows; canasta's bare-family
-  reads; tichu is the game whose row survives for the CLIMB binders — the
-  carve-out the narrowed pin encodes).
+- **Batch A (landed):** holdem-heads-up, skat, five-hundred. Seven-card-stud
+  and holdem walled out at the recipe's step-2 gate (issue #504) — their
+  rows, `ROW` bindings, and dispatch arms stay until that issue resolves.
+- **Batch B (the closer):** belote, tichu — the last two games whose rows
+  are game-level. Belote is the eight-entry block (the entry-grain
+  over-declaration hazard batch A recorded: the module-source scan compares
+  the module-wide union, so per-entry over-declaration needs the review's
+  eyes); tichu is the game whose row survives for the CLIMB binders — the
+  first live exercise of the narrowed pin's carve-out. Known harness gaps
+  batch A recorded for belote: `_SPELLINGS` lacks `Rank`; `_ASSIGNMENTS`
+  lacks an optional-Player return.
+- Pinochle, french-tarot, and canasta migrate one PR each as issue #504's
+  chosen path lands for them (their surviving auction rows make pinochle
+  and french-tarot the pin carve-out's other exercisers when they arrive).
 
-Proving artifact per game: the quoted full-width byte-identical run, and the
-corpus reconcile pin green (its domain covers every corpus game by glob).
+Proving artifact per game: the quoted full-width byte-identical run where the
+game HAS a per-seed golden, and the corpus reconcile pin green (its domain
+covers every corpus game by glob). A game with no per-seed vector
+(holdem-heads-up — the class issue #427 records for its sibling) substitutes
+the strongest instruments it has, quoted: its playout-invariant suite, its
+openspiel_ready proofs, and a measured main-vs-branch playout differential —
+the full-width run cannot fail for such a game, so quoting it alone proves
+nothing.
 
 ## Closing steps, gated — recorded here so the end state is one place
 
-- gin (#472), cribbage (#473), coup (the eviction): one PR each, when its
-  wall falls.
+- The phase-local five (#504), gin (#472), cribbage (#473), coup (the
+  eviction): one PR each, when its wall falls.
 - The legacy-table deletion that ticks #142's stage-3 box: `PRIMITIVE_READS`
-  loses its last call-namespace row with batch C; the Primitive half of
-  `CALL_SIGS` is deleted and the signature moves to a column on
-  `PRIMITIVE_IMPLEMENTATIONS` (`implementation_sig` is the designed one-site
-  change) only after the three walls fall — the box is the operator's tick,
-  on full elimination, never on the wave alone.
+  loses its last call-namespace row only when every walled game's wall has
+  fallen; the Primitive half of `CALL_SIGS` is deleted and the signature
+  moves to a column on `PRIMITIVE_IMPLEMENTATIONS` (`implementation_sig` is
+  the designed one-site change) at the same point — the box is the
+  operator's tick, on full elimination, never on the wave alone.
 
 ## The Architect's counsel (2026-08-29, attached per docs/harness.md "The Architect")
 
