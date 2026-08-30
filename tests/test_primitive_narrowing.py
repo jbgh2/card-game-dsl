@@ -25,7 +25,10 @@ domain:     every game-local primitive (derived from all THREE routes to a
             today) x every `EngineFacts` field (derived: the dataclass).
 registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             the safe polarity — a NEW runtime module is a game module by
-            default and must pass the guard); `NARROWED` (sites proven
+            default and must pass the guard); `PRIMITIVE_IMPLEMENTATIONS`
+            (`cardlang/primitives_block.py`), the declaration half of the
+            name -> module derivation, and the half a DECLARED Primitive is
+            reached through; `NARROWED` (sites proven
             handle-free) and `MIGRATED` (primitives), both now covering
             everything the dispatch routes; `_STILL_REACHES` (the
             per-cell work list, now EMPTY — stage 2 is complete);
