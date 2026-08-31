@@ -133,6 +133,11 @@ answers a sentence that now names its phase — each the red the cell was
 written for. Of take 2's 17 passes, four are born green and carry their
 reddening mutation in their own docstring; the rest are refusals whose arm
 already existed and which the tail must not lift.
+
+Both counts are of the module AS TAKEN, and the module has since grown: the
+co-report cell below was written against a built guard, so it carries its own
+reddening mutation instead of a place in either count. A cell added after a
+take says so rather than being absorbed into a number measured before it.
 """
 
 from __future__ import annotations
@@ -718,7 +723,12 @@ def test_a_wrong_tail_and_a_wrong_call_site_report_once() -> None:
     entry out of the containment analysis entirely — otherwise a designer who
     misspelled the phase would be told BOTH that the tail is wrong and that
     every call of the entry is in the wrong place, and would have to work out
-    which of the two is the actual mistake."""
+    which of the two is the actual mistake.
+
+    Written after the guard it measures, so it sits in neither born-red count.
+    red under: drop the classifier question from
+    `resolve._scoped_entry_phases` — the containment arm then speaks over the
+    tail arm and this probe sees it."""
     # The tail names `later`, which declares nothing; `outer` is the declarer,
     # and the call sits in `outer` — so a containment analysis that ran anyway
     # would refuse the call for being outside `later` as well.
