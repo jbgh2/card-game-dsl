@@ -1,0 +1,1 @@
+rule_if_impossible_not_a_card_set.cardlang:25:18: error: rule 'MustFollowSomething' `if_impossible:` must be a set of cards (a zone like `hand`, or a card query) or an `error(...)`, got Integer

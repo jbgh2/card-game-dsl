@@ -40,10 +40,14 @@ domain:          the TOTAL rows of `test_typed_positions.TREATMENT`, crossed
 registry:        positions: `test_typed_positions.TREATMENT`, itself pinned
                  equal to the derived population by
                  tests/test_typed_positions.py::test_every_position_is_classified;
-                 producers: `PRODUCERS` below.
+                 producers: `PRODUCERS` below;
+                 message shape: tests/rejections/boolean_position_laundered_any,
+                 round_trump_laundered_any, rule_if_impossible_not_a_card_set.
 does not prove:  that a refused spelling is refused for the right REASON -- the
-                 grid asserts a diagnostic, not its wording. Message shape is
-                 pinned by the rejection goldens in tests/rejections/.
+                 grid asserts that a diagnostic is raised, not which one. A
+                 guard firing for an unrelated reason would satisfy a cell
+                 here; the rejection goldens above are where the wording a
+                 designer reads is pinned.
 """
 
 from __future__ import annotations
@@ -118,9 +122,13 @@ CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
         "when play_to_trick where action.card.suit is hearts",
         "when play_to_trick where {W}",
     ),
+    # The whole `until` expression, not its first operand: replacing only
+    # `taker is not none` would leave the `or (...)` behind, and `TAny or
+    # Boolean` types Boolean -- the probe would pass while testing nothing.
     ("AuctionRound", "until"): (
         "belote.cardlang",
-        "until taker is not none",
+        "until taker is not none\n"
+        "                  or (number of players where not acted[player]) is 0",
         "until {W}",
     ),
     ("ClimbRound", "until"): (
@@ -174,18 +182,12 @@ def test_every_total_position_has_a_probe() -> None:
 # `concrete` entries are positions with no static check at all; `laundered`
 # entries are guards that admit the permissive top. `TrickOrderRow.body` is in
 # neither list, which is what makes it this grid's control.
-RED_TODAY: frozenset[tuple[str, tuple[str, str]]] = frozenset(
-    {
-        # No static check at all: the value reaches the runtime unexamined.
-        ("concrete", ("MoveEvent", "where")),
-        ("concrete", ("RuleDef", "if_impossible")),
-        ("laundered", ("MoveEvent", "where")),
-        ("laundered", ("RuleDef", "if_impossible")),
-        # A guard exists and admits the permissive top.
-        ("laundered", ("AuctionRound", "until")),
-        ("laundered", ("TrickRound", "trump")),
-    }
-)
+# Cells this tree does not yet refuse. The expected column above says every
+# TOTAL position must reject both spellings, so an entry here is a guard still
+# to write, never a design question. The marks are strict: a cell that starts
+# passing while still listed fails loudly rather than being forgotten. Empty is
+# the finished state, and it is where this grid now stands.
+RED_TODAY: frozenset[tuple[str, tuple[str, str]]] = frozenset()
 
 
 def _refuses(source: str) -> bool:

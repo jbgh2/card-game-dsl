@@ -78,8 +78,18 @@ def legal_cards(player: Player, move_type: str, ctx: Ctx) -> list[Card]:
             # coercion state.py centralizes for every Zone-or-collection
             # site (e.g. `if_impossible: hand` — play any card).
             fallback = elements(evaluate(rule.if_impossible, pctx))
-            if isinstance(fallback, (list, set, tuple)):
-                result &= set(fallback)
+            if not isinstance(fallback, (list, set, tuple)):
+                # Skipping here would drop the fallback AND the refusal a
+                # narrowing fallback would have raised, so a wrong value would
+                # widen the legal set in silence. Typecheck refuses the shape a
+                # designer can write (`_check_if_impossible`); this is the
+                # Shadow Guard for a value that reaches here anyway.
+                raise ShadowGuardError(
+                    "typecheck._check_if_impossible",
+                    f"rule '{rule.name}' `if_impossible` evaluated to "
+                    f"{fallback!r}, which is not a set of cards",
+                )
+            result &= set(fallback)
     return [c for c in working if c in result] + [c for c in hand if c in exempt]
 
 

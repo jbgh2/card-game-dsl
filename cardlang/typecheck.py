@@ -2368,6 +2368,20 @@ def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> 
     if stmt.trump is None:
         return
     got = infer(stmt.trump, env)
+    if isinstance(got, TAny):
+        # The permissive top reaches the runtime as a value no card's suit can
+        # equal, which is the same silent no-trump hand the concrete refusal
+        # below was written to stop -- so it is refused here rather than
+        # admitted the way a loud position's operand may be.
+        bag.error(
+            "round `trump` types as `Any`, the permissive top (a value the "
+            "checker cannot type -- a mixed-branch `if`, an untyped read); it "
+            "must type exactly Suit? (a suit, or none for no trump), because "
+            "no card's suit can match an untyped value and the hand would "
+            "silently play as no-trump while the rules still enforce trump",
+            stmt.trump.span or stmt.span,
+        )
+        return
     _check_operand(
         stmt.trump, got, TOptional(TEnum("Suit")), env, bag,
         f"round `trump` names the trump suit — expected Suit? (a suit, or "
@@ -2712,6 +2726,40 @@ def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None
         )
     elif not isinstance(t, TBoolean):
         bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
+
+
+def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A rule's `if_impossible:` fallback is a card set, or the `error(...)`
+    form that refuses the move instead of widening it.
+
+    Checked TOTALLY, and for the same reason the Boolean positions are: the
+    runtime TESTS this value's type and skips on mismatch
+    (`runtime/rules.py`), so a wrong one is not caught downstream -- the
+    fallback is dropped in silence, and the refusal a correctly-typed narrowing
+    fallback would have raised is dropped with it."""
+    expr = rule.if_impossible
+    if expr is None:
+        return
+    if isinstance(expr, n.Call) and expr.func == "error":
+        return
+    got = infer(expr, env)
+    if isinstance(got, TAny):
+        bag.error(
+            f"rule '{rule.name}' `if_impossible:` types as `Any`, the permissive "
+            f"top (a value the checker cannot type -- a mixed-branch `if`, an "
+            f"untyped read); it must type exactly a card set, because the "
+            f"runtime drops a fallback it cannot recognise instead of refusing "
+            f"it, taking the rule's own refusal with it",
+            expr.span or rule.span,
+        )
+        return
+    if not (isinstance(got, TCollection) and isinstance(got.element, (TCard, TAny))):
+        bag.error(
+            f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
+            f"like `hand`, or a card query) or an `error(...)`, got "
+            f"{_type_name(got)}",
+            expr.span or rule.span,
+        )
 
 
 def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
@@ -3784,6 +3832,12 @@ def typecheck(game: Game) -> Game:
                     for transition in item.transitions:
                         if transition.event.where is not None:
                             _check_expr(transition.event.where, env, bag)
+                            _check_bool(
+                                transition.event.where,
+                                env,
+                                bag,
+                                f"transition to '{transition.mode}' `where`",
+                            )
                 case n.StateBlock():
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:
@@ -3840,6 +3894,7 @@ def typecheck(game: Game) -> Game:
             _check_expr(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
             _check_expr(rule.if_impossible, env, bag)
+            _check_if_impossible(rule, env, bag)
         if rule.exempts is not None:
             _check_expr(rule.exempts, env, bag)
     # Phase-level state defaults and transition predicates are checked by

@@ -1,0 +1,19 @@
+// Owner Guard: typecheck.py's `_check_round_trump`. A round's `trump` names the
+// trump suit and is checked totally: no card's suit can equal an untyped value,
+// so a laundered one plays the hand as no-trump while the rules still enforce
+// trump obligations -- the concrete refusal beside it was written for exactly
+// that defect, and the permissive top walked around it.
+game RoundTrumpLaunderedAny {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_trump_or_led_suit trump (if true then hearts else 1)
+  }
+  winner: highest score
+}
