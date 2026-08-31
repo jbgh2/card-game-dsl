@@ -21,10 +21,6 @@
 // which can total the hand size, the one total the rule exists to forbid.
 // Scoring uses a corrected bid nobody was told, and two different dealer bids
 // reach the same corrected value while the announcement tells them apart.
-//
-// Bidding also runs in seat order, so the dealer does not bid last as the rules
-// require (issue #511). That half is expressible today — the `turns` form takes
-// a starting seat — and is a property of this file, not of the language.
 
 game OhHell {
 
@@ -58,6 +54,7 @@ game OhHell {
       tricks_won[player] : Integer = 0
       trump_suit         : Suit?   = none
       total_bid          : Integer = 0
+      has_bid[player]    : Boolean = false
     }
 
     before_each {
@@ -71,15 +68,22 @@ game OhHell {
       dealer := dealer offset_by left
       leader := dealer offset_by left             // eldest hand leads
       for each player p: bid[p] := 0
+      for each player p: has_bid[p] := false
       for each player p: tricks_won[p] := 0
     }
 
     phase bidding {
       legal_moves: [submit_bid]
-      // Bid up to the tricks in hand. `hand_size` varies per hand, so the range's
-      // upper bound is runtime state; `up to 10` declares the static ceiling (the
-      // largest hand) the OpenSpiel action space reserves for the bid.
-      for each player p: bid[p] := choose integer in 0 .. hand_size up to 10
+      // Bidding starts left of the dealer and goes round, so the dealer bids
+      // last with every other bid heard. Bid up to the tricks in hand:
+      // `hand_size` varies per hand, so the range's upper bound is runtime
+      // state; `up to 10` declares the static ceiling (the largest hand) the
+      // OpenSpiel action space reserves for the bid.
+      turns t from dealer offset_by left over players where not has_bid[player]
+            until (number of players where not has_bid[player]) is 0 {
+        bid[t] := choose integer in 0 .. hand_size up to 10
+        has_bid[t] := true
+      }
 
       // Dealer hook: the bids may not total the hand size.
       total_bid := 0
