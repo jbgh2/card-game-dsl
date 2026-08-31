@@ -10,11 +10,21 @@
 // `trump_suit` state var) rather than a fixed game-level `trump:` declaration.
 //
 // The dealer hook (the total of all bids may not equal the hand size) is
-// enforced here as a correction to the dealer's bid after bids are in, rather
-// than as a choice-time constraint with sequential bidding: the observable
-// effect — bids never total the hand size — is identical, and the language has
-// no `each player in turn` / `choose … excluding …` construct yet. Strategic
-// bidding is out of scope for a uniform-random playout regardless.
+// enforced here as a correction to the dealer's bid after the bids are in,
+// rather than as the rulebook's choice-time constraint, because a value cannot
+// be excluded from a `choose` range as it is chosen (issue #509).
+//
+// The correction is not observationally equivalent to the constraint, and the
+// difference is in this project's own currency. Every `choose` announces its
+// result to all players at the moment it is made, while the correcting
+// assignment is silent — so the bids players HEAR are the uncorrected ones,
+// which can total the hand size, the one total the rule exists to forbid.
+// Scoring uses a corrected bid nobody was told, and two different dealer bids
+// reach the same corrected value while the announcement tells them apart.
+//
+// Bidding also runs in seat order, so the dealer does not bid last as the rules
+// require (issue #511). That half is expressible today — the `turns` form takes
+// a starting seat — and is a property of this file, not of the language.
 
 game OhHell {
 

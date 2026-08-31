@@ -14,11 +14,22 @@ hand, so it is passed as a `trump` argument (the per-hand `trump_suit` state
 var) rather than the fixed game-level `trump:` declaration that Spades uses.
 
 **The hook rule** — the total of all bids may not equal the hand size, so
-somebody must miss. The rulebook constrains the dealer (who bids last) at choice
-time; this file enforces the same observable effect by correcting the dealer's
-bid after bids are in, since the language has no sequential-bidding /
-`choose … excluding …` construct yet and a uniform-random playout models no
-bidding strategy regardless.
+somebody must miss. The rulebook constrains the dealer, who bids last, at the
+moment they choose. This file corrects the dealer's bid after the bids are in
+instead, because a value cannot be excluded from a `choose` range as it is
+chosen ([#509](https://github.com/jbgh2/card-game-dsl/issues/509)).
+
+The correction is not the same game. Bids are announced as they are made and the
+correction is silent, so the bids players hear are the uncorrected ones — and
+those *can* total the hand size, which is exactly what the rule forbids. The
+dealer is then scored against a bid nobody heard.
+
+Bidding also runs in seat order here rather than starting left of the dealer, so
+the dealer does not bid last ([#511](https://github.com/jbgh2/card-game-dsl/issues/511)).
+Unlike the hook, that one is expressible today and is a property of this file
+rather than of the language. Read this file for the hook rule as written; the
+hand it plays diverges from the rulebook at the dealer's bid, in both of those
+ways, until #509 and #511 land.
 
 ```
 game OhHell {
