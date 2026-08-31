@@ -176,17 +176,14 @@ def test_every_total_position_has_a_probe() -> None:
 # neither list, which is what makes it this grid's control.
 RED_TODAY: frozenset[tuple[str, tuple[str, str]]] = frozenset(
     {
-        ("concrete", ("AppliesWhen", "pred")),
-        ("concrete", ("IfExpr", "cond")),
+        # No static check at all: the value reaches the runtime unexamined.
         ("concrete", ("MoveEvent", "where")),
-        ("concrete", ("MoveTypeDef", "when")),
-        ("concrete", ("Not", "operand")),
         ("concrete", ("RuleDef", "if_impossible")),
-    }
-    | {
-        ("laundered", pos)
-        for pos in _TOTAL_POSITIONS
-        if pos != ("TrickOrderRow", "body")
+        ("laundered", ("MoveEvent", "where")),
+        ("laundered", ("RuleDef", "if_impossible")),
+        # A guard exists and admits the permissive top.
+        ("laundered", ("AuctionRound", "until")),
+        ("laundered", ("TrickRound", "trump")),
     }
 )
 

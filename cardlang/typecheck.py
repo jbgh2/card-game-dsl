@@ -2490,6 +2490,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         return
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
+    if isinstance(e, n.IfExpr):
+        _check_bool(e.cond, env, bag, "`if ... then` condition")
+        for cond, _ in e.elifs:
+            _check_bool(cond, env, bag, "`elif` condition")
+    if isinstance(e, n.Not):
+        _check_bool(e.operand, env, bag, "`not` operand")
     if isinstance(e, n.Call):
         sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
         if sig is not None:
@@ -2685,8 +2691,26 @@ def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
+    """A Boolean position, checked TOTALLY: the permissive top is refused here
+    as well as a concrete wrong type.
+
+    Boolean positions are the one family where nothing downstream can catch a
+    wrong value. `bool(...)` accepts every value and cannot raise, so a
+    non-Boolean does not crash the game -- it makes the predicate constantly
+    true and the game plays on, scoring a different hand. That is why this
+    check does not admit `TAny` the way an operand check may: for a position
+    whose wrong value is loud at play time, gradual typing costs a diagnostic;
+    for these, it costs the answer."""
     t = infer(e, env)
-    if not isinstance(t, (TBoolean, TAny)):
+    if isinstance(t, TAny):
+        bag.error(
+            f"{where} types as `Any`, the permissive top (a value the checker "
+            f"cannot type -- a mixed-branch `if`, an untyped read); it must "
+            f"type exactly Boolean, because nothing downstream catches a "
+            f"non-Boolean here: every value is truthy and the game plays on",
+            e.span,
+        )
+    elif not isinstance(t, TBoolean):
         bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
 
 
@@ -3801,16 +3825,17 @@ def typecheck(game: Game) -> Game:
     # and derived type-field bodies.
     for move_type in game.move_types:
         if move_type.when is not None:
-            _check_expr(
-                move_type.when,
-                _scoped_env(
-                    env, _parameter_binders(move_type, env.positions, env.directions)
-                ),
-                bag,
+            mt_env = _scoped_env(
+                env, _parameter_binders(move_type, env.positions, env.directions)
             )
+            _check_expr(move_type.when, mt_env, bag)
+            _check_bool(move_type.when, mt_env, bag, f"move '{move_type.name}' `when:` guard")
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
+            _check_bool(
+                rule.applies_when.pred, env, bag, f"rule '{rule.name}' `applies_when:`"
+            )
         if rule.demands is not None:
             _check_expr(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
