@@ -14,22 +14,21 @@ hand, so it is passed as a `trump` argument (the per-hand `trump_suit` state
 var) rather than the fixed game-level `trump:` declaration that Spades uses.
 
 **The hook rule** — the total of all bids may not equal the hand size, so
-somebody must miss. The rulebook constrains the dealer, who bids last, at the
-moment they choose. This file corrects the dealer's bid after the bids are in
-instead, because a value cannot be excluded from a `choose` range as it is
-chosen ([#509](https://github.com/jbgh2/card-game-dsl/issues/509)).
+somebody must miss. Bidding starts left of the dealer and goes round, so the
+dealer bids last with every other bid already heard, and that is what makes the
+constraint land on them: the rulebook forbids the dealer, at the moment they
+choose, the one number that would make the bids total the hand size. This file
+corrects the dealer's bid after the bids are in instead, because a value cannot
+be excluded from a `choose` range as it is chosen
+([#509](https://github.com/jbgh2/card-game-dsl/issues/509)).
 
 The correction is not the same game. Bids are announced as they are made and the
 correction is silent, so the bids players hear are the uncorrected ones — and
 those *can* total the hand size, which is exactly what the rule forbids. The
 dealer is then scored against a bid nobody heard.
 
-Bidding also runs in seat order here rather than starting left of the dealer, so
-the dealer does not bid last ([#511](https://github.com/jbgh2/card-game-dsl/issues/511)).
-Unlike the hook, that one is expressible today and is a property of this file
-rather than of the language. Read this file for the hook rule as written; the
-hand it plays diverges from the rulebook at the dealer's bid, in both of those
-ways, until #509 and #511 land.
+Read this file for the hook rule as written; the hand it plays diverges from the
+rulebook at the dealer's bid until #509 lands.
 
 ```
 game OhHell {
@@ -64,6 +63,7 @@ game OhHell {
       tricks_won[player] : Integer = 0
       trump_suit         : Suit?   = none
       total_bid          : Integer = 0
+      has_bid[player]    : Boolean = false
     }
 
     before_each {
@@ -77,12 +77,17 @@ game OhHell {
       dealer := dealer offset_by left
       leader := dealer offset_by left             // eldest hand leads
       for each player p: bid[p] := 0
+      for each player p: has_bid[p] := false
       for each player p: tricks_won[p] := 0
     }
 
     phase bidding {
       legal_moves: [submit_bid]
-      for each player p: bid[p] := choose integer in 0 .. hand_size up to 10
+      turns t from dealer offset_by left over players where not has_bid[player]
+            until (number of players where not has_bid[player]) is 0 {
+        bid[t] := choose integer in 0 .. hand_size up to 10
+        has_bid[t] := true
+      }
 
       // Dealer hook: the bids may not total the hand size.
       total_bid := 0

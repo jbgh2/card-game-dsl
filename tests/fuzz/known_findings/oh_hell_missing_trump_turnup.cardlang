@@ -1,0 +1,26 @@
+// Shrunk from docs/games/oh-hell.cardlang, `delete_line` seed 2 (deleting the
+// setup `deal 1 card from deck to trump_indicator`): the statement after the
+// turn-up reads the suit of the card that turn-up was to place. Minimal form:
+// `suit_of` over a zone nothing has filled. Zone occupancy is not a static
+// property -- the deck-capacity gate's domain is deck usage only (deckcheck.py
+// module docstring), and an empty non-deck zone is invisible to it -- so the
+// program is checker-green and dies on the primitive's own empty-zone guard at
+// playout, before any decision.
+game OhHellMissingTrumpTurnup {
+  players: 1
+  max_length: 100
+  cards: standard52
+  zones {
+    deck            : Deck
+    trump_indicator : Discard
+  }
+  state {
+    score[player] : Integer = 0
+    trump_suit    : Suit?   = none
+  }
+  phase setup {
+    shuffle deck
+    trump_suit := suit_of(trump_indicator)
+  }
+  winner: highest score
+}
