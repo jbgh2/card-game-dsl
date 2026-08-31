@@ -5491,8 +5491,17 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         return
     for entry, phase_name in sorted(scoped.items()):
         phase = _find_phase(game, phase_name)
-        if phase is None:  # shadow guard: `_scoped_entry_phases` filtered these
-            continue
+        # NOT a `continue`: skipping here would run zero cells for this entry
+        # and report the pass clean, which is a scoped entry callable from
+        # anywhere with nothing saying so — the exact unsoundness this check
+        # exists to refuse. Two walks answer "is this a phase of the game"
+        # (`phase_names`, which `_scoped_entry_phases` filtered on, and this
+        # one); that they agree is the argument FOR asserting it, not for
+        # assuming it.
+        assert phase is not None, (
+            f"`_scoped_entry_phases` admitted the phase {phase_name!r}, which "
+            f"`_find_phase` cannot find — the two phase walks disagree"
+        )
         inside = {id(node) for node in _walk(phase)}
         reaching = _procedures_reaching(game, entry)
         _check_direct_call_positions(game, entry, phase_name, inside, reaching, bag)

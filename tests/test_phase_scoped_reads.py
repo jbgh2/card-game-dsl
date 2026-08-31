@@ -81,10 +81,22 @@ does not prove: a green here says nothing about whether the runtime premise
             about this guard, and `test_the_move_type_index_readers_are_the_
             pinned_census` prices it: it pins the consumer sites, so a new
             execution channel reddens there rather than making this guard
-            silently unsound. Nor does a green say a scoped entry is ever
+            silently unsound. The asymmetry inside that premise is worth
+            stating: of the offering slots, the KERNEL-namespaced ones are
+            execution-inert for a game move type's body today — the runtime
+            reaches a move-type definition by name at exactly 2 channels
+            across 4 sites, neither of them `legal_moves:` — so those edges
+            guard a future consumer rather than a live one, and a green over
+            them proves the relation is derived, not that it is exercised.
+            Nor does a green say a scoped entry is ever
             CALLED: an entry with a scoped read and zero calls passes
             containment vacuously, and what keeps a block naming only names
             the game calls is the 3b recipe's discipline, not this grid.
+            And `_SUBTREE_PHASE_ITEMS` records a JUDGMENT the analysis does
+            not consult: the subtree is `_walk(phase)`, unconditionally, so a
+            future `PhaseItem` that ran outside the push/pop window would be
+            admitted while its pin was satisfied by adding a row. The pin
+            makes the decision visible; it does not enforce it.
             And a green says nothing about whether a declared read SUFFICES
             for its implementation — that is a fact about Python, proven only
             by a playout (tests/test_primitives_block.py's witness owns it).
