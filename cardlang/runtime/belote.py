@@ -88,7 +88,7 @@ def belote_royal_player(
     to aim the Belote-Rebelote window's offer; the announcing move's own
     guard checks the private partner-card holding.
 
-    The trump is the GAME's `trump_suit` (this module's declared state read),
+    The trump is the GAME's `trump_suit` (this entry's declared state read),
     not the round's `state["trump"]`: a `trick_order` block forbids the round
     a `trump` clause, so that key is None for every trick Belote plays, and
     reading it would find no royal in any trick — the window would never

@@ -331,6 +331,28 @@ _GAME_IMPLS: tuple[Impl, ...] = tuple(
 )
 
 
+def test_the_arm_scrape_still_sees_every_climb_name() -> None:
+    """The scrape's name-grain floor over the one namespace that enters this
+    domain through `match` arms alone: climb leads and follows have no
+    `PRIMITIVE_IMPLEMENTATIONS` row, so a scrape blind to every shape their
+    arms use drops them from the domain with only the coarse size floor to
+    notice. SITE-grain shape blindness has its own Owner —
+    `test_progress_registries_name_real_things` reddens when a listed
+    `NARROWED` symbol's or-patterned route goes unread, because every climb
+    name also sits in singular arms and only the sites vanish. This floor
+    guards the residue: a climb name losing its LAST scraped route.
+
+    red under: blind `_impls_in` to arm names entirely (`names = []`) — the
+    climb names leave the scrape and this set difference goes non-empty,
+    naming them."""
+    scraped = {i.primitive for i in _implementations()}
+    missing = (PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS) - scraped
+    assert not missing, (
+        f"climb names the arm scrape no longer sees: {sorted(missing)} — "
+        f"`_arm_names` is blind to the match shape their arms use"
+    )
+
+
 def test_every_dispatched_primitive_is_a_registered_name() -> None:
     """The derivation's own sanity pin: the dispatch cannot route a name the
     front end never signatured (that would be unreachable code claiming
