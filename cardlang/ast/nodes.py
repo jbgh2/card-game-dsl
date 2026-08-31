@@ -1107,10 +1107,16 @@ class PrimitiveRead:
     declaration, keyed by the entry's own parameter ``binder``). Which kind the
     name denotes is resolve's classification against the game's own `zones { }`
     and `state { }` declarations, so the node keeps the two spellings the
-    designer wrote and nothing more."""
+    designer wrote and nothing more.
+
+    ``phase`` is the [[phase-scoped-read]]'s tail — the phase whose own
+    `state { }` declares the name (`trump_suit in hand_sequence`), or None for
+    a name the GAME declares. It crosses freely with ``binder``: all four
+    combinations are spellable and implemented."""
 
     name: str
     binder: str | None
+    phase: str | None = None
     span: Span | None = None
 
 

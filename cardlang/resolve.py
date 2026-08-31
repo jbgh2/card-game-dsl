@@ -477,6 +477,11 @@ _REFERENCE_SLOTS: dict[tuple[type, str], str] = {
     # slot: `Parameter` introduces the name and this refers to it.
     (n.PrimitiveRead, "name"): "primitive_read",
     (n.PrimitiveRead, "binder"): "param",
+    # The [[phase-scoped-read]]'s tail, beside `ContinueTo.phase`: the phase
+    # whose own `state { }` declares the read. A reference like any other, and
+    # registered here so a future phase-renaming transform learns of it from
+    # the registry rather than from an author remembering.
+    (n.PrimitiveRead, "phase"): "phase",
     (n.StructField, "type_name"): "type",
     (n.StructLit, "type_name"): "type",
     (n.OutcomeCase, "payload_types"): "type",

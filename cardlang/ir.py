@@ -166,7 +166,16 @@ def _primitives(b: n.PrimitivesBlock) -> IRDict:
                 ],
                 "return_type": d.return_type,
                 "reads": [
-                    {"kind": "primitive_read", "name": r.name, "binder": r.binder}
+                    # `phase` is always present, null when the read names no
+                    # phase — the `binder` key's shape. A conditional key would
+                    # leave an IR consumer unable to tell an unscoped read from
+                    # an emitter that forgot the tail.
+                    {
+                        "kind": "primitive_read",
+                        "name": r.name,
+                        "binder": r.binder,
+                        "phase": r.phase,
+                    }
                     for r in d.reads
                 ],
             }
