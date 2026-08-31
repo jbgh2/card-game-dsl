@@ -18,8 +18,8 @@
 // (issue #196).
 //
 // The stand-in is not observationally equivalent, and the gap it leaves is in
-// this project's own currency. A `choose` written to a state variable is
-// announced to every player as it is made, while the correcting assignment is
+// this project's own currency. Every `choose` announces its result to all
+// players at the moment it is made, while the correcting assignment is
 // silent — so the bids players HEAR are the uncorrected ones, which can total
 // the hand size, the one total the rule exists to forbid. Scoring uses a
 // corrected bid nobody was told, and two different dealer bids reach the same
