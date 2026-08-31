@@ -78,15 +78,18 @@ rows, `loser:`, and every other game-level expression position — refused.
 An offering site's POSITION is where the offer HAPPENS, never where its text
 sits: an offer written in a procedure body is positioned at every `run` of
 that procedure, by the same by-value reasoning as (3), so a procedure run
-only inside the subtree may offer freely. The one container this analysis
-does not position is another move type's own body — following an offer made
-there means judging the OFFERING move type's containment first, itself
-decided by ITS offers, up a chain that can cycle. That is a WALL: refused
-with a message saying the analysis does not follow offers made from inside
-another move type, never that the state does not stand (issue #521; coup's
-move-type effects hold three such offers, and it migrates when its eviction
-wall falls). A procedure no statement runs is `_check_procedures`' never-run
-refusal, cited rather than shadowed. The offering-surface relation DERIVES
+only inside the subtree may offer freely. The containers are the grammar's,
+derived — its `statement*`-holding productions less the forms reachable from
+`?statement` and `?phase_item` — and there are four. Two yield positions (a
+phase, a procedure); two do not, and are WALLS: another move type's own
+`when:`/`effect`, whose position is that move type's own offers' up a chain
+that can cycle, and a `define`'s body, which `_run_define` invokes in the
+`produces:` site's own context. Each refuses with a message saying the
+analysis does not follow offers made from inside that container, never that
+the state does not stand (issue #521; coup's move-type effects hold three
+such offers, and it migrates when its eviction wall falls). A procedure no
+statement runs is `_check_procedures`' never-run refusal, cited rather than
+shadowed. The offering-surface relation DERIVES
 from resolve's reference-slot registry (seven move-type-naming slots today:
 five offering, two non-offering), pinned total so an eighth slot arrives
 unclassified and reddens; edges match by NAME across both move-type

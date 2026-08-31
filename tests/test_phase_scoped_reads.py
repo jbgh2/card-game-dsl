@@ -26,8 +26,8 @@ property:   (1) every combination the extended `primitive_read` grammar
             body happens at each `run` of that procedure, because expansion is
             by value. Claim (3) is bounded by which offers this analysis can
             position at all — an offer made from inside another move type's
-            body is REFUSED, not judged, and the wall says so rather than
-            speaking about where state stands.
+            body — or from a `define`'s — is REFUSED, not judged, and the
+            wall says so rather than speaking about where state stands.
 domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             {no tail, `in P`} (four accepted combinations, all implemented)
             plus the malformed spellings the grammar must refuse loud;
@@ -49,9 +49,11 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             in one table pinned total against the derived candidates, so a
             slot added there arrives unclassified and reddens; the OFFERING
             CONTAINER, which is what decides where an offer's position IS —
-            written in a phase, in a procedure body (crossed with that
-            procedure's `run` sites: inside, both sides, none) or inside
-            another move type; and the three
+            the statement-holding productions of the grammar, derived by
+            subtracting the forms reachable from `?statement` and
+            `?phase_item`: a phase, a procedure body (crossed with that
+            procedure's `run` sites: inside, both sides, none), another move
+            type's body, a `define`'s body; and the three
             standing collision arms, each re-probed WITH a tail present so
             the new surface cannot lift them silently.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
@@ -60,7 +62,11 @@ registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
             `cardlang.ast.nodes.PhaseItem`'s union (the containment
             taxonomy's totality); `cardlang.resolve._REFERENCE_SLOTS` (the
             offering-surface candidates) and
-            `cardlang.resolve._MOVE_TYPE_SLOT_OFFERS` (their classification);
+            `cardlang.resolve._MOVE_TYPE_SLOT_OFFERS` (their
+            classification); `cardlang/grammar/cardlang.lark`'s
+            `statement*`-holding productions (the offering-container
+            candidates) and `cardlang.resolve._UNPOSITIONED_CONTAINERS` (which
+            of them yield no position);
             `cardlang.primitives_block.PRIMITIVE_IMPLEMENTATIONS` (every
             fixture declares a REAL registered implementation);
             `cardlang.runtime.driver.run_phase` (the frame-liveness order the
@@ -128,9 +134,10 @@ walls:      the refusals here are not one kind, and the ledger says which is
             rule body (issue #518); an offer made from inside another move
             type's body, which the analysis refuses rather than positioning,
             since following it means judging the OFFERING move type's own
-            containment up a chain that can cycle (issue #521 — coup's
-            move-type effects hold three such offers, and it is the game that
-            decides what the wall costs). DESIGNED constraints, recorded at their
+            containment up a chain that can cycle — a move type's own body
+            and a `define`'s alike (issue #521 — coup's move-type effects hold
+            three such offers, and it is the game that decides what the wall
+            costs). DESIGNED constraints, recorded at their
             construct rather than filed: a library cannot declare a phase for
             a tail to name (unconstructible off the grammar); a move type
             nothing offers is refused rather than passing containment
@@ -670,6 +677,11 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
         "relay",
         "does not follow offers made from inside another move type",
     ),
+    "move-type-offered-from-a-define": (
+        "note",
+        "define pick",
+        "does not follow offers made from inside a `define` body",
+    ),
     "produces-arm-inside": None,
     "produces-arm-sibling": ("outer", "pinochle_meld_value"),
 }
@@ -690,6 +702,15 @@ _SHOW = "procedure show() {\n  offer to 0 one of [note]\n}\n"
 # offering container this analysis declines to follow.
 _RELAY = "move_type relay {\n  when: true\n  effect { offer to 0 one of [note] }\n}\n"
 _PICK = "define pick -> { won(Player) } {\n  produce won(0)\n}\n"
+# A define whose body OFFERS: `_run_define` runs it at the `produces:` site, so
+# its position is that site — the fourth statement-holding container, and the
+# second the analysis walls.
+_PICK_OFFERS = (
+    "define pick -> { won(Player) } {\n"
+    "  offer to 0 one of [note]\n"
+    "  produce won(0)\n"
+    "}\n"
+)
 _ARM = "    pick produces:\n      won(q) { meld[q] := pinochle_meld_value(q) }\n"
 
 
@@ -784,6 +805,12 @@ def _containment_source(cell: str) -> str:
                 top=_NOTE + _RELAY,
                 outer_body=_DEAL + "    offer to 0 one of [relay]\n",
             )
+        case "move-type-offered-from-a-define":
+            return _probe(
+                top=_NOTE + _PICK_OFFERS,
+                outer_body=_DEAL
+                + "    pick produces:\n      won(q) { meld[q] := meld[q] }\n",
+            )
         case "produces-arm-inside":
             return _probe(top=_PICK, outer_body=_DEAL + _ARM)
         case "produces-arm-sibling":
@@ -846,6 +873,56 @@ def test_an_offer_outside_the_subtree_points_at_the_offer() -> None:
     text = _containment_source("move-type-offered-outside").splitlines()
     assert span is not None
     assert "offer to 1" in text[span.line - 1], text[span.line - 1]
+
+
+def test_the_statement_holding_containers_are_classified_total() -> None:
+    """An offering site's POSITION is decided by the container its text sits
+    in, so the container set is the offering arm's other domain — and it is the
+    grammar's, not the analysis's. Every production holding `statement*` is
+    either a statement form (reached from `?statement` or `?phase_item`, and so
+    inheriting whichever container encloses it) or a DEFINITION form that
+    introduces one; the definition forms are derived here by subtracting the
+    first set from the second, and each is classified.
+
+    Two of the four yield positions — a phase's statements run where they are
+    written, a procedure's wherever it is run — and two do not, which is what
+    `resolve._UNPOSITIONED_CONTAINERS` records. A statement-holding production
+    added without a row lands in the wall's safe direction at run time and
+    reddens here at once.
+
+    red under: add `defines` to `_UNPOSITIONED_CONTAINERS`' complement by
+    classifying it as a position, or add a `statement*` production to the
+    grammar without deciding it."""
+    from cardlang.resolve import _UNPOSITIONED_CONTAINERS
+
+    grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
+    holds_statements = {
+        m.group(1)
+        for m in re.finditer(r"^\??(\w+):[^\n]*(?:\n\s+\|[^\n]*)*", grammar, re.M)
+        if re.search(r"statement[*+]", m.group(0))
+    }
+    # Reachability from the two statement roots: anything a statement form can
+    # nest inside inherits its enclosing container and introduces none.
+    refs = {
+        m.group(1): set(re.findall(r"\b([a-z_]\w*)\b", m.group(0)))
+        for m in re.finditer(r"^\??(\w+):[^\n]*(?:\n\s+\|[^\n]*)*", grammar, re.M)
+    }
+    nested: set[str] = set()
+    frontier = {"statement", "phase_item"}
+    while frontier:
+        name = frontier.pop()
+        for child in refs.get(name, ()):
+            if child not in nested and child != name:
+                nested.add(child)
+                frontier.add(child)
+    definitions = holds_statements - nested
+    assert definitions == {"procedure_def", "move_effect", "define_def"}, sorted(
+        definitions
+    )
+    # Plus `phase`, which holds statements through `?phase_item` rather than
+    # directly, and is the one container whose statements ARE their position.
+    assert "statement" in refs["phase_item"]
+    assert set(_UNPOSITIONED_CONTAINERS) == {"move_types", "defines"}
 
 
 # --- the offering surface, derived -------------------------------------------
@@ -1183,6 +1260,6 @@ def test_the_grid_is_not_empty() -> None:
     accept row from `_CONTAINMENT_CELLS`, leaving a taxonomy that only ever
     proves the guard fires."""
     assert len(_MEMBERSHIP_CELLS) >= 11
-    assert len(_CONTAINMENT_CELLS) >= 21
+    assert len(_CONTAINMENT_CELLS) >= 22
     assert any(v is None for v in _CONTAINMENT_CELLS.values())
     assert any(v is not None for v in _CONTAINMENT_CELLS.values())

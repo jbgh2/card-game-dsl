@@ -5497,27 +5497,59 @@ def _offers_move_type(move_type: str) -> Callable[[object], bool]:
     return offers
 
 
+# The DEFINITION bodies whose statements run somewhere this analysis does not
+# derive, and how each is named in the refusal. A move type's body runs at its
+# own offers' positions; a `define`'s runs at every `produces:` naming it. Both
+# are decided by something other than where the text sits, and deriving either
+# means judging that container's own containment first, up a chain that can
+# cycle — so both are walls (issue #521). Pinned against the statement-holding
+# definition productions of the grammar (tests/test_phase_scoped_reads.py), the
+# other two of which are the containers that DO yield positions: a phase, and a
+# procedure through its `run` sites.
+_UNPOSITIONED_CONTAINERS: dict[str, str] = {
+    "move_types": "another move type",
+    "defines": "a `define` body",
+}
+
+
+def _definition_bodies(game: n.Game) -> dict[int, tuple[str, str]]:
+    """id(node) -> (the `n.Game` field of the definition whose body holds it, a
+    phrase naming that definition).
+
+    Finer than `_statement_owners`' attribution, because a wall on an offer
+    made inside a definition body must NAME the definition: an addressee told
+    only "inside a move type" is left to find which."""
+    bodies: dict[int, tuple[str, str]] = {}
+    for move_type in game.move_types:
+        for node in _walk(move_type):
+            bodies[id(node)] = ("move_types", f"move type `{move_type.name}`")
+    for define in game.defines:
+        for node in _walk(define):
+            bodies[id(node)] = ("defines", f"the body of `define {define.name}`")
+    return bodies
+
+
 def _offering_positions(
     game: n.Game,
     move_type: str,
     owners: dict[int, str],
-    held_by: dict[int, str],
-) -> tuple[list[object], list[tuple[object, str]], frozenset[str]]:
+    bodies: dict[int, tuple[str, str]],
+) -> tuple[list[object], list[tuple[object, str, str]], frozenset[str]]:
     """Where `move_type` is put IN PLAY, which is not always where the offer's
     text sits — with the offers this analysis declines to position, and the
     procedures that offer.
 
-    An offer written in a procedure body happens wherever that procedure is
-    RUN, because expansion is by value: the `run` site is the position, exactly
-    as it is for a scoped call in a procedure body. An offer made from inside
-    another move type's `when:`/`effect` has no position this analysis can
-    name — it would be the offering move type's own, itself decided by ITS
-    offers — so it is walled rather than judged where its text happens to
-    sit."""
+    Exactly one container yields a position outright: a phase, whose statements
+    run where they are written. A procedure's run wherever it is RUN, because
+    expansion is by value, so its `run` sites are the positions — the same
+    reasoning the call arm uses. Every other container is walled, which is the
+    safe direction as well as today's exact answer: a statement form the grammar
+    grows into a new container lands in the refusal rather than being judged at
+    a position nobody derived."""
     offers = _offers_move_type(move_type)
     from_procedures = _procedures_reaching(game, offers)
     positions: list[object] = []
-    walled: list[tuple[object, str]] = []
+    walled: list[tuple[object, str, str]] = []
     for node in _walk(game):
         if not (
             offers(node)
@@ -5527,10 +5559,19 @@ def _offering_positions(
         owner = owners.get(id(node), "phases")
         if owner == "procedure":
             continue  # its `run` sites are this offer's positions, collected here
-        if owner == "move_type":
-            walled.append((node, held_by[id(node)]))
-        else:
+        if owner == "phases":
             positions.append(node)
+            continue
+        # The container's own `n.Game` field decides how the wall names it, so
+        # a definition body and the field it hangs off cannot drift apart.
+        field_name, named = bodies.get(id(node), (owner, f"this game's `{owner}`"))
+        walled.append(
+            (
+                node,
+                named,
+                _UNPOSITIONED_CONTAINERS.get(field_name, f"a `{field_name}` item"),
+            )
+        )
     return positions, walled, from_procedures
 
 
@@ -5545,8 +5586,8 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
     scoped = _scoped_entry_phases(game)
     if not scoped:
         return
-    held_by = _move_type_bodies(game)
-    owners = _statement_owners(game, held_by)
+    bodies = _definition_bodies(game)
+    owners = _statement_owners(game, bodies)
     for entry, phase_name in sorted(scoped.items()):
         phase = _find_phase(game, phase_name)
         # NOT a `continue`: skipping here would run zero cells for this entry
@@ -5564,7 +5605,7 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         reaching = _procedures_reaching(game, _calls_entry(entry))
         _check_direct_call_positions(game, entry, phase_name, inside, reaching, bag)
         _check_offered_containers(
-            game, entry, phase_name, inside, reaching, owners, held_by, bag
+            game, entry, phase_name, inside, reaching, owners, bodies, bag
         )
         _check_run_sites(game, entry, phase_name, inside, reaching, owners, bag)
 
@@ -5658,7 +5699,7 @@ def _check_offered_containers(
     inside: set[int],
     reaching: frozenset[str],
     owners: dict[int, str],
-    held_by: dict[int, str],
+    bodies: dict[int, tuple[str, str]],
     bag: DiagnosticBag,
 ) -> None:
     """A game move type has no lexical phase, so its body's containment is its
@@ -5669,13 +5710,13 @@ def _check_offered_containers(
         if not _reaches_scoped_entry(move_type, entry, reaching):
             continue
         positions, walled, from_procedures = _offering_positions(
-            game, move_type.name, owners, held_by
+            game, move_type.name, owners, bodies
         )
-        for site, holder in walled:
+        for site, named, kind in walled:
             # A wall with a witness, not a decision: coup's move-type effects
             # offer three move types this way, and it migrates when its eviction
             # wall falls (issue #521). Following the offer would mean judging
-            # the OFFERING move type's own containment, and so on up a chain the
+            # the offering CONTAINER's own containment, and so on up a chain the
             # flow analysis does not walk — so the refusal says exactly that,
             # rather than a false thing about where state stands.
             made = (
@@ -5687,8 +5728,8 @@ def _check_offered_containers(
             bag.error(
                 f"move type `{move_type.name}` calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}`, and {made} sits "
-                f"inside move type `{holder}` — the analysis does not follow "
-                f"offers made from inside another move type, so there is no "
+                f"inside {named} — the analysis does not follow offers made "
+                f"from inside {kind}, so there is no "
                 f"position to judge and the scope cannot be established; offer "
                 f"`{move_type.name}` from a statement inside `{phase_name}`",
                 getattr(site, "span", None) or game.span,
@@ -5782,24 +5823,17 @@ def _check_run_sites(
         )
 
 
-def _move_type_bodies(game: n.Game) -> dict[int, str]:
-    """id(node) -> the name of the game move type whose definition holds it.
-
-    Finer than `_statement_owners`' attribution, because the wall on an offer
-    made from inside a move type must NAME that move type: an addressee told
-    only "inside a move type" is left to find which."""
-    return {
-        id(node): move_type.name
-        for move_type in game.move_types
-        for node in _walk(move_type)
-    }
-
-
-def _statement_owners(game: n.Game, held_by: dict[int, str]) -> dict[int, str]:
+def _statement_owners(
+    game: n.Game, bodies: dict[int, tuple[str, str]]
+) -> dict[int, str]:
     """id(node) -> the `n.Game` field whose subtree holds it. Built once per
     containment check so a `run` or an offer can be attributed to the container
     that decides it, rather than by re-walking per site."""
-    owners: dict[int, str] = dict.fromkeys(held_by, "move_type")
+    owners: dict[int, str] = {
+        node_id: "move_type"
+        for node_id, (field_name, _) in bodies.items()
+        if field_name == "move_types"
+    }
     for proc in game.procedures:
         for node in _walk(proc):
             owners[id(node)] = "procedure"
