@@ -655,7 +655,20 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # assert's: tests/test_positions.py::test_every_reservation_site_passes_
     # its_own_id scrapes the call sites, so a site that stopped naming itself
     # -- or a fourth consumer joining silently -- reddens there.
-    "resolve.py": ["_UNKNOWN_CONTAINER_NAMESPACES", "site in RESERVATION_SITES"],
+    # `_UNCLASSIFIED_MOVE_TYPE_SLOTS` is the same shape one construct over: the
+    # offering/non-offering classification the [[phase-scoped-read]]'s
+    # containment rule joins call sites to must cover exactly the
+    # move-type-naming slots `_REFERENCE_SLOTS` issues, or the relation widens
+    # or narrows with nothing saying so — a scoped entry admitted from an
+    # offering site the analysis never looked at. Its reddening mutation is
+    # executed: delete an offering row and the module raises at import
+    # ("_MOVE_TYPE_SLOT_OFFERS and the move-type reference slots disagree:
+    # ['LegalMoves.move_types']").
+    "resolve.py": [
+        "_UNCLASSIFIED_MOVE_TYPE_SLOTS",
+        "_UNKNOWN_CONTAINER_NAMESPACES",
+        "site in RESERVATION_SITES",
+    ],
     # The parse.py shape, one module over: a consumer validating a
     # grammar-admitted identifier against the registry that owns the row set,
     # so the registry stays the ONE place the set is stated and an arm it does
