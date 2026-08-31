@@ -71,15 +71,30 @@ scoped read is callable only (1) inside the declaring phase's subtree —
 qualifier expression, `before_each`, `after_each`, body, nested phases (its
 own state defaults cannot hold a call: `_check_state_default_scope`'s Call
 ban is the cited Owner); (2) from a game move type ALL of whose offering
-mentions sit inside that subtree (offered nowhere = refused); (3) a
+POSITIONS sit inside that subtree (offered nowhere = refused); (3) a
 procedure body is judged at every `RunStmt` naming it (resolve runs
 pre-expand; splice is by value); (4) functions, defines, rules, trick-order
 rows, `loser:`, and every other game-level expression position — refused.
-The offering-surface relation DERIVES from resolve's reference-slot
-registry (seven move-type-naming slots today: five offering, two
-non-offering), pinned total so an eighth slot arrives unclassified and
-reddens; edges match by NAME across both move-type namespaces (pinochle's
-`declare_trump_suit` is the live overlap witness).
+An offering site's POSITION is where the offer HAPPENS, never where its text
+sits: an offer written in a procedure body is positioned at every `run` of
+that procedure, by the same by-value reasoning as (3), so a procedure run
+only inside the subtree may offer freely. The one container this analysis
+does not position is another move type's own body — following an offer made
+there means judging the OFFERING move type's containment first, itself
+decided by ITS offers, up a chain that can cycle. That is a WALL: refused
+with a message saying the analysis does not follow offers made from inside
+another move type, never that the state does not stand (issue #521; coup's
+move-type effects hold three such offers, and it migrates when its eviction
+wall falls). A procedure no statement runs is `_check_procedures`' never-run
+refusal, cited rather than shadowed. The offering-surface relation DERIVES
+from resolve's reference-slot registry (seven move-type-naming slots today:
+five offering, two non-offering), pinned total so an eighth slot arrives
+unclassified and reddens; edges match by NAME across both move-type
+namespaces (pinochle's `declare_trump_suit` is the live overlap witness).
+One correction to the grid frame quoted in Hoyle's counsel below, which
+stands as the seat wrote it: `demands:` is a RULE clause, not a move type's,
+so there is no move-type `demands:` offering cell — rules are a refused
+container, sampled by the rule-applies-when cell.
 
 Engine (Architect section 4): `PrimitiveRead` gains `phase: str | None`;
 `classify_read` gains a `phase` parameter (with it: that phase's own block

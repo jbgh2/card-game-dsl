@@ -18,10 +18,16 @@ property:   (1) every combination the extended `primitive_read` grammar
             phase or strict-descendant declaration of that name left able to
             answer instead; and (3) every call of an entry carrying a scoped
             read sits where the named phase's frame stands — inside that
-            phase's subtree, or in a game move type every offering mention of
-            which sits inside it, or at a `run` site inside it — so the
-            runtime's innermost-frame walk returns the declared phase's value
-            by construction rather than by luck.
+            phase's subtree, or at a `run` site inside it, or in a game move
+            type every POSITION of which sits inside it — so the runtime's
+            innermost-frame walk returns the declared phase's value by
+            construction rather than by luck. A position is where an offer
+            HAPPENS, never where its text sits: an offer written in a procedure
+            body happens at each `run` of that procedure, because expansion is
+            by value. Claim (3) is bounded by which offers this analysis can
+            position at all — an offer made from inside another move type's
+            body is REFUSED, not judged, and the wall says so rather than
+            speaking about where state stands.
 domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             {no tail, `in P`} (four accepted combinations, all implemented)
             plus the malformed spellings the grammar must refuse loud;
@@ -41,7 +47,11 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             "allowed"; the OFFERING SURFACE — the move-type-naming slots of
             resolve's `_REFERENCE_SLOTS`, classified offering / non-offering
             in one table pinned total against the derived candidates, so a
-            slot added there arrives unclassified and reddens; and the three
+            slot added there arrives unclassified and reddens; the OFFERING
+            CONTAINER, which is what decides where an offer's position IS —
+            written in a phase, in a procedure body (crossed with that
+            procedure's `run` sites: inside, both sides, none) or inside
+            another move type; and the three
             standing collision arms, each re-probed WITH a tail present so
             the new surface cannot lift them silently.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
@@ -62,6 +72,14 @@ covered:    the parametrized cells below. The untailed membership product,
             module crosses the tail with them and owns nothing they own. The
             rendered text of each new diagnostic is
             tests/test_rejections.py's, whose corpus this change extends.
+            Two containment vectors are cited to their Owners rather than
+            covered: a procedure NO statement runs is `_check_procedures`'
+            never-run refusal (both the call and the offer rows carry its
+            message), and a phase's own `state { }` default cannot hold a call
+            at all. The plan's grid frame lists `demands:` among the move-type
+            offering surfaces; it is a RULE clause, not a move type's, and
+            rules are a REFUSED container — the `rule-applies-when` row samples
+            them — so there is no move-type `demands:` cell to write.
 sampled:    the ACCEPT half's call positions are carried by five corpus
             games (seven-card-stud, holdem, pinochle, french-tarot,
             canasta), of which pinochle lands in this change and the other
@@ -107,7 +125,12 @@ walls:      the refusals here are not one kind, and the ledger says which is
             unblocks it: a spelling two declarations answer to — the shadowed
             pair and the phase-and-zone pair alike (issue #516); two phases in
             one clause (issue #517); a scoped call in a function, define or
-            rule body (issue #518). DESIGNED constraints, recorded at their
+            rule body (issue #518); an offer made from inside another move
+            type's body, which the analysis refuses rather than positioning,
+            since following it means judging the OFFERING move type's own
+            containment up a chain that can cycle (issue #521 — coup's
+            move-type effects hold three such offers, and it is the game that
+            decides what the wall costs). DESIGNED constraints, recorded at their
             construct rather than filed: a library cannot declare a phase for
             a tail to name (unconstructible off the grammar); a move type
             nothing offers is refused rather than passing containment
@@ -613,6 +636,37 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
     "procedure-run-inside": None,
     "procedure-run-outside": ("bump", "outer"),
     "procedure-run-both-sides": ("bump", "outer"),
+    # A procedure NO statement runs is `_check_procedures`' — it refuses every
+    # uninvoked procedure game-wide, so both the call and the offer rows below
+    # carry that message rather than a scope-flavoured copy of it. Cited, not
+    # re-covered; the row exists so the fourth vector of the `run`-site axis is
+    # in the record with its Owner named.
+    "procedure-never-run": ("bump", "never run"),
+    # An offering site is judged at its POSITION, not where its text sits, so
+    # the container an offer is written in crosses the offering axis: written
+    # in a phase (the three `move-type-offered-*` rows above), in a procedure
+    # body (run inside, run both sides, never run), or inside another move type
+    # — where the analysis has no position to name and says so. The `produces:`
+    # arm rows are the plan's promised handler cells.
+    #
+    # Added after both takes, so they sit in neither born-red count. The four
+    # offering-container rows were RED against the arm this change replaces,
+    # which judged an offer where its text sits: the run-inside accept was
+    # refused as a leak, and the other three were refused with a message about
+    # state not standing rather than about the position the analysis lacks.
+    # The two `produces:` rows are born green — the arm body is inside
+    # `_walk(phase)` and the sibling call is a direct one — and redden under
+    # building `inside` from a phase's statements rather than its whole extent.
+    "move-type-offered-by-a-run-inside": None,
+    "move-type-offered-by-a-run-both-sides": ("note", "show", "outer"),
+    "move-type-offered-by-an-unrun-procedure": ("show", "never run"),
+    "move-type-offered-from-a-move-type": (
+        "note",
+        "relay",
+        "does not follow offers made from inside another move type",
+    ),
+    "produces-arm-inside": None,
+    "produces-arm-sibling": ("outer", "pinochle_meld_value"),
 }
 
 # Definitions are TOP-LEVEL forms, not game items — so each rides the `top`
@@ -624,6 +678,14 @@ _NOTE = (
     "}\n"
 )
 _BUMP = "procedure bump() {\n" + _CALL + "}\n"
+# A procedure that OFFERS rather than calls: coup's `challenge_window` shape,
+# and the reason an offering site's position is its `run` site.
+_SHOW = "procedure show() {\n  offer to 0 one of [note]\n}\n"
+# A move type whose effect offers another: coup's `foreign_aid` shape, and the
+# offering container this analysis declines to follow.
+_RELAY = "move_type relay {\n  when: true\n  effect { offer to 0 one of [note] }\n}\n"
+_PICK = "define pick -> { won(Player) } {\n  produce won(0)\n}\n"
+_ARM = "    pick produces:\n      won(q) { meld[q] := pinochle_meld_value(q) }\n"
 
 
 def _containment_source(cell: str) -> str:
@@ -699,6 +761,31 @@ def _containment_source(cell: str) -> str:
                 top=_BUMP,
                 outer_body=_DEAL + "    run bump()\n",
                 after_outer="  phase later {\n    run bump()\n  }\n",
+            )
+        case "procedure-never-run":
+            return _probe(top=_BUMP, outer_body=_DEAL)
+        case "move-type-offered-by-a-run-inside":
+            return _probe(top=_NOTE + _SHOW, outer_body=_DEAL + "    run show()\n")
+        case "move-type-offered-by-a-run-both-sides":
+            return _probe(
+                top=_NOTE + _SHOW,
+                outer_body=_DEAL + "    run show()\n",
+                after_outer="  phase later {\n    run show()\n  }\n",
+            )
+        case "move-type-offered-by-an-unrun-procedure":
+            return _probe(top=_NOTE + _SHOW, outer_body=_DEAL)
+        case "move-type-offered-from-a-move-type":
+            return _probe(
+                top=_NOTE + _RELAY,
+                outer_body=_DEAL + "    offer to 0 one of [relay]\n",
+            )
+        case "produces-arm-inside":
+            return _probe(top=_PICK, outer_body=_DEAL + _ARM)
+        case "produces-arm-sibling":
+            return _probe(
+                top=_PICK,
+                outer_body=_DEAL,
+                after_outer="  phase later {\n" + _ARM + "  }\n",
             )
     raise AssertionError(f"no source for containment cell {cell!r}")
 

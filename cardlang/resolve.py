@@ -5476,20 +5476,62 @@ def _scoped_entry_phases(game: n.Game) -> dict[str, str]:
     return scoped
 
 
-def _offering_sites(game: n.Game, move_type: str) -> list[object]:
-    """Every node that OFFERS `move_type`, by name across BOTH move-type
-    namespaces. The namespaces overlap in the corpus — pinochle's
-    `declare_trump_suit` is kernel-listed and game-defined at once — so an edge
-    collected by slot namespace would miss a game move type's `legal_moves:`
-    mention."""
-    sites: list[object] = []
+def _offers_move_type(move_type: str) -> Callable[[object], bool]:
+    """Whether a node OFFERS `move_type` — puts it in play at the position it
+    sits at — by name across BOTH move-type namespaces.
+
+    Derived from the classified slot table rather than from `n.Offer` alone, so
+    a round form is seen by the same arm wherever it is written. The namespaces
+    overlap in the corpus — pinochle's `declare_trump_suit` is kernel-listed and
+    game-defined at once — so an edge collected by slot namespace would miss a
+    game move type's `legal_moves:` mention."""
+
+    def offers(node: object) -> bool:
+        return any(
+            puts_in_play
+            and isinstance(node, cls)
+            and move_type in slot_strings(node, field_name)
+            for (cls, field_name), puts_in_play in _MOVE_TYPE_SLOT_OFFERS.items()
+        )
+
+    return offers
+
+
+def _offering_positions(
+    game: n.Game,
+    move_type: str,
+    owners: dict[int, str],
+    held_by: dict[int, str],
+) -> tuple[list[object], list[tuple[object, str]], frozenset[str]]:
+    """Where `move_type` is put IN PLAY, which is not always where the offer's
+    text sits — with the offers this analysis declines to position, and the
+    procedures that offer.
+
+    An offer written in a procedure body happens wherever that procedure is
+    RUN, because expansion is by value: the `run` site is the position, exactly
+    as it is for a scoped call in a procedure body. An offer made from inside
+    another move type's `when:`/`effect` has no position this analysis can
+    name — it would be the offering move type's own, itself decided by ITS
+    offers — so it is walled rather than judged where its text happens to
+    sit."""
+    offers = _offers_move_type(move_type)
+    from_procedures = _procedures_reaching(game, offers)
+    positions: list[object] = []
+    walled: list[tuple[object, str]] = []
     for node in _walk(game):
-        for (cls, field_name), offers in _MOVE_TYPE_SLOT_OFFERS.items():
-            if offers and isinstance(node, cls) and move_type in slot_strings(
-                node, field_name
-            ):
-                sites.append(node)
-    return sites
+        if not (
+            offers(node)
+            or (isinstance(node, n.RunStmt) and node.name in from_procedures)
+        ):
+            continue
+        owner = owners.get(id(node), "phases")
+        if owner == "procedure":
+            continue  # its `run` sites are this offer's positions, collected here
+        if owner == "move_type":
+            walled.append((node, held_by[id(node)]))
+        else:
+            positions.append(node)
+    return positions, walled, from_procedures
 
 
 def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
@@ -5503,6 +5545,8 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
     scoped = _scoped_entry_phases(game)
     if not scoped:
         return
+    held_by = _move_type_bodies(game)
+    owners = _statement_owners(game, held_by)
     for entry, phase_name in sorted(scoped.items()):
         phase = _find_phase(game, phase_name)
         # NOT a `continue`: skipping here would run zero cells for this entry
@@ -5517,20 +5561,33 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
             f"`_find_phase` cannot find — the two phase walks disagree"
         )
         inside = {id(node) for node in _walk(phase)}
-        reaching = _procedures_reaching(game, entry)
+        reaching = _procedures_reaching(game, _calls_entry(entry))
         _check_direct_call_positions(game, entry, phase_name, inside, reaching, bag)
-        _check_offered_containers(game, entry, phase_name, inside, reaching, bag)
-        _check_run_sites(game, entry, phase_name, inside, reaching, bag)
+        _check_offered_containers(
+            game, entry, phase_name, inside, reaching, owners, held_by, bag
+        )
+        _check_run_sites(game, entry, phase_name, inside, reaching, owners, bag)
 
 
-def _procedures_reaching(game: n.Game, entry: str) -> frozenset[str]:
-    """Procedures whose body reaches a call of `entry`, transitively through
-    other procedures — a fixpoint, since a procedure may `run` another."""
-    direct = {
-        p.name
-        for p in game.procedures
-        if any(isinstance(nd, n.Call) and nd.func == entry for nd in _walk(p))
-    }
+def _calls_entry(entry: str) -> Callable[[object], bool]:
+    """Whether a node CALLS `entry` — the seed the procedure closure follows for
+    the call arm, as `_offers_move_type` is for the offering one."""
+    return lambda node: isinstance(node, n.Call) and node.func == entry
+
+
+def _procedures_reaching(
+    game: n.Game, seed: Callable[[object], bool]
+) -> frozenset[str]:
+    """Procedures whose body reaches a node `seed` accepts, through `run` as
+    well as directly — a fixpoint, since one procedure's `run` of another
+    composes.
+
+    Depth one today: `_check_procedures` refuses a procedure that runs another
+    ("expansion is a single splice, not a call graph"), so the loop settles on
+    its first pass. Written as a fixpoint anyway, because composing is this
+    derivation's own fact rather than the wall's — the day a procedure may run
+    another, the closure is already right."""
+    direct = {p.name for p in game.procedures if any(seed(nd) for nd in _walk(p))}
     reaching = set(direct)
     changed = True
     while changed:
@@ -5600,16 +5657,50 @@ def _check_offered_containers(
     phase_name: str,
     inside: set[int],
     reaching: frozenset[str],
+    owners: dict[int, str],
+    held_by: dict[int, str],
     bag: DiagnosticBag,
 ) -> None:
     """A game move type has no lexical phase, so its body's containment is its
-    OFFERING sites': every one of them must sit inside the subtree, and a move
-    type nothing offers is refused rather than passing vacuously."""
+    OFFERING sites': every POSITION that puts it in play must sit inside the
+    subtree, and a move type nothing offers is refused rather than passing
+    vacuously."""
     for move_type in game.move_types:
         if not _reaches_scoped_entry(move_type, entry, reaching):
             continue
-        sites = _offering_sites(game, move_type.name)
-        if not sites:
+        positions, walled, from_procedures = _offering_positions(
+            game, move_type.name, owners, held_by
+        )
+        for site, holder in walled:
+            # A wall with a witness, not a decision: coup's move-type effects
+            # offer three move types this way, and it migrates when its eviction
+            # wall falls (issue #521). Following the offer would mean judging
+            # the OFFERING move type's own containment, and so on up a chain the
+            # flow analysis does not walk — so the refusal says exactly that,
+            # rather than a false thing about where state stands.
+            made = (
+                f"the `run` of procedure `{site.name}`, which offers "
+                f"`{move_type.name}`,"
+                if isinstance(site, n.RunStmt)
+                else f"this offer of `{move_type.name}`"
+            )
+            bag.error(
+                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"state declared in phase `{phase_name}`, and {made} sits "
+                f"inside move type `{holder}` — the analysis does not follow "
+                f"offers made from inside another move type, so there is no "
+                f"position to judge and the scope cannot be established; offer "
+                f"`{move_type.name}` from a statement inside `{phase_name}`",
+                getattr(site, "span", None) or game.span,
+            )
+        if not positions:
+            if walled or from_procedures:
+                # Walled offers are refused above, once per unpositionable site.
+                # An offer inside a procedure with no position means that
+                # procedure is never run, which `_check_procedures` refuses
+                # game-wide with the message naming what to run — reporting it
+                # again here would make one defect look like two.
+                continue
             # Designed constraint, not a deferral: a move type nothing offers
             # never runs, so "every offering site is inside the phase" would be
             # true of it vacuously — a guard that cannot fire. Refusing is what
@@ -5623,11 +5714,23 @@ def _check_offered_containers(
                 move_type.span or game.span,
             )
             continue
-        for site in sites:
+        for site in positions:
             if id(site) in inside:
                 continue
-            # One diagnostic per offending site, spanned at the site: the
-            # addressee is whoever wrote the offer, not whoever wrote the entry.
+            # One diagnostic per offending position, spanned at it: the
+            # addressee is whoever put the move type in play there, not whoever
+            # wrote the entry.
+            if isinstance(site, n.RunStmt):
+                bag.error(
+                    f"move type `{move_type.name}` calls `{entry}`, which reads "
+                    f"state declared in phase `{phase_name}`, and procedure "
+                    f"`{site.name}` offers `{move_type.name}` wherever it is "
+                    f"run — this `run` puts `{move_type.name}` in play outside "
+                    f"`{phase_name}`, where that state does not stand; run "
+                    f"`{site.name}` inside `{phase_name}` only",
+                    site.span or game.span,
+                )
+                continue
             bag.error(
                 f"move type `{move_type.name}` calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}` — this offer puts "
@@ -5644,21 +5747,29 @@ def _check_run_sites(
     phase_name: str,
     inside: set[int],
     reaching: frozenset[str],
+    owners: dict[int, str],
     bag: DiagnosticBag,
 ) -> None:
     """A procedure body is judged at every `RunStmt` naming it, because
     expansion is by VALUE: the run site's position IS the body's future
     position. A procedure run both inside and outside the subtree is refused at
-    the offending site."""
+    the offending site.
+
+    Two positions a `run` can occupy are decided elsewhere and not re-decided
+    here: inside a move type, where the move type's own offering arm judges the
+    spliced body along with the rest of it; and inside another procedure, which
+    `_check_procedures` refuses outright. A procedure NO statement runs is
+    likewise `_check_procedures`' — it refuses every uninvoked procedure
+    game-wide, so a scope-flavoured copy of that refusal would report one defect
+    as two."""
     if not reaching:
         return
-    owners = _statement_owners(game)
     for run in _walk(game):
         if not (isinstance(run, n.RunStmt) and run.name in reaching):
             continue
         owner = owners.get(id(run), "phases")
         if owner in ("move_type", "procedure"):
-            continue  # judged by that container's own arm
+            continue  # decided by the containers named in this docstring
         if owner == "phases" and id(run) in inside:
             continue
         where = "in another phase" if owner == "phases" else f"in this game's `{owner}`"
@@ -5669,28 +5780,26 @@ def _check_run_sites(
             f"`{phase_name}`; run `{run.name}` inside `{phase_name}` only",
             run.span or game.span,
         )
-    for name in sorted(reaching):
-        if not any(
-            isinstance(nd, n.RunStmt) and nd.name == name for nd in _walk(game)
-        ):
-            proc = next(p for p in game.procedures if p.name == name)
-            bag.error(
-                f"procedure `{name}` calls `{entry}`, which reads state "
-                f"declared in phase `{phase_name}`, and no statement runs "
-                f"`{name}` — an unrun procedure has no phase to be inside, so "
-                f"the scope cannot be established; run it inside `{phase_name}`",
-                proc.span or game.span,
-            )
 
 
-def _statement_owners(game: n.Game) -> dict[int, str]:
+def _move_type_bodies(game: n.Game) -> dict[int, str]:
+    """id(node) -> the name of the game move type whose definition holds it.
+
+    Finer than `_statement_owners`' attribution, because the wall on an offer
+    made from inside a move type must NAME that move type: an addressee told
+    only "inside a move type" is left to find which."""
+    return {
+        id(node): move_type.name
+        for move_type in game.move_types
+        for node in _walk(move_type)
+    }
+
+
+def _statement_owners(game: n.Game, held_by: dict[int, str]) -> dict[int, str]:
     """id(node) -> the `n.Game` field whose subtree holds it. Built once per
-    entry check so a `run` site can be attributed to the container that decides
-    it, rather than by re-walking per site."""
-    owners: dict[int, str] = {}
-    for move_type in game.move_types:
-        for node in _walk(move_type):
-            owners[id(node)] = "move_type"
+    containment check so a `run` or an offer can be attributed to the container
+    that decides it, rather than by re-walking per site."""
+    owners: dict[int, str] = dict.fromkeys(held_by, "move_type")
     for proc in game.procedures:
         for node in _walk(proc):
             owners[id(node)] = "procedure"
