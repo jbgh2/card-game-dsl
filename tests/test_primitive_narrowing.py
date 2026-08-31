@@ -428,7 +428,6 @@ NARROWED: frozenset[str] = frozenset(
         "holdem.py::ROW",
         "holdem.py::holdem_pot_share",
         "holdem_heads_up.py::holdem_heads_up_pot_share",
-        "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
         "president.py::ROW",
         "president.py::president_follows",
