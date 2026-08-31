@@ -10,11 +10,20 @@
 // `trump_suit` state var) rather than a fixed game-level `trump:` declaration.
 //
 // The dealer hook (the total of all bids may not equal the hand size) is
-// enforced here as a correction to the dealer's bid after bids are in, rather
-// than as a choice-time constraint with sequential bidding: the observable
-// effect — bids never total the hand size — is identical, and the language has
-// no `each player in turn` / `choose … excluding …` construct yet. Strategic
-// bidding is out of scope for a uniform-random playout regardless.
+// enforced here as a correction to the dealer's bid after the bids are in,
+// rather than as the rulebook's choice-time constraint on a dealer who bids
+// last. Two constructs are missing behind that one sentence and this stands in
+// for both: excluding a value from a `choose` range at choice time (issue #509)
+// and anchoring a `for each player` at a named seat, so the dealer bids last
+// (issue #196).
+//
+// The stand-in is not observationally equivalent, and the gap it leaves is in
+// this project's own currency. A `choose` written to a state variable is
+// announced to every player as it is made, while the correcting assignment is
+// silent — so the bids players HEAR are the uncorrected ones, which can total
+// the hand size, the one total the rule exists to forbid. Scoring uses a
+// corrected bid nobody was told, and two different dealer bids reach the same
+// corrected value while the announcement tells them apart.
 
 game OhHell {
 
