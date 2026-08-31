@@ -77,10 +77,10 @@ Ledger note -- what the observation stream cannot pin
    their way into the hidden discard, so the table DOES see them --
    `_Table._moved` records the arrivals, and `_hand_value` holds each shown
    card against the conservation complement. A Garde sans / Garde contre
-   hand moves no discard, so `shown` stays empty there and the shown checks
-   are vacuous outside Petite/Garde -- carried as this sentence rather than
-   as an assertion, because no current line can redden one (the only reach
-   is a stacked forced deal, and the stacked witness bids Petite).
+   hand moves no discard, so `shown` stays empty there -- `_hand_value`
+   asserts that before reading the level, and the assert's red needs a
+   two-edit plant (its comment records the executed pair; every single
+   edit is caught elsewhere first).
 2. The trick winner is read off the DRAIN's destination (`trick_pile ->
    captured[w]`) and cross-checked against ROUTING -- the winner leads the next
    trick -- for tricks 1..17 of every hand. The EIGHTEENTH has no next trick,
@@ -125,6 +125,15 @@ toothless:
 * `shown_atouts` demoted to `FaceDownPile` (count-only) -- `_Table._moved`'s
   "the zone must project identity to every seat" assert, before any
   stacked-test comparison runs (executed 2026-08-30).
+* a duplicated card in `_pack()` (a second 5 of diamonds in place of the 6)
+  -- `_RiggedFirstShuffle.shuffle`'s "not a permutation of the engine's own
+  deck" assert; without it the stacked witness stays green over a pack the
+  game does not declare, its conservation check derived from the same list
+  (executed 2026-08-30).
+* the `taken` arm pinning `bid_level := 1` while the stacked script bids
+  `bid_garde_sans` -- `_hand_value`'s "were shown on a level-3 contract"
+  assert; a two-edit plant, each single edit caught elsewhere first
+  (executed 2026-08-30).
 """
 
 from __future__ import annotations
@@ -136,6 +145,8 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
@@ -285,12 +296,13 @@ def _discard_pool(hand: list[Card]) -> tuple[list[Card], int, str]:
     before the pick, so the live hand holds none, and the pick tops the discard
     up to six from the non-bout atouts -- Kings and bouts are never
     discardable, and an atout is discardable only for want of anything else.
-    The preferred pick is always `CHIEN`; the forced pick's size is the
-    24-card arithmetic -- the live hand holds 24 minus the force-moved
-    count, and the pick returns it to 18."""
+    Both arms size the pick by the same arithmetic -- it returns the live
+    hand to the 18 a seat plays tricks from -- so a merge or deal defect
+    that hands the taker anything but 24 cards fails at the pick, sized and
+    named, rather than two layers later as a trick-count discrepancy."""
     pref = [c for c in hand if _is_pref_discard(c)]
     if len(pref) >= CHIEN:
-        return pref, CHIEN, "discard-preferred"
+        return pref, len(hand) - 18, "discard-preferred"
     assert not pref, (
         f"the discard pick was offered while {len(pref)} plain non-Kings were "
         f"still in hand -- the forced branch moves ALL of them first"
@@ -550,6 +562,16 @@ def _hand_value(h: _Hand, arms: Counter[str]) -> int:
 
     taker_doubled = sum(_doubled_points(c) for c in h.captured.get(h.taker, []))
     bouts = sum(1 for c in h.captured.get(h.taker, []) if _is_bout(c))
+    # A no-discard contract can show nothing. red under a TWO-edit plant only
+    # (executed 2026-08-30): the `taken` arm pinning `bid_level := 1` while
+    # the stacked script bids garde_sans -- each single edit fires elsewhere
+    # first (the seed-0 score comparison, or the rare-arm census). It stays
+    # because it is the one reader of that state: without it a shown card on
+    # a level-3/4 hand would skip the whole block below in silence.
+    assert not h.shown or h.level <= 2, (
+        f"atouts {[str(c) for c in h.shown]} were shown on a level-{h.level} "
+        f"contract, which moves no discard at all"
+    )
     if h.level <= 2:
         # The discards still count to the taker, and both discard filters
         # exclude every bout by construction, so they can never add one.
@@ -558,7 +580,12 @@ def _hand_value(h: _Hand, arms: Counter[str]) -> int:
         )
         # The shown atouts are discard cards the whole table saw: each is a
         # non-bout atout and sits among the six the conservation complement
-        # recovers. A preferred-branch hand shows nothing.
+        # recovers. A preferred-branch hand shows nothing. Shadow Guards: the
+        # offer comparison (`_discard_pool` through `offered`) owns the
+        # filter claim and the pick-size assert owns membership -- every
+        # single-edit plant fires there first (measured 2026-08-30); these
+        # restate the claims at the settlement, where a defect past those
+        # walls would land.
         remainder = Counter((c.rank, c.suit) for c in leftover)
         for c in h.shown:
             assert c.suit == "atouts" and not _is_bout(c), (
@@ -765,12 +792,14 @@ _CENSUS_SEEDS: tuple[int, ...] = (
 # assertion in `_hand_value` or `_verify` would otherwise take vacuously.
 #
 # `discard-forced` and `forced-atouts-shown` are deliberately NOT here: the
-# taker would have to hold fewer than six plain non-Kings among 24 cards,
-# which does not occur in the 2160 hands of seeds 0-59 (measured 2026-08-19,
-# on the same deal path). A cell whose only witness would be a deal nothing
-# reaches must not read as covered; the branch rides a stacked first shuffle
-# instead (`test_the_forced_discard_shows_its_atouts_to_the_table`), which
-# drives the ENGINE through it and holds both cells non-zero there.
+# taker would have to hold fewer than six plain non-Kings among 24 cards.
+# Only a Petite/Garde contract puts 24 cards in a hand at all, so the
+# population is discard decisions, not hands: seeds 0-59 produce 109 of
+# them across their 2160 hands, every one preferred (measured 2026-08-30).
+# A cell whose only witness would be a deal nothing reaches must not read
+# as covered; the branch rides a stacked first shuffle instead
+# (`test_the_forced_discard_shows_its_atouts_to_the_table`), which drives
+# the ENGINE through it and holds both cells non-zero there.
 _CENSUS_CELLS: tuple[str, ...] = (
     *sorted(_CASCADE_ARMS),
     "discard-preferred",
@@ -902,6 +931,48 @@ def test_the_excuse_lead_quirk_is_preserved() -> None:
         )
 
 
+def test_the_discard_pool_arithmetic_spans_its_range() -> None:
+    """`_discard_pool` fed the LIVE-hand shapes no playout produces: the
+    sweep's discard decisions are all the one preferred vector (24 cards,
+    size 6) and the stacked witness adds a single forced one (21 cards,
+    size 3), so the branch boundary and the size derivation are pinned here
+    across their range rather than at two points.
+
+    The vectors are live hands as `offered` reads them: a preferred hand
+    still holds its plain non-Kings, a forced hand holds NONE (the branch
+    force-moves them before the pick) -- so the boundary pair is six
+    preferred in a 24-card hand against five force-moved out of a 19-card
+    one."""
+    kings = [Card("K", s) for s in ("clubs", "diamonds", "hearts", "spades")]
+    atouts = [Card(str(v), "atouts") for v in range(2, 21)]  # the 19 non-bout
+    bouts = [Card("1", "atouts"), Card("21", "atouts"), Card("Excuse", "excuse")]
+    plains = [Card(str(v), "hearts") for v in range(2, 11)]
+
+    # Preferred boundary: exactly six plain non-Kings among 24.
+    pool, n, arm = _discard_pool(plains[:6] + kings + bouts + atouts[:11])
+    assert arm == "discard-preferred" and n == 6
+    assert sorted(map(str, pool)) == sorted(map(str, plains[:6]))
+
+    # The preferred size DERIVES from the hand rather than being the
+    # constant 6: a merge defect handing the taker 25 cards asks for 7.
+    assert _discard_pool(plains[:7] + kings + bouts + atouts[:11])[1] == 7
+
+    # Forced extremes: five force-moved leaves 19 cards owing one atout;
+    # zero preferred leaves all 24 owing six. The pool is the non-bout
+    # atouts alone -- never a King, never a bout.
+    pool, n, arm = _discard_pool(kings + bouts + atouts[:12])
+    assert arm == "discard-forced" and n == 1
+    assert sorted(map(str, pool)) == sorted(map(str, atouts[:12]))
+    pool, n, arm = _discard_pool(kings + bouts + atouts[:17])
+    assert arm == "discard-forced" and n == 6
+    assert sorted(map(str, pool)) == sorted(map(str, atouts[:17]))
+
+    # The forced arm refuses a live hand still holding a plain non-King --
+    # the Owner Guard on "the branch moves ALL of them first".
+    with pytest.raises(AssertionError, match="still in hand"):
+        _discard_pool(kings + bouts + atouts[:11] + [Card("2", "clubs")])
+
+
 class _RiggedFirstShuffle(random.Random):
     """A Random whose FIRST shuffle deals a chosen order and every later draw
     is honest. `shuffle deck` is the deal's only rng consumer and the deal
@@ -915,6 +986,15 @@ class _RiggedFirstShuffle(random.Random):
 
     def shuffle(self, x: Any) -> None:
         if self._first is not None:
+            # The stack must be a permutation of the deck the ENGINE dealt
+            # this rig, or the witness would drive the forced branch over a
+            # pack the game does not declare -- and its conservation check,
+            # derived from the same `_pack()` as the stack, could never
+            # notice the substitution.
+            assert Counter(x) == Counter(self._first), (
+                "the stacked order is not a permutation of the engine's own "
+                "deck -- `_pack()` and the game's `cards:` registry disagree"
+            )
             x[:] = self._first
             self._first = None
         else:
