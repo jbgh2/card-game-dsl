@@ -269,6 +269,7 @@ DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "salvo_combos",
         "skat_matadors",
         "skat_next_bid",
+        "tichu_dragon_won",
     }
 )
 

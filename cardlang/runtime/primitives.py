@@ -130,10 +130,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.tarot import ROW, tarot_per_opp
 
             return tarot_per_opp(*_bind(ctx, ROW), args[0])
-        case "tichu_dragon_won":
-            from cardlang.runtime.tichu import ROW, tichu_dragon_won
-
-            return tichu_dragon_won(*_bind(ctx, ROW))
         case "coup_game_summary":
             from cardlang.runtime.coup import ROW, coup_game_summary
 

@@ -82,6 +82,19 @@ game Tichu {
   // the Phoenix -25; every other card 0 (100 points per hand).
   card_points { 5: 5  10: 10  K: 10  Dragon: 25  Phoenix: -25 }
 
+  // The one this game borrows from outside the DSL at a CALL position,
+  // implemented in `cardlang/runtime/tichu.py`. It takes no `reads` clause:
+  // the completed trick's standing play reaches it as an engine fact, and the
+  // clause names this game's own zones and state variables alone.
+  //
+  // The climbing engine (`tichu_lead_options` / `tichu_follows`) is not here
+  // and cannot be: a climb query is named on a `round climb` slot, a
+  // Primitive namespace the block does not cover (issue #142), so those two
+  // keep the `PRIMITIVE_READS` row their binder holds at load.
+  primitives {
+    tichu_dragon_won() : Boolean
+  }
+
   zones {
     deck           : Deck
     hand[player]   : Hand<player>

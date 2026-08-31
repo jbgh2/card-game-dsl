@@ -314,10 +314,12 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         ),
         single_zones=_fs("pile_top", "pile_rest"),
     ),
-    # Tichu's surviving primitives take the hand as an argument or read the
-    # round's terminal frame through EngineFacts — the row binds the module
-    # to its game with no declared zone/state reads (the leader advance,
-    # this module's one `hand` reader, retired onto the ring search).
+    # Tichu's CLIMB row, and its call-position Primitive is not on it: the
+    # game declares `tichu_dragon_won` in its own block. What keeps the row is
+    # `primitives.climb_row`, which hands the climb queries their module's row
+    # at round time off a binding made at import — a namespace the block does
+    # not cover. The queries take the hand as an argument, so the row declares
+    # no zone or state read; it binds the module to its game.
     PrimitiveReads(
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",

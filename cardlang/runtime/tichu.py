@@ -27,6 +27,11 @@ from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.tichu_combinations import Play, _combos, _legal_follows
 from cardlang.runtime.values import Card
 
+# The CLIMB queries' row: `primitives.climb_row` imports this binding at load
+# and the round machinery binds it per trick. `tichu_dragon_won` does not use
+# it — the game declares that Primitive, so its bundle comes from its own
+# `reads` clause — and the row outlives that declaration because the block
+# does not cover the climb namespace.
 ROW = reads.row("cardlang/runtime/tichu.py", "tichu.cardlang")
 
 
