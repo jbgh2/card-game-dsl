@@ -109,3 +109,45 @@ def test_md_twin_checks(path: Path) -> None:
     `hearts.md` had quietly rotted to two retired spellings — the exact failure
     mode maintaining.md calls a bug."""
     check_source(path)
+
+
+def _block_facts(game: object) -> dict[str, object] | None:
+    """A `primitives { }` block as comparable facts: per entry, the typed
+    parameter list, the return spelling, and the reads (name, binder). None
+    for a legacy game, so regime drift between twins is itself a diff."""
+    primitives = getattr(game, "primitives")
+    if primitives is None:
+        return None
+    return {
+        d.name: (
+            tuple((p.name, p.type_name) for p in d.params),
+            d.return_type,
+            tuple(sorted((r.name, r.binder or "") for r in d.reads)),
+        )
+        for d in primitives.decls
+    }
+
+
+_PAIRED_TWINS = sorted(p for p in MD_TWINS if (GAMES / f"{p.stem}.cardlang").exists())
+
+
+def test_every_fenced_twin_is_paired() -> None:
+    """The pairing glob's own control: a fenced twin with no `.cardlang` would
+    silently leave the block-agreement pin's domain."""
+    assert [p.stem for p in MD_TWINS if p not in _PAIRED_TWINS] == []
+
+
+@pytest.mark.parametrize("md", _PAIRED_TWINS, ids=lambda p: p.stem)
+def test_twin_block_agrees_with_the_cardlang(md: Path) -> None:
+    """The two fences differ freely as TEXT; the `primitives { }` block is
+    spec, and operating rule 2 holds the pair in lockstep — a read dropped
+    from a twin's entry, an extra twin-only entry, or param drift checks
+    clean on both sides and lands here.
+
+    red under: drop one name from a twin entry's `reads` clause, or add an
+    entry the `.cardlang` lacks — both check clean everywhere else. A twin
+    whose fence BODY calls a name its block drops is refused upstream by
+    `test_md_twin_checks` (that cell's Owner)."""
+    assert _block_facts(check_source(GAMES / f"{md.stem}.cardlang")) == _block_facts(
+        check_source(md)
+    )

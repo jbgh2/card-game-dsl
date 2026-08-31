@@ -290,17 +290,31 @@ def _impls_in(path: Path) -> list[Impl]:
         if not isinstance(node, ast.Match):
             continue
         for case in node.cases:
-            pat = case.pattern
-            if not (
-                isinstance(pat, ast.MatchValue)
-                and isinstance(pat.value, ast.Constant)
-                and isinstance(pat.value.value, str)
-            ):
-                continue
-            name = pat.value.value
-            for mod, func in _dispatch_imports(case.body):
-                found.append(Impl(primitive=name, module=mod, func=func))
+            names = _arm_names(case.pattern)
+            for name in names:
+                for mod, func in _dispatch_imports(case.body):
+                    found.append(Impl(primitive=name, module=mod, func=func))
     return found
+
+
+def _arm_names(pattern: ast.pattern) -> list[str]:
+    """The Primitive names one `match` arm routes — BOTH pattern shapes.
+
+    An arm may name one Primitive (`case "gin_deadwood":`) or several
+    (`case "tichu_lead_options" | "tichu_follows":`, the climb binder's shape,
+    where one row serves a module's whole climb pair). Reading only the first
+    shape would leave every implementation an or-patterned arm imports outside
+    this grid's domain, which is the coverage hole that looks like a green."""
+    alternatives = (
+        pattern.patterns if isinstance(pattern, ast.MatchOr) else [pattern]
+    )
+    return [
+        alt.value.value
+        for alt in alternatives
+        if isinstance(alt, ast.MatchValue)
+        and isinstance(alt.value, ast.Constant)
+        and isinstance(alt.value.value, str)
+    ]
 
 
 _ALL_REGISTERED: frozenset[str] = (
@@ -315,6 +329,28 @@ _ALL_REGISTERED: frozenset[str] = (
 _GAME_IMPLS: tuple[Impl, ...] = tuple(
     i for i in _implementations() if i.module in _GAME_MODULES
 )
+
+
+def test_the_arm_scrape_still_sees_every_climb_name() -> None:
+    """The scrape's name-grain floor over the one namespace that enters this
+    domain through `match` arms alone: climb leads and follows have no
+    `PRIMITIVE_IMPLEMENTATIONS` row, so a scrape blind to every shape their
+    arms use drops them from the domain with only the coarse size floor to
+    notice. SITE-grain shape blindness has its own Owner —
+    `test_progress_registries_name_real_things` reddens when a listed
+    `NARROWED` symbol's or-patterned route goes unread, because every climb
+    name also sits in singular arms and only the sites vanish. This floor
+    guards the residue: a climb name losing its LAST scraped route.
+
+    red under: blind `_impls_in` to arm names entirely (`names = []`) — the
+    climb names leave the scrape and this set difference goes non-empty,
+    naming them."""
+    scraped = {i.primitive for i in _implementations()}
+    missing = (PRIMITIVE_CLIMB_LEADS | PRIMITIVE_CLIMB_FOLLOWS) - scraped
+    assert not missing, (
+        f"climb names the arm scrape no longer sees: {sorted(missing)} — "
+        f"`_arm_names` is blind to the match shape their arms use"
+    )
 
 
 def test_every_dispatched_primitive_is_a_registered_name() -> None:
@@ -347,7 +383,6 @@ def test_the_derived_axis_is_not_empty() -> None:
 # change cannot quietly give one of them a handle.
 NARROWED: frozenset[str] = frozenset(
     {
-        "belote.py::ROW",
         "belote.py::belote_best_is",
         "belote.py::belote_decl_class",
         "belote.py::belote_decl_height",
@@ -356,6 +391,7 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_decl_slot",
         "belote.py::belote_decl_trump",
         "belote.py::belote_royal_player",
+        "bigtwo.py::ROW",
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
@@ -377,6 +413,7 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_bid_level",
         "five_hundred.py::five_hundred_bid_value",
         "five_hundred.py::five_hundred_next_bid",
+        "gin.py::GIN_MELD_CODEC",
         "gin.py::ROW",
         "gin.py::gin_arrange_ok",
         "gin.py::gin_can_declare",
@@ -393,6 +430,7 @@ NARROWED: frozenset[str] = frozenset(
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
+        "president.py::ROW",
         "president.py::president_follows",
         "president.py::president_lead_options",
         "president.py::president_universe",

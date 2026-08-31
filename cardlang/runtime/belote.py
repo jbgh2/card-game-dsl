@@ -51,8 +51,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
-
 # Natural (sequence) order A K Q J 10 9 8 7 — the declaration order, distinct
 # from BOTH play orders (the game's `ranking: ace-ten` in plain suits, and the
 # Trick Order's within-trump reorder).
@@ -90,7 +88,7 @@ def belote_royal_player(
     to aim the Belote-Rebelote window's offer; the announcing move's own
     guard checks the private partner-card holding.
 
-    The trump is the GAME's `trump_suit` (this module's declared state read),
+    The trump is the GAME's `trump_suit` (this entry's declared state read),
     not the round's `state["trump"]`: a `trick_order` block forbids the round
     a `trump` clause, so that key is None for every trick Belote plays, and
     reading it would find no royal in any trick — the window would never

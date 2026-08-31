@@ -574,11 +574,37 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
     assert call_namespace(game) == BUILTIN_CALL_FUNCS
 
 
+# The module's legacy-half representative — the name every cell needing a
+# Primitive that a game with NO block still reaches is written at, checked
+# against the registry rather than assumed. Chosen for taking no arguments,
+# which keeps its rendered sentences the shortest of the half. One name and one
+# guard: each such cell stays green when the name moves homes, so a literal per
+# cell would leave the prose false and nothing saying so.
+_LEGACY_HALF_NAME = "cribbage_crib_value"
+
+
+def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
+    """The cells below sample the legacy half at one name, and the sample means
+    nothing if the name has moved homes: `DECLARED_ONLY_CALL_FUNCS` grows as
+    stage 3b migrates games, and every migration is a name leaving this half.
+
+    red under: set `_LEGACY_HALF_NAME` to a declared-only Primitive."""
+    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
+    assert _LEGACY_HALF_NAME in legacy_half, (
+        f"{_LEGACY_HALF_NAME} no longer has a legacy `call` arm — the cells "
+        f"below sample that half at this name; pick another from "
+        f"{sorted(legacy_half)[:3]}"
+    )
+
+
 def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
     message = _refused(
-        _game(block="", body="    score[0] := if tichu_dragon_won() then 1 else 0")
+        _game(
+            block="",
+            body=f"    score[0] := if {_LEGACY_HALF_NAME}() then 1 else 0",
+        )
     )
-    assert "tichu_dragon_won" in message
+    assert _LEGACY_HALF_NAME in message
     assert "primitives" in message
 
 
@@ -591,12 +617,19 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
 # name, a block that does not, no block at all — that is a six-cell product,
 # and each cell's outcome is stated once here rather than in six places.
 
-# LEAF `Type` -> (its declarable spelling, a literal of that type). A
+# LEAF `Type` -> (its declarable spelling, an EXPRESSION of that type). A
 # representative's signature is read from `CALL_SIGS` and rendered through this
 # table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
 # sampled at whichever member it holds — a member whose signature reaches a
 # type with no row fails by NAME rather than producing a sentence the parser
 # rejects for the wrong reason.
+#
+# An expression, not a literal: the surface has no Card literal, so `Card`'s
+# column is a Builtin over a zone the probe game declares, which is what a
+# rendered argument in that position can be. The rendered sentences are
+# CHECKED, never played — `_entry_and_body` writes no `reads` clause, so a
+# played bundle would miss the entry's own reads — and the column is chosen to
+# type where it is written, not to survive a playout.
 #
 # `TEnum` is keyed by the enum's own name, not the constructor's: `Suit` and
 # `Rank` are two spellings and two literals behind one Python class. The
@@ -608,14 +641,20 @@ _SPELLINGS: dict[str, tuple[str, str]] = {
     "TInteger": ("Integer", "0"),
     "TBoolean": ("Boolean", "true"),
     "TString": ("String", '"x"'),
+    "TCard": ("Card", "top_of(hand[0])"),
     "Suit": ("Suit", "spades"),
+    "Rank": ("Rank", "A"),
 }
 
 # The `score[0] := …` shape each return spelling lands in, so a rendered call
-# sits in a position that types.
+# sits in a position that types. An OPTIONAL return lands through `is none`
+# rather than through an assignment target of its own type: every shape then
+# ends in the one slot whose value decides the probe game's winner, so a cell
+# cannot pass by assigning somewhere nothing reads.
 _ASSIGNMENTS: dict[str, str] = {
     "Integer": "    score[0] := {call}",
     "Boolean": "    score[0] := if {call} then 1 else 0",
+    "Player?": "    score[0] := if {call} is none then 0 else 1",
 }
 
 
@@ -647,11 +686,6 @@ def _entry_and_body(name: str) -> tuple[str, str]:
     return f"{name}({params}) : {ret}", assignment.format(call=f"{name}({args})")
 
 
-# The legacy-half representative, checked against the registry rather than
-# assumed: chosen for taking no arguments, which keeps its rendered sentence
-# the shortest of the half.
-_LEGACY_HALF_NAME = "tichu_dragon_won"
-
 # (the Primitive's home, the game's regime) -> whether the call CHECKS. The
 # home axis is the registry partition; the regime axis is `Regime` crossed with
 # the block's own contents, which is what `call_namespace` reads.
@@ -678,20 +712,6 @@ def _homes() -> dict[str, list[str]]:
         "declared-only": sorted(DECLARED_ONLY_CALL_FUNCS),
         "legacy-arm too": [_LEGACY_HALF_NAME],
     }
-
-
-def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
-    """The product's legacy arm is sampled at one name, and the sample means
-    nothing if the name has moved homes: `DECLARED_ONLY_CALL_FUNCS` grows as
-    stage 3b migrates games, and every migration is a name leaving this half.
-
-    red under: set `_LEGACY_HALF_NAME` to a declared-only Primitive."""
-    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
-    assert _LEGACY_HALF_NAME in legacy_half, (
-        f"{_LEGACY_HALF_NAME} no longer has a legacy `call` arm — the product "
-        f"below samples its half at this name; pick another from "
-        f"{sorted(legacy_half)[:3]}"
-    )
 
 
 @pytest.mark.parametrize(
@@ -1929,11 +1949,15 @@ def test_a_walled_namespace_name_cannot_be_declared(name: str) -> None:
 
 def test_a_declared_game_cannot_reach_another_games_primitive() -> None:
     """Issue #364's class: with a block, a neighbour's Primitive is not in this
-    game's namespace, so the call is an unknown name."""
+    game's namespace, so the call is an unknown name.
+
+    Written at the legacy-half name, so the counterfactual holds: this same
+    call in a game with no block RESOLVES, which is what makes the refusal the
+    block's doing rather than the callee having no arm anywhere."""
     message = _refused(
-        _game(body="    score[0] := if tichu_dragon_won() then 1 else 0")
+        _game(body=f"    score[0] := if {_LEGACY_HALF_NAME}() then 1 else 0")
     )
-    assert "tichu_dragon_won" in message
+    assert _LEGACY_HALF_NAME in message
 
 
 def test_a_declaration_may_not_shadow_a_builtin() -> None:
@@ -2187,12 +2211,13 @@ def game_sources() -> list[pathlib.Path]:
     """Every game whose declarations couple to the package tables: the corpus
     glob, the witness fixture, and the experiment games that declare a block.
 
-    The fixture is IN the domain deliberately — no corpus game declares a
-    block, so without it the declared arm of every check below would be empty
-    and green by having nothing to look at. Salvo is in for the other
-    direction: it declares the only Primitive no corpus game reaches, and a
-    package registration nothing in this domain declares is refused below as an
-    orphan. The experiment games are named one by one rather than globbed:
+    The fixture is IN the domain deliberately: it is the controlled declaring
+    game the plants below key to, whose text the failure-channel cell edits,
+    and it is what keeps the declared arm of every check non-empty
+    independently of which corpus games have migrated. Salvo is in for the
+    other direction: it declares the only Primitive no corpus game reaches, and
+    a package registration nothing in this domain declares is refused below as
+    an orphan. The experiment games are named one by one rather than globbed:
     Salvo's mini and its zc variant declare nothing, and a glob would quantify
     over every future experiment file whether or not it is a game."""
     return sorted(GAMES_DIR.glob("*.cardlang")) + [
