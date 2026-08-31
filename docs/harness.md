@@ -287,6 +287,13 @@ moment it enters each phase:
 - `blocked: <word>` — waiting on something only the operator can give
   (a ruling, a permission, a named witness); the word names it.
 - `merged` — the PR is in; the thread is wrapping up.
+- `released` — the thread let the issue go without a merge: bounced by
+  a gate, parked, or superseded. The Lease is released with it, and the
+  tracker owns what happens next.
+
+`merged` and `released` are the two terminal statuses — the same two
+ways a Lease ends. A thread that stops working an issue without setting
+one leaves the board lying.
 
 The retitle uses the client's session-title tool where the client
 offers one (the desktop app's `set_session_title`); a session without
