@@ -713,6 +713,26 @@ def test_the_containment_position_taxonomy(cell: str) -> None:
         assert fragment in message, message
 
 
+def test_a_wrong_tail_and_a_wrong_call_site_report_once() -> None:
+    """One defect, one diagnostic. A tail that does not resolve leaves the
+    entry out of the containment analysis entirely — otherwise a designer who
+    misspelled the phase would be told BOTH that the tail is wrong and that
+    every call of the entry is in the wrong place, and would have to work out
+    which of the two is the actual mistake."""
+    # The tail names `later`, which declares nothing; `outer` is the declarer,
+    # and the call sits in `outer` — so a containment analysis that ran anyway
+    # would refuse the call for being outside `later` as well.
+    source = _probe(
+        block="pinochle_meld_value(p : Player) : Integer "
+        "reads hand[p], trump_suit in later",
+        outer_body=_DEAL + "    meld[0] := pinochle_meld_value(0)\n",
+        after_outer="  phase later {\n    meld[1] := 0\n  }\n",
+    )
+    message = _refused(source)
+    assert "declares no state" in message, message
+    assert "callable only where that phase runs" not in message, message
+
+
 def test_an_offer_outside_the_subtree_points_at_the_offer() -> None:
     """P7: the addressee of a leaked move type is whoever wrote the offending
     OFFER, not whoever wrote the entry — so the span is the offer's, and one

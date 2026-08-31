@@ -5447,18 +5447,32 @@ def _find_phase(game: n.Game, name: str) -> n.Phase | None:
 
 def _scoped_entry_phases(game: n.Game) -> dict[str, str]:
     """Entry name -> the ONE phase its reads clause scopes to, for every entry
-    whose tail this pass has already found well-formed. An entry the tail arms
-    refused is left out: containment would co-report on one defect."""
+    whose tail is USABLE — it names one phase of the game, and that phase
+    declares every name the entry scopes to it.
+
+    An entry whose tail is wrong is left out, and `_check_read_tail` speaks for
+    it: containment has nothing to say about a scope that does not resolve, and
+    saying it anyway would report a call site as a second defect when the
+    designer has one to fix. This asks the classifier the same question that
+    arm does rather than restating its conditions — a scope either denotes a
+    declaration or it does not."""
     if game.primitives is None:
         return {}
     known = phase_names(game)
     scoped: dict[str, str] = {}
     for decl in game.primitives.decls:
         named = {r.phase for r in decl.reads if r.phase is not None}
-        if len(named) == 1:
-            phase = next(iter(named))
-            if phase is not None and phase in known:
-                scoped[decl.name] = phase
+        if len(named) != 1:
+            continue
+        phase = next(iter(named))
+        if phase is None or phase not in known:
+            continue
+        if all(
+            classify_read(game, r.name, phase) is not None
+            for r in decl.reads
+            if r.phase is not None
+        ):
+            scoped[decl.name] = phase
     return scoped
 
 
