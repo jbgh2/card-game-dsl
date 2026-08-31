@@ -170,10 +170,13 @@ change must leave undisturbed while the three tailed rows beside it are red,
 and the offer-edge and anti-vacuity pins, which now carry reddening mutations
 of their own.
 
-Both counts are of the module AS TAKEN, and the module has since grown: the
-co-report cell below was written against a built guard, so it carries its own
-reddening mutation instead of a place in either count. A cell added after a
-take says so rather than being absorbed into a number measured before it.
+Both counts are of the module AS TAKEN, and the module has since grown. Every
+cell written against a built guard says so where it sits rather than joining a
+number measured before it: the co-report cell below, the offering-container
+and `produces:` rows and the never-run row of `_CONTAINMENT_CELLS` (the dict's
+own comments carry which was red against what), and the statement-holding
+container pin. A cell added after a take says so rather than being absorbed
+into a count that predates it.
 """
 
 from __future__ import annotations
@@ -875,6 +878,34 @@ def test_an_offer_outside_the_subtree_points_at_the_offer() -> None:
     assert "offer to 1" in text[span.line - 1], text[span.line - 1]
 
 
+def test_a_procedure_run_inside_the_subtree_really_offers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The accept row says the position is ADMITTED; this says it is REACHED.
+    That fixture's only caller of the scoped entry is the offered move type's
+    `when:`, so a call proves the spliced offer put `note` in play and the
+    entry ran with the declaring frame standing — which `_plays`' score-key
+    assertion holds whether or not the offer ever fired.
+
+    Written against a built analysis, so it sits in neither born-red count.
+    red under: guard the fixture's run site with `if false { run show() }` —
+    the containment row stays GREEN under that edit, which is the whole reason
+    this cell exists beside it. (Deleting the run site instead reddens on
+    `_check_procedures`' never-run refusal, a different claim.)"""
+    from cardlang.runtime import pinochle as pinochle_mod
+
+    callers: list[object] = []
+    real = pinochle_mod.pinochle_meld_value
+
+    def spy(facts: object, gr: object, player: object) -> int:
+        callers.append(player)
+        return real(facts, gr, player)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pinochle_mod, "pinochle_meld_value", spy)
+    _plays(_containment_source("move-type-offered-by-a-run-inside"))
+    assert callers, "the spliced offer never put `note` in play"
+
+
 def test_the_statement_holding_containers_are_classified_total() -> None:
     """An offering site's POSITION is decided by the container its text sits
     in, so the container set is the offering arm's other domain — and it is the
@@ -890,9 +921,12 @@ def test_the_statement_holding_containers_are_classified_total() -> None:
     added without a row lands in the wall's safe direction at run time and
     reddens here at once.
 
-    red under: add `defines` to `_UNPOSITIONED_CONTAINERS`' complement by
-    classifying it as a position, or add a `statement*` production to the
-    grammar without deciding it."""
+    Written against a built analysis, so it sits in neither born-red count and
+    carries a reddening mutation per claim: for the DERIVATION, add an inert
+    `statement*` production to the grammar (`spare_block: _EFFECT_KW "{"
+    statement* "}"`) — the parser still builds and `spare_block` arrives
+    undecided; for the CLASSIFICATION, drop the `defines` row from
+    `_UNPOSITIONED_CONTAINERS`."""
     from cardlang.resolve import _UNPOSITIONED_CONTAINERS
 
     grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()
