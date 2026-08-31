@@ -1,0 +1,220 @@
+"""The grid: every TOTAL position refuses a wrong value, however it is spelled.
+
+`tests/test_typed_positions.py` classifies each expression position by what the
+runtime does with a wrong value there. This module is the executed half for the
+positions it classes TOTAL -- the ones whose wrong value is SILENT, so nothing
+downstream can catch it and the checker is the only wall there is.
+
+Two producers per position, because a guard that catches one and not the other
+is the hole this grid exists to close:
+
+- CONCRETE -- an Integer literal where the position requires something else. A
+  guard that reads the inferred type catches this.
+- LAUNDERED -- the same wrongness behind the permissive top, `(if true then
+  hearts else 1)`, whose branches do not join. A guard that admits `TAny` (the
+  `isinstance(t, (TBoolean, TAny))` shape) does NOT catch this, and the game
+  then plays on: issue #515 measures a laundered trump scoring a whole different
+  hand with nothing raised.
+
+Both must be refused, at check time, with a diagnostic. That is the expected
+column, and it was authored before any guard existed.
+
+Contract (decisions.md "Closed-domain completeness", write-time triage)
+-----------------------------------------------------------------------
+Assumes:      `test_typed_positions.TREATMENT` classifies every position, and its
+              own completeness pin keeps that table equal to the derived
+              population.
+Establishes:  every TOTAL position rejects both producers through `check_dsl`.
+Illegal after: a TOTAL position that admits a wrongly-typed expression in either
+              spelling.
+
+Ledger (decisions.md "Closed-domain completeness")
+--------------------------------------------------
+property:        every position classified TOTAL refuses a wrong-typed
+                 expression, both as a concrete literal and laundered through
+                 the permissive top.
+domain:          the TOTAL rows of `test_typed_positions.TREATMENT`, crossed
+                 with both producers. GRADUAL and CONTEXTUAL positions are
+                 outside it by design -- their wrong values raise downstream,
+                 which is the classification module's subject.
+registry:        positions: `test_typed_positions.TREATMENT`, itself pinned
+                 equal to the derived population by
+                 tests/test_typed_positions.py::test_every_position_is_classified;
+                 producers: `PRODUCERS` below.
+does not prove:  that a refused spelling is refused for the right REASON -- the
+                 grid asserts a diagnostic, not its wording. Message shape is
+                 pinned by the rejection goldens in tests/rejections/.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from cardlang.diagnostics import DiagnosticError
+from cardlang.pipeline import check_dsl
+from tests.test_typed_positions import TOTAL, TREATMENT
+
+# The two spellings of the same wrongness. `3` is an Integer literal; the second
+# types as `TAny` because the branches do not join.
+PRODUCERS = {
+    "concrete": "3",
+    "laundered": "(if true then hearts else 1)",
+}
+
+_BASE = """%s
+game G {
+  players: 2
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    pile         : Discard
+  }
+  state { score[player] : Integer = 0 }
+  phase setup {
+    shuffle deck
+    deal 2 cards from deck to each hand
+%s
+  }
+  winner: highest score
+}
+"""
+
+# (top-level declarations, phase body). Exactly one carries the `{W}` slot.
+SYNTHETIC: dict[tuple[str, str], tuple[str, str]] = {
+    ("IfStmt", "cond"): ("", "    if {W} { score[0] += 1 }"),
+    ("RepeatUntil", "until"): ("", "    repeat until {W} { score[0] += 1 }"),
+    ("Transfer", "where"): ("", "    move all cards from deck where {W} to pile"),
+    ("Not", "operand"): ("", "    if not {W} { score[0] += 1 }"),
+    ("IfExpr", "cond"): ("", "    score[0] := if {W} then 1 else 2"),
+    ("Comprehension", "where"): ("", "    score[0] := sum of 1 over cards in deck where {W}"),
+    ("DomainQuery", "where"): ("", "    if any suit where {W} { score[0] += 1 }"),
+    ("Quantifier", "body"): ("", "    if any card in deck where {W} { score[0] += 1 }"),
+    ("CardQuery", "where"): ("", "    move all cards from deck where {W} to pile"),
+    ("PlayerQuery", "where"): ("", "    if any player where {W} { score[0] += 1 }"),
+    ("Turns", "until"): ("", "    turns t from 0 over all players until {W} { score[t] += 1 }"),
+    ("EpistemicOp", "where"): ("", "    reveal one card from deck where {W}"),
+    ("MoveTypeDef", "when"): (
+        "move_type m {\n  when: {W}\n  effect { score[actor] += 1 }\n}\n",
+        "    score[0] += 1",
+    ),
+}
+
+# Positions needing a construct too large to synthesize: substituted into a
+# corpus game that already has one. The anchor is asserted present, so a corpus
+# edit that moves it fails this module loudly instead of silently skipping.
+CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
+    ("TrickRound", "trump"): ("oh-hell.cardlang", "trump trump_suit", "trump {W}"),
+    ("RuleDef", "if_impossible"): ("hearts.cardlang", "if_impossible: hand", "if_impossible: {W}"),
+    ("AppliesWhen", "pred"): (
+        "hearts.cardlang",
+        "applies_when: state.led_suit is none",
+        "applies_when: {W}",
+    ),
+    ("MoveEvent", "where"): (
+        "hearts.cardlang",
+        "when play_to_trick where action.card.suit is hearts",
+        "when play_to_trick where {W}",
+    ),
+    ("AuctionRound", "until"): (
+        "belote.cardlang",
+        "until taker is not none",
+        "until {W}",
+    ),
+    ("ClimbRound", "until"): (
+        "big-two.cardlang",
+        "until (any player where hand[player] is empty)\n        opened := true",
+        "until {W}\n        opened := true",
+    ),
+    # S3: total before this module existed, so both cells are expected GREEN and
+    # this row is the grid's own control -- a guard that stopped refusing `TAny`
+    # would surface here rather than in a cell nobody watches.
+    ("TrickOrderRow", "body"): (
+        "belote.cardlang",
+        "trump:         card.suit is trump_suit",
+        "trump:         {W}",
+    ),
+}
+
+
+def _source(position: tuple[str, str], wrong: str) -> str:
+    if position in SYNTHETIC:
+        decls, body = SYNTHETIC[position]
+        return _BASE % (decls.replace("{W}", wrong), body.replace("{W}", wrong))
+    game, anchor, replacement = CORPUS[position]
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "docs" / "games" / game
+    text = path.read_text()
+    assert anchor in text, f"{game} no longer contains the anchor {anchor!r}"
+    return text.replace(anchor, replacement.replace("{W}", wrong), 1)
+
+
+_TOTAL_POSITIONS = sorted(pos for pos, (t, _) in TREATMENT.items() if t == TOTAL)
+_PROBED = set(SYNTHETIC) | set(CORPUS)
+
+
+def test_every_total_position_has_a_probe() -> None:
+    """No TOTAL position may sit outside the grid unnoticed.
+
+    red under: add a TOTAL row to `TREATMENT` without adding its probe.
+    """
+    missing = [p for p in _TOTAL_POSITIONS if p not in _PROBED]
+    assert not missing, f"TOTAL positions with no probe: {missing}"
+
+
+# Cells this tree does not yet refuse. Each is a guard to write, not a design
+# question: the expected column above says every one of them must reject. The
+# marks are strict, so a cell that starts passing while still listed here fails
+# loudly rather than being forgotten -- the entry comes out with the guard that
+# closes it, and an empty set is the finished state.
+#
+# `concrete` entries are positions with no static check at all; `laundered`
+# entries are guards that admit the permissive top. `TrickOrderRow.body` is in
+# neither list, which is what makes it this grid's control.
+RED_TODAY: frozenset[tuple[str, tuple[str, str]]] = frozenset(
+    {
+        ("concrete", ("AppliesWhen", "pred")),
+        ("concrete", ("IfExpr", "cond")),
+        ("concrete", ("MoveEvent", "where")),
+        ("concrete", ("MoveTypeDef", "when")),
+        ("concrete", ("Not", "operand")),
+        ("concrete", ("RuleDef", "if_impossible")),
+    }
+    | {
+        ("laundered", pos)
+        for pos in _TOTAL_POSITIONS
+        if pos != ("TrickOrderRow", "body")
+    }
+)
+
+
+def _refuses(source: str) -> bool:
+    """Whether `check_dsl` refuses `source` in its own failure channel.
+
+    Only `DiagnosticError` counts. A probe that breaks some other way raises out
+    of here rather than being counted as a refusal -- a broken probe reporting
+    success is the way this grid would go vacuously green.
+    """
+    try:
+        check_dsl(source, "grid.cardlang")
+    except DiagnosticError:
+        return True
+    return False
+
+
+@pytest.mark.parametrize("position", _TOTAL_POSITIONS, ids=lambda p: f"{p[0]}.{p[1]}")
+@pytest.mark.parametrize("producer", sorted(PRODUCERS), ids=lambda k: k)
+def test_total_position_refuses_a_wrong_value(
+    request: pytest.FixtureRequest, position: tuple[str, str], producer: str
+) -> None:
+    """A TOTAL position refuses a wrong-typed expression in both spellings."""
+    if (producer, position) in RED_TODAY:
+        request.node.add_marker(
+            pytest.mark.xfail(strict=True, raises=AssertionError, reason="guard not written yet")
+        )
+    assert _refuses(_source(position, PRODUCERS[producer])), (
+        f"{position[0]}.{position[1]} accepted a {producer} wrong value"
+    )
