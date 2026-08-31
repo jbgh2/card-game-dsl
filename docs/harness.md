@@ -265,6 +265,45 @@ operator instead. Reaping is a Warden chore
 ([#277](https://github.com/jbgh2/card-game-dsl/issues/277)); until that
 Standing Role exists it is anyone's, manually.
 
+## Thread titles
+
+An interactive thread working an issue renames itself so the operator's
+session list reads as a work board — state visible at a glance, no
+dipping into threads to learn it. The title is one line in one shape:
+
+    Issue #<N> - <status>
+
+with `<status>` drawn from a closed set, updated by the thread at the
+moment it enters each phase:
+
+- `building` — set with the Lease; work is under way.
+- `review` — the PR is open and review requested; the round (CI, the
+  review, thread answers) is the thread's own work and needs no
+  operator.
+- `ready` — the gate is satisfied for the current head: CI green, zero
+  unresolved threads, the lane call printed. On Merge Lane C/D the
+  thread arms auto-merge as it sets this ("Arming is merging", above);
+  on Lane A/B `ready` IS the request for the operator's button.
+- `blocked: <word>` — waiting on something only the operator can give
+  (a ruling, a permission, a named witness); the word names it.
+- `merged` — the PR is in; the thread is wrapping up.
+- `released` — the thread let the issue go without a merge: bounced by
+  a gate, parked, or superseded. The Lease is released with it, and the
+  tracker owns what happens next.
+
+`merged` and `released` are the two terminal statuses — the same two
+ways a Lease ends. A thread that stops working an issue without setting
+one leaves the board lying.
+
+The retitle uses the client's session-title tool where the client
+offers one (the desktop app's `set_session_title`); a session without
+the tool is exempt, so headless runs are untouched. The title is
+display, never address: a rename does not propagate to the agent list,
+and cross-session messages still go to the ListAgents row name (see
+"The Review Desk" — the desk is spawn-named for exactly this reason). A
+thread not working a single issue — the desk, a consult, exploration —
+keeps its own name.
+
 ## Standing Roles
 
 A **Standing Role** is a named, recurring, unattended agent charter — a

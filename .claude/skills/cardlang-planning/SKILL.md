@@ -141,7 +141,10 @@ check has a claimed delta to diff against.
 
 Discuss the design in prose first — trade-offs explained, not asked as
 multiple-choice. This skill then shapes the plan; enter plan mode (when
-used) already holding Gates 1–3. Plans that warrant a standing artifact
+used) already holding Gates 1–3. An interactive thread working a tracker
+issue also retitles itself as it moves — `Issue #<N> - <status>`, the
+closed status set in docs/harness.md, "Thread titles" — with the first
+retitle, to `building`, landing alongside the Lease. Plans that warrant a standing artifact
 land in `docs/plans/` (dated, one file per plan); existing plan records
 stay where they are. The audit and review skills own their stages — this
 skill only guarantees they fire at the right moment, with an unframed
