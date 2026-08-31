@@ -266,12 +266,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("played"),
         single_zones=_fs("play_pile", "starter", "crib"),
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/pinochle.py",
-        game_file="pinochle.cardlang",
-        state_vars=_fs("trump_suit"),
-        zone_families=_fs("hand"),
-    ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle
     # from this row (primitives.climb_row), so the row must exist.

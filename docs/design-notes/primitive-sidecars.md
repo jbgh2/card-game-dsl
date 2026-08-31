@@ -318,24 +318,26 @@ Which games have migrated is a query, not a number: the games whose
 `primitives { }` block the corpus holds
 (`rg -l 'primitives \{' docs/games/`), against the call-namespace rows
 `PRIMITIVE_READS` still carries. The games left in that second set are
-each held by a named wall — the phase-local reads below (issue #504), the
+each held by a named wall, or queued behind one that has fallen — the
 unspellable signatures (issue #472), the dispatch-site reads (issue #473),
-and coup's trace emitter (its own step under issue #142) — so a row still
-standing there is a wall's record, never an unswept game.
+coup's trace emitter (its own step under issue #142), and the phase-local
+cohort whose wall the scope tail below removed, leaving four games to roll
+out one PR each (issue #504) — so a row still standing there is a wall's
+record or a rollout's remainder, never an unswept game.
 
-A THIRD wall the cohort derivation did not predict, and the one the wave
-meets most: `classify_read` classifies a `reads` name against the game's
-GAME-level state, and a row may name a variable a PHASE declares — an
-asymmetry the authored row tolerates, because a row materializes against
-the live frame while a declaration is a game clause. Which games it holds
-is the derivation, run per game and not recalled: a row's `state_vars`
-intersected with `phase_local_state_names` (issue #504 carries the answers
-and the candidate paths). The betting games hit it on `committed` /
-`folded` / `in_hand`, which their betting phase declares; such a game is
-refused at compile and stays legacy until the variable is game-level or
-the value is passed as an argument. Hoisting the declaration to game level
-is not a neutral edit — a `repeat until` phase re-initializes its state
-block on re-entry — so it is a game change, not a migration step.
+The wave's most common asymmetry is the one the [[phase-scoped-read]]
+answers: an authored row may name a variable a PHASE declares, because a
+row materializes against the live frame, while a declaration is a game
+clause. The block reaches such a name by NAMING its phase — `reads
+hand[p], trump_suit in hand_sequence` — which settles which declaration is
+meant (sibling phases may legally declare one name) and commits the entry
+to being called only where that phase runs, a commitment the resolver
+checks rather than takes on trust. Which games carry one is the
+derivation, run per game and not recalled: a row's `state_vars`
+intersected with `phase_local_state_names`. Hoisting such a variable to
+game level instead is not a neutral edit — a `repeat until` phase
+re-initializes its state block on re-entry — so the tail is what keeps the
+migration a migration rather than a game change.
 
 **Stage 4 — co-locate (M).** Implementations move out of
 `cardlang/runtime/` to live with their games; the loader resolves

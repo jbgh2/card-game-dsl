@@ -380,7 +380,11 @@ def _declared_for_module(module: str) -> dict[str, set[str]]:
             if decl.name not in mine:
                 continue
             for read in decl.reads:
-                kind = classify_read(game, read.name)
+                # The read's own scope tail steers the classification: a
+                # [[phase-scoped-read]] is classified against the phase it
+                # names, and asking without the tail would report a name the
+                # game legitimately declares as classifying as nothing.
+                kind = classify_read(game, read.name, read.phase)
                 assert kind is not None, (
                     f"{path.name} declares a read {read.name!r} that classifies "
                     f"as nothing — resolve refuses this, so the scan cannot see it"

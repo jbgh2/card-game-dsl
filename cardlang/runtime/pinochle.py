@@ -23,9 +23,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-ROW = reads.row("cardlang/runtime/pinochle.py", "pinochle.cardlang")
-
-
 def pinochle_meld(cards: list[Card], trump: str) -> int:
     """Standard single-pack Pinochle meld value of a hand given the trump suit.
     Doubles (two copies) score the published double values. The only intra-class

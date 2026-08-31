@@ -266,6 +266,7 @@ DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_bid_value",
         "five_hundred_next_bid",
         "holdem_heads_up_pot_share",
+        "pinochle_meld_value",
         "salvo_combos",
         "skat_matadors",
         "skat_next_bid",

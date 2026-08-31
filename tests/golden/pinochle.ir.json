@@ -55,6 +55,37 @@
     ],
     "else_value": null
   },
+  "primitives": {
+    "kind": "primitives",
+    "entries": [
+      {
+        "kind": "primitive_decl",
+        "name": "pinochle_meld_value",
+        "params": [
+          {
+            "kind": "primitive_param",
+            "name": "p",
+            "type": "Player"
+          }
+        ],
+        "return_type": "Integer",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "hand",
+            "binder": "p",
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "trump_suit",
+            "binder": null,
+            "phase": "hand_sequence"
+          }
+        ]
+      }
+    ]
+  },
   "trump": null,
   "teams": [
     [

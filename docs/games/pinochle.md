@@ -48,6 +48,22 @@ game Pinochle {
   ranking: ace-ten            // 10 sits between K and A
   card_points { A: 10  10: 10  K: 10  Q: 0  J: 0  9: 0 }
 
+  // The one this game borrows from outside the DSL at a CALL position,
+  // implemented in `cardlang/runtime/pinochle.py`. `trump_suit` is declared by
+  // `phase hand_sequence`, not by the game, so the read names that phase — and
+  // in naming it promises what the resolver then checks: the meld query is
+  // called only where `hand_sequence` is running, which is `phase play`, one
+  // level inside it.
+  //
+  // The auction's own outcome query is not here and cannot be: an outcome is
+  // named on a `round auction ... outcome` slot, a Primitive namespace the
+  // block does not cover (issue #142), so it keeps the `PRIMITIVE_READS` row
+  // its dispatch binds.
+  primitives {
+    pinochle_meld_value(p : Player) : Integer
+        reads hand[p], trump_suit in hand_sequence
+  }
+
   zones {
     deck           : Deck
     hand[player]   : Hand<player>

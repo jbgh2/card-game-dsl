@@ -133,10 +133,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.holdem import ROW, holdem_pot_share
 
             return holdem_pot_share(*_bind(ctx, ROW), args[0])
-        case "pinochle_meld_value":
-            from cardlang.runtime.pinochle import ROW, pinochle_meld_value
-
-            return pinochle_meld_value(*_bind(ctx, ROW), args[0])
         case "tarot_excuse_player":
             from cardlang.runtime.tarot import ROW, tarot_excuse_player
 
