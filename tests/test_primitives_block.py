@@ -625,9 +625,11 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
 # rejects for the wrong reason.
 #
 # An expression, not a literal: the surface has no Card literal, so `Card`'s
-# column is a Builtin over a zone the probe game declares. The zone is a hand,
-# which the probe's body fills before the rendered call, so the expression
-# stands in a cell that PLAYS as well as in one that only checks.
+# column is a Builtin over a zone the probe game declares, which is what a
+# rendered argument in that position can be. The rendered sentences are
+# CHECKED, never played — `_entry_and_body` writes no `reads` clause, so a
+# played bundle would miss the entry's own reads — and the column is chosen to
+# type where it is written, not to survive a playout.
 #
 # `TEnum` is keyed by the enum's own name, not the constructor's: `Suit` and
 # `Rank` are two spellings and two literals behind one Python class. The

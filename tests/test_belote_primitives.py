@@ -29,7 +29,7 @@ registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             tests/test_primitive_reads.py and against `implementation_sig`
             by typecheck), the openspiel registry (glob-pinned by
             tests/test_typecheck_corpus.py)
-covered:    name/arity/type misuse at resolve/typecheck (the six probes
+covered:    name/arity/type misuse at resolve/typecheck (the probes
             below, each a DiagnosticError with a span), at BOTH ends of the
             declaration — a typo at a call site and a typo in the entry
             itself answer in different channels; the trick/auction
