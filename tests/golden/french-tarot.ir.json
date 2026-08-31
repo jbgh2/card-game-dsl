@@ -344,6 +344,16 @@
           "player"
         ]
       }
+    },
+    {
+      "kind": "zone",
+      "name": "shown_atouts",
+      "index": null,
+      "type_ref": {
+        "kind": "type_ref",
+        "name": "Discard",
+        "args": []
+      }
     }
   ],
   "state": {
@@ -954,11 +964,8 @@
                         {
                           "kind": "transfer",
                           "verb": "move",
-                          "selection_mode": "chosen",
-                          "amount": {
-                            "kind": "int",
-                            "value": 6
-                          },
+                          "selection_mode": null,
+                          "amount": "all",
                           "item": "cards",
                           "source": {
                             "kind": "subscript",
@@ -990,19 +997,142 @@
                           "distribution": null,
                           "visibility": null,
                           "where": {
-                            "kind": "not",
-                            "operand": {
-                              "kind": "call",
-                              "func": "is_bout",
-                              "args": [
-                                {
+                            "kind": "call",
+                            "func": "is_pref_discard",
+                            "args": [
+                              {
+                                "kind": "name",
+                                "name": "card",
+                                "ref": "local"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "kind": "let",
+                          "name": "atouts_owed",
+                          "index": null,
+                          "value": {
+                            "kind": "binop",
+                            "op": "-",
+                            "left": {
+                              "kind": "int",
+                              "value": 6
+                            },
+                            "right": {
+                              "kind": "card_query",
+                              "query": "count",
+                              "source": {
+                                "kind": "subscript",
+                                "obj": {
+                                  "kind": "name",
+                                  "name": "discard",
+                                  "ref": "zone"
+                                },
+                                "index_expr": {
+                                  "kind": "name",
+                                  "name": "taker",
+                                  "ref": "state_var"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "kind": "transfer",
+                          "verb": "move",
+                          "selection_mode": "chosen",
+                          "amount": {
+                            "kind": "name",
+                            "name": "atouts_owed",
+                            "ref": "local"
+                          },
+                          "item": "cards",
+                          "source": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "hand",
+                              "ref": "zone"
+                            },
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest": {
+                            "kind": "name",
+                            "name": "shown_atouts",
+                            "ref": "zone"
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null,
+                          "where": {
+                            "kind": "binop",
+                            "op": "and",
+                            "left": {
+                              "kind": "binop",
+                              "op": "is",
+                              "left": {
+                                "kind": "member",
+                                "obj": {
                                   "kind": "name",
                                   "name": "card",
                                   "ref": "local"
-                                }
-                              ]
+                                },
+                                "field": "suit"
+                              },
+                              "right": {
+                                "kind": "name",
+                                "name": "atouts",
+                                "ref": "enum_value"
+                              }
+                            },
+                            "right": {
+                              "kind": "not",
+                              "operand": {
+                                "kind": "call",
+                                "func": "is_bout",
+                                "args": [
+                                  {
+                                    "kind": "name",
+                                    "name": "card",
+                                    "ref": "local"
+                                  }
+                                ]
+                              }
                             }
                           }
+                        },
+                        {
+                          "kind": "transfer",
+                          "verb": "move",
+                          "selection_mode": null,
+                          "amount": "all",
+                          "item": "cards",
+                          "source": {
+                            "kind": "name",
+                            "name": "shown_atouts",
+                            "ref": "zone"
+                          },
+                          "dest": {
+                            "kind": "subscript",
+                            "obj": {
+                              "kind": "name",
+                              "name": "discard",
+                              "ref": "zone"
+                            },
+                            "index_expr": {
+                              "kind": "name",
+                              "name": "taker",
+                              "ref": "state_var"
+                            }
+                          },
+                          "dest_each": false,
+                          "distribution": null,
+                          "visibility": null
                         }
                       ]
                     }

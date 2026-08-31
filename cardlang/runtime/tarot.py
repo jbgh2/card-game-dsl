@@ -95,10 +95,12 @@ def tarot_per_opp(facts: EngineFacts, gr: reads.GameReads, pb: int) -> int:
     Counts `discard[taker]` (the taker's hidden chien discards, at Petite/
     Garde) as taker cards too — the fidelity stage's discard reroute moved
     those six cards out of `captured[taker]` into their own hidden zone, so
-    without this they would silently drop out of the taker's total. Their
-    bouts contribution is always zero and is not added: both discard filters
-    (`is_pref_discard`, `not is_bout`) exclude every bout by construction, so
-    a discarded card can never BE one."""
+    without this they would silently drop out of the taker's total; the
+    forced branch's shown atouts also end there, paused in `shown_atouts`
+    only long enough to be observed. Their bouts contribution is always zero
+    and is not added: both discard filters (`is_pref_discard`; the forced
+    branch's non-bout atouts) exclude every bout by construction, so a
+    discarded card can never BE one."""
     taker: Player = gr.state["taker"]
     level = _LEVELS[gr.state["bid_level"] - 1]  # bid_level is 1..4 (0 = no bid)
     captured = gr.families["captured"]

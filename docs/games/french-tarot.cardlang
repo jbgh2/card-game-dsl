@@ -11,21 +11,20 @@
 // below, a counterclockwise single-pass ring, and `tarot_auction_outcome`). The
 // chien handling, the eighteen atout-trump tricks, and the scoring all run on
 // the kernel too: the chien discard is a filtered movement into the taker's
-// HIDDEN `discard[player]` (preferring non-trump non-King cards, never a bout)
-// — genuinely concealed from the opponents, not folded into the public captured
-// pile; the tricks run on the trick form of `round`, legality narrowed by the
+// HIDDEN `discard[player]` (six chosen plain non-Kings, genuinely concealed
+// from the opponents, not folded into the public captured pile); Kings and
+// bouts are never discardable, and when fewer than six plain non-Kings
+// exist among the taker's 24, every one of them goes in and chosen non-bout
+// atouts top the discard up to six, shown to the whole table through
+// `shown_atouts` on their way in; the tricks run on the trick form of `round`,
+// legality narrowed by the
 // ExcuseIsExempt/MustFollowEffectiveSuit/MustTrumpIfVoid/MustOverTrump rule cascade,
 // over the game's declared `trick_order { }` (the Excuse is exempt from every
 // obligation, and belongs to no class, so it never wins); the Excuse's special
 // routing (it stays with its own side, repaying the trick winner a low card) is
 // ordinary body movements after the round. Card points are kept in doubled
-// integer units (the 78 cards sum to 182). Real FFT forces the taker to
-// discard atouts/the Excuse/a King face up when fewer than six other cards
-// remain to discard, so the opponents see what was shown; this is out of
-// scope (a 24-card taker hand+chien essentially never runs short of plain
-// non-King cards, and showing a forced discard is a strategic reveal a
-// random player never needs). poignée declaration and the Excuse half-point
-// IOU deferral are out of scope (see french-tarot.md).
+// integer units (the 78 cards sum to 182). poignée declaration and the Excuse
+// half-point IOU deferral are out of scope (see french-tarot.md).
 
 game FrenchTarot {
 
@@ -74,6 +73,7 @@ game FrenchTarot {
     trick_pile       : TrickPile
     captured[player] : PlayerPile<player>
     discard[player]  : HiddenPile<player>  // the taker's discarded chien cards, hidden from opponents
+    shown_atouts     : Discard             // forced-discard atouts pause here, identity to every seat, then join discard[taker]
   }
 
   state {
@@ -129,8 +129,13 @@ game FrenchTarot {
 
       // Chien, by contract level. At Petite/Garde the taker merges the chien and
       // discards six, HIDDEN from the opponents (a genuine discard, not a public
-      // one) — bouts are never discardable, and plain non-King cards are
-      // preferred whenever six exist. At Garde sans / Garde contre the chien is
+      // one) — Kings and bouts are never discardable, so the discard is six
+      // chosen plain non-Kings whenever six exist. When fewer do, every plain
+      // non-King goes in and chosen non-bout atouts top the discard up to six —
+      // and those atouts are SHOWN: they pause in the public `shown_atouts`
+      // (identity to every seat) before joining the hidden discard, so the
+      // opponents' information sets carry exactly the forced atouts and nothing
+      // else of the discard. At Garde sans / Garde contre the chien is
       // NOT moved: it stays in its zone and is counted at scoring — moving it
       // would reorder the next hand's pre-shuffle gather.
       if bid_level <= 2 {
@@ -139,7 +144,12 @@ game FrenchTarot {
           if (number of cards in hand[taker] where is_pref_discard(card)) >= 6 {
             move chosen 6 cards from hand[taker] where is_pref_discard(card) to discard[taker]
           } else {
-            move chosen 6 cards from hand[taker] where not is_bout(card) to discard[taker]
+            move all cards from hand[taker] where is_pref_discard(card) to discard[taker]
+            let atouts_owed = 6 - (number of cards in discard[taker])
+            move chosen atouts_owed cards from hand[taker]
+                 where card.suit is atouts and not is_bout(card)
+                 to shown_atouts
+            move all cards from shown_atouts to discard[taker]
           }
         }
       }
