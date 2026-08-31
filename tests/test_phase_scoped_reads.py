@@ -153,9 +153,15 @@ cell was written to record.
 Take 2 is the record that counts. Its accept cells die on a name nothing
 classifies and its membership cells die because the untailed phase-local arm
 answers a sentence that now names its phase — each the red the cell was
-written for. Of take 2's 17 passes, four are born green and carry their
-reddening mutation in their own docstring; the rest are refusals whose arm
-already existed and which the tail must not lift.
+written for. Its 17 passes are three kinds, not two: TEN are refusals whose
+arm already existed and which the tail must not lift; FOUR are pins born green
+by construction, each carrying its reddening mutation in its own docstring
+(the grammar production, the `move_type_index` census, the library-phase
+absence, the reference-slot row); and THREE are neither — the `bare-untailed`
+spelling, which writes no tail at all and so is the legacy sentence this
+change must leave undisturbed while the three tailed rows beside it are red,
+and the offer-edge and anti-vacuity pins, which now carry reddening mutations
+of their own.
 
 Both counts are of the module AS TAKEN, and the module has since grown: the
 co-report cell below was written against a built guard, so it carries its own
@@ -207,7 +213,6 @@ def _probe(
     top: str = "",
     zones: str = "",
     game_state: str = "",
-    game_items: str = "",
     outer_qualifier: str = "",
     outer_state: str = "trump_suit : Suit? = spades",
     outer_items: str = "",
@@ -232,7 +237,6 @@ def _probe(
         + ("  primitives { " + block + " }\n" if block is not None else "")
         + "  zones { deck : Deck  hand[player] : Hand<player>" + zones + " }\n"
         "  state { meld[player] : Integer = 0" + game_state + " }\n"
-        + game_items
         + f"  phase outer {outer_qualifier}{{\n"
         + state_block
         + outer_items
@@ -475,17 +479,19 @@ def test_the_descendant_predicate_is_what_keeps_the_innermost_walk_correct(
 
 def test_the_phase_walk_carries_ancestry() -> None:
     """The leaf's phase attribution is name-keyed and cannot see ancestry, so
-    the fourth predicate needs a PATH-aware walk. It is pinned against the
-    engine-wide walk the way the name-keyed one already is — equal on the flat
-    name set, and additionally answering the ancestor question the flat set
-    cannot.
+    the fourth predicate needs a PATH-aware walk. What this cell owns is the
+    ancestry the flat name set cannot express: a path from a top-level phase
+    down to the declarer. That the walk agrees with the engine's own
+    (`n.state_blocks`) is next door's —
+    tests/test_primitives_block.py's `test_the_phase_carrying_walk_agrees_with_
+    the_engines`, over a game of this same nested shape — and asserting it here
+    would compare a derivation with itself, since the attribution IS the paths
+    with each path's last element taken.
 
     red under: drop the nesting recursion from
-    `primitives_block._phase_state_paths`."""
-    from cardlang.primitives_block import (
-        _phase_state_declarations,
-        _phase_state_paths,
-    )
+    `primitives_block._phase_state_decls`, the ONE walk the paths derive
+    from."""
+    from cardlang.primitives_block import _phase_state_paths
 
     game = _checks(
         _probe(
@@ -499,7 +505,6 @@ def test_the_phase_walk_carries_ancestry() -> None:
         )
     )
     paths = _phase_state_paths(game)
-    assert {(p[-1], name) for p, name in paths} == set(_phase_state_declarations(game))
     assert (("outer",), "trump_suit") in paths
     assert (("outer", "inner"), "deep") in paths
 
@@ -879,7 +884,14 @@ def test_offer_edges_match_by_name_across_both_move_type_namespaces() -> None:
     """The two move-type namespaces overlap in the corpus — pinochle's
     `declare_trump_suit` is kernel-listed AND game-defined — so an edge
     collected by slot NAMESPACE would miss the `legal_moves:` mention of a
-    game's own move type. Edges match by name across both."""
+    game's own move type. Edges match by name across both.
+
+    Born green: the overlap is a corpus fact this cell records, not a claim
+    about the analysis, so what it proves is that `_offers_move_type`'s
+    cross-namespace match has a live witness rather than a hypothetical one.
+
+    red under: drop `declare_trump_suit` from pinochle's `legal_moves:` line,
+    or from the game's own move-type definitions."""
     from cardlang.pipeline import check_source
 
     game = check_source(ROOT_DIR / "docs" / "games" / "pinochle.cardlang")
@@ -910,18 +922,32 @@ def test_the_move_type_index_readers_are_the_pinned_census() -> None:
     reads the consumer sites, not the guard's own output, so a new execution
     channel reddens here rather than making the guard silently unsound.
 
-    The two channels are the offer interpreter (`runtime/execute.py`) and the
-    auction form (`runtime/mechanics.py`); the assertion below is where their
-    site counts are stated, so nothing else has to repeat them.
+    The matcher is the BARE name, not the subscript spelling: a consumer
+    reaching a definition through `.get(name)` or `.values()` is exactly the new
+    channel the premise would not survive, and a subscript-shaped scrape would
+    let it land silently while claiming to census sites that reach a definition
+    by name. Widening it admits the two sites that are not readers at all, and
+    they are named here so the pin discriminates rather than merely counting:
+    the constructor write in `driver.py` (which BUILDS the index) and the
+    attribute's declaration in `state.py`. Everything else is a reader, and the
+    two channels are the offer interpreter (`runtime/execute.py`) and the
+    auction form (`runtime/mechanics.py`).
 
-    red under: add a `move_type_index[` read anywhere else under
-    `cardlang/runtime/`."""
+    red under: add a `move_type_index` mention anywhere else under
+    `cardlang/runtime/` — a `.get(name)` consumer included."""
     hits: dict[str, int] = {}
     for path in (ROOT_DIR / "cardlang" / "runtime").rglob("*.py"):
-        count = len(re.findall(r"move_type_index\[", path.read_text()))
+        count = len(re.findall(r"move_type_index", path.read_text()))
         if count:
             hits[path.name] = count
-    assert hits == {"execute.py": 2, "mechanics.py": 2}, hits
+    assert hits == {
+        # readers — the two execution channels the premise is about
+        "execute.py": 2,
+        "mechanics.py": 2,
+        # non-readers, admitted by the wider matcher and excluded by name
+        "driver.py": 1,
+        "state.py": 1,
+    }, hits
 
 
 # --- the three standing collision arms, with a tail present ------------------
@@ -1146,9 +1172,17 @@ def test_the_admitted_hook_positions_are_reached_by_a_playout(
 
 
 def test_the_grid_is_not_empty() -> None:
-    """The parametrized axes above are derived from registries and from the
-    grammar; a read gone wrong would silently shrink them to nothing."""
+    """A floor under the two authored cell dicts, and the honest statement of
+    what a floor is worth: the dicts are AUTHORED, not derived, so this catches
+    an edit that empties one or drops a whole polarity — never a domain gone
+    unexamined. The pins that would catch THAT are the derived ones (the game
+    fields, the phase items, the offering slots), each of which reddens on its
+    own registry.
+
+    Born green, like every floor. red under: empty either dict, or delete every
+    accept row from `_CONTAINMENT_CELLS`, leaving a taxonomy that only ever
+    proves the guard fires."""
     assert len(_MEMBERSHIP_CELLS) >= 11
-    assert len(_CONTAINMENT_CELLS) >= 14
+    assert len(_CONTAINMENT_CELLS) >= 21
     assert any(v is None for v in _CONTAINMENT_CELLS.values())
     assert any(v is not None for v in _CONTAINMENT_CELLS.values())
