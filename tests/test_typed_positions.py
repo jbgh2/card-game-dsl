@@ -14,6 +14,10 @@ value, because that is what decides whether a wrong one is loud:
 - A value matched against a domain where "no match" is a legal answer is likewise
   silent -- a round's `trump` that matches no card plays the hand as no-trump
   while the rules still enforce trump obligations.
+- A value whose consumption TESTS its type and skips on mismatch is silent for
+  the same reason, even where its type looks like it would raise: a rule's
+  `if_impossible` fallback is dropped, taking with it the refusal that the
+  same clause correctly typed would have raised.
 - A value coerced by `int(...)`, indexed, iterated, or compared RAISES. Those
   positions may stay GRADUAL: the permissive top is caught downstream, loudly.
 
@@ -110,6 +114,14 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("Turns", "until"): (TOTAL, "Boolean"),
     # -- matched against a domain where "no match" is legal: also silent -------
     ("TrickRound", "trump"): (TOTAL, "Suit?"),
+    # A collection position, but its consumption TESTS the type and skips
+    # (`runtime/rules.py`, the `isinstance(fallback, (list, set, tuple))` arm)
+    # rather than coercing and raising, so a wrong value is dropped in silence
+    # -- and drops the guard that would otherwise fire with it. Measured on
+    # belote 2026-08-31: a narrowing fallback raises OwnerGuardError where the
+    # same clause mistyped plays on, every seed differing. The sibling shape
+    # done right is `evaluate.py`'s `divided by` arm, which raises.
+    ("RuleDef", "if_impossible"): (TOTAL, "Collection<Card>"),
     # -- coerced / indexed / iterated / compared: raises, so gradual is loud ---
     ("Choose", "lo"): (GRADUAL, "Integer"),
     ("Choose", "hi"): (GRADUAL, "Integer"),
@@ -132,7 +144,6 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("ClimbRound", "participants"): (GRADUAL, "Collection<Player>"),
     ("Demands", "expr"): (GRADUAL, "Collection<Card>"),
     ("RuleDef", "exempts"): (GRADUAL, "Collection<Card>"),
-    ("RuleDef", "if_impossible"): (GRADUAL, "Collection<Card>"),
     ("CardQuery", "source"): (GRADUAL, "Collection<Card>"),
     ("Comprehension", "source"): (GRADUAL, "Collection"),
     ("DomainQuery", "source"): (GRADUAL, "Collection"),
