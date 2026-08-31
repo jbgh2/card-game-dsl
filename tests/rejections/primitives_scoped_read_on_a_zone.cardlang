@@ -1,0 +1,20 @@
+// Guard: resolve.py's `_check_read_tail`. A tail on a ZONE. Zones are
+// game-level in this language — there is no phase-local `zones { }` form — so
+// the tail has nothing to denote, and the diagnostic says the game declares
+// the name itself rather than leaving the designer to guess.
+game ScopedReadOnAZone {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p] in outer, trump_suit
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0  trump_suit : Suit? = spades }
+  phase outer {
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+  }
+  winner: highest meld
+}

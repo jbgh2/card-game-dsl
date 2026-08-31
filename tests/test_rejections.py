@@ -100,7 +100,14 @@ covered:    one case per named guard class (the directory glob is the
             and a game binder spelled like a variable the library it `uses`
             PROVIDES — the corpus's first case reaching a real family
             library, so the rendered message names a library the reader can
-            go and open.
+            go and open; and the [[phase-scoped-read]]'s own guard classes,
+            one case per new or reworded message — the per-read tail misread
+            as clause-wide, a tail naming no phase of the game, a tail naming
+            a real phase that is not the declarer, a tail on game state, a
+            tail on a zone, the transposed binder's parse twin, two phases in
+            one clause, a strict descendant re-declaring the scoped name, a
+            call from outside the declaring phase, and a move type calling a
+            scoped entry offered from outside it.
 sampled:    the guard-class population itself — every diagnostic emission
             site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
             `cardlang/deckcheck.py` — is open and growing as the language

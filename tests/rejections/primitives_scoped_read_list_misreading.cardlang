@@ -1,0 +1,22 @@
+// Guard: resolve.py's `_check_primitive_reads`, phase-local arm. The scope
+// tail is per READ, not per clause — the most plausible misreading of the
+// whole surface. `trump_suit` is scoped and `pot` is not, so `pot` is still a
+// phase-local name no declaration reaches, and the diagnostic has to teach the
+// per-read form rather than repeat that phase state is unreadable.
+game ScopedReadListMisreading {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], pot, trump_suit in outer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades  pot : Integer = 0 }
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+  }
+  winner: highest meld
+}

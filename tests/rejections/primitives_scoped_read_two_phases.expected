@@ -1,0 +1,1 @@
+primitives_scoped_read_two_phases.cardlang:10:5: error: `pinochle_meld_value` reads state from phases `later`, `outer` — one entry's `reads` clause names at most one phase, since the entry is callable only where that phase runs and two phases are not one place; split the entry, or pass the second value as an argument

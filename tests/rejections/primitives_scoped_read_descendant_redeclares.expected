@@ -1,0 +1,1 @@
+primitives_scoped_read_descendant_redeclares.cardlang:12:62: error: `pinochle_meld_value` reads `trump_suit in outer`, and phase `inner` inside `outer` declares `trump_suit` too — at run time the innermost frame wins, so a call from in there would receive that phase's value while the declaration names `outer`'s; rename one of the two

@@ -1,0 +1,1 @@
+primitives_scoped_read_on_game_state.cardlang:11:74: error: `pinochle_meld_value` reads `meld in outer`, but phase `outer` declares no state `meld` — this game's own `state { }` declares `meld`, and a game-level declaration stands wherever the game runs; drop the tail

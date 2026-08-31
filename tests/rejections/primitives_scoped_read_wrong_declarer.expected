@@ -1,0 +1,1 @@
+primitives_scoped_read_wrong_declarer.cardlang:11:62: error: `pinochle_meld_value` reads `trump_suit in outer`, but phase `outer` declares no state `trump_suit` — phase `later` declares it

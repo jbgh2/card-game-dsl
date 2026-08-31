@@ -1,0 +1,1 @@
+primitives_scoped_read_on_a_zone.cardlang:11:53: error: `pinochle_meld_value` reads `hand in outer`, but phase `outer` declares no state `hand` — this game declares `hand` as a zone family, and a zone is game-level whichever phase runs; drop the tail

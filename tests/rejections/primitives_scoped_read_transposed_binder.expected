@@ -1,0 +1,1 @@
+primitives_scoped_read_transposed_binder.cardlang:11:62: error: a `reads` binder rides the variable, not the phase — write `trump_suit[p] in outer`

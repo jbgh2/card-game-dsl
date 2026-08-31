@@ -1,0 +1,21 @@
+// Guard: parse.py's `primitive_read_transposed_reject`. The one transposition
+// a designer plausibly writes — the binder on the phase instead of on the
+// variable. A reject-with-replacement twin, so what is printed is the sentence
+// they meant.
+game ScopedReadTransposedBinder {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer[p]
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+  }
+  winner: highest meld
+}

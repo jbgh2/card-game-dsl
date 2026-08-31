@@ -1,0 +1,25 @@
+// Guard: resolve.py's `_check_read_tail`, the fourth collision predicate. A
+// phase inside the named one re-declares the name, so the runtime's
+// innermost-frame walk would hand a call in there the descendant's value while
+// the declaration names the ancestor's — a wrong answer with no failure
+// anywhere. Refusing the pair is what lets the materializer stay unchanged.
+game ScopedReadDescendantRedeclares {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    phase inner {
+      state { trump_suit : Suit? = hearts }
+      meld[0] := pinochle_meld_value(0)
+    }
+  }
+  winner: highest meld
+}

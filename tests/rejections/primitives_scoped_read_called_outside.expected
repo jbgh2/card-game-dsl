@@ -1,0 +1,1 @@
+primitives_scoped_read_called_outside.cardlang:19:16: error: `pinochle_meld_value` reads state declared in phase `outer`, so it is callable only where that phase runs — this call is in another phase, which runs outside it; move the call inside `outer`, or pass the value as an argument

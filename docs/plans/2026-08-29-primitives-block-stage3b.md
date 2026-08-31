@@ -166,10 +166,13 @@ doctrine for this stage):
    names the game body calls, no more (a declared-but-uncalled name keeps
    dead Python alive: the reconcile counts declared names as reached).
 2. Author the block to match `implementation_sig` exactly and the reads to
-   match the game's `PRIMITIVE_READS` row content. First verify no row name
-   is phase-local-only (the authored-row pin tolerates what a block's reads
-   refuse — a game hitting that asymmetry is a stop-and-report, not a
-   workaround).
+   match the game's `PRIMITIVE_READS` row content. A row name only a PHASE
+   declares takes the scope tail — `trump_suit in hand_sequence`, the
+   [[phase-scoped-read]] — which also commits the entry to being called only
+   inside that phase's subtree, or from a move type offered only there; the
+   resolver refuses the rest, so the commitment is checked rather than
+   promised. A name TWO phases declare, or one the game declares as well,
+   still stops and reports.
 3. Delete the game's CALL-NAMESPACE row **and, in the same change, the
    runtime module's import-time `ROW = reads.row(...)` binding and its
    legacy dispatch arm's row wiring** — the binding executes at import, so
@@ -188,8 +191,8 @@ doctrine for this stage):
    goes false as games migrate).
 
 - **Batch A (landed):** holdem-heads-up, skat, five-hundred. Seven-card-stud
-  and holdem walled out at the recipe's step-2 gate (issue #504) — their
-  rows, `ROW` bindings, and dispatch arms stay until that issue resolves.
+  and holdem cleared the step-2 gate when the scope tail landed (issue #504);
+  they migrate one PR each with the rest of the phase-local cohort.
 - **Batch B (the closer):** belote, tichu — the last two games whose rows
   are game-level. Belote is the eight-entry block (the entry-grain
   over-declaration hazard batch A recorded: the module-source scan compares
@@ -198,9 +201,12 @@ doctrine for this stage):
   first live exercise of the narrowed pin's carve-out. Known harness gaps
   batch A recorded for belote: `_SPELLINGS` lacks `Rank`; `_ASSIGNMENTS`
   lacks an optional-Player return.
-- Pinochle, french-tarot, and canasta migrate one PR each as issue #504's
-  chosen path lands for them (their surviving auction rows make pinochle
-  and french-tarot the pin carve-out's other exercisers when they arrive).
+- **The phase-local cohort (#504's path, landed):** pinochle rides in with
+  the scope tail itself, as its in-change witness — its call-namespace row,
+  `ROW` binding and dispatch arm go, while its AUCTION row survives per the
+  narrowed pin. Seven-card-stud, holdem, french-tarot and canasta follow one
+  PR each; french-tarot is the pin carve-out's other exerciser, and canasta
+  is the one that exercises the containment rule's move-type leg live.
 
 Proving artifact per game: the quoted full-width byte-identical run where the
 game HAS a per-seed golden, and the corpus reconcile pin green (its domain
@@ -213,8 +219,10 @@ nothing.
 
 ## Closing steps, gated — recorded here so the end state is one place
 
-- The phase-local five (#504), gin (#472), cribbage (#473), coup (the
-  eviction): one PR each, when its wall falls.
+- The four phase-local games left after pinochle (#504), gin (#472),
+  cribbage (#473), coup (the eviction): one PR each, when its wall falls.
+  #504's own wall is down — what remains under it is the rollout, and the
+  issue closes with the last of the four.
 - The legacy-table deletion that ticks #142's stage-3 box: `PRIMITIVE_READS`
   loses its last call-namespace row only when every walled game's wall has
   fallen; the Primitive half of `CALL_SIGS` is deleted and the signature

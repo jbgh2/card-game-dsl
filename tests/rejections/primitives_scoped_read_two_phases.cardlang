@@ -1,0 +1,24 @@
+// Guard: resolve.py's `_check_primitive_reads`. One entry has ONE containment
+// region, because the entry is callable only where its phase runs and two
+// phases' extents are not one place.
+game ScopedReadTwoPhases {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer, bonus in later
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+  }
+  phase later {
+    state { bonus : Integer = 0 }
+    meld[1] := bonus
+  }
+  winner: highest meld
+}

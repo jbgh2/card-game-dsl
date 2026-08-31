@@ -153,6 +153,7 @@ from cardlang.primitives_block import (
     BINDABLE_READ_KINDS,
     PRIMITIVE_IMPLEMENTATIONS,
     InvocationContract,
+    ReadKind,
     Regime,
     call_namespace,
     classify_read,
@@ -5301,10 +5302,18 @@ def _check_read_tail(
         elsewhere = declaring_phases(game, read.name) - {phase}
         if elsewhere:
             remedy = f" — {_phase_list(elsewhere)} declares it"
-        elif classify_read(game, read.name) is not None:
+        elif (here := classify_read(game, read.name)) is not None:
+            # Name what it IS. A zone earns its own half-sentence, because the
+            # language has no phase-local `zones { }` form at all and a
+            # designer who wrote one needs to know the tail can never apply to
+            # it, not merely that it does not apply here.
             remedy = (
-                f" — this game declares `{read.name}` itself, and a game-level "
-                f"declaration stands wherever the game runs; drop the tail"
+                f" — this game declares `{read.name}` as a {here.value}, and a "
+                f"zone is game-level whichever phase runs; drop the tail"
+                if here in (ReadKind.ZONE_FAMILY, ReadKind.SINGLE_ZONE)
+                else f" — this game's own `state {{ }}` declares `{read.name}`, "
+                f"and a game-level declaration stands wherever the game runs; "
+                f"drop the tail"
             )
         else:
             remedy = " — check the spelling, or declare it in that phase"
