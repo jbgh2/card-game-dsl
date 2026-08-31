@@ -131,6 +131,7 @@ EXCUSED: dict[tuple[str, str, int], str] = {
     ("getaway.cardlang", "delete_line", 0): "getaway_missing_deal_no_hand_holder",
     ("getaway.cardlang", "delete_line", 4): "getaway_no_legal_play_no_if_impossible",
     ("gops.cardlang", "delete_line", 2): "gops_empty_legal_set",
+    ("oh-hell.cardlang", "delete_line", 2): "oh_hell_missing_trump_turnup",
     # Skat has NO key here anymore, and no ledger entry either. Both of its
     # findings were reads that the Trick Order retired with the Primitives that
     # made them (issue #250 PR 2): `skat_follow_ok`'s bare `IndexError` on

@@ -186,4 +186,25 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "asked to choose from an empty hand at decision 27."
         ),
     ),
+    Finding(
+        slug="oh_hell_missing_trump_turnup",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="OwnerGuardError",
+        message_substring="suit_of: the zone is empty",
+        note=(
+            "docs/games/oh-hell.cardlang, `delete_line` seed 2, deleting the "
+            "per-hand `deal 1 card from deck to trump_indicator` (line 66 at "
+            "discovery time). The next statement, `trump_suit := "
+            "suit_of(trump_indicator)`, reads the suit of the card that "
+            "turn-up was to place, and the primitive refuses an empty zone — "
+            "crashes before any decision. The same missing-deal shape as "
+            "`getaway_missing_deal_no_hand_holder` and "
+            "`cheat_empty_count_range`, surfacing through a third channel: a "
+            "zone-reading primitive rather than a card lookup or an integer "
+            "range. Zone occupancy is not static — the deck-capacity gate's "
+            "domain is deck usage only (deckcheck.py) — so nothing upstream "
+            "sees that the zone this read depends on is never filled."
+        ),
+    ),
 )
