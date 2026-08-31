@@ -88,6 +88,15 @@ does not prove: a green here says nothing about whether the runtime premise
             And a green says nothing about whether a declared read SUFFICES
             for its implementation — that is a fact about Python, proven only
             by a playout (tests/test_primitives_block.py's witness owns it).
+walls:      four refusals here are DEFERRALS with a tracker record — a
+            spelling two declarations answer to (issue #516), two phases in
+            one clause (issue #517), a scoped call in a function, define or
+            rule body (issue #518) — and three are DESIGNED constraints
+            recorded at their construct rather than filed: a library cannot
+            declare a phase for a tail to name (off the grammar), a move type
+            nothing offers is refused rather than passing containment
+            vacuously, and a strict descendant re-declaring the name is
+            refused rather than resolved by tagging frames at run time.
 
 Born red (this branch, before any of the tail's grammar, AST, resolve or
 runtime existed): recorded at the foot of this docstring in two takes, because
@@ -824,8 +833,10 @@ def test_no_library_can_declare_a_phase_for_a_tail_to_name() -> None:
     """The `in` slot resolves against the game's own phase tree, which is the
     only phase tree there is: `?library_item` admits no phase production, so a
     library-declared phase is unconstructible rather than merely unwitnessed.
-    Stated off the grammar so the day a library may declare one, this reddens
-    rather than the gap going unnoticed.
+    A designed constraint of the library tier, not a deferral — there is
+    nothing to build and no issue to file. Stated off the grammar so the day a
+    library may declare a phase, this reddens rather than the gap going
+    unnoticed.
 
     red under: add `phase` to `?library_item`."""
     grammar = (ROOT_DIR / "cardlang" / "grammar" / "cardlang.lark").read_text()

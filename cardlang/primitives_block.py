@@ -452,7 +452,14 @@ def descendant_redeclarations(game: n.Game, phase: str, name: str) -> frozenset[
     the declaration names the ancestor's: a wrong answer with no failure
     anywhere, which is the register the three sibling predicates exist to
     refuse. Refusing the pair at compile is what lets the materializer keep its
-    innermost-first walk unchanged and untagged."""
+    innermost-first walk unchanged and untagged.
+
+    A designed constraint. The obvious alternative — tag frames with their
+    phase and target the declared one at run time — is rejected and should not
+    be revisited without new evidence: frames are anonymous by design, tagging
+    taxes every push site, and it buys correctness only for the case this
+    refusal removes at no measured corpus cost, while letting two textually
+    identical calls read different stores."""
     return frozenset(
         path[-1]
         for path, declared in _phase_state_paths(game)

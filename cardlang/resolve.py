@@ -5135,7 +5135,8 @@ def _check_primitive_reads(
     # One entry, one containment region: the scope tail makes the entry callable
     # only where the named phase runs, and two phases' extents are not one place.
     # Settled per ENTRY rather than per read, and before the per-read arms, so a
-    # designer meets the composition error rather than two halves of it.
+    # designer meets the composition error rather than two halves of it. Two
+    # regions would have to be intersected, which is issue #517.
     tailed = {read.phase for read in decl.reads if read.phase is not None}
     if len(tailed) > 1:
         bag.error(
@@ -5178,7 +5179,8 @@ def _check_primitive_reads(
             # is false about the text in front of the designer. The pair stays
             # refused for the other half of the collision: the game-level
             # variable of that spelling would be unreadable by any declaration
-            # at all, with nothing on the page saying so.
+            # at all, with nothing on the page saying so. Lifting it means the
+            # bundle stops being keyed by bare name; issue #516.
             bag.error(
                 (
                     f"`{decl.name}` reads `{read.name} in {read.phase}`, and "
@@ -5357,9 +5359,12 @@ _CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
     # Everything else runs outside any phase, or holds no call at all. Refusing
     # both together is exact in the safe direction: a field that cannot hold a
     # `Call` contributes no diagnostic, and one that can is refused for the
-    # reason the wall states — containment cannot be established without
-    # interprocedural analysis, and a `winner:`/`loser:` expression runs with
-    # no phase frame standing at all.
+    # reason the wall states — a `winner:`/`loser:` expression runs with no
+    # phase frame standing at all, and a function, define or rule body has no
+    # lexical phase, so its liveness is reachability rather than position
+    # (issue #518, the near neighbour of issue #242's standing question). A
+    # procedure is the one callable container that IS judged, because a `run`
+    # site is a position.
     "name": "refused",
     "players": "refused",
     "deck": "refused",
@@ -5582,6 +5587,10 @@ def _check_offered_containers(
             continue
         sites = _offering_sites(game, move_type.name)
         if not sites:
+            # Designed constraint, not a deferral: a move type nothing offers
+            # never runs, so "every offering site is inside the phase" would be
+            # true of it vacuously — a guard that cannot fire. Refusing is what
+            # keeps the containment claim about a real containment.
             bag.error(
                 f"move type `{move_type.name}` calls `{entry}`, which reads "
                 f"state declared in phase `{phase_name}`, and no statement "
