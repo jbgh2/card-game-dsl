@@ -40,8 +40,8 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             field or item forces a decision rather than defaulting to
             "allowed"; the OFFERING SURFACE — the move-type-naming slots of
             resolve's `_REFERENCE_SLOTS`, classified offering / non-offering
-            in one table pinned total against the derived candidates, so an
-            eighth slot arrives unclassified and reddens; and the three
+            in one table pinned total against the derived candidates, so a
+            slot added there arrives unclassified and reddens; and the three
             standing collision arms, each re-probed WITH a tail present so
             the new surface cannot lift them silently.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
@@ -83,11 +83,12 @@ does not prove: a green here says nothing about whether the runtime premise
             execution channel reddens there rather than making this guard
             silently unsound. The asymmetry inside that premise is worth
             stating: of the offering slots, the KERNEL-namespaced ones are
-            execution-inert for a game move type's body today — the runtime
-            reaches a move-type definition by name at exactly 2 channels
-            across 4 sites, neither of them `legal_moves:` — so those edges
-            guard a future consumer rather than a live one, and a green over
-            them proves the relation is derived, not that it is exercised.
+            execution-inert for a game move type's body — the runtime reaches a
+            move-type definition by name only at the sites
+            `test_the_move_type_index_readers_are_the_pinned_census` pins, and
+            `legal_moves:` is not among them — so those edges guard a future
+            consumer rather than a live one, and a green over them proves the
+            relation is derived, not that it is exercised.
             Nor does a green say a scoped entry is ever
             CALLED: an entry with a scoped read and zero calls passes
             containment vacuously, and what keeps a block naming only names
@@ -100,14 +101,17 @@ does not prove: a green here says nothing about whether the runtime premise
             And a green says nothing about whether a declared read SUFFICES
             for its implementation — that is a fact about Python, proven only
             by a playout (tests/test_primitives_block.py's witness owns it).
-walls:      four refusals here are DEFERRALS with a tracker record — a
-            spelling two declarations answer to (issue #516), two phases in
-            one clause (issue #517), a scoped call in a function, define or
-            rule body (issue #518) — and three are DESIGNED constraints
-            recorded at their construct rather than filed: a library cannot
-            declare a phase for a tail to name (off the grammar), a move type
+walls:      the refusals here are not one kind, and the ledger says which is
+            which so a reader can tell an unbuilt feature from a built wall.
+            DEFERRALS, each with a tracker record naming the game shape that
+            unblocks it: a spelling two declarations answer to — the shadowed
+            pair and the phase-and-zone pair alike (issue #516); two phases in
+            one clause (issue #517); a scoped call in a function, define or
+            rule body (issue #518). DESIGNED constraints, recorded at their
+            construct rather than filed: a library cannot declare a phase for
+            a tail to name (unconstructible off the grammar); a move type
             nothing offers is refused rather than passing containment
-            vacuously, and a strict descendant re-declaring the name is
+            vacuously; and a strict descendant re-declaring the name is
             refused rather than resolved by tagging frames at run time.
 
 Born red (this branch, before any of the tail's grammar, AST, resolve or
@@ -789,8 +793,9 @@ def test_the_move_type_index_readers_are_the_pinned_census() -> None:
     reads the consumer sites, not the guard's own output, so a new execution
     channel reddens here rather than making the guard silently unsound.
 
-    Two channels, four sites: the offer interpreter (`runtime/execute.py`) and
-    the auction form (`runtime/mechanics.py`).
+    The two channels are the offer interpreter (`runtime/execute.py`) and the
+    auction form (`runtime/mechanics.py`); the assertion below is where their
+    site counts are stated, so nothing else has to repeat them.
 
     red under: add a `move_type_index[` read anywhere else under
     `cardlang/runtime/`."""

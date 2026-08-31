@@ -5411,9 +5411,9 @@ _SUBTREE_PHASE_ITEMS: dict[str, str] = {
 # Which move-type-naming reference slots OFFER a move type — put it in play at
 # the position they sit at — and which merely mention one. DERIVED candidates,
 # authored classification: the table is pinned equal to the `move_type` /
-# `kernel_move_type` slots of `_REFERENCE_SLOTS`, so an eighth slot arrives
-# unclassified and reddens rather than silently widening or narrowing the
-# containment relation.
+# `kernel_move_type` slots of `_REFERENCE_SLOTS`, so a move-type-naming slot
+# added there arrives unclassified and reddens rather than silently widening or
+# narrowing the containment relation.
 _MOVE_TYPE_SLOT_OFFERS: dict[tuple[type, str], bool] = {
     (n.Offer, "offering"): True,
     (n.AuctionRound, "offering"): True,
