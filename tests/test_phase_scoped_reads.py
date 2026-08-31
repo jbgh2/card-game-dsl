@@ -150,7 +150,7 @@ _CALL = "    for each player p: meld[p] := pinochle_meld_value(p)\n"
 
 def _probe(
     *,
-    block: str = _ENTRY,
+    block: str | None = _ENTRY,
     top: str = "",
     zones: str = "",
     game_state: str = "",
@@ -228,7 +228,8 @@ def test_the_grammar_carries_the_tail_on_the_read_production() -> None:
     assert production is not None, "the `primitive_read` production is gone"
     text = production.group(0)
     assert "[_IN_KW NAME]" in text, text
-    assert "_IN_KW" not in re.search(r"^primitive_reads:.*$", grammar, re.M).group(0)
+    clause = re.search(r"^primitive_reads:.*$", grammar, re.M)
+    assert clause is not None and "_IN_KW" not in clause.group(0)
 
 
 @pytest.mark.parametrize(
@@ -263,10 +264,9 @@ def test_the_four_accepted_spellings_play(clause: str, scoped: tuple[str, ...]) 
     if not scoped:
         source = source.replace("    state { trump_suit : Suit? = spades }\n", "")
     game = _checks(source)
+    assert game.primitives is not None
     read_phases = {
-        r.name: r.phase
-        for d in game.primitives.decls
-        for r in d.reads
+        r.name: r.phase for d in game.primitives.decls for r in d.reads
     }
     assert {k for k, v in read_phases.items() if v is not None} == set(scoped)
     _plays(source)
@@ -345,8 +345,11 @@ def _membership_source(cell: str) -> str:
         case "also-a-zone":
             return _probe(zones="  trump_suit : Discard")
         case "other-phase-declares-it":
+            # The near miss: `outer` is a real phase and the tail names it, but
+            # `later` is what declares the name. The diagnostic must say so.
             return _probe(
-                block=_ENTRY.replace("in outer", "in later"),
+                outer_state="",
+                outer_body="    meld[0] := meld[0]\n",
                 after_outer="  phase later {\n"
                 "    state { trump_suit : Suit? = hearts }\n"
                 "    meld[0] := meld[0]\n"
@@ -558,11 +561,7 @@ def test_the_containment_taxonomy_is_total_over_the_phase_items() -> None:
     red under: add a member to `PhaseItem` without deciding it."""
     from cardlang.resolve import _SUBTREE_PHASE_ITEMS
 
-    members = {
-        m.strip() for m in typing.get_args(n.PhaseItem)[0].split("|")
-    } if isinstance(typing.get_args(n.PhaseItem), tuple) else set()
-    if not members:  # the alias is a string literal; read it as one
-        members = {m.strip() for m in n.PhaseItem.split("|")}  # type: ignore[attr-defined]
+    members = {m.strip() for m in str(n.PhaseItem).split("|")}
     assert set(_SUBTREE_PHASE_ITEMS) == members, sorted(
         set(_SUBTREE_PHASE_ITEMS) ^ members
     )
@@ -586,13 +585,15 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
     "procedure-run-both-sides": ("bump", "outer"),
 }
 
+# Definitions are TOP-LEVEL forms, not game items — so each rides the `top`
+# slot, exactly as the corpus writes them.
 _NOTE = (
-    "  move_type note() {\n"
-    "    when: pinochle_meld_value(0) >= 0\n"
-    "    effect { meld[0] := meld[0] }\n"
-    "  }\n"
+    "move_type note {\n"
+    "  when: pinochle_meld_value(0) >= 0\n"
+    "  effect { meld[0] := meld[0] }\n"
+    "}\n"
 )
-_BUMP = "  procedure bump() {\n" + _CALL + "  }\n"
+_BUMP = "procedure bump() {\n" + _CALL + "}\n"
 
 
 def _containment_source(cell: str) -> str:
@@ -625,47 +626,47 @@ def _containment_source(cell: str) -> str:
             )
         case "function-body":
             return _probe(
-                game_items="  function meld_of(q : Player) = pinochle_meld_value(q)\n",
+                top="function meld_of(q : Player) = pinochle_meld_value(q)\n",
                 outer_body=_DEAL + "    for each player p: meld[p] := meld_of(p)\n",
             )
         case "rule-applies-when":
             return _probe(
-                game_items="  rule r {\n"
-                "    constrains: play_to_trick\n"
-                "    applies_when: pinochle_meld_value(0) >= 0\n"
-                "    demands: cards in hand where true\n"
-                "  }\n",
+                top="rule r {\n"
+                "  constrains: play_to_trick\n"
+                "  applies_when: pinochle_meld_value(0) >= 0\n"
+                "  demands: cards in hand where true\n"
+                "}\n",
                 outer_body=_DEAL,
             )
         case "loser-expression":
             return _probe(
                 outer_body=_DEAL,
-                winner="  loser: any player p where pinochle_meld_value(p) < 0\n",
+                winner="  loser: the player where pinochle_meld_value(player) >= 0\n",
             )
         case "move-type-offered-inside":
             return _probe(
-                game_items=_NOTE,
+                top=_NOTE,
                 outer_body=_DEAL + "    offer to 0 one of [note]\n",
             )
         case "move-type-offered-outside":
             return _probe(
-                game_items=_NOTE,
+                top=_NOTE,
                 outer_body=_DEAL + "    offer to 0 one of [note]\n",
                 after_outer="  phase later {\n    offer to 1 one of [note]\n  }\n",
             )
         case "move-type-offered-nowhere":
-            return _probe(game_items=_NOTE, outer_body=_DEAL)
+            return _probe(top=_NOTE, outer_body=_DEAL)
         case "procedure-run-inside":
-            return _probe(game_items=_BUMP, outer_body=_DEAL + "    run bump()\n")
+            return _probe(top=_BUMP, outer_body=_DEAL + "    run bump()\n")
         case "procedure-run-outside":
             return _probe(
-                game_items=_BUMP,
+                top=_BUMP,
                 outer_body=_DEAL,
                 after_outer="  phase later {\n    run bump()\n  }\n",
             )
         case "procedure-run-both-sides":
             return _probe(
-                game_items=_BUMP,
+                top=_BUMP,
                 outer_body=_DEAL + "    run bump()\n",
                 after_outer="  phase later {\n    run bump()\n  }\n",
             )
@@ -875,6 +876,8 @@ def test_the_ir_read_row_carries_the_phase_always() -> None:
     addition, because `key:phase` is already emitted by other nodes and its
     scrape is over key NAMES — so this cell is the loud channel for the row's
     shape, and pinochle's `.ir.json` golden is the second."""
+    import json
+
     from cardlang.ir import emit
 
     game = _checks(
@@ -883,7 +886,10 @@ def test_the_ir_read_row_carries_the_phase_always() -> None:
             "reads hand[p], trump_suit in outer"
         )
     )
-    rows = emit(game)["primitives"]["entries"][0]["reads"]  # type: ignore[index,call-overload]
+    # Round-tripped through JSON, which is the form a consumer reads and the
+    # form the goldens hold — and which types as plain data rather than as the
+    # emitter's own recursive union.
+    rows = json.loads(json.dumps(emit(game)))["primitives"]["entries"][0]["reads"]
     assert [r["name"] for r in rows] == ["hand", "trump_suit"]
     assert [r["phase"] for r in rows] == [None, "outer"]
     assert all("phase" in r for r in rows)

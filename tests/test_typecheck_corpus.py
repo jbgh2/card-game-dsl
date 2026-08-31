@@ -113,8 +113,14 @@ def test_md_twin_checks(path: Path) -> None:
 
 def _block_facts(game: object) -> dict[str, object] | None:
     """A `primitives { }` block as comparable facts: per entry, the typed
-    parameter list, the return spelling, and the reads (name, binder). None
-    for a legacy game, so regime drift between twins is itself a diff."""
+    parameter list, the return spelling, and the reads (name, binder, scope
+    tail). None for a legacy game, so regime drift between twins is itself a
+    diff.
+
+    The tail is part of a read, not decoration: a [[phase-scoped-read]] present
+    in one twin and absent — or naming a different phase — in the other checks
+    clean on both sides, so a tuple that dropped it would let exactly that
+    drift through."""
     primitives = getattr(game, "primitives")
     if primitives is None:
         return None
@@ -122,7 +128,7 @@ def _block_facts(game: object) -> dict[str, object] | None:
         d.name: (
             tuple((p.name, p.type_name) for p in d.params),
             d.return_type,
-            tuple(sorted((r.name, r.binder or "") for r in d.reads)),
+            tuple(sorted((r.name, r.binder or "", r.phase or "") for r in d.reads)),
         )
         for d in primitives.decls
     }

@@ -93,6 +93,21 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               reaching ``classify_read`` is therefore single-membership,
               which is what lets ``runtime/driver``'s materialization call
               the same classifier with no refusal of its own.
+              And, for a read carrying a [[phase-scoped-read]]'s ``in <phase>``
+              tail: the tail names a real phase of the game, that phase's own
+              ``state { }`` declares the name, no STRICT DESCENDANT of it
+              re-declares the name, one entry's clause names at most one
+              phase, and every call of that entry sits inside the named
+              phase's subtree — or in a game move type every offering mention
+              of which does, or at a ``run`` site that does
+              (``_check_read_tail``, ``_check_scoped_read_containment``). Like
+              the actor-alias rule this is a SCOPE fact, not a type fact, so
+              it is settled here; and necessarily before ``expand``, which
+              erases the ``run`` sites a procedure body is judged at.
+              ``runtime/driver`` may therefore assume the declaring frame
+              stands, and holds the name, at every call this pass admits, and
+              defends a scoped read with nothing but an Owner-naming
+              [[shadow-guard]].
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -144,7 +159,9 @@ from cardlang.primitives_block import (
     declared_names,
     ambiguous_read_names,
     declaring_phases,
+    descendant_redeclarations,
     phase_local_state_names,
+    phase_names,
     phase_state_zone_names,
     shadowed_state_names,
     declarable_type_names,
@@ -2245,6 +2262,10 @@ def resolve(game: n.Game) -> n.Game:
     # block is wrong should hear about the block rather than about every call
     # that then fails to resolve.
     _check_primitives_block(game, bag)
+    # After the block is validated whole, because it asks a different question
+    # — where the game CALLS a scoped entry — and it must run before `expand`
+    # erases the `run` sites a procedure body is judged at.
+    _check_scoped_read_containment(game, bag)
     for zone in game.zones:
         _resolve_zone(zone, bag, position_names)
 
@@ -5110,6 +5131,21 @@ def _check_primitive_reads(
             )
             return
         seen.add(read.name)
+    # One entry, one containment region: the scope tail makes the entry callable
+    # only where the named phase runs, and two phases' extents are not one place.
+    # Settled per ENTRY rather than per read, and before the per-read arms, so a
+    # designer meets the composition error rather than two halves of it.
+    tailed = {read.phase for read in decl.reads if read.phase is not None}
+    if len(tailed) > 1:
+        bag.error(
+            f"`{decl.name}` reads state from "
+            f"{_phase_list(frozenset(tailed))} — one entry's `reads` clause "
+            f"names at most one phase, since the entry is callable only where "
+            f"that phase runs and two phases are not one place; split the "
+            f"entry, or pass the second value as an argument",
+            decl.span,
+        )
+        return
     # A PURE implementation never receives the bundle (`primitives.call_declared`
     # hands it the coerced arguments and nothing else), so a `reads` clause on
     # one declares a dependency the dispatch cannot honour — accepted-and-
@@ -5137,11 +5173,26 @@ def _check_primitive_reads(
             )
             continue
         if read.name in collisions.shadowed:
+            # The tail says WHICH declaration is meant, so the untailed reason
+            # is false about the text in front of the designer. The pair stays
+            # refused for the other half of the collision: the game-level
+            # variable of that spelling would be unreadable by any declaration
+            # at all, with nothing on the page saying so.
             bag.error(
-                f"`{decl.name}` reads `{read.name}`, which the game AND a phase "
-                f"both declare — the declaration cannot say which, and at run "
-                f"time the phase's value wins while that phase is active; "
-                f"rename one of the two",
+                (
+                    f"`{decl.name}` reads `{read.name} in {read.phase}`, and "
+                    f"the game's own `state {{ }}` declares `{read.name}` too "
+                    f"— the tail says which of the two is meant, but the "
+                    f"game-level variable is then unreadable by any "
+                    f"declaration and nothing says so; rename one of the two"
+                )
+                if read.phase is not None
+                else (
+                    f"`{decl.name}` reads `{read.name}`, which the game AND a "
+                    f"phase both declare — the declaration cannot say which, "
+                    f"and at run time the phase's value wins while that phase "
+                    f"is active; rename one of the two"
+                ),
                 read.span or decl.span,
             )
             continue
@@ -5150,23 +5201,33 @@ def _check_primitive_reads(
                 f"`{decl.name}` reads `{read.name}`, which "
                 f"{_phase_list(declaring_phases(game, read.name))} declares as "
                 f"state while this game declares it as a zone — the declaration "
-                f"cannot say which, and a `reads` name classifies against the "
-                f"zones and the GAME's state, so the phase's variable is not "
-                f"what it denotes; rename one of the two (a phase-local "
-                f"variable is unreadable by a declaration either way — the row "
-                f"is materialized on every call)",
+                f"cannot say which, and an untailed `reads` name classifies "
+                f"against the zones and the GAME's state, so the phase's "
+                f"variable is not what it denotes; rename one of the two (a "
+                f"scope tail does not settle it either — a zone is game-level "
+                f"whichever phase a read names, so one of the two spellings "
+                f"would still be unreachable)",
                 read.span or decl.span,
             )
             continue
-        kind = classify_read(game, read.name)
+        if read.phase is not None and _check_read_tail(game, decl, read, bag):
+            continue
+        kind = classify_read(game, read.name, read.phase)
         if kind is None:
             if read.name in collisions.phase_local:
+                where = declaring_phases(game, read.name)
+                tail = (
+                    f"`{read.name} in {sorted(where)[0]}`"
+                    if len(where) == 1
+                    else f"`{read.name} in <phase>`"
+                )
                 bag.error(
                     f"`{decl.name}` reads `{read.name}`, which a PHASE declares "
-                    f"— a Primitive's row is materialized on every call, so a "
-                    f"phase-local variable is readable only while that phase "
-                    f"runs; declare it in the game's `state {{ }}` block, or "
-                    f"pass the value as an argument",
+                    f"({_phase_list(where)}) — a Primitive's row is "
+                    f"materialized on every call, so a phase-local variable is "
+                    f"readable only while that phase runs; write {tail} to "
+                    f"declare the scope, declare it in the game's "
+                    f"`state {{ }}` block, or pass the value as an argument",
                     read.span or decl.span,
                 )
                 continue
@@ -5200,6 +5261,404 @@ def _check_primitive_reads(
                 f"— an index binder keys the instance the CALL names",
                 read.span or decl.span,
             )
+
+
+def _tail_names_instead(game: n.Game, spelling: str) -> str:
+    """What a scope tail's name IS, when it is not a phase — so the refusal
+    does not mislead a designer who wrote a real name in the wrong slot."""
+    if any(z.name == spelling for z in game.zones):
+        return " — it is a zone of this game"
+    if game.state is not None and any(d.name == spelling for d in game.state.decls):
+        return " — it is a state variable of this game"
+    if any(m.name == spelling for m in game.move_types):
+        return " — it is a move type of this game"
+    return ""
+
+
+def _check_read_tail(
+    game: n.Game, decl: n.PrimitiveDecl, read: n.PrimitiveRead, bag: DiagnosticBag
+) -> bool:
+    """One scoped read's tail, validated against the phase tree. True when the
+    tail is wrong and a diagnostic was issued.
+
+    Runs before classification, beside the collision arms and for their reason:
+    `classify_read` is also the loader's materialization call
+    (`runtime/driver.declared_primitives`), where a refusal could never fire."""
+    assert read.phase is not None
+    phase = read.phase
+    if phase not in phase_names(game):
+        known = phase_names(game)
+        bag.error(
+            f"`{decl.name}` reads `{read.name} in {phase}`, but this game "
+            f"declares no phase `{phase}`"
+            f"{_tail_names_instead(game, phase)} — a scope tail names the "
+            f"phase whose `state {{ }}` declares the name "
+            f"({_phase_list(known) if known else 'this game declares no phase'})",
+            read.span or decl.span,
+        )
+        return True
+    if classify_read(game, read.name, phase) is None:
+        elsewhere = declaring_phases(game, read.name) - {phase}
+        if elsewhere:
+            remedy = f" — {_phase_list(elsewhere)} declares it"
+        elif classify_read(game, read.name) is not None:
+            remedy = (
+                f" — this game declares `{read.name}` itself, and a game-level "
+                f"declaration stands wherever the game runs; drop the tail"
+            )
+        else:
+            remedy = " — check the spelling, or declare it in that phase"
+        bag.error(
+            f"`{decl.name}` reads `{read.name} in {phase}`, but phase "
+            f"`{phase}` declares no state `{read.name}`{remedy}",
+            read.span or decl.span,
+        )
+        return True
+    inner = descendant_redeclarations(game, phase, read.name)
+    if inner:
+        bag.error(
+            f"`{decl.name}` reads `{read.name} in {phase}`, and "
+            f"{_phase_list(inner)} inside `{phase}` declares `{read.name}` too "
+            f"— at run time the innermost frame wins, so a call from in there "
+            f"would receive that phase's value while the declaration names "
+            f"`{phase}`'s; rename one of the two",
+            read.span or decl.span,
+        )
+        return True
+    return False
+
+
+# --- the phase-scoped read's containment analysis ----------------------------
+#
+# An entry with a [[phase-scoped-read]] is callable only where the named phase
+# runs. Settled HERE — a scope fact, the actor-alias precedent — and
+# necessarily before `expand`, which erases the `run` sites a procedure body is
+# judged at.
+
+# Where a `Call` may sit, by the `n.Game` field its container hangs off.
+# AUTHORED, and pinned total against the field set
+# (tests/test_phase_scoped_reads.py), so a new field lands unclassified and
+# reddens rather than defaulting to "allowed" — which is the direction a
+# missing arm would fail in.
+_CONTAINMENT_BY_GAME_FIELD: dict[str, str] = {
+    # The three containers whose contents are JUDGED rather than refused.
+    "phases": "subtree",
+    "move_types": "offering",
+    "procedures": "run_site",
+    # Everything else runs outside any phase, or holds no call at all. Refusing
+    # both together is exact in the safe direction: a field that cannot hold a
+    # `Call` contributes no diagnostic, and one that can is refused for the
+    # reason the wall states — containment cannot be established without
+    # interprocedural analysis, and a `winner:`/`loser:` expression runs with
+    # no phase frame standing at all.
+    "name": "refused",
+    "players": "refused",
+    "deck": "refused",
+    "zones": "refused",
+    "content_flavor": "refused",
+    "direction": "refused",
+    "ranking": "refused",
+    "ranking_convention": "refused",
+    "card_points": "refused",
+    "trick_order": "refused",
+    "trump": "refused",
+    "teams": "refused",
+    "positions": "refused",
+    "board": "refused",
+    "max_length": "refused",
+    "state": "refused",
+    "winner": "refused",
+    "loser": "refused",
+    "rules": "refused",
+    "types": "refused",
+    "defines": "refused",
+    "functions": "refused",
+    "primitives": "refused",
+    "uses": "refused",
+}
+
+# Inside a phase, every item of the `PhaseItem` union is in the subtree — the
+# whole extent of the `Phase` node. `run_phase` pushes the frame and declares
+# the state before the qualifier, the hooks and the body, and pops it in a
+# `finally`, so all of them run with the frame standing. The one item that
+# sits inside the extent syntactically and cannot hold a call is named, with
+# the guard that owns it, rather than re-covered here.
+_SUBTREE_PHASE_ITEMS: dict[str, str] = {
+    "StateBlock": "owned by _check_state_default_scope",
+    "ActiveRules": "in the subtree",
+    "LegalMoves": "in the subtree",
+    "Mode": "in the subtree",
+    "BeforeEach": "in the subtree",
+    "AfterEach": "in the subtree",
+    "Phase": "in the subtree",
+    "Stmt": "in the subtree",
+}
+
+# Which move-type-naming reference slots OFFER a move type — put it in play at
+# the position they sit at — and which merely mention one. DERIVED candidates,
+# authored classification: the table is pinned equal to the `move_type` /
+# `kernel_move_type` slots of `_REFERENCE_SLOTS`, so an eighth slot arrives
+# unclassified and reddens rather than silently widening or narrowing the
+# containment relation.
+_MOVE_TYPE_SLOT_OFFERS: dict[tuple[type, str], bool] = {
+    (n.Offer, "offering"): True,
+    (n.AuctionRound, "offering"): True,
+    (n.TrickRound, "move_type"): True,
+    (n.ClimbRound, "move_type"): True,
+    (n.LegalMoves, "move_types"): True,
+    # A transition event names the move type whose play FIRES it, and a rule
+    # names the move type it constrains. Neither puts a move type in play.
+    (n.MoveEvent, "move_type"): False,
+    (n.RuleDef, "constrains"): False,
+}
+
+_UNCLASSIFIED_MOVE_TYPE_SLOTS = {
+    slot
+    for slot, ns in _REFERENCE_SLOTS.items()
+    if ns in ("move_type", "kernel_move_type")
+} ^ set(_MOVE_TYPE_SLOT_OFFERS)
+if _UNCLASSIFIED_MOVE_TYPE_SLOTS:
+    raise AssertionError(
+        f"_MOVE_TYPE_SLOT_OFFERS and the move-type reference slots disagree: "
+        f"{sorted(f'{c.__name__}.{f}' for c, f in _UNCLASSIFIED_MOVE_TYPE_SLOTS)}"
+    )
+
+
+def _find_phase(game: n.Game, name: str) -> n.Phase | None:
+    return next(
+        (p for p in _child_nodes(game.phases) if isinstance(p, n.Phase) and p.name == name),
+        None,
+    )
+
+
+def _scoped_entry_phases(game: n.Game) -> dict[str, str]:
+    """Entry name -> the ONE phase its reads clause scopes to, for every entry
+    whose tail this pass has already found well-formed. An entry the tail arms
+    refused is left out: containment would co-report on one defect."""
+    if game.primitives is None:
+        return {}
+    known = phase_names(game)
+    scoped: dict[str, str] = {}
+    for decl in game.primitives.decls:
+        named = {r.phase for r in decl.reads if r.phase is not None}
+        if len(named) == 1:
+            phase = next(iter(named))
+            if phase is not None and phase in known:
+                scoped[decl.name] = phase
+    return scoped
+
+
+def _offering_sites(game: n.Game, move_type: str) -> list[object]:
+    """Every node that OFFERS `move_type`, by name across BOTH move-type
+    namespaces. The namespaces overlap in the corpus — pinochle's
+    `declare_trump_suit` is kernel-listed and game-defined at once — so an edge
+    collected by slot namespace would miss a game move type's `legal_moves:`
+    mention."""
+    sites: list[object] = []
+    for node in _walk(game):
+        for (cls, field_name), offers in _MOVE_TYPE_SLOT_OFFERS.items():
+            if offers and isinstance(node, cls) and move_type in slot_strings(
+                node, field_name
+            ):
+                sites.append(node)
+    return sites
+
+
+def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
+    """Every call of an entry carrying a scope tail sits where that phase runs.
+
+    Its own check rather than part of `_check_primitives_block`, because it is
+    a fact about the game's CALL SITES rather than about the block, and it must
+    run while the `run` sites still exist — `expand` splices them away, by
+    value, which is exactly why a procedure body is judged at each `RunStmt`
+    rather than once at its definition."""
+    scoped = _scoped_entry_phases(game)
+    if not scoped:
+        return
+    for entry, phase_name in sorted(scoped.items()):
+        phase = _find_phase(game, phase_name)
+        if phase is None:  # shadow guard: `_scoped_entry_phases` filtered these
+            continue
+        inside = {id(node) for node in _walk(phase)}
+        reaching = _procedures_reaching(game, entry)
+        _check_direct_call_positions(game, entry, phase_name, inside, reaching, bag)
+        _check_offered_containers(game, entry, phase_name, inside, reaching, bag)
+        _check_run_sites(game, entry, phase_name, inside, reaching, bag)
+
+
+def _procedures_reaching(game: n.Game, entry: str) -> frozenset[str]:
+    """Procedures whose body reaches a call of `entry`, transitively through
+    other procedures — a fixpoint, since a procedure may `run` another."""
+    direct = {
+        p.name
+        for p in game.procedures
+        if any(isinstance(nd, n.Call) and nd.func == entry for nd in _walk(p))
+    }
+    reaching = set(direct)
+    changed = True
+    while changed:
+        changed = False
+        for proc in game.procedures:
+            if proc.name in reaching:
+                continue
+            if any(
+                isinstance(nd, n.RunStmt) and nd.name in reaching
+                for nd in _walk(proc)
+            ):
+                reaching.add(proc.name)
+                changed = True
+    return frozenset(reaching)
+
+
+def _reaches_scoped_entry(
+    node: object, entry: str, reaching: frozenset[str]
+) -> bool:
+    """Whether a container's own text reaches a call of `entry` — directly, or
+    through a `run` of a procedure that does."""
+    return any(
+        (isinstance(nd, n.Call) and nd.func == entry)
+        or (isinstance(nd, n.RunStmt) and nd.name in reaching)
+        for nd in _walk(node)
+    )
+
+
+def _outside(entry: str, phase_name: str, where: str) -> str:
+    return (
+        f"`{entry}` reads state declared in phase `{phase_name}`, so it is "
+        f"callable only where that phase runs — this call is {where}, which "
+        f"runs outside it; move the call inside `{phase_name}`, or pass the "
+        f"value as an argument"
+    )
+
+
+def _check_direct_call_positions(
+    game: n.Game,
+    entry: str,
+    phase_name: str,
+    inside: set[int],
+    reaching: frozenset[str],
+    bag: DiagnosticBag,
+) -> None:
+    """Calls written in the game's own text, outside a move type or procedure
+    body: legal inside the named phase's subtree, refused everywhere else."""
+    for field_name, arm in sorted(_CONTAINMENT_BY_GAME_FIELD.items()):
+        if arm in ("offering", "run_site"):
+            continue  # judged by their own containers below
+        for node in _child_nodes(getattr(game, field_name)):
+            if not (isinstance(node, n.Call) and node.func == entry):
+                continue
+            if arm == "subtree" and id(node) in inside:
+                continue
+            where = (
+                "in another phase"
+                if arm == "subtree"
+                else f"in this game's `{field_name}`"
+            )
+            bag.error(_outside(entry, phase_name, where), node.span or game.span)
+
+
+def _check_offered_containers(
+    game: n.Game,
+    entry: str,
+    phase_name: str,
+    inside: set[int],
+    reaching: frozenset[str],
+    bag: DiagnosticBag,
+) -> None:
+    """A game move type has no lexical phase, so its body's containment is its
+    OFFERING sites': every one of them must sit inside the subtree, and a move
+    type nothing offers is refused rather than passing vacuously."""
+    for move_type in game.move_types:
+        if not _reaches_scoped_entry(move_type, entry, reaching):
+            continue
+        sites = _offering_sites(game, move_type.name)
+        if not sites:
+            bag.error(
+                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"state declared in phase `{phase_name}`, and no statement "
+                f"offers `{move_type.name}` — an unoffered move type has no "
+                f"phase to be inside, so the scope cannot be established; "
+                f"offer it inside `{phase_name}`",
+                move_type.span or game.span,
+            )
+            continue
+        for site in sites:
+            if id(site) in inside:
+                continue
+            # One diagnostic per offending site, spanned at the site: the
+            # addressee is whoever wrote the offer, not whoever wrote the entry.
+            bag.error(
+                f"move type `{move_type.name}` calls `{entry}`, which reads "
+                f"state declared in phase `{phase_name}` — this offer puts "
+                f"`{move_type.name}` in play outside `{phase_name}`, where "
+                f"that state does not stand; offer `{move_type.name}` inside "
+                f"`{phase_name}` only",
+                getattr(site, "span", None) or game.span,
+            )
+
+
+def _check_run_sites(
+    game: n.Game,
+    entry: str,
+    phase_name: str,
+    inside: set[int],
+    reaching: frozenset[str],
+    bag: DiagnosticBag,
+) -> None:
+    """A procedure body is judged at every `RunStmt` naming it, because
+    expansion is by VALUE: the run site's position IS the body's future
+    position. A procedure run both inside and outside the subtree is refused at
+    the offending site."""
+    if not reaching:
+        return
+    owners = _statement_owners(game)
+    for run in _walk(game):
+        if not (isinstance(run, n.RunStmt) and run.name in reaching):
+            continue
+        owner = owners.get(id(run), "phases")
+        if owner in ("move_type", "procedure"):
+            continue  # judged by that container's own arm
+        if owner == "phases" and id(run) in inside:
+            continue
+        where = "in another phase" if owner == "phases" else f"in this game's `{owner}`"
+        bag.error(
+            f"procedure `{run.name}` calls `{entry}`, which reads state "
+            f"declared in phase `{phase_name}`, and a procedure body runs where "
+            f"its `run` site sits — this one is {where}, which runs outside "
+            f"`{phase_name}`; run `{run.name}` inside `{phase_name}` only",
+            run.span or game.span,
+        )
+    for name in sorted(reaching):
+        if not any(
+            isinstance(nd, n.RunStmt) and nd.name == name for nd in _walk(game)
+        ):
+            proc = next(p for p in game.procedures if p.name == name)
+            bag.error(
+                f"procedure `{name}` calls `{entry}`, which reads state "
+                f"declared in phase `{phase_name}`, and no statement runs "
+                f"`{name}` — an unrun procedure has no phase to be inside, so "
+                f"the scope cannot be established; run it inside `{phase_name}`",
+                proc.span or game.span,
+            )
+
+
+def _statement_owners(game: n.Game) -> dict[int, str]:
+    """id(node) -> the `n.Game` field whose subtree holds it. Built once per
+    entry check so a `run` site can be attributed to the container that decides
+    it, rather than by re-walking per site."""
+    owners: dict[int, str] = {}
+    for move_type in game.move_types:
+        for node in _walk(move_type):
+            owners[id(node)] = "move_type"
+    for proc in game.procedures:
+        for node in _walk(proc):
+            owners[id(node)] = "procedure"
+    for field_name, arm in _CONTAINMENT_BY_GAME_FIELD.items():
+        if arm in ("offering", "run_site"):
+            continue
+        for node in _child_nodes(getattr(game, field_name)):
+            owners.setdefault(id(node), field_name if arm == "refused" else "phases")
+    return owners
 
 
 def _check_trick_order_partition(game: n.Game, bag: DiagnosticBag) -> None:

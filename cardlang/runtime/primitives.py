@@ -85,6 +85,13 @@ class Declared:
     bundled: bool
     """Whether the implementation takes the [[primitive-bundle]] — `False` for
     one pure over its arguments (`primitives_block.InvocationContract`)."""
+    scopes: tuple[tuple[str, str], ...] = ()
+    """Declared read name -> the phase that declares it, for the entry's
+    [[phase-scoped-read]]s. Carried for the MESSAGE alone: materialization is
+    identical either way, and resolve's containment check has already
+    established that the phase is running wherever this entry is called — so
+    the only use of this is to name that phase, and its Owner Guard, if the
+    frame is somehow not standing."""
 
 
 def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
@@ -95,7 +102,15 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
         return entry.impl(*args)
     keys = {name: args[i] for name, i in entry.binders}
     return entry.impl(
-        *narrowing.bind(ctx.rs, ctx.current_player, entry.row, keys, entry.name), *args
+        *narrowing.bind(
+            ctx.rs,
+            ctx.current_player,
+            entry.row,
+            keys,
+            entry.name,
+            dict(entry.scopes),
+        ),
+        *args,
     )
 
 

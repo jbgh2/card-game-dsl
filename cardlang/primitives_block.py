@@ -30,16 +30,20 @@ Assumes:      a parsed `Game` — `regime` and `declared_names` read the parse
 Establishes:  ONE classification of a game's Primitive regime, and ONE
               statement of which Python each registered Primitive name is
               implemented by. Also the ONE classification of a `reads` name
-              (`classify_read`) and the collision predicates over the four
-              namespaces such a name can be declared in — the game's own
-              `state { }`, a phase's, an indexed `zones { }` declaration and
-              an unindexed one — with the phase attribution the diagnostics
-              need (`declaring_phases`).
+              (`classify_read`, which the read's own scope tail steers) and
+              the collision predicates over the four namespaces such a name
+              can be declared in — the game's own `state { }`, a phase's, an
+              indexed `zones { }` declaration and an unindexed one — plus the
+              fourth, ancestry-carrying one a flat membership set cannot state
+              (`descendant_redeclarations`), with the phase attribution the
+              diagnostics need (`declaring_phases`, `phase_names`).
 Now illegal:  a consumer deciding the regime by testing `game.primitives`
               itself; any front-end module importing a game's runtime module
-              to learn what it implements; and any consumer testing a name's
+              to learn what it implements; any consumer testing a name's
               membership against the state or zone walks itself rather than
-              asking the predicates here.
+              asking the predicates here; and any consumer walking phase state
+              blocks itself to answer a scope or ancestry question — the one
+              path-aware walk is here.
 Verified by:  tests/test_primitives_block.py (the index reconciled against
               `PRIMITIVE_CALL_FUNCS` and against the live attributes; the
               declarable-type partition; the wall's totality over the six
@@ -306,7 +310,15 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
 
 class ReadKind(Enum):
     """What one `reads` name denotes — the exhaustive classification, since
-    each kind materializes differently."""
+    each kind materializes differently.
+
+    SCOPE is deliberately not a kind here, and no member for a
+    [[phase-scoped-read]] belongs in this enum: a phase-declared state variable
+    materializes identically to a game-level one — the same frame walk, the
+    same bundle half, the same narrowing — so a member would carry no
+    information the read's own `phase` field lacks while costing this closed
+    domain's whole consumer sweep. WHICH declaration decides the kind is
+    `classify_read`'s `phase` parameter. A designed constraint, not a gap."""
 
     STATE_VAR = "state variable"
     INDEXED_STATE_VAR = "indexed state variable"
@@ -322,7 +334,11 @@ BINDABLE_READ_KINDS: frozenset[ReadKind] = frozenset(
 )
 
 
-def classify_read(game: n.Game, name: str) -> ReadKind | None:
+def _state_kind(decl: n.StateDecl) -> ReadKind:
+    return ReadKind.INDEXED_STATE_VAR if decl.index is not None else ReadKind.STATE_VAR
+
+
+def classify_read(game: n.Game, name: str, phase: str | None = None) -> ReadKind | None:
     """Which of the game's own keyed declarations `name` denotes, or None.
 
     The ONE classifier. resolve refuses the None, and the driver dispatches on
@@ -330,21 +346,29 @@ def classify_read(game: n.Game, name: str) -> ReadKind | None:
     which is what keeps the row a primitive receives and the entry a designer
     wrote from being two readings of the same text.
 
-    GAME-level state only, never a phase's own block: the row is materialized
-    on EVERY call, so a phase-local variable is readable only while that
-    phase's frame stands, and a Primitive called from anywhere else would meet
-    a runtime refusal on a name its declaration said it had. The declaration is
-    a game clause, so what it may read is game-scoped —
-    `phase_local_state_names` is what turns that into a diagnostic naming the
-    phase rather than an unhelpful "declares no such name"."""
+    `phase` is the read's own scope tail. WITH one, the named phase's own
+    `state { }` is the only block consulted, and it alone decides the kind and
+    the indexedness — which is the fact the tail is needed for, since one game
+    may declare `committed[player]` where another declares a plain
+    `committed`. Zones and the game's own state are not consulted for a scoped
+    read: a zone is game-level (the language has no phase-local `zones { }`),
+    and a game-level declaration of the same name is a collision resolve
+    refuses before this runs.
+
+    WITHOUT one, the game's own `state { }` and its zones, in that order. A
+    phase's block is not among them: an untailed row is materialized on EVERY
+    call, so a phase-local variable would be readable only while that phase's
+    frame stands — `phase_local_state_names` is what turns that into a
+    diagnostic naming the phase, and now the tail to write."""
+    if phase is not None:
+        for path, decl in _phase_state_decls(game):
+            if path[-1] == phase and decl.name == name:
+                return _state_kind(decl)
+        return None
     if game.state is not None:
         for sd in game.state.decls:
             if sd.name == name:
-                return (
-                    ReadKind.INDEXED_STATE_VAR
-                    if sd.index is not None
-                    else ReadKind.STATE_VAR
-                )
+                return _state_kind(sd)
     for z in game.zones:
         if z.name == name:
             return ReadKind.ZONE_FAMILY if z.index is not None else ReadKind.SINGLE_ZONE
@@ -355,28 +379,85 @@ def _game_level_state_names(game: n.Game) -> frozenset[str]:
     return frozenset(d.name for d in game.state.decls) if game.state else frozenset()
 
 
+def _phase_state_decls(
+    game: n.Game,
+) -> tuple[tuple[tuple[str, ...], n.StateDecl], ...]:
+    """(the phase PATH from a top-level phase down to the declarer, the
+    declaration) for every name a PHASE's own `state { }` declares.
+
+    The path, not just the declaring phase's name, because the fourth collision
+    predicate asks an ANCESTRY question — is this declarer a strict descendant
+    of the phase a read names — and a name-keyed attribution cannot answer it.
+    Phase names are game-unique (`_check_duplicate_names`), so a path is one
+    chain and not a set of them.
+
+    The ONE walk: `_phase_state_declarations`, `_phase_state_names` and
+    `descendant_redeclarations` all derive from it rather than walking again,
+    so the set, the attribution and the ancestry can never disagree; that they
+    agree with the engine-wide walk (`n.state_blocks`) is
+    tests/test_primitives_block.py's."""
+    found: list[tuple[tuple[str, ...], n.StateDecl]] = []
+
+    def rec(phase: n.Phase, path: tuple[str, ...]) -> None:
+        here = path + (phase.name,)
+        for item in phase.items:
+            if isinstance(item, n.StateBlock):
+                found.extend((here, sd) for sd in item.decls)
+            elif isinstance(item, n.Phase):
+                rec(item, here)
+
+    for phase in game.phases:
+        rec(phase, ())
+    return tuple(found)
+
+
+def _phase_state_paths(game: n.Game) -> tuple[tuple[tuple[str, ...], str], ...]:
+    """`_phase_state_decls` as (path, name) pairs — the shape a consumer asking
+    only about names and ancestry wants."""
+    return tuple((path, decl.name) for path, decl in _phase_state_decls(game))
+
+
 def _phase_state_declarations(game: n.Game) -> tuple[tuple[str, str], ...]:
     """(declaring phase's name, state name) for every name a PHASE's own
     `state { }` declares — nested phases included.
 
     The walk carries the phase because a diagnostic about a phase-declared name
     is unusable without it: the addressee is a designer who has to FIND the
-    declaration. `_phase_state_names` derives from this rather than walking
-    again, so the set and the attribution can never disagree; that they agree
-    with the engine-wide walk (`n.state_blocks`) is
-    tests/test_primitives_block.py's."""
-    found: list[tuple[str, str]] = []
+    declaration."""
+    return tuple((path[-1], name) for path, name in _phase_state_paths(game))
+
+
+def phase_names(game: n.Game) -> frozenset[str]:
+    """Every phase of the game, nested ones included — what a scope tail may
+    name. Game-unique by `_check_duplicate_names`, so a tail names one phase."""
+    found: set[str] = set()
 
     def rec(phase: n.Phase) -> None:
+        found.add(phase.name)
         for item in phase.items:
-            if isinstance(item, n.StateBlock):
-                found.extend((phase.name, sd.name) for sd in item.decls)
-            elif isinstance(item, n.Phase):
+            if isinstance(item, n.Phase):
                 rec(item)
 
     for phase in game.phases:
         rec(phase)
-    return tuple(found)
+    return frozenset(found)
+
+
+def descendant_redeclarations(game: n.Game, phase: str, name: str) -> frozenset[str]:
+    """The STRICT descendants of `phase` that also declare `name` as their own
+    state — the fourth collision, and the one only a path-aware walk can see.
+
+    The runtime resolves a name against the innermost standing frame, so a call
+    from inside such a descendant would receive the descendant's value while
+    the declaration names the ancestor's: a wrong answer with no failure
+    anywhere, which is the register the three sibling predicates exist to
+    refuse. Refusing the pair at compile is what lets the materializer keep its
+    innermost-first walk unchanged and untagged."""
+    return frozenset(
+        path[-1]
+        for path, declared in _phase_state_paths(game)
+        if declared == name and phase in path[:-1]
+    )
 
 
 def _phase_state_names(game: n.Game) -> frozenset[str]:
@@ -394,9 +475,11 @@ def declaring_phases(game: n.Game, name: str) -> frozenset[str]:
 
 
 def phase_local_state_names(game: n.Game) -> frozenset[str]:
-    """State a PHASE declares and the game does not — unreadable by a
-    declaration, because the row is materialized on every call and the frame
-    stands only while that phase runs."""
+    """State a PHASE declares and the game does not — readable by a declaration
+    that NAMES the phase (`X in P`) and by no other, because the row is
+    materialized on every call and the frame stands only while that phase
+    runs. An untailed read of one of these is what the phase-local arm
+    refuses, teaching the tail."""
     return _phase_state_names(game) - _game_level_state_names(game)
 
 
@@ -418,11 +501,17 @@ def shadowed_state_names(game: n.Game) -> frozenset[str]:
     """State declared at BOTH levels — also unreadable by a declaration, and
     for a worse reason.
 
-    `classify_read` matches the game-level declaration while the runtime
-    resolves the innermost frame, so a primitive declaring the name receives
-    the PHASE's value whenever that phase runs: a wrong answer with no failure
-    anywhere. The declaration cannot say which of the two it means, so the
-    ambiguity is refused rather than settled by whichever end happens to win.
+    An untailed `classify_read` matches the game-level declaration while the
+    runtime resolves the innermost frame, so a primitive declaring the name
+    receives the PHASE's value whenever that phase runs: a wrong answer with no
+    failure anywhere. The declaration cannot say which of the two it means, so
+    the ambiguity is refused rather than settled by whichever end happens to
+    win.
+
+    A scope tail does not lift it. `X in P` says which declaration is meant,
+    but the game-level variable of that spelling is then unreadable by any
+    declaration at all, with nothing on the page saying so — so the pair stays
+    refused and the tailed refusal states that reason instead of this one.
 
     With `phase_local_state_names` and the game-level set this partitions every
     state name the engine can see, which is what lets each arm's diagnostic
@@ -434,11 +523,13 @@ def phase_state_zone_names(game: n.Game) -> frozenset[str]:
     """Names a PHASE declares as state while the game declares them as a zone —
     the third collision, and the one nothing about the classification reveals.
 
-    `classify_read` consults the game's zones and its GAME-level state and
-    never a phase's, so a colliding name classifies as the zone with no sign
-    that the declaration also names something else. The zone is then what the
-    primitive receives whenever it is called, including from inside the phase
-    whose variable the designer meant.
+    An untailed `classify_read` consults the game's zones and its GAME-level
+    state and never a phase's, so a colliding name classifies as the zone with
+    no sign that the declaration also names something else. The zone is then
+    what the primitive receives whenever it is called, including from inside
+    the phase whose variable the designer meant. A scope tail does not lift it
+    either: a zone is game-level in this language, so the two spellings would
+    still both stand and one of them would be silently unreachable.
 
     Disjoint from both siblings by construction: it intersects with
     `phase_local_state_names`, which subtracts the game-level set, so a name
