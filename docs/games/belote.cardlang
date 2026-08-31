@@ -33,8 +33,9 @@
 // `rank_value(card)`). The declaration classes carry their own two orders —
 // the natural A K Q J 10 9 8 7 a sequence runs in, and the carré strength
 // J > 9 > A > 10 > K > Q — which are facts about COMBINATIONS, are never
-// consulted by a trick, and stay in the belote_decl_* primitives
-// (issue #254).
+// consulted by a trick, and stay in the belote_decl_* primitives, declared
+// in this game's own `primitives { }` block and implemented in
+// `cardlang/runtime/belote.py` (issue #254).
 
 game Belote {
 
@@ -45,6 +46,34 @@ game Belote {
 
   cards: skat32
   ranking: ace-ten                 // plain-suit order A 10 K Q J 9 8 7
+
+  // What this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/belote.py`: the Belote-Rebelote window's aim, and the
+  // declaration family over a hand's best combination.
+  //
+  // `belote_royal_player` reads the made trump ALONE — the completed trick's
+  // plays reach it as an engine fact, not as a declared name — so its clause
+  // names no hand. Every declaration entry decomposes the ONE hand the call
+  // names, so `hand[p]` narrows to that hand while `trump_suit`, a scalar the
+  // decomposition reads whole, needs no binder.
+  primitives {
+    belote_royal_player() : Player?
+        reads trump_suit
+    belote_best_is(p : Player, cls : Integer, top : Rank, in_trump : Boolean) : Boolean
+        reads hand[p], trump_suit
+    belote_decl_points(p : Player) : Integer
+        reads hand[p], trump_suit
+    belote_decl_class(p : Player) : Integer
+        reads hand[p], trump_suit
+    belote_decl_height(p : Player) : Integer
+        reads hand[p], trump_suit
+    belote_decl_trump(p : Player) : Boolean
+        reads hand[p], trump_suit
+    belote_decl_size(p : Player) : Integer
+        reads hand[p], trump_suit
+    belote_decl_slot(p : Player, k : Integer, c : Card) : Boolean
+        reads hand[p], trump_suit
+  }
 
   // The trump-making decides the order, so the rows read what it wrote onto
   // the public state (`trump_suit`).

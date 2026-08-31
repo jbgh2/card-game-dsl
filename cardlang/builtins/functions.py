@@ -254,6 +254,14 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 # every Primitive becomes declared and the legacy arms go with the window.
 DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
     {
+        "belote_best_is",
+        "belote_decl_class",
+        "belote_decl_height",
+        "belote_decl_points",
+        "belote_decl_size",
+        "belote_decl_slot",
+        "belote_decl_trump",
+        "belote_royal_player",
         "five_hundred_bid_level",
         "five_hundred_bid_value",
         "five_hundred_next_bid",

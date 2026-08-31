@@ -51,8 +51,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import SUITS, Card, Player
 
-ROW = reads.row("cardlang/runtime/belote.py", "belote.cardlang")
-
 # Natural (sequence) order A K Q J 10 9 8 7 — the declaration order, distinct
 # from BOTH play orders (the game's `ranking: ace-ten` in plain suits, and the
 # Trick Order's within-trump reorder).

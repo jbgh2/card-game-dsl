@@ -361,7 +361,6 @@ def test_the_derived_axis_is_not_empty() -> None:
 # change cannot quietly give one of them a handle.
 NARROWED: frozenset[str] = frozenset(
     {
-        "belote.py::ROW",
         "belote.py::belote_best_is",
         "belote.py::belote_decl_class",
         "belote.py::belote_decl_height",

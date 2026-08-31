@@ -208,38 +208,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
             return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
-        case "belote_royal_player":
-            from cardlang.runtime.belote import ROW, belote_royal_player
-
-            return belote_royal_player(*_bind(ctx, ROW))
-        case "belote_best_is":
-            from cardlang.runtime.belote import ROW, belote_best_is
-
-            return belote_best_is(*_bind(ctx, ROW), args[0], args[1], args[2], args[3])
-        case "belote_decl_points":
-            from cardlang.runtime.belote import ROW, belote_decl_points
-
-            return belote_decl_points(*_bind(ctx, ROW), args[0])
-        case "belote_decl_class":
-            from cardlang.runtime.belote import ROW, belote_decl_class
-
-            return belote_decl_class(*_bind(ctx, ROW), args[0])
-        case "belote_decl_height":
-            from cardlang.runtime.belote import ROW, belote_decl_height
-
-            return belote_decl_height(*_bind(ctx, ROW), args[0])
-        case "belote_decl_trump":
-            from cardlang.runtime.belote import ROW, belote_decl_trump
-
-            return belote_decl_trump(*_bind(ctx, ROW), args[0])
-        case "belote_decl_size":
-            from cardlang.runtime.belote import ROW, belote_decl_size
-
-            return belote_decl_size(*_bind(ctx, ROW), args[0])
-        case "belote_decl_slot":
-            from cardlang.runtime.belote import ROW, belote_decl_slot
-
-            return belote_decl_slot(*_bind(ctx, ROW), args[0], args[1], args[2])
         case "canasta_can_take_pile":
             from cardlang.runtime.canasta import ROW, canasta_can_take_pile
 

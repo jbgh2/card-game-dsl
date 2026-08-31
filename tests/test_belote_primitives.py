@@ -8,8 +8,8 @@ property:   every Belote primitive computes its documented value over the
             32-card pack, and every plausible misuse of its native names
             fails loud in the owning layer's channel
 domain:     every `belote_*` row of CALL_FUNCS (the registry is the axis;
-            no count is written here) x {name, arity, param types, dispatch
-            arm, reads row} + the primitives' own value domains (the
+            no count is written here) x {name, arity, param types,
+            declaration site} + the primitives' own value domains (the
             decomposition's combination classes over 32 ranks x 4 suits, the
             guard's class argument). Belote holds no
             PRIMITIVE_TRICK_WINNERS row: the trick order is the game's
@@ -17,18 +17,33 @@ domain:     every `belote_*` row of CALL_FUNCS (the registry is the axis;
             within-trump strength and the live-trick team gate are the
             language's and are covered by tests/test_trick_order.py's grid
             and tests/test_trick_order_migration.py's pin.
+            The game declares its Primitives, so a name reaches Python
+            through its own `primitives { }` entry and there is no dispatch
+            arm or authored reads row to misuse — the declaration site
+            replaces both in this domain, and each of its two ends is a
+            probe below.
 registry:   cardlang/builtins/functions.py / signatures.py (names + types;
             reconciled against the dispatch by tests/test_signatures.py),
-            cardlang/runtime/reads.py (the declared-reads row, pinned both
-            ways by tests/test_primitive_reads.py), the openspiel registry
-            (glob-pinned by tests/test_typecheck_corpus.py)
-covered:    name/arity/type misuse at resolve/typecheck (the five probes
-            below, each a DiagnosticError with a span); the trick/auction
+            the game's own `primitives { }` block (the declared reads,
+            pinned against the implementation's source by
+            tests/test_primitive_reads.py and against `implementation_sig`
+            by typecheck), the openspiel registry (glob-pinned by
+            tests/test_typecheck_corpus.py)
+covered:    name/arity/type misuse at resolve/typecheck (the six probes
+            below, each a DiagnosticError with a span), at BOTH ends of the
+            declaration — a typo at a call site and a typo in the entry
+            itself answer in different channels; the trick/auction
             outcome-namespace crossings both ways; the runtime guard
             (non-class guard argument) as a typed error; decomposition
             known-values for every combination class, the natural
             (non-play) sequence order, the carre-first overlap rule, the
             top-five quinte cut, and the non-declarable 8/7 carres
+does not prove: that a call to an implemented Primitive this block OMITS is
+            refused — that cell belongs to the regime product over
+            `DECLARED_ONLY_CALL_FUNCS`
+            (tests/test_primitives_block.py), which covers it for every
+            declared-only name including these, and restating it per game
+            would be the same fact on a lower rung
 sampled:    the ctx-reading accessors (belote_decl_* / royal_player) are
             exercised end-to-end by the playout oracle
             (tests/test_playout_belote.py recomputes every announcement,
@@ -149,10 +164,24 @@ def _expect_rejected(text: str, fragment: str) -> None:
 
 
 def test_probe_unknown_primitive_name_is_a_resolve_error() -> None:
+    """A typo at the CALL site alone: the block still declares the real name,
+    so the misspelling is a name this game's namespace does not hold."""
     src = BELOTE.read_text()
-    text = src.replace("belote_royal_player()", "belote_royal_playr()")
+    text = src.replace("let bp = belote_royal_player()", "let bp = belote_royal_playr()")
     assert text != src
     _expect_rejected(text, "unknown function 'belote_royal_playr'")
+
+
+def test_probe_unknown_primitive_name_in_the_entry_is_a_resolve_error() -> None:
+    """The declaration's other end, and a different channel: a typo in the
+    ENTRY names Python nothing implements, so the refusal points at the
+    implementation index rather than at this game's namespace. Both ends
+    matter — the two halves of the coupling are authored independently, which
+    is what makes reconciling them the check."""
+    src = BELOTE.read_text()
+    text = src.replace("belote_royal_player() : Player?", "belote_royal_playr() : Player?")
+    assert text != src
+    _expect_rejected(text, "nothing implements the Primitive `belote_royal_playr`")
 
 
 def test_probe_wrong_arity_is_a_typecheck_error() -> None:

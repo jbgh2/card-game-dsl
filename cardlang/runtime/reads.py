@@ -297,12 +297,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         single_zones=_fs("chien"),
     ),
     PrimitiveReads(
-        module="cardlang/runtime/belote.py",
-        game_file="belote.cardlang",
-        state_vars=_fs("trump_suit"),
-        zone_families=_fs("hand"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/gin.py",
         game_file="gin-rummy.cardlang",
         zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
