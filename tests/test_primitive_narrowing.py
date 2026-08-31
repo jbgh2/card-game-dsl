@@ -290,17 +290,31 @@ def _impls_in(path: Path) -> list[Impl]:
         if not isinstance(node, ast.Match):
             continue
         for case in node.cases:
-            pat = case.pattern
-            if not (
-                isinstance(pat, ast.MatchValue)
-                and isinstance(pat.value, ast.Constant)
-                and isinstance(pat.value.value, str)
-            ):
-                continue
-            name = pat.value.value
-            for mod, func in _dispatch_imports(case.body):
-                found.append(Impl(primitive=name, module=mod, func=func))
+            names = _arm_names(case.pattern)
+            for name in names:
+                for mod, func in _dispatch_imports(case.body):
+                    found.append(Impl(primitive=name, module=mod, func=func))
     return found
+
+
+def _arm_names(pattern: ast.pattern) -> list[str]:
+    """The Primitive names one `match` arm routes — BOTH pattern shapes.
+
+    An arm may name one Primitive (`case "gin_deadwood":`) or several
+    (`case "tichu_lead_options" | "tichu_follows":`, the climb binder's shape,
+    where one row serves a module's whole climb pair). Reading only the first
+    shape would leave every implementation an or-patterned arm imports outside
+    this grid's domain, which is the coverage hole that looks like a green."""
+    alternatives = (
+        pattern.patterns if isinstance(pattern, ast.MatchOr) else [pattern]
+    )
+    return [
+        alt.value.value
+        for alt in alternatives
+        if isinstance(alt, ast.MatchValue)
+        and isinstance(alt.value, ast.Constant)
+        and isinstance(alt.value.value, str)
+    ]
 
 
 _ALL_REGISTERED: frozenset[str] = (
@@ -356,6 +370,7 @@ NARROWED: frozenset[str] = frozenset(
         "belote.py::belote_decl_slot",
         "belote.py::belote_decl_trump",
         "belote.py::belote_royal_player",
+        "bigtwo.py::ROW",
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
@@ -377,6 +392,7 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_bid_level",
         "five_hundred.py::five_hundred_bid_value",
         "five_hundred.py::five_hundred_next_bid",
+        "gin.py::GIN_MELD_CODEC",
         "gin.py::ROW",
         "gin.py::gin_arrange_ok",
         "gin.py::gin_can_declare",
@@ -393,6 +409,7 @@ NARROWED: frozenset[str] = frozenset(
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::ROW",
         "pinochle.py::pinochle_meld_value",
+        "president.py::ROW",
         "president.py::president_follows",
         "president.py::president_lead_options",
         "president.py::president_universe",
