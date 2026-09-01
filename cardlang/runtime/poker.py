@@ -1,4 +1,4 @@
-"""Poker's family-wide showdown maths — shared by the corpus's poker games.
+"""Poker's family-wide showdown maths — shared by the corpus's side-pot games.
 
 Two pieces of poker knowledge are genuinely family-wide rather than game-local,
 and they are the same shape of claim:
@@ -19,12 +19,12 @@ playout invariant every poker game leans on cannot see it (decisions.md
 "Closed-domain completeness", sweep the class).
 
 What stays with each game is what reads its zones: Stud's door-card seat
-selectors, Hold'em's busted-seat ring skip, and each game's `pot_share`
+selectors, Hold'em's busted-seat ring skip, and each game's pot-share
 [[primitive]], which knows which of its own zones the contenders' cards sit in.
 
 Pure functions of card values, so no declared-reads row and no bundle: nothing
 here touches runtime state. (design-notes/primitive-sidecars.md §2 promotes
-the poker-*family* names to the Builtins once a second poker game lands; that
+the poker-*family* selectors to the Builtins at their second witness; that
 promotion is about the DSL-visible selectors, not these, which no game names.)
 """
 

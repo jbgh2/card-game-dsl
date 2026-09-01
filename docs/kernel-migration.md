@@ -286,15 +286,16 @@ amount syntax" / "Resource transfer failure").
   reveal). Each entrant then collects `stack[p] := stack[p] + pot_share(p)` and
   the hands leave play to the muck; a folded entrant's hole cards muck with a
   count-only emission (unrevealed), and a lone contender collects with no
-  reveal at all. `pot_share` is the **Stud-local settle primitive** (the
-  committed-total layering, odd chip to the first winner in seat order,
-  uncalled remainder to the best contender), *not* a generalized "pot
-  subsystem": side-pot reconciliation is a single corpus instance (Coup has no
-  pot — its second resource game is a coin/treasury economy; the natural second
-  *side-pot* game is a poker variant like Hold'em, still a candidate), so per
-  corpus-first it stays game-local until a second poker variant justifies a
-  shared `betting`/pot definition. The evaluator `hand_rank` stays internal;
-  `best_five_card_hand` is the documented runtime-primitive to wire then. The
+  reveal at all. `pot_share` is the **Stud-local settle primitive**, *not* a
+  generalized "pot subsystem": the arithmetic beneath it is family-wide
+  (`poker.side_pot_payouts` — the committed-total layering, odd chip to the
+  first winner in seat order, uncalled remainder to the best contender —
+  shared with the Hold'em games), the showdown holding it assembles is Stud's
+  own (`stud.showdown_hands`, hole + upcards), and the family's shared DSL
+  surface is the `poker_betting` betting core (decisions.md "Family
+  libraries"), which holds no pot. The evaluator `hand_rank` stays internal;
+  `best_five_card_hand` is the documented runtime-primitive to wire if a
+  shared definition ever needs the evaluator DSL-visible. The
   showdown is RNG-free and decision-free, so it cannot shift the chooser
   sequence; the per-hand stack golden pinned its payouts byte-identically
   across the migration. With it, Stud is fully kernel: registered in
@@ -311,9 +312,9 @@ no event-indexed pot ever existed, and nothing is filed as an open question.
 **Test-depth nets — built.** The per-hand stack golden (`seven-card-stud_hands.json`,
 50 seeds, pinned pre-migration — the end-of-game scores are degenerate, so the
 sensitive signal is the post-hand stack vector) confirmed the betting *and*
-showdown migrations are byte-identical; the `_payouts` recompute covers the
-side-pot layers (short all-in, tie+odd-chip, three-way layered,
-all-but-one-folded).
+showdown migrations are byte-identical; the `side_pot_payouts` known-value
+tests (`tests/test_stud_settle.py`) cover the side-pot layers (short all-in,
+tie+odd-chip, three-way layered, all-but-one-folded).
 
 ## Workstream 3 — Combinations and climbing (Tichu)
 
@@ -519,10 +520,11 @@ These land inside the workstreams above and are shared on the third use:
 - the `scoring_component` runtime subsystem — Workstream 4;
 - the integer **resource primitive** (per-player amounts + `transfer`) — settled by
   Coup ([decisions.md](decisions.md), "Resource amount syntax" / "Resource transfer
-  failure"), used by Stud's chips and Coup's coins. *Distinct from Stud's side-pot
-  reconciliation,* which is poker-specific: Coup has no pot (a coin/treasury
-  economy, not a shared pot), so it shares the primitive but not the layering. The
-  side-pot stays Stud-local until a second poker variant (Hold'em) lands;
+  failure"), used by Stud's chips and Coup's coins. *Distinct from the poker
+  side-pot reconciliation,* which is poker-specific: Coup has no pot (a
+  coin/treasury economy, not a shared pot), so it shares the primitive but not
+  the layering. The layering is family-wide across the side-pot poker games
+  (`poker.side_pot_payouts`);
 - the `Combination` model + queries — Workstream 3, reused by Pinochle and
   Cribbage.
 
