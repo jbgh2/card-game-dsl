@@ -110,7 +110,12 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
 
     Resolve has already refused a declaration naming no implementation, an
     undeclarable contract, and an unclassifiable read, so the lookups below are
-    total by the time this runs."""
+    total by the time this runs. It has also established the
+    [[phase-scoped-read]]'s containment rule — every call of an entry with an
+    `in <phase>` tail sits where that phase's frame stands — so a scoped read
+    materializes through the SAME `rs.get` walk as a game-level one and there
+    is nothing here to branch on: the tail rides into `classify_read` and
+    decides the kind, and no arm below asks whether a read is scoped."""
     if game.primitives is None:
         return None
     game_file = Path(game.span.source_name).name if game.span is not None else ""
@@ -120,7 +125,10 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
         impl_ref = PRIMITIVE_IMPLEMENTATIONS[decl.name]
         module = import_module(impl_ref.module)
         params = [p.name for p in decl.params]
-        kinds = {read.name: classify_read(game, read.name) for read in decl.reads}
+        kinds = {
+            read.name: classify_read(game, read.name, read.phase)
+            for read in decl.reads
+        }
         table[decl.name] = primitives.Declared(
             name=decl.name,
             impl=getattr(module, impl_ref.attribute),
@@ -146,6 +154,9 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
                 if r.binder is not None
             ),
             bundled=impl_ref.contract is InvocationContract.BUNDLED,
+            scopes=tuple(
+                (r.name, r.phase) for r in decl.reads if r.phase is not None
+            ),
         )
     # A declared table keyed by exactly the block's entries: `sigs` is built
     # from the same decls, so a mismatch means one of the two walks skipped an
@@ -425,6 +436,13 @@ def _subtree_outcome_names(phase: n.Phase) -> set[str]:
 
 
 def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
+    # The ORDER below is load-bearing beyond this function: resolve's
+    # `_check_scoped_read_containment` admits a [[phase-scoped-read]]'s call
+    # from anywhere in the phase's subtree — the qualifier and both hooks
+    # included — because the frame is pushed and the state declared before any
+    # of them runs and popped in the outer `finally` after all of them. A
+    # reordering that moved either hook outside that window would make that
+    # guard silently unsound.
     ctx.rs.push_frame()
     try:
         ctx = ctx.in_phase(phase)

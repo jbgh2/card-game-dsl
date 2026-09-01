@@ -1,0 +1,32 @@
+// Guard: resolve.py's `_check_scoped_read_containment`, the offering arm's
+// wall — the second container it cannot position. A `define` body runs at every
+// `produces:` statement naming it (`runtime/execute._run_define` invokes it in
+// the produces site's own context), so the offer's position is that site, not
+// where the text sits. Deriving it means judging the define's own containment
+// first, which is the chain the analysis does not walk (issue #521).
+move_type note {
+  when: pinochle_meld_value(0) >= 0
+  effect { meld[0] := meld[0] }
+}
+define pick -> { won(Player) } {
+  offer to 0 one of [note]
+  produce won(0)
+}
+game ScopedReadOfferFromDefine {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    pick produces:
+      won(q) { meld[q] := meld[q] }
+  }
+  winner: highest meld
+}

@@ -147,6 +147,7 @@ def bind(
     r: reads.PrimitiveReads,
     keys: Mapping[str, int | str] | None = None,
     primitive: str | None = None,
+    scopes: Mapping[str, str] | None = None,
 ) -> PrimitiveBundle:
     """The dispatch layer's one call: both bundles for one primitive call.
 
@@ -157,7 +158,12 @@ def bind(
 
     `primitive` is the DECLARED entry's name, passed by the declared dispatch
     alone: it is what a read-miss message names, since a declared entry's fix
-    is its own `reads` clause and an authored row's is the registry."""
+    is its own `reads` clause and an authored row's is the registry.
+
+    `scopes` names the phase each [[phase-scoped-read]] was declared in. It
+    changes no value — a scoped read materializes through the same frame walk —
+    and exists so the one refusal that could otherwise read as a drifted row
+    can name the phase and the Owner Guard instead."""
     return PrimitiveBundle(
-        engine_facts(rs, actor), reads.game_reads(rs, r, keys, primitive)
+        engine_facts(rs, actor), reads.game_reads(rs, r, keys, primitive, scopes)
     )

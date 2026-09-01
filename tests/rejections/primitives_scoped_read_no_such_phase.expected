@@ -1,0 +1,1 @@
+primitives_scoped_read_no_such_phase.cardlang:11:62: error: `pinochle_meld_value` reads `trump_suit in betting`, but this game declares no phase `betting` — a scope tail names the phase whose `state { }` declares the name (phase `outer`)

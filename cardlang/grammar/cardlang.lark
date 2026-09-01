@@ -112,6 +112,22 @@ uses_decl: _USES_KW NAME
 // one instance the call names. It reuses `index`, the same `[...]` a zone or
 // state declaration writes.
 //
+// A read may name the PHASE whose `state { }` declares it — `trump_suit in
+// hand_sequence` — which is what lets an entry read state a phase declares.
+// The tail is per-READ, not per clause, because a clause legitimately mixes
+// game-level names with one phase's (`reads hand[p], trump_suit in
+// hand_sequence`); one clause-wide tail could not say that. `in` is reused
+// rather than a new word minted: it is already anchored, and its containment
+// sense is the one wanted — `committed in play` is the variable contained in
+// play's state, the way `cards in hand` is. Inference was rejected: sibling
+// phases may legally declare the same name, so a bare name would be resolved
+// by a silent pick, and the phase the designer names is also what carries the
+// call-position constraint to the reader of the block.
+//
+// One transposition earns a reject-with-replacement twin, because it is the
+// one a designer plausibly writes: the binder rides the VARIABLE, never the
+// phase.
+//
 // Two reject-with-replacement twins (the `card_points_table` mechanism): the
 // colon habit, and the ARROW — the spelling the design note sketched before
 // the block had a surface, so it is the first thing a reader of that note
@@ -127,7 +143,8 @@ primitive_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [prim
 primitive_arrow_decl: NAME "(" [parameter ("," parameter)*] ")" "->" payload_type [primitive_reads]
 primitive_default_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [primitive_reads] "=" expr
 primitive_reads: _READS_KW primitive_read ("," primitive_read)*
-primitive_read: NAME [index]
+primitive_read: NAME [index] [_IN_KW NAME]
+              | NAME _IN_KW NAME index -> primitive_read_transposed_reject
 
 players: _PLAYERS_KW ":" players_spec
 players_spec: INT ".." INT   -> players_range

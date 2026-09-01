@@ -1,0 +1,31 @@
+// Guard: resolve.py's `_check_scoped_read_containment`, the offering arm's
+// wall. An offering site's POSITION is where the offer happens, not where its
+// text sits — and an offer made from inside another move type's body has none
+// this analysis derives, since it would be the offering move type's own, itself
+// decided by ITS offers. Walled rather than followed (issue #521), and the
+// message says that rather than a false thing about where state stands.
+move_type note {
+  when: pinochle_meld_value(0) >= 0
+  effect { meld[0] := meld[0] }
+}
+move_type relay {
+  when: true
+  effect { offer to 0 one of [note] }
+}
+game ScopedReadOfferFromMoveType {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    offer to 0 one of [relay]
+  }
+  winner: highest meld
+}

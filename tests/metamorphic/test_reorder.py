@@ -83,6 +83,11 @@ _PARSE_LEVEL_CASES = frozenset(
         "pieces_and_cards_together",
         "no_game_block",
         "two_game_blocks",
+        # The [[phase-scoped-read]]'s transposed-binder twin: a
+        # reject-with-replacement alternative on the `primitive_read`
+        # production itself, so the wrong spelling is refused by the parse
+        # builder and no tree ever exists.
+        "primitives_scoped_read_transposed_binder",
         # The collection-quantifier register has no `number of <noun> in
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve guard (issue #111).

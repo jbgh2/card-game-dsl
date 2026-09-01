@@ -1,0 +1,24 @@
+// Guard: resolve.py's `_check_read_tail`. The near miss: `outer` is a real
+// phase of this game, and the variable is declared one phase over. The
+// diagnostic names the phase that DOES declare it rather than reporting an
+// unknown name.
+game ScopedReadWrongDeclarer {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    deal 12 cards from deck to each hand
+    meld[0] := 0
+  }
+  phase later {
+    state { trump_suit : Suit? = spades }
+    meld[1] := 0
+  }
+  winner: highest meld
+}

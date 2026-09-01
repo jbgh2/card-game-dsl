@@ -1,0 +1,1 @@
+primitives_scoped_read_list_misreading.cardlang:12:62: error: `pinochle_meld_value` reads `pot`, which a PHASE declares (phase `outer`) — a Primitive's row is materialized on every call, so a phase-local variable is readable only while that phase runs; write `pot in outer` to declare the scope, declare it in the game's `state { }` block, or pass the value as an argument

@@ -423,9 +423,29 @@ class _Builder(Transformer[Token, n.Game]):
 
     def primitive_read(self, meta: Meta, c: list[object]) -> n.PrimitiveRead:
         binder = c[1]
+        phase = c[2]
         assert binder is None or isinstance(binder, str)
+        assert phase is None or isinstance(phase, str)
         return n.PrimitiveRead(
-            name=str(c[0]), binder=binder, span=self._span(meta)
+            name=str(c[0]),
+            binder=binder,
+            phase=None if phase is None else str(phase),
+            span=self._span(meta),
+        )
+
+    def primitive_read_transposed_reject(
+        self, meta: Meta, c: list[object]
+    ) -> n.PrimitiveRead:
+        """`X in P[b]` — the binder written on the phase instead of on the
+        variable. The replacement is exact, so the designer reads the sentence
+        they meant rather than a shape error."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `reads` binder rides the variable, not the phase — write "
+                f"`{c[0]}[{c[2]}] in {c[1]}`",
+                self._span(meta),
+            )
         )
 
     def primitive_reads(

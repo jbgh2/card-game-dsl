@@ -1,0 +1,21 @@
+// Guard: resolve.py's `_check_read_tail`. The wrong-phase guess: a designer
+// names the betting street they think of rather than the phase that declares
+// the variable. The diagnostic lists the phases the game HAS, so the fix is on
+// the page.
+game ScopedReadNoSuchPhase {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in betting
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+  }
+  winner: highest meld
+}

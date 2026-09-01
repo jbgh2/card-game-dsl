@@ -40,7 +40,10 @@ Contract:
                the accessors below, and a `GameReads` bundle's own halves,
                whose miss is the one the compile stage cannot pre-empt (that
                a declared read SUFFICES for its implementation is a fact
-               about Python).
+               about Python). A [[phase-scoped-read]] materializes through the
+               same frame walk as a game-level one — there is no scope arm
+               here — and the one miss a scope could explain names the phase
+               and resolve's containment check as its Owner (`_scoped_state`).
   illegal after it
                direct name-keyed `RuntimeState`/`ZoneStore` access
                (`rs.get`/`rs.set`/`zones.single`/`zones.instance`/
@@ -262,12 +265,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         state_vars=_fs("seq_bits", "seq_len", "dealer"),
         zone_families=_fs("played"),
         single_zones=_fs("play_pile", "starter", "crib"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/pinochle.py",
-        game_file="pinochle.cardlang",
-        state_vars=_fs("trump_suit"),
-        zone_families=_fs("hand"),
     ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle
@@ -573,11 +570,43 @@ def _narrow(value: Any, key: int | str | None) -> Any:
     return {key: value[key]}
 
 
+def _scoped_state(
+    rs: RuntimeState,
+    r: PrimitiveReads,
+    name: str,
+    scopes: Mapping[str, str] | None,
+) -> Any:
+    """One declared state read, with a [[phase-scoped-read]]'s miss renamed.
+
+    shadow guard: resolve's `_check_scoped_read_containment` admits a call of a
+    scoped entry only inside the declaring phase's subtree — or in a move type
+    every offering mention of which sits there, or at a `run` site that does —
+    and `run_phase` declares the phase's state before any of those run. So the
+    frame stands and holds the name at every admitted call, and this arm is
+    unreachable. It exists because the message the drift path would print names
+    `PRIMITIVE_READS` and the game file, which is the wrong fix and the wrong
+    Owner for a scoped read."""
+    try:
+        return state(rs, r, name)
+    except PrimitiveReadError:
+        phase = (scopes or {}).get(name)
+        if phase is None:
+            raise
+        raise PrimitiveReadError(
+            f"the state variable {name!r}, declared `{name} in {phase}` in "
+            f"{r.game_file}'s `primitives {{ }}` block, is not in the live "
+            f"runtime state — phase `{phase}` is not running here, which "
+            f"resolve's containment check (cardlang/resolve.py, "
+            f"`_check_scoped_read_containment`) is the Owner Guard for"
+        ) from None
+
+
 def game_reads(
     rs: RuntimeState,
     r: PrimitiveReads,
     keys: Mapping[str, int | str] | None = None,
     primitive: str | None = None,
+    scopes: Mapping[str, str] | None = None,
 ) -> GameReads:
     """Materialize `r`'s declared row from live state.
 
@@ -600,7 +629,12 @@ def game_reads(
     `primitive` is the DECLARED entry's name, when a declaration is what built
     the row. It appears only in the miss message, where the addressee's fix
     differs by regime: a declared entry's is its own `reads` clause, an
-    authored row's is `PRIMITIVE_READS`. The legacy binders pass none."""
+    authored row's is `PRIMITIVE_READS`. The legacy binders pass none.
+
+    `scopes` names the phase each [[phase-scoped-read]] was declared in, and is
+    read by `_scoped_state` alone — the miss it renames is unreachable while
+    resolve's containment check stands, so it is a [[shadow-guard]] and says
+    so."""
     keys = keys or {}
     unknown = sorted(set(keys) - r.state_vars - r.zone_families)
     if unknown:
@@ -612,7 +646,10 @@ def game_reads(
     return GameReads(
         state=_half(
             deep_freeze(
-                {n: _narrow(state(rs, r, n), keys.get(n)) for n in sorted(r.state_vars)}
+                {
+                    n: _narrow(_scoped_state(rs, r, n, scopes), keys.get(n))
+                    for n in sorted(r.state_vars)
+                }
             ),
             "state variable",
             r,

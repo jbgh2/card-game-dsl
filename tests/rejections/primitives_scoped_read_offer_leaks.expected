@@ -1,0 +1,1 @@
+primitives_scoped_read_offer_leaks.cardlang:26:5: error: move type `note` calls `pinochle_meld_value`, which reads state declared in phase `outer` — this offer puts `note` in play outside `outer`, where that state does not stand; offer `note` inside `outer` only
