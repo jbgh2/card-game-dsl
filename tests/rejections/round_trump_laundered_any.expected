@@ -1,0 +1,1 @@
+round_trump_laundered_any.cardlang:16:51: error: round `trump` types as `Any`, the permissive top (a value the checker cannot type -- a mixed-branch `if`, an untyped read); it must type exactly Suit? (a suit, or none for no trump), because no card's suit can match an untyped value and the hand would silently play as no-trump while the rules still enforce trump

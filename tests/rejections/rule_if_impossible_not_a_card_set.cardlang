@@ -1,0 +1,26 @@
+// Owner Guard: typecheck.py's `_check_if_impossible`. A rule's `if_impossible:`
+// fallback is a card set or an `error(...)`. It is checked totally because the
+// runtime TESTS this value's type: a value it does not recognise is dropped
+// along with the refusal a narrowing fallback would have raised, so a wrong one
+// widens the legal set in silence rather than failing.
+game RuleIfImpossibleNotACardSet {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>  trick_pile : TrickPile }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_of_led_suit
+  }
+  winner: highest score
+}
+
+rule MustFollowSomething {
+  constrains: play_to_trick
+  applies_when: always
+  demands: cards in hand where card.suit is hearts
+  if_impossible: 3
+}

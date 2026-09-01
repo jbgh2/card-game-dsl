@@ -251,13 +251,13 @@ def test_out_of_range_seat_literal_to_an_optional_player_param_is_rejected() -> 
     # `Player?` accepts an Integer via `assignable` reaching the optional's
     # payload, so the helper must unwrap the optional before deciding it is a
     # player position.
-    src = card_game(body="    score[0] := (if seat_ok(5) then 1 else 0)\n") + "function seat_ok(p : Player?) = 1\n"
+    src = card_game(body="    score[0] := (if seat_ok(5) then 1 else 0)\n") + "function seat_ok(p : Player?) = true\n"
     msg = _reject(src)
     assert "seat 5 is out of range" in msg
 
 
 def test_valid_seat_literal_to_an_optional_player_param_is_accepted() -> None:
-    src = card_game(body="    score[0] := (if seat_ok(1) then 1 else 0)\n") + "function seat_ok(p : Player?) = 1\n"
+    src = card_game(body="    score[0] := (if seat_ok(1) then 1 else 0)\n") + "function seat_ok(p : Player?) = true\n"
     check_dsl(src, "seat.cardlang")
 
 

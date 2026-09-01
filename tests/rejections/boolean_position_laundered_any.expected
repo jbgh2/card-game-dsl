@@ -1,0 +1,1 @@
+boolean_position_laundered_any.cardlang:16:9: error: if condition types as `Any`, the permissive top (a value the checker cannot type -- a mixed-branch `if`, an untyped read); it must type exactly Boolean, because nothing downstream catches a non-Boolean here: every value is truthy and the game plays on

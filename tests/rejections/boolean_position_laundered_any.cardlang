@@ -1,0 +1,19 @@
+// Owner Guard: typecheck.py's `_check_bool`. A Boolean position must type
+// exactly Boolean -- the permissive top is refused here, unlike at an operand
+// position, because nothing downstream catches a non-Boolean: `bool(...)`
+// accepts every value and the game plays on with the predicate constantly
+// true. This game launders an Integer through a mixed-branch `if`, which is
+// the spelling a concrete-type guard does not catch.
+game BooleanPositionLaunderedAny {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+    if (if true then hearts else 1) { score[0] += 1 }
+  }
+  winner: highest score
+}

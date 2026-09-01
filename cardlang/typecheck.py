@@ -1827,10 +1827,26 @@ def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> Non
     expression — `if (a and 3) { … }` is Boolean overall (`and`'s `infer()`
     arm is a fixed `TBoolean`, regardless of its operands), so a top-level
     Boolean check on the whole `if` condition never sees the smuggled
-    Integer. TAny passes (gradual)."""
+    Integer.
+
+    That smuggling is why the permissive top is refused here too. An operand
+    is a Boolean position by the same argument its container is: `bool(...)`
+    accepts every value and cannot raise. And because `infer` types the whole
+    `and` as Boolean whatever its operands are, `x and true` is the way a
+    laundered value walks past a total check on the enclosing position — the
+    operator is the hole, not the position."""
     for operand in (e.left, e.right):
         bare = _bare(infer(operand, env))
-        if not isinstance(bare, (TAny, TBoolean)):
+        if isinstance(bare, TAny):
+            bag.error(
+                f"'{e.op}' operand types as `Any`, the permissive top (a value "
+                f"the checker cannot type -- a mixed-branch `if`, an untyped "
+                f"read); it must type exactly Boolean, because `{e.op}` types "
+                f"Boolean whatever its operands are, so nothing above catches "
+                f"a non-Boolean here and the game plays on",
+                operand.span,
+            )
+        elif not isinstance(bare, TBoolean):
             bag.error(
                 f"'{e.op}' expects Boolean operands, got {_type_name(bare)}",
                 operand.span,
@@ -1845,7 +1861,24 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
     misspelled/mistyped *literals* `join` cannot see (a bad numeral, a
     cross-enum literal). Every other combination is checked generally: when
     both the left type and the collection's element type are concrete and
-    `join` finds them incompatible, the membership can never be true."""
+    `join` finds them incompatible, the membership can never be true.
+
+    The left operand refuses the permissive top for the reason the LOGICAL
+    operands do: `in` types Boolean whatever its operands are, so a laundered
+    value here is not caught by a total check on the enclosing position, and a
+    membership that can never be true is silent -- the game plays on with the
+    test constantly false."""
+    lbare = _bare(infer(e.left, env))
+    if isinstance(lbare, TAny):
+        bag.error(
+            "the left-hand side of `in` types as `Any`, the permissive top (a "
+            "value the checker cannot type -- a mixed-branch `if`, an untyped "
+            "read); it must have a concrete type, because `in` types Boolean "
+            "whatever its operands are and a membership that can never be true "
+            "is silent",
+            e.span,
+        )
+        return
     right_t = infer(e.right, env)
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(
@@ -2368,6 +2401,20 @@ def _check_round_trump(stmt: n.TrickRound, env: TypeEnv, bag: DiagnosticBag) -> 
     if stmt.trump is None:
         return
     got = infer(stmt.trump, env)
+    if isinstance(got, TAny):
+        # The permissive top reaches the runtime as a value no card's suit can
+        # equal, which is the same silent no-trump hand the concrete refusal
+        # below was written to stop -- so it is refused here rather than
+        # admitted the way a loud position's operand may be.
+        bag.error(
+            "round `trump` types as `Any`, the permissive top (a value the "
+            "checker cannot type -- a mixed-branch `if`, an untyped read); it "
+            "must type exactly Suit? (a suit, or none for no trump), because "
+            "no card's suit can match an untyped value and the hand would "
+            "silently play as no-trump while the rules still enforce trump",
+            stmt.trump.span or stmt.span,
+        )
+        return
     _check_operand(
         stmt.trump, got, TOptional(TEnum("Suit")), env, bag,
         f"round `trump` names the trump suit — expected Suit? (a suit, or "
@@ -2490,6 +2537,12 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         return
     for child in _child_exprs(e):
         _check_expr(child, env, bag)
+    if isinstance(e, n.IfExpr):
+        _check_bool(e.cond, env, bag, "`if ... then` condition")
+        for cond, _ in e.elifs:
+            _check_bool(cond, env, bag, "`elif` condition")
+    if isinstance(e, n.Not):
+        _check_bool(e.operand, env, bag, "`not` operand")
     if isinstance(e, n.Call):
         sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
         if sig is not None:
@@ -2685,9 +2738,61 @@ def _check_struct_lit(e: n.StructLit, env: TypeEnv, bag: DiagnosticBag) -> None:
 
 
 def _check_bool(e: n.Expr, env: TypeEnv, bag: DiagnosticBag, where: str) -> None:
+    """A Boolean position, checked TOTALLY: the permissive top is refused here
+    as well as a concrete wrong type.
+
+    Boolean positions are the one family where nothing downstream can catch a
+    wrong value. `bool(...)` accepts every value and cannot raise, so a
+    non-Boolean does not crash the game -- it makes the predicate constantly
+    true and the game plays on, scoring a different hand. That is why this
+    check does not admit `TAny` the way an operand check may: for a position
+    whose wrong value is loud at play time, gradual typing costs a diagnostic;
+    for these, it costs the answer."""
     t = infer(e, env)
-    if not isinstance(t, (TBoolean, TAny)):
+    if isinstance(t, TAny):
+        bag.error(
+            f"{where} types as `Any`, the permissive top (a value the checker "
+            f"cannot type -- a mixed-branch `if`, an untyped read); it must "
+            f"type exactly Boolean, because nothing downstream catches a "
+            f"non-Boolean here: every value is truthy and the game plays on",
+            e.span,
+        )
+    elif not isinstance(t, TBoolean):
         bag.error(f"{where} must be Boolean, got {_type_name(t)}", e.span)
+
+
+def _check_if_impossible(rule: n.RuleDef, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """A rule's `if_impossible:` fallback is a card set, or the `error(...)`
+    form that refuses the move instead of widening it.
+
+    Checked TOTALLY, and for the same reason the Boolean positions are: the
+    runtime TESTS this value's type and skips on mismatch
+    (`runtime/rules.py`), so a wrong one is not caught downstream -- the
+    fallback is dropped in silence, and the refusal a correctly-typed narrowing
+    fallback would have raised is dropped with it."""
+    expr = rule.if_impossible
+    if expr is None:
+        return
+    if isinstance(expr, n.Call) and expr.func == "error":
+        return
+    got = infer(expr, env)
+    if isinstance(got, TAny):
+        bag.error(
+            f"rule '{rule.name}' `if_impossible:` types as `Any`, the permissive "
+            f"top (a value the checker cannot type -- a mixed-branch `if`, an "
+            f"untyped read); it must type exactly a card set, because the "
+            f"runtime drops a fallback it cannot recognise instead of refusing "
+            f"it, taking the rule's own refusal with it",
+            expr.span or rule.span,
+        )
+        return
+    if not (isinstance(got, TCollection) and isinstance(got.element, (TCard, TAny))):
+        bag.error(
+            f"rule '{rule.name}' `if_impossible:` must be a set of cards (a zone "
+            f"like `hand`, or a card query) or an `error(...)`, got "
+            f"{_type_name(got)}",
+            expr.span or rule.span,
+        )
 
 
 def _stmt_exprs(s: n.Stmt) -> list[n.Expr]:
@@ -3760,6 +3865,12 @@ def typecheck(game: Game) -> Game:
                     for transition in item.transitions:
                         if transition.event.where is not None:
                             _check_expr(transition.event.where, env, bag)
+                            _check_bool(
+                                transition.event.where,
+                                env,
+                                bag,
+                                f"transition to '{transition.mode}' `where`",
+                            )
                 case n.StateBlock():
                     entry_env = _scoped_env(env, binders)
                     for decl in item.decls:
@@ -3801,20 +3912,22 @@ def typecheck(game: Game) -> Game:
     # and derived type-field bodies.
     for move_type in game.move_types:
         if move_type.when is not None:
-            _check_expr(
-                move_type.when,
-                _scoped_env(
-                    env, _parameter_binders(move_type, env.positions, env.directions)
-                ),
-                bag,
+            mt_env = _scoped_env(
+                env, _parameter_binders(move_type, env.positions, env.directions)
             )
+            _check_expr(move_type.when, mt_env, bag)
+            _check_bool(move_type.when, mt_env, bag, f"move '{move_type.name}' `when:` guard")
     for rule in game.rules:
         if rule.applies_when is not None and rule.applies_when.pred is not None:
             _check_expr(rule.applies_when.pred, env, bag)
+            _check_bool(
+                rule.applies_when.pred, env, bag, f"rule '{rule.name}' `applies_when:`"
+            )
         if rule.demands is not None:
             _check_expr(rule.demands.expr, env, bag)
         if rule.if_impossible is not None:
             _check_expr(rule.if_impossible, env, bag)
+            _check_if_impossible(rule, env, bag)
         if rule.exempts is not None:
             _check_expr(rule.exempts, env, bag)
     # Phase-level state defaults and transition predicates are checked by
