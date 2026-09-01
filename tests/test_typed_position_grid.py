@@ -56,6 +56,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from cardlang.typecheck import OP_CLASSES, OpClass
 from tests.test_typed_positions import TOTAL, TREATMENT
 
 # The two spellings of the same wrongness. `3` is an Integer literal; the second
@@ -100,6 +101,10 @@ SYNTHETIC: dict[tuple[str, str], tuple[str, str]] = {
     ("PlayerQuery", "where"): ("", "    if any player where {W} { score[0] += 1 }"),
     ("Turns", "until"): ("", "    turns t from 0 over all players until {W} { score[t] += 1 }"),
     ("EpistemicOp", "where"): ("", "    reveal one card from deck where {W}"),
+    ("PhaseQualifier", "expr"): (
+        "",
+        "    score[0] += 1",
+    ),
     ("MoveTypeDef", "when"): (
         "move_type m {\n  when: {W}\n  effect { score[actor] += 1 }\n}\n",
         "    score[0] += 1",
@@ -147,7 +152,27 @@ CORPUS: dict[tuple[str, str], tuple[str, str, str]] = {
 }
 
 
+# The phase qualifier sits in the phase HEADER, so it cannot be injected into
+# the shared skeleton's body the way the other synthetic probes are.
+_QUALIFIER_BASE = """game G {
+  players: 2
+  direction: clockwise
+  max_length: 100
+  cards: standard52
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase setup repeat until %s {
+    shuffle deck
+    score[0] += 1
+  }
+  winner: highest score
+}
+"""
+
+
 def _source(position: tuple[str, str], wrong: str) -> str:
+    if position == ("PhaseQualifier", "expr"):
+        return _QUALIFIER_BASE % wrong
     if position in SYNTHETIC:
         decls, body = SYNTHETIC[position]
         return _BASE % (decls.replace("{W}", wrong), body.replace("{W}", wrong))
@@ -217,3 +242,46 @@ def test_total_position_refuses_a_wrong_value(
     assert _refuses(_source(position, PRODUCERS[producer])), (
         f"{position[0]}.{position[1]} accepted a {producer} wrong value"
     )
+
+
+# --- the operator axis --------------------------------------------------------
+#
+# An operand is a position too, and the operator decides what type it requires.
+# `OP_CLASSES` is that registry, so the axis derives rather than being listed: a
+# new operator joins the sweep by joining the table.
+#
+# Which classes must be TOTAL follows the same rule as the positions -- whether
+# the runtime's consumption of a wrong value can fail. Measured 2026-08-31 by
+# injecting a laundered operand into a corpus game and playing it:
+#
+#   LOGICAL     `and`/`or`     -> silent, different scores   -> total
+#   MEMBERSHIP  `in`           -> silent, different scores   -> total (left)
+#   EQUALITY    `is`/`is not`  -> silent, different scores   -> issue #520
+#   ORDERING    `<` `>` ...    -> raises TypeError           -> loud, gradual
+#   ARITHMETIC  `+` `-` ...    -> raises TypeError           -> loud, gradual
+#
+# EQUALITY is silent and is NOT closed here: refusing the permissive top there
+# rejects three corpus games that legitimately compare an unrefined value, so it
+# needs `infer`'s unrefined arms narrowed first rather than a guard bolted on.
+TOTAL_OP_CLASSES = {OpClass.LOGICAL, OpClass.MEMBERSHIP}
+
+_TOTAL_OPS = sorted(op for op, cls in OP_CLASSES.items() if cls in TOTAL_OP_CLASSES)
+
+
+@pytest.mark.parametrize("op", _TOTAL_OPS)
+def test_operator_of_a_total_class_refuses_a_laundered_operand(op: str) -> None:
+    """An operator whose result types Boolean whatever its operands are cannot
+    let a laundered operand through: the enclosing position's total check sees
+    only the Boolean result, so the operator is where the value escapes.
+
+    red under: restore `_check_logical_operands`'s pre-change arm --
+    `if not isinstance(bare, (TAny, TBoolean))` -- which admitted the top. The
+    `and` and `or` rows fail; `in` stays green, since the membership guard is
+    its own. Note the narrower plant does NOT redden this: disabling only the
+    TAny branch falls through to the generic arm, which still rejects.
+    """
+    right = "[hearts]" if OP_CLASSES[op] is OpClass.MEMBERSHIP else "true"
+    surface = "is not" if op == "is_not" else op
+    cond = f"{PRODUCERS['laundered']} {surface} {right}"
+    body = "    if " + cond + " { score[0] += 1 }"
+    assert _refuses(_BASE % ("", body)), f"'{op}' accepted a laundered operand"

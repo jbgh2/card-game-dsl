@@ -1827,10 +1827,26 @@ def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> Non
     expression — `if (a and 3) { … }` is Boolean overall (`and`'s `infer()`
     arm is a fixed `TBoolean`, regardless of its operands), so a top-level
     Boolean check on the whole `if` condition never sees the smuggled
-    Integer. TAny passes (gradual)."""
+    Integer.
+
+    That smuggling is why the permissive top is refused here too. An operand
+    is a Boolean position by the same argument its container is: `bool(...)`
+    accepts every value and cannot raise. And because `infer` types the whole
+    `and` as Boolean whatever its operands are, `x and true` is the way a
+    laundered value walks past a total check on the enclosing position — the
+    operator is the hole, not the position."""
     for operand in (e.left, e.right):
         bare = _bare(infer(operand, env))
-        if not isinstance(bare, (TAny, TBoolean)):
+        if isinstance(bare, TAny):
+            bag.error(
+                f"'{e.op}' operand types as `Any`, the permissive top (a value "
+                f"the checker cannot type -- a mixed-branch `if`, an untyped "
+                f"read); it must type exactly Boolean, because `{e.op}` types "
+                f"Boolean whatever its operands are, so nothing above catches "
+                f"a non-Boolean here and the game plays on",
+                operand.span,
+            )
+        elif not isinstance(bare, TBoolean):
             bag.error(
                 f"'{e.op}' expects Boolean operands, got {_type_name(bare)}",
                 operand.span,
@@ -1845,7 +1861,24 @@ def _check_membership_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
     misspelled/mistyped *literals* `join` cannot see (a bad numeral, a
     cross-enum literal). Every other combination is checked generally: when
     both the left type and the collection's element type are concrete and
-    `join` finds them incompatible, the membership can never be true."""
+    `join` finds them incompatible, the membership can never be true.
+
+    The left operand refuses the permissive top for the reason the LOGICAL
+    operands do: `in` types Boolean whatever its operands are, so a laundered
+    value here is not caught by a total check on the enclosing position, and a
+    membership that can never be true is silent -- the game plays on with the
+    test constantly false."""
+    lbare = _bare(infer(e.left, env))
+    if isinstance(lbare, TAny):
+        bag.error(
+            "the left-hand side of `in` types as `Any`, the permissive top (a "
+            "value the checker cannot type -- a mixed-branch `if`, an untyped "
+            "read); it must have a concrete type, because `in` types Boolean "
+            "whatever its operands are and a membership that can never be true "
+            "is silent",
+            e.span,
+        )
+        return
     right_t = infer(e.right, env)
     if not isinstance(right_t, (TCollection, TAny)):
         bag.error(

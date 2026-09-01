@@ -112,6 +112,7 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("Transfer", "where"): (TOTAL, "Boolean"),
     ("TrickOrderRow", "body"): (TOTAL, "row-declared"),
     ("Turns", "until"): (TOTAL, "Boolean"),
+    ("PhaseQualifier", "expr"): (TOTAL, "Boolean"),
     # -- matched against a domain where "no match" is legal: also silent -------
     ("TrickRound", "trump"): (TOTAL, "Suit?"),
     # A collection position, but its consumption TESTS the type and skips
@@ -167,7 +168,6 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     ("LetStmt", "value"): (CONTEXTUAL, "the binding's uses"),
     ("ListLit", "elements"): (CONTEXTUAL, "element join"),
     ("NamedArg", "value"): (CONTEXTUAL, "rejected: named args unsupported"),
-    ("PhaseQualifier", "expr"): (CONTEXTUAL, "the qualifier's phase"),
     ("Produce", "payloads"): (CONTEXTUAL, "the declared outcome payload types"),
     ("RuleRef", "args"): (CONTEXTUAL, "the rule's parameter domains"),
     ("RunStmt", "args"): (CONTEXTUAL, "the procedure's parameter domains"),

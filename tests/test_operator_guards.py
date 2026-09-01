@@ -348,14 +348,36 @@ def test_logical_rejects_a_smuggled_integer_even_though_and_infers_boolean() -> 
     )
 
 
-def test_logical_accepts_gradual_any() -> None:
-    _accepts(
-        _game(
-            "for each player q: score[q] := 1\n"
-            "    mode m { transition_to: p when play_to_trick where action.card_count and true }\n"
-            "    mode p { }"
-        )
+def _action_field_game(expr: str) -> str:
+    # `action.card_count` is a move-type-specific field, which types as the
+    # permissive top by design (typecheck's Member arm: only `action.card` and
+    # `action.actor` have a sound type off the pronoun).
+    return _game(
+        "for each player q: score[q] := 1\n"
+        f"    mode m {{ transition_to: p when play_to_trick where {expr} }}\n"
+        "    mode p {{ }}".replace("{{", "{").replace("}}", "}")
     )
+
+
+def test_logical_rejects_an_operand_typed_as_the_permissive_top() -> None:
+    # The rule does not change with what the checker can SEE. `true and 3` is
+    # refused above; an operand whose type is unknown is refused here, because
+    # admitting it would make the same mistake legal exactly when it is
+    # invisible -- and `and` types Boolean whatever its operands are, so no
+    # check above the operator catches what passes here.
+    _rejects(
+        _action_field_game("action.card_count and true"),
+        "'and' operand types as `Any`, the permissive top",
+    )
+
+
+def test_an_untyped_value_reaches_a_logical_operand_through_a_comparison() -> None:
+    # The affordance survives: a move-type-specific field is still usable in a
+    # logical operand, said as a comparison rather than as truthiness. That is
+    # the same sentence a designer must already write when the field's type IS
+    # known, which is the point of refusing the one above.
+    _accepts(_action_field_game("action.card_count > 0 and true"))
+    _accepts(_action_field_game("action.card_count is 1 and true"))
 
 
 # =============================================================================
