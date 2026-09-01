@@ -120,9 +120,11 @@ next to the game it serves, and the language package
 genuinely general names stay in the stdlib: `team_of`, `player_holding`,
 `suit_of`, `rank_value`, `card_points`, `error` (and `best_five_card_hand`,
 specified in [library.md](../library.md) but not yet wired) — and
-the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`,
-`pot_share`) graduate there when a second poker game lands, per the usual
-corpus-first promotion.
+the poker-*family* selectors (`bring_in_seat`, `first_to_act_seat`)
+graduate there at their second witness, per the usual corpus-first
+promotion (the Hold'em games, with no bring-in, are not it). The pot-share
+queries stay per-game — each declares its own reads — over the family-wide
+`poker.side_pot_payouts`.
 
 **What this is not.** The [[instantiate-lesson]]
 ([principles.md](../principles.md)) stands untouched: no control flow, no
@@ -255,8 +257,9 @@ byte-identical goldens — which narrows `coup_game_summary` without
 evicting it (its eviction stays its own step, §3).
 
 Risk closed: `pot_share`'s surface signature does NOT have to change.
-`_payouts` in `stud.py` is already a pure core taking
-`in_hand`/`committed`/`folded`/`hole`/`upcards`, so `pot_share(p :
+The core under it is already pure and values-in — `stud.showdown_hands`
+assembles the `hole`/`upcards` holdings, `poker.side_pot_payouts` layers
+`in_hand`/`committed`/`folded` over them — so `pot_share(p :
 Player) -> Integer` survives the narrowing intact.
 
 **Stage 3 — the `primitives { }` block (the audit stage), split 3a/3b.**

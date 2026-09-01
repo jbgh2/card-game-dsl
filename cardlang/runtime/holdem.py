@@ -13,10 +13,10 @@ module holds only the one pure function not expressible there:
   tuples per commitment layer), the Primitive the showdown's settle
   statement calls.
 
-The hand evaluator is family-wide and lives in `cardlang/runtime/poker.py`,
-shared with Stud. What is NOT shared is the settlement: Stud ranks
-`hole + upcards`, Hold'em ranks `hole + board`, so the two read different
-zones and each keeps its own `_payouts`.
+The hand evaluator and the side-pot layering are family-wide and live in
+`cardlang/runtime/poker.py`, shared with Stud. What is NOT shared is the
+showdown holding: Stud ranks `hole + upcards`, Hold'em ranks `hole + board`,
+so the two read different zones and each keeps its own `showdown_hands`.
 
 Total chips are invariant — the falsifiable invariant for the betting and pot
 logic (tests/test_playout_holdem.py).

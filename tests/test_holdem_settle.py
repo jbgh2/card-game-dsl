@@ -1,4 +1,4 @@
-"""Known-value tests for Hold'em side-pot distribution (`_payouts`).
+"""Known-value tests for Hold'em side-pot distribution (`side_pot_payouts`).
 
 The chip-conservation invariant in the playout can't catch a *misallocated*
 side pot — the leftover sweep rebalances the total regardless. These tests pin
@@ -20,7 +20,8 @@ _SUIT = {"C": "clubs", "D": "diamonds", "H": "hearts", "S": "spades"}
 
 def _cards(*specs: str) -> tuple[Card, ...]:
     """Cards as the binder delivers them: a plain tuple, not a live `Zone`
-    (`_payouts` is values-in, so the fixture hands it the GameReads shape)."""
+    (`side_pot_payouts` is values-in, so the fixture hands it the GameReads
+    shape)."""
     return tuple(Card(s[:-1], _SUIT[s[-1]]) for s in specs)
 
 

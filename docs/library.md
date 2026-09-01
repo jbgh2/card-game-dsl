@@ -346,8 +346,9 @@ in tests/test_trump_slot_class.py.
   `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
   variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
   `round offering [check, bet, call, fold, raise]` per street over the
-  non-folded, non-allin ring. The accumulator (`bet_to_match`, `raises`, per-player
-  `bet_by`/`acted`/`committed`) is ordinary phase state; action-legality is the
+  non-folded, non-allin ring. The accumulator is the state `poker_betting`'s
+  `requires` block makes the game declare, plus the library's own provided
+  intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
@@ -356,10 +357,12 @@ in tests/test_trump_slot_class.py.
   (committed-total levels, ties split with the odd chip to the first winner in
   seat order, uncalled remainder to the best contender), a pure read of the
   betting state and the live hands; `stack[p] := stack[p] + pot_share(p)` is
-  what moves the chips. The shared `betting` definition — this configuration of
-  the form — is promoted to this catalogue corpus-first at its third instance;
-  Stud is the only instance today, so the move types and `pot_share` stay
-  game-local.
+  what moves the chips. The shared `betting` core is the `poker_betting`
+  family library ([decisions.md](decisions.md), "Family libraries"): check,
+  bet, call, raise and the ring predicates arrive by `uses poker_betting`,
+  while `fold` (the one betting move that touches cards) stays game-local,
+  as does the per-game pot-share query over the family-wide side-pot
+  arithmetic in `cardlang/runtime/poker.py`.
 - **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
   form fits pegging's per-play scoring plus forced-play flow (see
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'

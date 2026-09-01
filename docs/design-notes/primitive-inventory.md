@@ -303,7 +303,8 @@ Ordered (player, card) trick query, play-order-first (`belote_royal_player`,
 `tarot_excuse_player`); suffix folds over an ordered zone (cribbage
 `peg_pair_points`, `peg_run_points`); prefix-scan (`skat_matadors` — the corpus's
 only inherent loop over a runtime-length ordering); accumulator fold over a derived
-domain (stud `_payouts` side pots — the one true iteration); provenance-carrying
+domain (stud's side pots, `poker.side_pot_payouts` — the one true
+iteration); provenance-carrying
 zones + index-of + bitwise decode (cribbage `peg_origin`/`peg_origin_of`,
 `seq_bits`/`seq_len` state — a temporal contract: must read before the pile drains);
 positional index into a derived collection (`belote_decl_slot`); half-even rounding
@@ -362,6 +363,7 @@ most once, which is what pattern exclusivity buys.
 `five_hundred_next_bid`. **Structural:** `five_hundred_trick_winner` computes
 misère participation (the dead seat) — table structure in a value primitive; the
 pile→seat attribution zip (doko/skat/500) is engine plumbing with an admitted
-silent-mislabel risk (doko.py ~70-72). **Exemplars of the clean shape:** stud's
-`_payouts` ("returns the chip delta rather than mutating a stack" — the DSL
-performs the effect) and coup.py throughout.
+silent-mislabel risk (doko.py ~70-72). **Exemplars of the clean shape:** the
+settle core `poker.side_pot_payouts` ("returns the chip delta per entrant
+rather than mutating a stack" — the DSL performs the effect) and coup.py
+throughout.
