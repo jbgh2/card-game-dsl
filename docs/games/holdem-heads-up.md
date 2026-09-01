@@ -103,10 +103,10 @@ nothing.
 The showdown calls one primitive, `holdem_heads_up_pot_share`, declared in the
 game's own `primitives { }` block and holding no arithmetic: the payout
 layering is family-wide (`cardlang/runtime/poker.py`) and the "hole cards plus
-the shared board" fact is Hold'em-wide (`cardlang/runtime/holdem.py`). It
-exists as its own name because three-handed Hold'em writes no block, so
-`holdem_pot_share` reaches its reads through a registry row bound to
-`holdem.cardlang` alone — see issue #232.
+the shared board" fact is Hold'em-wide (`cardlang/runtime/holdem.py`). That
+it stands as its own name beside three-handed Hold'em's `holdem_pot_share`,
+whose query it repeats exactly, is issue #232: what a variant duplicates is a
+binding, not arithmetic.
 
 ```
 game HoldemHeadsUp {

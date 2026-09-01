@@ -73,8 +73,8 @@ CALL_SIGS: dict[str, Sig] = {
     # Hold'em: the showdown side-pot share (ranks cards, so deck-only).
     "holdem_pot_share": Sig((TPlayer(),), TInteger()),
     # Heads-up Hold'em's showdown share. Same shape and same maths as
-    # `holdem_pot_share` — a separate name because a primitive module binds one
-    # declared-reads row (issue #232), not because the query differs.
+    # `holdem_pot_share` — a separate name because the variant carries its own
+    # binding (issue #232), not because the query differs.
     "holdem_heads_up_pot_share": Sig((TPlayer(),), TInteger()),
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`

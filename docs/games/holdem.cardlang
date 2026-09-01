@@ -36,6 +36,23 @@ game Holdem {
   cards: standard52
   ranking: aces high
 
+  // The one this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/holdem.py`: the showdown's side-pot query. Every read is
+  // WHOLE, none narrowed to the argument — the settlement ranks every entrant's
+  // holding against every other's and layers the pot by commitment, so it needs
+  // all the hands and all the commitments; `p` picks which share of that
+  // settlement comes back, not which cards go into it.
+  //
+  // `in_hand`, `committed` and `folded` are `phase play`'s own state, reset each
+  // hand on re-entry, so each of those reads names the phase that declares it.
+  // Naming it also promises what the resolver then checks — an entry reading
+  // `in play` is called only where `play` is running, which here is the
+  // showdown statement in that phase's own body.
+  primitives {
+    holdem_pot_share(p : Player) : Integer
+        reads in_hand in play, committed in play, folded in play, hole, shown, board
+  }
+
   zones {
     deck          : Deck
     hole[player]  : Hand<player>           // the two private cards

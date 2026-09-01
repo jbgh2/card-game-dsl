@@ -6,19 +6,14 @@ does a contender show" fact is Hold'em-wide (`holdem.showdown_hands`, the two
 hole cards plus the shared board); both are imported. What is left is the
 delegation itself.
 
-Why the delegation exists at all, rather than `holdem-heads-up.cardlang`
-calling `holdem_pot_share` directly: `holdem.cardlang` writes no
-`primitives { }` block, so its reads are a `PRIMITIVE_READS` row keyed on
-(module, game_file) and `holdem.py` binds that ONE row at import
-(`ROW = reads.row(...)`) — it serves `holdem.cardlang` and only that.
-Reusing its primitive here would run this game's showdown against a row
-that does not name it, and `tests/test_primitive_reads.py` pins each row
-against its own game's declarations — so a later edit to `holdem.cardlang`'s
-zone names would silently break a game no pin was watching. This game
-declares instead, and a declaration carries its own reads per call, which is
-what a module constant cannot do (issue #232). That a LEGACY game can call
-another legacy game's primitive with no pin is issue #238; a declared game
-cannot, because its `f(...)` calls resolve against its own namespace alone.
+Why this name stands beside `holdem_pot_share`, whose query it repeats
+exactly, is issue #232: what a variant of a corpus game duplicates is a
+BINDING, not arithmetic. Both games declare their own `primitives { }`
+block, so each entry carries its own reads per call — the same names in
+both, three-handed Hold'em's betting variables naming `phase play` where
+this game declares them at game level. That a LEGACY game can call another
+legacy game's primitive with no pin is issue #238; a declared game cannot,
+because its `f(...)` calls resolve against its own namespace alone.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in

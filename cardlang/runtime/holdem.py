@@ -31,8 +31,6 @@ from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.poker import side_pot_payouts
 from cardlang.runtime.values import Card, Player
 
-ROW = reads.row("cardlang/runtime/holdem.py", "holdem.cardlang")
-
 # The blinds (2/5), street limits (5/5/10/10) and raise cap (4) live in
 # holdem.cardlang; this module keeps only the pot-share query.
 
