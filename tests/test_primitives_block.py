@@ -27,13 +27,15 @@ property:   (1) every combination the `primitives { }` grammar accepts is
             binders key the domain their declaration is indexed by, so no entry
             of a clause can silently replace another and no binder can key an
             instance the declaration has none of; and a `reads` name denotes
-            exactly ONE declaration — it is GAME-scoped state, never a
-            phase's own, because the row is materialized on every call while
-            the runtime resolves the innermost frame; and it belongs to at
-            most one of the four namespaces a keyed name can be declared in
-            (the game's `state { }`, a phase's, an indexed `zones { }`
-            declaration, an unindexed one), so a name in two of them is
-            refused rather than classified by whichever the classifier
+            exactly ONE declaration — the game's own state, or a phase's when
+            the read carries that phase's name as its `in <phase>` tail, whose
+            grid and containment rule are tests/test_phase_scoped_reads.py's;
+            a BARE name is game-scoped, because the row is materialized on
+            every call while the runtime resolves the innermost frame; and it
+            belongs to at most one of the four namespaces a keyed name can be
+            declared in (the game's `state { }`, a phase's, an indexed
+            `zones { }` declaration, an unindexed one), so a name in two of
+            them is refused rather than classified by whichever the classifier
             consults first; and (5) a call that resolves to a designer
             function is not a native call, so no registry keyed by native
             NAME answers about it.
@@ -84,16 +86,18 @@ domain:     the block's own surface — clause placement x {game, library},
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
-            scope; and the corpus is outside it by construction while no
-            corpus game declares a block, so the reconciliation pin's
-            declared arm has the witness fixture as its only member, which
-            `test_reconciliation_reddens_on_a_planted_orphan` and the three
-            row-grain plants beside it keep from being vacuous. That pin's
-            own domain is the ROWS table it is handed crossed with the
-            declared games, and its exemption is the rows a walled binder
-            binds — the climb binder's answers over the two climb registries,
-            plus the shared dispatch module's rows under an assert that no
-            call implementation names that module.
+            scope. The corpus is IN, through the reconciliation pin's own
+            games glob: every declaring game is a member of its declared arm,
+            which `test_the_corpus_reconciles_in_every_direction` asserts
+            non-empty rather than trusting the glob to have found one, and
+            which the witness fixture holds up whatever the corpus has
+            migrated — `test_reconciliation_reddens_on_a_planted_orphan` and
+            the three row-grain plants beside it are what keep the pin from
+            being vacuous. That pin's own domain is the ROWS table it is
+            handed crossed with the declared games, and its exemption is the
+            rows a walled binder binds — the climb binder's answers over the
+            two climb registries, plus the shared dispatch module's rows under
+            an assert that no call implementation names that module.
             Two boundaries the domain has by construction rather than by
             omission. The walled-namespace cells sample one member per
             namespace, and `PRIMITIVE_TRICK_WINNERS` is EMPTY — deliberately,
@@ -1281,7 +1285,7 @@ def test_a_legacy_game_still_may_not_shadow_a_primitive() -> None:
     assert "shadows" in _refused(source)
 
 
-# --- axis 7: a reads name must be GAME-scoped state -------------------------
+# --- axis 7: a reads name reaches phase state only by naming the phase ------
 
 
 def _grammar_alternatives(nonterminal: str) -> frozenset[str]:
@@ -1342,10 +1346,13 @@ def test_a_state_name_shadowed_by_a_phase_is_refused() -> None:
 
 
 def test_a_phase_local_state_read_is_refused() -> None:
-    """A `reads` name is materialized on EVERY call, so a phase-local variable
-    is readable only while that phase's frame stands — and a Primitive called
-    from anywhere else meets a `PrimitiveReadError` on a name its declaration
-    said it had. The declaration is game-level, so its reads are too."""
+    """A BARE `reads` name is materialized on EVERY call, so a phase-local
+    variable is readable only while that phase's frame stands — and a Primitive
+    called from anywhere else meets a `PrimitiveReadError` on a name its
+    declaration said it had. Naming the phase on the read is what lets a
+    declaration reach it (`trump_suit in setup`, the [[phase-scoped-read]],
+    whose grid and containment rule are tests/test_phase_scoped_reads.py's);
+    with no tail the read is game-scoped and this name is not."""
     source = (
         "game Probe {\n"
         "  players: 2\n"
