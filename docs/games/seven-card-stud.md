@@ -78,6 +78,28 @@ game SevenCardStud {
   cards: standard52
   ranking: aces high
 
+  // What this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/stud.py`: the door-card seat selectors and the
+  // showdown's side-pot query. Each entry declares what its own implementation
+  // consults, so the clauses differ — the bring-in is chosen before anyone can
+  // fold, and the settlement reads no stack, because what it returns is what
+  // moves one.
+  //
+  // `committed`, `folded` and `in_hand` are declared by `phase play`, not by
+  // the game, so a read of one names that phase. The tail rides the READ, not
+  // the clause: `stack` is game-level and carries none. Naming the phase also
+  // promises what the resolver then checks — an entry reading `in play` is
+  // called only where `play` is running, which here is the phase's own body
+  // and the streets' round configurations.
+  primitives {
+    bring_in_seat() : Player
+        reads stack, upcards
+    first_to_act_seat() : Player
+        reads stack, folded in play, upcards
+    pot_share(p : Player) : Integer
+        reads committed in play, folded in play, in_hand in play, hole, upcards
+  }
+
   zones {
     deck            : Deck
     hole[player]    : Hand<player>           // face-down cards

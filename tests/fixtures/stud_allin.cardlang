@@ -14,6 +14,18 @@ game StudAllIn {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
 
+  // Copied with the body: the seat/settlement Primitives the streets and the
+  // showdown call, each reading what its own implementation consults, and
+  // `phase play`'s own variables named with their phase.
+  primitives {
+    bring_in_seat() : Player
+        reads stack, upcards
+    first_to_act_seat() : Player
+        reads stack, folded in play, upcards
+    pot_share(p : Player) : Integer
+        reads committed in play, folded in play, in_hand in play, hole, upcards
+  }
+
   zones {
     deck            : Deck
     hole[player]    : Hand<player>           // face-down cards

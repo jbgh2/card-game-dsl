@@ -3,7 +3,8 @@
 These are argmin/argmax over players keyed on card ranks/suits — not expressible
 in the DSL today — so they are Primitives called from the betting
 phase. The pure ranking logic is unit-tested here against known cards; their
-DSL-callability (signature wiring) is checked with a fixture that references both.
+DSL-callability (signature wiring) is checked with a fixture that declares and
+calls both.
 """
 
 from __future__ import annotations
@@ -37,7 +38,10 @@ def test_highest_upcards_compares_sorted_ranks_lexicographically() -> None:
 
 # Both selectors are nullary native calls returning a Player; the resolver/checker
 # must accept them in expression position (the betting phase assigns the result to
-# a `leader`/`bringer` state var).
+# a `leader`/`bringer` state var). A declaration is their only route to Python, so
+# the fixture writes the block; its reads are the ones the implementations consult,
+# declared here at game level because this probe has no betting phase to declare
+# them in.
 _FIXTURE = """
 game G {
   players: 4
@@ -45,6 +49,10 @@ game G {
   direction: clockwise
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    bring_in_seat() : Player reads stack, upcards
+    first_to_act_seat() : Player reads stack, folded, upcards
+  }
   zones { deck : Deck  upcards[player] : PublicHand<player> }
   state { stack[player] : Integer = 100  folded[player] : Boolean = false  leader : Player? = none }
   phase setup {

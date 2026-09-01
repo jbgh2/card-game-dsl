@@ -321,9 +321,9 @@ Which games have migrated is a query, not a number: the games whose
 each held by a named wall, or queued behind one that has fallen — the
 unspellable signatures (issue #472), the dispatch-site reads (issue #473),
 coup's trace emitter (its own step under issue #142), and the phase-local
-cohort whose wall the scope tail below removed, leaving four games to roll
-out one PR each (issue #504) — so a row still standing there is a wall's
-record or a rollout's remainder, never an unswept game.
+cohort whose wall the scope tail below removed, which rolls out one PR per
+game (issue #504) — so a row still standing there is a wall's record or a
+rollout's remainder, never an unswept game.
 
 The wave's most common asymmetry is the one the [[phase-scoped-read]]
 answers: an authored row may name a variable a PHASE declares, because a

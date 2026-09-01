@@ -274,12 +274,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="president.cardlang",
     ),
     PrimitiveReads(
-        module="cardlang/runtime/stud.py",
-        game_file="seven-card-stud.cardlang",
-        state_vars=_fs("stack", "folded", "committed", "in_hand"),
-        zone_families=_fs("upcards", "hole"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/holdem.py",
         game_file="holdem.cardlang",
         state_vars=_fs("in_hand", "committed", "folded"),

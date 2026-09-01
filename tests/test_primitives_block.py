@@ -647,13 +647,15 @@ _SPELLINGS: dict[str, tuple[str, str]] = {
 }
 
 # The `score[0] := …` shape each return spelling lands in, so a rendered call
-# sits in a position that types. An OPTIONAL return lands through `is none`
-# rather than through an assignment target of its own type: every shape then
-# ends in the one slot whose value decides the probe game's winner, so a cell
-# cannot pass by assigning somewhere nothing reads.
+# sits in a position that types. A PLAYER return lands through a comparison and
+# an OPTIONAL one through `is none`, rather than through an assignment target of
+# its own type: every shape then ends in the one slot whose value decides the
+# probe game's winner, so a cell cannot pass by assigning somewhere nothing
+# reads.
 _ASSIGNMENTS: dict[str, str] = {
     "Integer": "    score[0] := {call}",
     "Boolean": "    score[0] := if {call} then 1 else 0",
+    "Player": "    score[0] := if {call} is 0 then 1 else 0",
     "Player?": "    score[0] := if {call} is none then 0 else 1",
 }
 

@@ -33,8 +33,6 @@ from cardlang.runtime.poker import RANK_VALUE, side_pot_payouts
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-ROW = reads.row("cardlang/runtime/stud.py", "seven-card-stud.cardlang")
-
 # The ante (1), bring-in (2), street limits (5/10), and raise cap (3) live in
 # seven-card-stud.cardlang; this module keeps only the seat selectors and the
 # pot-share query. The hand evaluator is family-wide, so it lives in
