@@ -46,9 +46,10 @@ statements — a contested hand reveals the contenders' hole cards, each entrant
 collects its side-pot share via `holdem_pot_share(p)`,
 and the hands leave play to the muck.
 
-One Primitive, a pure read. `holdem_pot_share` is the side-pot query
-(the committed-total layering, odd chip to the first winner in seat order,
-uncalled remainder to the best contender). The seat-ring skip is the language's
+One Primitive, a pure read. `holdem_pot_share`, declared in the game's own
+`primitives { }` block, is the side-pot query (the committed-total layering,
+odd chip to the first winner in seat order, uncalled remainder to the best
+contender). The seat-ring skip is the language's
 own ring search — `the first player from <seat> offset_by left where
 in_hand[player]` (decisions.md "Player-collection queries") — and both the
 button's own rotation and the blinds go through it. Stepping the button along

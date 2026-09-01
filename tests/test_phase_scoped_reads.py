@@ -86,18 +86,19 @@ covered:    the parametrized cells below. The untailed membership product,
             offering surfaces; it is a RULE clause, not a move type's, and
             rules are a REFUSED container — the `rule-applies-when` row samples
             them — so there is no move-type `demands:` cell to write.
-sampled:    the ACCEPT half's call positions are carried by five corpus
-            games (seven-card-stud, holdem, pinochle, french-tarot,
-            canasta), of which pinochle lands in this change and the other
-            four follow one PR each; the positions no corpus game reaches —
-            a phase's own qualifier, `before_each` and `after_each` — are
-            carried by one synthetic nested fixture whose playout records
-            which position each scoped call came from, rather than by a
-            fixture that merely resolves. Every REFUSAL cell is synthetic,
-            because the corpus correctly holds no violation, and each ships
-            with its accept twin (the same game with the offending element
-            removed) so the arm is proven discriminating rather than merely
-            loud.
+sampled:    the ACCEPT half's call positions are the ones five corpus games
+            carry (seven-card-stud, holdem, pinochle, french-tarot,
+            canasta) — the shapes each cell below is built to, read off those
+            games rather than invented; which of them declare a block is a
+            query (`rg -lF 'primitives {' docs/games/`), never this ledger's
+            claim. The positions no corpus game reaches — a phase's own
+            qualifier, `before_each` and `after_each` — are carried by one
+            synthetic nested fixture whose playout records which position
+            each scoped call came from, rather than by a fixture that merely
+            resolves. Every REFUSAL cell is synthetic, because the corpus
+            correctly holds no violation, and each ships with its accept twin
+            (the same game with the offending element removed) so the arm is
+            proven discriminating rather than merely loud.
 does not prove: a green here says nothing about whether the runtime premise
             the containment guard leans on still holds — that a game move
             type's body executes only inside the dynamic extent of an
