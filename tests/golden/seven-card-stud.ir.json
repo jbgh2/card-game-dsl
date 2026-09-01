@@ -26,6 +26,101 @@
     "2"
   ],
   "ranking_convention": "aces high",
+  "primitives": {
+    "kind": "primitives",
+    "entries": [
+      {
+        "kind": "primitive_decl",
+        "name": "bring_in_seat",
+        "params": [],
+        "return_type": "Player",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "stack",
+            "binder": null,
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "upcards",
+            "binder": null,
+            "phase": null
+          }
+        ]
+      },
+      {
+        "kind": "primitive_decl",
+        "name": "first_to_act_seat",
+        "params": [],
+        "return_type": "Player",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "stack",
+            "binder": null,
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "folded",
+            "binder": null,
+            "phase": "play"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "upcards",
+            "binder": null,
+            "phase": null
+          }
+        ]
+      },
+      {
+        "kind": "primitive_decl",
+        "name": "pot_share",
+        "params": [
+          {
+            "kind": "primitive_param",
+            "name": "p",
+            "type": "Player"
+          }
+        ],
+        "return_type": "Integer",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "committed",
+            "binder": null,
+            "phase": "play"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "folded",
+            "binder": null,
+            "phase": "play"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "in_hand",
+            "binder": null,
+            "phase": "play"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "hole",
+            "binder": null,
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "upcards",
+            "binder": null,
+            "phase": null
+          }
+        ]
+      }
+    ]
+  },
   "trump": null,
   "teams": [],
   "positions": [],
