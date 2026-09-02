@@ -103,7 +103,7 @@ game Canasta {
   // clause: `score` and every zone are game-level and carry none. Naming the
   // phase also promises what the resolver then checks — an entry reading
   // `in hand` is called only where that phase is running, which here is its
-  // descendant phases `play` and `scoring`, and the move types `phase play`
+  // descendant `phase play`: that phase's own body, and the move types it
   // alone offers.
   //
   // A binder narrows a read to the instance the call names: a player-keyed

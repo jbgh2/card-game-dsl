@@ -23,7 +23,14 @@ covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             tests/test_signatures.py (set equality + dispatch-AST
             reconciliation, automatic); declared reads:
             tests/test_primitive_reads.py (two-sided pin, the game's block
-            against the module's own accessor literals, automatic);
+            against the module's own accessor literals, automatic) — at
+            MODULE grain, its scan comparing the module-wide union; ENTRY
+            grain, whether one entry's own clause suffices for the code that
+            entry reaches, is answered at playout, where a narrowed clause
+            checks clean and the bundle refuses in the typed
+            PrimitiveReadError channel naming the entry and the clause to
+            extend (that module's `sampled:` row states the same limit for
+            per-call-site attribution);
             adapter registration: the corpus glob <-> registry pin and the
             proof-module coverage pin (both two-sided, automatic); a
             declared-only name called from a game with no block:
