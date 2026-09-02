@@ -327,6 +327,28 @@ def test_runtime_emptied_range_is_refused_naming_the_exclusion() -> None:
         play_game(game, random.Random(0))
 
 
+def test_range_is_guarded_before_the_exclusion_decides() -> None:
+    # A live range past the ceiling refuses before the exclusion evaluates,
+    # so a decision the exclusion nests is never drawn (and never announced)
+    # for a choose that then refuses.
+    game = check_dsl(
+        _game(
+            "choose integer in 0 .. big up to 5 excluding (choose integer in 0 .. 1)",
+            state=STATE + "  big : Integer = 9",
+        ),
+        "t",
+    )
+    drawn: list[list[Any]] = []
+
+    def chooser(player: int, candidates: list[Any], k: int) -> list[Any]:
+        drawn.append(list(candidates))
+        return list(candidates[:k])
+
+    with pytest.raises(OwnerGuardError, match="escaped its declared domain"):
+        play_game(game, random.Random(0), chooser=chooser)
+    assert drawn == []
+
+
 def test_runtime_lo_below_the_block_is_still_the_range_guard() -> None:
     # A runtime `lo` that goes negative escapes the reserved block; the
     # existing range guard owns that, clause or no clause.
