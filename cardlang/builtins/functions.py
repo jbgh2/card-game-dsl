@@ -274,6 +274,8 @@ DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "salvo_combos",
         "skat_matadors",
         "skat_next_bid",
+        "tarot_excuse_player",
+        "tarot_per_opp",
         "tichu_dragon_won",
     }
 )

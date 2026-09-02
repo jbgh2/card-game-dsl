@@ -274,13 +274,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="president.cardlang",
     ),
     PrimitiveReads(
-        module="cardlang/runtime/tarot.py",
-        game_file="french-tarot.cardlang",
-        state_vars=_fs("taker", "bid_level"),
-        zone_families=_fs("captured", "discard"),
-        single_zones=_fs("chien"),
-    ),
-    PrimitiveReads(
         module="cardlang/runtime/gin.py",
         game_file="gin-rummy.cardlang",
         zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
