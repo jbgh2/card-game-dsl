@@ -60,7 +60,7 @@ PINNED_SCHEMA: frozenset[str] = frozenset(
         'key:delta', 'key:demands', 'key:derived', 'key:dest', 'key:dest_each',
         'key:direction', 'key:directions', 'key:distribution', 'key:domain',
         'key:early_termination', 'key:effect', 'key:elements', 'key:elifs',
-        'key:else', 'key:else_value', 'key:entries', 'key:event', 'key:expr',
+        'key:else', 'key:else_value', 'key:entries', 'key:event', 'key:excluding', 'key:expr',
         'key:field', 'key:fields',
         'key:follows_fn', 'key:form', 'key:func', 'key:functions', 'key:hi',
         'key:high', 'key:if_impossible', 'key:index', 'key:index_expr', 'key:item',

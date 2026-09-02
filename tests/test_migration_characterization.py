@@ -248,6 +248,7 @@ CAPTURE_GOLDENS: dict[str, tuple[str, ...]] = {
     "bigtwo": ("bigtwo_scores.json",),
     "cribbage": ("cribbage_hands.json",),
     "coup": ("coup_scores.json",),
+    "oh-hell": ("oh-hell_scores.json",),
 }
 
 
@@ -370,7 +371,7 @@ def _capture_results(name: str) -> dict[str, Any]:
     return result
 
 
-@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat"])
+@pytest.mark.parametrize("name", ["bridge", "schnapsen", "pinochle", "french-tarot", "skat", "oh-hell"])
 def test_migration_preserves_per_seed_results(name: str) -> None:
     expected = json.loads((GOLDEN / f"{name}_scores.json").read_text())
     assert_golden_seeds(name, _capture_results(name), expected)

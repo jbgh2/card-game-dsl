@@ -1432,7 +1432,7 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
                 out.append(e.default)
             return out
         case n.Choose():
-            return [e.lo, e.hi]
+            return [e.lo, e.hi] if e.excluding is None else [e.lo, e.hi, e.excluding]
         case n.PlayerQuery():
             return [e.start, e.where] if e.start is not None else [e.where]
         case n.CardQuery():
@@ -1819,6 +1819,30 @@ def _check_arithmetic_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> 
                 f"'{word}' expects Integer operands, got {_type_name(bare)}",
                 operand.span,
             )
+
+
+def _check_choose_operands(e: n.Choose, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """Every operand of an integer `choose` — the range's `lo` and `hi` and
+    the `excluding` value — is an Integer (decisions.md "The integer `choose`
+    domain"). One Owner Guard over the three positions: the class is the
+    construct's Integer operands, not any one clause. TAny/TInteger pass (a
+    `T?` unwraps, per `_bare`); a non-Integer that reaches the evaluator
+    through the permissive top is refused there (`evaluate._choose_operand`)."""
+    operands: tuple[tuple[str, n.Expr | None], ...] = (
+        ("lower bound", e.lo),
+        ("upper bound", e.hi),
+        ("`excluding` value", e.excluding),
+    )
+    for label, operand in operands:
+        if operand is None:
+            continue
+        bare = _bare(infer(operand, env))
+        if isinstance(bare, (TAny, TInteger)):
+            continue
+        bag.error(
+            f"`choose integer` expects an Integer {label}, got {_type_name(bare)}",
+            operand.span,
+        )
 
 
 def _check_logical_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> None:
@@ -2704,6 +2728,8 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
             )
     elif isinstance(e, n.BinOp):
         _check_binop(e, env, bag)
+    elif isinstance(e, n.Choose):
+        _check_choose_operands(e, env, bag)
     elif isinstance(e, n.IsCheck):
         _check_is_check(e, env, bag)
 

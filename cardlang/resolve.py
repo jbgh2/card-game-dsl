@@ -3054,7 +3054,21 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     `up to` ceiling) is rejected: the minimum candidate already exceeds every
     value the action space reserves, so no value can ever be chosen — a
     statically doomed program the runtime guard would otherwise only catch at
-    playout."""
+    playout. A literal lower bound below zero is refused the same way: the
+    reserved block starts at 0, so its every value would lack an action id.
+
+    The `excluding` clause is decided here where it is literal: an excluded
+    value outside the static offerable interval — the literal `lo` (or 0, for
+    a runtime `lo`) up to the ceiling — can never act, and a clause that never
+    acts is accepted-but-ignored wearing a legal parse; an excluded value equal
+    to a statically singleton interval always empties the choice ("No implicit
+    actions"). A runtime exclusion is the runtime's to refuse when it empties
+    the live range. Literal means a bare integer literal: no expression is
+    folded, so `excluding 5 + 1` is runtime and acts or not at play time.
+
+    One diagnostic per choose: the arms are ordered and the first that fires
+    ends the node, so a broken range is reported without the exclusion
+    diagnostics its bounds would also trip."""
     for node in _walk(game):
         if not isinstance(node, n.Choose):
             continue
@@ -3078,6 +3092,7 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"a runtime expression)",
                 node.span,
             )
+            continue
         # A literal lower bound is the smallest value the choose could ever
         # offer; if it exceeds the ceiling, every candidate escapes the reserved
         # `0 .. ceiling` block (or the range is outright empty), so the choose
@@ -3091,6 +3106,34 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 f"value can ever be chosen — lower the start or raise the bound",
                 node.span,
             )
+            continue
+        if isinstance(node.lo, n.IntLit) and node.lo.value < 0:
+            bag.error(
+                f"`choose integer` lower bound ({node.lo.value}) is below the "
+                f"reserved block: values start at 0, and every legal value must "
+                f"have an OpenSpiel action id in 0 .. {ceiling} — raise the start",
+                node.span,
+            )
+            continue
+        if isinstance(node.excluding, n.IntLit):
+            low = node.lo.value if isinstance(node.lo, n.IntLit) else 0
+            excluded = node.excluding.value
+            if not low <= excluded <= ceiling:
+                bag.error(
+                    f"`choose integer` excludes {excluded}, which lies outside "
+                    f"every value these bounds can offer ({low} .. {ceiling}), "
+                    f"so the `excluding` clause can never act — remove it, or "
+                    f"exclude a value in range",
+                    node.excluding.span or node.span,
+                )
+            elif low == ceiling:
+                bag.error(
+                    f"`choose integer` excludes {excluded}, the only value it "
+                    f"can offer ({low} .. {ceiling}), so the `excluding` clause "
+                    f"would always empty the choice — a choice must offer at "
+                    f"least one candidate",
+                    node.excluding.span or node.span,
+                )
 
 
 @dataclass(frozen=True)

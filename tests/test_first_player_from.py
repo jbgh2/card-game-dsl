@@ -719,16 +719,19 @@ def test_library_function_body_host(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_choose_bounds_parenthesized() -> None:
-    # The choose needs an acting-player context (the for-each shape the
-    # choose harness uses); the parenthesized form is its upper bound.
-    src = _game(
-        """
+    # The parenthesized form parses as the choose's upper bound — the sentence
+    # reaches typecheck, which refuses it there as the wrong operand type (a
+    # seat is not an Integer; decisions.md "The integer `choose` domain"),
+    # never as a syntax error.
+    _rejects(
+        _game(
+            """
         mark[2] := true
         for each player q: s[q] := choose integer in 0 .. (the first player from 0 where mark[player]) up to 3
         """
+        ),
+        "expects an Integer upper bound, got Player",
     )
-    scores = _scores(src)
-    assert all(0 <= v <= 2 for v in scores.values()), scores
 
 
 def test_choose_bounds_unparenthesized_is_a_syntax_error() -> None:

@@ -17,18 +17,12 @@ var) rather than the fixed game-level `trump:` declaration that Spades uses.
 somebody must miss. Bidding starts left of the dealer and goes round, so the
 dealer bids last with every other bid already heard, and that is what makes the
 constraint land on them: the rulebook forbids the dealer, at the moment they
-choose, the one number that would make the bids total the hand size. This file
-corrects the dealer's bid after the bids are in instead, because a value cannot
-be excluded from a `choose` range as it is chosen
-([#509](https://github.com/jbgh2/card-game-dsl/issues/509)).
-
-The correction is not the same game. Bids are announced as they are made and the
-correction is silent, so the bids players hear are the uncorrected ones — and
-those *can* total the hand size, which is exactly what the rule forbids. The
-dealer is then scored against a bid nobody heard.
-
-Read this file for the hook rule as written; the hand it plays diverges from the
-rulebook at the dealer's bid until #509 lands.
+choose, the one number that would make the bids total the hand size. The
+dealer's bid says exactly that — `excluding hand_size - total_bid` removes the
+forbidden number from the dealer's range as the bid is chosen — so the bid
+every player hears is the bid the game scores. When the other three have
+already bid past the hand size, no number is forbidden and the dealer bids
+freely, as at the table.
 
 ```
 game OhHell {
@@ -78,23 +72,30 @@ game OhHell {
       leader := dealer offset_by left             // eldest hand leads
       for each player p: bid[p] := 0
       for each player p: has_bid[p] := false
+      total_bid := 0
       for each player p: tricks_won[p] := 0
     }
 
     phase bidding {
       legal_moves: [submit_bid]
+      // Bidding starts left of the dealer and goes round, so the dealer bids
+      // last with every other bid heard. Bid up to the tricks in hand:
+      // `hand_size` varies per hand, so the range's upper bound is runtime
+      // state; `up to 10` declares the static ceiling (the largest hand) the
+      // OpenSpiel action space reserves for the bid.
       turns t from dealer offset_by left over players where not has_bid[player]
             until (number of players where not has_bid[player]) is 0 {
-        bid[t] := choose integer in 0 .. hand_size up to 10
+        if t is dealer {
+          // The hook: the dealer may not bid the number that would make the
+          // bids total the hand size. When the others have already bid past
+          // it, no number is forbidden and the exclusion is a no-op.
+          bid[t] := choose integer in 0 .. hand_size up to 10
+                    excluding hand_size - total_bid
+        } else {
+          bid[t] := choose integer in 0 .. hand_size up to 10
+        }
+        total_bid += bid[t]
         has_bid[t] := true
-      }
-
-      // Dealer hook: the bids may not total the hand size.
-      total_bid := 0
-      for each player p: total_bid += bid[p]
-      if total_bid is hand_size {
-        if bid[dealer] < hand_size { bid[dealer] := bid[dealer] + 1 }
-        else { bid[dealer] := bid[dealer] - 1 }
       }
     }
 

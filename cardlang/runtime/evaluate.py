@@ -115,14 +115,29 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             assert_never(unreachable)
 
 
+def _choose_operand(label: str, expr: n.Expr, ctx: Ctx) -> int:
+    """One Integer operand of a `choose` — the Owner Guard for the dynamic
+    class: a value that reaches the evaluator through the permissive top,
+    which `typecheck._check_choose_operands` (the Owner Guard for the
+    statically typed class) cannot decide. `bool` is refused ahead of `int`
+    because it subclasses it: a bare int check would draw `true` as 1."""
+    value = evaluate(expr, ctx)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise OwnerGuardError(f"`choose integer` expects an Integer {label}, got {value!r}")
+    return value
+
+
 def _choose(e: n.Choose, ctx: Ctx) -> Any:
     assert e.domain == "integer"  # `choose integer` is the grammar's only choose form
-    lo = int(evaluate(e.lo, ctx))
-    hi = int(evaluate(e.hi, ctx))
+    lo = _choose_operand("lower bound", e.lo, ctx)
+    hi = _choose_operand("upper bound", e.hi, ctx)
     # Guard the live *range*, not just the drawn value: a range that escapes its
     # declared `0 .. ceiling` domain would offer a legal action with no OpenSpiel
     # id, and a value-only check passes whenever the chooser happens to draw
     # inside the reserved block. `static_ceiling` is non-None (resolve enforced).
+    # The range is guarded before the exclusion evaluates, so a decision the
+    # exclusion makes (a nested choose) is never drawn for a choose that then
+    # refuses.
     ceiling = n.static_ceiling(e)
     assert ceiling is not None  # resolve rejects a choose with no static ceiling
     if lo < 0 or hi > ceiling:
@@ -132,8 +147,20 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
             f"within the ceiling reserved up front (raise the `up to` bound "
             f"or fix the range)"
         )
-    candidates = list(range(lo, hi + 1))
+    excluded = (
+        None if e.excluding is None else _choose_operand("`excluding` value", e.excluding, ctx)
+    )
+    # The exclusion is a set difference over the live range, applied before
+    # the draw so the offered set, the announced value and the scored value
+    # are one number; an excluded value outside the range removes nothing.
+    candidates = [v for v in range(lo, hi + 1) if v != excluded]
     if not candidates:
+        if excluded is not None and lo <= excluded <= hi:
+            raise OwnerGuardError(
+                f"`choose integer in {lo} .. {hi} excluding {excluded}` has no "
+                f"value to choose (the exclusion removes the range's only "
+                f"value): a choice must offer at least one candidate"
+            )
         raise OwnerGuardError(
             f"`choose integer in {lo} .. {hi}` has no value to choose (empty range): "
             f"a choice must offer at least one candidate"

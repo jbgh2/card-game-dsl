@@ -9,18 +9,10 @@
 // hand, so it is passed as a `trump` argument (read from the per-hand
 // `trump_suit` state var) rather than a fixed game-level `trump:` declaration.
 //
-// The dealer hook (the total of all bids may not equal the hand size) is
-// enforced here as a correction to the dealer's bid after the bids are in,
-// rather than as the rulebook's choice-time constraint, because a value cannot
-// be excluded from a `choose` range as it is chosen (issue #509).
-//
-// The correction is not observationally equivalent to the constraint, and the
-// difference is in this project's own currency. Every `choose` announces its
-// result to all players at the moment it is made, while the correcting
-// assignment is silent — so the bids players HEAR are the uncorrected ones,
-// which can total the hand size, the one total the rule exists to forbid.
-// Scoring uses a corrected bid nobody was told, and two different dealer bids
-// reach the same corrected value while the announcement tells them apart.
+// The dealer hook (the total of all bids may not equal the hand size) is the
+// dealer's `excluding` clause: the one forbidden number leaves the dealer's
+// range as the bid is chosen, so the bid every player hears is the bid the
+// game scores.
 
 game OhHell {
 
@@ -69,6 +61,7 @@ game OhHell {
       leader := dealer offset_by left             // eldest hand leads
       for each player p: bid[p] := 0
       for each player p: has_bid[p] := false
+      total_bid := 0
       for each player p: tricks_won[p] := 0
     }
 
@@ -81,16 +74,17 @@ game OhHell {
       // OpenSpiel action space reserves for the bid.
       turns t from dealer offset_by left over players where not has_bid[player]
             until (number of players where not has_bid[player]) is 0 {
-        bid[t] := choose integer in 0 .. hand_size up to 10
+        if t is dealer {
+          // The hook: the dealer may not bid the number that would make the
+          // bids total the hand size. When the others have already bid past
+          // it, no number is forbidden and the exclusion is a no-op.
+          bid[t] := choose integer in 0 .. hand_size up to 10
+                    excluding hand_size - total_bid
+        } else {
+          bid[t] := choose integer in 0 .. hand_size up to 10
+        }
+        total_bid += bid[t]
         has_bid[t] := true
-      }
-
-      // Dealer hook: the bids may not total the hand size.
-      total_bid := 0
-      for each player p: total_bid += bid[p]
-      if total_bid is hand_size {
-        if bid[dealer] < hand_size { bid[dealer] := bid[dealer] + 1 }
-        else { bid[dealer] := bid[dealer] - 1 }
       }
     }
 

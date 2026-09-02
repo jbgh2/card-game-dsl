@@ -139,6 +139,14 @@ def test_literal_lo_above_the_up_to_ceiling_is_rejected() -> None:
         )
 
 
+def test_negative_literal_lo_is_rejected() -> None:
+    # `-1 .. 5`: the reserved block starts at 0, so the literal lower bound
+    # names a value with no action id — the mirror of a literal `lo` above the
+    # ceiling, decided at resolve like it.
+    with pytest.raises(DiagnosticError, match="below the reserved block"):
+        check_dsl(_game("x[player] : Integer = 0", "choose integer in -1 .. 5"), "t")
+
+
 def test_literal_lo_within_the_ceiling_is_accepted() -> None:
     # The mirror: a literal lower bound at or below the ceiling is fine (a
     # non-empty sub-range), and does not spuriously trip the new check.

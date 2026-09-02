@@ -1,0 +1,17 @@
+// Guard: resolve.py's integer-`choose` exclusion check (docs/decisions.md,
+// "The integer `choose` domain", "No implicit actions"). The range holds one
+// value and the `excluding` clause names it, so the choice would always be
+// empty — refused statically rather than at the first playout.
+game ChooseExcludingEmptiesRange {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 3 .. 3 excluding 3
+  }
+  winner: highest x
+}

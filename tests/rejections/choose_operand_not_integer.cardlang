@@ -1,0 +1,17 @@
+// Guard: typecheck.py's integer-`choose` operand check (docs/decisions.md,
+// "The integer `choose` domain"). Every operand of a choose — the range's
+// bounds and the excluded value — is an Integer; a suit in the exclusion
+// slot is refused at typecheck, not coerced at playout.
+game ChooseOperandNotInteger {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 0 .. 5 excluding hearts
+  }
+  winner: highest x
+}

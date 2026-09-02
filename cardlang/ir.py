@@ -702,12 +702,16 @@ def _expr(e: n.Expr) -> IRDict:
             # integer `choose` domain") — a concrete int so an IR consumer can
             # size the integer action block directly, without re-deriving it
             # from a literal `hi` or re-parsing the `up to N` source.
+            # `excluding` is present exactly when written (the `where`-key
+            # convention of the query nodes above), spelled as a display key
+            # so the schema pin's scrape reads it.
             return {
                 "kind": "choose",
                 "domain": e.domain,
                 "lo": _expr(e.lo),
                 "hi": _expr(e.hi),
                 "ceiling": n.static_ceiling(e),
+                **({"excluding": _expr(e.excluding)} if e.excluding is not None else {}),
             }
         case _ as unreachable:
             assert_never(unreachable)

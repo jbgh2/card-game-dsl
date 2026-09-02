@@ -1,0 +1,18 @@
+// Guard: resolve.py's integer-`choose` exclusion check (docs/decisions.md,
+// "The integer `choose` domain"). The excluded value 7 lies outside the
+// values the choose can offer (0 .. 5), so the `excluding` clause could
+// never act — a clause that never acts is accepted-but-ignored wearing a
+// legal parse, and is refused instead.
+game ChooseExcludingOutOfRange {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in 0 .. 5 excluding 7
+  }
+  winner: highest x
+}

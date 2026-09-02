@@ -1,0 +1,1 @@
+choose_lo_below_block.cardlang:14:15: error: `choose integer` lower bound (-1) is below the reserved block: values start at 0, and every legal value must have an OpenSpiel action id in 0 .. 5 — raise the start

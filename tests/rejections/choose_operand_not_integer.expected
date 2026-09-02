@@ -1,0 +1,1 @@
+choose_operand_not_integer.cardlang:14:50: error: `choose integer` expects an Integer `excluding` value, got Suit

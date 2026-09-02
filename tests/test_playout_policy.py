@@ -480,9 +480,11 @@ def test_the_same_seed_replays_identically() -> None:
     random.Random().randint(0, 1)` -- and the two runs diverge.
 
     Breaking a TIE from a fresh stream does not redden it, which is why the
-    mutation is stated as the target and not the tie: the candidates of a
-    `choose integer` are a contiguous range, so the distance to an integer
-    target has a unique minimum and the tie set is a singleton. A pin's
+    mutation is stated as the target and not the tie: `_rank_declaration`
+    ranks by the composite key (distance to the target, the value), which is
+    total over any candidate list — with or without an `excluding` gap — so
+    a tie on distance is broken by value and a fresh stream in the tie-break
+    would have nothing to decide. A pin's
     reddening edit has to plant the fault somewhere the code actually reaches.
     """
     game = check_source(SPADES)

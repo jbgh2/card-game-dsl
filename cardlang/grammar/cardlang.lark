@@ -611,6 +611,7 @@ if_impossible: _IF_IMPOSSIBLE_KW ":" expr
      | agg_query
      | player_query
      | card_query
+     | choose_expr
      | or_expr
 
 // Queries over the player ring. Like the quantifier/comprehension forms, these
@@ -738,7 +739,6 @@ arg_list: arg ("," arg)*
 
 ?primary: card_literal
         | all_players
-        | choose_expr
         | call
         | struct_lit
         | list_lit
@@ -838,7 +838,19 @@ call: NAME "(" [arg_list] ")"
 // could never satisfy the static contract. When the upper bound is itself a
 // literal (Spades' `0 .. 13`), the ceiling derives from it and the clause is
 // omitted; the resolver requires it exactly when it cannot.
-choose_expr: _CHOOSE_KW _INTEGER_KW _IN_KW sum ".." sum [_UP_KW _TO_KW INT]  -> choose_integer
+//
+// `excluding <e>` removes the one value `e` names from the live range before
+// the draw (Oh Hell's dealer: `excluding hand_size - total_bid`). It is the
+// last clause and takes one `sum`; the clause order is fixed, `up to` before
+// `excluding`. One value, not a list: a comma here would collide with the
+// call-argument comma.
+//
+// The form sits at `expr` level beside the query forms, never inside an
+// operand chain: its trailing `sum` (the range's `hi`, or the exclusion)
+// extends as far right as possible, so `excluding hand_size - total_bid` has
+// one derivation, and a choose used as an operator's operand is
+// parenthesized — `(choose integer in 0 .. 5) + 1` — the way a bare query is.
+choose_expr: _CHOOSE_KW _INTEGER_KW _IN_KW sum ".." sum [_UP_KW _TO_KW INT] [_EXCLUDING_KW sum]  -> choose_integer
 
 index_expr: "[" expr "]"
 zone_expr: NAME [index_expr]
@@ -921,6 +933,7 @@ _EARLY_KW: "early" /(?![A-Za-z0-9_])/
 _EFFECT_KW: "effect" /(?![A-Za-z0-9_])/
 _ELIF_KW: "elif" /(?![A-Za-z0-9_])/
 _ELSE_KW: "else" /(?![A-Za-z0-9_])/
+_EXCLUDING_KW: "excluding" /(?![A-Za-z0-9_])/
 _EXEMPTS_KW: "exempts" /(?![A-Za-z0-9_])/
 _FIRST_KW: "first" /(?![A-Za-z0-9_])/
 _FOLLOWS_KW: "follows" /(?![A-Za-z0-9_])/

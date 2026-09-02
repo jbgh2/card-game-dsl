@@ -1,0 +1,1 @@
+choose_excluding_out_of_range.cardlang:15:50: error: `choose integer` excludes 7, which lies outside every value these bounds can offer (0 .. 5), so the `excluding` clause can never act — remove it, or exclude a value in range

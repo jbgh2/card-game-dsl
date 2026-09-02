@@ -707,14 +707,17 @@ block is refused rather than numbered into the neighbouring block.
 
 ### The integer `choose` domain
 
-`choose integer in <lo> .. <hi>` is the
+`choose integer in <lo> .. <hi> [up to <N>] [excluding <e>]` is the
 numeric decision form (a bid — Spades' `0 .. 13`, Oh Hell's `0 .. hand_size`).
 Its domain is a bounded integer interval, and it satisfies the same
 closed-contract-plus-mask rule as the fixed domains above: the OpenSpiel action
 space reserves a fixed block of ids `0 .. ceiling` up front, and the live
-`lo .. hi` range masks it per state (the runtime already offers exactly
-`range(lo, hi + 1)`). The **ceiling is a declared, checked static bound**, never
-inferred from the deck or a runtime value:
+`lo .. hi` range masks it per state (the runtime offers exactly
+`range(lo, hi + 1)`, less the one value an `excluding` clause names — below).
+Every operand — `lo`, `hi`, `e` — is an Integer, checked at typecheck; a
+non-Integer value that reaches the evaluator through the permissive top is
+refused at play time, never coerced. The **ceiling is a declared, checked
+static bound**, never inferred from the deck or a runtime value:
 
 - When `hi` is itself a static integer literal (Spades' `13`), that literal is
   the ceiling — no extra syntax.
@@ -733,7 +736,9 @@ literal, so the ceiling is always well-formed). A **literal lower bound above
 the ceiling** — an inverted literal range (`5 .. 3`) or a literal `lo` past an
 `up to` ceiling (`11 .. n up to 10`) — is rejected the same way: the smallest
 value the `choose` could offer already exceeds every id the block reserves, so
-no value can ever be chosen; a runtime `lo` is not statically decidable and is
+no value can ever be chosen. A **literal lower bound below zero** (`-1 .. 5`)
+is rejected for the mirror reason: the block starts at 0, so its smallest
+value has no id. A runtime `lo` is not statically decidable and is
 left to the runtime guard. At runtime the *range* is guarded
 where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
 escaped its declared domain would offer a legal value with no action id, and a
@@ -741,7 +746,53 @@ value-only check would pass whenever the chooser happened to draw inside the
 reserved block. The OpenSpiel integer block is sized to the game's **largest**
 declared ceiling (one shared block; a game has at most one `choose` per decision
 point today), so `num_distinct_actions` reflects the declared bounds — not a
-fixed deck-sized constant. The still-open sibling is the bounded-`Integer`
+fixed deck-sized constant.
+
+**`excluding <e>` removes one value from the live range as the choice is
+made.** The clause is a set difference over the candidates: `e` evaluates at
+choice time to an Integer, and the chooser is offered `lo .. hi` less that one
+value (Oh Hell's dealer: `choose integer in 0 .. hand_size up to 10 excluding
+hand_size - total_bid` — the rulebook's constraint on the number a player may
+say, on the number's own construct). Because the exclusion filters the
+candidates **before** the draw, the offered action set, the announced value,
+and the value the game scores are one number; a correction applied after the
+draw is silent while the announcement is public, and so is a different game.
+The exclusion is a single value, not a predicate: the corpus witness
+needs exactly "not this one number", and a predicate form would multiply
+cells for no game. An `e` outside the live range excludes nothing — the
+dealer whose table has already over-bid the hand bids freely — and the
+clause is a no-op by design, not an error. Resolve rejects the exclusions
+that can never act or always empty the choice, since a clause that never
+acts is accepted-but-ignored wearing a legal parse: a literal `e` outside
+the static offerable interval — from the literal `lo` (or `0`, for a runtime
+`lo`) to the ceiling — and a literal `e` that empties a statically singleton
+interval (`3 .. 3 excluding 3`, or a literal `lo` equal to the ceiling).
+Literal means a bare integer literal, as for the bounds: nothing is folded,
+so `excluding 5 + 1` is a runtime `e`. A
+runtime `e` is not statically decidable; at play time an exclusion that
+empties the live range is an error ("No implicit actions"), reported with
+the excluded value. A literal `e` inside a literal range (`0 .. 13 excluding
+7`) is accepted, and its id is reserved and legal in no state: unlike an
+`up to` above a literal `hi`, which is a sizing declaration and is refused
+for that reason, the exclusion is a rule of the game, and the one dead id
+is its cost. The clause order is fixed — `up to` before `excluding`.
+`choose` sits at the top of the expression grammar beside the query forms,
+never inside an operand chain, so its trailing operand — the range's `hi`,
+or the exclusion — extends as far right as possible and
+`excluding hand_size - total_bid` has one derivation; a choose used as an
+operand of any construct — an operator, a comparison, a ring search's seat,
+an aggregation's default, another choose's bound — is parenthesized,
+`(choose integer in 0 .. 5) + 1`, as a bare query is. The
+OpenSpiel block is unchanged by the clause: the excluded value's id,
+`int_base + e`, is simply absent from the state's legal mask, the way a
+value above the live `hi` already is. Like the range bounds, the exclusion
+is the author's to keep over state the chooser can see: an exclusion over
+a hidden zone makes two histories the chooser cannot tell apart offer
+different legal sets, and no pass refuses it — for a corpus game the
+per-observer legal-action-agreement proof is the evidence, and for any
+other game nothing is.
+
+The still-open sibling is the bounded-`Integer`
 *parameter* domain (signed `delta`), which fits neither this `0 .. ceiling` id
 scheme nor any corpus game yet
 ([open-questions/move-parameter-domains.md](open-questions/move-parameter-domains.md)).
@@ -2920,11 +2971,11 @@ binder is the fixed name `player` (the canonical seating role), not a
 user-chosen variable — these are filters over a single known ring, not
 general comprehensions, so there is nothing to name.
 
-Like the quantifiers (`any player where …`) and aggregations (`sum of … over
-… as …`) forms, a player query sits at the top of the expression grammar:
-its `where <pred>` body extends as far right as possible, giving one
-canonical parse. To compare a count, parenthesize it: `(number of players
-where not eliminated[player]) > 1`.
+Like the quantifier (`any player where …`), aggregation (`sum of … over
+… as …`) and integer `choose` forms, a player query sits at the top of the
+expression grammar: its `where <pred>` body extends as far right as
+possible, giving one canonical parse. To compare a count, parenthesize it:
+`(number of players where not eliminated[player]) > 1`.
 
 `the player where <pred>` is the singular selection a `loser:` clause
 uses; it is an error at runtime for the predicate to match zero or
@@ -3126,16 +3177,21 @@ GameBonus and RubberBonus and Spades' BagOverflow. All fit the shape above.
 ## `choose` as expression
 
 `choose` elicits an integer decision from the acting player. Its one
-form names an inclusive range, optionally capped:
+form names an inclusive range, optionally capped, optionally less one
+value:
 
 ```text
 bid[p] := choose integer in 0 .. 13
 ```
 
 Oh Hell caps the range — `choose integer in 0 .. hand_size up to 10` —
-so the action space stays bounded when `hand_size` is large. `choose`
+so the action space stays bounded when `hand_size` is large, and its
+dealer's bid adds `excluding hand_size - total_bid`, the one number the
+rulebook forbids (the clause's semantics: "The integer `choose` domain").
+`choose`
 is an expression: it appears wherever an `Integer` is expected — the
-right-hand side of an assignment, a move argument. It emits a public
+right-hand side of an assignment, a move argument — and, like the query
+forms, it is parenthesized when it is an operator's operand. It emits a public
 observation of the chosen value, and the chooser is the acting player
 of the surrounding decision.
 
