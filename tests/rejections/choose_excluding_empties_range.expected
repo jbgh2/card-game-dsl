@@ -1,0 +1,1 @@
+choose_excluding_empties_range.cardlang:14:50: error: `choose integer in 3 .. 3` excludes 3, the only value it can offer, so the `excluding` clause would always empty the choice — a choice must offer at least one candidate

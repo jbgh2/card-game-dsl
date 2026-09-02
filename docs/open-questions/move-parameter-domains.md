@@ -20,7 +20,11 @@ move type per value.
   domain should own.
 
 Ninety-Nine is not in the corpus, so per corpus-first this stays deferred until
-a corpus game forces it (or Ninety-Nine itself is promoted).
+a corpus game forces it (or Ninety-Nine itself is promoted). Oh Hell's dealer
+hook was weighed as a second forcing case and is not one: its constraint is a
+single excluded value on an integer `choose`, served by that construct's
+`excluding` clause ([decisions.md](../decisions.md) "The integer `choose`
+domain") without a parameter domain.
 
 ## Why it is not just the `choose` domain again
 
@@ -28,9 +32,14 @@ The settled integer `choose` domain reserves an OpenSpiel id block `0 .. ceiling
 and maps a value `v` to `int_base + v` — an **unsigned, origin-at-zero** scheme.
 Ninety-Nine's `delta` is *signed* (a card can raise or lower the running total),
 so it fits neither that id arithmetic (a negative value has no id) nor the
-runtime range guard (`lo >= 0`) the `choose` domain relies on. A move-parameter
-integer domain therefore needs its own design — an offset/signed interval
-`[lo, hi]` minting `hi - lo + 1` ids, plus the enumeration wiring in
+runtime range guard (`lo >= 0`) the `choose` domain relies on. That arithmetic
+binds the `choose` block only: a move parameter's ids are minted by
+enumeration order into the offering block's table
+(`encoding.py`, `_offering_ids`), the way `Suit`/`Rank`/`Player` parameters
+mint theirs, so signedness is no obstacle on the parameter side — the design
+a move-parameter integer domain still needs is the interval itself (an
+offset/signed `[lo, hi]` minting `hi - lo + 1` ids, and a width cap nobody has
+sized), plus the enumeration wiring in
 `enumerate_domain` / `param_domain` that `Suit`/`Rank`/`Player` already have and
 that a bounded-Integer parameter is currently rejected before reaching
 (`resolve.py`, `_check_move_params`).

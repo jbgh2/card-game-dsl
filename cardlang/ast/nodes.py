@@ -265,21 +265,27 @@ DOMAIN_QUERY_KIND_PHRASE: dict[str, str] = {"any": "any", "all": "all", "count":
 
 @dataclass(frozen=True, slots=True)
 class Choose:
-    """`choose integer in <lo> .. <hi> [up to <ceiling>]` — a decision that
-    resolves to a value via the chooser (e.g. a bid). ``domain`` names the
-    candidate space; the only one so far is ``"integer"``, an inclusive range
-    from ``lo`` to ``hi``.
+    """`choose integer in <lo> .. <hi> [up to <ceiling>] [excluding <e>]` — a
+    decision that resolves to a value via the chooser (e.g. a bid).
+    ``domain`` names the candidate space; the only one so far is
+    ``"integer"``, an inclusive range from ``lo`` to ``hi``.
 
     ``ceiling`` is the declared static upper bound (`up to N`): the width the
     OpenSpiel action space reserves for this choose, independent of the live
     ``hi``. It is required when ``hi`` is not itself a static literal, and is
     ``None`` when the ceiling derives from a literal ``hi`` — see
-    ``static_ceiling`` and decisions.md "Declared parameter domains"."""
+    ``static_ceiling`` and decisions.md "Declared parameter domains".
+
+    ``excluding`` is the one value removed from the live range before the
+    draw, or ``None`` — a set difference evaluated at choice time, so a value
+    outside the range excludes nothing (decisions.md "The integer `choose`
+    domain"). Every operand — ``lo``, ``hi``, ``excluding`` — is an Integer."""
 
     domain: str  # "integer"
     lo: Expr
     hi: Expr
     ceiling: int | None = None
+    excluding: Expr | None = None
     span: Span | None = None
 
 

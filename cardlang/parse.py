@@ -1571,8 +1571,9 @@ class _Builder(Transformer[Token, n.Game]):
         return n.AllPlayers(span=self._span(meta))
 
     def choose_integer(self, meta: Meta, c: list[object]) -> n.Choose:
-        # `up to N` is optional; with maybe_placeholders the group always fills
-        # c[2] (the INT token, or None when absent), so a plain None-check does
+        # `up to N` and `excluding e` are optional; with maybe_placeholders
+        # each group always fills its slot (c[2] the INT token, c[3] the
+        # exclusion expression, None when absent), so a plain None-check does
         # it — matching the unconditional-index convention at `round_stmt`.
         ceiling: int | None = None
         if c[2] is not None:
@@ -1583,6 +1584,7 @@ class _Builder(Transformer[Token, n.Game]):
             lo=_as_expr(c[0]),
             hi=_as_expr(c[1]),
             ceiling=ceiling,
+            excluding=None if c[3] is None else _as_expr(c[3]),
             span=self._span(meta),
         )
 

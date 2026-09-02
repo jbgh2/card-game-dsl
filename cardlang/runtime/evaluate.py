@@ -115,10 +115,27 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             assert_never(unreachable)
 
 
+def _choose_operand(label: str, expr: n.Expr, ctx: Ctx) -> int:
+    """One Integer operand of a `choose`, refused in the game author's channel
+    when a non-Integer reaches it through the permissive top. `bool` is
+    refused ahead of `int` because it subclasses it: a bare int check would
+    draw `true` as 1."""
+    value = evaluate(expr, ctx)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise OwnerGuardError(
+            f"`choose integer` expects an Integer {label}, got {value!r}: the "
+            f"range and the excluded value are numbers"
+        )
+    return value
+
+
 def _choose(e: n.Choose, ctx: Ctx) -> Any:
     assert e.domain == "integer"  # `choose integer` is the grammar's only choose form
-    lo = int(evaluate(e.lo, ctx))
-    hi = int(evaluate(e.hi, ctx))
+    lo = _choose_operand("lower bound", e.lo, ctx)
+    hi = _choose_operand("upper bound", e.hi, ctx)
+    excluded = (
+        None if e.excluding is None else _choose_operand("`excluding` value", e.excluding, ctx)
+    )
     # Guard the live *range*, not just the drawn value: a range that escapes its
     # declared `0 .. ceiling` domain would offer a legal action with no OpenSpiel
     # id, and a value-only check passes whenever the chooser happens to draw
@@ -132,8 +149,17 @@ def _choose(e: n.Choose, ctx: Ctx) -> Any:
             f"within the ceiling reserved up front (raise the `up to` bound "
             f"or fix the range)"
         )
-    candidates = list(range(lo, hi + 1))
+    # The exclusion is a set difference over the live range, applied before
+    # the draw so the offered set, the announced value and the scored value
+    # are one number; an excluded value outside the range removes nothing.
+    candidates = [v for v in range(lo, hi + 1) if v != excluded]
     if not candidates:
+        if excluded is not None and lo <= excluded <= hi:
+            raise OwnerGuardError(
+                f"`choose integer in {lo} .. {hi} excluding {excluded}` has no "
+                f"value to choose (the exclusion removes the range's only "
+                f"value): a choice must offer at least one candidate"
+            )
         raise OwnerGuardError(
             f"`choose integer in {lo} .. {hi}` has no value to choose (empty range): "
             f"a choice must offer at least one candidate"
