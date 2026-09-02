@@ -372,7 +372,7 @@ in tests/test_trump_slot_class.py.
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
   count) and decoded by the `peg_origin_of` Primitive query. The per-card
-  pegging value is the game's own `card_points { }` clause; five game-local
+  pegging value is the game's own `card_points { }` clause; the game-local
   Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
   `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
   pegging-count and show scorers, in the same game-local shape as Stud's
@@ -896,14 +896,15 @@ and which one is the game's own choice:
   region).
 - `far_row(player) → Collection<Cell>` — the far edge of `player`'s frame (its
   reach-to-win goal).
-  These five read the `board:` entry (a resolve error in a boardless game, like
-  `lines`). Used by breakthrough.
+  These board helpers read the `board:` entry (a resolve error in a boardless
+  game, like `lines`). Used by breakthrough.
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
-are five game-local primitives reading `cardlang/runtime/cribbage.py` — game-local
-(like Stud's `pot_share`) until the shared `scoring_component` subsystem lands
-corpus-first (the per-card pegging value is the game's own `card_points { }`
-clause, distinct from its *ranking*, which orders cards for comparisons):
+are the game-local primitives below, reading `cardlang/runtime/cribbage.py` —
+game-local (like Stud's `pot_share`) until the shared `scoring_component`
+subsystem lands corpus-first (the per-card pegging value is the game's own
+`card_points { }` clause, distinct from its *ranking*, which orders cards for
+comparisons):
 
 - `peg_pair_points() → Integer` — pair points (2/6/12 for a two/three/four-of-a-
   kind streak) at the tail of the live `play_pile` count.
@@ -936,7 +937,7 @@ declared contract (`is_grand` / `is_null` / `trump_suit`) from state:
   is not a primitive: the game text writes it as
   `base * (working_bid divided by base rounded up)`.)
 
-500's contract machinery is the three game-local primitives below, reading
+500's contract machinery is the game-local primitives below, reading
 `cardlang/runtime/five_hundred.py` — all of them pure functions of their
 arguments. The contract's ORDER is not among them: the joker, the two bowers
 and the no-trump family's suitless joker are the game's declared Trick Order
@@ -986,11 +987,15 @@ decisions.md "Player-collection queries"):
   reveal-sequence golden derives from observation events at the harness
   layer instead (tests/playout_trace.py).
 
-French Tarot's non-uniform 78-card deck (an effective led suit that isn't
-the kernel's own, and a settlement the `ranking:`/`card_points` general
-machinery can't express — see [decisions.md](decisions.md) "Deck
-declaration") needs five game-local primitives, all reading
-`cardlang/runtime/tarot.py`. The per-card points are the game's own
+French Tarot's trick play over its non-uniform 78-card deck
+([decisions.md](decisions.md) "Deck declaration") is all the language's:
+the atouts banded above every plain card and the class-less Excuse that
+never wins are the game's `trick_order { }` block, the Excuse's exemption
+from the demand cascade is its `ExcuseIsExempt` rule (see "Rules" above),
+and the winner is `highest_by_trick_order`. What stays game-local, reading
+`cardlang/runtime/tarot.py`, is the post-trick Excuse routing's aim and the
+settlement the `ranking:`/`card_points` general machinery can't express.
+The per-card points are the game's own
 `card_points { K: 9  Q: 7  C: 5  J: 3  else: 1 }` composed with its inline
 bout layer (`if is_bout(card) then 9 else card_points(card)` — doubled
 integer units, the 78 cards summing to 182; a rank-keyed table cannot carry
