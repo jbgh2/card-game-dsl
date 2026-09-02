@@ -286,6 +286,7 @@ def test_static_grid(cell: tuple[Operand, tuple[str, str, int | None], Operand |
     (choose,) = [c for c in _chooses(game) if ex is None or ex.label != "exNested" or c.excluding is not None]
     assert (choose.excluding is None) == (ex is None)
     hi_live = hi[2] if hi[1] == "5" else VALUES["n"]
+    assert hi_live is not None
     live = list(range(lo.runtime or 0, hi_live + 1))
     for seed in range(12):
         excluded_live = ex.runtime if ex is not None else None
@@ -415,8 +416,12 @@ def test_every_choose_operand_is_walked_and_emitted() -> None:
 
     names = _choose_expr_fields()
     assert names == ["lo", "hi", "excluding"]
-    sentinels = {name: n.NameRef(name=f"probe_{name}") for name in names}
-    choose = n.Choose(domain="integer", **sentinels)
+    choose = n.Choose(
+        domain="integer",
+        lo=n.NameRef(name="probe_lo"),
+        hi=n.NameRef(name="probe_hi"),
+        excluding=n.NameRef(name="probe_excluding"),
+    )
     walked = {getattr(child, "name", None) for child in _child_exprs(choose)}
     assert walked == {f"probe_{name}" for name in names}
     game = check_dsl(_game("choose integer in m .. n up to 5 excluding k"), "t")
