@@ -117,10 +117,6 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
     """Dispatch a game-local native call. Arguments arrive already coerced."""
     match name:
-        case "holdem_pot_share":
-            from cardlang.runtime.holdem import ROW, holdem_pot_share
-
-            return holdem_pot_share(*_bind(ctx, ROW), args[0])
         case "tarot_excuse_player":
             from cardlang.runtime.tarot import ROW, tarot_excuse_player
 

@@ -194,7 +194,7 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
-        "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query, against its own declared-reads row
+        "holdem_heads_up_pot_share",  # Heads-up Hold'em: the same query for the two-seat variant
         "pinochle_meld_value",  # Pinochle: a player's hand's meld points under the declared trump
         "tarot_excuse_player",  # French Tarot: who played the Excuse in the trick just completed
         "tarot_per_opp",  # French Tarot: the zero-sum per-opponent settlement amount
@@ -268,6 +268,7 @@ DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "five_hundred_bid_value",
         "five_hundred_next_bid",
         "holdem_heads_up_pot_share",
+        "holdem_pot_share",
         "pinochle_meld_value",
         "pot_share",
         "salvo_combos",

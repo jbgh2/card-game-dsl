@@ -425,7 +425,6 @@ NARROWED: frozenset[str] = frozenset(
         "gin.py::gin_lay_ok_b",
         "gin.py::gin_lay_ok_c",
         "gin.py::gin_valid_meld",
-        "holdem.py::ROW",
         "holdem.py::holdem_pot_share",
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::pinochle_meld_value",
