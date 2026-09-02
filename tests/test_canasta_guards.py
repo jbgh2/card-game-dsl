@@ -25,7 +25,11 @@ covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             tests/test_primitive_reads.py (two-sided pin, the game's block
             against the module's own accessor literals, automatic);
             adapter registration: the corpus glob <-> registry pin and the
-            proof-module coverage pin (both two-sided, automatic); the
+            proof-module coverage pin (both two-sided, automatic); a
+            declared-only name called from a game with no block:
+            tests/test_primitives_block.py's regime product, whose
+            declared-only axis is `DECLARED_ONLY_CALL_FUNCS` itself, so these
+            six enter it automatically and it Owns that refusal; the
             probes below (convention guard, combo guard, unknown name, wrong
             arity); the 54-distinct-card block pin below
 sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
