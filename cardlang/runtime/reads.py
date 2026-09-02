@@ -278,19 +278,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="gin-rummy.cardlang",
         zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/canasta.py",
-        game_file="canasta.cardlang",
-        state_vars=_fs(
-            "pile_frozen", "team_melded", "meld_rank", "taking_pile", "score"
-        ),
-        zone_families=_fs(
-            "hand", "stage",
-            "meldA", "meldK", "meldQ", "meldJ", "meld10", "meld9",
-            "meld8", "meld7", "meld6", "meld5", "meld4", "meld3b",
-        ),
-        single_zones=_fs("pile_top", "pile_rest"),
-    ),
     # Tichu's CLIMB row, and its call-position Primitive is not on it: the
     # game declares `tichu_dragon_won` in its own block. What keeps the row is
     # `primitives.climb_row`, which hands the climb queries their module's row

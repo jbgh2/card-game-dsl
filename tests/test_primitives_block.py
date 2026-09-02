@@ -629,8 +629,11 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
 # rejects for the wrong reason.
 #
 # An expression, not a literal: the surface has no Card literal, so `Card`'s
-# column is a Builtin over a zone the probe game declares, which is what a
-# rendered argument in that position can be. The rendered sentences are
+# column is a Builtin over a zone the probe game declares, and `Team`'s is a
+# Builtin over a seat, because the probe game declares no `teams:` and a team
+# literal there names a team it does not have (the empty-domain range refusal
+# `tests/test_player_literal_range.py` pins). Both are what a rendered argument
+# in that position can be. The rendered sentences are
 # CHECKED, never played — `_entry_and_body` writes no `reads` clause, so a
 # played bundle would miss the entry's own reads — and the column is chosen to
 # type where it is written, not to survive a playout.
@@ -642,6 +645,7 @@ def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
 # combination would be the product written out by hand.
 _SPELLINGS: dict[str, tuple[str, str]] = {
     "TPlayer": ("Player", "0"),
+    "TTeam": ("Team", "team_of(0)"),
     "TInteger": ("Integer", "0"),
     "TBoolean": ("Boolean", "true"),
     "TString": ("String", '"x"'),

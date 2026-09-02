@@ -395,7 +395,6 @@ NARROWED: frozenset[str] = frozenset(
         "bigtwo.py::bigtwo_follows",
         "bigtwo.py::bigtwo_lead_options",
         "bigtwo.py::bigtwo_universe",
-        "canasta.py::ROW",
         "canasta.py::canasta_can_start",
         "canasta.py::canasta_can_take_pile",
         "canasta.py::canasta_canasta_bonus",

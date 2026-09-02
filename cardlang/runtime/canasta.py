@@ -48,11 +48,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-# Every zone/state var this module reads by name is declared in
-# PRIMITIVE_READS (cardlang/runtime/reads.py) — the declared-reads coupling
-# contract; the accessors below are the only sanctioned way to touch state.
-ROW = reads.row("cardlang/runtime/canasta.py", "canasta.cardlang")
-
 # The meld-attempt core's card weights (the initial-meld minimum prices
 # staged cards and wilds) — a second copy of the fact canasta.cardlang
 # declares as its `card_points { }` clause and sums itself at scoring. The
