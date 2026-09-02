@@ -126,6 +126,7 @@ TREATMENT: dict[tuple[str, str], tuple[str, str]] = {
     # -- coerced / indexed / iterated / compared: raises, so gradual is loud ---
     ("Choose", "lo"): (GRADUAL, "Integer"),
     ("Choose", "hi"): (GRADUAL, "Integer"),
+    ("Choose", "excluding"): (GRADUAL, "Integer"),
     ("Transfer", "amount"): (GRADUAL, "Integer"),
     ("Subscript", "index"): (GRADUAL, "key domain"),
     ("Subscript", "obj"): (GRADUAL, "Collection"),

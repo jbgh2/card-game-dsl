@@ -736,7 +736,9 @@ literal, so the ceiling is always well-formed). A **literal lower bound above
 the ceiling** — an inverted literal range (`5 .. 3`) or a literal `lo` past an
 `up to` ceiling (`11 .. n up to 10`) — is rejected the same way: the smallest
 value the `choose` could offer already exceeds every id the block reserves, so
-no value can ever be chosen; a runtime `lo` is not statically decidable and is
+no value can ever be chosen. A **literal lower bound below zero** (`-1 .. 5`)
+is rejected for the mirror reason: the block starts at 0, so its smallest
+value has no id. A runtime `lo` is not statically decidable and is
 left to the runtime guard. At runtime the *range* is guarded
 where `hi` is evaluated (`lo >= 0` and `hi <= ceiling`): a live range that
 escaped its declared domain would offer a legal value with no action id, and a
@@ -755,7 +757,7 @@ say, on the number's own construct). Because the exclusion filters the
 candidates **before** the draw, the offered action set, the announced value,
 and the value the game scores are one number; a correction applied after the
 draw is silent while the announcement is public, and so is a different game.
-The exclusion is a single value, not a predicate: the corpus's one witness
+The exclusion is a single value, not a predicate: the corpus witness
 needs exactly "not this one number", and a predicate form would multiply
 cells for no game. An `e` outside the live range excludes nothing — the
 dealer whose table has already over-bid the hand bids freely — and the
@@ -767,7 +769,11 @@ the static offerable interval — from the literal `lo` (or `0`, for a runtime
 interval (`3 .. 3 excluding 3`, or a literal `lo` equal to the ceiling). A
 runtime `e` is not statically decidable; at play time an exclusion that
 empties the live range is an error ("No implicit actions"), reported with
-the excluded value. The clause order is fixed — `up to` before `excluding`.
+the excluded value. A literal `e` inside a literal range (`0 .. 13 excluding
+7`) is accepted, and its id is reserved and legal in no state: unlike an
+`up to` above a literal `hi`, which is a sizing declaration and is refused
+for that reason, the exclusion is a rule of the game, and the one dead id
+is its cost. The clause order is fixed — `up to` before `excluding`.
 `choose` sits at the top of the expression grammar beside the query forms,
 never inside an operand chain, so its trailing operand — the range's `hi`,
 or the exclusion — extends as far right as possible and
@@ -777,8 +783,11 @@ a bare query is. The
 OpenSpiel block is unchanged by the clause: the excluded value's id,
 `int_base + e`, is simply absent from the state's legal mask, the way a
 value above the live `hi` already is. Like the range bounds, the exclusion
-reads only state the chooser can see, or the game's per-observer
-legal-action-agreement proof fails — the proof harness is the guard.
+is the author's to keep over state the chooser can see: an exclusion over
+a hidden zone makes two histories the chooser cannot tell apart offer
+different legal sets, and no pass refuses it — for a corpus game the
+per-observer legal-action-agreement proof is the evidence, and for any
+other game nothing is.
 
 The still-open sibling is the bounded-`Integer`
 *parameter* domain (signed `delta`), which fits neither this `0 .. ceiling` id

@@ -3123,8 +3123,8 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
                 )
             elif low == ceiling:
                 bag.error(
-                    f"`choose integer in {low} .. {ceiling}` excludes {excluded}, "
-                    f"the only value it can offer, so the `excluding` clause "
+                    f"`choose integer` excludes {excluded}, the only value it "
+                    f"can offer ({low} .. {ceiling}), so the `excluding` clause "
                     f"would always empty the choice — a choice must offer at "
                     f"least one candidate",
                     node.excluding.span or node.span,

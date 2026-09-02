@@ -21,10 +21,10 @@ move type per value.
 
 Ninety-Nine is not in the corpus, so per corpus-first this stays deferred until
 a corpus game forces it (or Ninety-Nine itself is promoted). Oh Hell's dealer
-hook was weighed as a second forcing case and is not one: its constraint is a
-single excluded value on an integer `choose`, served by that construct's
-`excluding` clause ([decisions.md](../decisions.md) "The integer `choose`
-domain") without a parameter domain.
+hook is not a second forcing case: its constraint is a single excluded value
+on an integer `choose`, served by that construct's `excluding` clause
+([decisions.md](../decisions.md) "The integer `choose` domain") without a
+parameter domain.
 
 ## Why it is not just the `choose` domain again
 
