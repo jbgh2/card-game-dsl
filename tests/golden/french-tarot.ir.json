@@ -275,6 +275,62 @@
       }
     ]
   },
+  "primitives": {
+    "kind": "primitives",
+    "entries": [
+      {
+        "kind": "primitive_decl",
+        "name": "tarot_excuse_player",
+        "params": [],
+        "return_type": "Player?",
+        "reads": []
+      },
+      {
+        "kind": "primitive_decl",
+        "name": "tarot_per_opp",
+        "params": [
+          {
+            "kind": "primitive_param",
+            "name": "pb",
+            "type": "Integer"
+          }
+        ],
+        "return_type": "Integer",
+        "reads": [
+          {
+            "kind": "primitive_read",
+            "name": "taker",
+            "binder": null,
+            "phase": "hand_sequence"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "bid_level",
+            "binder": null,
+            "phase": "hand_sequence"
+          },
+          {
+            "kind": "primitive_read",
+            "name": "captured",
+            "binder": null,
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "discard",
+            "binder": null,
+            "phase": null
+          },
+          {
+            "kind": "primitive_read",
+            "name": "chien",
+            "binder": null,
+            "phase": null
+          }
+        ]
+      }
+    ]
+  },
   "trump": null,
   "teams": [],
   "positions": [],

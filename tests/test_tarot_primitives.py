@@ -23,14 +23,14 @@ Tarot's numbers.
 from __future__ import annotations
 
 import random
+from functools import cache
 from pathlib import Path
 
 from cardlang.pipeline import check_source
 from cardlang.runtime import narrowing, reads
-from cardlang.runtime.driver import declared_trick_order
+from cardlang.runtime.driver import declared_primitives, declared_trick_order
 from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
 from cardlang.runtime.tarot import (
-    ROW,
     tarot_card_points,
     tarot_excuse_player,
     tarot_per_opp,
@@ -76,10 +76,10 @@ def test_card_points_known_values() -> None:
 # examples misses.
 
 
-# The bundle materialises tarot.py's WHOLE declared row (taker, bid_level;
-# captured, discard; chien), so every fixture declares all of it -- a partial
-# fixture is indistinguishable from the game file and the module having
-# drifted apart, which is exactly what the registry refuses.
+# A bundle materialises ONE entry's declared row, and the two entries declare
+# opposite extremes -- everything the settlement scores, and nothing at all --
+# so each fixture binds the row of the primitive it calls. The state a fixture
+# declares is the union, since `_tarot_rs` serves both.
 _Bundles = tuple[narrowing.EngineFacts, reads.GameReads]
 
 
@@ -104,6 +104,17 @@ def _tarot_rs() -> RuntimeState:
 
 
 TAROT = Path(__file__).parent.parent / "docs" / "games" / "french-tarot.cardlang"
+
+
+@cache
+def _row(primitive: str) -> reads.PrimitiveReads:
+    """The row the game's own `primitives { }` block declares for `primitive`,
+    built through the driver's one load site -- so a fixture cannot bind a row
+    the game does not declare, and this file holds no second copy of the
+    clause to drift from it."""
+    entries = declared_primitives(check_source(TAROT))
+    assert entries is not None, "french-tarot declares a `primitives { }` block"
+    return entries[primitive].row
 
 
 def _trick_order_ctx() -> tuple[TrickOrderTable, Ctx]:
@@ -180,7 +191,7 @@ def _excuse_ctx(played: list[tuple[int, Card]], live_round: bool) -> _Bundles:
         rs.mech_state.append(state)
     else:
         rs.last_round_state = state
-    return narrowing.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, _row("tarot_excuse_player"))
 
 
 def test_excuse_player_found_via_last_round_state() -> None:
@@ -218,7 +229,7 @@ def _scoring_ctx(
     rs.zones.instance("captured", taker).add_all(captured_taker)
     if discard_taker is not None:
         rs.zones.instance("discard", taker).add_all(discard_taker)
-    return narrowing.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, _row("tarot_per_opp"))
 
 
 def test_per_opp_at_petite_threshold_with_three_bouts() -> None:

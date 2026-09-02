@@ -96,6 +96,27 @@ game FrenchTarot {
                    else numeral(card)
   }
 
+  // What this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/tarot.py`: who played the Excuse in the trick just
+  // completed, and the hand's per-opponent settlement. The two clauses are
+  // opposite extremes, and that is the entry grain doing its work: the Excuse
+  // query reads nothing a declaration can name — the completed trick's plays
+  // reach it as an engine fact — while the settlement reads the whole contract
+  // and every pile that scores.
+  //
+  // `taker` and `bid_level` are declared by `phase hand_sequence`, not by the
+  // game, so a read of one names that phase. The tail rides the READ, not the
+  // clause: the three zones are game-level and carry none. Naming the phase
+  // also promises what the resolver then checks — an entry reading
+  // `in hand_sequence` is called only where that phase is running, which here
+  // is its descendant `phase play`.
+  primitives {
+    tarot_excuse_player() : Player?
+    tarot_per_opp(pb : Integer) : Integer
+        reads taker in hand_sequence, bid_level in hand_sequence,
+              captured, discard, chien
+  }
+
   zones {
     deck             : Deck
     hand[player]     : Hand<player>

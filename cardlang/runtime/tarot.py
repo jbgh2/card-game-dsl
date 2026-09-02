@@ -40,8 +40,6 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-ROW = reads.row("cardlang/runtime/tarot.py", "french-tarot.cardlang")
-
 # Bid levels, ascending, with their scoring multipliers.
 _LEVELS = ("petite", "garde", "garde_sans", "garde_contre")
 _MULT = {"petite": 1, "garde": 2, "garde_sans": 4, "garde_contre": 6}

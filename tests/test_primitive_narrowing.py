@@ -438,7 +438,6 @@ NARROWED: frozenset[str] = frozenset(
         "stud.py::bring_in_seat",
         "stud.py::first_to_act_seat",
         "stud.py::pot_share",
-        "tarot.py::ROW",
         "tarot.py::tarot_excuse_player",
         "tarot.py::tarot_per_opp",
         "tichu.py::ROW",
