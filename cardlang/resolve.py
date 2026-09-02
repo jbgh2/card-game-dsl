@@ -3063,7 +3063,12 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
     acts is accepted-but-ignored wearing a legal parse; an excluded value equal
     to a statically singleton interval always empties the choice ("No implicit
     actions"). A runtime exclusion is the runtime's to refuse when it empties
-    the live range."""
+    the live range. Literal means a bare integer literal: no expression is
+    folded, so `excluding 5 + 1` is runtime and acts or not at play time.
+
+    One diagnostic per choose: the arms are ordered and the first that fires
+    ends the node, so a broken range is reported without the exclusion
+    diagnostics its bounds would also trip."""
     for node in _walk(game):
         if not isinstance(node, n.Choose):
             continue
@@ -3116,9 +3121,9 @@ def _check_chooses(game: n.Game, bag: DiagnosticBag) -> None:
             if not low <= excluded <= ceiling:
                 bag.error(
                     f"`choose integer` excludes {excluded}, which lies outside "
-                    f"the values it can offer ({low} .. {ceiling}), so the "
-                    f"`excluding` clause can never act — remove it, or exclude "
-                    f"a value in range",
+                    f"every value these bounds can offer ({low} .. {ceiling}), "
+                    f"so the `excluding` clause can never act — remove it, or "
+                    f"exclude a value in range",
                     node.excluding.span or node.span,
                 )
             elif low == ceiling:

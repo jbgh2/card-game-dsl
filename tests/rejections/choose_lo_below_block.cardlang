@@ -1,0 +1,17 @@
+// Guard: resolve.py's integer-`choose` literal-bounds check (docs/decisions.md,
+// "The integer `choose` domain"). The reserved action block starts at 0, so a
+// literal lower bound below it names a value with no OpenSpiel action id —
+// refused statically, like a literal lower bound above the ceiling.
+game ChooseLoBelowBlock {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { x[player] : Integer = 0 }
+  phase play {
+    for each player p:
+      x[p] := choose integer in -1 .. 5
+  }
+  winner: highest x
+}

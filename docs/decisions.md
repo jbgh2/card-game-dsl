@@ -766,7 +766,9 @@ that can never act or always empty the choice, since a clause that never
 acts is accepted-but-ignored wearing a legal parse: a literal `e` outside
 the static offerable interval — from the literal `lo` (or `0`, for a runtime
 `lo`) to the ceiling — and a literal `e` that empties a statically singleton
-interval (`3 .. 3 excluding 3`, or a literal `lo` equal to the ceiling). A
+interval (`3 .. 3 excluding 3`, or a literal `lo` equal to the ceiling).
+Literal means a bare integer literal, as for the bounds: nothing is folded,
+so `excluding 5 + 1` is a runtime `e`. A
 runtime `e` is not statically decidable; at play time an exclusion that
 empties the live range is an error ("No implicit actions"), reported with
 the excluded value. A literal `e` inside a literal range (`0 .. 13 excluding
@@ -778,8 +780,9 @@ is its cost. The clause order is fixed — `up to` before `excluding`.
 never inside an operand chain, so its trailing operand — the range's `hi`,
 or the exclusion — extends as far right as possible and
 `excluding hand_size - total_bid` has one derivation; a choose used as an
-operator's operand is parenthesized, `(choose integer in 0 .. 5) + 1`, as
-a bare query is. The
+operand of any construct — an operator, a comparison, a ring search's seat,
+an aggregation's default, another choose's bound — is parenthesized,
+`(choose integer in 0 .. 5) + 1`, as a bare query is. The
 OpenSpiel block is unchanged by the clause: the excluded value's id,
 `int_base + e`, is simply absent from the state's legal mask, the way a
 value above the live `hi` already is. Like the range bounds, the exclusion
@@ -2968,11 +2971,11 @@ binder is the fixed name `player` (the canonical seating role), not a
 user-chosen variable — these are filters over a single known ring, not
 general comprehensions, so there is nothing to name.
 
-Like the quantifiers (`any player where …`) and aggregations (`sum of … over
-… as …`) forms, a player query sits at the top of the expression grammar:
-its `where <pred>` body extends as far right as possible, giving one
-canonical parse. To compare a count, parenthesize it: `(number of players
-where not eliminated[player]) > 1`.
+Like the quantifier (`any player where …`), aggregation (`sum of … over
+… as …`) and integer `choose` forms, a player query sits at the top of the
+expression grammar: its `where <pred>` body extends as far right as
+possible, giving one canonical parse. To compare a count, parenthesize it:
+`(number of players where not eliminated[player]) > 1`.
 
 `the player where <pred>` is the singular selection a `loser:` clause
 uses; it is an error at runtime for the predicate to match zero or
