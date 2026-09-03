@@ -274,7 +274,9 @@ function numeral(c : Card) =
 // run the running-intersection cascade over the game's trick order: follow
 // what the trick was effectively led (the first card with a follow class —
 // when the Excuse is led it has none, so the next player's card sets the
-// class); if void, trump; over-trump the pile's best atout when able.
+// class); if void of THAT class, trump; over-trump the pile's best atout when
+// able. Void is a fact of the effective lead, so a trick led with the Excuse
+// has no class to be void in and binds nobody.
 
 rule ExcuseIsExempt {
   constrains: play_to_trick
@@ -293,9 +295,17 @@ rule MustFollowEffectiveSuit {
   if_impossible: hand   // void in the effective led suit
 }
 
+// Void is a fact of the EFFECTIVE lead, not of `state.led_suit`: a led Excuse
+// makes the literal led suit "excuse" while setting no class at all, and a
+// seat void in nothing owes no trump. So the obligation binds only where the
+// trick has an effective lead, and the seat after a led Excuse plays any card.
+// The other two demand rules need no such guard: `MustFollowEffectiveSuit`
+// falls to its `if_impossible` with nothing to follow, and `MustOverTrump`
+// already asks for a trump in the pile, which no trickless pile holds.
 rule MustTrumpIfVoid {
   constrains: play_to_trick
-  applies_when: state.led_suit is not none
+  applies_when: (any card in trick_pile where
+                   (is_trump(card) or follow_class(card) is not none))
   demands: cards in hand where is_trump(card)
   if_impossible: hand   // holds the led suit, or has no trump
 }

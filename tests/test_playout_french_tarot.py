@@ -242,10 +242,9 @@ def _legal(prefix: list[Card], hand: list[Card]) -> tuple[list[Card], str]:
     independent of the runtime cascade.
 
     The arm label names the obligations that BOUND the offer, not a card that
-    happened to occur. `excuse-lead-must-trump` is the corpus's known
-    divergence from Pagat (issue #357): with only the Excuse down nothing
-    satisfies the follow demand, so the must-trump rule binds the next seat to
-    its atouts where Pagat would let it play anything.
+    happened to occur. `excuse-lead` is therefore one arm covering every offer
+    made with no effective lead down: nothing binds there, so whether the seat
+    holds an atout selects no path through the cascade.
     """
     if not prefix:
         return list(hand), "lead"
@@ -257,12 +256,18 @@ def _legal(prefix: list[Card], hand: list[Card]) -> tuple[list[Card], str]:
     parts: list[str] = []
 
     led = _effective_led(prefix)
-    followers = [c for c in working if c.suit == led] if led is not None else []
+    if led is None:
+        # Only the Excuse is down. It carries no follow class, so the trick has
+        # no effective lead: the seat is void in nothing, owes no trump, and
+        # plays any card. MustOverTrump cannot bind either -- the Excuse is not
+        # a trump, so the pile holds none.
+        return list(working) + exempt, "excuse-lead"
+    followers = [c for c in working if c.suit == led]
     if followers:  # MustFollowEffectiveSuit
         result = followers
         parts.append("atout-lead" if led == "atouts" else "follow")
     else:
-        parts.append("excuse-lead" if led is None else "void")
+        parts.append("void")
     trumps = [c for c in result if c.suit == "atouts"]  # MustTrumpIfVoid
     if trumps:
         result = trumps
@@ -347,9 +352,14 @@ class _Hand:
 
 @dataclass(frozen=True)
 class _Witness:
-    """One offer made to a seat following a LED EXCUSE -- the shape issue #357
-    names, recorded on the way past so the quirk is pinned from the same sweep
-    the rest of the module runs."""
+    """One offer made to a seat following a LED EXCUSE, recorded on the way
+    past so Pagat's "can play any card" is pinned from the same sweep the rest
+    of the module runs.
+
+    `holds_atout` is the partition the pin needs rather than a fact about the
+    offer: a seat with no atout is free under any reading of the cascade, so
+    only the holding-an-atout witnesses discriminate, and both halves must be
+    non-empty for the assertion to mean anything."""
 
     holding: tuple[str, ...]
     offer: tuple[str, ...]
@@ -736,8 +746,7 @@ _CASCADE_ARMS: frozenset[str] = frozenset(
         "void-must-trump-over-trump",
         "void-must-trump-under-trump-forced",
         "void-no-trump",
-        "excuse-lead-must-trump",
-        "excuse-lead-no-trump",
+        "excuse-lead",
     }
 )
 _DISCARD_ARMS: frozenset[str] = frozenset({"discard-preferred", "discard-forced"})
@@ -750,41 +759,46 @@ _DISCARD_ARMS: frozenset[str] = frozenset({"discard-preferred", "discard-forced"
 # accidents, and the census below asks only that each occurs.
 WITNESS_SEEDS = 3
 
-# Eight seeds. Measured 2026-08-19: every cascade arm but `excuse-lead-no-trump`
-# fires on at least six of the first eight, so eight is the smallest round
-# figure with headroom over WITNESS_SEEDS for a change that shifts one arm off
-# an early seed.
+# Eight seeds. Measured 2026-09-02: every cascade arm fires on at least six of
+# the first eight, so eight is the smallest round figure with headroom over
+# WITNESS_SEEDS for a change that shifts one arm off an early seed.
 #
-# red under: SEEDS = 2 -- `assert not thin` names every cascade arm now
-# under WITNESS_SEEDS, `excuse-lead-must-trump` among them at one seed
-# (executed 2026-08-19).
+# red under: SEEDS = 2 -- `assert not thin` names every cascade arm now under
+# WITNESS_SEEDS, `excuse-lead` among them at one seed (executed 2026-09-02).
 SEEDS = 8
 
-# The cells the eight-seed sweep does not reach at all, and the seeds that do.
-# Derived by execution over seeds 0-59 (2026-08-19) rather than assumed, and
-# each carrying the count it contributes so a deal shift that moved the shape
-# fails `test_the_rare_arm_seeds_still_carry_their_arm` naming the cell,
-# instead of leaving the census green over an arm nothing reaches:
+# The census cells whose coverage rests on a SINGLE occurrence, and the seed
+# carrying it. Every cell of `_CENSUS_CELLS` is reached inside the eight sweep
+# seeds, so `test_every_cascade_arm_is_reached` needs no seed beyond them --
+# but a cell standing on one deal is one shuffled decision away from standing
+# on none, and its loss would read there as a generic absence. Named here it
+# fails as the seed's own.
 #
-# * a seat following a LED EXCUSE while holding no atout at all
-#   (`excuse-lead-no-trump`) -- the other half of issue #357's shape, where the
-#   must-trump rule cannot bind and the seat is free. Four occurrences in the
-#   2160 hands of seeds 0-59, the first at seed 11.
-# * a THROWN-IN hand -- all four seats pass -- occurs at seeds 20, 35, 50 and
-#   51 of the first sixty and NOWHERE in seeds 0-7, so before this the `owed =
-#   0` arm of `_verify` and its "four passes" assertion ran zero times:
-#   written, never executed. (The predecessor of this module counted an
-#   all-zero score delta as a thrown-in hand, which a settled hand worth
-#   nothing also produces -- so its `hand_thrown_in` arm was green over
-#   hands that were played to the end.)
+# Derived by execution over seeds 0-59 (2026-09-02) rather than assumed, each
+# with the count it contributes on its seed:
+#
+# * a THROWN-IN hand -- all four seats pass. Two occurrences in the 2160 hands
+#   of seeds 0-59. It guards the `owed = 0` arm of `_verify` and its "four
+#   passes" assertion. (The predecessor of this module counted an all-zero
+#   score delta as a thrown-in hand, which a settled hand worth nothing also
+#   produces -- so its `hand_thrown_in` arm was green over hands that were
+#   played to the end.)
+# * PETIT-AU-BOUT scored FOR the taker -- the positive arm of the bonus, whose
+#   sign `_hand_value` would otherwise take from the against-arm alone. Five
+#   occurrences in seeds 0-59.
+#
+# The next-rarest cells (`contract-1`, `petit-au-bout-against`) stand on two
+# occurrences apiece and are left to the census, which is why the predicate is
+# "exactly one" rather than a judgement about which cells feel fragile.
 _RARE_ARM_SEEDS: dict[str, tuple[int, int]] = {
-    "excuse-lead-no-trump": (11, 1),
-    "hand-thrown-in": (20, 1),
+    "hand-thrown-in": (4, 1),
+    "petit-au-bout-for": (5, 1),
 }
 
-_CENSUS_SEEDS: tuple[int, ...] = (
-    *range(SEEDS),
-    *sorted({seed for seed, _ in _RARE_ARM_SEEDS.values()}),
+# Deduped: a named witness seed inside the sweep range must not replay its
+# seed twice, which would double every witness `_sweep` collects from it.
+_CENSUS_SEEDS: tuple[int, ...] = tuple(
+    sorted({*range(SEEDS), *(seed for seed, _ in _RARE_ARM_SEEDS.values())})
 )
 
 # Every cell the census requires. The cascade and discard arms guard a RULE;
@@ -867,12 +881,16 @@ def test_random_games_recompute_exactly() -> None:
 
 
 def test_the_rare_arm_seeds_still_carry_their_arm() -> None:
-    """Each named witness seed still produces the arm it is named for.
+    """Each named witness seed still produces the cell it is named for, at the
+    count it was named for.
 
-    Without this the census would keep passing off the OTHER seeds while its
-    rare cells quietly depended on nothing -- and the failure would read as
-    "the arm never occurred" with no hint that a named seed had drifted. Here
-    it reads as the seed's own."""
+    These are the cells the census reaches exactly once (see
+    `_RARE_ARM_SEEDS`). Without this a deal shift that moved the single
+    occurrence would fail in `test_every_cascade_arm_is_reached` as "the cell
+    never occurred", with no hint that one seed had carried it and drifted.
+    Here it reads as the seed's own, and a cell that has become MORE common is
+    caught too -- the count is asserted, not merely its presence, so the record
+    cannot quietly stop describing the sweep."""
     per_seed, _ = _sweep()
     for cell, (seed, want) in _RARE_ARM_SEEDS.items():
         got = per_seed[seed][cell]
@@ -899,35 +917,42 @@ def test_every_cascade_arm_is_reached() -> None:
     assert not missing, f"{missing} never occurred: {dict(sorted(arms.items()))}"
 
 
-def test_the_excuse_lead_quirk_is_preserved() -> None:
-    """The corpus's known divergence from Pagat, pinned as a fact of the
-    candidate set rather than of the prose (issue #357).
+def test_a_led_excuse_leaves_the_next_seat_free() -> None:
+    """Pagat's rule for a led Excuse, pinned as a fact of the candidate set
+    rather than of the prose.
 
-    Pagat: after a led Excuse "the second player to the trick can play any
-    card". The corpus: nothing satisfies the follow demand while only the
-    Excuse is down, so `MustTrumpIfVoid` binds and a seat holding atouts is
-    offered its atouts alone. #357 owns the correction; every migration carries
-    the quirk across unchanged, and this is what reddens if one silently fixes
-    it."""
+    Pagat (https://www.pagat.com/tarot/frtarot.html, fetched 2026-09-02): "It
+    is legal to lead the excuse, and in this case the second player to the
+    trick can play any card, and this second card defines what suit must be
+    followed." A led Excuse carries no follow class, so the trick has no
+    [[effective-lead]] and no obligation binds: the seat is offered its whole
+    holding whether or not it holds an atout.
+
+    Both halves are asserted because only one of them discriminates. A seat
+    with no atout is free under any reading of the cascade -- the must-trump
+    rule has nothing to bind it to -- so a test over those witnesses alone
+    would pass over the very population the rule change does not touch. The
+    holds-atout half is the one that reddens, which is why its emptiness is a
+    failure rather than a pass."""
     _, witnesses = _sweep()
-    narrowed = [(seed, w) for seed, w in witnesses if w.holds_atout]
-    assert narrowed, (
+    holding_atout = [(seed, w) for seed, w in witnesses if w.holds_atout]
+    holding_none = [(seed, w) for seed, w in witnesses if not w.holds_atout]
+    assert holding_atout, (
         f"no seat followed a led Excuse holding an atout over "
-        f"{len(_CENSUS_SEEDS)} seeds -- the quirk this pins is unreachable "
-        f"here, so re-derive the seeds rather than deleting the test"
+        f"{len(_CENSUS_SEEDS)} seeds -- the only witnesses that discriminate "
+        f"here are unreachable, so re-derive the seeds rather than deleting "
+        f"the test"
     )
-    for seed, w in narrowed:
-        assert all(c.endswith("★") for c in w.offer), (
-            f"seed {seed}: a seat following a led Excuse from holding "
-            f"{w.holding} was offered {w.offer} -- the corpus quirk narrows it "
-            f"to atouts alone (issue #357 owns the Pagat correction)"
-        )
-    free = [(seed, w) for seed, w in witnesses if not w.holds_atout]
-    for seed, w in free:
+    assert holding_none, (
+        f"no seat followed a led Excuse holding no atout over "
+        f"{len(_CENSUS_SEEDS)} seeds -- the partition this test asserts over "
+        f"has collapsed to one side, so re-derive the seeds"
+    )
+    for seed, w in holding_atout + holding_none:
         assert w.offer == tuple(sorted(w.holding)), (
-            f"seed {seed}: a seat following a led Excuse with no atout was "
-            f"offered {w.offer} out of {w.holding} -- with the must-trump rule "
-            f"unable to bind, nothing narrows the hand"
+            f"seed {seed}: a seat following a led Excuse from holding "
+            f"{w.holding} was offered {w.offer} -- a led Excuse sets no "
+            f"class, so nothing narrows the hand"
         )
 
 
@@ -1089,7 +1114,7 @@ def test_seed0_characterization() -> None:
     rings)."""
     game = check_source(TAROT)
     table, result = _play(game, random.Random(0))
-    assert result.scores == {0: 842, 1: 1142, 2: -1542, 3: -442}
+    assert result.scores == {0: 896, 1: 984, 2: -788, 3: -1092}
     assert result.winner == 1
     assert len(table.hands) == HANDS
     assert table.hands[0].taker == 2 and table.hands[0].level == 4

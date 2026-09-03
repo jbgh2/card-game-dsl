@@ -24,7 +24,8 @@ Each hand:
 4. **Play** — eighteen tricks; atouts are trumps. Follow suit; if void you must
    trump, and you must over-trump if you can. The Excuse may be played at any
    time, never wins, and stays with its team (transferring a low card to the
-   trick winner in compensation).
+   trick winner in compensation). Leading it is legal and sets no suit: the
+   next player may play any card, and that card fixes the suit to follow.
 5. **Score** — the threshold is 36/41/51/56 card points for 3/2/1/0 bouts.
    `pt = taker points − threshold`; with the petit-au-bout bonus `pb` (±10 if the
    1 of atouts falls in the last trick) and the bid multiplier `mu`
@@ -38,30 +39,30 @@ movement (`move chosen 6 cards from hand[p] where is_pref_discard(card) to
 discard[p]`) into a genuinely hidden `discard[player]` zone — a deliberate
 departure from the printed rules' physical table layout, where the discard
 sits face down in front of the taker but is not itself secret information the
-opponents lack; here it is modelled as hidden because the opponents cannot
-see which specific cards were set aside, only that six were. When fewer than
-six plain non-Kings exist among the taker's 24, the forced branch moves every
-one of them in and tops the discard up with chosen non-bout atouts routed
-through `shown_atouts`, a public zone: each forced atout arrives there with
-identity to all four seats before joining the hidden discard, so the
-opponents' information sets carry exactly what the real game shows them —
-the forced atouts — and nothing else of the discard. The atouts, the follow classes and
+opponents lack; here it is modelled as hidden because the opponents cannot see
+which specific cards were set aside, only that six were. When fewer than six
+plain non-Kings exist among the taker's 24, the forced branch moves every one
+of them in and tops the discard up with chosen non-bout atouts routed through
+`shown_atouts`, a public zone: each forced atout arrives there with identity
+to all four seats before joining the hidden discard, so the opponents'
+information sets carry exactly what the real game shows them — the forced
+atouts — and nothing else of the discard. The atouts, the follow classes and
 the card strengths are one declared `trick_order { }` block that the trick
 winner, the follow demand and the over-trump comparison all read: the Excuse
-belongs to no class, so it never wins and a led Excuse sets no suit, neither
-of them needing a rule to say so. The eighteen tricks run on the trick
-form of `round`, legality narrowed by the `ExcuseIsExempt`/`MustFollowEffectiveSuit`/
-`MustTrumpIfVoid`/`MustOverTrump` rule cascade (the Excuse is exempt from
-every obligation via the `exempts:` clause). The
-Excuse's special routing — it stays with its own side, repaying the trick
-winner a low card when one is available — is ordinary body movements after
-the round. `tarot_per_opp` computes the settlement (bouts threshold, doubled
-card points from `captured` + the hidden `discard`, petit-au-bout, bid
+belongs to no class, so it never wins and a led Excuse sets no suit — neither
+restated by a rule, and the must-trump obligation reads the second off the
+pile, binding only where the trick has an effective lead to be void in. The
+eighteen tricks run on the trick form of `round`, legality narrowed by the
+`ExcuseIsExempt`/`MustFollowEffectiveSuit`/`MustTrumpIfVoid`/`MustOverTrump`
+rule cascade (the Excuse is exempt from every obligation via the `exempts:`
+clause). The Excuse's special routing — it stays with its own side, repaying
+the trick winner a low card when one is available — is ordinary body movements
+after the round. `tarot_per_opp` computes the settlement (bouts threshold,
+doubled card points from `captured` + the hidden `discard`, petit-au-bout, bid
 multiplier); the `for each player` scoring statement applies it 3:1 zero-sum.
-Card points are kept in doubled integer units (the 78 cards sum to 182);
-the `card_points { }` clause carries the rank-keyed part of that table.
-poignée declaration and the Excuse half-point IOU deferral are out of
-scope.
+Card points are kept in doubled integer units (the 78 cards sum to 182); the
+`card_points { }` clause carries the rank-keyed part of that table. poignée
+declaration and the Excuse half-point IOU deferral are out of scope.
 
 ```
 game FrenchTarot {
@@ -287,8 +288,10 @@ function numeral(c : Card) =
 // exempt pre-pass). The three demand rules run the running-intersection
 // cascade over the trick order: follow what the trick was effectively led
 // (the first card with a follow class — the Excuse has none, so when it is
-// led the next player's card sets the class); if void, trump; over-trump the
-// pile's best atout when able.
+// led the next player's card sets the class); if void of THAT class, trump;
+// over-trump the pile's best atout when able. Void is a fact of the effective
+// lead, so a trick led with the Excuse has no class to be void in and binds
+// nobody.
 
 rule ExcuseIsExempt {
   constrains: play_to_trick
@@ -307,9 +310,15 @@ rule MustFollowEffectiveSuit {
   if_impossible: hand   // void in the effective led suit
 }
 
+// Void is a fact of the EFFECTIVE lead, not of `state.led_suit`: a led Excuse
+// makes the literal led suit "excuse" while setting no class at all, and a
+// seat void in nothing owes no trump. The other two demand rules need no such
+// guard — `MustFollowEffectiveSuit` falls to its `if_impossible` with nothing
+// to follow, and `MustOverTrump` already asks for a trump in the pile.
 rule MustTrumpIfVoid {
   constrains: play_to_trick
-  applies_when: state.led_suit is not none
+  applies_when: (any card in trick_pile where
+                   (is_trump(card) or follow_class(card) is not none))
   demands: cards in hand where is_trump(card)
   if_impossible: hand   // holds the led suit, or has no trump
 }

@@ -1892,16 +1892,42 @@
         "kind": "applies_when",
         "always": false,
         "pred": {
-          "kind": "is_check",
-          "check": "not_none",
-          "operand": {
-            "kind": "member",
-            "obj": {
-              "kind": "name",
-              "name": "state",
-              "ref": "pronoun"
+          "kind": "card_query",
+          "query": "any",
+          "source": {
+            "kind": "name",
+            "name": "trick_pile",
+            "ref": "zone"
+          },
+          "where": {
+            "kind": "binop",
+            "op": "or",
+            "left": {
+              "kind": "call",
+              "func": "is_trump",
+              "args": [
+                {
+                  "kind": "name",
+                  "name": "card",
+                  "ref": "local"
+                }
+              ]
             },
-            "field": "led_suit"
+            "right": {
+              "kind": "is_check",
+              "check": "not_none",
+              "operand": {
+                "kind": "call",
+                "func": "follow_class",
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "card",
+                    "ref": "local"
+                  }
+                ]
+              }
+            }
           }
         }
       },
