@@ -191,30 +191,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.gin import ROW, gin_lay_ok_c
 
             return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
-        case "canasta_can_take_pile":
-            from cardlang.runtime.canasta import ROW, canasta_can_take_pile
-
-            return canasta_can_take_pile(*_bind(ctx, ROW), args[0])
-        case "canasta_must_take_pile":
-            from cardlang.runtime.canasta import ROW, canasta_must_take_pile
-
-            return canasta_must_take_pile(*_bind(ctx, ROW), args[0])
-        case "canasta_can_start":
-            from cardlang.runtime.canasta import ROW, canasta_can_start
-
-            return canasta_can_start(*_bind(ctx, ROW), args[0], args[1])
-        case "canasta_stage_ok":
-            from cardlang.runtime.canasta import ROW, canasta_stage_ok
-
-            return canasta_stage_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "canasta_close_ok":
-            from cardlang.runtime.canasta import ROW, canasta_close_ok
-
-            return canasta_close_ok(*_bind(ctx, ROW), args[0])
-        case "canasta_canasta_bonus":
-            from cardlang.runtime.canasta import ROW, canasta_canasta_bonus
-
-            return canasta_canasta_bonus(*_bind(ctx, ROW), args[0])
         case _:
             # Shadow Guard behind resolve's `_validate_refs`, which refuses
             # both names this arm can meet: one no registry holds (the

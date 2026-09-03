@@ -82,6 +82,69 @@ game Canasta {
     7: 5  6: 5  5: 5  4: 5  3: 5
   }
 
+  // What this game borrows from outside the DSL at a CALL position,
+  // implemented in `cardlang/runtime/canasta.py`: the pile-take guards, the
+  // meld-window guards, and the per-pile canasta bonus. Each entry declares
+  // what its own implementation consults, so the clauses differ — only a take
+  // guard reads the pile's take-able top, only a window guard reads the open
+  // attempt's stage zone and the state that names it, and the bonus reads
+  // nothing but the meld piles it prices.
+  //
+  // The grain is the read an entry can REACH, not the module's union: a
+  // helper branch a caller closes with a literal is not that caller's read.
+  // `canasta_can_start` announces from hand and never takes, so the pile's
+  // buried remainder is beyond it; the initial-meld minimum, by contrast,
+  // turns on live state, so every entry that can price one reads `score`.
+  //
+  // `meld_rank`, `pile_frozen`, `taking_pile` and `team_melded` are declared
+  // by `phase hand`, not by the game, so a read of one names that phase —
+  // and the phase named `hand` is not the zone family `hand`, which the
+  // read's own position tells apart. The tail rides the READ, not the
+  // clause: `score` and every zone are game-level and carry none. Naming the
+  // phase also promises what the resolver then checks — an entry reading
+  // `in hand` is called only where that phase is running, which here is its
+  // descendant `phase play`: that phase's own body, and the move types it
+  // alone offers.
+  //
+  // A binder narrows a read to the instance the call names: a player-keyed
+  // entry sees that player's hand, and in the meld window that player's
+  // stage; the bonus sees its own side's piles. The side a player-keyed entry
+  // reasons about is derived from the seating, which no parameter binds, so
+  // its meld and `team_melded` reads stay whole.
+  primitives {
+    canasta_can_take_pile(p : Player) : Boolean
+        reads hand[p], pile_top, pile_rest,
+              meldA, meldK, meldQ, meldJ, meld10, meld9,
+              meld8, meld7, meld6, meld5, meld4, meld3b, score,
+              pile_frozen in hand, team_melded in hand
+    canasta_must_take_pile(p : Player) : Boolean
+        reads hand[p], pile_top, pile_rest,
+              meldA, meldK, meldQ, meldJ, meld10, meld9,
+              meld8, meld7, meld6, meld5, meld4, meld3b, score,
+              pile_frozen in hand, team_melded in hand
+    canasta_can_start(p : Player, rank : Rank) : Boolean
+        reads hand[p],
+              meldA, meldK, meldQ, meldJ, meld10, meld9,
+              meld8, meld7, meld6, meld5, meld4, meld3b, score,
+              pile_frozen in hand, team_melded in hand
+    canasta_stage_ok(p : Player, card : Card) : Boolean
+        reads hand[p], stage[p], pile_rest,
+              meldA, meldK, meldQ, meldJ, meld10, meld9,
+              meld8, meld7, meld6, meld5, meld4, meld3b, score,
+              meld_rank in hand, pile_frozen in hand,
+              taking_pile in hand, team_melded in hand
+    canasta_close_ok(p : Player) : Boolean
+        reads hand[p], stage[p], pile_rest,
+              meldA, meldK, meldQ, meldJ, meld10, meld9,
+              meld8, meld7, meld6, meld5, meld4, meld3b, score,
+              meld_rank in hand, pile_frozen in hand,
+              taking_pile in hand, team_melded in hand
+    canasta_canasta_bonus(u : Team) : Integer
+        reads meldA[u], meldK[u], meldQ[u], meldJ[u],
+              meld10[u], meld9[u], meld8[u], meld7[u],
+              meld6[u], meld5[u], meld4[u], meld3b[u]
+  }
+
   zones {
     deck           : Deck                  // the face-down stock
     hand[player]   : Hand<player>

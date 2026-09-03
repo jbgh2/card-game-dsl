@@ -95,6 +95,7 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from tests.test_primitives_block import _entry_and_body
 
 
 def _reject(source: str) -> str:
@@ -369,10 +370,23 @@ def _round_game(*, leader: str = "0", participants: str = "all players") -> str:
     )
 
 
-def _team_game(*, body: str = "") -> str:
+# The `primitives { }` clause the Team-ARGUMENT cells write.
+# `canasta_canasta_bonus` is the one Primitive whose signature takes a `Team`,
+# and a declaration is its only route to Python, so a cell putting a team
+# literal in its argument needs a block to reach the range check at all. The
+# entry is rendered from `CALL_SIGS` through the regime product's own renderer
+# rather than spelled a second time here, so it cannot drift from the signature
+# the declared shape check compares it against.
+_TEAM_PRIMITIVE = "  primitives { " + _entry_and_body("canasta_canasta_bonus")[0] + " }\n"
+
+
+def _team_game(*, body: str = "", block: str = "") -> str:
     """A 4-seat, 2-team game (`teams` makes teams 0 and 1). `Integer`
     coerces to `Team` exactly as it does to `Player`, so a team literal names a
-    team the game must have -- the parallel axis the range gate had ignored."""
+    team the game must have -- the parallel axis the range gate had ignored.
+
+    `block` is the game's `primitives { }` entries -- `_TEAM_PRIMITIVE` above,
+    and written by that cell alone."""
     return (
         "game Teams {\n"
         "  players: 4\n"
@@ -380,6 +394,7 @@ def _team_game(*, body: str = "") -> str:
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        f"{block}"
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
         "  state { won[team] : Integer = 0 }\n"
         "  phase play {\n"
@@ -416,7 +431,8 @@ _PLAYER_BUILDERS: dict[str, Callable[[int], str]] = {
 # team id -> builder(team) : the parallel TEAM axis (2-team game, teams 0 and 1).
 _TEAM_BUILDERS: dict[str, Callable[[int], str]] = {
     "team_keyed_index": lambda k: _team_game(body=f"    won[{k}] := 1\n"),
-    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_canasta_bonus({k})\n"),
+    "team_call_arg":    lambda k: _team_game(body=f"    won[0] := canasta_canasta_bonus({k})\n",
+                                             block=_TEAM_PRIMITIVE),
 }
 
 # The single knob for the staged red->green flip: a position here is still
@@ -482,13 +498,14 @@ def test_choke_point_accepts_in_range_team(pid: str) -> None:
 # teams (resolve guards it), but a Team-TYPED OPERAND -- a `state` default,
 # a Team call argument -- does not, and reaches the range check, where every team
 # literal (even `0`) names a team the game does not have.
-def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
+def _teamless_game(*, extra_state: str = "", body: str = "", block: str = "") -> str:
     return (
         "game Teamless {\n"
         "  players: 4\n"  # players, but NO teams => 0 teams
         "  max_length: 20\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        f"{block}"
         "  zones { deck : Deck  hand[player] : Hand<player> }\n"
         f"  state {{ score[player] : Integer = 0 {extra_state} }}\n"
         "  phase play {\n"
@@ -505,7 +522,8 @@ def _teamless_game(*, extra_state: str = "", body: str = "") -> str:
 
 _TEAMLESS_TEAM_LITERAL = {
     "team_state_default": lambda: _teamless_game(extra_state="owner : Team = 0"),
-    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_canasta_bonus(0)\n"),
+    "team_call_arg": lambda: _teamless_game(body="    score[0] := canasta_canasta_bonus(0)\n",
+                                            block=_TEAM_PRIMITIVE),
 }
 
 

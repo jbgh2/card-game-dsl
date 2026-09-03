@@ -11,19 +11,32 @@ property:   canasta108 is served identically at every deck consumer, and
 domain:     deck consumers keyed by deck name (size table, build_deck,
             deck_suits/deck_ranks/enum_values, card block, deckcheck) x the
             new entry; the convention x non-French-rank reconciliation; the
-            duplicate-cards x joint-selection interaction; the three-table
-            primitive namespace
+            duplicate-cards x joint-selection interaction; the primitive
+            namespace's registries and the game's own declaration
 registry:   DECKS (cardlang/runtime/values.py) / _DECK_SIZE
             (cardlang/stdlib/enums.py); CALL_FUNCS / CALL_SIGS /
-            the runtime dispatch; PRIMITIVE_READS
+            DECLARED_ONLY_CALL_FUNCS; the `primitives { }` block
+            canasta.cardlang declares, which is where its reads live
 covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             (parametrized over sorted(DECKS) — the new entry enters
             automatically); name/arity/annotation coherence:
             tests/test_signatures.py (set equality + dispatch-AST
             reconciliation, automatic); declared reads:
-            tests/test_primitive_reads.py (two-sided row pin, automatic);
+            tests/test_primitive_reads.py (two-sided pin, the game's block
+            against the module's own accessor literals, automatic) — at
+            MODULE grain, its scan comparing the module-wide union; ENTRY
+            grain, whether one entry's own clause suffices for the code that
+            entry reaches, is answered at playout, where a narrowed clause
+            checks clean and the bundle refuses in the typed
+            PrimitiveReadError channel naming the entry and the clause to
+            extend (that module's `sampled:` row states the same limit for
+            per-call-site attribution);
             adapter registration: the corpus glob <-> registry pin and the
-            proof-module coverage pin (both two-sided, automatic); the
+            proof-module coverage pin (both two-sided, automatic); a
+            declared-only name called from a game with no block:
+            tests/test_primitives_block.py's regime product, whose
+            declared-only axis is `DECLARED_ONLY_CALL_FUNCS` itself, so these
+            six enter it automatically and it Owns that refusal; the
             probes below (convention guard, combo guard, unknown name, wrong
             arity); the 54-distinct-card block pin below
 sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
@@ -40,9 +53,17 @@ import pytest
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl
+from tests.test_primitives_block import _entry_and_body
 
 
-def _game(body: str, ranking: str = "A K Q J 10 9 8 7 6 5 4") -> str:
+def _game(
+    body: str, ranking: str = "A K Q J 10 9 8 7 6 5 4", block: str = ""
+) -> str:
+    """A canasta108 probe game. `block` is its `primitives { }` entries,
+    written only by the cell whose subject is a declared Primitive's CALL:
+    Canasta's Primitives are reached by declaration alone
+    (`DECLARED_ONLY_CALL_FUNCS`), so a game with no block is refused at the
+    name and the call is never typed at all."""
     return (
         "game G {\n"
         "  players: 4\n"
@@ -51,6 +72,7 @@ def _game(body: str, ranking: str = "A K Q J 10 9 8 7 6 5 4") -> str:
         "  max_length: 100\n"
         "  cards: canasta108\n"
         f"  ranking: {ranking}\n"
+        f"{block}"
         "  zones { deck : Deck  hand[player] : Hand<player>  discard : Discard }\n"
         "  state { dealer : Player = 0  score[team] : Integer = 0 }\n"
         "  winner: highest score\n"
@@ -95,9 +117,15 @@ def test_unknown_canasta_primitive_is_a_resolve_error() -> None:
 
 def test_wrong_arity_canasta_primitive_is_a_typecheck_error() -> None:
     # canasta_can_start takes (Player, Rank); calling it with one argument
-    # must fail at check time, not crash the dispatch mid-playout.
-    dsl = _game("  phase p { if canasta_can_start(dealer) { shuffle deck } }\n")
-    with pytest.raises(DiagnosticError, match="canasta_can_start"):
+    # must fail at check time, not crash the dispatch mid-playout. The game
+    # declares the entry, so the call reaches the ARITY check — and the match
+    # pins that message rather than the name, which a refusal at any earlier
+    # layer would also carry.
+    dsl = _game(
+        "  phase p { if canasta_can_start(dealer) { shuffle deck } }\n",
+        block="  primitives { " + _entry_and_body("canasta_can_start")[0] + " }\n",
+    )
+    with pytest.raises(DiagnosticError, match=r"canasta_can_start\(\) expects 2 argument"):
         check_dsl(dsl, "t.cardlang")
 
 
