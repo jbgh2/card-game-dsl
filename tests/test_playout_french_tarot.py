@@ -93,9 +93,14 @@ Ledger note -- what the observation stream cannot pin
    Guarded rather than derived: `_Table._announced` refuses an announcement it
    cannot classify, so the list cannot fall behind the game in silence.
 
-red under -- each plant with the assertion it fired, executed 2026-08-19 on the
-pre-migration tree and reverted. Every claim above carries one, because an
-oracle rewritten off its old input is exactly where a check can go quietly
+red under -- each plant with the assertion it fired, executed and reverted.
+An entry carries its own date where the tree it ran against differs; the
+undated ones ran 2026-08-19 on the pre-migration tree. The three
+`active_rules` drops below were re-run on 2026-09-02 and quote unchanged;
+`tarot_trick_winner` is not re-runnable at all, its function having retired
+with the Trick Order migration, and its entry stands as the dated record of a
+plant on a tree that no longer exists. Every claim above carries one, because
+an oracle rewritten off its old input is exactly where a check can go quietly
 toothless:
 * `MustOverTrump` dropped from `active_rules` --
   `test_random_games_recompute_exactly`, "assert not table.offer_failures":
@@ -111,12 +116,14 @@ toothless:
 * `tarot_trick_winner` naming the lowest atout (`max` -> `min`) -- "seed 0 hand
   0 trick 1: recomputed winner P0, the pile drained to P3".
 * the settlement's one-bout threshold moved by a point (51 -> 50) -- "seed 0:
-  {0: 842, ...} != {0: 796, ...}", the whole-match score comparison.
+  {0: 896, ...} != {0: 850, ...}", the whole-match score comparison (executed
+  2026-09-02).
 * `_Table.observe` dropping every `announce` -- the non-vacuity guard, BEFORE
   any recomputation: "seed 0: hand(s) [0..35] of 36 were played but no seat
   took in them".
 * `SEEDS = 2` -- `assert not thin`, naming every cascade arm now under
-  `WITNESS_SEEDS`, `excuse-lead-must-trump` among them at one seed.
+  `WITNESS_SEEDS`, `excuse-lead` among them at one seed (executed
+  2026-09-02).
 * the forced branch's force-move dropped (one chosen-six pick over `not
   is_bout`, Kings offered) -- `_discard_pool`'s "the discard pick was offered
   while 3 plain non-Kings were still in hand" assert, via the stacked
