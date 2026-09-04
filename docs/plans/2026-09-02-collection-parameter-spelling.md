@@ -685,6 +685,6 @@ re-runnable test.
 
 The adversarial review's findings are answered in the branch's later commits.
 Two touch this document: the addendum's net-versus-gross wording above, and
-the roadmap.md citations in the counsel sections, which named the file with no
-section title and were red under
+the two citations in the counsel sections that named a roadmap section
+without quoting its title, which were red under
 `tests/test_doc_references.py::test_every_roadmap_reference_names_a_live_section`.
