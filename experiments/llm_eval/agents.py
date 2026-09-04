@@ -20,8 +20,10 @@ Illegal after: an agent method taking a game state.
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import random
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -62,22 +64,24 @@ class DecisionView:
 # two arms' numbers comparable and two GAMES' numbers not silently mixed.
 #
 # `render` is the arm that hands the model English instead of the engine's raw
-# string. Both entries' renderers are pure functions of the same information
-# state, so the leak-freeness argument is per-game unchanged.
-GAME_TEXT: dict[str, tuple[str, str, Callable[[str], str]]] = {
+# string. A renderer is a pure function of the same information state, so the
+# leak-freeness argument is per-game unchanged. `None` is a game with no
+# rendered arm: `render: true` then reads the raw state, and the treatment
+# record carries no renderer digest for the shape.
+GAME_TEXT: dict[str, tuple[str, str, Callable[[str], str] | None]] = {
     # game: (rules for the raw arm, rules for the rendered arm, renderer)
     "cheat": (RULES_RAW, RULES_RENDERED, render_state),
     "kuhn": (kuhn.RULES_RAW, kuhn.RULES_RENDERED, kuhn.render_state),
     # Heads-up Hold'em has no rendered arm: that arm exists to ask whether
     # English helps comprehension, which was answered on Cheat and is not
-    # re-asked here. The raw text stands in both slots rather than `None`, so
-    # `render: true` reads the same state it would anyway instead of failing
-    # a run mid-flight; the config never sets it.
-    "holdem_hu": (holdem.RULES_RAW, holdem.RULES_RAW, lambda s: s),
+    # re-asked here. The raw text stands in both slots so `render: true` reads
+    # the same state it would anyway instead of failing a run mid-flight; the
+    # config never sets it.
+    "holdem_hu": (holdem.RULES_RAW, holdem.RULES_RAW, None),
 }
 
 
-def game_text(name: str) -> tuple[str, str, Callable[[str], str]]:
+def game_text(name: str) -> tuple[str, str, Callable[[str], str] | None]:
     """Look up a game's static text, refusing anything not in the registry.
 
     A silently-ignored game name would be this harness's worst failure: the run
@@ -90,6 +94,77 @@ def game_text(name: str) -> tuple[str, str, Callable[[str], str]]:
         raise ValueError(
             f"unknown game {name!r} (expected one of {sorted(GAME_TEXT)})"
         ) from None
+
+
+def llm_shape(spec: Mapping[str, Any]) -> tuple[bool, str]:
+    """A roster entry's (render, arm), with the defaults an `llm` agent takes."""
+    return bool(spec.get("render", False)), str(spec.get("arm", "reasoning"))
+
+
+def shape_name(game: str, render: bool, arm: str) -> str:
+    """The treatment record's key for one prompt shape."""
+    return f"{game}:{'rendered' if render else 'raw'}:{arm}"
+
+
+def prompt_shape(
+    game: str, render: bool, arm: str
+) -> tuple[str, Callable[[str], str] | None, ResponseArm]:
+    """The static inputs one prompt shape shows the model: its rules text, its
+    renderer (`None` for the raw arm, or a game with no rendered arm), and its
+    response arm. One lookup for the agent and the treatment record alike, so
+    the two cannot disagree about what a shape is.
+    """
+    raw, rendered, renderer = game_text(game)
+    return (
+        rendered if render else raw,
+        renderer if render else None,
+        response_arm(arm),
+    )
+
+
+# Fixed per-decision inputs the fingerprint runs the prompt path over. Their
+# content is arbitrary; what matters is that they never change, so a digest
+# moves only when the static text around them does.
+_PROBE_INFOSTATE = "<probe information state>"
+_PROBE_ACTIONS = ["<probe action 0>", "<probe action 1>"]
+_PROBE_ERROR = "<probe parse error>"
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | None]:
+    """Digests of everything static a model is shown under one prompt shape.
+
+    The prompt half of the treatment record (`run_eval.treatment`): a resume
+    compares it, so editing an arm's instruction, a rules text, `build_prompt`'s
+    own framing or the renderer between invocations cannot append games played
+    under one treatment to games played under another. Three components:
+
+    - `prompt`: the decision prompt for the probe state, through `build_prompt`
+      itself, so its scaffolding, the rules text and the arm's instruction are
+      all inside the digest;
+    - `retry`: the arm's retry note for the probe error;
+    - `renderer`: the source of the module defining the renderer, or `None`
+      when no renderer shapes the prompt. Source rather than a probe rendering,
+      because a probe reaches only the branches it happens to exercise: an edit
+      that does not alter what the model sees is refused loudly and accepted
+      with `--accept-changed-treatment`, never missed silently.
+
+    Outside the digest, so a match does not prove them unchanged: the wording
+    of a parse error inside a retry, the baseline agents' policies, and the
+    engine's rules and action strings.
+    """
+    rules, renderer, spec = prompt_shape(game, render, arm)
+    module = inspect.getmodule(renderer) if renderer is not None else None
+    return {
+        "prompt": _digest(
+            build_prompt(rules, _PROBE_INFOSTATE, _PROBE_ACTIONS, spec.instruction)
+        ),
+        "retry": _digest(spec.retry.format(error=_PROBE_ERROR)),
+        "renderer": _digest(inspect.getsource(module)) if module is not None else None,
+    }
 
 
 class Agent(Protocol):
@@ -317,13 +392,11 @@ class LLMAgent:
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
-        raw, rendered, renderer = game_text(self.game)
-        self.rules = rendered if self.render else raw
-        self._render = renderer
-        # Resolve at construction, not at the first decision: an unknown arm
-        # name must fail before a run starts spending, not on move one of game
-        # one after the roster and providers are already up.
-        self._arm = response_arm(self.arm)
+        # Resolved at construction, not at the first decision: an unknown game
+        # or arm name must fail before a run starts spending, not on move one
+        # of game one after the roster and providers are already up.
+        self.rules, renderer, self._arm = prompt_shape(self.game, self.render, self.arm)
+        self._render = renderer if renderer is not None else (lambda s: s)
 
     def choose(self, view: DecisionView) -> int:
         if len(view.legal_actions) == 1:
@@ -423,12 +496,13 @@ def build_agent(
     if kind == "llm":
         if provider is None:
             raise ValueError("an 'llm' agent needs a provider")
+        render, arm = llm_shape(spec)
         return LLMAgent(
             provider=provider,
             seed=seed,
             name=spec.get("name", "llm"),
-            render=bool(spec.get("render", False)),
-            arm=str(spec.get("arm", "reasoning")),
+            render=render,
+            arm=arm,
             game=game,
         )
     raise ValueError(

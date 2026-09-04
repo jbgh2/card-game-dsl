@@ -33,14 +33,14 @@ import sys
 import traceback
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final
 
 import yaml
 
 from . import layout
-from .agents import Agent, build_agent
+from .agents import Agent, build_agent, llm_shape, prompt_fingerprint, shape_name
 from .metrics import aggregate, game_key
 from .prompts import parse_response
 from .providers import PRICES, Provider, Usage, make_provider
@@ -305,19 +305,27 @@ def ensure_provider(
     return registry[name]
 
 
-def treatment(config: dict[str, Any], matchup: dict[str, Any]) -> dict[str, Any]:
+def treatment(
+    config: dict[str, Any], matchup: dict[str, Any], game_name: str
+) -> dict[str, Any]:
     """Everything that must not change between the games of one matchup.
 
     The roster verbatim (arm, render flag, model reference, `bluff_prob`,
-    `challenge_prob`), the model definitions those references resolve to, and the
-    knobs that shape an episode. Recorded beside the transcript so a resume can
-    prove it is continuing the same experiment rather than appending a second one.
+    `challenge_prob`), the model definitions those references resolve to, the
+    knobs that shape an episode, and — under `prompt` — a digest of what each
+    LLM shape in the roster is shown (`agents.prompt_fingerprint`), because a
+    config that matches is not an experiment that matches once the text or code
+    that builds the prompt has moved. Recorded beside the transcript so a resume
+    can prove it is continuing the same experiment rather than appending a
+    second one. `game_name` is the `GAME_TEXT` key the run derives from the
+    loaded game, never the config's.
 
     Deliberately NOT the whole config: `n`, `resume_from` and `results_dir` change
     legitimately between invocations of the same experiment, and including them
     would make every resume fail.
     """
     used = sorted({spec["model"] for spec in matchup["agents"] if spec.get("model")})
+    shapes = sorted({llm_shape(spec) for spec in matchup["agents"] if spec.get("kind") == "llm"})
     return {
         "game": config.get("game", "cardlang_cheat"),
         "agents": matchup["agents"],
@@ -329,6 +337,12 @@ def treatment(config: dict[str, Any], matchup: dict[str, Any]) -> dict[str, Any]
         "max_decisions": int(config.get("max_decisions", 0)),
         "seed_start": int(config.get("seeds", {}).get("start", 0)),
         "models": {m: config["models"][m] for m in used},
+        # An empty block for an all-baseline roster, so a reader can tell "no
+        # model was shown anything" from a record written without the block.
+        "prompt": {
+            shape_name(game_name, render, arm): prompt_fingerprint(game_name, render, arm)
+            for render, arm in shapes
+        },
     }
 
 
@@ -337,6 +351,37 @@ def read_treatment(path: Path) -> dict[str, Any] | None:
         return None
     loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return loaded
+
+
+_ABSENT: Final = object()
+
+
+def differing_paths(recorded: Any, now: Any, prefix: str = "") -> list[str]:
+    """Dotted paths at which two treatment records disagree.
+
+    Descends into nested dicts, so a moved prompt digest is named by its shape
+    and component rather than as the whole `prompt` block; a key one side lacks
+    is a difference at that key.
+    """
+    if isinstance(recorded, dict) and isinstance(now, dict):
+        return sorted(
+            path
+            for key in set(recorded) | set(now)
+            for path in differing_paths(
+                recorded.get(key, _ABSENT), now.get(key, _ABSENT), f"{prefix}{key}."
+            )
+        )
+    return [] if recorded == now else [prefix.rstrip(".")]
+
+
+def value_at(record: dict[str, Any], path: str) -> Any:
+    """The value a dotted path names, or `None` where the record lacks it."""
+    node: Any = record
+    for key in path.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node
 
 
 def run_matchup(
@@ -348,8 +393,14 @@ def run_matchup(
     log: SpendLog,
     limit: int | None = None,
     allow_overwrite: bool = False,
+    accept_changed_treatment: bool = False,
 ) -> dict[str, Any]:
     """Run one matchup end to end and return its summary block.
+
+    `accept_changed_treatment` lets a resume proceed although the recorded
+    treatment differs from this invocation's; the difference is appended to the
+    sidecar's `overrides`, so the transcript never reads as one clean
+    treatment. Without it, any difference refuses the resume.
 
     `registry` is the run-wide provider cache, mutated in place: this matchup
     builds providers only for the models its OWN roster names, so an offline
@@ -424,6 +475,9 @@ def run_matchup(
     treatment_path = transcripts / f"{name}.treatment.json"
 
     existing: list[dict[str, Any]] = []
+    # Carried across the rewrite below: an override is part of the transcript's
+    # record for as long as the transcript exists.
+    overrides: list[dict[str, Any]] = []
     if resume:
         # Refuse to append onto anything but the exact prefix this resume
         # continues. Appending to a mismatched file would silently duplicate or
@@ -466,27 +520,40 @@ def run_matchup(
         # above, after which `aggregate(existing + records)` reports two
         # different treatments as one matchup — a silently mixed arm, which is
         # the worst outcome this harness has, because the number still looks fine.
-        want_treat = treatment(config, matchup)
-        got_treat = read_treatment(treatment_path)
-        if got_treat is None:
+        want_treat = treatment(config, matchup, game_name)
+        stored = read_treatment(treatment_path)
+        if stored is None:
             raise ValueError(
                 f"cannot resume {name!r}: {treatment_path.name} is missing, so "
                 f"there is no record of what treatment the existing games ran "
                 f"under and no way to confirm this invocation matches. Start a "
                 f"fresh run rather than appending blind."
             )
-        if got_treat != want_treat:
-            differing = sorted(
-                k
-                for k in set(got_treat) | set(want_treat)
-                if got_treat.get(k) != want_treat.get(k)
-            )
-            raise ValueError(
-                f"cannot resume {name!r}: the configuration changed since the "
-                f"existing games were played. Differing: {differing}\n"
-                f"  recorded: { {k: got_treat.get(k) for k in differing} }\n"
-                f"  now:      { {k: want_treat.get(k) for k in differing} }\n"
-                f"Appending would mix two treatments into one matchup."
+        overrides = list(stored.get("overrides", []))
+        got_treat = {k: v for k, v in stored.items() if k != "overrides"}
+        differing = differing_paths(got_treat, want_treat)
+        if differing:
+            recorded_values = {p: value_at(got_treat, p) for p in differing}
+            now_values = {p: value_at(want_treat, p) for p in differing}
+            if not accept_changed_treatment:
+                raise ValueError(
+                    f"cannot resume {name!r}: the treatment changed since the "
+                    f"existing games were played. Differing: {differing}\n"
+                    f"  recorded: {recorded_values}\n"
+                    f"  now:      {now_values}\n"
+                    f"Appending would mix two treatments into one matchup. If "
+                    f"the change does not alter what the games measure, resume "
+                    f"with --accept-changed-treatment; the override is recorded "
+                    f"in {treatment_path.name}."
+                )
+            overrides.append(
+                {
+                    "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "resumed_from": resume,
+                    "differing": differing,
+                    "recorded": recorded_values,
+                    "now": now_values,
+                }
             )
     elif path.exists() and path.stat().st_size and not allow_overwrite:
         # `w` would truncate it. Reachable only via `--run-dir` naming an existing
@@ -504,9 +571,11 @@ def run_matchup(
 
     # Written before the first game, so the record of what treatment produced a
     # transcript exists even if the run dies on game one.
+    sidecar: dict[str, Any] = treatment(config, matchup, game_name)
+    if overrides:
+        sidecar["overrides"] = overrides
     treatment_path.write_text(
-        json.dumps(treatment(config, matchup), indent=2, ensure_ascii=False),
-        encoding="utf-8",
+        json.dumps(sidecar, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
     records: list[dict[str, Any]] = []
@@ -819,6 +888,13 @@ def main(argv: list[str] | None = None) -> int:
         "earlier invocation wrote, so it continues that run and belongs in that "
         "run's directory.",
     )
+    parser.add_argument(
+        "--accept-changed-treatment",
+        action="store_true",
+        help="resume although the recorded treatment differs from this "
+        "invocation's. The difference is recorded in the matchup's "
+        ".treatment.json, so the transcript never reads as one clean treatment.",
+    )
     args = parser.parse_args(argv)
 
     config = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
@@ -943,7 +1019,13 @@ def main(argv: list[str] | None = None) -> int:
     failed = False
     for matchup in selected:
         summary = run_matchup(
-            config, matchup, out_dir, registry, log=log, limit=args.limit
+            config,
+            matchup,
+            out_dir,
+            registry,
+            log=log,
+            limit=args.limit,
+            accept_changed_treatment=args.accept_changed_treatment,
         )
         summaries.append(summary)
         write_summary(summaries)
