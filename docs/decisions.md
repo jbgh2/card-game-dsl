@@ -1597,19 +1597,27 @@ things, and which is decided by the head, not by the reader:
   The argument says who the family is keyed by, never what the zone holds —
   the zone type's own name already fixes that.
 - A **value-constructor head** (`Collection`, the only one) takes an **element
-  type**: a Title Case name from the declarable set. `cards : Collection<Card>`
-  reads "a collection of cards". It is spellable in a `primitives { }` entry's
-  two type slots and nowhere else, because a set of cards anywhere else in a
-  game is a zone; every other type position teaches that placement rather than
-  reporting a shape error (see "The `primitives { }` block").
+  type**: a Title Case name, and the language admits exactly one of them,
+  `Card`. `cards : Collection<Card>` reads "a collection of cards", and
+  `Collection<Player>` — a type the checker itself mints for `all players` —
+  is refused by name. The allow-list is held equal to the element types
+  registered Python actually takes, so a second element arrives as an event
+  with a witness rather than as a widening: the day an implementation takes a
+  collection of something else, the list is red until it admits that element.
+  The spelling is legal in a `primitives { }` entry's two type slots and
+  nowhere else, because a set of cards anywhere else in a game is a zone;
+  every other type position teaches that placement rather than reporting a
+  shape error (see [Primitives Block](glossary/primitives-block.md) and
+  [Collection Type](glossary/collection-type.md)).
 
 Case does the disambiguating on the page — an index domain is a lower-case id,
 an element type is a Title Case name — and both cross-confusions are refused
 by name. `?` suffixes a **value** type only: never a zone, never a collection
 (an absence inside a set has no rulebook reading, and `is empty` is a
 collection's absence). There are no type variables anywhere in the language: no
-declaration takes one, no Builtin is polymorphic, and no rulebook says "for any
-type T".
+declaration takes one, no Builtin is parametrically polymorphic (several take
+the top type `Any`, which is a widened parameter, not a variable), and no
+rulebook says "for any type T".
 
 **Optional types and the `none` literal.** A type written `T?` is optional: it
 holds a `T` or the absence value `none`. `none` is the language's single
