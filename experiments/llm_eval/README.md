@@ -211,9 +211,9 @@ python -m experiments.llm_eval.run_eval \
 The runner refuses to overwrite a non-empty transcript for a matchup that is not
 resuming, and refuses to append when the **treatment** changed — the arm, the
 model, the rendering flag, an opponent's `bluff_prob`, or what the model is
-shown: the rules text, the arm's instruction and retry note, the prompt's own
-framing, and the source of the renderer's module and every rig module it
-delegates to. Matching seeds are not the same thing as the same experiment, and
+shown: the rules text, the arm's instruction and retry note, the source of the
+code that composes the prompt and its retry, and the source of the renderer's
+module and every rig module it delegates to. Matching seeds are not the same thing as the same experiment, and
 a matching config is not either once the code that builds the prompt has moved.
 A difference the operator judges not to alter the treatment — a comment in the
 renderer's module, say — resumes with `--accept-changed-treatment`, which

@@ -12,9 +12,12 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:        a resume is refused, naming the component that moved, whenever
                  any static input to what an LLM seat is shown differs from
                  what the recorded games were shown: the rules text of the arm
-                 in use, `build_prompt`'s own framing, the arm's instruction,
-                 the arm's retry note, or the source of the renderer's module
-                 and of every rig module it delegates to. A matching
+                 in use, the arm's instruction, the arm's retry note, the
+                 source of every rig function and class on the prompt path
+                 from `LLMAgent.choose` (the builder, its callees, the
+                 response parser whose wording rides inside a retry), or the
+                 source of the renderer's module and of every rig module it
+                 delegates to. A matching
                  fingerprint is stable across invocations, so a legitimate
                  resume is not refused; a sidecar with no `prompt` block is
                  refused rather than reconstructed; and the override that
@@ -23,11 +26,13 @@ property:        a resume is refused, naming the component that moved, whenever
                  excluded from every later comparison.
 domain:          `GAME_TEXT` x {raw, rendered} x `RESPONSE_ARMS`, each cell
                  crossed with the components the shape uses (`prompt`,
-                 `retry`, `renderer`) and, per present component, with a
-                 mutation of exactly the input it names — proving the
-                 component moves under that input and no other. The renderer
-                 rows mutate real module source through the registry, since
-                 the registry-level rows cannot see a source file. The resume
+                 `retry`, `builder`, `renderer`) and, per present component,
+                 with a mutation of exactly the input it names — proving the
+                 component moves under that input and no other. The builder
+                 and renderer rows mutate real source through the registry
+                 and the module globals, since a registry-level row cannot
+                 see a source file; the builder's witness is a branch the
+                 probe never reaches. The resume
                  gate is then exercised end to end through `main()` on the
                  raw and rendered shapes, with the fake provider.
 registry:        agents.py::GAME_TEXT (the game axis and each game's renderer);
@@ -37,19 +42,22 @@ registry:        agents.py::GAME_TEXT (the game axis and each game's renderer);
                  reddens rather than going stale;
                  agents.py::rig_closure (the renderer's transitive rig
                  modules, derived from module globals);
+                 agents.py::code_closure (the prompt path's transitive rig
+                 functions and classes, derived from code-object names);
                  agents.py::DEFAULT_RENDER / DEFAULT_ARM (the shape an entry
                  takes when it says nothing, read by `llm_shape` and by
                  `LLMAgent`'s defaults alike);
                  run_eval.py::SIDECAR_ONLY (the keys outside the comparison).
-does not prove:  the wording of a parse error, which rides inside a retry and
-                 comes from `parse_response`; the baseline agents' policy code;
-                 the engine's rules and action strings; the provider's
-                 hard-coded request defaults and its single-user-turn message
-                 shape (its `params` are in the config half). Where a game's
-                 module holds both its rules texts and its renderer
-                 (`kuhn.py`), the renderer digest also moves under an edit to
-                 the raw arm's text: an over-refusal, accepted with the flag,
-                 never a miss. Each module's source is digested once per
+does not prove:  the baseline agents' policy code; the engine's rules and
+                 action strings; the provider's hard-coded request defaults
+                 and its single-user-turn message shape (its `params` are in
+                 the config half). Two over-refusals, accepted with the flag
+                 and never a miss: where a game's module holds both its rules
+                 texts and its renderer (`kuhn.py`), the renderer digest also
+                 moves under an edit to the raw arm's text; and the builder
+                 digest moves under any edit to `LLMAgent.choose` or its
+                 callees, the trace bookkeeping included. Each source is
+                 digested once per
                  process from what the process loaded, so an edit to a file
                  during a run is invisible until the next process — by
                  design, and a row below pins it.
@@ -70,17 +78,34 @@ from typing import Any
 import pytest
 
 from .. import agents, infostate, prompts, render
-from ..agents import GAME_TEXT, prompt_fingerprint, renderer_digest, rig_closure, rig_name
+from ..agents import (
+    GAME_TEXT,
+    builder_digest,
+    code_closure,
+    prompt_fingerprint,
+    renderer_digest,
+    rig_closure,
+    rig_name,
+)
 from ..prompts import RESPONSE_ARMS
 
 GAMES = sorted(GAME_TEXT)
 ARMS = sorted(RESPONSE_ARMS)
 RENDER = (False, True)
-COMPONENTS = ("prompt", "retry", "renderer")
+COMPONENTS = ("prompt", "retry", "builder", "renderer")
 
 
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _only_moved(before: dict[str, str | None], after: dict[str, str | None], *moved: str) -> None:
+    """Exactly the named components differ; every other one is unchanged."""
+    for component in COMPONENTS:
+        if component in moved:
+            assert after[component] != before[component], component
+        else:
+            assert after[component] == before[component], component
 
 
 def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, source: str) -> ModuleType:
@@ -103,6 +128,16 @@ RENDERER_B = "def render_state(s: str) -> str:\n    return s + ' b'\n"
 RENDERER_DELEGATING = (
     f"from {agents.RIG_PACKAGE} import infostate\n"
     "def render_state(s: str) -> str:\n    return str(infostate.parse(s))\n"
+)
+# A builder the probe cannot tell from the real one: the extra framing fires
+# only past two legal actions, and the probe offers exactly two.
+BUILDER_BRANCHING = (
+    f"from {agents.RIG_PACKAGE}.prompts import build_prompt as _real\n"
+    "def build_prompt(rules: str, infostate: str, legal_actions: list[str], response: str) -> str:\n"
+    "    text = _real(rules, infostate, legal_actions, response)\n"
+    "    if len(legal_actions) > 2:\n"
+    "        text += '\\nChoose carefully.'\n"
+    "    return text\n"
 )
 
 
@@ -137,10 +172,7 @@ def test_a_changed_rules_text_moves_only_the_prompt_digest(
     raw, rendered, renderer = GAME_TEXT[game]
     changed = (raw, rendered + "\nx", renderer) if render else (raw + "\nx", rendered, renderer)
     monkeypatch.setitem(GAME_TEXT, game, changed)
-    after = prompt_fingerprint(game, render, arm)
-    assert after["prompt"] != before["prompt"]
-    assert after["retry"] == before["retry"]
-    assert after["renderer"] == before["renderer"]
+    _only_moved(before, prompt_fingerprint(game, render, arm), "prompt")
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -171,10 +203,7 @@ def test_a_changed_instruction_moves_only_the_prompt_digest(
     monkeypatch.setitem(
         RESPONSE_ARMS, arm, replace(spec, instruction=spec.instruction + "\nx")
     )
-    after = prompt_fingerprint(game, render, arm)
-    assert after["prompt"] != before["prompt"]
-    assert after["retry"] == before["retry"]
-    assert after["renderer"] == before["renderer"]
+    _only_moved(before, prompt_fingerprint(game, render, arm), "prompt")
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -186,31 +215,53 @@ def test_a_changed_retry_note_moves_only_the_retry_digest(
     before = prompt_fingerprint(game, render, arm)
     spec = RESPONSE_ARMS[arm]
     monkeypatch.setitem(RESPONSE_ARMS, arm, replace(spec, retry=spec.retry + "\nx"))
-    after = prompt_fingerprint(game, render, arm)
-    assert after["retry"] != before["retry"]
-    assert after["prompt"] == before["prompt"]
-    assert after["renderer"] == before["renderer"]
+    _only_moved(before, prompt_fingerprint(game, render, arm), "retry")
 
 
 @pytest.mark.parametrize("arm", ARMS)
 @pytest.mark.parametrize("render", RENDER, ids=("raw", "rendered"))
 @pytest.mark.parametrize("game", GAMES)
-def test_changed_prompt_scaffolding_moves_only_the_prompt_digest(
-    game: str, render: bool, arm: str, monkeypatch: pytest.MonkeyPatch
+def test_changed_prompt_scaffolding_moves_the_prompt_and_builder_digests(
+    game: str, render: bool, arm: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`build_prompt`'s own framing lines are part of what the model is shown
-    and live in no constant; the digest goes through the function itself."""
+    and live in no constant: a builder whose framing differs moves the
+    composed prompt, and being code on the prompt path, the builder digest."""
     before = prompt_fingerprint(game, render, arm)
-    original = prompts.build_prompt
+    framed = _load(
+        tmp_path,
+        monkeypatch,
+        "probe_builder_framed",
+        f"from {agents.RIG_PACKAGE}.prompts import build_prompt as _real\n"
+        "def build_prompt(*args, **kwargs):\n    return _real(*args, **kwargs) + '\\nx'\n",
+    )
+    monkeypatch.setattr(agents, "build_prompt", framed.build_prompt)
+    _only_moved(before, prompt_fingerprint(game, render, arm), "prompt", "builder")
 
-    def framed(*args: Any, **kwargs: Any) -> str:
-        return original(*args, **kwargs) + "\nx"
 
-    monkeypatch.setattr(agents, "build_prompt", framed)
-    after = prompt_fingerprint(game, render, arm)
-    assert after["prompt"] != before["prompt"]
-    assert after["retry"] == before["retry"]
-    assert after["renderer"] == before["renderer"]
+@pytest.mark.parametrize("arm", ARMS)
+@pytest.mark.parametrize("render", RENDER, ids=("raw", "rendered"))
+@pytest.mark.parametrize("game", GAMES)
+def test_a_builder_branch_the_probe_never_reaches_moves_only_the_builder_digest(
+    game: str, render: bool, arm: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The row the probe alone cannot hold: a builder that frames the prompt
+    differently only past two legal actions composes the probe byte-for-byte
+    as before, so `prompt` holds — and the builder digest, being source,
+    moves. This is what keeps a code edit on the prompt path from resuming."""
+    before = prompt_fingerprint(game, render, arm)
+    branching = _load(tmp_path, monkeypatch, "probe_builder_branching", BUILDER_BRANCHING)
+    monkeypatch.setattr(agents, "build_prompt", branching.build_prompt)
+    _only_moved(before, prompt_fingerprint(game, render, arm), "builder")
+
+
+def test_the_builder_closure_is_the_prompt_path_from_choose() -> None:
+    """Derived from code-object names, so the response parser (whose error
+    wording rides inside a retry) and the builder are both inside, and a
+    helper a future edit introduces on the path joins without being listed."""
+    names = {f"{rig_name(sys.modules[o.__module__])}.{o.__qualname__}" for o in code_closure(agents.LLMAgent.choose)}
+    assert {"agents.LLMAgent.choose", "prompts.build_prompt", "prompts.parse_response"} <= names
+    assert builder_digest() == builder_digest()
 
 
 @pytest.mark.parametrize("arm", ARMS)
@@ -229,9 +280,7 @@ def test_a_changed_renderer_source_moves_only_the_renderer_digest(
     with_a = prompt_fingerprint(game, True, arm)
     monkeypatch.setitem(GAME_TEXT, game, (raw, rendered, b.render_state))
     with_b = prompt_fingerprint(game, True, arm)
-    assert with_a["renderer"] != with_b["renderer"]
-    assert with_a["prompt"] == with_b["prompt"]
-    assert with_a["retry"] == with_b["retry"]
+    _only_moved(with_a, with_b, "renderer")
     assert with_a["renderer"] is not None and with_b["renderer"] is not None
 
 
@@ -445,6 +494,18 @@ def test_resume_refuses_a_changed_renderer_on_the_rendered_shape(
     _write(config, spec)
     monkeypatch.setitem(GAME_TEXT, "cheat", (raw, rendered, b.render_state))
     with pytest.raises(ValueError, match=r"prompt\.cheat:rendered:reasoning\.renderer"):
+        _resume(config, target)
+
+
+def test_resume_refuses_a_builder_branch_the_games_would_meet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Through the runner: the same config, the same composed probe, a
+    builder that frames real decisions differently — refused at `builder`."""
+    target, _, config = _first_run(tmp_path)
+    branching = _load(tmp_path, monkeypatch, "probe_builder_branching", BUILDER_BRANCHING)
+    monkeypatch.setattr(agents, "build_prompt", branching.build_prompt)
+    with pytest.raises(ValueError, match=r"prompt\.cheat:raw:reasoning\.builder"):
         _resume(config, target)
 
 

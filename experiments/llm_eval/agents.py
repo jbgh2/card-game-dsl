@@ -27,7 +27,7 @@ import random
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from types import ModuleType
+from types import CodeType, ModuleType
 from typing import Any, Final, Protocol
 
 from . import holdem, infostate as istate
@@ -202,6 +202,72 @@ def rig_name(module: ModuleType) -> str:
     return module.__name__.removeprefix(RIG_PACKAGE + ".")
 
 
+def _code_names(code: CodeType) -> set[str]:
+    """Every global name a code object or any code object nested in it reads."""
+    names = set(code.co_names)
+    for const in code.co_consts:
+        if isinstance(const, CodeType):
+            names |= _code_names(const)
+    return names
+
+
+def code_closure(root: Callable[..., Any]) -> list[Callable[..., Any] | type]:
+    """The rig functions and classes whose source can shape what `root` does.
+
+    Derived, like `rig_closure`, rather than listed: `root`, every rig
+    function or class a name in its code resolves to through its globals,
+    and so on transitively through functions. A class is digested whole and
+    not walked. The prompt path's closure is rooted at `LLMAgent.choose`, so
+    the code composing the decision prompt and the retry — `build_prompt`,
+    `parse_response` and whatever they call — is inside the builder digest.
+    """
+    seen: dict[str, Callable[..., Any] | type] = {}
+    todo: list[Callable[..., Any] | type] = [root]
+    while todo:
+        current = todo.pop()
+        key = f"{current.__module__}.{current.__qualname__}"
+        if key in seen:
+            continue
+        seen[key] = current
+        code = getattr(current, "__code__", None)
+        if not isinstance(code, CodeType):
+            continue
+        globals_ = getattr(current, "__globals__", {})
+        for name in _code_names(code):
+            value = globals_.get(name)
+            owner = getattr(value, "__module__", None)
+            if (
+                isinstance(owner, str)
+                and _in_rig(owner)
+                and (inspect.isfunction(value) or inspect.isclass(value))
+            ):
+                todo.append(value)
+    return [seen[key] for key in sorted(seen)]
+
+
+@functools.cache
+def _object_source_digest(module_name: str, qualname: str) -> str:
+    """The digest of one rig function's or class's source, once per process
+    (the same loaded-code semantics as `_source_digest`)."""
+    target: Any = sys.modules[module_name]
+    for part in qualname.split("."):
+        target = getattr(target, part)
+    return _digest(inspect.getsource(target))
+
+
+def builder_digest() -> str:
+    """The digest of the code on the prompt path, one line per function or
+    class in `LLMAgent.choose`'s closure. Shape-independent: one value for
+    every LLM seat in a process."""
+    return _digest(
+        "\n".join(
+            f"{rig_name(sys.modules[obj.__module__])}.{obj.__qualname__} "
+            f"{_object_source_digest(obj.__module__, obj.__qualname__)}"
+            for obj in code_closure(LLMAgent.choose)
+        )
+    )
+
+
 def renderer_digest(renderer: Callable[[str], str]) -> str:
     """The digest of a renderer's rig closure, one line per module."""
     module = inspect.getmodule(renderer)
@@ -222,22 +288,25 @@ def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | Non
     The prompt half of the treatment record (`run_eval.treatment`): a resume
     compares it, so editing an arm's instruction, a rules text, `build_prompt`'s
     own framing or the renderer between invocations cannot append games played
-    under one treatment to games played under another. Three components:
+    under one treatment to games played under another. Four components:
 
     - `prompt`: the decision prompt for the probe state, through `build_prompt`
-      itself, so its scaffolding, the rules text and the arm's instruction are
-      all inside the digest;
+      itself, so the rules text and the arm's instruction are digested as the
+      model receives them, composed;
     - `retry`: the arm's retry note for the probe error;
+    - `builder`: `builder_digest` — the source of every rig function and class
+      on the prompt path from `LLMAgent.choose`, so a branch in the builder
+      that the probe never reaches still moves the record;
     - `renderer`: `renderer_digest` of the rendered arm's renderer — the source
       of its module and of every rig module it delegates to — or `None` when
-      no renderer shapes the prompt. Source rather than a probe rendering,
-      because a probe reaches only the branches it happens to exercise: an edit
-      that does not alter what the model sees is refused loudly and accepted
-      with `--accept-changed-treatment`, never missed silently.
+      no renderer shapes the prompt.
 
-    Outside the digest, so a match does not prove them unchanged: the wording
-    of a parse error inside a retry, the baseline agents' policies, and the
-    engine's rules and action strings.
+    Source for code, because a probe reaches only the branches it happens to
+    exercise: an edit that does not alter what the model sees is refused
+    loudly and accepted with `--accept-changed-treatment`, never missed
+    silently. Outside the digest, so a match does not prove them unchanged:
+    the baseline agents' policies, the engine's rules and action strings, and
+    the provider's request shape beyond its recorded `params`.
     """
     rules, renderer, spec = prompt_shape(game, render, arm)
     return {
@@ -245,16 +314,9 @@ def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | Non
             build_prompt(rules, _PROBE_INFOSTATE, _PROBE_ACTIONS, spec.instruction)
         ),
         "retry": _digest(spec.retry.format(error=_PROBE_ERROR)),
+        "builder": builder_digest(),
         "renderer": renderer_digest(renderer) if renderer is not None else None,
     }
-
-
-# Warmed at import: every registered renderer's closure is digested from the
-# source this process loaded, before any run can start or any file can move.
-for _raw, _rendered, _renderer in GAME_TEXT.values():
-    if _renderer is not None:
-        renderer_digest(_renderer)
-del _raw, _rendered, _renderer
 
 
 class Agent(Protocol):
@@ -602,3 +664,13 @@ def build_agent(
 
 def seat_agents(agents: Sequence[Agent]) -> dict[int, Agent]:
     return dict(enumerate(agents))
+
+
+# Warmed at import: the prompt path's closure and every registered renderer's
+# closure are digested from the source this process loaded, before any run
+# can start or any file can move.
+builder_digest()
+for _raw, _rendered, _renderer in GAME_TEXT.values():
+    if _renderer is not None:
+        renderer_digest(_renderer)
+del _raw, _rendered, _renderer
