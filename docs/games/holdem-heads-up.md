@@ -4,7 +4,8 @@ The companion formal file is [holdem-heads-up.cardlang](holdem-heads-up.cardlang
 this is the readable twin. **Heads-up (two-player) fixed-limit Texas Hold'em,
 one hand** — blinds 1/2, bet sizes 2/2/4/4, four aggressive actions per street.
 Source: [Pagat](https://www.pagat.com/poker/variants/texasholdem.html), with one
-deliberate deviation recorded under "The raise cap" below.
+deliberate deviation recorded under "The raise cap" below. **Deck:** standard
+52.
 
 This is the corpus's **second Hold'em**. [holdem.md](holdem.md) is the
 three-handed cash game played on until one player holds every chip; this is the

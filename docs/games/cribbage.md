@@ -4,7 +4,7 @@ The companion formal file is [cribbage.cardlang](cribbage.cardlang); this is the
 readable twin. Two-player six-card Cribbage — the corpus's first **counting**
 game (no tricks). First to 121 points, scored from two streams: *pegging* during
 play, and the *show* afterwards. Source:
-[Pagat](https://www.pagat.com/adders/crib6.html).
+[Pagat](https://www.pagat.com/adders/crib6.html). **Deck:** standard 52.
 
 Each hand:
 

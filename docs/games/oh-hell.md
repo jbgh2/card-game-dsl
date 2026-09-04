@@ -7,7 +7,7 @@ Contract Whist). Each hand turns up a card to fix trump, every player bids the
 a +10 bonus for hitting the bid exactly (missing — over or under — costs only
 the bonus, never goes negative). The hand-size sequence runs 10 down to 1, then
 back up to 10 (sizes 2–10): 19 hands, after which the highest score wins. Source:
-[Pagat](https://www.pagat.com/exact/ohhell.html).
+[Pagat](https://www.pagat.com/exact/ohhell.html). **Deck:** standard 52.
 
 Tricks are played via the kernel `round` construct. The trump suit changes every
 hand, so it is passed as a `trump` argument (the per-hand `trump_suit` state

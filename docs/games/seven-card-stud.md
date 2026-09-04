@@ -3,7 +3,9 @@
 The companion formal file is
 [seven-card-stud.cardlang](seven-card-stud.cardlang); this is the readable twin.
 Fixed-limit Seven-Card Stud — the corpus's first **betting** game. Source:
-[Pagat](https://www.pagat.com/poker/variants/7stud.html).
+[Pagat](https://www.pagat.com/poker/variants/7stud.html). **Players:** 4.
+**Deck:** standard 52. **Chips:** each player starts with 100 and antes 1 each
+hand.
 
 Each hand:
 
@@ -49,8 +51,8 @@ library *provides*, so Stud never names it and could not write it if it tried. A
 partial all-in when the actor can't cover it, and resets every other player's
 `acted` so action re-opens). The
 `until` predicate closes a street when no live player still owes or has yet to act
-(or one lone contender remains, already matched). The 3rd street is shown in full;
-streets 4–7 repeat the same betting round after a burn and a dealt card.
+(or one lone contender remains, already matched). Streets 4–7 repeat 3rd
+street's betting round after a burn and a dealt card.
 
 Four of those five move types are not Stud's own. `uses poker_betting` imports
 them — `check`, `bet`, `call`, `raise` and the `can_act`/`owes`/`pending` ring

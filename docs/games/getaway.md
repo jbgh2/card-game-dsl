@@ -6,7 +6,8 @@ readable twin. Getaway (Bhabhi) is an elimination game: shed all your cards to
 follow the led suit; a player who is void plays a **tochoo** (an off-suit card),
 which ends the trick at once and forces whoever played the highest card of the
 led suit to pick up the whole pile. When everyone follows, the highest card wins
-and the played cards are discarded out of play.
+and the played cards are discarded out of play. **Players:** 4. **Deck:**
+standard 52, dealt out in full, 13 cards each.
 
 ## Formalization notes
 

@@ -4,7 +4,8 @@ The companion formal file is [bridge.cardlang](bridge.cardlang); this is the
 readable twin. Rubber Bridge with the standard below-the-line / above-the-line
 scoring, game and rubber bonuses, slam bonuses, and vulnerability; honors and
 the finer doubled-penalty table are simplified. One rubber is played (first side
-to two games) and the side with the higher total wins.
+to two games) and the side with the higher total wins. **Players:** 4, in fixed
+partnerships sitting across. **Deck:** standard 52.
 
 Each hand:
 
