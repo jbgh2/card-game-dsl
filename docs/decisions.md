@@ -3586,17 +3586,21 @@ construct:
 
 ```text
 if <public window gate> {
-  quiet := 0
   round offering [<window moves>, decline] from <player about to act>
         over all players until quiet >= <player count>
+  quiet := 0
 }
 ```
 
 placed before each decision the enclosing phase offers. Every window
 move's effect resets the `quiet` counter; the decline increments it; a
-full silent lap closes the poll. An announcement re-opens the lap, so
-chains of reactions (Re → no 90 → Kontra) resolve at a single poll
-point in any order the players choose.
+full silent lap closes the poll, and the closing poll clears its own
+counter: the lap count is the poll's Decision Episode's
+([glossary.md](glossary.md)), idle at every decision the poll does not
+own, so the information state between polls names no lap already
+closed (pinned at `tests/test_poll_state_freshness.py`). An announcement
+re-opens the lap, so chains of reactions (Re → no 90 → Kontra) resolve
+at a single poll point in any order the players choose.
 
 Three properties make the serialization faithful and leak-free:
 

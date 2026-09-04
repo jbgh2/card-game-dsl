@@ -107,9 +107,9 @@ game Tichu {
       // Small tichu before the push ("a call before the cards are pushed can
       // be useful as a request for partner to hand over his best card").
       if tichu_window_open() {
-        quiet := 0
         round offering [call_tichu, no_call] from poll_anchor over all players
               until quiet >= 4
+        quiet := 0
       }
 
       // The push: one draw of three from the live hand per player; gifts land
@@ -121,9 +121,9 @@ game Tichu {
 
       // Small tichu between the push and the first lead.
       if tichu_window_open() {
-        quiet := 0
         round offering [call_tichu, no_call] from poll_anchor over all players
               until quiet >= 4
+        quiet := 0
       }
 
       // The Mahjong holder (post-push) leads the first trick.
@@ -137,9 +137,9 @@ game Tichu {
         // Small tichu before each trick (the poll cannot interleave with the
         // plays inside the climb round; see the header note).
         if tichu_window_open() {
-          quiet := 0
           round offering [call_tichu, no_call] from leader over all players
                 until quiet >= 4
+          quiet := 0
         }
         round climb play_combination from leader
               over players where hand[player] is not empty

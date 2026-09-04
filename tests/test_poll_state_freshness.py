@@ -213,14 +213,7 @@ CELLS: list[tuple[str, str]] = [
 ]
 
 PARAMS = [
-    pytest.param(
-        filename,
-        var,
-        id=f"{filename.removesuffix('.cardlang')}:{var}",
-        marks=pytest.mark.xfail(
-            strict=True, raises=AssertionError, reason="issue #444: authored red"
-        ),
-    )
+    pytest.param(filename, var, id=f"{filename.removesuffix('.cardlang')}:{var}")
     for filename, var in CELLS
 ]
 
