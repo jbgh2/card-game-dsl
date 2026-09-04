@@ -29,10 +29,13 @@ property:        in a game that runs a quiescence-lap poll, every poll-scoped
                  outside the poll
 domain:          the corpus games that run a `round offering ... until`
                  window, classified totally: the poll games checked here
-                 (`POLLS`), and the games whose window variables split
-                 between bookkeeping and result — every auction and betting
-                 round — which are the ruling issue #557 names (`DEFERRED`).
-                 A game in neither is red. Within a poll game, each state
+                 (`POLLS`), and the games whose offering round is not a poll
+                 (`DEFERRED`) — the auctions, whose variables split between
+                 bookkeeping and result; the betting family, whose
+                 bookkeeping is library state reached through functions;
+                 and Schnapsen's trick-play round — each waiting on the
+                 ruling issue #557 names. A game in neither is red, and every
+                 offering round in a poll game is that poll. Within a poll game, each state
                  declaration partitions, totally, into the poll-scoped set
                  checked here and the persistent set that outlives a poll by
                  design; the partition is pinned against the declarations,
@@ -56,12 +59,11 @@ registry:        the game axis derives from
                  whose determinism is pinned at tests/openspiel_ready/harness.py.
 does not prove:  nothing about a poll-scoped variable at a decision INSIDE
                  the poll, where its liveness varies with the lap's own
-                 progress (issue #438). Nothing beyond the lines walked: a
-                 uniformly random walk of `WALK_STEPS` decisions over
-                 `WALK_SEEDS`, so a decision the walk never reaches — a
-                 hand's late tricks, a poll skipped because every seat has
-                 called — is unchecked, and the floors bound only that the
-                 walk left a poll.
+                 progress. Nothing beyond the lines walked: a uniformly
+                 random walk of `WALK_STEPS` decisions over `WALK_SEEDS`, so
+                 a decision the walk never reaches — a hand's late tricks —
+                 is unchecked, and the floors bound only that the walk left
+                 a poll.
 """
 
 from __future__ import annotations
@@ -184,11 +186,17 @@ POLLS: dict[str, Poll] = {
     ),
 }
 
-# The offering-round games whose window variables are not uniformly
-# bookkeeping: an auction's `passes` is the round's own, its `trump_suit` is
-# the result play reads all hand long, and which side each declaration falls
-# on is the ruling issue #557 asks for. Undecided, so no cell here carries an
-# expected value for them; the pin below is their guard.
+# The offering-round games whose round is not a poll, each undecided for
+# its own reason and all owned by the ruling issue #557; no cell here carries
+# an expected value for them, and the pin below is their guard. The auctions
+# (belote, bridge, five-hundred, french-tarot, pinochle, skat): `passes` is
+# the round's own while `trump_suit` is the result play reads all hand long,
+# and which side each declaration falls on is the ruling. The betting family
+# (holdem, holdem-heads-up, kuhn-poker, leduc-poker, seven-card-stud): the
+# round's bookkeeping is the library's, reached through `pending`/`can_act`/
+# `owes`, and the partition here is over the game's declarations. Schnapsen:
+# its offering round is the trick play, terminating on the pile, and whether
+# any of its state is the round's own is the same per-variable ruling.
 DEFERRED: frozenset[str] = frozenset(
     {
         "belote.cardlang",
@@ -334,9 +342,10 @@ def test_offering_round_games_are_exactly_the_classified_ones() -> None:
     runs an offering round arrives as an unclassified key, and a game that
     stops running one leaves a stale entry behind.
 
-    red under: give Tichu's small-tichu poll a plain `offer` per seat instead
-    of the offering round — it leaves the derived set and the two sides
-    disagree."""
+    red under: rewrite all three of Tichu's small-tichu poll sites as a
+    plain `offer` per seat — the game leaves the derived set and the two
+    sides disagree (one site rewritten leaves the other two, and the game,
+    in the set)."""
     assert not (set(POLLS) & DEFERRED)
     assert set(_offering_round_games()) == set(POLLS) | DEFERRED
 
@@ -357,15 +366,45 @@ def test_state_declarations_partition(filename: str) -> None:
 
 @pytest.mark.parametrize("filename", sorted(POLLS), ids=lambda f: f.removesuffix(".cardlang"))
 def test_poll_vocabulary_is_one_the_game_offers(filename: str) -> None:
-    """The poll's vocabulary is a real offering round of the game, not a
-    list authored here — so a game that renames or re-scopes its poll
-    reddens rather than silently matching nothing.
+    """Every offering round in a poll game is the poll, and the poll's
+    vocabulary is authored to match it — so a game that renames or re-scopes
+    one poll site reddens rather than silently matching the others, and a
+    second offering round with variables nobody classified cannot arrive
+    unseen.
 
-    red under: drop `no_call` from Tichu's poll offering — the declared
-    vocabulary then matches no offering round in the game."""
+    red under: drop `no_call` from any one of Tichu's three poll offerings —
+    that site's vocabulary is then an offering round the declaration does
+    not name."""
     game, _space = load(str(GAMES_DIR / filename))
     declared = {frozenset(v) for v in _round_vocabularies(game)}
-    assert frozenset(POLLS[filename].vocabulary) in declared, (
-        f"{filename}: the declared poll vocabulary matches no offering round "
-        f"in the game; it offers {sorted(sorted(v) for v in declared)}"
+    assert declared == {frozenset(POLLS[filename].vocabulary)}, (
+        f"{filename}: the game's offering rounds are not exactly the declared "
+        f"poll; it offers {sorted(sorted(v) for v in declared)}"
     )
+
+
+# The matcher's own boundary, probed directly. In both poll games the poll's
+# vocabulary is disjoint from every other offering, so the clause that
+# refuses an ambiguous subset has no witness in the walk and gets one here.
+_POLL = ("call_tichu", "no_call")
+
+
+@pytest.mark.parametrize(
+    ("names", "others", "expected", "why"),
+    [
+        (frozenset({"no_call"}), [], True, "a lone decline is the poll's"),
+        (frozenset(_POLL), [], True, "the whole vocabulary is the poll's"),
+        (
+            frozenset({"no_call"}),
+            [frozenset({"no_call", "decline_grand"})],
+            False,
+            "a subset another offering also fits names no offering",
+        ),
+        (frozenset({"pass"}), [], False, "a climb's pass is not the poll's"),
+        (frozenset(), [], False, "no move names at all (a card or combination decision)"),
+    ],
+)
+def test_inside_matching_refuses_an_ambiguous_subset(
+    names: frozenset[str], others: list[frozenset[str]], expected: bool, why: str
+) -> None:
+    assert _is_inside(names, _POLL, others) is expected, why
