@@ -107,9 +107,13 @@ domain:     the block's own surface — clause placement x {game, library},
             is held equal to the elements registered Python actually takes
             (`implementation_sig` over `PRIMITIVE_IMPLEMENTATIONS`) so a second
             element is an event in both directions; the ADJACENCY cells are the
-            boundary tokens a closing `>` can sit against, `>=` fusion at each
-            of the two type slots `=` can follow; and the CALL position is
-            crossed with the value shapes a collection parameter accepts. The
+            boundary tokens a closing `>` can sit against, `>=` fusion where a
+            `=` follows an entry's type, and the two halves of the zone
+            confusion (an element type where a zone's index domain belongs,
+            and the constructor word where a zone type belongs — both refused
+            by the zone registry, cited as Owner and asserted on the MESSAGE
+            because the word is spelled); and the CALL position is crossed
+            with the value shapes a collection parameter accepts. The
             spelling's decomposition is held to one site by a scrape over the
             BRACKET alone — the trailing `?` is sliced at nine sites across the
             package, uniform and correct, and is named rather than swept.

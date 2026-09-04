@@ -3994,7 +3994,21 @@ def _resolve_zone(
     ref = zone.type_ref
     takes_owner = LIBRARY_ZONE_TYPES.get(ref.name)
     if takes_owner is None:
-        bag.error(f"unknown zone type '{ref.name}'", ref.span)
+        if ref.name == COLLECTION_TYPE_CONSTRUCTOR:
+            # A word the language HAS a meaning for, so "unknown" would spend
+            # that currency on a spelling the checker itself prints. The two
+            # angle brackets are the confusion — a zone's takes an index
+            # domain, a collection's takes an element (decisions.md "Typed
+            # object model") — so the refusal says which bracket this is.
+            bag.error(
+                f"`{COLLECTION_TYPE_CONSTRUCTOR}` is a value type a "
+                f"`primitives {{ }}` entry declares, not a zone type — a "
+                f"zone's angle brackets take an index domain: write a zone "
+                f"type such as `Hand<player>`",
+                ref.span,
+            )
+        else:
+            bag.error(f"unknown zone type '{ref.name}'", ref.span)
         return
     if takes_owner and len(ref.args) != 1:
         bag.error(
