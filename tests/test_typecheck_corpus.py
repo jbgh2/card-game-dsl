@@ -4,19 +4,16 @@ Every executable game in the corpus must type-check clean. This is the guard
 against false positives as the checker's precision grows: any new typing rule
 that wrongly rejects a real game turns this red.
 
-That includes the `.md` twins. Exempting them, on the grounds that "some
-original design docs carry illustrative syntax that isn't executable", is
-exactly what lets one rot: `hearts.md` carried a retired quantifier spelling
-(`any cumulative_score >= 100`, predating the English register) and a retired
-`repeat until all hands empty`, so its DSL block did not parse and nothing said
-so. maintaining.md is unambiguous that this is a bug and not a historical
-artifact — "a game file that uses obsolete syntax is a bug" — and the corpus is
-the living spec, so the doctrine needs a gate rather than a carve-out. The
-premise is also simply false: every `.md` twin that carries a fenced block is
-executable. Twins carrying none are prose-only companions and are skipped, not
-failed — which is a hole if it grows silently, so the skipped set is pinned by
-name in `test_the_prose_only_twins_are_the_pinned_set` rather than counted in
-this sentence.
+The corpus is the `.cardlang` files. Each `.md` beside one is its rulebook,
+linking to the game rather than embedding the DSL (docs/maintaining.md,
+"The rulebook twin"), so a rulebook has nothing for this gate to check. A twin
+that does carry a fenced block is a second copy of a game and is held to the
+same bar as the first, not exempted as "illustrative syntax": an exempted
+block is where a retired spelling rots with nothing to say so, and
+maintaining.md calls a game file using obsolete syntax a bug. Which twins
+carry no block is pinned by name in
+`test_the_prose_only_twins_are_the_pinned_set` rather than counted in this
+sentence, so the set cannot change silently in either direction.
 """
 
 from __future__ import annotations
@@ -26,21 +23,56 @@ from pathlib import Path
 import pytest
 
 from cardlang.pipeline import check_source
+from tests.empty_axis import may_be_empty
 
 GAMES = Path(__file__).parent.parent / "docs" / "games"
 CORPUS = sorted(GAMES.glob("*.cardlang"))
 
-# The `.md` twins that actually carry a DSL block. A prose-only companion has
-# nothing to check; a fenced one is a game file and is held to the same bar.
+# The `.md` twins that carry a DSL block. A rulebook links to its `.cardlang`
+# and has nothing to check; a fenced twin is a game file and is held to the
+# same bar.
 MD_TWINS = sorted(
     p for p in GAMES.glob("*.md") if p.stem != "_candidates" and "```" in p.read_text()
 )
 
-# The twins this gate does NOT cover, by name. A count in prose hid the fact
-# that this set had grown from two to six; pinned, a seventh has to be added
-# here deliberately, and a twin that gains a block has to be removed.
+# The twins this gate does NOT cover, by name: every rulebook, since each links
+# to its `.cardlang` rather than embedding it. Pinned rather than counted, so a
+# new game's rulebook has to be added here deliberately, and a twin that gains
+# a block has to be removed.
 PROSE_ONLY_TWINS: frozenset[str] = frozenset(
-    {"belote", "canasta", "doppelkopf", "five-hundred", "gin-rummy", "president"}
+    {
+        "belote",
+        "big-two",
+        "breakthrough",
+        "bridge",
+        "canasta",
+        "cheat",
+        "coup",
+        "cribbage",
+        "doppelkopf",
+        "five-hundred",
+        "freecell",
+        "french-tarot",
+        "getaway",
+        "gin-rummy",
+        "go-fish",
+        "gops",
+        "hearts",
+        "holdem",
+        "holdem-heads-up",
+        "klondike",
+        "kuhn-poker",
+        "leduc-poker",
+        "oh-hell",
+        "pinochle",
+        "president",
+        "schnapsen",
+        "seven-card-stud",
+        "skat",
+        "spades",
+        "tic-tac-toe",
+        "tichu",
+    }
 )
 
 
@@ -102,12 +134,21 @@ def test_corpus_game_type_checks(path: Path) -> None:
     check_source(path)  # raises DiagnosticError on any resolve/type error
 
 
-@pytest.mark.parametrize("path", MD_TWINS, ids=lambda p: p.stem)
+@pytest.mark.parametrize(
+    "path",
+    may_be_empty(
+        MD_TWINS,
+        reason="every rulebook twin links to its `.cardlang` rather than embedding "
+        "the DSL (docs/maintaining.md, 'The rulebook twin'), so no twin carries a "
+        "block; the games themselves are checked by test_corpus_game_type_checks, "
+        "and the linking set is pinned by name in PROSE_ONLY_TWINS",
+    ),
+    ids=[p.stem for p in MD_TWINS],
+)
 def test_md_twin_checks(path: Path) -> None:
-    """The `.md` game files are the living spec (CLAUDE.md), so their DSL blocks are
-    held to the same bar as the `.cardlang`. Nothing checked them before, and
-    `hearts.md` had quietly rotted to two retired spellings — the exact failure
-    mode maintaining.md calls a bug."""
+    """A twin carrying a DSL block is a game file and is held to the same bar as
+    the `.cardlang`: a block that no longer checks is a second copy of the game
+    that has rotted, the failure mode maintaining.md calls a bug."""
     check_source(path)
 
 
@@ -143,7 +184,17 @@ def test_every_fenced_twin_is_paired() -> None:
     assert [p.stem for p in MD_TWINS if p not in _PAIRED_TWINS] == []
 
 
-@pytest.mark.parametrize("md", _PAIRED_TWINS, ids=lambda p: p.stem)
+@pytest.mark.parametrize(
+    "md",
+    may_be_empty(
+        _PAIRED_TWINS,
+        reason="every rulebook twin links to its `.cardlang` rather than embedding "
+        "the DSL (docs/maintaining.md, 'The rulebook twin'), so no twin carries a "
+        "block to hold against its `.cardlang`; the linking set is pinned by name "
+        "in PROSE_ONLY_TWINS",
+    ),
+    ids=[p.stem for p in _PAIRED_TWINS],
+)
 def test_twin_block_agrees_with_the_cardlang(md: Path) -> None:
     """The two fences differ freely as TEXT; the `primitives { }` block is
     spec, and operating rule 2 holds the pair in lockstep — a read dropped

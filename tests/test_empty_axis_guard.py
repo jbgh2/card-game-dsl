@@ -20,10 +20,13 @@ source rather than restating it here). Building the guard out of a derived axis
 of our own — the shape the issue sketched — would have built it from the same
 material that broke.
 
-What the flag cannot know is that an axis is empty *on purpose*. Three are:
-the live docs hold zero `cardlang`, zero `cardlang-bad` and zero
-`cardlang-bad-fragment` blocks, and `tests/test_doc_snippets.py` proves those
-code paths with synthetic fixtures instead. So the flag is the deny-everything
+What the flag cannot know is that an axis is empty *on purpose*, as the ones
+`_AUTHORIZED_EMPTY_AXES` below lists are: the live docs hold zero `cardlang`,
+zero `cardlang-bad` and zero `cardlang-bad-fragment` blocks, and
+`tests/test_doc_snippets.py` proves those code paths with synthetic fixtures
+instead; every rulebook twin links to its `.cardlang` rather than embedding
+the DSL, and `tests/test_typecheck_corpus.py` pins the linking set by name. So
+the flag is the deny-everything
 guard and `tests/empty_axis.py`'s `may_be_empty` is the only door through it:
 the reason rides at the call site, the set of call sites is pinned below, and
 an authorized axis that STOPS being empty fails loud — the `xfail_strict`
@@ -455,6 +458,10 @@ _AUTHORIZED_EMPTY_AXES: dict[str, list[str]] = {
         "test_bad_fragment_blocks_are_rejected_when_wrapped",
         "test_cardlang_bad_blocks_are_rejected",
         "test_cardlang_blocks_are_full_valid_games",
+    ],
+    "test_typecheck_corpus.py": [
+        "test_md_twin_checks",
+        "test_twin_block_agrees_with_the_cardlang",
     ],
 }
 
