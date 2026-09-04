@@ -212,7 +212,9 @@ Game-local rules that recur as *names* but not as bodies:
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
   led suit (Pinochle, French Tarot — the bodies differ: Pinochle's declared
-  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row)
+  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row,
+  and Tarot's guard asks for an [[effective-lead]] where Pinochle's asks for
+  the led suit)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
   played so far when trumping (Pinochle, French Tarot — the bodies differ:
   `rank_value` within the trump suit vs Tarot's `card_strength(card)` over
@@ -263,12 +265,11 @@ to follow-suit/trump/over-trump and never counts toward satisfying them.
 trick_pile)` — the [[effective-lead]]'s own candidate test — rather than the
 kernel's own `state.led_suit` (the literal first card, "excuse" included).
 The Excuse carries no follow class, so a trick led with it has no effective
-lead at all and nothing follows: the next player faces "void in the led suit"
-and must trump if able. That narrowing is a KNOWN divergence from Pagat,
-which lets the second player play any card — [issue
-#357](https://github.com/jbgh2/card-game-dsl/issues/357) owns the correction,
-and tests/test_playout_french_tarot.py pins the current behaviour so a
-migration cannot change it by accident.
+lead at all: nothing follows it, and nothing is void in it either. So
+`MustTrumpIfVoid` is guarded on an effective lead EXISTING rather than on
+`state.led_suit`, whose literal value is "excuse" there — the seat after a
+led Excuse is bound by nothing and plays any card, and its card sets the
+class the rest of the trick follows.
 
 ## Winner functions
 

@@ -144,9 +144,9 @@ residual:   (1) `trump: card.rank is J` written at GAME level (the row
             not this change's). (6) `choose` inside a designer function used
             as a `where` filter, and inside a filter directly, is accepted
             today outside any Trick Order (a decision site inside a
-            legality computation) -- pre-existing, its own class; `issue #370`. (7) The Tarot Pagat correction
-            (#357), named alternate rankings (#360), the two R2s the design
-            phase found (#358 the `winner` pronoun mid-trick, #359
+            legality computation) -- pre-existing, its own class;
+            `issue #370`. (7) Named alternate rankings (#360), the two R2s
+            the design phase found (#358 the `winner` pronoun mid-trick, #359
             `active_rules` in a hand-rolled phase), and a Primitive winner's
             own order table on a foreign deck (#364) are outside this grid
             by their issues; #350 closes with this construct (mid-trick
