@@ -4049,7 +4049,14 @@ def test_a_contract_cannot_require_a_collection(
     through the zone type-argument list, and a twin over that derivation would
     give one string two derivations.
 
-    red under: drop the collection arm from `_check_contract_shapes`."""
+    The arm is the ONLY speaker, which is a stronger claim than "the wrong
+    voices are absent": a fourth voice nobody thought to name would pass an
+    absence list. So the count is asserted — a stage notes its whole bag only
+    when the bag holds more than one diagnostic, so an empty `__notes__` says
+    exactly one spoke, and the teaching sentence is then that one.
+
+    red under: drop the collection arm from `_check_contract_shapes`; the
+    count half reddens under a second `bag.error` in that arm."""
     library = parse_library(
         f"library shapes {{ requires {{ x : {spelling} }} "
         f"function f() = 1 }}",
@@ -4058,12 +4065,16 @@ def test_a_contract_cannot_require_a_collection(
     _patch_libraries(monkeypatch, {"shapes": library})
     with pytest.raises(DiagnosticError) as ei:
         check_dsl(_CONTRACT_HOSTS[host], "host.cardlang")
-    messages = "\n".join(
-        [str(ei.value), *(list(getattr(ei.value, "__notes__", None) or []))]
+    co_reported = list(getattr(ei.value, "__notes__", None) or [])
+    assert not co_reported, (
+        f"a second diagnostic reached the library's author — the bag is noted "
+        f"whole only when it holds more than one, so this note IS the count:"
+        f"\n{co_reported}"
     )
-    assert "in a `primitives { }` entry only" in messages, messages
+    message = str(ei.value)
+    assert "in a `primitives { }` entry only" in message, message
     for wrong in _WRONG_CONTRACT_VOICES:
-        assert wrong not in messages, (
+        assert wrong not in message, (
             f"the collection contract also met {wrong!r}, which sends the "
-            f"library's author somewhere that does not fix it:\n{messages}"
+            f"library's author somewhere that does not fix it:\n{message}"
         )
