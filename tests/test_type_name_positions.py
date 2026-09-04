@@ -548,7 +548,7 @@ def _grammar_text() -> str:
 
 
 def _bodies_of(grammar: str) -> dict[str, str]:
-    """Every rule name in `grammar` mapped to its whole right-hand side.
+    r"""Every rule name in `grammar` mapped to its whole right-hand side.
 
     A rule may continue over several lines — an alternative written on its own
     line with a leading `|` — so a body accumulates until the next definition.
