@@ -214,7 +214,7 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # A `primitives` entry spells the built-in declared-type names, the game's
     # position domains, and the one parameterized value spelling — and NOT a
     # declared struct: a Primitive receives values across the narrowing
-    # boundary, and no witness carries a `StructValue` over it (issue #472).
+    # boundary, and no witness carries a `StructValue` over it (issue #547).
     # Both slots take the same set: the return slot admits `Collection<Card>`
     # at this gate and the both-ways shape check refuses every concrete entry,
     # which is the `cell` precedent and is not this gate's answer.

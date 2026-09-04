@@ -142,16 +142,19 @@ novelty taxes them for no gain. Function calls use `()`, indexing uses
 Deviate only when the mainstream form would be unwieldy for the
 domain.
 
-The clearest example of a deliberate deviation is library type
-parameters like `PrivateHand<Owner>`. Strictly speaking, `Owner` is a
-value (a specific Player), not a type — mainstream languages reserve
-`<>` for type variables and would expect `PrivateHand(owner: Player)`
-or similar. But `PrivateHand<Owner>` reads cleaner; the parameter is
-"type-shaping" in the sense that it specializes the visibility
-projection per-owner, and the angle-bracket form makes that visible
-without the verbosity of a separate parameter clause. Zone declarations
-read as one-liners (`hand[player] : Hand<player>`) rather than two-part
-declarations, which is a real win at the call site.
+The clearest example of a deliberate deviation is the zone type's
+argument, `Hand<player>`. Strictly speaking, `player` is an index
+domain, not a type — mainstream languages reserve `<>` for type
+variables and would expect `Hand(owner: Player)` or similar. But
+`Hand<player>` reads cleaner; the argument is "type-shaping" in the
+sense that it specializes the visibility projection per-owner, and the
+angle-bracket form makes that visible without the verbosity of a
+separate parameter clause. Zone declarations read as one-liners
+(`hand[player] : Hand<player>`) rather than two-part declarations,
+which is a real win at the call site. The convention that keeps the two
+readings apart — a zone-type head takes an index domain, a
+value-constructor head takes an element type — is
+[decisions.md](decisions.md), "Typed object model".
 
 The test for any future deviation: would the mainstream form make the
 common case noticeably worse? If yes, deviate and document. If no,
@@ -218,7 +221,7 @@ is reused across games. Moves carry cards or resources. (See
 
 **Zones hold cards or resources.** A zone is a typed container
 (`Zone<Card>` or `Zone<Resource>`) parameterized by what it holds.
-Library types (`Hand<Owner>`, `Deck`, `TrickPile`, `ChipStack<Owner>`,
+Library types (`Hand<player>`, `Deck`, `TrickPile`, `ChipStack<player>`,
 etc.) compress common configurations into one-line declarations.
 (See [library.md](library.md), "Types".)
 

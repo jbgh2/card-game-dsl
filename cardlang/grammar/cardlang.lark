@@ -44,10 +44,12 @@ library: _LIBRARY_KW NAME "{" library_item* "}"
 // An entry names a thing from EITHER of the two blocks a game declares keyed
 // names in, and its type says which: a `state { }` type or a `zones { }` one.
 // That is why the type slot carries both spellings the two blocks use — the
-// `<owner>` argument a zone type takes, and the `?` a state type takes. Neither
-// is legal on the other side, and both crosses are refused at resolve rather
-// than here: the grammar cannot see which registry a NAME came from, and a
-// syntax error would report a shape question as a spelling one.
+// index-domain argument a zone type takes, and the `?` a state type takes.
+// Which reading a head takes, and why `?` suffixes a value type only, is
+// decisions.md "Typed object model"; neither spelling is legal on the other
+// side, and both crosses are refused at resolve rather than here: the grammar
+// cannot see which registry a NAME came from, and a syntax error would report
+// a shape question as a spelling one.
 requires_block: _REQUIRES_KW "{" require_decl* "}"
 require_decl: NAME [index] ":" NAME [type_args]     -> require_plain
             | NAME [index] ":" NAME [type_args] "?" -> require_optional
