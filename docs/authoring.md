@@ -267,7 +267,7 @@ the adapter directly:
 
 ```python
 import pyspiel
-from cardlang.openspiel import register_game_file
+from cardlang.openspiel.game import register_game_file
 
 short_name = register_game_file("high-card.cardlang")
 game = pyspiel.load_game(short_name)
