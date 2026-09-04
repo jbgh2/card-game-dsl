@@ -645,6 +645,26 @@ than by rewriting the statement, per the change's own rule.
    covers that path instead, deriving reachability through the board game's own
    `_position_types`.
 
-Born-red, measured on the branch: `84 failed, 1341 passed` before the grammar
-existed, and `72 failed, 1353 passed` with the production landed and no guard
-written.
+Born-red, measured on the branch at the two commit boundaries the reviewer
+replays. The failing count is the record; the passing count moves with the
+module selection, so the selection is named. Over
+
+```
+pytest -q tests/test_primitives_block.py tests/test_type_name_positions.py \
+  tests/test_positions.py tests/test_primitive_reads.py \
+  tests/test_phase_scoped_reads.py tests/test_primitive_narrowing.py \
+  tests/test_native_call_boundary.py tests/test_rejections.py \
+  tests/test_family_libraries.py tests/test_grammar_ambiguity.py \
+  tests/test_jointly_selection.py tests/test_gin_primitives.py
+```
+
+take 1 (the grid, before the grammar) is `84 failed, 2170 passed` — 32
+test_primitives_block, 30 test_positions, 11 test_rejections, 6
+test_grammar_ambiguity, 3 test_family_libraries, 2 test_type_name_positions.
+Take 2 (the production landed, no guard written) is `72 failed, 2182 passed` —
+30 test_positions, 29 test_primitives_block, 8 test_rejections, 3
+test_type_name_positions, 2 test_family_libraries. The twelve cells the
+grammar itself closes are the two reject twins plus the ambiguity rows; the
+seventy-two that remain are what the surface alone admits and the guards owe a
+refusal. The narrower selection first used to take these counts reported the
+same two failing counts against `1341 passed` and `1353 passed`.
