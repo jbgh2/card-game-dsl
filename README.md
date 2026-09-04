@@ -50,7 +50,7 @@ straight from the source tree.
 Your own game reaches OpenSpiel by registering it:
 
 ```python
-from cardlang.openspiel import register_game_file
+from cardlang.openspiel.game import register_game_file
 import pyspiel
 
 name = register_game_file("my-game.cardlang")
