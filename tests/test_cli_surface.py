@@ -156,7 +156,7 @@ def test_command_option_cell(command: str, option: str, capsys: pytest.CaptureFi
 
 
 def test_bare_file_still_checks() -> None:
-    """The form the README documents keeps working, command name omitted."""
+    """The command name is omissible: a bare file is read as `check`."""
     assert main([str(HEARTS)]) == 0
 
 
@@ -250,10 +250,10 @@ def test_no_arguments_names_the_commands(capsys: pytest.CaptureFixture[str]) -> 
 
 
 def test_a_command_in_the_wrong_slot_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
-    """The plausible wrong sentence after reading the README: the file first
-    and the command after it. The bare form's rewrite makes that a `check` with
-    a stray positional, so the refusal has to reach the caller rather than the
-    file being checked and the command quietly dropped."""
+    """The plausible wrong sentence: the file first and the command after it.
+    The bare form's rewrite makes that a `check` with a stray positional, so
+    the refusal has to reach the caller rather than the file being checked and
+    the command quietly dropped."""
     with pytest.raises(SystemExit) as exit_info:
         main([str(HEARTS), "play"])
     assert exit_info.value.code == 2
