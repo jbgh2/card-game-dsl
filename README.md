@@ -83,11 +83,11 @@ invalidates the result. Here visibility is declared in the rules and
 observations are derived by one engine, so the checks above are possible
 at all, and a new environment is a rules file that inherits them.
 
-The corpus drives the language. `docs/games/` holds each game twice: the
+The corpus drives the language. `docs/games/` holds, for each game, the
 executable rules (`.cardlang`) and a Markdown rulebook complete enough
-that a non-player could pick it up and play a hand. Most rulebooks embed
-the same rules in a fenced block the checker also reads; the rest link to
-their `.cardlang` file. Constructs exist because a game needed them. The spec lives in
+that a non-player could pick it up and play a hand; the rulebook links to
+its `.cardlang` file rather than repeating the rules. Constructs exist
+because a game needed them. The spec lives in
 `docs/`; `decisions.md` is the settled design. `experiments/llm_eval/` is
 the pilot evaluation of language models playing these games, with its
 transcripts, audit files, and reports.
