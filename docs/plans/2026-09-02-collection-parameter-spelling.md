@@ -321,6 +321,53 @@ audit at every position the spelling reaches — its cost a five-axis grid,
 a reserved constructor word, and a re-parse safe only while a scrape holds
 the decomposition to one site.
 
+## Operator ruling (Ben, 2026-09-03)
+
+"Do the `Collection<Card>` implementation as Hoyle suggests. This language
+is used by designers not programmers." — the Merge Lane A go, and the
+rationale that binds every refusal's register: a rejected sentence names
+the ruled form in the designer's words, never the parser's.
+
+Ruled, all six plus the table's one:
+
+1. The angle-bracket spelling `Collection<Card>`; the phrase form
+   `collection of Card` gets its reject-with-replacement twin.
+2. The twelve non-entry type positions refuse with the ONE teaching twin
+   ("spellable in a `primitives { }` entry only"), never a bare syntax
+   error.
+3. "A collection is never optional" is a designed rule, stated at the
+   construct, with its runtime reason.
+4. The string carrier on the existing nodes, one decomposition (the
+   Architect's A); a structured type node is rejected.
+5. The reserved-name class is SWEPT in this change (the Architect's
+   counsel): `type` declarations become a reservation site asking the
+   registry position domains already ask, and the constructor word joins
+   as a source — issue #541 closes with it.
+6. The two instrument repairs — the two-directional positions scrape and
+   the allow-list outcome classifier — ride this PR.
+7. Hoyle's table-talk outcome (2026-09-03, attached below; binds nothing
+   by itself, ruled here) rides the same change: the convention written
+   into decisions.md "Typed object model" — `Name<Arg>` has its meaning
+   fixed by its head: a zone-type head takes an INDEX DOMAIN (a
+   lower-case domain id equal to the declaration's index), a
+   value-constructor head takes an ELEMENT TYPE (a Title Case declarable
+   name), `?` suffixes a value type only, and there are no type
+   variables; the sentence promising parameterized user-defined types is
+   corrected (library.md and the grammar are right — the block is not
+   parameterized); the zone argument's five spec spellings collapse to
+   two (`Hand<player>` on the surface, `Hand<Owner: Player>` in
+   library.md's model) and the `PrivateHand<Owner>` phantom retires; the
+   `require_decl` grammar comment cites the decisions.md rule instead of
+   owning it; the Collection Type glossary entry carries the contrast
+   sentence.
+
+Not ruled in, and not to ride: type variables in any declaration,
+`Optional<T>`, `Zone<Card>` as a game-surface zone type, dropping the zone
+index argument (a corpus-wide rename deferred until an authoring
+instrument can measure the confusion it would cure), or `Collection<T>`
+over the whole declarable set (the element pin is what makes a second
+element an event).
+
 ## Hoyle's counsel (2026-09-02, issue #472 — the collection parameter; attaches per docs/harness.md "The Language Owner")
 
 **Headnote.** Gin Rummy waits on one missing spelling, and the ruled sentence is, verbatim: `gin_arrange_ok(p : Player, cards : Collection<Card>) : Boolean reads hand[p], taken[p]`, with its sibling `gin_valid_meld(cards : Collection<Card>) : Boolean` — a type spelled `Collection<Card>` in the two type slots of a `primitives { }` entry, and nowhere else. It is not a new name: the spec already calls the type `Collection<Card>`, and the checker already prints `Collection<Card>` in its own error messages today, so a designer who reads the diagnostic and writes the declaration writes the same word. The losing rival is the issue's own spelling, `collection of Card` — it reads aloud better, but no declaration in this language spells a type as a phrase, `of` already carries three meanings in expressions, and it would put a second spelling beside the one the checker prints; it earns a rejection that teaches the ruled form, not a life. The cheap rival the operator should see priced is a bare `Cards` name added to a table with no grammar change at all — rejected because `cards` is already a keyword one letter away, a plural-as-type does not compose, and it too is a second spelling. This is Merge Lane A: the grammar widens by one angle-bracket spelling in the entry's two slots plus one reject-with-replacement twin for the phrase form, and every other place a type can be written stays unable to spell it. Corpus: 1 of 31 game files moves (gin-rummy.cardlang, witness-named, landing in the same change as the surface); 10 of 31 games declare a block today and 11 will; gin is 1 of the 3 games still on the legacy table, its block has 10 entries of which 2 need this spelling, and 6 joint-selection sites call them. Two settled commitments are kept and one sentence goes false: both entry slots keep taking the same spellings (the return slot admits it and the shape check refuses it, because no implementation returns a collection — the same treatment a board cell gets today), and the grid's recorded claim that a declared Primitive can never be a joint predicate becomes untrue and is rewritten. One recorded citation is wrong and is corrected: the exclusion table sends the struct wall to the cribbage issue. The element is `Card` alone; a collection of players, an optional collection, a nested one, a keyed one, and a collection stored in state are each refused loudly — walls with a named reopening event, or designed constraints stated at the construct. Information sets do not move: the declared signature is forced equal to the one the legacy table already carries, so the Python receives the identical frozen cards under either regime, nothing new is emitted, and the proofs and full-width goldens for gin stay byte-identical. Bottom line: adopt `Collection<Card>` in the entry's two slots with a one-member element list; the strongest reason against is that this admits the language's first parameterized value type into the declaration register on a witness of two entries in one game — a generic with one instantiation, whose next element reopens the audit at every position the spelling reaches — and its cost is a five-axis grid and a reserved word where a table entry would have done; the operator decides three things: the angle-bracket spelling over the phrase, whether the other type positions refuse it with one teaching message (counseled) or a bare syntax error, and whether "a collection is never optional" is a designed rule (counseled) or an open issue.
@@ -474,3 +521,91 @@ For the walls, the pipeline (docs/games/_candidates.md) names one shape: Cassino
 
 **THE BOTTOM LINE (two-persona sitting; written once, by this seat).** Verdict: adopt Hoyle's sentence and walls exactly as ruled, carried as a string on the shared parameter node with its own entry-only production family and one decomposition; shape refused by the grammar, element by the resolver from a one-member registry, facets unspellable and shape-checked by construction; the positions scrape widened and made two-directional, its classifier converted to an allow-list, the partition pin re-derived through the block's spelling set, a new element pin tied to the implementation side, and the freeze pin read through `implementation_sig` now. The strongest against-case from either seat is Hoyle's: this admits the language's first parameterized value type into the declaration register on a witness of two entries in one game -- a generic with one instantiation -- and its next element reopens the audit at every position the spelling reaches; its cost is a five-axis grid, a reserved constructor word, and (this seat's addition) a re-parse that is safe only while a scrape holds the decomposition to one site. Where the seats diverge, the divergence is the decision: (1) Hoyle offered "widen the scrape OR build the new production on `payload_type`" -- this seat rules the second impossible (a shared derivation is an Earley ambiguity in the entry's own slot), so the scrape widens, and gains the reverse direction Hoyle did not ask for; (2) Hoyle offered "sweep the reserved-name class or file it" -- this seat counsels sweep-now on an executed R2 witness (`type Card` accepted, the struct unusable) at zero corpus cost, and rules Hoyle's state-name probes out of the class rather than into the file. The operator decides three things: sweep-now versus file for the reserved-name class (Gate 3.5 is the operator's); the string carrier (counseled) versus a structured type node (rejected, priced above); and whether the two instrument repairs -- the two-directional scrape and the allow-list classifier -- ride this PR as scaffolding at one review round, or split out ahead of it.
 
+## Hoyle at the table (2026-09-03, table talk — attached for the record, binds nothing)
+
+# Hoyle, at the table — on admitting generics
+
+Read fresh this sitting (2026-09-03, main at c89b836): the #472 plan with both counsels; every type production in `cardlang/grammar/cardlang.lark`; `cardlang/types.py` whole; `typecheck.type_from_name`, `_type_name`, `_param_type`, `declared_primitive_sigs`; `primitives_block.py`'s registries; decisions.md "Typed object model", "Declared parameter domains", "Per-observer visibility on zones", "Position domains and positional zones", "Boards and cells", the `let` paragraph, and a census of every backticked `<` in the file; library.md "Types"; principles.md whole; the glossary index, its reserved-words table, and the `type` / `index` / `zone` / `parameter` entries; generalization-path.md; roadmap.md; open-questions `_index.md`; `_candidates.md`; issues #472, #539, #541, #123, #254, #473, #142; and a corpus census with executed probes (`check_dsl`) at every type position.
+
+## First, what "generics" would mean here — three things, one of which exists
+
+1. **Parameterized built-in constructors with a uniform `Name<Arg>` spelling** — `Collection<Card>`, `Zone<Card>`, `Resource<chip>`, `Map<K,V>`. This is what the checker already *speaks*: `types.Type` has 16 constructors, two of them parameterized structurally (`TOptional`, `TCollection`), and `_type_name` prints the full generic for any element — probed today: `Collection<Integer>`, `Collection<Suit>`, `Collection<Rank>`, `Collection<Boolean>`, `Collection<Player>`, `Collection<Collection<Integer>>` all appear in diagnostics, minted by list literals and `all players`. So the generic is already in the language's *read* register for every element, and in the *declaration* register for none — one, after #472.
+2. **Type parameters on user declarations** — `type Pair<T>`, `function f<T>(…)`, parametric polymorphism. Zero witness: `type_def` takes no parameters (probe: `type Pair<T>` dies at `<`), no Builtin is polymorphic (`top_of` is `Collection<Card> -> Card`, not `Collection<T> -> T`), `types.join` says so in its docstring ("there are no type variables here"), and no rulebook ever says "for any type T". This is the sense the word usually carries, and it has no place in a language whose acceptance test is a non-player reading a rulebook aloud.
+3. **A value in angle brackets** — `Hand<player>`. principles.md, "Mainstream syntax unless the domain pushes back", records this as the language's one *deliberate deviation* from the mainstream meaning of `<>`, with its reason ("reads cleaner … the parameter is type-shaping") and its test ("would the mainstream form make the common case noticeably worse? If yes, deviate and document").
+
+The operator's question is about sense 1 with a hope of tidying sense 3. Sense 2 I would refuse outright and say so now, so it does not ride in on the word.
+
+## The inconsistency, weighed: designed, documented, redundant, and drifting in prose
+
+The facts, measured from the tree:
+
+- All 31 of 31 game files carry an angle-bracket zone spelling; every one of the 9 distinct spellings is `ZoneType<index-domain>` (`Hand<player>` 28 sites, `TeamPile<team>` 19, `PlayerPile<player>` 18, `PublicHand<player>` 7, `HiddenPile<player>` 4, `Cell<cell>` 3, `Foundation<fslot>` 2, `Cascade<column>` 2, `HiddenStack<column>` 1). **Zero** element-typed angle brackets exist anywhere in the corpus or the two libraries.
+- The argument is **redundant by spec and checked equal**: decisions.md "Position domains and positional zones" — "the declaration's type argument names the same domain as the index, like `Hand<player>`" — and `resolve._resolve_zone` refuses every disagreement (probed: `Hand<team>` on a player index, `Hand<Card>` ("unknown owner 'Card'"), `Hand` with no argument, `Deck<player>`). It carries no information the index bracket does not.
+- The two-meaning rule is **already stated as design** — in a grammar comment, on `require_decl`: "the type slot carries both spellings the two blocks use — the `<owner>` argument a zone type takes, and the `?` a state type takes. Neither is legal on the other side." That is the position-fixed convention, living where a decisions.md section should own it.
+- Case does the disambiguating on the page: index domains are lower-case ids (`player`, `team`, `cell`, `column`), element types are Title Case (`Card`) — the glossary's own "Title Case marks a Name" rule. Read aloud: "a hand per player"; "a collection of cards". Both cross-confusions have a named refusal: `Hand<Card>` today, `Collection<player>` under the ruled twin.
+
+So: **a designed distinction that reads fine**, with one genuine redundancy (the zone argument restates the index) and no latent semantic defect — `TCollection`'s `key` and `zone` facets are not "unspellable"; they are spelled *elsewhere*, by the constructs that create them (`score[player] : Integer` is the key; `Hand<player>` is the zone flag; an indexed `let` is a key), and `typecheck` derives them from those declarations. The type slot cannot express what the declaration already says, and a second spelling would be the defect. Their promotion to nominal kinds is #123 (R4, three named triggers) — checker-internal, no surface.
+
+What IS defective is prose, found this sitting and fixable in Lane D regardless of the ruling:
+
+- decisions.md "Typed object model" says "User-defined types may be parameterized with the same angle-bracket convention as built-in generics"; library.md "User-defined types" says "the block … is not parameterized"; the grammar agrees with library.md. One sentence of spec describes surface that does not exist and contradicts its neighbour.
+- The spec spells the zone argument **five** ways: `Hand<player>` (the surface), `Hand<Owner: Player>` (library.md's model), `Hand<Player>` (model.md), `Hand<Owner>` (principles.md, decisions.md), and `PrivateHand<Owner>` (principles.md — a type name absent from `LIBRARY_ZONE_TYPES`). "One spelling per concept" is being asked of the designer by a spec that has not managed it itself.
+
+## Q1. Does admitting generics now improve the language going forward?
+
+**No — not as a mechanism; yes — as a written convention, which costs a paragraph.**
+
+The vacuity measurement (run, not assumed): of the 9 declarable built-in element names, **1 of 9** (`Card`) has a registered implementation — 45 Primitive implementations, and the only collection parameters are gin's two. A `Collection<T>` over the whole set admits 8 spellings at the gate that every one answers the same way one layer down: "not the signature its implementation takes." One value for every member of the axis is the option-killer. And widening removes the one instrument that makes the second instantiation an *event*: the Architect's element pin (allow-list held equal to the implementation-derived element set, `{TCard}` today) is what turns "someone registered a Python Primitive over a seat set" into a red test. Under a whole-set `Collection<T>`, that registration lands green with no cell naming the freeze or observation semantics of a seat set crossing the boundary — the drift the pin exists to refuse.
+
+What would actually exercise a second element, and when:
+
+- **Builtins never need the spelling.** `lines(k) -> Collection<Line>`, `home(p)`/`far_row(p) -> Collection<Cell>` already exist as Builtin returns with no declaration slot at all. The board ladder's `reachable`/`region` (board-topology.md, wave C) are "built-in primitives that own their loops" — kernel side. The generalization path's collections of cells, lines and rule references all land there.
+- **The declared register needs a game-local Python Primitive over a non-Card collection.** No candidate names one: Cassino's builds are card sets at a *move* parameter (the P3 wall's named reopener — same element, different position); no candidate names a Primitive taking a seat set or returning a collection; no board game declares a block.
+- **The likeliest "second element" is nesting, and it is not a Primitive.** #254 (melds as values, R2) — gin's 3+3+4 arrangement, "collections of groups on the table" — is `Collection<Collection<Card>>`, and its direction is DSL constructs that *retire* the Python, which makes it a nominal group kind (a `Meld`) for the checker, not a generic instantiation in a signature.
+
+Going forward, then, the mechanism's next customer is not on the visible horizon, and the customers that are visible arrive through registries that need no spelling. The one thing "generics now" can honestly buy is the convention written in one home; that is priced below as option (c).
+
+## Q2. Would retrofitting existing constructs make them simpler or more consistent?
+
+Each on its own, with lockstep counted by derivation (measured 2026-09-03):
+
+- **The zone index argument (`Hand<player>` -> ?).** The only honest retrofit is *dropping* it — `hand[player] : Hand` — since the checker already requires it to equal the index. Rewriting it as an element (`Hand<Card>`) would be wrong: the type name already fixes the contents, `ChipStack` would need `<Resource<chip>>`, and it turns the surface into the model notation library.md says a game never writes. Dropping is a pure rename (goldens should stay byte-identical — the change's own test), and it would make `<>` mean one thing. Cost: 31 game files, 21 `.md` twins, 1 of 2 libraries, 230 test files, 18 experiment files, 68 docs files, 4 `cardlang/` files; it flips the commonest line in the LLM few-shot corpus; and it reverses a deviation principles.md chose and documented. Buys consistency of notation and nothing semantic. **Not now, and not a precondition for #472.** The trigger that would earn it is *measured* designer or LLM confusion between the two meanings — which needs an authoring-loop instrument the repo does not have (`experiments/llm_eval` plays games; it does not write them).
+- **The library algebra `type Hand<Owner: Player> = Zone<Card>`.** Model notation, not surface. The retrofit here is prose: one spelling for the argument across the spec instead of five. Lane D, cheap, do it.
+- **`?` versus `Optional<T>`.** Refuse. `T?` is the mainstream form principles.md tells us to follow; `Optional<T>` is a second spelling of one concept; 18 of 31 game files and 53 test files would move for nothing.
+- **Struct types.** Not parameterized in the grammar; fix decisions.md's sentence to say so (or delete it). Nothing to retrofit — 0 of 31 games declare a `type`.
+- **Payload types.** `type_name` and `payload_type` are two productions of identical shape (`NAME | NAME "?"`). Merging them is Lane A housekeeping the positions scrape would enjoy — but the Architect's #472 ruling puts the entry slots on their *own* family precisely to avoid an Earley ambiguity with the teaching twin, and that layout should settle first. Not now.
+- **`TCollection`'s facets.** Not a spelling gap (above). The live consequence, #539 (a keyed map passed to a collection parameter), is a call-site coercion rule, not a type spelling — the issue already says so.
+
+Net: one retrofit is a real rename with a real price and no semantic gain; two are refusals; three are prose fixes. Nothing here gets *simpler* through a generic; the language's shape stays the same and the notation gets a written law.
+
+## Q3. If embraced — the minimal design I would rule, and the maximal I would refuse
+
+**Minimal (and it is exactly what exists plus the #472 ruling, written down):** one convention in decisions.md "Typed object model" — `Name<Arg>` has its meaning fixed by the head. A zone-type head (`LIBRARY_ZONE_TYPES`) takes an *index domain*: a lower-case domain id equal to the declaration's index; the type is a zone. A value-constructor head (`Collection`, the only one) takes an *element type*: a Title Case name from the declarable set; the constructor word is reserved (#541's sweep). `?` suffixes a value type only — never a zone, never a collection. No type variables anywhere. The glossary entry the plan already mints (Collection Type) carries the contrast sentence; the `require_decl` grammar comment then cross-references decisions.md instead of owning the rule.
+
+The walls a principled version still needs, each classified:
+
+- *Nested collections* — witness-gated; reopens on #254's groups (the arrangement is the witness), and the honest answer there is a nominal group kind, not `Collection<Collection<Card>>` in a signature.
+- *Optional elements* (`Collection<Suit?>`) — designed refusal: an absence inside a set has no rulebook reading; a filter is the spelling.
+- *Optional collection* (`Collection<Card>?`) — designed, as the plan counsels: `is empty` is the absence, and the runtime reason (an optional wrapper breaks `coerce_args`) is stated at the construct.
+- *Keyed collections* (`Map<Player, Integer>`) — designed refusal: the index bracket is the key spelling; a second spelling is the defect class.
+- *Zone-flagged collections* (`Zone<Card>` at a parameter) — designed: the boundary strips a zone to its elements (`test_no_native_param_demands_a_zone`), and a zone-handle parameter is a decision to be made on purpose.
+- *Collections of players / positions / lines* — witness-gated: reopens on the first *registered* implementation taking one, which is exactly the event the element pin turns red on; the wall is a table row and a grid column, not a design.
+- *Collection returns* — an empty registry, not a gap (the TCell precedent); owed a witness the day an implementation returns one.
+
+**Maximal, refused:** type variables in any declaration (`function f<T>`, `type Pair<T>`); the decisions.md promise of parameterized user types (delete it); `Optional<T>`; `Zone<Card>` as a game-surface zone type; `Resource<chip>` until resources are built (chips are Integer state; `ChipStack` types `Collection<Any>`); and a shared `type_args` production carrying both meanings — the Architect's ambiguity point, and a semantic conflation besides.
+
+## Q4. Should the #472 ruling change?
+
+**(c): keep (a) exactly as ruled, and add the convention as prose in the same change.** Concretely: the paragraph above in decisions.md "Typed object model"; the two spec seams repaired (the parameterized-user-types sentence; the five spellings of the zone argument collapsed to `Hand<player>` on the surface and `Hand<Owner: Player>` in the model, the `PrivateHand` phantom retired); the glossary contrast sentence. All of it rides the gin PR's prose sweep — the plan already lists the prose sites that go false — or a Lane D sibling landed first, at the operator's preference.
+
+Priced against the alternatives:
+
+- **(a) alone**: the plan as written, Gate 4 done, grid framed red, one Lane A PR with gin migrated. Gin is 1 of the 3 legacy holdouts (cribbage #473 and the `coup_game_summary` eviction remain), and the stage-3 deletion PR waits on all three; this is the critical path's next step.
+- **(b) `Collection<T>` over every declarable T**: the domain changes, so Gate 4's framing check re-runs; the element axis multiplies by 9 across both slots and the argument-shape cells; the element pin is inverted or lost. I price it at one extra planning round and one extra review round on top of (a), for zero cells that execute and one tripwire fewer. Rejected on the vacuity measurement, not on taste.
+- **(c)**: (a) plus hours of prose; no grammar, no grid, no goldens.
+
+Where I stand on yesterday's against-case: I reaffirm it and I reaffirm the ruling. "A generic with one instantiation" was a price, not a prohibition — the price of admitting the *spelling* before the *convention* was written. Option (c) pays it. What would change my mind, and its trigger: a candidate game or issue naming a game-local Python Primitive that takes a seat set or a cell set, or returns a collection — none does today (Cassino's builds are cards at a move; the board ladder's collections are Builtins; #254 points at a nominal kind). Two such witnesses and the allow-list becomes a registry — which is precisely the mechanism (a) builds.
+
+## Headnote (table talk; binds nothing and attaches nowhere)
+
+Keep yesterday's ruling — `Collection<Card>` in a `primitives { }` entry's two slots, one element — and write the convention down in the same change rather than widening the surface. The generic the operator senses is real but it lives in the checker's diagnostics, which already print `Collection<Collection<Integer>>`; in the declaration register 1 of 9 element types has an implementation, so `Collection<T>` over the whole set would admit 8 spellings that all die one layer down and would remove the pin that makes a second element land red. The angle-bracket inconsistency is designed and documented (principles.md's one deliberate deviation), disambiguated by case on the page, and redundant rather than defective — the zone argument restates the index and the checker refuses any disagreement; the only retrofit that would make `<>` mean one thing is dropping that argument, a rename across all 31 game files, 21 twins, 230 test files and 68 docs files for no semantic gain, deferred until an authoring instrument can measure the confusion it would cure. The cheap, real wins are prose: decisions.md promises parameterized user types the grammar does not have and library.md denies, and the spec spells the zone argument five ways — fix both, state the position-fixed rule in decisions.md, and let the `require_decl` comment cite it. Type variables I would refuse outright. The operator decides one thing: whether the convention paragraph and the two prose repairs ride the gin PR or land first as a Lane D sibling. This is parlor counsel, sourced fresh and priced, and it is not the counsel block — that stays attached to the plan as written.
