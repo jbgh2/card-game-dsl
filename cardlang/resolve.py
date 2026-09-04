@@ -3739,10 +3739,11 @@ def _check_library_type_names_are_not_taken(
     first, not after taking advice that cannot fix it.
 
     The game's own declared types are subtracted before the question, which
-    settles two pairs at once, each with its Owner elsewhere: library-type
-    against library-type is the self-pair, refused post-splice by
-    `_check_duplicate_names`; library-type against the game's own is
-    `_check_library_collisions`, which says which file declared each.
+    settles two pairs at once, both owned by `_check_library_collisions`
+    earlier in the same pass: library-type against library-type — one library
+    declaring the name twice, or two libraries each declaring it — and
+    library-type against the game's own, whose diagnostic says which file
+    declared each.
     """
     without_game_types = replace(game, types=())
     for declared in library.types:
