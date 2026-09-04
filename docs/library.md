@@ -361,9 +361,31 @@ in tests/test_trump_slot_class.py.
   what moves the chips. The shared `betting` core is the `poker_betting`
   family library ([decisions.md](decisions.md), "Family libraries"): check,
   bet, call, raise and the ring predicates arrive by `uses poker_betting`,
-  while `fold` (the one betting move that touches cards) stays game-local,
-  as does the per-game pot-share query over the family-wide side-pot
-  arithmetic in `cardlang/runtime/poker.py`.
+  while `fold` (the one betting move that touches cards) stays game-local.
+  The side-pot arithmetic is family-wide (`cardlang/runtime/poker.py`), and
+  so is the showdown query over it: a game whose showdown ranks holdings
+  DECLARES one in its Primitives Block rather than writing Python for it,
+  and which one it declares follows from where the holding sits.
+  `pot_share` ranks each entrant's own cards, so it reads the zone families
+  `hole` and `upcards` BY NAME; `holdem_pot_share` ranks private cards
+  against a shared board, so it reads `hole` and `shown` plus the single
+  zone `board`. Those are the two showdown shapes: the heads-up variant's
+  `holdem_heads_up_pot_share` is neither a third shape nor a third read set
+  but a duplicated BINDING, repeating `holdem_pot_share`'s query over the
+  same zones — see issue #232. The game spells those zone names exactly,
+  and reveals between the zones the query names rather than into a third —
+  what a Transfer takes out of both is out of the settlement. The query
+  concatenates them, so it is insensitive to how far a reveal has run; what
+  the reveal buys is the observation, the flip into the `PublicHand`
+  carrying the revealed identities the showdown's information sets derive
+  from. The declaration is one colon-row —
+  `pot_share(p : Player) : Integer reads committed, folded, in_hand, hole, upcards`
+  — and that Reads Clause is itself the coupling declaration ("Native
+  functions" below), so nothing in the engine changes for a game that
+  declares one. A name a phase's own `state { }` declares takes a
+  Phase-Scoped Read (`committed in play`, Stud's form); a game-level one
+  takes none, and a tail naming a phase the game does not declare is
+  refused, naming the phases the game does declare.
 - **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
   form fits pegging's per-play scoring plus forced-play flow (see
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'

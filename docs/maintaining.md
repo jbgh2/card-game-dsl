@@ -122,6 +122,79 @@ raised a new question), not in the game file.
 The game file's job is to be a usable reference for the game.
 Findings have their own homes.
 
+### The rulebook twin
+
+A game is two files. `<game>.cardlang` is the game — the corpus is those
+files, the adapter registry and every corpus sweep derive from them, and
+each one carries the header that makes it readable cold (CLAUDE.md, "A note
+on the games"). `<game>.md` is its rulebook: the human exposition beside it,
+opening with the variant, the player count, the deck, a link to the
+`.cardlang` as the executable spec, and the rules source, and then carrying
+what the game file has no room for — the departures from that source, the
+scoring tables, the worked examples.
+
+The rulebook LINKS to its `.cardlang` rather than repeating the DSL. An
+embedded fenced copy is a second copy of the game and drifts from the first
+exactly as "Cross-references" above says two copies of any fact do, with the
+difference that here both copies compile and neither says which one is the
+game. A linking rulebook carries no fenced block, so it joins
+`PROSE_ONLY_TWINS` below, and the `cardlang` command refuses it: that command
+reads a rulebook only where the rulebook embeds a block, and a game's own
+file is what it takes.
+
+### The pins a new game joins
+
+The adapter registry derives from `docs/games/*.cardlang`
+(`cardlang/openspiel/registry.py`), so a new file joins every glob-driven
+sweep on arrival. What it does not join on arrival are the hand-authored
+tables that CLASSIFY a game rather than enumerate one. Each is keyed by the
+file's stem or basename, each states a claim about the game that no glob can
+derive, and each fails loudly when a game it should classify is absent — so
+a new game reddens them rather than going quietly uncovered.
+
+- **The proof module — always.** `tests/openspiel_ready/test_<stem>.py`,
+  the stem's hyphens folded to underscores, holding a
+  `TestReadiness(ReadinessProofs)` carrying the game's `GameSpec`. Pinned in
+  both directions by `test_every_registered_game_has_a_proof_module` and
+  `test_no_proof_module_without_a_registered_game`
+  (`tests/openspiel_ready/test_coverage.py`), and imported at MODULE SCOPE
+  by `test_conformance_bounds.py` and `test_provenance_openings.py` — so an
+  absent module is a collection error across both of those grids before any
+  named assertion runs, and the red does not name the file to write. Copy
+  the smallest sibling, `tests/openspiel_ready/test_spades.py`, and replace
+  the short name, the filename, and the measured bounds. This whole package
+  is skipped without the `openspiel` extra, so its reds are CI's and a core
+  install stays green on a game with no proof module.
+- **`PROSE_ONLY_TWINS`** (`tests/test_typecheck_corpus.py`) — the rulebook
+  twins carrying no fenced block, which the type-check gate therefore cannot
+  cover. A linking rulebook joins; a twin that gains a block leaves. The
+  check is a bare set comparison, so its red names a stem difference and
+  nothing else.
+- **`_PRE_MIGRATION`** (`tests/test_ranking_conventions.py`) — for a game
+  declaring a `ranking:` CONVENTION: the convention, the deck, and the rank
+  order that convention must still expand to.
+- **`_DELIBERATE_PARTIAL_OMISSIONS`** (`tests/test_ranking_guard.py`) — for
+  a game whose ENUMERATED `ranking:` leaves out ranks its deck holds: the
+  omitted set exactly, which is what separates a designed omission from a
+  typo.
+- **`CHANCE_FREE_CORPUS`** (`tests/test_chance_free.py`) — for a game that
+  draws no randomness at all: the claim that it is one, which further proofs
+  then take against it.
+- **`POSTS_BEFORE_THE_ROUND`** (`tests/test_poker_betting_offers.py`) — for
+  a game that `uses poker_betting`: whether its street opens with a forced
+  post. Such a game also joins the recorded gap held by
+  `test_the_library_procedure_games_are_pinned_as_uncovered`
+  (`tests/metamorphic/test_inline.py`), because the library brings
+  `open_street` with it and a source-text splice cannot reach an imported
+  body.
+- **`_POLICIES`** (`tests/metamorphic/test_inline.py`) — for a game
+  declaring a `procedure` of its own: the deterministic chooser policies
+  that reach its body. A missing entry raises at module scope.
+- **`EPISODES`** (`tests/test_window_state_freshness.py`) — for a game
+  running a flag-gated window: its entry vocabulary, its window-scoped
+  variables with their idle values, and the complementary persistent set.
+  Its membership check is a bare set comparison too.
+
 ## Doc snippet tagging
 
 Every fenced code block in the settled-spec docs — [decisions.md](decisions.md),
