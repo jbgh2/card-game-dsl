@@ -1562,11 +1562,34 @@ def _slot_leaks(
     answers both, which is why they are computed together rather than in two
     passes that could disagree about what a slot reaches."""
     legal = _library_slot_names(library)
+    # A `requires` entry spelling the collection constructor is not a name the
+    # library is missing. `Collection` is a type word the language owns — the
+    # checker prints it, and `RESERVATION_SITES` keeps any declaration from
+    # taking the spelling — and its argument is an ELEMENT, not a zone owner.
+    # Both slots belong to `_check_contract_shapes`, which names the one place
+    # a collection is spellable; sweeping them here would answer the same
+    # defect first, and in a voice that sends the author to declare a type the
+    # reservation sweep then refuses.
+    collection_contracts = frozenset(
+        id(want)
+        for want in library.requires
+        if want.type_name == COLLECTION_TYPE_CONSTRUCTOR
+    )
+    collection_elements = frozenset(
+        id(arg)
+        for want in library.requires
+        if id(want) in collection_contracts
+        for arg in want.type_args
+    )
     leaks: list[_SlotLeak] = []
     reads: set[str] = set()
     zone_reads: set[str] = set()
     for node in _walk(library):
+        if id(node) in collection_elements:
+            continue
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            if field_name == "type_name" and id(node) in collection_contracts:
+                continue
             namespace = slot_namespace(node, field_name)
             if namespace is None:
                 continue
@@ -1919,7 +1942,10 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
             # split below would answer a placement question with a shape one.
             # No parse twin lands here: a contract spells its type inline and
             # derives `<…>` through `type_args`, and a twin over that
-            # derivation would give one string two derivations.
+            # derivation would give one string two derivations. This is the
+            # entry's ONLY speaker: `_slot_leaks` steps over both slots of a
+            # collection contract so the author does not first meet a sweep
+            # calling a word the language owns a name the library lacks.
             bag.error(
                 f"library '{library.name}' requires `{spelled}`, and a "
                 f"collection type (`Collection<Card>`) is spellable in a "
