@@ -913,11 +913,31 @@ def _drive_call_form() -> None:
 
 
 def _drive_peg_run_points() -> None:
-    from cardlang.runtime import cribbage
+    from cardlang.runtime import cribbage, reads
+    from cardlang.runtime.narrowing import EngineFacts
 
-    cribbage.peg_run_points(
-        [Card("2", "clubs"), Card("3", "hearts"), Card("4", "spades")], _PARTIAL
+    facts = EngineFacts(
+        seating=Seating(2),
+        team_of=MappingProxyType({}),
+        rank_index=_PARTIAL,
+        round_state=None,
+        last_round_state=None,
+        actor=None,
     )
+    gr = reads.GameReads(
+        state=MappingProxyType({}),
+        families=MappingProxyType({}),
+        singles=MappingProxyType(
+            {
+                "play_pile": (
+                    Card("2", "clubs"),
+                    Card("3", "hearts"),
+                    Card("4", "spades"),
+                )
+            }
+        ),
+    )
+    cribbage.peg_run_points(facts, gr)
 
 
 def _drive_cribbage_show(is_crib: bool) -> Callable[[], None]:

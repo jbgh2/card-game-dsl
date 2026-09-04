@@ -41,11 +41,10 @@ from cardlang.runtime.errors import OwnerGuardError
 from cardlang.runtime.state import Ctx
 from cardlang.runtime.values import Card, Player
 
-# This module's per-game functions (the auction outcomes; the pegging-scorer
-# call sites) read state on behalf of specific games — one declared-reads row
-# per game served (cardlang/runtime/reads.py).
+# This module's per-game functions (the auction outcomes) read state on behalf
+# of specific games — one declared-reads row per game served
+# (cardlang/runtime/reads.py).
 _BRIDGE_R = reads.row("cardlang/runtime/primitives.py", "bridge.cardlang")
-_CRIBBAGE_R = reads.row("cardlang/runtime/primitives.py", "cribbage.cardlang")
 _PINOCHLE_R = reads.row("cardlang/runtime/primitives.py", "pinochle.cardlang")
 _TAROT_R = reads.row("cardlang/runtime/primitives.py", "french-tarot.cardlang")
 
@@ -124,21 +123,13 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             _emit(ctx, events)
             return total
         case "peg_pair_points":
-            from cardlang.runtime.cribbage import peg_pair_points
+            from cardlang.runtime.cribbage import ROW, peg_pair_points
 
-            # These two read live engine state directly rather than through a
-            # bundle, so their collection args are frozen here at the call site
-            # (the same boundary `reads.coerce_args` enforces for DSL arguments).
-            return peg_pair_points(
-                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards)
-            )
+            return peg_pair_points(*_bind(ctx, ROW))
         case "peg_run_points":
-            from cardlang.runtime.cribbage import peg_run_points
+            from cardlang.runtime.cribbage import ROW, peg_run_points
 
-            return peg_run_points(
-                reads.deep_freeze(reads.single(ctx.rs, _CRIBBAGE_R, "play_pile").cards),
-                reads.deep_freeze(ctx.rs.rank_index),
-            )
+            return peg_run_points(*_bind(ctx, ROW))
         case "peg_origin_of":
             from cardlang.runtime.cribbage import ROW, peg_origin_of
 
