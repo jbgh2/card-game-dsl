@@ -94,7 +94,7 @@ def test_openspiel_adapter_reports_the_declared_max_length() -> None:
     import pyspiel
 
     import cardlang.openspiel.game  # noqa: F401  (registers on import)
-    from cardlang.openspiel.game import _GAMES_DIR, GAMES
+    from cardlang.openspiel.registry import GAMES, _GAMES_DIR
     from cardlang.pipeline import check_source
 
     for short_name, filename in GAMES.items():
