@@ -38,6 +38,17 @@ Check a description:
 cardlang docs/games/hearts.cardlang  # parse + static checks; silent on success
 ```
 
+Play a hand of it:
+
+```
+cardlang play docs/games/hearts.cardlang --seed 7 --info-state 1
+```
+
+One uniform-random self-play: the outcome, the decision count, and the seed
+that reproduces the run, plus that seat's derived information state at the
+end of the game. `cardlang` is on PATH after the editable install below, and
+`python -m cardlang` runs the same front end straight from the source tree.
+
 Play it through OpenSpiel:
 
 ```python
@@ -99,8 +110,8 @@ pip install -e ".[dev,openspiel]"
 pytest -q        # the full gate
 ```
 
-Python 3.11+. The `openspiel` extra is optional for the core front end;
-the adapter tests skip without it.
+Python 3.11+, in a virtualenv. The `openspiel` extra is optional for the
+core front end; the adapter tests skip without it.
 
 ## Status
 

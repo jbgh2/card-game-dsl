@@ -142,13 +142,13 @@ game Doppelkopf {
 
         // --- Seat 1: the leader. Poll, then lead any card.
         if window_open() {
-          quiet := 0
           round offering [announce_re, announce_kontra, announce_re_no90,
                           announce_re_no60, announce_re_no30, announce_re_schwarz,
                           announce_kontra_no90, announce_kontra_no60,
                           announce_kontra_no30, announce_kontra_schwarz,
                           no_announcement]
                 from leader over all players until quiet >= 4
+          quiet := 0
         }
         as leader { move chosen one card from hand[leader] to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
@@ -166,13 +166,13 @@ game Doppelkopf {
 
         // --- Seat 2. Poll, then follow the led class.
         if window_open() {
-          quiet := 0
           round offering [announce_re, announce_kontra, announce_re_no90,
                           announce_re_no60, announce_re_no30, announce_re_schwarz,
                           announce_kontra_no90, announce_kontra_no60,
                           announce_kontra_no30, announce_kontra_schwarz,
                           no_announcement]
                 from s2 over all players until quiet >= 4
+          quiet := 0
         }
         as s2 { move chosen one card from hand[s2] where follow_ok(s2, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
@@ -190,13 +190,13 @@ game Doppelkopf {
 
         // --- Seat 3.
         if window_open() {
-          quiet := 0
           round offering [announce_re, announce_kontra, announce_re_no90,
                           announce_re_no60, announce_re_no30, announce_re_schwarz,
                           announce_kontra_no90, announce_kontra_no60,
                           announce_kontra_no30, announce_kontra_schwarz,
                           no_announcement]
                 from s3 over all players until quiet >= 4
+          quiet := 0
         }
         as s3 { move chosen one card from hand[s3] where follow_ok(s3, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
@@ -214,13 +214,13 @@ game Doppelkopf {
 
         // --- Seat 4.
         if window_open() {
-          quiet := 0
           round offering [announce_re, announce_kontra, announce_re_no90,
                           announce_re_no60, announce_re_no30, announce_re_schwarz,
                           announce_kontra_no90, announce_kontra_no60,
                           announce_kontra_no30, announce_kontra_schwarz,
                           no_announcement]
                 from s4 over all players until quiet >= 4
+          quiet := 0
         }
         as s4 { move chosen one card from hand[s4] where follow_ok(s4, card) to trick_pile }
         if (number of cards in trick_pile where card is Q of clubs) > cq_seen {
