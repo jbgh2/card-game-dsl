@@ -169,6 +169,7 @@ game FiveHundred {
             from opener over players where not passed[player]
             until (bid_rank > 0 and (number of players where not passed[player]) <= 1)
                   or (number of players where not passed[player]) is 0
+      for each player p: passed[p] := false
       if high_bidder is none { skip to next hand }
       declarer := high_bidder
 

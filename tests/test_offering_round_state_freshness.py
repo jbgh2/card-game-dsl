@@ -391,20 +391,8 @@ CELLS: list[tuple[str, int, str]] = [
     for var, _idle in window.idle
 ]
 
-_RED = {"belote.cardlang", "five-hundred.cardlang", "skat.cardlang"}
-
 PARAMS = [
-    pytest.param(
-        filename,
-        index,
-        var,
-        id=f"{filename.removesuffix('.cardlang')}:{var}",
-        marks=(
-            [pytest.mark.xfail(strict=True, raises=AssertionError, reason="issue #557: authored red")]
-            if filename in _RED
-            else []
-        ),
-    )
+    pytest.param(filename, index, var, id=f"{filename.removesuffix('.cardlang')}:{var}")
     for filename, index, var in CELLS
 ]
 

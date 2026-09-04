@@ -512,6 +512,15 @@ round offering [<move_type>, …] from <seat> over <ring>
   The declared domain set each parameter draws from, the cross-product rule
   for a multi-parameter move type, and the plain `offer` statement's
   identical enumeration are "Declared parameter domains," below.
+- **The ring's bookkeeping is the round's own.** The pass count, the acted
+  flags, the roles that steer a call-and-response ring belong to the
+  auction's Decision Episode
+  ([glossary/decision-episode.md](glossary/decision-episode.md)): the game
+  clears them where the ring closes, or declares them in a sub-phase that
+  ends with it, so the information state during play names no auction
+  already closed (pinned at `tests/test_offering_round_state_freshness.py`).
+  The ring's result — the contract, the taker, the trump — is read all
+  through play and stays.
 - **The ring (`over`) is explicit; there is no silent skip.** A participant
   offered a turn always has at least one legal move — the finite-action invariant
   of a decision node. The game states *who is still in the ring* through the
