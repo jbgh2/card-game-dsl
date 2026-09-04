@@ -52,10 +52,12 @@ Now illegal:  a consumer deciding the regime by testing `game.primitives`
               the BRACKET half of that is held by a scrape over `cardlang/`
               (`tests/test_primitives_block.py::test_a_collection_spelling_is_
               split_in_exactly_one_place`), the trailing `?` by review, since
-              every remaining `?` slice in the package reads a state, payload,
-              move-parameter or library-slot spelling and a scrape wide enough
-              to reach an entry's `?` would demand the same routing of all of
-              them; and an element outside the allow-list reaching typecheck.
+              every remaining `?` slice in the package reads a payload,
+              function-parameter, move-parameter or library-slot spelling —
+              never a state one, whose optionality parses to a field rather
+              than into the name — and a scrape wide enough to reach an
+              entry's `?` would demand the same routing of all of them; and an
+              element outside the allow-list reaching typecheck.
 Verified by:  tests/test_primitives_block.py (the index reconciled against
               `PRIMITIVE_CALL_FUNCS` and against the live attributes; the
               declarable-type partition; the wall's totality over the six
