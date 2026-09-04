@@ -199,12 +199,13 @@ game Belote {
             over players where not acted[player]
             until taker is not none
                   or (number of players where not acted[player]) is 0
+      for each player p: acted[p] := false
       if taker is none {
-        for each player p: acted[p] := false
         round offering [take_suit, pass] from dealer offset_by right
               over players where not acted[player]
               until taker is not none
                     or (number of players where not acted[player]) is 0
+        for each player p: acted[p] := false
       }
       // All pass twice: the hand is thrown in. The cards return to the deck
       // HERE, in declaration order (hands by seat, then the turn-up), so the
@@ -268,6 +269,7 @@ game Belote {
                 from leader
                 over players where not decl_acted[player]
                 until (number of players where not decl_acted[player]) is 0
+          for each player p: decl_acted[p] := false
 
           // The comparison, in announcement order: strict `>` keeps the
           // earlier announcer, so equal-height ties go to the first in

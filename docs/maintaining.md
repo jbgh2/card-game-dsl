@@ -194,6 +194,12 @@ a new game reddens them rather than going quietly uncovered.
   running a flag-gated window: its entry vocabulary, its window-scoped
   variables with their idle values, and the complementary persistent set.
   Its membership check is a bare set comparison too.
+- **`ROUNDS`, `NO_DECISION_OUTSIDE`, `NO_BOOKKEEPING`**
+  (`tests/test_offering_round_state_freshness.py`) — for a game running a
+  `round offering`: its windows, each with the sites' vocabularies and the
+  round-scoped variables with their idle values, and the complementary
+  persistent set — or its membership in one of the two executed boundaries.
+  A game in none of the three reddens the same bare set comparison.
 
 ## Doc snippet tagging
 
