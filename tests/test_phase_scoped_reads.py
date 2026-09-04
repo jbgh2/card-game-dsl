@@ -200,6 +200,7 @@ re-probed under two tails, and the enclosure register's ancestor/sibling pair.
 Command: `.venv/bin/pytest tests/test_phase_scoped_reads.py -q`.
 
     take 1 (2026-09-04, the cells against the one-phase arm):  53 failed, 76 passed
+    take 2 (2026-09-04, that arm lifted alone, nothing else):  30 failed, 99 passed
 
 Take 1's reds are two kinds and no third: every accept cell naming two phases
 dies on the one-phase arm, and every refusal cell dies because that arm's text
@@ -207,6 +208,22 @@ carries none of the new law's fragments. Its passes include the five singleton
 shape cells (one phase is the degenerate chain, accepted before and after), the
 ancestor-also-declares accept (one tail), and the born-green pins, each of
 which carries its reddening mutation where it sits.
+
+TAKE 2 is the load-bearing one, and it is a measurement of the WINDOW rather
+than of a candidate implementation: the refusal arm deleted and nothing else
+touched — the containment analysis still skipping every entry that names more
+than one phase. The accepts go green, including the three-chain and the inner
+phase's own hooks, which is what says the runtime needs no line changed. Of
+the 30 reds, 27 are DID NOT RAISE: every outer-side refusal under the nest
+(the outer's body before and after the inner, its qualifier and both hooks, a
+sibling of the outer, a function body, `loser:`, both leaked-offer shapes,
+both leaked-run shapes, the three-chain's middle and outer positions) and
+every non-nesting shape cell CHECK CLEAN in that state. That is the
+accepted-and-unchecked class, executed — a designer's call refused by nothing
+and crashing at playout in the runtime's shadow guard — and it is why these
+cells exist before the arm moves rather than after. The other three reds are
+owned elsewhere and stay red through take 2: the enclosure register's pair and
+the repeat guard's wording, whose owners are `_outside` and the repeat arm.
 """
 
 from __future__ import annotations

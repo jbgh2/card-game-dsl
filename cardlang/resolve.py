@@ -173,8 +173,10 @@ from cardlang.primitives_block import (
     ambiguous_read_names,
     declaring_phases,
     descendant_redeclarations,
+    phase_chain,
     phase_local_state_names,
     phase_names,
+    phase_paths,
     phase_state_zone_names,
     shadowed_state_names,
     declarable_type_names,
@@ -5683,34 +5685,67 @@ def _find_phase(game: n.Game, name: str) -> n.Phase | None:
     )
 
 
-def _scoped_entry_phases(game: n.Game) -> dict[str, str]:
-    """Entry name -> the ONE phase its reads clause scopes to, for every entry
-    whose tail is USABLE — it names one phase of the game, and that phase
-    declares every name the entry scopes to it.
+@dataclass(frozen=True, slots=True)
+class _ScopedEntry:
+    """One entry's scope, in the shape the containment analysis needs it.
 
-    An entry whose tail is wrong is left out, and `_check_read_tail` speaks for
-    it: containment has nothing to say about a scope that does not resolve, and
-    saying it anyway would report a call site as a second defect when the
-    designer has one to fix. This asks the classifier the same question that
-    arm does rather than restating its conditions — a scope either denotes a
-    declaration or it does not."""
+    `chain` is the phases its tails name, ordered outer to inner; `region` the
+    innermost of them, whose subtree IS the intersection of the named subtrees
+    and therefore the extent the entry is callable in; `binding` the read
+    spelling that ties the entry to that region, which the refusal quotes so
+    the designer can see WHICH declaration made a call illegal. When two reads
+    name the region, clause order picks the binding — a determinism rule
+    carrying no meaning, since the tails are a set."""
+
+    chain: tuple[str, ...]
+    region: str
+    binding: str
+
+
+def _scoped_entry_phases(game: n.Game) -> dict[str, _ScopedEntry]:
+    """Entry name -> its scope, for every entry whose tails are USABLE — they
+    name phases of the game that lie on ONE ancestor path, and each names a
+    phase that declares the read it rides on.
+
+    An entry whose tail is wrong, or whose phases do not nest, is left out and
+    the arms above speak for it: containment has nothing to say about a scope
+    that does not resolve, and saying it anyway would report a call site as a
+    second defect when the designer has one to fix. This asks `classify_read`
+    and `phase_chain` the SAME questions those arms ask rather than restating
+    their conditions — a scope either denotes a region or it does not.
+
+    The classifier is asked per READ against that read's own tail, never
+    against the region: `dealer in hand_sequence` denotes nothing under the
+    region `play`, and an entry dropped on that question would leave every one
+    of its call sites unjudged."""
     if game.primitives is None:
         return {}
-    known = phase_names(game)
-    scoped: dict[str, str] = {}
+    scoped: dict[str, _ScopedEntry] = {}
     for decl in game.primitives.decls:
-        named = {r.phase for r in decl.reads if r.phase is not None}
-        if len(named) != 1:
+        tailed = frozenset(
+            r.phase for r in decl.reads if r.phase is not None
+        )
+        if not tailed:
             continue
-        phase = next(iter(named))
-        if phase is None or phase not in known:
+        chain = phase_chain(game, tailed)
+        if chain is None:
             continue
-        if all(
-            classify_read(game, r.name, phase) is not None
+        if any(
+            classify_read(game, r.name, r.phase) is None
             for r in decl.reads
             if r.phase is not None
         ):
-            scoped[decl.name] = phase
+            continue
+        region = chain[-1]
+        scoped[decl.name] = _ScopedEntry(
+            chain=chain,
+            region=region,
+            binding=next(
+                f"{r.name} in {r.phase}"
+                for r in decl.reads
+                if r.phase == region
+            ),
+        )
     return scoped
 
 
@@ -5826,7 +5861,8 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         return
     bodies = _definition_bodies(game)
     owners = _statement_owners(game, bodies)
-    for entry, phase_name in sorted(scoped.items()):
+    for entry, scope in sorted(scoped.items(), key=lambda item: item[0]):
+        phase_name = scope.region
         phase = _find_phase(game, phase_name)
         # NOT a `continue`: skipping here would run zero cells for this entry
         # and report the pass clean, which is a scoped entry callable from
