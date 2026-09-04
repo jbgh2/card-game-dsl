@@ -19,9 +19,13 @@ domain:          Two crossings, each total over its axes. The first crosses
 
                  Inside the domain: the OpenSpiel short name and its character
                  set, the collision rule across every pair of sources, the
-                 entry vocabulary `CARDLANG_GAMES` accepts, and that variable's
-                 own value classes. Outside it, each with the site that owns it
-                 instead: what the CHECKER decides about a game is
+                 entry vocabulary `CARDLANG_GAMES` accepts, that variable's own
+                 value classes, and both halves of `check_source`'s suffix
+                 dispatch — a path source names one file, so it may name a
+                 Markdown one, while a directory is globbed for `.cardlang` as
+                 the corpus directory is and a directory of rulebooks is
+                 therefore an empty one. Outside it, each with the site that
+                 owns it instead: what the CHECKER decides about a game is
                  `cardlang.pipeline`'s, exercised here only far enough to tell
                  an accepted file from a refused one; whether a path's bytes
                  decode as text is `check_source`'s unguarded read, whose whole
@@ -117,6 +121,8 @@ _SOURCES: tuple[str, ...] = ("corpus", "call", "environment")
 _FILE_STATES: tuple[str, ...] = (
     "green_file",
     "diagnostic_file",
+    "markdown_with_block",
+    "markdown_without_block",
     "missing",
     "directory_of_games",
     "empty_directory",
@@ -145,6 +151,11 @@ _FILE_EXPECTED: dict[tuple[str, str], str] = {
     # The corpus source is a glob over a directory this checkout controls.
     ("corpus", "green_file"): _REGISTERS,
     ("corpus", "diagnostic_file"): "DiagnosticError",
+    # The corpus glob is `*.cardlang`, so a Markdown file in `docs/games/` —
+    # the rulebook twin every game carries — is never a thing the corpus source
+    # offers, whether or not it holds a block.
+    ("corpus", "markdown_with_block"): _INEXPRESSIBLE,
+    ("corpus", "markdown_without_block"): _INEXPRESSIBLE,
     # A glob yields only paths that exist, and yields files rather than the
     # directory holding them.
     ("corpus", "missing"): _INEXPRESSIBLE,
@@ -157,6 +168,8 @@ _FILE_EXPECTED: dict[tuple[str, str], str] = {
     # A call names one file.
     ("call", "green_file"): _REGISTERS,
     ("call", "diagnostic_file"): "DiagnosticError",
+    ("call", "markdown_with_block"): _REGISTERS,
+    ("call", "markdown_without_block"): "DiagnosticError",
     ("call", "missing"): "GameRegistrationError",
     ("call", "directory_of_games"): "GameRegistrationError",
     ("call", "empty_directory"): "GameRegistrationError",
@@ -165,6 +178,8 @@ _FILE_EXPECTED: dict[tuple[str, str], str] = {
     # An entry is a file or a directory of files.
     ("environment", "green_file"): _REGISTERS,
     ("environment", "diagnostic_file"): "DiagnosticError",
+    ("environment", "markdown_with_block"): _REGISTERS,
+    ("environment", "markdown_without_block"): "DiagnosticError",
     ("environment", "missing"): "GameRegistrationError",
     ("environment", "directory_of_games"): _REGISTERS,
     ("environment", "empty_directory"): "GameRegistrationError",
@@ -229,6 +244,23 @@ def _diagnostic_copy(directory: Path, stem: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     dst = directory / f"{stem}.cardlang"
     dst.write_text("game NotAGame {\n  players: 2\n}\n")
+    return dst
+
+
+def _markdown_copy(directory: Path, stem: str, *, with_block: bool) -> Path:
+    """A game file whose suffix sends it to the Markdown extractor.
+
+    `check_source` dispatches on the suffix — `.cardlang` is raw DSL, anything
+    else is Markdown holding exactly one fenced block — so a path source can
+    offer either shape. `with_block=False` is the corpus's own rulebook-twin
+    shape, which links to its `.cardlang` rather than repeating it.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    dst = directory / f"{stem}.md"
+    body = f"# {stem}\n\nA rulebook.\n"
+    if with_block:
+        body += "\n```\n" + GREEN_SOURCE.read_text() + "```\n"
+    dst.write_text(body)
     return dst
 
 
@@ -327,6 +359,16 @@ def _call_cell(state: str, stem: str, tmp_path: Path) -> None:
         with pytest.raises(DiagnosticError):
             register_game_file(path)
         return
+    if state == "markdown_with_block":
+        path = _markdown_copy(tmp_path, stem, with_block=True)
+        assert register_game_file(path) == f"cardlang_{stem}"
+        assert pyspiel.load_game(f"cardlang_{stem}").num_players() == 2
+        return
+    if state == "markdown_without_block":
+        path = _markdown_copy(tmp_path, stem, with_block=False)
+        with pytest.raises(DiagnosticError, match="no fenced code block"):
+            register_game_file(path)
+        return
     if state == "missing":
         with pytest.raises(GameRegistrationError, match="no such file"):
             register_game_file(tmp_path / f"{stem}.cardlang")
@@ -365,6 +407,16 @@ def _environment_cell(
     if state == "diagnostic_file":
         path = _diagnostic_copy(tmp_path, stem)
         with pytest.raises(DiagnosticError):
+            _env_registration(monkeypatch, str(path))
+        return
+    if state == "markdown_with_block":
+        path = _markdown_copy(tmp_path, stem, with_block=True)
+        _env_registration(monkeypatch, str(path))
+        assert pyspiel.load_game(f"cardlang_{stem}").num_players() == 2
+        return
+    if state == "markdown_without_block":
+        path = _markdown_copy(tmp_path, stem, with_block=False)
+        with pytest.raises(DiagnosticError, match="no fenced code block"):
             _env_registration(monkeypatch, str(path))
         return
     if state == "missing":
