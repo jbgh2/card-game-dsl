@@ -69,7 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="cardlang",
         description="Check a card-game description, or play one through.",
     )
-    commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
+    # No `metavar`: argparse then spells the choices into every usage line it
+    # prints, so a refusal that shows usage — a command in the wrong slot, a
+    # command omitted — names what is valid without the message saying so.
+    commands = parser.add_subparsers(dest="command", required=True)
 
     check = commands.add_parser(
         "check", help="parse and statically check a game file; silent on success"
@@ -126,6 +129,11 @@ def _unreadable(path: Path) -> str | None:
     reach `pipeline.check_source`'s unguarded `read_text` otherwise, where they
     surface as a traceback addressed to nobody. The probe read is what makes
     the last two answerable here instead of there.
+
+    Its result is discarded and the file is read a second time by the pipeline,
+    deliberately: threading the text through `check_source` would change a
+    pipeline signature — and the extension dispatch that reads it — for one
+    caller's convenience, at a cost no game file's size makes worth paying.
     """
     if not path.exists():
         return f"cannot read {path}: no such file"
@@ -254,14 +262,19 @@ def _play(path: Path, seed: int | None, seat: int | None) -> int:
 
 
 def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str:
-    """The outcome in per-seat returns, which is the one reading correct for
-    every game the language describes.
+    """The outcome in per-seat returns.
 
     `result.scores` is keyed by the `winner:` target's own index domain, so a
     team-scored game's keys are teams and a `loser:` game has none at all
     (`driver.GameResult`). `returns_for` is where that inversion already lives;
     reading the dict here instead would pay the wrong seats in exactly the
     games where nobody would notice.
+
+    It inverts the seat-anchored roles `replay._RETURNS_KEYED_ROLES` names, and
+    raises on any other — so a `winner:` target indexed by a role added later
+    stops this command with an engine assertion rather than printing a plausible
+    line. That refusal is what makes reading returns here safe; it is not a
+    claim that every index role is handled.
     """
     returns = returns_for(game, result)
     best = max(returns)

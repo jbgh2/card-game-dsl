@@ -244,7 +244,47 @@ def test_no_arguments_names_the_commands(capsys: pytest.CaptureFixture[str]) -> 
     with pytest.raises(SystemExit) as exit_info:
         main([])
     assert exit_info.value.code == 2
-    assert "COMMAND" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    for command in COMMANDS:
+        assert command in err
+
+
+def test_a_command_in_the_wrong_slot_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    """The plausible wrong sentence after reading the README: the file first
+    and the command after it. The bare form's rewrite makes that a `check` with
+    a stray positional, so the refusal has to reach the caller rather than the
+    file being checked and the command quietly dropped."""
+    with pytest.raises(SystemExit) as exit_info:
+        main([str(HEARTS), "play"])
+    assert exit_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "play" in err
+    for command in COMMANDS:
+        assert command in err, "the usage line must name where a command goes"
+
+
+def test_a_command_with_no_file_names_the_missing_argument(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["check"])
+    assert exit_info.value.code == 2
+    assert "file" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_each_command_has_its_own_help(
+    command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--help` after a command reaches that command's parser, so the options
+    a caller is shown are the ones that command accepts."""
+    with pytest.raises(SystemExit) as exit_info:
+        main([command, "--help"])
+    assert exit_info.value.code == 0
+    out = capsys.readouterr().out
+    assert f"cardlang {command}" in out
+    for option in sorted(_command_options()[command]):
+        assert option in out
 
 
 @pytest.mark.parametrize("seat", ["2", "-1"])
