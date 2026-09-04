@@ -125,14 +125,19 @@ Findings have their own homes.
 ### The rulebook twin
 
 A game is two files. `<game>.cardlang` is the game — the corpus is those
-files, and the adapter registry and every corpus sweep are derived from
-them. `<game>.md` is its rulebook: the prose a non-player reads to play a
-hand, naming the exact variant, the player count, the deck and the rules
-source. The rulebook LINKS to its `.cardlang` rather than repeating the DSL.
-An embedded fenced copy is a second copy of the game and drifts from the
-first exactly as "Cross-references" above says two copies of any fact do,
-with the difference that here both copies compile and neither says which one
-is the game. A linking rulebook carries no fenced block, so it joins
+files, the adapter registry and every corpus sweep derive from them, and
+each one carries the header that makes it readable cold (CLAUDE.md, "A note
+on the games"). `<game>.md` is its rulebook: the human exposition beside it,
+opening with the variant, the player count, the deck, a link to the
+`.cardlang` as the executable spec, and the rules source, and then carrying
+what the game file has no room for — the departures from that source, the
+scoring tables, the worked examples.
+
+The rulebook LINKS to its `.cardlang` rather than repeating the DSL. An
+embedded fenced copy is a second copy of the game and drifts from the first
+exactly as "Cross-references" above says two copies of any fact do, with the
+difference that here both copies compile and neither says which one is the
+game. A linking rulebook carries no fenced block, so it joins
 `PROSE_ONLY_TWINS` below, and the `cardlang` command refuses it: that command
 reads a rulebook only where the rulebook embeds a block, and a game's own
 file is what it takes.
