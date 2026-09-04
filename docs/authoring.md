@@ -217,13 +217,15 @@ inherit: a game-local definition under an imported name is an error, not an
 override. The tier and its rules are [decisions.md](decisions.md),
 "Family libraries".
 
-The library's `requires { }` block is its **contract**: the state variables
-the including game must declare, checked at the `uses` line, so an unmet
-contract is reported to you rather than as an undeclared name somewhere
-inside. The libraries live in `docs/libraries/`, and reading the one you are
-importing is the fastest way to write the `state { }` block it demands — each
-`requires` row is annotated with what it holds and why the library cannot own
-it.
+The library's `requires { }` block is its **contract**: what the including game
+must declare for the import to resolve. State variables, and also zones — each
+named with the zone type the library's definitions were written against, since
+that type is what fixes the per-observer Projection they assume. The contract
+is checked at the `uses` line, so an unmet one is reported to you rather than
+as an undeclared name somewhere inside the library. The libraries live in
+`docs/libraries/`, and reading the one you are importing is the fastest way to
+write the `zones { }` and `state { }` entries it demands — each `requires` row
+is annotated with what it holds and why the library cannot own it.
 
 For poker, `uses poker_betting` brings check, bet, call, raise and the ring
 predicates; `fold` stays game-local, because where a folded card goes is a
