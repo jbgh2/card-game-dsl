@@ -3611,7 +3611,7 @@ counter: the lap count belongs to the poll's Decision Episode
 ([glossary/decision-episode.md](glossary/decision-episode.md)), idle at
 every decision the poll does not own, so the information state between
 polls names no lap already closed (pinned at
-`tests/test_poll_state_freshness.py`). An announcement
+`tests/test_offering_round_state_freshness.py`). An announcement
 re-opens the lap, so chains of reactions (Re → no 90 → Kontra) resolve
 at a single poll point in any order the players choose.
 

@@ -4,7 +4,7 @@ definition: The span a [[state-variable]] describing a pending decision belongs 
 layer: kernel
 status: canonical
 reserved: false
-home: `tests/test_window_state_freshness.py`, `tests/test_poll_state_freshness.py`
+home: `tests/test_window_state_freshness.py`, `tests/test_offering_round_state_freshness.py`
 see: [Observation Log, State Variable]
 retired_spellings: []
 findings: []
