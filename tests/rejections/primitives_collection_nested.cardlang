@@ -1,0 +1,18 @@
+// Guard: the grammar's entry-slot reject twin. A collection of collections is
+// the shape a game built on melds wants, and it has no spelling here — the
+// refusal names that rather than stopping at the inner bracket.
+game PrimitivesCollectionNested {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    gin_valid_meld(cards : Collection<Collection<Card>>) : Boolean
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := if gin_valid_meld(hand[0]) then 1 else 0
+  }
+  winner: highest score
+}

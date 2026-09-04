@@ -66,7 +66,13 @@ Completeness ledger
                 verdict through an ALLOW-LIST over the message space
                 (`_GATE_REFUSALS`, `_PAST_THE_GATE`) and raises on a diagnostic
                 neither names, so a refusal in an unlisted voice cannot pass
-                for an admit.
+                for an admit. The collection column carries a second
+                assertion the rest of the grid does not:
+                `test_the_collection_column_reaches_the_message_its_position_owns`
+                pins WHICH refusal each position gives, derived from the type
+                nonterminal that position writes through, because "not
+                admitted" is satisfied by a lexer error as readily as by the
+                ruled twin.
 
     sampled:    The `?` spelling is sampled at `Rank?` and `Suit?` rather than
                 crossed over every base name: the three disciplines that handle
@@ -186,11 +192,15 @@ USER_STRUCT = "T"            # declared by the probe game's `type T`
 UNKNOWN_NAME = "Bogus"       # the negative control
 
 COLLECTION_NAME = "Collection<Card>"  # the one parameterized value spelling
+# The collection's optional spelling. Admitted nowhere — a collection is never
+# optional — but it is a sentence a designer writes, so it is a column of its
+# own rather than a shape left to the lexer.
+COLLECTION_OPTIONAL = "Collection<Card>?"
 
 NAMES = [
     "Integer", "Boolean", "Player", "Card", "Team", "Suit", "Rank",
     "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, USER_STRUCT, UNKNOWN_NAME,
-    COLLECTION_NAME,
+    COLLECTION_NAME, COLLECTION_OPTIONAL,
 ]
 
 DECLARED = frozenset(KNOWN_TYPE_NAMES) | {USER_STRUCT}
@@ -246,6 +256,10 @@ DESIGNED_TO_FLIP: set[tuple[str, str]] = set()
 # as an admit — and a refusal in a voice nobody listed is exactly the reading
 # that must not pass for one.
 _GATE_REFUSALS: tuple[tuple[str, str], ...] = (
+    # BEFORE the generic rows: the entry-slot twin's sentence carries no
+    # needle any of them would match, and a row added after `syntax` would be
+    # unreachable for the spellings the grammar refuses in its own voice.
+    ("a collection is never optional", "collection-optional"),
     ("syntax error", "syntax"),
     ("unknown type", "unknown-type"),
     ("domain", "domain"),
@@ -337,6 +351,89 @@ def test_the_type_name_grid(cell: tuple[str, str]) -> None:
             f"{position} must not admit {name!r} — no registry backing it, so "
             f"admitting it maps the name to the permissive top"
         )
+
+
+# The collection column's expected MESSAGE, per position. The grid above
+# asserts admit-vs-not, which a refusal in the wrong voice satisfies; this
+# says WHICH refusal. Derived from the type nonterminal the position's host
+# writes its type name through, because that is what decides: the teaching
+# twin rides `type_name` and `payload_type`, the entry family answers in its
+# own voice, and a position with no type nonterminal at all has no twin to
+# reach.
+_TWIN_BY_CARRIER: dict[str | None, dict[str, str]] = {
+    "type_name": {
+        COLLECTION_NAME: "collection-elsewhere",
+        COLLECTION_OPTIONAL: "collection-elsewhere",
+    },
+    "payload_type": {
+        COLLECTION_NAME: "collection-elsewhere",
+        COLLECTION_OPTIONAL: "collection-elsewhere",
+    },
+    "primitive_type": {
+        COLLECTION_NAME: "admit",
+        COLLECTION_OPTIONAL: "collection-optional",
+    },
+    # A struct literal's head is `STRUCT_TYPE_NAME` in EXPRESSION position, so
+    # no type production is in play and no twin can be reached — the lexer's
+    # own voice is the whole answer available there, and saying so is what
+    # keeps this column from asserting a message the grammar cannot produce.
+    None: {COLLECTION_NAME: "syntax", COLLECTION_OPTIONAL: "syntax"},
+}
+
+
+def _position_carrier(position: str) -> str | None:
+    """Which type nonterminal `position` writes its type name through."""
+    production, _ = POSITIONS[position]
+    host = _carrier_host(production)
+    if host is None:
+        return None
+    body = _grammar_bodies()[host]
+    written = [c for c in _TYPE_CARRIERS if re.search(rf"\b{c}\b", body)]
+    assert len(written) == 1, (
+        f"{position}'s host '{host}' writes {written or 'no'} type "
+        f"nonterminal(s); the expected-message column needs exactly one"
+    )
+    return written[0]
+
+
+_TWIN_CELLS = [
+    (position, spelling)
+    for position in POSITIONS
+    for spelling in (COLLECTION_NAME, COLLECTION_OPTIONAL)
+]
+
+
+@pytest.mark.parametrize(
+    "position,spelling",
+    _TWIN_CELLS,
+    ids=[f"{p.split()[1]}-{s}" for p, s in _TWIN_CELLS],
+)
+def test_the_collection_column_reaches_the_message_its_position_owns(
+    position: str, spelling: str
+) -> None:
+    """Every collection cell is pinned to its TEACHING TWIN, not merely to
+    "not admitted".
+
+    A grid that asserts admission alone cannot tell the ruled refusal from any
+    other loud one, so a position whose twin stopped landing — because a
+    parallel change moved a production off the shared carrier, say — would
+    keep passing while its designer met the lexer. The expected label is
+    derived from the grammar, so a position that changes carriers changes its
+    expectation with it rather than being re-authored by hand.
+
+    red under: delete the `collection_type_reject` alternative from
+    `payload_type` in cardlang.lark — the four `parameter` hosts and the
+    outcome payloads then answer `syntax` against a `collection-elsewhere`
+    expectation.
+    """
+    _production, build = POSITIONS[position]
+    expected = _TWIN_BY_CARRIER[_position_carrier(position)][spelling]
+    actual = _outcome(build(spelling))  # type: ignore[operator]
+    assert actual == expected, (
+        f"{position} answered {actual!r} for {spelling!r}; the position writes "
+        f"its type through {_position_carrier(position)!r}, whose ruled "
+        f"answer is {expected!r}"
+    )
 
 
 @pytest.mark.parametrize("position", sorted(POSITIONS))

@@ -1,0 +1,19 @@
+// Guard: the `type_name` teaching twin, carrying the collection's optional
+// spelling too. A state row is not where a collection goes, and the twin says
+// so whether or not the designer wrote the `?` — meeting the lexer on the
+// suffix would report a placement question as a spelling one.
+game CollectionOptionalAtAStateRow {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state {
+    score[player] : Integer = 0
+    held : Collection<Card>? = none
+  }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}

@@ -1,7 +1,8 @@
-// Guard: the grammar. A collection is never optional — `is empty` is its
-// absence — and the shape is made inexpressible rather than refused by a pass:
-// the entry's type slot composes the element with neither the `?` arm nor a
-// second type argument, so `Collection<Card>?` has no derivation at all.
+// Guard: the grammar's entry-slot reject twin. A collection is never optional
+// — `is empty` is its absence — and the rule is designed, so the sentence
+// answers with the ruled spelling rather than stopping at the `?`. The runtime
+// reason is `coerce_args`: its dispatch is on the declared `TCollection`
+// itself, so an optional wrapper would pass the argument raw.
 game PrimitivesCollectionOptional {
   players: 2
   max_length: 100

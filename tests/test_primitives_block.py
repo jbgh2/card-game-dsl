@@ -2715,12 +2715,15 @@ _COLLECTION_SPELLINGS: dict[str, str] = {
     # The wall: the checker mints `Collection<Player>` for `all players`, and
     # no registered signature takes one.
     "Collection<Player>": "element",
-    # Inexpressible by construction: the element slot is a bare NAME and the
-    # spelling reuses neither the `?` arm nor the zone `type_args` production.
-    "Collection<Card>?": "syntax",
-    "Collection<Card, Card>": "syntax",
-    "Collection<Collection<Card>>": "syntax",
-    "Collection<Suit?>": "syntax",
+    # The four shapes the element slot cannot hold — a `?` on the collection,
+    # a second argument, a nested bracket, a `?` on the element. Each is a
+    # sentence a designer writes on purpose, so each answers in the designer's
+    # register with the ruled form rather than in the lexer's with the
+    # character it stopped at (the operator's ruling, 2026-09-03).
+    "Collection<Card>?": "optional-collection",
+    "Collection<Card, Card>": "arity",
+    "Collection<Collection<Card>>": "nested",
+    "Collection<Suit?>": "optional-element",
 }
 
 # What the gate did, as an ALLOW-LIST over the message space. A deny-list here
@@ -2729,6 +2732,10 @@ _COLLECTION_SPELLINGS: dict[str, str] = {
 _COLLECTION_OUTCOMES: tuple[tuple[str, str], ...] = (
     ("is spellable in a `primitives { }` entry only", "elsewhere"),
     ("not a phrase — write", "phrase"),
+    ("a collection is never optional", "optional-collection"),
+    ("takes ONE element type", "arity"),
+    ("a collection of collections has no spelling", "nested"),
+    ("an element is never optional", "optional-element"),
     ("takes an element type", "element-missing"),
     ("is not an element type", "element"),
     ("no registered Primitive has an implementation taking it", "element"),
