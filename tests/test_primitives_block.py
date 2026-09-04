@@ -107,8 +107,10 @@ domain:     the block's own surface — clause placement x {game, library},
             is held equal to the elements registered Python actually takes
             (`implementation_sig` over `PRIMITIVE_IMPLEMENTATIONS`) so a second
             element is an event in both directions; the ADJACENCY cells are the
-            boundary tokens a closing `>` can sit against, `>=` fusion where a
-            `=` follows an entry's type, and the two halves of the zone
+            boundary tokens a closing `>` can sit against — including the one
+            slot where a `=` follows the bracket directly, whose `>=` fusion is
+            MEASURED rather than asserted, so the cell cannot pass on a stream
+            with nothing to fuse — and the two halves of the zone
             confusion (an element type where a zone's index domain belongs,
             and the constructor word where a zone type belongs — both refused
             by the zone registry, cited as Owner and asserted on the MESSAGE
@@ -2897,10 +2899,14 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
 # The adjacency cells: the boundary tokens a `>` can meet, and the one place
 # `=` can follow a type in each of the two blocks that carry a type slot.
 _COLLECTION_ADJACENCY: dict[str, tuple[str, str]] = {
-    # `>=` LEXES as one token, so the default twin must reach its own message
-    # on the fused stream rather than dying at a comparison operator.
+    # `>` followed by `=` is `>=` under maximal munch, and `>=` is a real
+    # terminal — so the collection's closing bracket sits against the one
+    # token that can swallow it. Only the RETURN slot puts them adjacent (a
+    # parameter's `>` meets the closing paren), and the twin must be reached
+    # on that stream. `_FUSED_SPELLINGS` below pins that the fusion is real,
+    # so this cell cannot pass by there being nothing to fuse.
     "fused-default": (
-        "    primitives { pinochle_meld_value(x : Collection<Card>) : Integer= 0 }\n",
+        "    primitives { pinochle_meld_value(p : Player) : Collection<Card>= 0 }\n",
         "declares a signature, never a value",
     ),
     # The same fusion at the other `=`-carrying type slot, whose refusal is
@@ -2908,6 +2914,15 @@ _COLLECTION_ADJACENCY: dict[str, tuple[str, str]] = {
     "fused-state": (
         "    state { s : Collection<Card>= 0 }\n",
         "is spellable in a `primitives { }` entry only",
+    ),
+    # No fusion here — the parameter's `>` meets `)` and the `=` follows the
+    # return type — and the cell is kept for the OTHER claim the grammar
+    # comment makes: all three entry forms take the entry type family, so a
+    # default-arm entry carrying a collection parameter reaches its own reject
+    # arm's message instead of dying at the `<`.
+    "default-arm-collection-param": (
+        "    primitives { pinochle_meld_value(x : Collection<Card>) : Integer= 0 }\n",
+        "declares a signature, never a value",
     ),
     # `>` against the closing paren, the comma, and the reads keyword.
     "close-paren": (
@@ -2973,6 +2988,35 @@ def test_the_collection_spelling_s_neighbours_read_as_written(cell: str) -> None
     assert game.primitives is not None
     assert [p.type_name for d in game.primitives.decls for p in d.params][-1] == (
         "Collection<Card>"
+    )
+
+
+# The cells whose sentence puts the collection's closing `>` against a `=`.
+# Named here so the fusion they are about can be MEASURED rather than
+# asserted in a comment: a cell claiming to survive `>=` proves nothing if the
+# stream never held a `>=` to survive.
+_FUSED_SPELLINGS: frozenset[str] = frozenset({"fused-default", "fused-state"})
+
+
+@pytest.mark.parametrize("cell", sorted(_FUSED_SPELLINGS))
+def test_the_fused_cells_really_do_fuse(cell: str) -> None:
+    """`>=` is a terminal, and maximal munch takes it.
+
+    The parse must still see `>` then `=` — the contextual lexer is what
+    supplies that, by offering `>=` only where a comparison can stand — so the
+    two cells above are about a real hazard rather than a spelling nobody's
+    lexer would join. Measured on the BASIC lexer, which is the munch without
+    the context: a stream with no `>=` in it would make those cells vacuous.
+
+    red under: put a space before the `=` in either cell's clause.
+    """
+    from cardlang.parse import _parser
+
+    clause, _needle = _COLLECTION_ADJACENCY[cell]
+    fused = [t for t in _parser().lex(clause.strip()) if str(t) == ">="]
+    assert fused, (
+        f"{cell}'s sentence lexes with no `>=` in it, so the cell cannot be "
+        f"about surviving the fusion: {clause.strip()}"
     )
 
 
