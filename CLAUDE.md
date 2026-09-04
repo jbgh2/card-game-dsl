@@ -190,6 +190,7 @@ docs/
 - **"May I simplify a game to make it run?"** → "The game does not bend to the harness" (the load-bearing section above); a language gap is a witness and an issue, a harness gap is fixed in the harness
 - **"How do I write a comment / docstring?"** → "Prose states what is" (the load-bearing section above); the full law is `docs/decisions.md`, "Prose names the registry, never the cardinality"
 - **"How is game Y described in the DSL?"** → `docs/games/Y.md`
+- **"How do I add a game to the corpus?"** → `docs/maintaining.md`, "When the corpus changes" — what the rulebook twin holds against its `.cardlang`, and the hand-authored pins a new game joins beyond the glob
 - **"How do we keep info sets derivable / hit the OpenSpiel target?"** → the load-bearing section above, then `docs/design-notes/kernel-extensibility.md`
 - **"How do the engine's domains fit together / where does new work dock?"** → `docs/design-notes/domain-map.md`
 - **"How do I start a new piece of work?"** → the `cardlang-planning` skill (`.claude/skills/`) — the ordered planning gates; run it before exploring or entering plan mode
