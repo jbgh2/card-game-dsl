@@ -91,7 +91,22 @@ Completeness ledger
                    not a declared type in this slot) is a message-quality
                    residual, and the grid asserts admit-vs-reject only, not the
                    message text. Recorded in issue #133.
-                2. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
+                2. THE BARE CONSTRUCTOR WORD IS NOT A COLUMN. `Collection`
+                   with no argument is refused everywhere, and the SENTENCE
+                   splits: a `primitives { }` entry says it takes an element
+                   type and names the ruled spelling, while every position
+                   here says `unknown type 'Collection'` — the "unknown"
+                   currency spent on a word the language has a meaning for
+                   and the checker itself prints. The BRACKETED spelling has
+                   no such split any more (the teaching twin reaches every
+                   type position, and the zone slot names which bracket it
+                   is), so this is the remainder of that class rather than
+                   part of it, and closing it is a change across the five
+                   sites that phrase "unknown type" plus the move-parameter
+                   domain gate — its own grid, not a column here. R2: a
+                   designer who writes `s : Collection` at a state row meets
+                   it. NOT YET FILED as an issue.
+                3. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
                    (`Hand<player>`) and role/domain ids (the `player` in
                    `hand[player]`, `for each player`) are type-ish names with
                    their own registries and their own guards; the framing check
