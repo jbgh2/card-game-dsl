@@ -393,7 +393,9 @@ def _wrap_turns_form(frag: str) -> str:
 def _wrap_jointly_selection(frag: str) -> str:
     # decisions.md "Joint-predicate selection": the arrangement sketch. The
     # fragment names `arranger` (a Player state var) and moves from their
-    # hand into the shared waste; the joint predicate is self-contained.
+    # hand into the shared waste; the joint predicate is Gin's, so the skeleton
+    # declares it in the block a game must write to reach a Primitive, spelt
+    # as docs/games/gin-rummy.cardlang spells it.
     return f"""
 game Skeleton {{
   players: 2
@@ -407,6 +409,9 @@ game Skeleton {{
   state {{
     arranger        : Player = 0
     score[player]   : Integer = 0
+  }}
+  primitives {{
+    gin_valid_meld(cards : Collection<Card>) : Boolean
   }}
   phase main {{
 {frag}
