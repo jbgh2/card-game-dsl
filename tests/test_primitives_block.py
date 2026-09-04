@@ -117,8 +117,11 @@ domain:     the block's own surface — clause placement x {game, library},
             because the word is spelled); and the CALL position is crossed
             with the value shapes a collection parameter accepts. The
             spelling's decomposition is held to one site by a scrape over the
-            BRACKET alone — the trailing `?` is sliced at nine sites across the
-            package, uniform and correct, and is named rather than swept.
+            BRACKET alone — the trailing `?` is sliced elsewhere in the
+            package, found by that scrape run over `"?"` instead of the
+            bracket, and none of those readers reads a `primitives { }` entry
+            spelling, so the class is uniform and correct and is named rather
+            than swept.
             A declared Primitive IS a `where jointly` predicate: the position
             takes a collection parameter, the subset codec is keyed by the
             call's root name under either regime, and the cell is a synthetic
@@ -3057,12 +3060,13 @@ _SHAPE_READERS: frozenset[str] = frozenset(
 def test_a_collection_spelling_is_split_in_exactly_one_place() -> None:
     """The decomposition is the ONE reader of the spelling's bracket.
 
-    The trailing `?` is sliced at nine sites across the package — uniform and
-    correct — and a second delimiter must not become a tenth class of them:
-    two readings of one spelling is how a declaration and the type it denotes
-    come apart. The scrape is over the BRACKET alone, which is the claim; the
-    `?` class is named here rather than swept, because this change's proportion
-    is the block.
+    The trailing `?` is sliced elsewhere in the package — this same scrape run
+    over `"?"` in place of the bracket names those sites, and none of them
+    reads a `primitives { }` entry spelling — uniform and correct. A second
+    delimiter must not join that class: two readings of one spelling is how a
+    declaration and the type it denotes come apart. The scrape is over the
+    BRACKET alone, which is the claim; the `?` class is named here rather than
+    swept, because this change's proportion is the block.
 
     red under: write `type_name.split("<")` in any `cardlang/` module outside
     `primitives_block.py`."""
