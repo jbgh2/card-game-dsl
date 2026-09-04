@@ -32,9 +32,9 @@ domain:          the corpus games that declare a flag window — an
                  state variable. A window written as `round offering ...
                  until <state>` is a different construct and belongs to
                  tests/test_offering_round_state_freshness.py, whose property quantifies
-                 over every decision outside the poll: a poll opens idle, so
-                 the entry anchor below is satisfied there, and the staleness
-                 shows at another episode's decisions. Crossed with each such game's
+                 over every decision outside the round: a round opens idle,
+                 so the entry anchor below is satisfied there, and the
+                 staleness shows at another episode's decisions. Crossed with each such game's
                  window-scoped variables. Each game's state declarations
                  partition, totally, into the window-scoped set checked
                  here and the persistent set that outlives an episode by

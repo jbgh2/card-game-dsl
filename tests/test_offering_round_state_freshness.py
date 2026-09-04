@@ -3,9 +3,10 @@
 A `round offering [...] until <state>` — a quiescence-lap poll, an auction
 ring, a declaration round — is a [[decision-episode]] with bookkeeping of
 its own: the lap counter the declines accumulate into, the acted flags
-that shrink the ring, the pass that ends the Reizen. Those variables are
-read by nothing but the round's own `until` and `over`, yet their frame is
-the phase, so they outlive the round many times over, and the
+that shrink the ring, the seat the ring opens from, the pass that ends the
+Reizen. Those variables are live only while the round runs and are read by
+nothing once it has closed, yet their frame is the phase, so they outlive
+the round many times over, and the
 [[observation-log]] string renders every frame merged with nothing marking
 which moment a value belongs to. Bookkeeping still holding the value that
 closed the last round therefore reads as a claim about the present at
@@ -205,8 +206,9 @@ ROUNDS: dict[str, Rounds] = {
     "belote.cardlang": Rounds(
         # The two take rounds are one window: the second runs only when the
         # first names no taker, over the same acted flags. The declaration
-        # round after the first trick is the other. `taker` and everything the
-        # declarations compute are results the hand reads.
+        # round after the first trick is the other. `taker` and what the
+        # declarations compute are results the hand reads; `show_k` is the
+        # showing's reveal counter, a `repeat until` loop's and no round's.
         windows=(
             Window(
                 vocabularies=(("take", "pass"), ("take_suit", "pass")),
@@ -267,20 +269,20 @@ ROUNDS: dict[str, Rounds] = {
         ),
     ),
     "five-hundred.cardlang": Rounds(
-        # One auction ring; a pass drops the seat for the rest of it. The
-        # standing bid, its bidder and the ring's opener are results.
+        # One auction ring; a pass drops the seat for the rest of it, and the
+        # seat it opens from is read by nothing but the ring. The standing bid
+        # and its bidder are results.
         windows=(
             Window(
                 vocabularies=(("submit_bid", "bid_misere", "bid_open_misere", "pass"),),
-                idle=(("passed", Indexed(False)),),
+                idle=(("passed", Indexed(False)), ("opener", None)),
             ),
         ),
         persistent=frozenset(
             {
                 "bid_rank", "champion", "dealer", "declarer", "declarer_tricks",
                 "high_bidder", "is_misere", "is_open_misere", "joker_suit",
-                "leader", "opener", "score", "team_tricks", "tricks_played",
-                "trump_suit",
+                "leader", "score", "team_tricks", "tricks_played", "trump_suit",
             }
         ),
     ),
@@ -292,14 +294,13 @@ ROUNDS: dict[str, Rounds] = {
                 vocabularies=(
                     ("pass", "bid_petite", "bid_garde", "bid_garde_sans", "bid_garde_contre"),
                 ),
-                idle=(("acted", GONE),),
+                idle=(("acted", GONE), ("opener", GONE)),
             ),
         ),
         persistent=frozenset(
             {
                 "bid_level", "current_level", "dealer", "hands_played",
-                "lead_taker", "leader", "opener", "petit_in_last", "score",
-                "taker",
+                "lead_taker", "leader", "petit_in_last", "score", "taker",
             }
         ),
     ),
@@ -317,6 +318,7 @@ ROUNDS: dict[str, Rounds] = {
                     ("bids", GONE),
                     ("lead_bidder", GONE),
                     ("working_bid", GONE),
+                    ("opener", GONE),
                 ),
             ),
             Window(vocabularies=(("declare_trump_suit",),), idle=()),
@@ -324,8 +326,7 @@ ROUNDS: dict[str, Rounds] = {
         persistent=frozenset(
             {
                 "bid_abandoned", "current_bid", "dealer", "high_bidder",
-                "leader", "meld_score", "opener", "score", "trick_score",
-                "trump_suit",
+                "leader", "meld_score", "score", "trick_score", "trump_suit",
             }
         ),
     ),
@@ -352,8 +353,9 @@ ROUNDS: dict[str, Rounds] = {
     "tichu.cardlang": Rounds(
         # The small-tichu poll before the push, after it, and before each
         # climbing trick. A call is a result (`called`); the lap count is the
-        # poll's own. Green as written; red under: drop the `quiet := 0` that
-        # follows any one poll site.
+        # poll's own, and `poll_anchor` is a never-assigned constant, not a
+        # seat the ring steers. Green as written; red under: drop the
+        # `quiet := 0` that follows any one poll site.
         windows=(Window(vocabularies=(("call_tichu", "no_call"),), idle=(("quiet", 0),)),),
         persistent=frozenset(
             {
@@ -573,9 +575,10 @@ def test_state_declarations_partition(filename: str) -> None:
 @pytest.mark.parametrize("filename", sorted(ROUNDS), ids=lambda f: f.removesuffix(".cardlang"))
 def test_every_offering_round_belongs_to_one_window(filename: str) -> None:
     """The windows' vocabularies are the game's offering rounds, each in
-    exactly one window — so a round site that is renamed, re-scoped or
-    added reddens rather than silently matching nothing, and a second round
-    with variables nobody classified cannot arrive unseen.
+    exactly one window — so a round site that is renamed or re-scoped, or a
+    round added with a vocabulary of its own, reddens rather than silently
+    matching nothing. A site added with a window's own vocabulary joins that
+    window, and an accumulator it declares reddens the partition instead.
 
     red under: drop `no_call` from any one of Tichu's three poll offerings —
     that site's vocabulary is then an offering round no window names."""
