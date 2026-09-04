@@ -1,0 +1,1 @@
+primitives_collection_seat_element.cardlang:11:5: error: `gin_valid_meld`'s parameter `cards` names `Collection<Player>`, and no registered Primitive has an implementation taking it — a `primitives` entry spells collections of Card (issue #547 reopens this when one takes another element)

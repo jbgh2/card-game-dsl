@@ -24,30 +24,41 @@ Completeness ledger
                 diagnostic that calls a declared name unknown.
 
     domain:     Two axes, each derived rather than hand-listed:
-                  A. positions — the grammar productions referencing
-                     `type_name` (93) or `payload_type` (360), plus
-                     `struct_lit` (502) whose head NAME is a type name in
-                     EXPRESSION position. Nine cells today; pinned against the
-                     grammar by `test_the_position_axis_is_the_grammar_s`, which
-                     also carves out the one type-name carrier that cannot
-                     appear in a standalone game — a library's `require_decl`,
-                     validated transitively by `_check_requires` and covered in
+                  A. positions — the grammar productions referencing any of
+                     the three type-carrying nonterminals (`_TYPE_CARRIERS`:
+                     `type_name`, `payload_type`, `primitive_type`), plus
+                     `struct_lit` whose head NAME is a type name in EXPRESSION
+                     position. `POSITIONS` is the row set and
+                     `_grammar_carriers()` the scrape; the two are held equal
+                     in BOTH directions
+                     (`test_the_position_axis_is_the_grammar_s`,
+                     `test_every_gridded_production_is_still_a_grammar_carrier`),
+                     which also carves out the one type-name carrier that
+                     cannot appear in a standalone game — a library's
+                     `require_decl`, validated transitively by
+                     `_check_requires` and covered in
                      `test_family_libraries.py`, not here.
                   B. name sources — `KNOWN_TYPE_NAMES`, `PARAM_DOMAINS`,
                      `_PROCEDURE_PARAM_DOMAINS`, the two bare inline literals
                      (`Card` at a move param, `Suit` at a rule param), per-game
                      `type` declarations, per-game `positions {}` declarations,
-                     and an unknown name as the negative control.
+                     the block's one parameterized value spelling
+                     (`COLLECTION_NAME`), and an unknown name as the negative
+                     control.
 
     registry:   A. cardlang/grammar/cardlang.lark (scraped by the pin below)
                 B. typecheck.KNOWN_TYPE_NAMES; domains.PARAM_DOMAINS;
                    resolve._PROCEDURE_PARAM_DOMAINS; resolve's inline `Card`
                    and `Suit` literals; the game's own TypeDef / PositionDecl
 
-    covered:    The grid: `test_the_type_name_grid` over CELLS — 9 positions x
-                13 name sources, every one executed. `EXPECTED` is computed per
+    covered:    The grid: `test_the_type_name_grid` over CELLS — `POSITIONS` x
+                `NAMES`, every one executed. `EXPECTED_ADMITS` is computed per
                 position from the registries, so the covered set cannot drift
-                from the domain set by hand-editing a row.
+                from the domain set by hand-editing a row. `_outcome` reads the
+                verdict through an ALLOW-LIST over the message space
+                (`_GATE_REFUSALS`, `_PAST_THE_GATE`) and raises on a diagnostic
+                neither names, so a refusal in an unlisted voice cannot pass
+                for an admit.
 
     sampled:    The `?` spelling is sampled at `Rank?` and `Suit?` rather than
                 crossed over every base name: the three disciplines that handle
@@ -165,9 +176,12 @@ POSITION_DOMAIN = "column"   # declared by the probe game's `positions {}`
 USER_STRUCT = "T"            # declared by the probe game's `type T`
 UNKNOWN_NAME = "Bogus"       # the negative control
 
+COLLECTION_NAME = "Collection<Card>"  # the one parameterized value spelling
+
 NAMES = [
     "Integer", "Boolean", "Player", "Card", "Team", "Suit", "Rank",
     "Rank?", "Suit?", "SeatDirection", POSITION_DOMAIN, USER_STRUCT, UNKNOWN_NAME,
+    COLLECTION_NAME,
 ]
 
 DECLARED = frozenset(KNOWN_TYPE_NAMES) | {USER_STRUCT}
@@ -197,12 +211,15 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     "P8 outcome_payload": frozenset(_BASE_STRIPPED | {POSITION_DOMAIN}),
     # A struct literal's head names a declared struct and nothing else.
     "P9 struct_lit": frozenset({USER_STRUCT}),
-    # A `primitives` entry spells the built-in declared-type names and the
-    # game's position domains — and NOT a declared struct: a Primitive receives
-    # values across the narrowing boundary, and no witness carries a
-    # `StructValue` over it (issue #472).
-    "P10 primitive_param": _PRIMITIVE_SPELLABLE,
-    "P11 primitive_return": _PRIMITIVE_SPELLABLE,
+    # A `primitives` entry spells the built-in declared-type names, the game's
+    # position domains, and the one parameterized value spelling — and NOT a
+    # declared struct: a Primitive receives values across the narrowing
+    # boundary, and no witness carries a `StructValue` over it (issue #472).
+    # Both slots take the same set: the return slot admits `Collection<Card>`
+    # at this gate and the both-ways shape check refuses every concrete entry,
+    # which is the `cell` precedent and is not this gate's answer.
+    "P10 primitive_param": _PRIMITIVE_SPELLABLE | {COLLECTION_NAME},
+    "P11 primitive_return": _PRIMITIVE_SPELLABLE | {COLLECTION_NAME},
 }
 
 # The red set: cells a change designs to flip, carried as strict xfails so the
@@ -215,6 +232,35 @@ EXPECTED_ADMITS: dict[str, frozenset[str]] = {
 DESIGNED_TO_FLIP: set[tuple[str, str]] = set()
 
 
+# The gate's own refusals, ORDERED: the first match names the outcome. An
+# allow-list over an open message space, because the alternative reads silence
+# as an admit — and a refusal in a voice nobody listed is exactly the reading
+# that must not pass for one.
+_GATE_REFUSALS: tuple[tuple[str, str], ...] = (
+    ("syntax error", "syntax"),
+    ("unknown type", "unknown-type"),
+    ("domain", "domain"),
+    ("may not spell", "unspellable"),
+    ("is spellable in a `primitives { }` entry only", "collection-elsewhere"),
+)
+
+# Refusals from BELOW the gate: the name was admitted and a later guard spoke.
+# Each is named, so a new one arrives as an unclassified message rather than as
+# a silent admit — the shape check in particular, whose sentence a deny-list
+# read as an admit by the accident of the fallthrough.
+_PAST_THE_GATE: tuple[str, ...] = (
+    "is not the signature its implementation takes",
+    "is never run",
+    "constrains no move type",
+    "but its default has type",
+    "is out of range",
+)
+
+
+class UnclassifiedOutcome(AssertionError):
+    """A probe's diagnostic matched no row of either table above."""
+
+
 def _outcome(src: str) -> str:
     """What this position's type-name gate did with the name.
 
@@ -223,18 +269,22 @@ def _outcome(src: str) -> str:
     """
     try:
         check_dsl(src, "grid")
+    except UnclassifiedOutcome:
+        raise
     except AssertionError:
         return "raise"          # compiler-channel failure: always a defect here
     except Exception as e:  # noqa: BLE001 - every user-facing channel is in scope
-        msg = str(e)
-        if "syntax error" in msg:
-            return "syntax"
-        if "unknown type" in msg:
-            return "unknown-type"
-        if "domain" in msg:
-            return "domain"
-        if "may not spell" in msg:
-            return "unspellable"
+        msg = "\n".join([str(e), *(list(getattr(e, "__notes__", None) or []))])
+        for needle, label in _GATE_REFUSALS:
+            if needle in msg:
+                return label
+        if any(needle in msg for needle in _PAST_THE_GATE):
+            return "admit"
+        raise UnclassifiedOutcome(
+            f"no row of `_GATE_REFUSALS` or `_PAST_THE_GATE` names this "
+            f"diagnostic, so the grid cannot tell a refusal from an admit: "
+            f"{msg}"
+        ) from e
     return "admit"
 
 
@@ -347,6 +397,51 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
     )
 
 
+# The grammar's type-carrying nonterminals. A production referencing ANY of
+# them writes a declared type name, so the scrape reads all three: an entry-only
+# family added beside the two shared ones would otherwise take P10 and P11 out
+# of the carrier set with nothing going red.
+_TYPE_CARRIERS: tuple[str, ...] = ("type_name", "payload_type", "primitive_type")
+
+
+# A grid row whose production reaches its type name THROUGH another
+# production, and the carrier it reaches it through. The axis counts HOSTS,
+# not productions — the four `parameter` hosts gate the same production
+# differently, and a phase's outcome set is `define`'s read at another site —
+# so both directions of the scrape translate a row to its carrier here rather
+# than each keeping its own list.
+_INDIRECT_HOSTS: dict[str, str] = {
+    "move_type_def": "parameter",
+    "procedure_def": "parameter",
+    "rule_params": "parameter",
+    "function_def": "parameter",
+    "phase_outcome": "outcome_case",
+}
+
+# Grid rows whose type name is written in EXPRESSION position, with its own
+# terminal rather than through a type nonterminal — so the grammar scrape
+# cannot see them, and the reverse direction says so rather than by omission.
+_EXPRESSION_POSITIONS: frozenset[str] = frozenset({"struct_lit"})
+
+
+def _grammar_carriers() -> set[str]:
+    """Every production that references a type-carrying nonterminal."""
+    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
+    carriers = set()
+    for line in grammar.splitlines():
+        s = line.strip()
+        if not s or s.startswith("//"):
+            continue
+        m = re.match(r"^([a-z_]+):", s)
+        if (
+            m
+            and re.search(rf"\b({'|'.join(_TYPE_CARRIERS)})\b", s)
+            and m.group(1) not in _TYPE_CARRIERS
+        ):
+            carriers.add(m.group(1))
+    return carriers
+
+
 def test_the_position_axis_is_the_grammar_s() -> None:
     """The position axis is scraped, not hand-listed.
 
@@ -357,27 +452,9 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     red under: add a production referencing `type_name` to cardlang.lark
     without adding its row to POSITIONS.
     """
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    carriers = set()
-    for line in grammar.splitlines():
-        s = line.strip()
-        if not s or s.startswith("//"):
-            continue
-        m = re.match(r"^([a-z_]+):", s)
-        if (
-            m
-            and re.search(r"\b(type_name|payload_type)\b", s)
-            and m.group(1) not in ("type_name", "payload_type")
-        ):
-            carriers.add(m.group(1))
-    # `parameter` is ONE production reached from four hosts (move type,
-    # procedure, rule, function), and each host gates it differently — so the
-    # axis counts HOSTS, not productions, and the scrape's single `parameter`
-    # carrier expands to the four grid rows that name those hosts.
+    carriers = _grammar_carriers()
     gridded = {production for production, _ in POSITIONS.values()}
-    expanded = (
-        gridded - {"move_type_def", "procedure_def", "rule_params", "function_def"}
-    ) | {"parameter"}
+    expanded = {_INDIRECT_HOSTS.get(p, p) for p in gridded}
     # `require_decl` (a library's `requires { x : type_name }`) is the one
     # type-name carrier outside this grid's domain, and structurally so: every
     # POSITIONS cell emits a STANDALONE game string, but a `require_decl` can
@@ -400,6 +477,29 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     missing = carriers - expanded - library_only - reject_arms
     assert not missing, (
         f"grammar productions carrying a type name with no grid row: {sorted(missing)}"
+    )
+
+
+def test_every_gridded_production_is_still_a_grammar_carrier() -> None:
+    """The scrape's other direction: a row whose production no longer carries a
+    type name.
+
+    One direction alone is half a pin. A production that stops referencing the
+    scraped nonterminals — by moving to a family of its own, say — drops out of
+    the carrier set, and a subtraction-only assertion goes green on exactly the
+    change that took the position's grammar backing away.
+
+    red under: rename `primitive_type` in cardlang.lark without renaming it in
+    `_TYPE_CARRIERS`.
+    """
+    carriers = _grammar_carriers()
+    gridded = {production for production, _ in POSITIONS.values()}
+    expected = {_INDIRECT_HOSTS.get(p, p) for p in gridded}
+    orphans = expected - carriers - _EXPRESSION_POSITIONS
+    assert not orphans, (
+        f"grid rows whose production no longer carries a type name: "
+        f"{sorted(orphans)} — the position lost its grammar backing and the "
+        f"subtraction above cannot see it"
     )
 
 

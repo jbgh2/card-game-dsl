@@ -3964,3 +3964,50 @@ def test_a_contract_shape_is_refused_exactly_when_the_declaration_would_be(
         f"`zones {{ }}` line {'refuses' if zone_bag.has_errors else 'accepts'} "
         f"it — a contract must ask for a shape a game can declare"
     )
+
+
+# --- the collection spelling at the library tier (issue #472) ---------------
+#
+# A library declares no `primitives { }` block — the grammar holds no such
+# clause under `?library_item` — so the one place a collection type is
+# spellable is a place a library cannot reach. Both of a library's type slots
+# are cells: a definition's parameter (which shares `payload_type` with the
+# game's four hosts) and the `requires` contract (which spells its own type
+# inline and reaches a collection through the zone type-argument list).
+
+
+def test_a_library_definition_cannot_spell_a_collection_parameter() -> None:
+    """The shared `payload_type` twin, reached through a library item.
+
+    The refusal names the entry, which is the fact a library author needs: the
+    spelling exists, and their file is not where it goes."""
+    with pytest.raises(DiagnosticError) as ei:
+        parse_library(
+            "library leaky { function is_meld(cs : Collection<Card>) = 1 }",
+            "docs/libraries/leaky.cardlang",
+        )
+    assert "in a `primitives { }` entry only" in str(ei.value), ei.value
+
+
+@pytest.mark.parametrize("spelling", ["Collection<Card>", "Collection<Card>?"])
+def test_a_contract_cannot_require_a_collection(spelling: str) -> None:
+    """`require_decl` spells its type inline, so it PARSES the tokens and the
+    refusal is the contract checker's — and it must be the right refusal.
+
+    A collection is neither a zone type nor a state type, so answering "a state
+    type takes no type argument" would send a designer to fix a shape question
+    that is really a placement one. No parse twin lands here: the tokens derive
+    through the zone type-argument list, and a twin over that derivation would
+    give one string two derivations.
+
+    red under: drop the collection arm from `_check_contract_shapes`."""
+    library = parse_library(
+        f"library shapes {{ requires {{ x : {spelling} }} "
+        f"function f() = 1 }}",
+        "docs/libraries/shapes.cardlang",
+    )
+    bag = DiagnosticBag()
+    _check_contract_shapes(library, bag)
+    messages = bag.format()
+    assert "in a `primitives { }` entry only" in messages, messages
+    assert "takes no type argument" not in messages, messages

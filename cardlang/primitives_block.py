@@ -271,6 +271,26 @@ DECLARABLE_BUILTIN_TYPE_NAMES: frozenset[str] = frozenset(
 )
 
 
+# The constructor word an entry's collection spelling is written with, and the
+# element types it may take. `Collection<Card>` is the whole surface: one
+# constructor, one element, stated as the block's own allow-list beside the
+# scalar names above (decisions.md "Allow-list, never deny-list").
+#
+# The list is held EQUAL to what registered Python actually takes
+# (`implementation_sig` over `PRIMITIVE_IMPLEMENTATIONS`), so admitting a
+# second element is an event with a witness rather than a widening: a designer
+# spelling one is refused here, and an engine author registering one lands red
+# in the pin. A collection is never OPTIONAL and never KEYED or zone-flagged:
+# the element slot is a bare name and composes with neither the `?` arm nor the
+# zone type-argument list, and the runtime reason is `coerce_args` — its
+# dispatch is on the declared `TCollection` itself, so an optional wrapper
+# would pass the argument raw and die at the boundary. `is empty` is the
+# absence a designer writes instead.
+COLLECTION_TYPE_CONSTRUCTOR = "Collection"
+
+COLLECTION_ELEMENT_NAMES: frozenset[str] = frozenset({"Card"})
+
+
 def declarable_type_names(game: n.Game) -> frozenset[str]:
     """Every type name an entry of `game`'s block may spell.
 

@@ -1,0 +1,1 @@
+positions_takes_the_collection_constructor.cardlang:10:15: error: position domain 'Collection' collides with a collection type constructor — pick another name

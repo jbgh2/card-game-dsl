@@ -1,0 +1,1 @@
+type_declaration_takes_the_collection_constructor.cardlang:17:1: error: type 'Collection' collides with a collection type constructor — pick another name

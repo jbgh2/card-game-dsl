@@ -369,6 +369,56 @@ def test_every_reservation_site_asks_every_name_source(label: str, site: str) ->
     )
 
 
+def _type_declaration_cells() -> list[tuple[str, str]]:
+    """(source label, reserved name) for the `type` declaration site.
+
+    Derived from the same source registry the declared-position sweep reads,
+    minus the one source a `type` declaration IS: type-against-type is the
+    self-pair, and `_check_duplicate_names` owns it — a second refusal there
+    would co-report on one defect.
+
+    A `type` head is `STRUCT_TYPE_NAME`, which excludes the clause keywords and
+    nothing else, so a lower-case domain id is as spellable there as a Title
+    Case type name and every remaining source can bind.
+    """
+    cells: list[tuple[str, str]] = []
+    for source in POSITION_NAME_SOURCES:
+        if source.label == "a declared type name":
+            continue
+        game = _probe_game(source.label)
+        names = sorted(source.names(game))
+        assert names, (
+            f"{source.label} reserves nothing on its probe game, so its cells "
+            f"would not exist — fix the probe recipe, not the sweep"
+        )
+        cells += [(source.label, name) for name in names]
+    return cells
+
+
+@pytest.mark.parametrize("label,name", _type_declaration_cells())
+def test_every_reserved_name_is_refused_as_a_declared_type(
+    label: str, name: str
+) -> None:
+    """The fourth site, swept from the same registry as the first three.
+
+    A `type` declaration mints a name into the TYPE namespace, and every slot
+    that reads one consults the built-ins first — so a struct sharing a
+    reserved spelling is declarable and then unusable in every slot, which is
+    accepted-but-ignored one step removed (issue #541).
+
+    red under: drop the `type` site's `_reserved_domain_source` call.
+    """
+    probe = _SOURCE_PROBES[label]
+    with pytest.raises(DiagnosticError, match="collides with") as ei:
+        check_dsl(
+            probe.source_text() + f"\ntype {name} = {{ x : Integer }}\n", "t"
+        )
+    assert label in str(ei.value), (
+        f"'{name}' was refused, but the diagnostic did not name {label!r}: "
+        f"{ei.value}"
+    )
+
+
 def test_every_reservation_site_passes_its_own_id() -> None:
     """The site axis is derived from the calls, not from this module's memory.
 
