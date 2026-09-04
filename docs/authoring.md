@@ -108,6 +108,12 @@ Omitting `--seed` draws one and reports it, so any run repeats. `cardlang
 <file>` with no command named reads as `check`, and `python -m cardlang` runs
 the same front end straight from a source tree.
 
+`--info-state` needs the game to have asked someone to choose: a game that
+reaches its end with no decision in it prints the summary, then refuses the
+seat's view because the engine exposes no world to project from (issue #555).
+An early skeleton often has no decision yet, and that refusal is what it looks
+like.
+
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the
 equivalence class it induces, and the two are not interchangeable. It has
@@ -147,8 +153,9 @@ the table in [library.md](library.md), "Library zone types". Read it before
 writing the block; picking from it is usually a ten-second decision once you
 can say who is meant to see what. `Hand<player>` is identity to its owner and a
 count to everyone else; `PublicHand<player>` is owned but visible to all;
-`HiddenPile<player>` is a resting pile its owner conceals; `Muck` is gone to
-everybody, the owner included.
+`HiddenPile<player>` is a resting pile its owner conceals; `Muck` is trivial to
+everyone, its contents invisible going forward while whatever was already
+observed of those cards still stands.
 
 A wrong choice here is not a crash and not a diagnostic — it is a different
 game, one that runs and proves things about the wrong information sets. This
