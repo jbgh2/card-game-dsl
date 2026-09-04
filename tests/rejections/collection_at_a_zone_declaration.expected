@@ -1,0 +1,1 @@
+collection_at_a_zone_declaration.cardlang:10:39: error: `Collection` is a value type a `primitives { }` entry declares, not a zone type — a zone's angle brackets take an index domain: write a zone type such as `Hand<player>`

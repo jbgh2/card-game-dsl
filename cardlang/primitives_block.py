@@ -36,14 +36,28 @@ Establishes:  ONE classification of a game's Primitive regime, and ONE
               indexed `zones { }` declaration and an unindexed one — plus the
               fourth, ancestry-carrying one a flat membership set cannot state
               (`descendant_redeclarations`), with the phase attribution the
-              diagnostics need (`declaring_phases`, `phase_names`).
+              diagnostics need (`declaring_phases`, `phase_names`). And the
+              ONE decomposition of an entry's type spelling
+              (`decompose_type`), beside the element allow-list its collection
+              form draws from (`COLLECTION_ELEMENT_NAMES`), which is pinned
+              equal to the elements registered Python takes.
 Now illegal:  a consumer deciding the regime by testing `game.primitives`
               itself; any front-end module importing a game's runtime module
               to learn what it implements; any consumer testing a name's
               membership against the state or zone walks itself rather than
               asking the predicates here; and any consumer walking phase state
               blocks itself to answer a scope or ancestry question — the one
-              path-aware walk is here.
+              path-aware walk is here; any consumer reading an entry
+              spelling's shape itself rather than asking `decompose_type` —
+              the BRACKET half of that is held by a scrape over `cardlang/`
+              (`tests/test_primitives_block.py::test_a_collection_spelling_is_
+              split_in_exactly_one_place`), the trailing `?` by review, since
+              every remaining `?` slice in the package reads a payload,
+              function-parameter, move-parameter or library-slot spelling —
+              never a state one, whose optionality parses to a field rather
+              than into the name — and a scrape wide enough to reach an
+              entry's `?` would demand the same routing of all of them; and an
+              element outside the allow-list reaching typecheck.
 Verified by:  tests/test_primitives_block.py (the index reconciled against
               `PRIMITIVE_CALL_FUNCS` and against the live attributes; the
               declarable-type partition; the wall's totality over the six
@@ -271,6 +285,60 @@ DECLARABLE_BUILTIN_TYPE_NAMES: frozenset[str] = frozenset(
 )
 
 
+# The constructor word an entry's collection spelling is written with, and the
+# element types it may take. `Collection<Card>` is the whole surface: one
+# constructor, one element, stated as the block's own allow-list beside the
+# scalar names above (decisions.md "Allow-list, never deny-list").
+#
+# The list is held EQUAL to what registered Python actually takes
+# (`implementation_sig` over `PRIMITIVE_IMPLEMENTATIONS`), so admitting a
+# second element is an event with a witness rather than a widening: a designer
+# spelling one is refused here, and an engine author registering one lands red
+# in the pin. A collection is never OPTIONAL and never KEYED or zone-flagged:
+# the element slot is a bare name and composes with neither the `?` arm nor the
+# zone type-argument list, and the runtime reason is `coerce_args` — its
+# dispatch is on the declared `TCollection` itself, so an optional wrapper
+# would pass the argument raw and die at the boundary. `is empty` is the
+# absence a designer writes instead.
+COLLECTION_TYPE_CONSTRUCTOR = "Collection"
+
+COLLECTION_ELEMENT_NAMES: frozenset[str] = frozenset({"Card"})
+
+
+@dataclass(frozen=True, slots=True)
+class DeclaredType:
+    """One entry type slot's spelling, read into its parts.
+
+    ``base`` is the head name, ``optional`` its trailing `?`, and ``element``
+    the collection's argument or None. The spelling rides the AST as a string,
+    the way `Suit?` carries its own combinator, and this is the ONE place its
+    shape is read: every consumer asks here rather than slicing the string, so
+    a declaration and the Type it denotes cannot become two readings of one
+    text. `Collection<Card>?` has no derivation, so the two combinators never
+    both appear."""
+
+    base: str
+    optional: bool
+    element: str | None
+
+    @property
+    def is_collection(self) -> bool:
+        return self.element is not None
+
+
+def decompose_type(spelling: str) -> DeclaredType:
+    """An entry's type spelling, decomposed. The grammar guarantees the three
+    shapes — `Name`, `Name?`, `Name<Element>` — and nothing else reaches an
+    entry's slots, so this reads them rather than validating them."""
+    if spelling.endswith(">"):
+        head, _, rest = spelling.partition("<")
+        return DeclaredType(base=head, optional=False, element=rest[:-1])
+    optional = spelling.endswith("?")
+    return DeclaredType(
+        base=spelling[:-1] if optional else spelling, optional=optional, element=None
+    )
+
+
 def declarable_type_names(game: n.Game) -> frozenset[str]:
     """Every type name an entry of `game`'s block may spell.
 
@@ -296,15 +364,12 @@ UNDECLARABLE_TYPE_CONSTRUCTORS: dict[str, str] = {
     "declaration; designed constraint",
     "TStruct": "a game's `type` declaration — a declared Primitive receives "
     "values, and a `StructValue` crossing the boundary has no witness "
-    "(issue #473)",
+    "(issue #547)",
     "TOutcome": "a `define`'s or outcome phase's cases — consumed by "
     "`produce` / `produces:`, never returned by `infer`; designed constraint",
-    "TLine": "a board line, produced by `lines(k)` alone (issue #472)",
+    "TLine": "a board line, produced by `lines(k)` alone (issue #547)",
     "TDir": "the board-minted direction domain — a board-frame token "
-    "(issue #472)",
-    "TCollection": "a card collection — the shape `gin_valid_meld(collection "
-    "of Card)` and its siblings need, and the surface has no spelling for it "
-    "(issue #472)",
+    "(issue #547)",
 }
 
 

@@ -18,10 +18,12 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             enumeration, static vocab enumeration); (d) the name reservation
             as a PRODUCT — every namespace a position name is reserved
             against, crossed with every site that mints or declares one.
-            (d) is its own axis because both halves accumulate silently: the
-            sources were unioned inline with `|` until a fifth (the collection
-            nouns) was found by crossing them against the slots that read
-            them, and the sites grew from one to three when `board:` landed.
+            (d) is its own axis because both halves accumulate silently, and
+            each half is read from its own registry rather than from this
+            module: a source unioned inline with `|` is invisible to the
+            sweep, and so is a site whose guard nobody crossed against the
+            sources. Both are why the collection nouns went unreserved for
+            as long as they did.
             Two things sit deliberately outside. A quantifier noun is
             grammatically inexpressible as a domain id -- the quantifier
             production is a closed alternative set -- so that slot is out by
@@ -36,9 +38,9 @@ registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             n.Game.positions; and, for the reservation product,
             cardlang/resolve.py's `POSITION_NAME_SOURCES` (the namespaces,
             each carrying its own `names(game)`) x `RESERVATION_SITES` (the
-            declaring/minting sites). The sweep reads the SOURCE, never the
-            guard's own set, so a registry that grows is swept without anyone
-            editing this module.
+            declaring/minting sites, a game's own and a library's alike). The
+            sweep reads the SOURCE, never the guard's own set, so a registry
+            that grows is swept without anyone editing this module.
             Owner==index over roles:
             tests/test_zone_index_roles.py::test_owned_zone_owner_arg_must_match_its_index.
             Unowned ownership, `zone_observer_key` -> None and hence the
@@ -86,7 +88,7 @@ from cardlang.domains import (
     zone_observer_key,
 )
 from cardlang.ir import emit
-from cardlang.parse import parse_text
+from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     POSITION_NAME_SOURCES,
@@ -247,6 +249,10 @@ _SOURCE_PROBES: dict[str, _SourceProbe] = {
     "a zone type": _SourceProbe(),
     "a declared type name": _SourceProbe(extra="type R = { a : Integer }\n"),
     "a collection noun": _SourceProbe(board=True),
+    # The constructor word reserves for every game — the block's spelling is
+    # not conditional on anything a game declares — so the plain recipe is the
+    # whole recipe.
+    "a collection type constructor": _SourceProbe(),
 }
 
 assert _SOURCE_PROBES.keys() == {s.label for s in POSITION_NAME_SOURCES}, (
@@ -369,16 +375,145 @@ def test_every_reservation_site_asks_every_name_source(label: str, site: str) ->
     )
 
 
+def _type_declaration_cells() -> list[tuple[str, str]]:
+    """(source label, reserved name) for the `type` declaration site.
+
+    Derived from the same source registry the declared-position sweep reads,
+    minus the one source a `type` declaration IS: type-against-type is the
+    self-pair, and `_check_duplicate_names` owns it — a second refusal there
+    would co-report on one defect.
+
+    A `type` head is `STRUCT_TYPE_NAME`, which excludes the clause keywords and
+    nothing else, so a lower-case domain id is as spellable there as a Title
+    Case type name and every remaining source can bind.
+    """
+    cells: list[tuple[str, str]] = []
+    for source in POSITION_NAME_SOURCES:
+        if source.label == "a declared type name":
+            continue
+        game = _probe_game(source.label)
+        names = sorted(source.names(game))
+        assert names, (
+            f"{source.label} reserves nothing on its probe game, so its cells "
+            f"would not exist — fix the probe recipe, not the sweep"
+        )
+        cells += [(source.label, name) for name in names]
+    return cells
+
+
+@pytest.mark.parametrize("label,name", _type_declaration_cells())
+def test_every_reserved_name_is_refused_as_a_declared_type(
+    label: str, name: str
+) -> None:
+    """The game's own `type` declarations, swept from the same registry as
+    every other reservation site.
+
+    A `type` declaration mints a name into the TYPE namespace, and every slot
+    that reads one consults the built-ins first — so a struct sharing a
+    reserved spelling is declarable and then unusable in every slot, which is
+    accepted-but-ignored one step removed (issue #541).
+
+    red under: drop the `type` site's `_reserved_domain_source` call.
+    """
+    probe = _SOURCE_PROBES[label]
+    with pytest.raises(DiagnosticError, match="collides with") as ei:
+        check_dsl(
+            probe.source_text() + f"\ntype {name} = {{ x : Integer }}\n", "t"
+        )
+    assert label in str(ei.value), (
+        f"'{name}' was refused, but the diagnostic did not name {label!r}: "
+        f"{ei.value}"
+    )
+
+
+# --- the library `type` site ------------------------------------------------
+#
+# A library declares types too, and its declarations splice into the game — so
+# the reserved namespace is the same one, reached from a file the game's author
+# did not write. The site is its own row because the guard that covers it must
+# run where a LIBRARY-alone defect is named: inside `_apply_uses`, before the
+# contract check whose error would otherwise raise the pass before any
+# reservation ran.
+
+_LIBRARY_TYPE_LIB = (
+    "library probe_lib {{\n"
+    "  requires {{ unmet_probe : Integer }}\n"
+    "  type {name} = {{ q : Integer }}\n"
+    "  function probe_fn() = unmet_probe + 1\n"
+    "}}\n"
+)
+
+
+def _library_type_host(label: str, name: str, monkeypatch: pytest.MonkeyPatch) -> str:
+    """A game importing a library that declares `type <name>`.
+
+    The library's contract is deliberately UNMET by the host: that is the
+    condition under which the reservation must still be reported, because an
+    unmet contract raises `_apply_uses` and everything after it never runs.
+    """
+    library = parse_library(
+        _LIBRARY_TYPE_LIB.format(name=name), "probe_lib.cardlang"
+    )
+    monkeypatch.setattr(
+        "cardlang.resolve.library_names", lambda: frozenset({"probe_lib"})
+    )
+    monkeypatch.setattr("cardlang.resolve.load_library", lambda _n: library)
+    source = _SOURCE_PROBES[label].source_text()
+    return source.replace("  players:", "  uses probe_lib\n  players:", 1)
+
+
+@pytest.mark.parametrize("label,name", _type_declaration_cells())
+def test_every_reserved_name_is_refused_as_a_library_declared_type(
+    label: str, name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The library site, swept from the same registry as the game's own.
+
+    A library's `type` mints into the same TYPE namespace a game's does, and
+    the splice carries it into the game — so the reservation is the same one.
+    Covered incidentally before this row existed, and only by accident of the
+    splice running before the game-level guard: a library whose contract the
+    host does not meet raised `_apply_uses` first, so the author was told to
+    declare a state variable and learned the real defect only after doing it.
+
+    The cells therefore assert ORDERING, not merely refusal: the host does NOT
+    meet the library's contract, so a green here means the reservation was
+    reported anyway.
+
+    red under: move the library `type` reservation call to after
+    `_raise_if_errors(bag)` in `resolve` — every cell then reports only the
+    unmet contract.
+    """
+    source = _library_type_host(label, name, monkeypatch)
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(source, "t")
+    message = "\n".join(
+        [str(ei.value), *(list(getattr(ei.value, "__notes__", None) or []))]
+    )
+    assert "collides with" in message, (
+        f"'{name}' was not refused as a library-declared type; the host does "
+        f"not meet the library's contract, so the reservation never ran:\n"
+        f"{message}"
+    )
+    assert label in message, (
+        f"'{name}' was refused, but the diagnostic did not name {label!r}: "
+        f"{message}"
+    )
+    assert "probe_lib.cardlang" in message, (
+        f"the reservation was reported away from the library that declared "
+        f"'{name}' — only the library's author can rename it:\n{message}"
+    )
+
+
 def test_every_reservation_site_passes_its_own_id() -> None:
     """The site axis is derived from the calls, not from this module's memory.
 
-    `RESERVATION_SITES` says how many sites exist; this scrape says which
-    call sites actually pass one. A fourth reservation site added without a
-    row in `RESERVATION_SITES` — or a row nobody consults — is exactly the
-    silent accumulation the source table was built to end, one axis over.
+    `RESERVATION_SITES` says which sites exist; this scrape says which call
+    sites actually pass one. A reservation site added without a row in
+    `RESERVATION_SITES` — or a row nobody consults — is exactly the silent
+    accumulation the source table was built to end, one axis over.
 
-    red under: add a fourth `_reserved_domain_source(game, X, SOME_SITE)` call
-    to `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
+    red under: add a `_reserved_domain_source(game, X, SOME_SITE)` call to
+    `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
     """
     tree = ast.parse(Path(resolve_mod.__file__).read_text())
     passed: set[str] = set()

@@ -17,8 +17,21 @@ Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
-              nothing is typed.
-Now illegal:  ill-formed syntax; it cannot reach any later pass. Also
+              nothing is typed. The `primitives { }` entry's own production
+              family is the ONE carrier of a VALUE type's `<...>` spelling:
+              it reaches the AST single-element, un-nested and un-optional,
+              and every other type position and the phrase form meet a
+              span-carrying rejection naming the entry. The zone ``type_ref``
+              and a library's ``require_decl`` carry the OTHER reading of
+              `<...>` — an index domain, derived through ``type_args`` — and
+              which shapes those admit is resolve's.
+Now illegal:  ill-formed syntax; it cannot reach any later pass. A
+              ``Collection<`` spelling, bare or `?`-suffixed, on any
+              :class:`~cardlang.ast.nodes.Parameter` outside a
+              :class:`~cardlang.ast.nodes.PrimitiveDecl`, or in any
+              ``StateDecl`` / ``StructField`` / ``OutcomeCase``; and, at an
+              entry's own slots, an optional, multi-argument, nested or
+              optional-element collection. Also
               MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
               callers parsing the same ``(text, source_name, line_offset)``
               receive the SAME object, and one writer would be visible to
@@ -452,6 +465,120 @@ class _Builder(Transformer[Token, n.Game]):
         self, meta: Meta, c: list[n.PrimitiveRead]
     ) -> tuple[n.PrimitiveRead, ...]:
         return tuple(c)
+
+    def primitive_plain_type(self, meta: Meta, c: list[Token]) -> str:
+        return str(c[0])
+
+    def primitive_optional_type(self, meta: Meta, c: list[Token]) -> str:
+        # A nullable entry type keeps its `?` in the name string, exactly as a
+        # payload type does; the decomposition strips it.
+        return str(c[0]) + "?"
+
+    def primitive_collection_type(self, meta: Meta, c: list[Token]) -> str:
+        # The bracket rides in the string too, so a Primitive's parameters and
+        # a move type's stay one node shape. `primitives_block.decompose_type`
+        # is the ONE reader of it.
+        return f"{c[0]}<{c[1]}>"
+
+    def collection_type_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A collection type written where the entry's slots are not.
+
+        The spelling is real, so this names WHERE it belongs rather than
+        calling the word unknown or dying at the bracket — the placement is the
+        designer's mistake, and the entry is the answer."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a collection type (`Collection<Card>`) is spellable in a "
+                "`primitives { }` entry only — everywhere else a set of cards "
+                "is a zone, and `move chosen some cards ... where jointly` is "
+                "how a game picks one",
+                self._span(meta),
+            )
+        )
+
+    def collection_optional_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A `?` on the collection itself. Designed, not deferred.
+
+        The runtime reason is `coerce_args`: its dispatch is on the declared
+        `TCollection`, so an optional wrapper would pass the argument raw and
+        die at the boundary. The designer's reason is the one the message
+        carries — a set that might not be there has no rulebook reading, and
+        an empty one is what they mean."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a collection is never optional — `is empty` is its absence; "
+                "write `Collection<Card>`",
+                self._span(meta),
+            )
+        )
+
+    def collection_arity_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A second element type. The keyed shape a designer reaches for here
+        is the index bracket's, and a second spelling of one concept is the
+        defect class this refuses into."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a collection takes ONE element type — write `Collection<Card>`",
+                self._span(meta),
+            )
+        )
+
+    def collection_nested_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A collection of collections, at any depth.
+
+        The game that wants one is a melding game, and the answer it is owed
+        is a name for a group rather than a generic instantiation — so the
+        message says the shape has no spelling and names where that is
+        tracked, instead of teaching a form the language will not grow."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a collection's element is a single type name — a collection "
+                "of collections has no spelling here (issue #254 tracks the "
+                "melds that would need one)",
+                self._span(meta),
+            )
+        )
+
+    def collection_optional_element_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A `?` on the element. An absence INSIDE a set has no rulebook
+        reading; the operation the designer wants is a filter."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "an element is never optional — filter the collection "
+                "instead; write `Collection<Card>`",
+                self._span(meta),
+            )
+        )
+
+    def collection_phrase_reject(self, meta: Meta, c: list[Token]) -> str:
+        """The phrase form, taught back as the ruled one.
+
+        No declaration in this language spells a type as a phrase, and `of`
+        already carries three senses in expressions — so the sentence a reader
+        of the design note writes first earns a replacement, not a life."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `primitives` entry spells a collection with angle "
+                f"brackets, not a phrase — write `Collection<{c[1]}>` in place "
+                f"of `{c[0]} of {c[1]}`",
+                self._span(meta),
+            )
+        )
+
+    def primitive_param(self, meta: Meta, c: list[object]) -> n.Parameter:
+        # The entry's own parameter production. One NODE with a move type's,
+        # because a Primitive's parameters and a move type's are one shape;
+        # one PRODUCTION of its own, because the shared type productions carry
+        # the teaching twin and a shared derivation would be ambiguous here.
+        return n.Parameter(
+            name=str(c[0]), type_name=str(c[1]), span=self._span(meta)
+        )
 
     def _primitive_decl(self, meta: Meta, c: list[object]) -> n.PrimitiveDecl:
         """The shared body of the entry and its two reject twins, so the three
@@ -1990,39 +2117,64 @@ def _as_stmt(value: object) -> n.Stmt:
 # told a designer already inside a phase to move the clause into a phase. Every
 # entry must therefore read as true wherever it fires — a reminder of the
 # clause's home, never a diagnosis of the author's position.
-_PARSE_HINTS = {
+#: A clause keyword mapped to (the parse entry point whose text the hint's
+#: sentence is TRUE of, or None for every one; the hint itself).
+#:
+#: The scope column is what keeps a hint from being read as a diagnosis of
+#: something it cannot observe: the `primitives` sentence says a LIBRARY may
+#: not declare the block, which is a fact about library text and false advice
+#: appended to a game's own syntax error. A hint whose sentence holds
+#: everywhere carries None and fires everywhere.
+_PARSE_HINTS: dict[str, tuple[str | None, str]] = {
     "transition_to": (
+        None,
         " — `transition_to:` is a mode clause: it declares an exit from a "
-        "`mode NAME { }`, and its target is a sibling mode"
+        "`mode NAME { }`, and its target is a sibling mode",
     ),
     "legal_moves": (
+        None,
         " — `legal_moves:` is a phase clause: a mode toggles rules, never the "
-        "move menu, so a mode body takes `active_rules:`/`transition_to:` only"
+        "move menu, so a mode body takes `active_rules:`/`transition_to:` only",
     ),
     "primitives": (
+        "library",
         " — `primitives { }` is a game clause: a Primitive's meaning belongs "
         "to ONE game, so a library — which several games import — may not "
-        "declare one; write the block in the game"
+        "declare one; write the block in the game",
     ),
 }
 
 
-def _parse_hint(text: str, line: int, column: int) -> str:
+def _parse_hint(text: str, line: int, column: int, start: str) -> str:
     """Two probes, because Lark points at either end of the offending clause.
 
     A clause on its own line fails at the clause keyword itself; one written
     inline after `{` fails a few characters in. So try the identifier AT the
     reported column first, then fall back to the line's leading word.
+
+    `start` is the entry point the text was parsed under, and a hint scoped to
+    another one is withheld rather than qualified: a sentence a reader cannot
+    act on is worse than no sentence.
     """
     lines = text.splitlines()
     if not 1 <= line <= len(lines):
         return ""
+
+    def hint_for(keyword: str) -> str | None:
+        row = _PARSE_HINTS.get(keyword)
+        if row is None:
+            return None
+        scope, hint = row
+        return hint if scope is None or scope == start else ""
+
     source = lines[line - 1]
     at_column = re.match(r"[A-Za-z_][A-Za-z0-9_]*", source[max(0, column - 1) :])
-    if at_column and at_column.group() in _PARSE_HINTS:
-        return _PARSE_HINTS[at_column.group()]
+    if at_column:
+        found = hint_for(at_column.group())
+        if found is not None:
+            return found
     head = source.strip().split(":")[0].split()
-    return _PARSE_HINTS.get(head[0], "") if head else ""
+    return (hint_for(head[0]) or "") if head else ""
 
 
 def parse_to_tree(
@@ -2037,7 +2189,7 @@ def parse_to_tree(
         column = getattr(exc, "column", 1)
         span = Span(source_name, 0, 0, line, column)
         message = f"syntax error: {exc!s}".splitlines()[0]
-        hint = _parse_hint(text, getattr(exc, "line", 1), column)
+        hint = _parse_hint(text, getattr(exc, "line", 1), column, start)
         raise DiagnosticError(
             Diagnostic(Severity.ERROR, f"{message}{hint}", span)
         ) from exc

@@ -1,0 +1,1 @@
+primitives_collection_index_domain.cardlang:10:5: error: `gin_valid_meld`'s parameter `cards` names `Collection<player>`, and `player` is not an element type — a zone's angle brackets take an index domain (`Hand<player>`), a collection's take what it holds; write `Collection<Card>`

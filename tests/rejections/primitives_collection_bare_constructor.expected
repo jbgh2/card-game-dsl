@@ -1,0 +1,1 @@
+primitives_collection_bare_constructor.cardlang:11:5: error: `gin_valid_meld`'s parameter `cards` names `Collection`, which takes an element type — write `Collection<Card>`

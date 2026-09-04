@@ -1,0 +1,1 @@
+primitives_collection_optional_element.cardlang:10:28: error: an element is never optional — filter the collection instead; write `Collection<Card>`

@@ -1,0 +1,1 @@
+primitives_collection_optional.cardlang:12:28: error: a collection is never optional — `is empty` is its absence; write `Collection<Card>`

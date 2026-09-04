@@ -65,7 +65,8 @@ its interface lets it touch.
 The target model has three parts.
 
 **Narrow interface — values in, value out.** A primitive's signature names
-value types (`Card`, `Player`, `Integer`, card collections); it never
+value types (`Card`, `Player`, `Integer`, and a collection of one of them,
+spelled `Collection<Card>`); it never
 receives `Ctx` or any engine-internal handle. A function that computes a
 cribbage show score from a hand and its starter cannot participate in
 mechanics, mutate state, or observe anything it was not handed — the
@@ -313,8 +314,8 @@ declaring game goes: a row serving a WALLED namespace outlives its game's
 block, because the block covers the call position while a climb or auction
 binder holds its own row at load — so the reconciliation pin quantifies per
 ROW, permitting exactly the rows those binders bind. Its own plan; blocked
-on the signatures that have no declared spelling (issue #472) and the two
-cribbage pegging primitives that read at the dispatch site (issue #473).
+on the two cribbage pegging primitives that read at the dispatch site
+(issue #473).
 Behavior unchanged, goldens byte-identical.
 
 Which games have migrated is a query, not a number: the games whose
@@ -322,7 +323,7 @@ Which games have migrated is a query, not a number: the games whose
 (`rg -l 'primitives \{' docs/games/`), against the call-namespace rows
 `PRIMITIVE_READS` still carries. The games left in that second set are
 each held by a named wall, or queued behind one that has fallen — the
-unspellable signatures (issue #472), the dispatch-site reads (issue #473),
+dispatch-site reads (issue #473),
 coup's trace emitter (its own step under issue #142), and the phase-local
 cohort whose wall the scope tail below removed, which rolls out one PR per
 game (issue #504) — so a row still standing there is a wall's record or a

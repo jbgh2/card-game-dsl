@@ -7,11 +7,13 @@ memoization pins `cardlang/parse.py`'s Contract block cites (see
 
 from __future__ import annotations
 
+import ast as pyast
 import dataclasses
 import pathlib
 
 import pytest
 
+from cardlang import parse
 from cardlang.ast.nodes import Game, PlayersSpec, TypeArg, TypeRef, ZoneDecl
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import _parse_text_cached, parse_text
@@ -203,3 +205,138 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
     game = parse_text(_unique("MemoFrozen"), "f.dsl")
     with pytest.raises(dataclasses.FrozenInstanceError):
         game.name = "Renamed"  # type: ignore[misc]
+
+
+# --- the parse-hint registry ------------------------------------------------
+#
+# Completeness ledger (decisions.md "Closed-domain completeness")
+# --------------------------------------------------------------
+#     property:  a hint appended to a syntax error is TRUE where it fires. A
+#                hint whose sentence holds only for one parse entry point
+#                says so in the registry and is withheld everywhere else —
+#                because a hint is read as a diagnosis, and a false one sends
+#                a designer to fix a file that is not the problem.
+#     domain:    `parse._PARSE_HINTS` (the keyword axis) x every parse entry
+#                point (`parse_to_tree`'s `start`). Both axes derived — the
+#                keywords from the registry, the starts by scraping the
+#                `start=` values `cardlang/parse.py` itself passes plus
+#                `parse_to_tree`'s own default, so an entry point added there
+#                arrives as cells rather than as a start nobody probed.
+#     registry:  cardlang/parse.py's `_PARSE_HINTS`, and `parse_to_tree`'s
+#                call sites in the same module.
+#     covered:   every (keyword, start) cell, executed: the probe puts the
+#                keyword alone on a line, which is malformed under every
+#                start, and asserts the hint appears exactly when the
+#                registry's scope admits that start.
+#     does not prove:  that a hint's SENTENCE is accurate — only that it fires
+#                where the registry says. The wording is held by
+#                `test_a_parse_hint_never_diagnoses_the_author_s_position`
+#                (tests/test_mode_surface.py) and by the rejection corpus.
+
+
+def _parse_entry_points() -> tuple[str, ...]:
+    """Every `start` a parse in `cardlang/parse.py` can run under.
+
+    Scraped rather than listed: the axis is "the entry points that exist", and
+    a listed one is true by construction — which would make a start nobody
+    passes look covered and a start somebody added look absent.
+    """
+    tree = pyast.parse(pathlib.Path(parse.__file__).read_text())
+    starts: set[str] = set()
+    for node in pyast.walk(tree):
+        if isinstance(node, pyast.FunctionDef) and node.name == "parse_to_tree":
+            names = [a.arg for a in node.args.args]
+            offset = len(names) - len(node.args.defaults)
+            for index, default in enumerate(node.args.defaults):
+                if names[offset + index] == "start":
+                    assert isinstance(default, pyast.Constant), default
+                    starts.add(str(default.value))
+        if (
+            isinstance(node, pyast.Call)
+            and isinstance(node.func, pyast.Name)
+            and node.func.id == "parse_to_tree"
+        ):
+            for keyword in node.keywords:
+                if keyword.arg == "start":
+                    assert isinstance(keyword.value, pyast.Constant), keyword.value
+                    starts.add(str(keyword.value.value))
+    return tuple(sorted(starts))
+
+
+_HINT_STARTS: tuple[str, ...] = _parse_entry_points()
+
+
+def _hint_probe(keyword: str, start: str) -> str:
+    """A source under `start` whose parse fails on a line beginning with
+    `keyword` — the shape `_parse_hint`'s fallback probe reads."""
+    if start == "library":
+        return f"library L {{\n  {keyword}\n}}\n"
+    if start == "start":
+        return f"game G {{\n  players: 2\n  {keyword}\n}}\n"
+    # A fragment start (`stdlib_rules`) parses bare text, so the keyword on
+    # its own line is already the whole malformed source.
+    return f"  {keyword}\n"
+
+
+def test_the_hint_start_axis_is_every_entry_point() -> None:
+    """Anti-vacuity on the scrape: a regex that stopped matching would shrink
+    the grid to nothing and every cell would pass by not existing.
+
+    red under: rename the `start` keyword argument at `parse_library`'s
+    `parse_to_tree` call — `"library"` leaves the axis and the `primitives`
+    row's only firing cell goes with it.
+    """
+    assert set(_HINT_STARTS) >= {"start", "library", "stdlib_rules"}, _HINT_STARTS
+
+
+_HINT_CELLS = [
+    (keyword, start) for keyword in sorted(parse._PARSE_HINTS) for start in _HINT_STARTS
+]
+
+
+@pytest.mark.parametrize("keyword,start", _HINT_CELLS)
+def test_a_parse_hint_fires_exactly_where_its_sentence_is_true(
+    keyword: str, start: str
+) -> None:
+    """keyword x parse entry point, over the registry itself.
+
+    The `primitives` hint tells its reader that a LIBRARY may not declare the
+    block. Fired on a game — which may — it is a false diagnosis attached to
+    a real syntax error, and its advice ("write the block in the game") is
+    advice the author has already taken.
+
+    red under: drop the scope column from `_PARSE_HINTS`' `primitives` row and
+    let `_parse_hint` return every entry's text — the game cells for that
+    keyword then carry a sentence about libraries.
+    """
+    scope, text = parse._PARSE_HINTS[keyword]
+    with pytest.raises(DiagnosticError) as ei:
+        parse.parse_to_tree(_hint_probe(keyword, start), "probe", start=start)
+    message = str(ei.value)
+    assert "syntax error" in message, message
+    if scope is None or scope == start:
+        assert text in message, (
+            f"the {keyword!r} hint is true under {start!r} and did not fire: "
+            f"{message}"
+        )
+    else:
+        assert text not in message, (
+            f"the {keyword!r} hint claims something true only under {scope!r} "
+            f"and fired under {start!r}: {message}"
+        )
+
+
+def test_every_parse_hint_scope_is_a_real_entry_point() -> None:
+    """The scope column's own domain, so a typo cannot silence a hint.
+
+    A scope naming a start nobody parses withholds the hint everywhere while
+    reading like a restriction — the vacuously-green shape one level down from
+    the grid above.
+
+    red under: set a row's scope to `"libary"`.
+    """
+    for keyword, (scope, _text) in parse._PARSE_HINTS.items():
+        assert scope is None or scope in _HINT_STARTS, (
+            f"the {keyword!r} hint is scoped to {scope!r}, which is not a "
+            f"parse entry point — the hint would never fire"
+        )
