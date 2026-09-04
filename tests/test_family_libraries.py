@@ -388,6 +388,7 @@ from cardlang.parse import (
     parse_text,
     parse_to_tree,
 )
+from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     _AUTHOR_CHOSEN_BINDERS,
     _COLLECTION_NOUNS,
@@ -3989,10 +3990,58 @@ def test_a_library_definition_cannot_spell_a_collection_parameter() -> None:
     assert "in a `primitives { }` entry only" in str(ei.value), ei.value
 
 
+# The game a collection contract is imported into. Three shapes, because the
+# `requires` machinery answers a different question in each: a game that
+# declares nothing, one that declares `x` as state, one that declares it as a
+# zone. The refusal is the library's own and must not move between them.
+_CONTRACT_HOST = """game ContractHost {
+  uses shapes
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player>%(zone)s }
+  state { score[player] : Integer = 0%(state)s }
+  phase play { for each player p: score[p] := 1 }
+  winner: highest score
+}
+"""
+
+_CONTRACT_HOSTS: dict[str, str] = {
+    "game-declares-nothing": _CONTRACT_HOST % {"zone": "", "state": ""},
+    "game-declares-state-x": _CONTRACT_HOST
+    % {"zone": "", "state": "  x : Integer = 0"},
+    "game-declares-zone-x": _CONTRACT_HOST % {"zone": "  x : Discard", "state": ""},
+}
+
+# The currencies the refusal may not spend. Each is a real message from a
+# neighbouring guard, and each sends a library author somewhere that does not
+# fix this: "the library does not have it" invites declaring a type named
+# `Collection`, which the reservation sweep then refuses; "takes no type
+# argument" answers a placement question with a shape one; the zone-owner leak
+# reads the ELEMENT as an owner.
+_WRONG_CONTRACT_VOICES: tuple[str, ...] = (
+    "names the type 'Collection'",
+    "takes no type argument",
+    "zone owner 'Card'",
+)
+
+
+@pytest.mark.parametrize("host", sorted(_CONTRACT_HOSTS))
 @pytest.mark.parametrize("spelling", ["Collection<Card>", "Collection<Card>?"])
-def test_a_contract_cannot_require_a_collection(spelling: str) -> None:
+def test_a_contract_cannot_require_a_collection(
+    spelling: str, host: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """`require_decl` spells its type inline, so it PARSES the tokens and the
-    refusal is the contract checker's — and it must be the right refusal.
+    refusal is the contract checker's — and it must be the right refusal, on
+    the path a library author actually walks.
+
+    Driven through a real `uses` line rather than by calling
+    `_check_contract_shapes` directly, because the encapsulation sweep speaks
+    FIRST on this text: the constructor word is not one of the library's own
+    names, so the sweep read it as a name the library does not have and told
+    the author to declare it — advice that leads nowhere, and a refusal a
+    unit-level call could never see.
 
     A collection is neither a zone type nor a state type, so answering "a state
     type takes no type argument" would send a designer to fix a shape question
@@ -4006,8 +4055,15 @@ def test_a_contract_cannot_require_a_collection(spelling: str) -> None:
         f"function f() = 1 }}",
         "docs/libraries/shapes.cardlang",
     )
-    bag = DiagnosticBag()
-    _check_contract_shapes(library, bag)
-    messages = bag.format()
+    _patch_libraries(monkeypatch, {"shapes": library})
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(_CONTRACT_HOSTS[host], "host.cardlang")
+    messages = "\n".join(
+        [str(ei.value), *(list(getattr(ei.value, "__notes__", None) or []))]
+    )
     assert "in a `primitives { }` entry only" in messages, messages
-    assert "takes no type argument" not in messages, messages
+    for wrong in _WRONG_CONTRACT_VOICES:
+        assert wrong not in messages, (
+            f"the collection contract also met {wrong!r}, which sends the "
+            f"library's author somewhere that does not fix it:\n{messages}"
+        )
