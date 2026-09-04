@@ -105,7 +105,8 @@ Completeness ledger
                    sites that phrase "unknown type" plus the move-parameter
                    domain gate — its own grid, not a column here. R2: a
                    designer who writes `s : Collection` at a state row meets
-                   it. NOT YET FILED as an issue.
+                   it. It carries NO tracker issue: the only record is the
+                   review round's report, and this sentence.
                 3. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
                    (`Hand<player>`) and role/domain ids (the `player` in
                    `hand[player]`, `for each player`) are type-ish names with

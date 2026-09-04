@@ -7,6 +7,7 @@ memoization pins `cardlang/parse.py`'s Contract block cites (see
 
 from __future__ import annotations
 
+import ast as pyast
 import dataclasses
 import pathlib
 
@@ -215,12 +216,14 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
 #                says so in the registry and is withheld everywhere else —
 #                because a hint is read as a diagnosis, and a false one sends
 #                a designer to fix a file that is not the problem.
-#     domain:    `parse._PARSE_HINTS` (the keyword axis) x the parse entry
-#                points that carry a hint (`parse_to_tree`'s `start`: a game
-#                and a library). Both axes derived — the keywords from the
-#                registry, the starts from `_HINT_STARTS` below, which is the
-#                set of values the registry's own scope column may take.
-#     registry:  cardlang/parse.py's `_PARSE_HINTS`.
+#     domain:    `parse._PARSE_HINTS` (the keyword axis) x every parse entry
+#                point (`parse_to_tree`'s `start`). Both axes derived — the
+#                keywords from the registry, the starts by scraping the
+#                `start=` values `cardlang/parse.py` itself passes plus
+#                `parse_to_tree`'s own default, so an entry point added there
+#                arrives as cells rather than as a start nobody probed.
+#     registry:  cardlang/parse.py's `_PARSE_HINTS`, and `parse_to_tree`'s
+#                call sites in the same module.
 #     covered:   every (keyword, start) cell, executed: the probe puts the
 #                keyword alone on a line, which is malformed under every
 #                start, and asserts the hint appears exactly when the
@@ -230,7 +233,37 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
 #                `test_a_parse_hint_never_diagnoses_the_author_s_position`
 #                (tests/test_mode_surface.py) and by the rejection corpus.
 
-_HINT_STARTS: tuple[str, ...] = ("start", "library")
+
+def _parse_entry_points() -> tuple[str, ...]:
+    """Every `start` a parse in `cardlang/parse.py` can run under.
+
+    Scraped rather than listed: the axis is "the entry points that exist", and
+    a listed one is true by construction — which would make a start nobody
+    passes look covered and a start somebody added look absent.
+    """
+    tree = pyast.parse(pathlib.Path(parse.__file__).read_text())
+    starts: set[str] = set()
+    for node in pyast.walk(tree):
+        if isinstance(node, pyast.FunctionDef) and node.name == "parse_to_tree":
+            names = [a.arg for a in node.args.args]
+            offset = len(names) - len(node.args.defaults)
+            for index, default in enumerate(node.args.defaults):
+                if names[offset + index] == "start":
+                    assert isinstance(default, pyast.Constant), default
+                    starts.add(str(default.value))
+        if (
+            isinstance(node, pyast.Call)
+            and isinstance(node.func, pyast.Name)
+            and node.func.id == "parse_to_tree"
+        ):
+            for keyword in node.keywords:
+                if keyword.arg == "start":
+                    assert isinstance(keyword.value, pyast.Constant), keyword.value
+                    starts.add(str(keyword.value.value))
+    return tuple(sorted(starts))
+
+
+_HINT_STARTS: tuple[str, ...] = _parse_entry_points()
 
 
 def _hint_probe(keyword: str, start: str) -> str:
@@ -238,7 +271,22 @@ def _hint_probe(keyword: str, start: str) -> str:
     `keyword` — the shape `_parse_hint`'s fallback probe reads."""
     if start == "library":
         return f"library L {{\n  {keyword}\n}}\n"
-    return f"game G {{\n  players: 2\n  {keyword}\n}}\n"
+    if start == "start":
+        return f"game G {{\n  players: 2\n  {keyword}\n}}\n"
+    # A fragment start (`stdlib_rules`) parses bare text, so the keyword on
+    # its own line is already the whole malformed source.
+    return f"  {keyword}\n"
+
+
+def test_the_hint_start_axis_is_every_entry_point() -> None:
+    """Anti-vacuity on the scrape: a regex that stopped matching would shrink
+    the grid to nothing and every cell would pass by not existing.
+
+    red under: rename the `start` keyword argument at `parse_library`'s
+    `parse_to_tree` call — `"library"` leaves the axis and the `primitives`
+    row's only firing cell goes with it.
+    """
+    assert set(_HINT_STARTS) >= {"start", "library", "stdlib_rules"}, _HINT_STARTS
 
 
 _HINT_CELLS = [
