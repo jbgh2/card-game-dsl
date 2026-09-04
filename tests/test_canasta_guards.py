@@ -102,7 +102,8 @@ def test_joint_selection_walled_on_a_duplicate_card_deck() -> None:
         "  phase p { as dealer {\n"
         "    move chosen some cards from hand[dealer]\n"
         "         where jointly gin_valid_meld(cards) to discard\n"
-        "  } }\n"
+        "  } }\n",
+        block="  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n",
     )
     game = check_dsl(dsl, "t.cardlang")
     with pytest.raises(NotImplementedError, match="duplicate identical"):

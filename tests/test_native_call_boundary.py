@@ -23,9 +23,12 @@ Completeness ledger
                as elements (never a raw TypeError on a Zone), TAny params
                untouched (the adapter's own shape dispatch still sees the
                Zone).
-    domain:    {functions in CALL_SIGS} x declared param type
-               {TCollection, TAny, scalar} x {Zone, list} argument shapes.
-    registry:  cardlang/builtins/signatures.py CALL_SIGS (the param types);
+    domain:    {every function the boundary can be handed arguments against}
+               x declared param type {TCollection, TAny, scalar} x
+               {Zone, list} argument shapes.
+    registry:  the Builtin half of cardlang/builtins/signatures.py CALL_SIGS,
+               unioned with each registered Primitive's own signature through
+               `primitives_block.implementation_sig` (`_signatures` below);
                the shape axis is the evaluator's value universe
                (cardlang/runtime/state.py `elements` names it).
     covered:   TCollection axis — gin_valid_meld, gin_arrange_ok x Zone:
@@ -56,16 +59,40 @@ import random
 
 import pytest
 
-from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.builtins.functions import BUILTIN_CALL_FUNCS
+from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS, implementation_sig
 from cardlang.runtime.driver import play_game
 from cardlang.types import TAny, TCollection
+
+
+def _signatures() -> dict[str, Sig]:
+    """Every signature the boundary can be handed arguments against: the
+    Builtin half of `CALL_SIGS`, plus each registered Primitive's own
+    statement of its shape.
+
+    Read through `implementation_sig` rather than off `CALL_SIGS` whole,
+    because the Primitive half of that table is what the legacy dispatch types
+    against and is deleted when the last game migrates — this is the one seam
+    that move goes through, so the domain below survives it unchanged."""
+    sigs = {
+        name: sig for name, sig in CALL_SIGS.items() if name in BUILTIN_CALL_FUNCS
+    }
+    for name in PRIMITIVE_IMPLEMENTATIONS:
+        sig = implementation_sig(name)
+        assert sig is not None, (
+            f"{name} is registered as implemented and states no signature, so "
+            f"the probe reconciliations below would silently skip it"
+        )
+        sigs[name] = sig
+    return sigs
 
 
 def _collection_param_funcs() -> set[str]:
     return {
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         if any(isinstance(p, TCollection) for p in sig.params)
     }
 
@@ -73,7 +100,7 @@ def _collection_param_funcs() -> set[str]:
 def _polymorphic_param_funcs() -> set[str]:
     return {
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         if any(isinstance(p, TAny) for p in sig.params)
     }
 
@@ -88,12 +115,11 @@ def _game(body: str, clauses: str = "") -> str:
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { deck : Deck  hand[player] : Hand<player>\n"
         "          taken[player] : HiddenPile<player>  discard : Discard\n"
-        # The gin probes call gin primitives, and the binder materialises the
-        # implementing module's WHOLE declared row (PRIMITIVE_READS) before
-        # entering it — so a probe game must declare gin's row even though
-        # these two predicates read only `hand`/`taken`. Module-granular
-        # bundles are the ratified stage-2 scope; the per-primitive `reads`
-        # clause (stage 3) is what lets a probe declare only what it probes.
+        # The gin probes call declared Primitives, so the binder materialises
+        # the ENTRY's own row — `hand`/`taken` for the arrangement guard, and
+        # nothing at all for the meld predicate, which is pure over its
+        # argument. The remaining zones are here because the deal writes them,
+        # not because a bundle demands them.
         "          shown_deadwood[player] : Discard\n"
         "          meldA[player] : Discard  meldB[player] : Discard\n"
         "          meldC[player] : Discard }\n"
@@ -121,13 +147,18 @@ _ZONE_PROBES: dict[str, str] = {
         "  phase p {\n" + _DEAL +
         "    if gin_valid_meld(hand[dealer]) { score[dealer] += 1 }\n"
         "    if gin_valid_meld(hand[1]) { score[1] += 1 }\n"
-        "  }"
+        "  }",
+        clauses="  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n",
     ),
     "gin_arrange_ok": _game(
         "  phase p {\n" + _DEAL +
         "    if gin_arrange_ok(dealer, hand[dealer]) { score[dealer] += 1 }\n"
         "    if gin_arrange_ok(1, hand[1]) { score[1] += 1 }\n"
-        "  }"
+        "  }",
+        clauses=(
+            "  primitives { gin_arrange_ok(p : Player, cards : Collection<Card>)"
+            " : Boolean reads hand[p], taken[p] }\n"
+        ),
     ),
     # `top_of`/`bottom_of` (decisions.md "Position domains and positional
     # zones"): each reads a card off a ZONE argument. The filtered deal
@@ -166,7 +197,7 @@ def test_no_native_param_demands_a_zone() -> None:
     param must revisit `coerce_args` in cardlang/runtime/reads.py."""
     offenders = [
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         for p in sig.params
         if isinstance(p, TCollection) and p.zone
     ]

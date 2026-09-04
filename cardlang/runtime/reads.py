@@ -273,11 +273,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/president.py",
         game_file="president.cardlang",
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/gin.py",
-        game_file="gin-rummy.cardlang",
-        zone_families=_fs("hand", "taken", "meldA", "meldB", "meldC"),
-    ),
     # Tichu's CLIMB row, and its call-position Primitive is not on it: the
     # game declares `tichu_dragon_won` in its own block. What keeps the row is
     # `primitives.climb_row`, which hands the climb queries their module's row

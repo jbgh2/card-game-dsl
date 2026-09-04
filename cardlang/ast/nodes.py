@@ -1097,7 +1097,12 @@ class RuleDef:
 class Parameter:
     """A `move_type`'s optional parameter: a name bound in the guard/effect and a
     type whose value-domain is enumerated (`submit_bid(strain : Suit?)`). The
-    ``type_name`` keeps a trailing `?` for a nullable domain, like a payload type."""
+    ``type_name`` keeps a trailing `?` for a nullable domain, like a payload
+    type, and — in a [[primitives-block]] entry, the one host whose slots spell
+    one — an element in angle brackets for a collection
+    (`cards : Collection<Card>`). The two combinators never both appear:
+    `Collection<Card>?` has no derivation. `primitives_block.decompose_type` is
+    the ONE reader of the string's shape."""
 
     name: str
     type_name: str
@@ -1133,8 +1138,11 @@ class PrimitiveDecl:
 
     A colon-row like every other declaration in the language (`zones`, `state`,
     `card_points`), reusing `Parameter` for the typed list so a Primitive's
-    parameters and a `move_type`'s are one shape. ``return_type`` keeps a
-    trailing `?` for a nullable return, exactly as `Parameter.type_name` does.
+    parameters and a `move_type`'s are one shape — one NODE, though the entry's
+    slots take a production family of their own. ``return_type`` carries the
+    same three spellings `Parameter.type_name` does in this host: a bare name,
+    a trailing `?` for a nullable return, and a collection's element in angle
+    brackets.
     ``params`` is empty for a zero-argument entry and ``reads`` for one that
     reads no game state (a Primitive pure over its arguments)."""
 

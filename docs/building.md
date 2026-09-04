@@ -42,8 +42,8 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST 
   zone/type/rule/mechanic reference, and every `state.*` access resolves to a
   declaration, or fails with a span.
 - **typecheck** — the typed object model from [decisions.md](decisions.md):
-  zone parameterization (`Hand<Owner>`), the `<>` value-parameter rule (a
-  `Player` in type-parameter position — its own rule, not ordinary generics),
+  zone parameterization (`Hand<player>`), the `<>` argument rule (an index
+  domain in type-parameter position — its own rule, not ordinary generics),
   visibility-projection enums, rule-clause types (`applies_when` is a predicate,
   `demands` returns candidate moves, `if_impossible` is a fallback), mechanic
   `winner`/`routing` signatures, scoring components producing `ScoreDelta`, and
@@ -76,7 +76,7 @@ pass's contract, per [decisions.md](decisions.md), "Closed-domain completeness"
 ## The AST↔IR seam
 
 The IR is the **resolved AST — not desugared**. Library
-constructs (`Hand<Owner>`, the `round` construct — including its betting form —
+constructs (`Hand<player>`, the `round` construct — including its betting form —
 and `ChallengeWindow`) are preserved as first-class IR nodes carrying their
 resolved bindings. They are not lowered to primitives: `round`
 and the challenge mechanic are control-flow units whose semantics live in the

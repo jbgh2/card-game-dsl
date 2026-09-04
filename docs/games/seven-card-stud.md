@@ -3,7 +3,9 @@
 The companion formal file is
 [seven-card-stud.cardlang](seven-card-stud.cardlang); this is the readable twin.
 Fixed-limit Seven-Card Stud — the corpus's first **betting** game. Source:
-[Pagat](https://www.pagat.com/poker/variants/7stud.html).
+[Pagat](https://www.pagat.com/poker/variants/7stud.html). **Players:** 4.
+**Deck:** standard 52. **Chips:** each player starts with 100 and antes 1 each
+hand.
 
 Each hand:
 
@@ -49,8 +51,8 @@ library *provides*, so Stud never names it and could not write it if it tried. A
 partial all-in when the actor can't cover it, and resets every other player's
 `acted` so action re-opens). The
 `until` predicate closes a street when no live player still owes or has yet to act
-(or one lone contender remains, already matched). The 3rd street is shown in full;
-streets 4–7 repeat the same betting round after a burn and a dealt card.
+(or one lone contender remains, already matched). Streets 4–7 repeat 3rd
+street's betting round after a burn and a dealt card.
 
 Four of those five move types are not Stud's own. `uses poker_betting` imports
 them — `check`, `bet`, `call`, `raise` and the `can_act`/`owes`/`pending` ring
@@ -65,120 +67,3 @@ counted from the street's first FULL wager, so the sub-size bring-in and the
 completion that answers it spend none of them — where Leduc declares 2. Every
 street opens with the library's `open_street(<size>)`, which is where Stud's
 5 / 5 / 10 / 10 / 10 limits are written.
-
-```
-game SevenCardStud {
-
-  uses poker_betting
-
-  players: 4
-  direction: clockwise
-  max_length: 30000
-
-  cards: standard52
-  ranking: aces high
-
-  // What this game borrows from outside the DSL, implemented in
-  // `cardlang/runtime/stud.py`: the door-card seat selectors and the
-  // showdown's side-pot query. Each entry declares what its own implementation
-  // consults, so the clauses differ — the bring-in is chosen before anyone can
-  // fold, and the settlement reads no stack, because what it returns is what
-  // moves one.
-  //
-  // `committed`, `folded` and `in_hand` are declared by `phase play`, not by
-  // the game, so a read of one names that phase. The tail rides the READ, not
-  // the clause: `stack` is game-level and carries none. Naming the phase also
-  // promises what the resolver then checks — an entry reading `in play` is
-  // called only where `play` is running, which here is the phase's own body
-  // and the streets' round configurations.
-  primitives {
-    bring_in_seat() : Player
-        reads stack, upcards
-    first_to_act_seat() : Player
-        reads stack, folded in play, upcards
-    pot_share(p : Player) : Integer
-        reads committed in play, folded in play, in_hand in play, hole, upcards
-  }
-
-  zones {
-    deck            : Deck
-    hole[player]    : Hand<player>           // face-down cards
-    upcards[player] : PublicHand<player>     // face-up cards
-    muck            : Muck                   // folded / spent cards
-    burn            : Burn                   // one burned card per street
-  }
-
-  state {
-    stack[player] : Integer = 100            // chips; total invariant, winner holds all
-  }
-
-  phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
-    state { dealer : Player = 0 }
-    before_each { move all cards to deck  shuffle deck  dealer := dealer offset_by left }
-
-    phase play {
-      state {
-        in_hand[player] : Boolean = false   committed[player] : Integer = 0
-        folded[player]  : Boolean = false   bet_by[player]    : Integer = 0
-        bet_to_match : Integer = 0          raises : Integer = 0
-        level : Integer = 0                // the last FULL wager this street
-        raise_cap : Integer = 4            // a bet and three raises
-      }
-
-      for each player p: in_hand[p] := stack[p] > 0
-      for each player p: if in_hand[p] { stack[p] := stack[p] - 1  committed[p] := committed[p] + 1 }
-      for each player p: if in_hand[p] { deal 2 cards from deck to hole[p]  deal 1 card from deck to upcards[p] }
-
-      // Bring-in (a forced post) + 3rd street.
-      if (number of players where stack[player] > 0) >= 2 {
-        run open_street(5)
-        let bringer = bring_in_seat()
-        bet_by[bringer] := if 2 < stack[bringer] then 2 else stack[bringer]
-        stack[bringer] := stack[bringer] - bet_by[bringer]
-        committed[bringer] := committed[bringer] + bet_by[bringer]
-        bet_to_match := 2                   // short of a full wager: level stays 0
-        round offering [check, bet, call, fold, raise] from bringer offset_by left
-              over players where pending(player)
-              until (number of players where pending(player)) is 0
-                 or ((number of players where can_act(player)) <= 1
-                     and (number of players where can_act(player) and owes(player)) is 0)
-      }
-      // ... 4th–7th streets: four flat `if (contenders > 1) { ... }` blocks — a burn
-      // + a dealt card (upcard on 4th/5th/6th, hole on 7th), then `run
-      // open_street(5 / 10 / 10 / 10)` and the same betting round `from
-      // first_to_act_seat()`. The
-      // contender count is monotonic, so the flat guards short-circuit exactly as
-      // nesting would (see seven-card-stud.cardlang).
-
-      // Showdown — RNG-free, decision-free. A contested hand reveals the
-      // contenders' hole cards (the two-step move keeps the muck order the
-      // next hand's pre-shuffle deck depends on; the flip into the public
-      // board emits the seven identities — the derived reveal). Each entrant
-      // collects its side-pot share; the hands leave play to the muck.
-      if (number of players where in_hand[player] and not folded[player]) > 1 {
-        for each player p: if in_hand[p] and not folded[p] {
-          move all cards from upcards[p] to hole[p]
-          move all cards from hole[p] to upcards[p]
-        }
-      }
-      for each player p: if in_hand[p] { stack[p] := stack[p] + pot_share(p) }
-      for each player p: if in_hand[p] {
-        move all cards from hole[p] to muck
-        move all cards from upcards[p] to muck
-      }
-    }
-  }
-
-  winner: highest stack
-}
-
-// Stud's own betting move. check/bet/call/raise and the can_act/owes/pending ring
-// predicates come from `uses poker_betting` above; `fold` stays here because it
-// touches Stud's zones — the folder's upcards go straight to the muck, so
-// opponents stop seeing them. All five are offered together in the `offering`
-// list; the `when:` guards filter to the legal options at each decision.
-move_type fold {
-  when: bet_to_match > bet_by[actor]
-  effect { folded[actor] := true  move all cards from upcards[actor] to muck }
-}
-```

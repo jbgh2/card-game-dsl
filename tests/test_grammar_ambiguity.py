@@ -128,3 +128,58 @@ def test_corpus_glob_is_nonempty() -> None:
     # Corpus SIZE is owned by test_optional_pyspiel.py's glob<->registry
     # equality; this pin only has to catch the glob resolving to nothing.
     assert GAMES, f"the corpus glob matched nothing under {GAMES_DIR}"
+
+
+# --- the collection spelling's own sentences (issue #472) -------------------
+#
+# The corpus pin above sees only what the corpus writes, and one game writes
+# the collection spelling in one shape. The forms below are the OFF-CORPUS
+# sentences the entry's two type slots admit — the spelling in each slot, and
+# the boundary tokens a closing `>` can sit against, `>=` fusion included. `<`
+# and `>` are the comparison terminals, so an entry slot whose type is followed
+# by anything at all is where a second derivation would sit.
+
+
+def _collection_ambiguity_sources() -> list[tuple[str, str]]:
+    """Derived from the entry grid's own adjacency cells, so a boundary
+    sentence added there is budgeted here without an edit. The reject cells are
+    excluded: a sentence with no derivation cannot have two."""
+    from tests.test_primitives_block import _COLLECTION_ADJACENCY, _game
+
+    cells = [
+        (cell, _game(block=None, body="").replace("  zones {", clause + "  zones {"))
+        for cell, (clause, needle) in sorted(_COLLECTION_ADJACENCY.items())
+        if clause and not needle
+    ]
+    cells += [
+        (
+            "parameter-slot",
+            _game(block="gin_valid_meld(cards : Collection<Card>) : Boolean", body=""),
+        ),
+        (
+            "return-slot",
+            _game(block="pinochle_meld_value(p : Player) : Collection<Card>", body=""),
+        ),
+    ]
+    return cells
+
+
+@pytest.mark.parametrize(
+    ("cell_id", "source"),
+    _collection_ambiguity_sources(),
+    ids=[i for i, _ in _collection_ambiguity_sources()],
+)
+def test_the_collection_spelling_parses_with_zero_ambiguity(
+    cell_id: str, source: str
+) -> None:
+    tree = _PARSER.parse(source)
+    assert isinstance(tree, Tree)
+    ambig = _count_ambig(tree)
+    assert ambig == 0, f"grammar ambiguity in {cell_id}: {ambig} site(s)"
+
+
+def test_the_collection_ambiguity_set_is_nonempty() -> None:
+    """The sibling of the corpus-glob pin: an adjacency table whose accept
+    cells all grew a needle would collect nothing and leave the budget above
+    vacuous."""
+    assert len(_collection_ambiguity_sources()) >= 5

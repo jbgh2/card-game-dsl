@@ -114,7 +114,7 @@ game {name} {{
   max_length: 200
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-
+{block}
   zones {{
     deck         : Deck
     hand[player] : Hand<player>
@@ -158,6 +158,7 @@ class Arm:
         present: bool,
         body: str,
         move_types: str = "",
+        block: str = "",
         plays: bool = True,
         why_unplayed: str = "",
         builds_space: bool = True,
@@ -168,6 +169,11 @@ class Arm:
         self.present = present
         self.body = body
         self.move_types = move_types
+        # The arm's `primitives { }` clause, written by the arm whose decision
+        # roots in a declared Primitive — gin's joint predicate is reached by
+        # declaration alone, so a game with no block never gets as far as
+        # encoding the selection.
+        self.block = block
         self.plays = plays
         self.why_unplayed = why_unplayed
         # Some configurations are refused by a guard unrelated to this
@@ -180,7 +186,12 @@ class Arm:
     def game(self) -> Any:
         camel = "".join(part.title() for part in self.name.split("_"))
         return check_dsl(
-            _BASE.format(name=f"Arm{camel}", body=self.body, move_types=self.move_types),
+            _BASE.format(
+                name=f"Arm{camel}",
+                body=self.body,
+                move_types=self.move_types,
+                block=self.block,
+            ),
             f"{self.name}.cardlang",
         )
 
@@ -236,6 +247,7 @@ ARMS: list[Arm] = [
         """    for each player p:
       move chosen some cards from hand[p]
            where jointly gin_valid_meld(cards) to pile[p]""",
+        block="  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n",
         plays=False,
         why_unplayed=(
             "a joint predicate must root in a registered subset codec, and "

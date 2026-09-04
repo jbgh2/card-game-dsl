@@ -70,14 +70,20 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import OwnerGuardError
 
 
-def _game(body: str) -> str:
+def _game(body: str, block: str = "") -> str:
+    """A probe game. `block` is its `primitives { }` entries, written by the
+    cells whose joint predicate roots in a declared Primitive: gin's two are
+    reached by declaration alone (`DECLARED_ONLY_CALL_FUNCS`), so a game with
+    no block is refused at the name and the selection is never encoded."""
     return (
         "game G {\n"
         "  players: 2\n"
         "  max_length: 1000\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        + block +
         "  zones { deck : Deck  hand[player] : Hand<player>\n"
+        "          taken[player] : HiddenPile<player>\n"
         "          discard : Discard }\n"
         "  state { dealer : Player = 0\n"
         "          score[player] : Integer = 0 }\n"
@@ -460,6 +466,7 @@ def test_action_space_walls_a_climb_plus_joint_game() -> None:
         "  max_length: 1000\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n"
         "  zones { deck : Deck  hand[player] : Hand<player>\n"
         "          trick_pile : TrickPile  discard : Discard }\n"
         "  state { dealer : Player = 0  score[player] : Integer = 0 }\n"
@@ -501,7 +508,12 @@ def test_action_space_walls_two_distinct_joint_codecs(monkeypatch: Any) -> None:
         "         where jointly gin_valid_meld(cards) to discard\n"
         "    move chosen some cards from hand[dealer]\n"
         "         where jointly gin_arrange_ok(dealer, cards) to discard\n"
-        "  } }"
+        "  } }",
+        block=(
+            "  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean\n"
+            "               gin_arrange_ok(p : Player, cards : Collection<Card>)"
+            " : Boolean reads hand[p], taken[p] }\n"
+        ),
     )
     game = check_dsl(dsl, "t.cardlang")
     with pytest.raises(NotImplementedError, match="different subset codecs"):

@@ -98,26 +98,54 @@ domain:     the block's own surface — clause placement x {game, library},
             rows a walled binder binds — the climb binder's answers over the
             two climb registries, plus the shared dispatch module's rows under
             an assert that no call implementation names that module.
+            The COLLECTION SPELLING is crossed on four axes of its own, one
+            per layer that owns a refusal. The spelling family x the entry's
+            two slots (`_COLLECTION_SPELLINGS` x `_COLLECTION_SLOTS`) is the
+            surface's decision table, which no registry can state; the ELEMENT
+            axis is derived, every name a bare slot spells crossed with the
+            collection form against `COLLECTION_ELEMENT_NAMES`, and that list
+            is held equal to the elements registered Python actually takes
+            (`implementation_sig` over `PRIMITIVE_IMPLEMENTATIONS`) so a second
+            element is an event in both directions; the ADJACENCY cells are the
+            boundary tokens a closing `>` can sit against — including the one
+            slot where a `=` follows the bracket directly, whose `>=` fusion is
+            MEASURED rather than asserted, so the cell cannot pass on a stream
+            with nothing to fuse — and the two halves of the zone
+            confusion (an element type where a zone's index domain belongs,
+            and the constructor word where a zone type belongs — both refused
+            by the zone registry, cited as Owner and asserted on the MESSAGE
+            because the word is spelled); and the CALL position is crossed
+            with the value shapes a collection parameter accepts. The
+            spelling's decomposition is held to one site by a scrape over the
+            BRACKET alone — the trailing `?` is sliced elsewhere in the
+            package, found by that scrape run over `"?"` instead of the
+            bracket, and none of those readers reads a `primitives { }` entry
+            spelling, so the class is uniform and correct and is named rather
+            than swept.
+            A declared Primitive IS a `where jointly` predicate: the position
+            takes a collection parameter, the subset codec is keyed by the
+            call's root name under either regime, and the cell is a synthetic
+            declared game that builds its action space and plays, beside the
+            corpus proof gin-rummy carries.
             Two boundaries the domain has by construction rather than by
             omission. The walled-namespace cells sample one member per
             namespace, and `PRIMITIVE_TRICK_WINNERS` is EMPTY — deliberately,
             as the registry's own comment records — so four of the five walls
             carry a cell and the fifth is unreachable until a game files a
-            game-local trick winner there. And a declared Primitive cannot be
-            a `where jointly` predicate at all: that position needs a
-            collection parameter, which no declared spelling produces
-            (issue #472), so the joint-codec pairing obligation the position
-            carries is 3b's to meet, not a cell this grid can run.
-            `TCell` is reachable at the TYPE-NAME gate and unusable in a
-            concrete entry: no registered implementation takes one, so the
-            shape check refuses every `cell`-typed declaration. The two guards
+            game-local trick winner there. And a collection RETURN is
+            reachable at the TYPE-NAME gate and unusable in a concrete entry,
+            exactly as `TCell` is: no registered implementation returns one, so
+            the shape check refuses every such declaration, and the cell
+            quantifies over the whole implementation index so the day one
+            returns a collection its witness is owed here. The two guards
             answer different questions and the grid runs the gate's.
 registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces,
             `BUILTIN_CALL_FUNCS`, and `DECLARED_ONLY_CALL_FUNCS` — which of
             the Primitives a declaration is the only route to);
             `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
-            `DECLARABLE_BUILTIN_TYPE_NAMES`, `UNDECLARABLE_TYPE_CONSTRUCTORS`,
+            `DECLARABLE_BUILTIN_TYPE_NAMES`, `COLLECTION_ELEMENT_NAMES`,
+            `COLLECTION_TYPE_CONSTRUCTOR`, `UNDECLARABLE_TYPE_CONSTRUCTORS`,
             `InvocationContract`); `cardlang.types.Type` (the constructor
             partition, via `typing.get_args`); the `?game_item` scrape in
             tests/test_game_clause_guards.py for the clause registry; the
@@ -193,6 +221,12 @@ partition nothing refused: a Primitive whose only route to Python is a
 declaration, called from a game that writes no block. The product was rowed
 whole before the fix, so the five cells that already held are cells rather
 than absences.
+
+Red a seventh time, at `84 failed, 1341 passed` across the six modules the
+collection spelling's grid spans (this one, `test_type_name_positions.py`,
+`test_rejections.py`, `test_family_libraries.py`, `test_grammar_ambiguity.py`,
+`test_positions.py`; the bare run, 2026-09-03), authored before the grammar
+could spell any of it.
 """
 
 from __future__ import annotations
@@ -220,6 +254,7 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
+    COLLECTION_ELEMENT_NAMES,
     DECLARABLE_BUILTIN_TYPE_NAMES,
     DECLARABLE_CONTRACTS,
     PRIMITIVE_IMPLEMENTATIONS,
@@ -237,7 +272,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
-from cardlang.types import TEnum, TOptional, Type
+from cardlang.types import TCollection, TEnum, TOptional, Type
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -482,7 +517,13 @@ def test_the_type_constructor_partition_is_total() -> None:
     constructor added to the type model lands unclassified and is named here
     rather than silently joining the unspellable side.
 
-    red under: add a member to `cardlang.types.Type`."""
+    Reachability is derived through the block's whole SPELLABLE set, not its
+    bare names: a conversion run over names alone cannot see a constructor a
+    spelling wraps, which is how `TCollection` sat in the exclusion table while
+    the surface was about to reach it.
+
+    red under: add a member to `cardlang.types.Type`; or put `TCollection` back
+    in `UNDECLARABLE_TYPE_CONSTRUCTORS`, which the overlap assertion catches."""
     all_constructors = {t.__name__ for t in typing.get_args(Type)}
     unreachable = set(UNDECLARABLE_TYPE_CONSTRUCTORS)
     reachable = _reachable_type_constructors()
@@ -492,33 +533,63 @@ def test_the_type_constructor_partition_is_total() -> None:
     )
 
 
+def _spellable_types(names: frozenset[str]) -> list[str]:
+    """Every type spelling an entry slot admits over `names` — the bare form,
+    the `?` form, and the collection form for each admitted element.
+
+    The block's WHOLE spellable set, so reachability is derived from what a
+    designer can write rather than from the bare names the conversion site
+    happens to take. A second element admitted to `COLLECTION_ELEMENT_NAMES`
+    lands here as a new spelling without anyone editing this function."""
+    from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR
+
+    bare = sorted(names)
+    return (
+        bare
+        + [f"{name}?" for name in bare]
+        + [
+            f"{COLLECTION_TYPE_CONSTRUCTOR}<{element}>"
+            for element in sorted(COLLECTION_ELEMENT_NAMES)
+        ]
+    )
+
+
+def _constructors_of(t: Type) -> set[str]:
+    """Every constructor in a Type, at every depth — the collection's element
+    and the optional's inner included, so a nested one cannot hide."""
+    out = {type(t).__name__}
+    for part in (getattr(t, "inner", None), getattr(t, "element", None)):
+        if part is not None:
+            out |= _constructors_of(part)
+    return out
+
+
 def _reachable_type_constructors() -> set[str]:
     """Which `Type` constructors a declared spelling can produce, DERIVED by
-    running every declarable name through the language's one conversion site
-    (`typecheck.type_from_name`), in both the bare and the `?` spelling."""
-    from cardlang.typecheck import TypeEnv, type_from_name
+    running the block's whole spellable set through the site
+    `declared_primitive_sigs` itself uses (`typecheck._param_type`, and the one
+    conversion site beneath it)."""
+    from cardlang.typecheck import TypeEnv, _param_type
 
-    env = TypeEnv()
     out: set[str] = set()
     probe = _checks(_game(block="", body=""))
     names = DECLARABLE_BUILTIN_TYPE_NAMES | {p.name for p in probe.positions}
-    for name in sorted(names):
-        for optional in (False, True):
-            t = type_from_name(name, optional, env.structs, env.positions, env.directions)
-            out.add(type(t).__name__)
-            inner = getattr(t, "inner", None)
-            if inner is not None:
-                out.add(type(inner).__name__)
+    env = TypeEnv()
+    for spelling in _spellable_types(names):
+        out |= _constructors_of(
+            _param_type(n.Parameter(name="x", type_name=spelling), env)
+        )
     # A board game's `cell` domain is the one declarable name outside the
     # built-ins whose member type is not `TInteger`; probed on its own game
     # rather than by hand-adding `TCell`, so the reachability is measured.
     board = _checks(_board_game())
     from cardlang.typecheck import _position_types
 
-    positions = _position_types(board)
-    for name in sorted(positions):
-        t = type_from_name(name, False, env.structs, positions, {})
-        out.add(type(t).__name__)
+    board_env = TypeEnv(positions=_position_types(board))
+    for spelling in _spellable_types(frozenset(board_env.positions)):
+        out |= _constructors_of(
+            _param_type(n.Parameter(name="x", type_name=spelling), board_env)
+        )
     return out
 
 
@@ -674,6 +745,18 @@ def _spelling_of(t: Type) -> tuple[str, str]:
         # own; the inner leaf still has to render, which is what keeps an
         # unknown leaf loud behind a `?`.
         return f"{_spelling_of(t.inner)[0]}?", "none"
+    if isinstance(t, TCollection):
+        # Structural like `?`, for the same reason: the element leaf still has
+        # to render. The column is a ZONE — the zone facet is not part of
+        # assignability, so `hand[0]` is what a collection parameter can be
+        # handed where the probe game stands, and it holds cards.
+        element, _ = _spelling_of(t.element)
+        assert element in COLLECTION_ELEMENT_NAMES, (
+            f"a Primitive's signature takes a collection of {element}, which "
+            f"the block cannot spell — the element registry and this renderer "
+            f"disagree"
+        )
+        return f"Collection<{element}>", "hand[0]"
     key = t.name if isinstance(t, TEnum) else type(t).__name__
     row = _SPELLINGS.get(key)
     assert row is not None, (
@@ -897,17 +980,20 @@ def test_an_unspellable_type_name_is_refused(spelling: str) -> None:
     entry = f"pinochle_meld_value(x : {spelling}) : Integer"
     message = _refused(_game(block=entry, body="    score[0] := 1"))
     assert spelling in message
-    assert "#472" in message
+    assert "#547" in message
 
 
-def test_a_collection_type_has_no_spelling_at_all() -> None:
-    """The one unspellable shape that is grammatically inexpressible rather
-    than refused by name: the type slot is a bare name with an optional `?`,
-    and no production spells a collection. That is the state surface totality
-    calls inexpressible, and issue #472 is what would change it."""
+def test_the_phrase_spelling_teaches_the_ruled_one() -> None:
+    """A collection HAS a spelling, and the phrase form is not it.
+
+    No declaration in this language spells a type as a phrase, and `of` already
+    carries three senses in expressions — so the sentence the issue itself
+    wrote, and the first thing a reader of the design note writes, earns a
+    replacement naming the ruled form rather than a bare syntax error."""
     entry = "pinochle_meld_value(x : collection of Card) : Integer"
     message = _refused(_game(block=entry, body="    score[0] := 1"))
-    assert "syntax error" in message
+    assert "not a phrase" in message
+    assert "`Collection<Card>`" in message
 
 
 # --- axis 7-9: the reads clause ---------------------------------------------
@@ -2607,3 +2693,568 @@ def test_the_grid_is_not_empty() -> None:
     assert len(PRIMITIVE_IMPLEMENTATIONS) > 20
     assert len(WALLED_NAMESPACES) == 5
     assert dataclasses.fields(n.PrimitiveDecl)
+
+
+# --- axis 27: the collection spelling (issue #472) ---------------------------
+#
+# `Collection<Card>` in an entry's two type slots and nowhere else. The three
+# refusal layers are separate registries and are crossed separately: the SHAPE
+# (a bracket anywhere but an entry slot; the phrase form; a comma, a `?`, a
+# nested bracket) is the grammar's, the ELEMENT is the resolver's from the
+# block's own one-member allow-list, and the FACETS are unspellable by
+# construction and pinned by the both-ways shape check.
+
+# The spelling family at an entry slot, and the outcome each is ruled to have.
+# One row per DECISION — the element axis below is the derived cross, and this
+# is the surface's own decision table, which no registry can state.
+_COLLECTION_SPELLINGS: dict[str, str] = {
+    # The ruled form. Admitted at the type gate; a concrete entry then meets
+    # the shape check, which is the both-slots symmetry's whole mechanism.
+    "Collection<Card>": "gate-admits",
+    # A plural-as-type: a bare NAME outside the declarable set, so the
+    # existing name gate answers and the new surface never sees it.
+    "Cards": "unspellable",
+    # The constructor word with no element.
+    "Collection": "element-missing",
+    # The issue's own spelling, taught back as the ruled one.
+    "collection of Card": "phrase",
+    # An index domain where an element type belongs — the `Hand<player>`
+    # confusion, refused by name rather than by shape.
+    "Collection<player>": "element",
+    # The wall: the checker mints `Collection<Player>` for `all players`, and
+    # no registered signature takes one.
+    "Collection<Player>": "element",
+    # The four shapes the element slot cannot hold — a `?` on the collection,
+    # a second argument, a nested bracket, a `?` on the element. Each is a
+    # sentence a designer writes on purpose, so each answers in the designer's
+    # register with the ruled form rather than in the lexer's with the
+    # character it stopped at (the operator's ruling, 2026-09-03).
+    "Collection<Card>?": "optional-collection",
+    "Collection<Card, Card>": "arity",
+    "Collection<Collection<Card>>": "nested",
+    "Collection<Suit?>": "optional-element",
+}
+
+# What the gate did, as an ALLOW-LIST over the message space. A deny-list here
+# would read an unrecognized refusal as an admit, which is the one reading a
+# grid over a new surface must not have.
+_COLLECTION_OUTCOMES: tuple[tuple[str, str], ...] = (
+    ("is spellable in a `primitives { }` entry only", "elsewhere"),
+    ("not a phrase — write", "phrase"),
+    ("a collection is never optional", "optional-collection"),
+    ("takes ONE element type", "arity"),
+    ("a collection of collections has no spelling", "nested"),
+    ("an element is never optional", "optional-element"),
+    ("takes an element type", "element-missing"),
+    ("is not an element type", "element"),
+    ("no registered Primitive has an implementation taking it", "element"),
+    ("may not spell", "unspellable"),
+    ("syntax error", "syntax"),
+    ("is not the signature its implementation takes", "gate-admits"),
+)
+
+
+def _collection_outcome(source: str) -> str:
+    """Which layer answered, classified by an allow-list that RAISES.
+
+    An unrecognized message is a cell nobody classified, and reading it as an
+    admit is how a refusal in the wrong voice passes for the ruled one."""
+    try:
+        _checks(source)
+    except DiagnosticError as e:
+        message = "\n".join(
+            [str(e), *(list(getattr(e, "__notes__", None) or []))]
+        )
+        for needle, label in _COLLECTION_OUTCOMES:
+            if needle in message:
+                return label
+        raise AssertionError(
+            f"unclassified refusal — no row of `_COLLECTION_OUTCOMES` names "
+            f"it, so the grid cannot say which layer spoke: {message}"
+        ) from e
+    return "admit"
+
+
+_COLLECTION_SLOTS: dict[str, str] = {
+    # A Primitive whose implementation takes neither a collection nor the
+    # spelling under test, so the only thing the cell measures is the gate:
+    # every spelling that clears it meets the shape check next.
+    "parameter": "pinochle_meld_value(x : {spelling}) : Integer",
+    "return": "pinochle_meld_value(p : Player) : {spelling}",
+}
+
+
+@pytest.mark.parametrize("slot", sorted(_COLLECTION_SLOTS))
+@pytest.mark.parametrize("spelling", sorted(_COLLECTION_SPELLINGS))
+def test_the_collection_spelling_lands_where_the_ruling_says(
+    spelling: str, slot: str
+) -> None:
+    """spelling x slot, at the entry. Both slots take the same spellings —
+    a form legal in one and refused in the other is a surface a designer
+    cannot predict — so the expected column is the same for both."""
+    entry = _COLLECTION_SLOTS[slot].format(spelling=spelling)
+    actual = _collection_outcome(_game(block=entry, body="    score[0] := 1"))
+    assert actual == _COLLECTION_SPELLINGS[spelling], (
+        f"`{entry}` answered {actual!r}, and the ruling says "
+        f"{_COLLECTION_SPELLINGS[spelling]!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "gin_valid_meld(cards : Collection<Card>) : Boolean",
+        "gin_arrange_ok(p : Player, cards : Collection<Card>) : Boolean"
+        " reads hand[p], taken[p]",
+    ],
+    ids=["valid_meld", "arrange_ok"],
+)
+def test_a_collection_entry_agrees_with_its_implementation(entry: str) -> None:
+    """The accept cells: the two corpus witnesses, whose declared `Sig` the
+    both-ways shape check forces equal to the implementation's — facets
+    included, which is what makes `Collection<Card>` denote exactly
+    `TCollection(TCard(), key=None, zone=False)` and nothing else."""
+    source = _game(block=entry, body="    score[0] := 1").replace(
+        "          discard : Discard }",
+        "          taken[player] : HiddenPile<player>\n          discard : Discard }",
+    )
+    game = _checks(source)
+    assert declared_names(game) == {entry.split("(")[0]}
+
+
+def test_a_declared_collection_parameter_is_the_registry_s_signature() -> None:
+    """The materialized `Sig`, read off the declaration rather than off the
+    table it is checked against: the spelling's facets are the defaults, so
+    the runtime's signature-driven freeze sees the same arm under either
+    regime."""
+    from cardlang.typecheck import declared_primitive_sigs
+
+    entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
+    game = _checks(_game(block=entry, body="    score[0] := 1"))
+    assert declared_primitive_sigs(game)["gin_valid_meld"] == CALL_SIGS[
+        "gin_valid_meld"
+    ]
+
+
+# The ELEMENT axis, derived: every name an entry can spell in a bare slot,
+# crossed with the collection form. The allow-list is what decides, so a name
+# admitted into it lands here as an accept without anyone editing a row.
+def _element_cells() -> list[tuple[str, bool]]:
+    probe = _checks(_game(block=_PINOCHLE_ENTRY, body=""))
+    names = sorted(
+        DECLARABLE_BUILTIN_TYPE_NAMES | {p.name for p in probe.positions}
+    )
+    return [(name, name in COLLECTION_ELEMENT_NAMES) for name in names]
+
+
+@pytest.mark.parametrize(
+    "element,allowed", _element_cells(), ids=[c[0] for c in _element_cells()]
+)
+def test_the_element_slot_admits_exactly_the_allow_list(
+    element: str, allowed: bool
+) -> None:
+    """The element registry, at the resolver. A name outside the list must be
+    refused BY NAME — never mapped to the permissive top at the element
+    position, which would hand a Primitive an unfrozen engine value one
+    constructor down."""
+    entry = f"pinochle_meld_value(x : Collection<{element}>) : Integer"
+    actual = _collection_outcome(_game(block=entry, body="    score[0] := 1"))
+    assert actual == ("gate-admits" if allowed else "element"), (
+        f"`Collection<{element}>` answered {actual!r}; the block's element "
+        f"allow-list says {'in' if allowed else 'out'}"
+    )
+
+
+def test_the_element_allow_list_is_what_the_implementations_take() -> None:
+    """The list and the registered Python are held EQUAL, both directions:
+    a Primitive registered over a collection of something else lands red here
+    until the list admits its element with a witness, and an element admitted
+    with no implementation lands red too.
+
+    red under: register a `Collection<Player>` parameter in `CALL_SIGS` for
+    any name in `PRIMITIVE_IMPLEMENTATIONS` — verified on `gin_arrange_ok`,
+    which reports `TPlayer at gin_arrange_ok's parameter 2`."""
+    from cardlang.primitives_block import implementation_sig
+    from cardlang.typecheck import TypeEnv, type_from_name
+
+    env = TypeEnv()
+    # Keyed by element constructor so a mismatch can name the REGISTRATION
+    # that caused it — which Primitive, and which slot of its signature. The
+    # two sets alone say a number disagrees; an engine author needs the row.
+    implemented: dict[str, list[str]] = {}
+    for name in sorted(PRIMITIVE_IMPLEMENTATIONS):
+        sig = implementation_sig(name)
+        assert sig is not None, (
+            f"{name} is registered as implemented and states no signature, so "
+            f"the element derivation below would skip it silently"
+        )
+        slots = [(f"parameter {i + 1}", t) for i, t in enumerate(sig.params)]
+        slots.append(("return", sig.ret))
+        for slot, t in slots:
+            if isinstance(t, TCollection):
+                implemented.setdefault(type(t.element).__name__, []).append(
+                    f"{name}'s {slot}"
+                )
+    declarable = {
+        type(
+            type_from_name(name, False, env.structs, env.positions, env.directions)
+        ).__name__: name
+        for name in COLLECTION_ELEMENT_NAMES
+    }
+    unregistered = sorted(set(declarable) - set(implemented))
+    unspellable = sorted(set(implemented) - set(declarable))
+    assert not unregistered, (
+        f"the block spells collections of "
+        f"{[declarable[c] for c in unregistered]} and no registered Primitive "
+        f"takes one — an element admitted with no implementation is a "
+        f"spelling that dies at the shape check"
+    )
+    assert not unspellable, (
+        "a registered Primitive takes a collection element the block cannot "
+        "spell: "
+        + "; ".join(
+            f"{constructor} at {', '.join(implemented[constructor])}"
+            for constructor in unspellable
+        )
+        + " — admit it with its witness, or the declaration route is closed "
+        "to that Primitive"
+    )
+
+
+# The adjacency cells: the boundary tokens a `>` can meet, and the one place
+# `=` can follow a type in each of the two blocks that carry a type slot.
+_COLLECTION_ADJACENCY: dict[str, tuple[str, str]] = {
+    # `>` followed by `=` is `>=` under maximal munch, and `>=` is a real
+    # terminal — so the collection's closing bracket sits against the one
+    # token that can swallow it. Only the RETURN slot puts them adjacent (a
+    # parameter's `>` meets the closing paren), and the twin must be reached
+    # on that stream. `_FUSED_SPELLINGS` below pins that the fusion is real,
+    # so this cell cannot pass by there being nothing to fuse.
+    "fused-default": (
+        "    primitives { pinochle_meld_value(p : Player) : Collection<Card>= 0 }\n",
+        "declares a signature, never a value",
+    ),
+    # The same fusion at the other `=`-carrying type slot, whose refusal is
+    # the teaching twin's rather than the default twin's.
+    "fused-state": (
+        "    state { s : Collection<Card>= 0 }\n",
+        "is spellable in a `primitives { }` entry only",
+    ),
+    # No fusion here — the parameter's `>` meets `)` and the `=` follows the
+    # return type — and the cell is kept for the OTHER claim the grammar
+    # comment makes: all three entry forms take the entry type family, so a
+    # default-arm entry carrying a collection parameter reaches its own reject
+    # arm's message instead of dying at the `<`.
+    "default-arm-collection-param": (
+        "    primitives { pinochle_meld_value(x : Collection<Card>) : Integer= 0 }\n",
+        "declares a signature, never a value",
+    ),
+    # `>` against the closing paren, the comma, and the reads keyword.
+    "close-paren": (
+        "    primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n",
+        "",
+    ),
+    "comma": (
+        "    primitives { gin_arrange_ok(p : Player, cards : Collection<Card>)"
+        " : Boolean reads hand[p], taken[p] }\n",
+        "",
+    ),
+    "reads-keyword": (
+        "    primitives { gin_arrange_ok(p : Player, cards : Collection<Card>)"
+        " : Boolean\n        reads hand[p], taken[p] }\n",
+        "",
+    ),
+    # A comment closing the line the spelling ends.
+    "trailing-comment": (
+        "    primitives { gin_valid_meld(cards : Collection<Card>) : Boolean"
+        "  // the defender's guard\n    }\n",
+        "",
+    ),
+    # The reverse confusion, which must stay refused: an element type where a
+    # zone's index domain belongs.
+    "zone-element": ("", "unknown owner 'Card'"),
+    # The other half of that confusion, one slot over: the CONSTRUCTOR word
+    # where a zone type belongs. `Collection` means something now, so a zone
+    # slot that calls it unknown spends the "unknown" currency on a spelled
+    # word — the positions ledger's own refusal.
+    "zone-head": ("", "a zone's angle brackets take an index domain"),
+}
+
+
+@pytest.mark.parametrize("cell", sorted(_COLLECTION_ADJACENCY))
+def test_the_collection_spelling_s_neighbours_read_as_written(cell: str) -> None:
+    """The tokens a `>` can sit against. Each accept cell PARSES to the same
+    declaration a spaced form would, and each reject cell reaches the message
+    its own layer owns rather than the lexer's."""
+    clause, needle = _COLLECTION_ADJACENCY[cell]
+    if cell == "zone-element":
+        source = _game(block=None, body="").replace(
+            "hand[player] : Hand<player>", "hand[player] : Hand<Card>"
+        )
+    elif cell == "zone-head":
+        source = _game(block=None, body="").replace(
+            "hand[player] : Hand<player>", "hand[player] : Collection<Card>"
+        )
+    else:
+        source = _game(block=None, body="").replace(
+            "  zones {", clause + "  zones {"
+        )
+        if "taken[p]" in clause:
+            source = source.replace(
+                "          discard : Discard }",
+                "          taken[player] : HiddenPile<player>\n"
+                "          discard : Discard }",
+            )
+    if needle:
+        message = _refused(source)
+        assert needle in message, message
+        return
+    game = _checks(source)
+    assert game.primitives is not None
+    assert [p.type_name for d in game.primitives.decls for p in d.params][-1] == (
+        "Collection<Card>"
+    )
+
+
+# The cells whose sentence puts the collection's closing `>` against a `=`.
+# Named here so the fusion they are about can be MEASURED rather than
+# asserted in a comment: a cell claiming to survive `>=` proves nothing if the
+# stream never held a `>=` to survive.
+_FUSED_SPELLINGS: frozenset[str] = frozenset({"fused-default", "fused-state"})
+
+
+@pytest.mark.parametrize("cell", sorted(_FUSED_SPELLINGS))
+def test_the_fused_cells_really_do_fuse(cell: str) -> None:
+    """`>=` is a terminal, and maximal munch takes it.
+
+    The parse must still see `>` then `=` — the contextual lexer is what
+    supplies that, by offering `>=` only where a comparison can stand — so the
+    two cells above are about a real hazard rather than a spelling nobody's
+    lexer would join. Measured on the BASIC lexer, which is the munch without
+    the context: a stream with no `>=` in it would make those cells vacuous.
+
+    red under: put a space before the `=` in either cell's clause.
+    """
+    from cardlang.parse import _parser
+
+    clause, _needle = _COLLECTION_ADJACENCY[cell]
+    fused = [t for t in _parser().lex(clause.strip()) if str(t) == ">="]
+    assert fused, (
+        f"{cell}'s sentence lexes with no `>=` in it, so the cell cannot be "
+        f"about surviving the fusion: {clause.strip()}"
+    )
+
+
+# The string methods that read a spelling's SHAPE. A bracket handed to one of
+# these is a second decomposition of a type spelling, which is the fact the
+# scrape below holds to one site.
+_SHAPE_READERS: frozenset[str] = frozenset(
+    {
+        "split", "rsplit", "partition", "rpartition", "index", "find", "rfind",
+        "startswith", "endswith", "removeprefix", "removesuffix", "strip",
+        "lstrip", "rstrip", "count", "replace",
+    }
+)
+
+
+def test_a_collection_spelling_is_split_in_exactly_one_place() -> None:
+    """The decomposition is the ONE reader of the spelling's bracket.
+
+    The trailing `?` is sliced elsewhere in the package — this same scrape run
+    over `"?"` in place of the bracket names those sites, and none of them
+    reads a `primitives { }` entry spelling — uniform and correct. A second
+    delimiter must not join that class: two readings of one spelling is how a
+    declaration and the type it denotes come apart. The scrape is over the
+    BRACKET alone, which is the claim; the `?` class is named here rather than
+    swept, because this change's proportion is the block.
+
+    red under: write `type_name.split("<")` in any `cardlang/` module outside
+    `primitives_block.py`."""
+    root = pathlib.Path(__file__).resolve().parent.parent / "cardlang"
+    owner = root / "primitives_block.py"
+
+    def has_bracket(value: object) -> bool:
+        return isinstance(value, str) and ("<" in value or ">" in value)
+
+    offenders: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if path == owner:
+            continue
+        for node in ast.walk(ast.parse(path.read_text())):
+            where = f"{path.relative_to(root.parent)}:{getattr(node, 'lineno', 0)}"
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in _SHAPE_READERS
+                and any(
+                    isinstance(a, ast.Constant) and has_bracket(a.value)
+                    for a in node.args
+                )
+            ):
+                offenders.append(where)
+            if (
+                isinstance(node, ast.Compare)
+                and any(isinstance(o, (ast.In, ast.NotIn)) for o in node.ops)
+                and isinstance(node.left, ast.Constant)
+                and has_bracket(node.left.value)
+            ):
+                offenders.append(where)
+    assert not offenders, (
+        f"a module outside the decomposition reads a type spelling's bracket "
+        f"itself: {offenders} — the shape is `primitives_block`'s to read"
+    )
+
+
+def test_a_collection_return_is_refused_against_every_implementation() -> None:
+    """The return slot is admitted at the gate and refused by SHAPE, for every
+    registered Primitive: no implementation returns a collection, so the
+    both-slots symmetry costs nothing a designer can reach.
+
+    An empty registry, not a gap — the day an implementation returns one, its
+    witness is owed."""
+    from cardlang.primitives_block import implementation_sig
+
+    returning: list[str] = []
+    for name in sorted(PRIMITIVE_IMPLEMENTATIONS):
+        sig = implementation_sig(name)
+        assert sig is not None, name
+        if isinstance(sig.ret, TCollection):
+            returning.append(name)
+    assert not returning, (
+        f"{returning} return a collection — the return slot's refusal is by "
+        f"shape alone, so this cell owes a witness now"
+    )
+    entry = "pinochle_meld_value(p : Player) : Collection<Card>"
+    assert _collection_outcome(
+        _game(block=entry, body="    score[0] := 1")
+    ) == "gate-admits"
+
+
+# The keyed map at a collection parameter: issue #539's cell, NOT this
+# change's fix. `coercible` compares elements only, so a player-keyed map
+# reaches the parameter and the implementation answers on the keys.
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #539: a keyed collection coerces into an unkeyed parameter",
+)
+def test_a_keyed_map_is_refused_at_a_collection_parameter() -> None:
+    """A per-player map handed where a card collection is wanted.
+
+    `coercible` compares collection ELEMENTS only, so the map reaches the
+    implementation and it answers on the player ids. The call site is where
+    the refusal belongs (issue #539); the cell is here because the spelling is
+    what puts a declared collection parameter in a designer's reach."""
+    entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
+    body = (
+        "    let probe[p] = A of spades\n"
+        "    score[0] := if gin_valid_meld(probe) then 1 else 0"
+    )
+    try:
+        _checks(_game(block=entry, body=body))
+        refused = False
+    except DiagnosticError:
+        refused = True
+    assert refused, (
+        "a player-keyed map checked clean at a `Collection<Card>` parameter"
+    )
+
+
+# --- the joint-selection position, run ---------------------------------------
+
+# A declared game rooting `where jointly` in a declared entry: the position a
+# collection parameter unlocks, played rather than checked. Seat 0 holds the
+# four 7s (a valid meld — the true witness) and seat 1 holds kings and queens
+# (no meld — the false one), so the score the melds decide separates them.
+_JOINT_GAME = """game JointProbe {
+  players: 2
+  max_length: 200
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    gin_valid_meld(cards : Collection<Card>) : Boolean
+    gin_can_declare_free(p : Player) : Boolean   reads hand[p], taken[p]
+  }
+  zones { deck : Deck  hand[player] : Hand<player>
+          taken[player] : HiddenPile<player>
+          meldA[player] : Discard  discard : Discard }
+  state { score[player] : Integer = 0  arranged[player] : Boolean = false }
+  phase play {
+    move all cards to deck
+    move all cards from deck where card.rank is "7" to hand[0]
+    move 2 cards from deck where card.rank is K to hand[1]
+    move all cards from deck to discard
+    turns t from 0 over all players until arranged[0] and arranged[1] {
+      offer to t one of [declare_meld, pass_arranging]
+    }
+  }
+  winner: highest score
+}
+move_type declare_meld {
+  when: not arranged[actor] and gin_can_declare_free(actor)
+  effect {
+    move chosen some cards from hand[actor]
+         where jointly gin_valid_meld(cards) to meldA[actor]
+    arranged[actor] := true
+    score[actor] := number of cards in meldA[actor]
+  }
+}
+move_type pass_arranging {
+  when: not arranged[actor]
+  effect { arranged[actor] := true }
+}
+"""
+
+
+def test_a_declared_entry_roots_a_joint_selection_that_plays() -> None:
+    """The joint-selection position, under the declared regime.
+
+    The predicate's subset codec is found by the call's ROOT NAME, which no
+    regime changes, so a declared game reaches the same universe the legacy
+    one did — and the action space BUILDS, which is the half a resolve-clean
+    fixture cannot show. The game is synthetic beside the corpus proof: gin
+    itself confounds the arm, since its own reads would materialize whether or
+    not the entry declared them, and here the entry declares none.
+
+    Seat 0 holds the four 7s (a meld — the true witness) and seat 1 two cards
+    (no subset of them melds — the false one), so the score separates on the
+    declared predicates' own answers: the guard entry decides whether the
+    joint move is offered at all, and the joint entry decides which subsets it
+    offers."""
+    from cardlang.openspiel.encoding import ActionSpace
+
+    game = check_dsl(_JOINT_GAME, "joint.cardlang")
+    assert declared_names(game) == {"gin_valid_meld", "gin_can_declare_free"}
+    space = ActionSpace.for_game(game)
+    assert space.num_distinct_actions > 0
+    seen: set[tuple[int, int]] = set()
+    for seed in range(12):
+        result = play_game(game, random.Random(seed))
+        seen.add((result.scores[0], result.scores[1]))
+    assert all(s1 == 0 for _, s1 in seen), sorted(seen)
+    assert any(s0 > 0 for s0, _ in seen), sorted(seen)
+
+
+def test_a_declared_collection_argument_is_frozen_at_the_boundary() -> None:
+    """The freeze, reconciled against the DECLARED table rather than the
+    registry it is checked against: the argument a declared entry's Python
+    receives is the deep-frozen element tuple, never the live zone list.
+
+    red under: return `list(...)` instead of the frozen tuple from
+    `reads.coerce_args`' `TCollection` arm."""
+    from cardlang.runtime.reads import coerce_args
+    from cardlang.runtime.state import Zone
+    from cardlang.runtime.values import Card
+    from cardlang.typecheck import declared_primitive_sigs
+
+    entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
+    game = _checks(_game(block=entry, body="    score[0] := 1"))
+    sig = declared_primitive_sigs(game)["gin_valid_meld"]
+    zone = Zone()
+    zone.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
+    coerced = coerce_args(sig, [zone])[0]
+    assert isinstance(coerced, tuple)
+    assert list(coerced) == [Card("7", "clubs"), Card("8", "clubs")]
+    # The frozen snapshot, not the zone's live list — a primitive holding the
+    # latter could `clear()` the argument and empty the zone.
+    assert not any(c is live for c, live in zip(coerced, zone.cards))

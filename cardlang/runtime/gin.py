@@ -38,11 +38,6 @@ from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player
 
-# Every zone this module reads by name is declared in PRIMITIVE_READS
-# (cardlang/runtime/reads.py) — the declared-reads coupling contract; the
-# accessors below are the only sanctioned way to touch state by name.
-ROW = reads.row("cardlang/runtime/gin.py", "gin-rummy.cardlang")
-
 # The deadwood optimizer's card weights — a second copy of the fact
 # gin-rummy.cardlang declares as its `card_points { }` clause (the optimizer
 # runs inside the primitive bundle, which carries no engine table). The two

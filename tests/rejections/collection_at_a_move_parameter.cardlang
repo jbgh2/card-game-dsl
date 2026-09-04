@@ -1,0 +1,17 @@
+// Guard: parse.py's `collection_type_reject` on `payload_type`, reached
+// through a move type's parameter list. A card-set decision is the joint
+// selection's job (`move chosen some cards ... where jointly`), and the action
+// encoding has no subset block outside that codec.
+game CollectionAtAMoveParameter {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}
+move_type declare(meld : Collection<Card>) { effect { score[actor] := 1 } }

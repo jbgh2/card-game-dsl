@@ -1,0 +1,1 @@
+collection_optional_at_a_state_row.cardlang:13:12: error: a collection type (`Collection<Card>`) is spellable in a `primitives { }` entry only — everywhere else a set of cards is a zone, and `move chosen some cards ... where jointly` is how a game picks one

@@ -1,0 +1,17 @@
+// Guard: parse.py's `collection_type_reject` on `payload_type`. The wall a
+// designer stands at first — a DSL function over the joint `cards` binder —
+// so the refusal names where the spelling IS legal rather than reporting a
+// shape question as an unknown name.
+game CollectionAtAFunctionParameter {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := if is_meld(hand[0]) then 1 else 0
+  }
+  winner: highest score
+}
+function is_meld(cs : Collection<Card>) = (number of cards in cs) >= 3

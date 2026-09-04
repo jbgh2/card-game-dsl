@@ -1585,8 +1585,9 @@ Derived fields are computable functions of declared fields. They're
 accessed identically to declared fields (`result.made`) but are
 stored nowhere; the compiler inlines them.
 
-User-defined types may be parameterized with the same angle-bracket
-convention as built-in generics. They are the language's extension
+A user-defined type is not parameterized: `type_def` takes a name and a
+field list, and the field list is where a game varies what the type
+holds. They are the language's extension
 point for genuine record types. The current corpus models its
 structured values with flat state variables and functions instead —
 Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
@@ -1594,6 +1595,38 @@ Bridge's contract is `contract_level : Integer`, `trump_suit : Suit?`,
 eligibility set — so no corpus game declares a `type` yet. The surface
 exists for the game that needs a true record, and the DSL doesn't ship
 a vocabulary covering every possible game.
+
+**Angle brackets: the head fixes the argument.** `Name<Arg>` means one of two
+things, and which is decided by the head, not by the reader:
+
+- A **zone-type head** (`Hand`, `TeamPile`, `Cascade` — the kernel's zone
+  types) takes an **index domain**: a lower-case domain id, equal to the
+  declaration's own index. `hand[player] : Hand<player>` reads "a hand per
+  player", and the checker refuses any disagreement between the two brackets.
+  The argument says who the family is keyed by, never what the zone holds —
+  the zone type's own name already fixes that.
+- A **value-constructor head** (`Collection`, the only one) takes an **element
+  type**: a Title Case name, and the language admits exactly one of them,
+  `Card`. `cards : Collection<Card>` reads "a collection of cards", and
+  `Collection<Player>` — a type the checker itself mints for `all players` —
+  is refused by name. The allow-list is held equal to the element types
+  registered Python actually takes, so a second element arrives as an event
+  with a witness rather than as a widening: the day an implementation takes a
+  collection of something else, the list is red until it admits that element.
+  The spelling is legal in a `primitives { }` entry's two type slots and
+  nowhere else, because a set of cards anywhere else in a game is a zone;
+  every other type position teaches that placement rather than reporting a
+  shape error (see [Primitives Block](glossary/primitives-block.md) and
+  [Collection Type](glossary/collection-type.md)).
+
+Case does the disambiguating on the page — an index domain is a lower-case id,
+an element type is a Title Case name — and both cross-confusions are refused
+by name. `?` suffixes a **value** type only: never a zone, never a collection
+(an absence inside a set has no rulebook reading, and `is empty` is a
+collection's absence). There are no type variables anywhere in the language: no
+declaration takes one, no Builtin is parametrically polymorphic (several take
+the top type `Any`, which is a widened parameter, not a variable), and no
+rulebook says "for any type T".
 
 **Optional types and the `none` literal.** A type written `T?` is optional: it
 holds a `T` or the absence value `none`. `none` is the language's single
@@ -3485,7 +3518,7 @@ is private to them (per `Hand<player>`'s projection); each
 player learns the three cards they receive (per their own
 hand's identity-to-owner projection) at block-exit. No observer
 learns which cards passed between any other pair of players
-beyond `count_only`, because that's what `Hand<Owner>` projects
+beyond `count_only`, because that's what `Hand<player>` projects
 to non-owners.
 
 **Catan-style trade (sketch).** A two-player resource trade

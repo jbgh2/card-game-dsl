@@ -21,6 +21,7 @@ from cardlang.runtime.gin import (
     minimal_deadwood,
     valid_meld,
 )
+from cardlang.runtime.primitives import Declared
 from cardlang.runtime.values import Card
 
 
@@ -31,6 +32,24 @@ def _c(spec: str) -> Card:
 
 def _h(*specs: str) -> list[Card]:
     return [_c(s) for s in specs]
+
+
+def _entry(name: str) -> Declared:
+    """One of gin's declared Primitives, materialized the way a playout
+    materializes it — from the game's own `primitives { }` block, through the
+    one load site. The entry carries the row its own `reads` clause declares,
+    which is what a probe binding a bundle by hand must bind."""
+    from pathlib import Path
+
+    from cardlang.pipeline import check_source
+    from cardlang.runtime.driver import declared_primitives
+
+    game = check_source(
+        Path(__file__).parent.parent / "docs" / "games" / "gin-rummy.cardlang"
+    )
+    table = declared_primitives(game)
+    assert table is not None, "gin-rummy declares a `primitives { }` block"
+    return table[name]
 
 
 def test_card_points() -> None:
@@ -109,13 +128,12 @@ def test_gin_primitive_in_a_zone_less_game_fails_typed() -> None:
     import random
 
     from cardlang.runtime import reads, narrowing
-    from cardlang.runtime.gin import ROW
     from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
 
     rs = RuntimeState(Seating(2), ZoneStore((), (0, 1)), random.Random(0))
     with pytest.raises(reads.PrimitiveReadError, match="zone family"):
-        narrowing.bind(rs, None, ROW)
+        narrowing.bind(rs, None, _entry("gin_deadwood").row)
 
 
 def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
@@ -130,7 +148,7 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
 
     from cardlang.pipeline import check_source
     from cardlang.runtime import narrowing
-    from cardlang.runtime.gin import ROW, gin_can_knock, gin_knock_ok
+    from cardlang.runtime.gin import gin_can_knock, gin_knock_ok
     from cardlang.runtime.state import RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
 
@@ -141,7 +159,7 @@ def test_can_knock_quantifies_the_discard_over_the_hand_zone_only() -> None:
     hand = _h("2C", "3C", "4C", "8C", "8D", "8H", "8S", "AS", "4H", "5H")
     rs.zones.instance("hand", 0).add_all(hand)
     rs.zones.instance("taken", 0).add_all(_h("KD"))
-    ctx = narrowing.bind(rs, None, ROW)
+    ctx = narrowing.bind(rs, None, _entry("gin_can_knock").row, {"hand": 0, "taken": 0})
 
     # The taken K♦ would be a legal knock-discard — but it is not in the pool.
     assert gin_knock_ok(*ctx, 0, _c("KD"))
