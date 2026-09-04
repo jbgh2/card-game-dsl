@@ -48,9 +48,15 @@ Now illegal:  a consumer deciding the regime by testing `game.primitives`
               asking the predicates here; and any consumer walking phase state
               blocks itself to answer a scope or ancestry question — the one
               path-aware walk is here; any consumer reading an entry
-              spelling's shape by slicing it rather than asking
-              `decompose_type`; and an element outside the allow-list
-              reaching typecheck.
+              spelling's shape itself rather than asking `decompose_type` —
+              the BRACKET half of that is enforced, by a scrape holding it to
+              this module (`tests/test_primitives_block.py::test_a_collection_
+              spelling_is_split_in_exactly_one_place`), and the trailing `?`
+              half is asserted rather than swept, because `?` is sliced
+              uniformly and correctly across the package and a scrape wide
+              enough to reach an entry's `?` would demand the same routing of
+              every state and payload spelling; and an element outside the
+              allow-list reaching typecheck.
 Verified by:  tests/test_primitives_block.py (the index reconciled against
               `PRIMITIVE_CALL_FUNCS` and against the live attributes; the
               declarable-type partition; the wall's totality over the six

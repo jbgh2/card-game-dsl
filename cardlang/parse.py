@@ -17,14 +17,21 @@ Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. No semantic claims — names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
-              nothing is typed. A `<...>` type spelling reaches the AST from
-              a `primitives { }` entry's two slots alone, single-element,
-              un-nested and un-optional; every other type position and the
-              phrase form meet a span-carrying rejection naming the entry.
+              nothing is typed. The `primitives { }` entry's own production
+              family is the ONE carrier of a VALUE type's `<...>` spelling:
+              it reaches the AST single-element, un-nested and un-optional,
+              and every other type position and the phrase form meet a
+              span-carrying rejection naming the entry. The zone ``type_ref``
+              and a library's ``require_decl`` carry the OTHER reading of
+              `<...>` — an index domain, derived through ``type_args`` — and
+              which shapes those admit is resolve's.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. A
-              ``Collection<`` spelling on any :class:`~cardlang.ast.nodes.Parameter`
-              outside a :class:`~cardlang.ast.nodes.PrimitiveDecl`, or in any
-              ``StateDecl`` / ``StructField`` / ``OutcomeCase``. Also
+              ``Collection<`` spelling, bare or `?`-suffixed, on any
+              :class:`~cardlang.ast.nodes.Parameter` outside a
+              :class:`~cardlang.ast.nodes.PrimitiveDecl`, or in any
+              ``StateDecl`` / ``StructField`` / ``OutcomeCase``; and, at an
+              entry's own slots, an optional, multi-argument, nested or
+              optional-element collection. Also
               MUTATING A RETURNED AST: ``parse_text`` is memoized, so two
               callers parsing the same ``(text, source_name, line_offset)``
               receive the SAME object, and one writer would be visible to

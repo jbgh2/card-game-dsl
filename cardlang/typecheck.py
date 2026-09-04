@@ -1072,8 +1072,14 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
             expected = _index_domain_spelling(index, env)
             if expected is None:
                 continue  # resolve owns the unclassified-index diagnostic
-            written = params[read.binder].type_name.removesuffix("?")
-            if written != expected:
+            # The comparison is against the spelling's BASE and the message
+            # quotes the spelling the designer wrote. The base comes from the
+            # block's ONE decomposition rather than a local slice: this is an
+            # ENTRY's parameter, so its shape is `primitives_block`'s to read,
+            # and a spelling carrying a second combinator would otherwise be
+            # compared against a base name it no longer has.
+            written = params[read.binder].type_name
+            if decompose_type(written).base != expected:
                 bag.error(
                     f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
                     f"is declared `{written}` — `{read.name}` is indexed by the "
