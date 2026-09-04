@@ -29,11 +29,19 @@ Completeness ledger
                      `type_name`, `payload_type`, `primitive_type`), plus
                      `struct_lit` whose head NAME is a type name in EXPRESSION
                      position. `POSITIONS` is the row set and
-                     `_grammar_carriers()` the scrape; the two are held equal
-                     in BOTH directions
+                     `_grammar_carriers()` the scrape; a row that reaches its
+                     type name through another production is translated to
+                     that HOST by `_carrier_host`, a breadth-first walk over
+                     the grammar's own right-hand sides, so no host mapping is
+                     authored and none can hold a value the grammar does not
+                     back. The two are held equal in BOTH directions
                      (`test_the_position_axis_is_the_grammar_s`,
                      `test_every_gridded_production_is_still_a_grammar_carrier`),
-                     which also carves out the one type-name carrier that
+                     and the walk itself is a per-row cell
+                     (`test_every_grid_row_reaches_its_type_name_through_the_grammar`)
+                     because a row the walk answers nothing for would drop out
+                     of both directions at once. This carves out the one
+                     type-name carrier that
                      cannot appear in a standalone game — a library's
                      `require_decl`, validated transitively by
                      `_check_requires` and covered in
@@ -90,6 +98,7 @@ Completeness ledger
 from __future__ import annotations
 
 import re
+from collections import deque
 from collections.abc import Callable
 from importlib import resources
 
@@ -404,42 +413,108 @@ def test_an_admitted_name_never_resolves_to_the_permissive_top() -> None:
 _TYPE_CARRIERS: tuple[str, ...] = ("type_name", "payload_type", "primitive_type")
 
 
-# A grid row whose production reaches its type name THROUGH another
-# production, and the carrier it reaches it through. The axis counts HOSTS,
-# not productions — the four `parameter` hosts gate the same production
-# differently, and a phase's outcome set is `define`'s read at another site —
-# so both directions of the scrape translate a row to its carrier here rather
-# than each keeping its own list.
-_INDIRECT_HOSTS: dict[str, str] = {
-    "move_type_def": "parameter",
-    "procedure_def": "parameter",
-    "rule_params": "parameter",
-    "function_def": "parameter",
-    "phase_outcome": "outcome_case",
-}
-
 # Grid rows whose type name is written in EXPRESSION position, with its own
 # terminal rather than through a type nonterminal — so the grammar scrape
 # cannot see them, and the reverse direction says so rather than by omission.
 _EXPRESSION_POSITIONS: frozenset[str] = frozenset({"struct_lit"})
 
 
-def _grammar_carriers() -> set[str]:
-    """Every production that references a type-carrying nonterminal."""
+def _grammar_bodies() -> dict[str, str]:
+    """Every rule name in cardlang.lark mapped to its whole right-hand side.
+
+    A rule may continue over several lines — an alternative written on its own
+    line with a leading `|` — so a body accumulates until the next definition.
+    Reading the first line alone would make a carrier referenced from a later
+    alternative invisible, which is the shape of blindness this module exists
+    to close one axis up.
+    """
     grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    carriers = set()
+    bodies: dict[str, str] = {}
+    current: str | None = None
     for line in grammar.splitlines():
         s = line.strip()
         if not s or s.startswith("//"):
             continue
-        m = re.match(r"^([a-z_]+):", s)
-        if (
-            m
-            and re.search(rf"\b({'|'.join(_TYPE_CARRIERS)})\b", s)
-            and m.group(1) not in _TYPE_CARRIERS
-        ):
-            carriers.add(m.group(1))
-    return carriers
+        m = re.match(r"^(_?[a-z][a-z0-9_]*)\s*:", s)
+        if m:
+            current = m.group(1)
+            bodies[current] = s[m.end() :]
+        elif s.startswith("|") and current is not None:
+            bodies[current] += " " + s
+        else:
+            current = None
+    return bodies
+
+
+def _grammar_carriers() -> set[str]:
+    """Every production that references a type-carrying nonterminal."""
+    bodies = _grammar_bodies()
+    return {
+        name
+        for name, body in bodies.items()
+        if name not in _TYPE_CARRIERS
+        and re.search(rf"\b({'|'.join(_TYPE_CARRIERS)})\b", body)
+    }
+
+
+def _carrier_host(production: str) -> str | None:
+    """The nearest production reachable from `production` that writes a type
+    name — itself, if it references a carrier directly.
+
+    A grid row whose production reaches its type name THROUGH another one is
+    counted at that HOST, not at the row: the four `parameter` hosts gate one
+    production differently, and a phase's outcome set is `define`'s read at
+    another site. Both scrape directions translate a row through this walk, so
+    neither keeps a list of its own and neither can hold a value the grammar
+    does not back — the defect a hand-written host table had, where a wrong
+    value left both directions green.
+
+    The walk is breadth-first over the grammar's own RHS references and stops
+    at the first depth that reaches a carrier; a tie at that depth is a
+    production this walk cannot name, so it raises rather than picking one.
+    """
+    direct = _grammar_carriers()
+    if production in direct:
+        return production
+    bodies = _grammar_bodies()
+
+    def refs(name: str) -> set[str]:
+        body = bodies.get(name, "")
+        return {t for t in re.findall(r"\b_?[a-z][a-z0-9_]*\b", body) if t in bodies}
+
+    seen = {production}
+    frontier = deque([(production, 0)])
+    hits: dict[int, set[str]] = {}
+    while frontier:
+        node, depth = frontier.popleft()
+        if hits and depth > min(hits):
+            break
+        for reference in sorted(refs(node)):
+            if reference in direct:
+                hits.setdefault(depth + 1, set()).add(reference)
+            if reference not in seen:
+                seen.add(reference)
+                frontier.append((reference, depth + 1))
+    if not hits:
+        return None
+    nearest = hits[min(hits)]
+    assert len(nearest) == 1, (
+        f"'{production}' reaches {sorted(nearest)} at equal depth, so the "
+        f"grid row has no single host — the walk cannot pick one for it"
+    )
+    return next(iter(nearest))
+
+
+def _gridded_hosts() -> set[str]:
+    """Every grid row's production, translated to the host that writes its
+    type name. A row in `_EXPRESSION_POSITIONS` reaches none and is dropped
+    here rather than compared against a carrier set it was never in."""
+    hosts = set()
+    for production, _ in POSITIONS.values():
+        host = _carrier_host(production)
+        if host is not None:
+            hosts.add(host)
+    return hosts
 
 
 def test_the_position_axis_is_the_grammar_s() -> None:
@@ -453,8 +528,7 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     without adding its row to POSITIONS.
     """
     carriers = _grammar_carriers()
-    gridded = {production for production, _ in POSITIONS.values()}
-    expanded = {_INDIRECT_HOSTS.get(p, p) for p in gridded}
+    expanded = _gridded_hosts()
     # `require_decl` (a library's `requires { x : type_name }`) is the one
     # type-name carrier outside this grid's domain, and structurally so: every
     # POSITIONS cell emits a STANDALONE game string, but a `require_decl` can
@@ -493,13 +567,46 @@ def test_every_gridded_production_is_still_a_grammar_carrier() -> None:
     `_TYPE_CARRIERS`.
     """
     carriers = _grammar_carriers()
-    gridded = {production for production, _ in POSITIONS.values()}
-    expected = {_INDIRECT_HOSTS.get(p, p) for p in gridded}
-    orphans = expected - carriers - _EXPRESSION_POSITIONS
+    orphans = _gridded_hosts() - carriers - _EXPRESSION_POSITIONS
     assert not orphans, (
         f"grid rows whose production no longer carries a type name: "
         f"{sorted(orphans)} — the position lost its grammar backing and the "
         f"subtraction above cannot see it"
+    )
+
+
+@pytest.mark.parametrize("position", sorted(POSITIONS))
+def test_every_grid_row_reaches_its_type_name_through_the_grammar(
+    position: str,
+) -> None:
+    """The host walk itself, one cell per grid row.
+
+    The two scrape directions above both translate a row through
+    `_carrier_host`, so a row whose walk answers nothing would drop out of
+    BOTH and neither would notice — which is the vacuity a hand-written host
+    table had in a different shape. This asserts the walk lands: every row
+    either writes its type name itself, reaches exactly one production that
+    does, or is an expression position with no type nonterminal at all.
+
+    red under: delete `parameter` from `function_def`'s right-hand side in
+    cardlang.lark — `function_def`'s walk then reaches no carrier and this
+    row fails while both scrape directions stay green.
+    """
+    production, _ = POSITIONS[position]
+    host = _carrier_host(production)
+    if production in _EXPRESSION_POSITIONS:
+        assert host is None, (
+            f"{position} is recorded as an expression position, but the "
+            f"grammar reaches a type nonterminal from it through '{host}'"
+        )
+        return
+    assert host is not None, (
+        f"{position}'s production '{production}' reaches no type-carrying "
+        f"nonterminal, so both scrape directions drop it silently"
+    )
+    assert host in _grammar_carriers(), (
+        f"{position}'s host '{host}' is not a carrier — the walk returned a "
+        f"production that writes no type name"
     )
 
 
