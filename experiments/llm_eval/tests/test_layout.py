@@ -344,7 +344,7 @@ def test_resume_refuses_a_changed_treatment(tmp_path: Path) -> None:
     spec["matchups"][0]["resume_from"] = 1
     spec["matchups"][0]["agents"][1] = {"kind": "rule", "bluff_prob": 0.4}
     path.write_text(yaml.safe_dump(spec), encoding="utf-8")
-    with pytest.raises(ValueError, match="the configuration changed"):
+    with pytest.raises(ValueError, match="the treatment changed"):
         main(["--config", str(path), "--run-dir", str(target)])
 
 

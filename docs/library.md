@@ -212,7 +212,9 @@ Game-local rules that recur as *names* but not as bodies:
   the led suit played so far when following (Pinochle)
 - `MustTrumpIfVoid` — constrains `play_to_trick`; must trump when void in the
   led suit (Pinochle, French Tarot — the bodies differ: Pinochle's declared
-  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row)
+  `trump_suit` vs Tarot's `is_trump(card)`, its Trick Order's `trump:` row,
+  and Tarot's guard asks for an [[effective-lead]] where Pinochle's asks for
+  the led suit)
 - `MustOverTrump` — constrains `play_to_trick`; must beat the highest trump
   played so far when trumping (Pinochle, French Tarot — the bodies differ:
   `rank_value` within the trump suit vs Tarot's `card_strength(card)` over
@@ -263,12 +265,11 @@ to follow-suit/trump/over-trump and never counts toward satisfying them.
 trick_pile)` — the [[effective-lead]]'s own candidate test — rather than the
 kernel's own `state.led_suit` (the literal first card, "excuse" included).
 The Excuse carries no follow class, so a trick led with it has no effective
-lead at all and nothing follows: the next player faces "void in the led suit"
-and must trump if able. That narrowing is a KNOWN divergence from Pagat,
-which lets the second player play any card — [issue
-#357](https://github.com/jbgh2/card-game-dsl/issues/357) owns the correction,
-and tests/test_playout_french_tarot.py pins the current behaviour so a
-migration cannot change it by accident.
+lead at all: nothing follows it, and nothing is void in it either. So
+`MustTrumpIfVoid` is guarded on an effective lead EXISTING rather than on
+`state.led_suit`, whose literal value is "excuse" there — the seat after a
+led Excuse is bound by nothing and plays any card, and its card sets the
+class the rest of the trick follows.
 
 ## Winner functions
 
@@ -360,9 +361,31 @@ in tests/test_trump_slot_class.py.
   what moves the chips. The shared `betting` core is the `poker_betting`
   family library ([decisions.md](decisions.md), "Family libraries"): check,
   bet, call, raise and the ring predicates arrive by `uses poker_betting`,
-  while `fold` (the one betting move that touches cards) stays game-local,
-  as does the per-game pot-share query over the family-wide side-pot
-  arithmetic in `cardlang/runtime/poker.py`.
+  while `fold` (the one betting move that touches cards) stays game-local.
+  The side-pot arithmetic is family-wide (`cardlang/runtime/poker.py`), and
+  so is the showdown query over it: a game whose showdown ranks holdings
+  DECLARES one in its Primitives Block rather than writing Python for it,
+  and which one it declares follows from where the holding sits.
+  `pot_share` ranks each entrant's own cards, so it reads the zone families
+  `hole` and `upcards` BY NAME; `holdem_pot_share` ranks private cards
+  against a shared board, so it reads `hole` and `shown` plus the single
+  zone `board`. Those are the two showdown shapes: the heads-up variant's
+  `holdem_heads_up_pot_share` is neither a third shape nor a third read set
+  but a duplicated BINDING, repeating `holdem_pot_share`'s query over the
+  same zones — see issue #232. The game spells those zone names exactly,
+  and reveals between the zones the query names rather than into a third —
+  what a Transfer takes out of both is out of the settlement. The query
+  concatenates them, so it is insensitive to how far a reveal has run; what
+  the reveal buys is the observation, the flip into the `PublicHand`
+  carrying the revealed identities the showdown's information sets derive
+  from. The declaration is one colon-row —
+  `pot_share(p : Player) : Integer reads committed, folded, in_hand, hole, upcards`
+  — and that Reads Clause is itself the coupling declaration ("Native
+  functions" below), so nothing in the engine changes for a game that
+  declares one. A name a phase's own `state { }` declares takes a
+  Phase-Scoped Read (`committed in play`, Stud's form); a game-level one
+  takes none, and a tail naming a phase the game does not declare is
+  refused, naming the phases the game does declare.
 - **Cribbage's counting hand** runs entirely on ordinary statements — no `round`
   form fits pegging's per-play scoring plus forced-play flow (see
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'

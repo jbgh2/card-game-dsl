@@ -1,0 +1,34 @@
+// A game that passes every compile stage and then fails at play time: its
+// phase loop makes more decisions than the `max_length` it declares, which
+// the driver's decision counter refuses as a `GameDescriptionError`.
+//
+// The witness for the runtime half of the command line's failure rendering
+// (tests/test_cli_surface.py). A corpus game reaching the same refusal would
+// tie the test to one game's random line; this reaches it on every seed.
+game ExceedsMaxLength {
+  players: 2
+  direction: clockwise
+  max_length: 1
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+
+  state {
+    coins[player] : Integer = 0
+    rounds        : Integer = 0
+  }
+
+  phase play repeat until rounds >= 10 {
+    before_each { rounds += 1 }
+    for each player p: offer to p one of [take_one, take_two]
+  }
+
+  winner: highest coins
+}
+
+move_type take_one { effect { coins[actor] += 1 } }
+move_type take_two { effect { coins[actor] += 2 } }

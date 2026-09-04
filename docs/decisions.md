@@ -1948,12 +1948,32 @@ A transfer's per-card `where` filter tests each candidate alone —
 `chosen K cards where <pred>` can never say "these K cards *together* form a
 valid group," which is the load-bearing test of every meld-family game. The
 joint form binds **`cards`** — the candidate *set*, a card collection — and
-the selection becomes ONE decision over the source's satisfying subsets:
+the selection becomes ONE decision over the source's satisfying subsets.
+
+The predicate ROOTS IN A CALL, and that root is what lets the form reach
+OpenSpiel: joint candidates are card subsets — what the combo block deals in,
+exactly like climb combination plays — and their universe is not derivable
+from the predicate's text, so it comes from a **registered per-predicate
+codec** (`cardlang/runtime/primitives.py`, `joint_codec_function`, the
+climb-engine codec pattern). That codec is engine Python, keyed by the root
+call's name: Gin's `gin_valid_meld` and `gin_arrange_ok` both name the
+329-meld universe of standard52. The front end accepts an inline predicate;
+the refusal comes at action-space construction — loudly, never as a silent
+absence from the space — and a root call no codec is registered under is
+refused in the same place. Where the subsets cannot be encoded at all,
+because the deck holds duplicate identical cards and the combo block's
+frozenset canonicalization collapses copies, the shape is the
+announce-then-stage decomposition instead
+("Meld groups: flattened zone families" below, Canasta's
+`stage_card`/`close_meld`). That wall and the remaining codec walls — a game
+mixing climb and joint selections, two joint predicates wanting different
+codecs — are recorded in [roadmap.md](roadmap.md), "Grammar surface deferred
+by the checker".
 
 ```cardlang-fragment jointly_selection
 as arranger {
   move chosen some cards from hand[arranger]
-       where jointly (number of cards in cards) >= 3 to waste
+       where jointly gin_valid_meld(cards) to waste
 }
 ```
 
@@ -1976,14 +1996,6 @@ Enumeration is deterministic (sizes ascending, combinations in source
 order) and bounded: a source pool past 16 cards is a loud runtime refusal,
 not a hang. No satisfying subset is the no-implicit-actions error: guard
 the transfer so it is only reached when one exists.
-
-For the OpenSpiel target, joint candidates are card subsets — the combo
-what the block deals in, exactly like climb combination plays — and the subset
-universe comes from a **registered per-predicate codec**
-(`joint_codec_function`, the climb-engine codec pattern: the predicate's
-root call names it, `gin_arrange_ok` → the 329-meld universe of
-standard52). A joint predicate with no registered codec is refused loudly at
-action-space construction, never silently absent from the space.
 
 Gin Rummy's showdown arrangements are the anchor: the knocker declares
 melds one joint selection at a time, each guarded so the remaining hand
@@ -3619,17 +3631,22 @@ construct:
 
 ```text
 if <public window gate> {
-  quiet := 0
   round offering [<window moves>, decline] from <player about to act>
         over all players until quiet >= <player count>
+  quiet := 0
 }
 ```
 
 placed before each decision the enclosing phase offers. Every window
 move's effect resets the `quiet` counter; the decline increments it; a
-full silent lap closes the poll. An announcement re-opens the lap, so
-chains of reactions (Re → no 90 → Kontra) resolve at a single poll
-point in any order the players choose.
+full silent lap closes the poll, and the closing poll clears its own
+counter: the lap count belongs to the poll's Decision Episode
+([glossary/decision-episode.md](glossary/decision-episode.md)), idle at
+every decision the poll does not own, so the information state between
+polls names no lap already closed (pinned at
+`tests/test_poll_state_freshness.py`). An announcement
+re-opens the lap, so chains of reactions (Re → no 90 → Kontra) resolve
+at a single poll point in any order the players choose.
 
 Three properties make the serialization faithful and leak-free:
 
