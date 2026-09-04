@@ -532,16 +532,23 @@ _TYPE_CARRIERS: tuple[str, ...] = ("type_name", "payload_type", "primitive_type"
 _EXPRESSION_POSITIONS: frozenset[str] = frozenset({"struct_lit"})
 
 
-def _grammar_bodies() -> dict[str, str]:
-    """Every rule name in cardlang.lark mapped to its whole right-hand side.
+def _grammar_text() -> str:
+    """The grammar file's source."""
+    return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
+
+
+def _bodies_of(grammar: str) -> dict[str, str]:
+    """Every rule name in `grammar` mapped to its whole right-hand side.
 
     A rule may continue over several lines — an alternative written on its own
     line with a leading `|` — so a body accumulates until the next definition.
     Reading the first line alone would make a carrier referenced from a later
     alternative invisible, which is the shape of blindness this module exists
     to close one axis up.
+
+    Takes the text rather than reading the file, so a cell can plant a shape
+    the real grammar does not carry without writing to it.
     """
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
     bodies: dict[str, str] = {}
     current: str | None = None
     for line in grammar.splitlines():
@@ -557,6 +564,31 @@ def _grammar_bodies() -> dict[str, str]:
         else:
             current = None
     return bodies
+
+
+def _grammar_bodies() -> dict[str, str]:
+    """Every rule name in cardlang.lark mapped to its whole right-hand side."""
+    return _bodies_of(_grammar_text())
+
+
+def test_the_rule_scrape_reads_a_prefixed_rule() -> None:
+    """A modifier is part of lark's rule SYNTAX, not part of the rule's name.
+
+    Lark spells the modifiers `!`, `?`, `!?` and `?!` (its own
+    `RULE_MODIFIERS`), and a rule carrying one is still referenced by its bare
+    name — so a splitter that required the name to start the line would hold a
+    body table with every prefixed rule missing, and a carrier referenced from
+    one, or a walk passing through one, would be invisible to both scrape
+    directions and to `_carrier_host` at once. The plant is a scratch copy of
+    the grammar text; the file itself is never written.
+
+    red under: drop the modifier prefix from `_bodies_of`'s rule pattern."""
+    bodies = _bodies_of(_grammar_text() + "\n?planted_item: parameter\n")
+    assert "parameter" in bodies.get("planted_item", ""), (
+        "the scrape did not read `?planted_item: parameter` as the rule "
+        "`planted_item`, so a prefixed rule is invisible to it — and to every "
+        "derivation over its keys"
+    )
 
 
 def _grammar_carriers() -> set[str]:
