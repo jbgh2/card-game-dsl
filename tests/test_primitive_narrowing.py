@@ -415,7 +415,6 @@ NARROWED: frozenset[str] = frozenset(
         "five_hundred.py::five_hundred_bid_value",
         "five_hundred.py::five_hundred_next_bid",
         "gin.py::GIN_MELD_CODEC",
-        "gin.py::ROW",
         "gin.py::gin_arrange_ok",
         "gin.py::gin_can_declare",
         "gin.py::gin_can_declare_free",

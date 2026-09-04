@@ -88,6 +88,19 @@ _PARSE_LEVEL_CASES = frozenset(
         # production itself, so the wrong spelling is refused by the parse
         # builder and no tree ever exists.
         "primitives_scoped_read_transposed_binder",
+        # The collection type's two parse-level refusals. The TEACHING twin
+        # rides the two shared type productions, so a collection spelled
+        # anywhere but a `primitives { }` entry's slots is refused by the
+        # builder; the PHRASE twin rides the entry's own production. Neither
+        # leaves a tree.
+        "collection_at_a_function_parameter",
+        "collection_at_a_move_parameter",
+        "collection_at_a_state_row",
+        "primitives_collection_phrase_form",
+        # An optional collection has no derivation at all: the element slot is
+        # a bare NAME and composes with neither the `?` arm nor a second type
+        # argument, so the `?` is a grammar dead end.
+        "primitives_collection_optional",
         # The collection-quantifier register has no `number of <noun> in
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve guard (issue #111).

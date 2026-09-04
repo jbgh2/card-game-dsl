@@ -245,6 +245,7 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
+    COLLECTION_ELEMENT_NAMES,
     DECLARABLE_BUILTIN_TYPE_NAMES,
     DECLARABLE_CONTRACTS,
     PRIMITIVE_IMPLEMENTATIONS,
@@ -262,7 +263,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
-from cardlang.types import TEnum, TOptional, Type
+from cardlang.types import TCollection, TEnum, TOptional, Type
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -531,10 +532,7 @@ def _spellable_types(names: frozenset[str]) -> list[str]:
     designer can write rather than from the bare names the conversion site
     happens to take. A second element admitted to `COLLECTION_ELEMENT_NAMES`
     lands here as a new spelling without anyone editing this function."""
-    from cardlang.primitives_block import (
-        COLLECTION_ELEMENT_NAMES,
-        COLLECTION_TYPE_CONSTRUCTOR,
-    )
+    from cardlang.primitives_block import COLLECTION_TYPE_CONSTRUCTOR
 
     bare = sorted(names)
     return (
@@ -738,6 +736,18 @@ def _spelling_of(t: Type) -> tuple[str, str]:
         # own; the inner leaf still has to render, which is what keeps an
         # unknown leaf loud behind a `?`.
         return f"{_spelling_of(t.inner)[0]}?", "none"
+    if isinstance(t, TCollection):
+        # Structural like `?`, for the same reason: the element leaf still has
+        # to render. The column is a ZONE — the zone facet is not part of
+        # assignability, so `hand[0]` is what a collection parameter can be
+        # handed where the probe game stands, and it holds cards.
+        element, _ = _spelling_of(t.element)
+        assert element in COLLECTION_ELEMENT_NAMES, (
+            f"a Primitive's signature takes a collection of {element}, which "
+            f"the block cannot spell — the element registry and this renderer "
+            f"disagree"
+        )
+        return f"Collection<{element}>", "hand[0]"
     key = t.name if isinstance(t, TEnum) else type(t).__name__
     row = _SPELLINGS.get(key)
     assert row is not None, (
@@ -2814,8 +2824,6 @@ def test_a_declared_collection_parameter_is_the_registry_s_signature() -> None:
 # crossed with the collection form. The allow-list is what decides, so a name
 # admitted into it lands here as an accept without anyone editing a row.
 def _element_cells() -> list[tuple[str, bool]]:
-    from cardlang.primitives_block import COLLECTION_ELEMENT_NAMES
-
     probe = _checks(_game(block=_PINOCHLE_ENTRY, body=""))
     names = sorted(
         DECLARABLE_BUILTIN_TYPE_NAMES | {p.name for p in probe.positions}
@@ -2849,9 +2857,8 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
 
     red under: register a `Collection<Player>` parameter in `CALL_SIGS` for
     any name in `PRIMITIVE_IMPLEMENTATIONS`."""
-    from cardlang.primitives_block import COLLECTION_ELEMENT_NAMES, implementation_sig
+    from cardlang.primitives_block import implementation_sig
     from cardlang.typecheck import TypeEnv, type_from_name
-    from cardlang.types import TCollection
 
     env = TypeEnv()
     implemented: set[str] = set()
@@ -3016,7 +3023,6 @@ def test_a_collection_return_is_refused_against_every_implementation() -> None:
     An empty registry, not a gap — the day an implementation returns one, its
     witness is owed."""
     from cardlang.primitives_block import implementation_sig
-    from cardlang.types import TCollection
 
     returning: list[str] = []
     for name in sorted(PRIMITIVE_IMPLEMENTATIONS):

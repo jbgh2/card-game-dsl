@@ -115,12 +115,11 @@ def _game(body: str, clauses: str = "") -> str:
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
         "  zones { deck : Deck  hand[player] : Hand<player>\n"
         "          taken[player] : HiddenPile<player>  discard : Discard\n"
-        # The gin probes call gin primitives, and the binder materialises the
-        # implementing module's WHOLE declared row (PRIMITIVE_READS) before
-        # entering it — so a probe game must declare gin's row even though
-        # these two predicates read only `hand`/`taken`. Module-granular
-        # bundles are the ratified stage-2 scope; the per-primitive `reads`
-        # clause (stage 3) is what lets a probe declare only what it probes.
+        # The gin probes call declared Primitives, so the binder materialises
+        # the ENTRY's own row — `hand`/`taken` for the arrangement guard, and
+        # nothing at all for the meld predicate, which is pure over its
+        # argument. The remaining zones are here because the deal writes them,
+        # not because a bundle demands them.
         "          shown_deadwood[player] : Discard\n"
         "          meldA[player] : Discard  meldB[player] : Discard\n"
         "          meldC[player] : Discard }\n"
@@ -148,13 +147,18 @@ _ZONE_PROBES: dict[str, str] = {
         "  phase p {\n" + _DEAL +
         "    if gin_valid_meld(hand[dealer]) { score[dealer] += 1 }\n"
         "    if gin_valid_meld(hand[1]) { score[1] += 1 }\n"
-        "  }"
+        "  }",
+        clauses="  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }\n",
     ),
     "gin_arrange_ok": _game(
         "  phase p {\n" + _DEAL +
         "    if gin_arrange_ok(dealer, hand[dealer]) { score[dealer] += 1 }\n"
         "    if gin_arrange_ok(1, hand[1]) { score[1] += 1 }\n"
-        "  }"
+        "  }",
+        clauses=(
+            "  primitives { gin_arrange_ok(p : Player, cards : Collection<Card>)"
+            " : Boolean reads hand[p], taken[p] }\n"
+        ),
     ),
     # `top_of`/`bottom_of` (decisions.md "Position domains and positional
     # zones"): each reads a card off a ZONE argument. The filtered deal
