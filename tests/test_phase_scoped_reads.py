@@ -1726,6 +1726,42 @@ def _walk_all(node: object) -> list[object]:
 # --- the runtime premise the guard leans on ----------------------------------
 
 
+def test_a_phases_frame_does_not_outlive_the_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The premise the non-nesting refusal rests on, as a checked fact rather
+    than a comment. `run_phase` pops what it pushed, so a phase's state stands
+    nowhere outside that phase's extent — which is why no position in a game
+    runs two phases neither of which is inside the other, and why an entry
+    reading from both is refused as a designed constraint rather than deferred
+    as a wall. If the premise ever went false the refusal would become the
+    wrong answer silently, so it is pinned rather than argued.
+
+    Born green. red under: drop the `finally: ctx.rs.pop_frame()` from
+    `runtime/driver.run_phase` — every enclosing phase's depth then differs
+    across its own call, and a sibling's frame survives into the phase after
+    it."""
+    from cardlang.runtime import driver as driver_mod
+
+    real = driver_mod.run_phase
+    depths: list[tuple[str, int, int]] = []
+
+    def spy(phase: n.Phase, ctx: typing.Any, hands: typing.Any) -> None:
+        before = len(ctx.rs.frames)
+        real(phase, ctx, hands)
+        depths.append((phase.name, before, len(ctx.rs.frames)))
+
+    monkeypatch.setattr(driver_mod, "run_phase", spy)
+    play_game(_checks(_shape_source(("inner",))), random.Random(0))
+    assert depths, "no phase ran"
+    assert all(before == after for _, before, after in depths), depths
+    # And the frames were genuinely pushed, so the equality above is not the
+    # trivial one a runtime that pushed nothing would satisfy.
+    entered = {name: before for name, before, _ in depths}
+    assert entered["inner"] > entered["outer"] > entered["top"], depths
+    assert entered["later"] == entered["outer"], depths
+
+
 def test_the_move_type_index_readers_are_the_pinned_census() -> None:
     """The containment guard is sound only if a game move type's body executes
     inside an offering site's dynamic extent and nowhere else. No static pass

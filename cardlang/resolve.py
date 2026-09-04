@@ -106,18 +106,21 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               And, for a read carrying a [[phase-scoped-read]]'s ``in <phase>``
               tail: the tail names a real phase of the game, that phase's own
               ``state { }`` declares the name, no STRICT DESCENDANT of it
-              re-declares the name, one entry's clause names at most one
-              phase, and every call of that entry sits inside the named
-              phase's subtree — or in a game move type every offering mention
-              of which does, or at a ``run`` site that does
-              (``_check_read_tail``, ``_check_scoped_read_containment``). Like
+              re-declares the name, the phases ONE entry's clause names lie on
+              one ancestor path — so their subtrees nest and the entry's
+              REGION is the innermost's subtree, which is the intersection of
+              the named subtrees — and every call of that entry sits inside
+              that region, or in a game move type every offering mention of
+              which does, or at a ``run`` site that does
+              (``_check_read_tail``, ``_check_read_tails_nest``,
+              ``_check_scoped_read_containment``). Like
               the actor-alias rule this is a SCOPE fact, not a type fact, so
               it is settled here; and necessarily before ``expand``, which
               erases the ``run`` sites a procedure body is judged at.
-              ``runtime/driver`` may therefore assume the declaring frame
-              stands, and holds the name, at every call this pass admits, and
-              defends a scoped read with nothing but an Owner-naming
-              [[shadow-guard]].
+              ``runtime/driver`` may therefore assume EVERY named phase's
+              frame stands, and holds its name, at every call this pass
+              admits, and defends a scoped read with nothing but an
+              Owner-naming [[shadow-guard]].
 Verified by:  the per-guard diagnostic tests; the runtime Shadow Guard above.
               For the declare-time rule, the grid in
               ``tests/test_state_default_scope.py`` — which PLAYS every
@@ -5366,28 +5369,13 @@ def _check_primitive_reads(
         if read.name in seen:
             bag.error(
                 f"`{decl.name}` reads `{read.name}` more than once — a `reads` "
-                f"clause names each declaration at most once, and the repeat "
-                f"would silently replace the first; keep one",
+                f"clause names each spelling at most once: the bundle is keyed "
+                f"by bare name, so two declarations of one spelling cannot both "
+                f"be carried; keep one",
                 read.span or decl.span,
             )
             return
         seen.add(read.name)
-    # One entry, one containment region: the scope tail makes the entry callable
-    # only where the named phase runs, and two phases' extents are not one place.
-    # Settled per ENTRY rather than per read, and before the per-read arms, so a
-    # designer meets the composition error rather than two halves of it. Two
-    # regions would have to be intersected, which is issue #517.
-    tailed = {read.phase for read in decl.reads if read.phase is not None}
-    if len(tailed) > 1:
-        bag.error(
-            f"`{decl.name}` reads state from "
-            f"{_phase_list(frozenset(tailed))} — one entry's `reads` clause "
-            f"names at most one phase, since the entry is callable only where "
-            f"that phase runs and two phases are not one place; split the "
-            f"entry, or pass the second value as an argument",
-            decl.span,
-        )
-        return
     # A PURE implementation never receives the bundle (`primitives.call_declared`
     # hands it the coerced arguments and nothing else), so a `reads` clause on
     # one declares a dependency the dispatch cannot honour — accepted-and-
@@ -5504,6 +5492,58 @@ def _check_primitive_reads(
                 f"— an index binder keys the instance the CALL names",
                 read.span or decl.span,
             )
+    _check_read_tails_nest(game, decl, bag)
+
+
+def _and_list(items: list[str]) -> str:
+    """`a` and `b`; `a`, `b` and `c` — a list as a sentence reads it."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _check_read_tails_nest(
+    game: n.Game, decl: n.PrimitiveDecl, bag: DiagnosticBag
+) -> None:
+    """The phases one entry's tails name lie on ONE ancestor path.
+
+    Their subtrees then nest, and the innermost's subtree is the intersection —
+    the region the entry is callable in. Phases neither of which is inside the
+    other intersect in NOTHING: `runtime/driver.run_phase` pops a phase's frame
+    when the phase ends, so no position in the game runs both, and an entry
+    reading from both could never be called anywhere. A designed constraint,
+    not a deferral — nothing anyone would build makes such an entry callable,
+    which is why the refusal teaches the two fixes that do exist rather than
+    citing an issue.
+
+    Settled per ENTRY, because a per-read arm cannot see the set, and AFTER
+    every tail has validated, because a tail that names no phase of the game,
+    or a phase that does not declare the name, has no path — asking the
+    composition question of it would report the typo twice. That is the same
+    predicate `_scoped_entry_phases` asks before it hands an entry to
+    containment."""
+    tailed_reads = [read for read in decl.reads if read.phase is not None]
+    if len(tailed_reads) < 2:
+        return
+    if any(
+        read.phase not in phase_names(game)
+        or classify_read(game, read.name, read.phase) is None
+        for read in tailed_reads
+    ):
+        return
+    named: list[str] = []
+    for read in tailed_reads:
+        if read.phase is not None and read.phase not in named:
+            named.append(read.phase)
+    if len(named) < 2 or phase_chain(game, frozenset(named)) is not None:
+        return
+    bag.error(
+        f"`{decl.name}` reads "
+        f"{_and_list([f'`{r.name} in {r.phase}`' for r in tailed_reads])}, and "
+        f"{_and_list([f'`{p}`' for p in named])} do not nest — no place in "
+        f"this game runs {'both' if len(named) == 2 else 'them all'}, so the "
+        f"entry could never be called; keep one, and pass the other value as "
+        f"an argument or declare it in the game's `state {{ }}`",
+        decl.span,
+    )
 
 
 def _tail_names_instead(game: n.Game, spelling: str) -> str:
@@ -5581,10 +5621,11 @@ def _check_read_tail(
 
 # --- the phase-scoped read's containment analysis ----------------------------
 #
-# An entry with a [[phase-scoped-read]] is callable only where the named phase
-# runs. Settled HERE — a scope fact, the actor-alias precedent — and
-# necessarily before `expand`, which erases the `run` sites a procedure body is
-# judged at.
+# An entry with a [[phase-scoped-read]] is callable only where its REGION runs
+# — the innermost of the phases its tails name, whose subtree is the
+# intersection of theirs. Settled HERE — a scope fact, the actor-alias
+# precedent — and necessarily before `expand`, which erases the `run` sites a
+# procedure body is judged at.
 
 # Where a `Call` may sit, by the `n.Game` field its container hangs off.
 # AUTHORED, and pinned total against the field set
@@ -5849,7 +5890,7 @@ def _offering_positions(
 
 
 def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
-    """Every call of an entry carrying a scope tail sits where that phase runs.
+    """Every call of an entry carrying a scope tail sits where its region runs.
 
     Its own check rather than part of `_check_primitives_block`, because it is
     a fact about the game's CALL SITES rather than about the block, and it must
@@ -5861,6 +5902,7 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         return
     bodies = _definition_bodies(game)
     owners = _statement_owners(game, bodies)
+    holders = _phase_of_node(game)
     for entry, scope in sorted(scoped.items(), key=lambda item: item[0]):
         phase_name = scope.region
         phase = _find_phase(game, phase_name)
@@ -5877,7 +5919,7 @@ def _check_scoped_read_containment(game: n.Game, bag: DiagnosticBag) -> None:
         )
         inside = {id(node) for node in _walk(phase)}
         reaching = _procedures_reaching(game, _calls_entry(entry))
-        _check_direct_call_positions(game, entry, phase_name, inside, reaching, bag)
+        _check_direct_call_positions(game, entry, scope, inside, holders, bag)
         _check_offered_containers(
             game, entry, phase_name, inside, reaching, owners, bodies, bag
         )
@@ -5931,25 +5973,70 @@ def _reaches_scoped_entry(
     )
 
 
-def _outside(entry: str, phase_name: str, where: str) -> str:
-    return (
-        f"`{entry}` reads state declared in phase `{phase_name}`, so it is "
-        f"callable only where that phase runs — this call is {where}, which "
-        f"runs outside it; move the call inside `{phase_name}`, or pass the "
-        f"value as an argument"
+def _phase_of_node(game: n.Game) -> dict[int, str]:
+    """id(node) -> the name of the INNERMOST phase whose extent holds it.
+
+    A POSITION question, so it is this pass's: the same `_walk(phase)` extent
+    the containment relation is built from, taken outer phase first so a deeper
+    one overrides. Which of two phases encloses the other is an ANCESTRY
+    question and is asked of `phase_paths` instead."""
+    paths = phase_paths(game)
+    depth: list[tuple[int, n.Phase]] = sorted(
+        (
+            (len(paths[node.name]), node)
+            for node in _walk(game)
+            if isinstance(node, n.Phase) and node.name in paths
+        ),
+        key=lambda item: item[0],
     )
+    holders: dict[int, str] = {}
+    for _, phase in depth:
+        for node in _walk(phase):
+            holders[id(node)] = phase.name
+    return holders
+
+
+def _outside(entry: str, scope: _ScopedEntry, where: str) -> str:
+    """The refusal a call outside a scoped entry's region meets.
+
+    It names the READ that binds the region, not merely the region: with more
+    than one phase in the clause, a designer told only "callable only where
+    `inner` runs" is left to work out which of the tails said so."""
+    return (
+        f"`{entry}` reads `{scope.binding}`, so it is callable only where "
+        f"`{scope.region}` runs — this call is {where}; move the call inside "
+        f"`{scope.region}`, or pass the value as an argument"
+    )
+
+
+def _outside_phase(game: n.Game, holder: str, region: str) -> str:
+    """How a refusal names the phase a call sits in.
+
+    A phase that ENCLOSES the region runs outside it for a different reason
+    than one that merely runs elsewhere — its own frame is standing, the
+    region's is not — and the two want different fixes, so the sentence says
+    which. This is where an entry naming two nested phases is most often
+    misread: the outer tail says which declaration is meant, never where the
+    entry may be called."""
+    here, there = phase_paths(game).get(holder), phase_paths(game).get(region)
+    if here is not None and there is not None and here != there and there[: len(here)] == here:
+        return (
+            f"in `{holder}`, which encloses `{region}` but runs outside it "
+            f"(`{region}`'s state does not stand here)"
+        )
+    return f"in `{holder}`, which runs outside it"
 
 
 def _check_direct_call_positions(
     game: n.Game,
     entry: str,
-    phase_name: str,
+    scope: _ScopedEntry,
     inside: set[int],
-    reaching: frozenset[str],
+    holders: dict[int, str],
     bag: DiagnosticBag,
 ) -> None:
     """Calls written in the game's own text, outside a move type or procedure
-    body: legal inside the named phase's subtree, refused everywhere else."""
+    body: legal inside the region's subtree, refused everywhere else."""
     for field_name, arm in sorted(_CONTAINMENT_BY_GAME_FIELD.items()):
         if arm in ("offering", "run_site"):
             continue  # judged by their own containers below
@@ -5958,12 +6045,20 @@ def _check_direct_call_positions(
                 continue
             if arm == "subtree" and id(node) in inside:
                 continue
-            where = (
-                "in another phase"
-                if arm == "subtree"
-                else f"in this game's `{field_name}`"
-            )
-            bag.error(_outside(entry, phase_name, where), node.span or game.span)
+            if arm != "subtree":
+                where = f"in this game's `{field_name}`, which runs outside it"
+            else:
+                holder = holders.get(id(node))
+                # NOT a fallback: `_CONTAINMENT_BY_GAME_FIELD` puts this node
+                # under `game.phases`, and the attribution covers the extent of
+                # every phase, so a miss means the two walks disagree.
+                assert holder is not None, (
+                    f"a call of `{entry}` sits under `{field_name}` and inside "
+                    f"no phase's extent — the position attribution and the "
+                    f"containment taxonomy disagree"
+                )
+                where = _outside_phase(game, holder, scope.region)
+            bag.error(_outside(entry, scope, where), node.span or game.span)
 
 
 def _check_offered_containers(
