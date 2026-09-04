@@ -169,6 +169,9 @@ game Skat {
             until passer is not none or skat_next_bid(working_bid) is 0
       declarer := if passer is none then responder
                   else the player where (player is speaker or player is responder) and player is not passer
+      passer := none
+      speaker := none
+      responder := none
 
       // All passed: forehand may play at 18 or throw the hand in (it still
       // counts toward the 36).
