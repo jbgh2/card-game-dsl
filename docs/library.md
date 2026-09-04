@@ -369,8 +369,11 @@ in tests/test_trump_slot_class.py.
   `pot_share` ranks each entrant's own cards, so it reads the zone families
   `hole` and `upcards` BY NAME; `holdem_pot_share` ranks private cards
   against a shared board, so it reads `hole` and `shown` plus the single
-  zone `board`. The game spells those zone names exactly, and reveals
-  between the per-player zones the query names rather than into a third —
+  zone `board`. Those are the two showdown shapes: the heads-up variant's
+  `holdem_heads_up_pot_share` is neither a third shape nor a third read set
+  but a duplicated BINDING, repeating `holdem_pot_share`'s query over the
+  same zones — see issue #232. The game spells those zone names exactly,
+  and reveals between the zones the query names rather than into a third —
   what a Transfer takes out of both is out of the settlement. The query
   concatenates them, so it is insensitive to how far a reveal has run; what
   the reveal buys is the observation, the flip into the `PublicHand`
@@ -379,7 +382,7 @@ in tests/test_trump_slot_class.py.
   `pot_share(p : Player) : Integer reads committed, folded, in_hand, hole, upcards`
   — and that Reads Clause is itself the coupling declaration ("Native
   functions" below), so nothing in the engine changes for a game that
-  reaches either query. A name a phase's own `state { }` declares takes a
+  declares one. A name a phase's own `state { }` declares takes a
   Phase-Scoped Read (`committed in play`, Stud's form); a game-level one
   takes none, and a tail naming a phase the game does not declare is
   refused, naming the phases the game does declare.
