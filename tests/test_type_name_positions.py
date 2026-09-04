@@ -46,6 +46,16 @@ Completeness ledger
                      `require_decl`, validated transitively by
                      `_check_requires` and covered in
                      `test_family_libraries.py`, not here.
+                     Every derivation above reads `_bodies_of`, which takes a
+                     rule's body to be its definition line plus each following
+                     line that opens with `|`. Two shapes could hide a
+                     reference from it, and they are held differently: a
+                     modifier on the rule's own name is READ, pinned by
+                     `test_the_rule_scrape_reads_a_prefixed_rule`; an
+                     alternative wrapping onto a line that opens with neither
+                     `|` nor a name is ASSUMED absent, stated rather than
+                     pinned, with the query that holds it in `_bodies_of`'s
+                     own docstring.
                   B. name sources — `KNOWN_TYPE_NAMES`, `PARAM_DOMAINS`,
                      `_PROCEDURE_PARAM_DOMAINS`, the two bare inline literals
                      (`Card` at a move param, `Suit` at a rule param), per-game
@@ -544,7 +554,20 @@ def _bodies_of(grammar: str) -> dict[str, str]:
     line with a leading `|` — so a body accumulates until the next definition.
     Reading the first line alone would make a carrier referenced from a later
     alternative invisible, which is the shape of blindness this module exists
-    to close one axis up.
+    to close one axis up. A continuation opening with neither `|` nor a name
+    would be dropped just as silently; that the grammar has none is an
+    ASSUMPTION, and it holds while
+
+        grep -vE '^[[:space:]]*(//|\||%|$)' cardlang/grammar/cardlang.lark |
+          grep -vE '^[[:space:]]*[?!]{0,2}_?[A-Za-z][A-Za-z0-9_]*(\.-?[0-9]+)?[[:space:]]*:'
+
+    prints nothing — every line of the file being a comment, a directive, a
+    definition, or an alternative that opens with `|`.
+
+    A rule's MODIFIER is skipped and its bare name kept, because that is the
+    name every reference spells: lark's `RULE_MODIFIERS` are `!`, `?` and
+    their two orders, and a table keyed by `?statement` would answer nothing
+    for the `statement` a body writes.
 
     Takes the text rather than reading the file, so a cell can plant a shape
     the real grammar does not carry without writing to it.
@@ -555,7 +578,7 @@ def _bodies_of(grammar: str) -> dict[str, str]:
         s = line.strip()
         if not s or s.startswith("//"):
             continue
-        m = re.match(r"^(_?[a-z][a-z0-9_]*)\s*:", s)
+        m = re.match(r"^[?!]{0,2}(_?[a-z][a-z0-9_]*)\s*:", s)
         if m:
             current = m.group(1)
             bodies[current] = s[m.end() :]
