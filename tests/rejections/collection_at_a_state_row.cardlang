@@ -8,7 +8,7 @@ game CollectionAtAStateRow {
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   zones { deck : Deck  hand[player] : Hand<player> }
-  state { melded : Collection<Card> = []
+  state { melded : Collection<Card> = 0
           score[player] : Integer = 0 }
   phase play {
     score[0] := 1

@@ -34,7 +34,9 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             per-cell work list, now EMPTY — stage 2 is complete);
             `EMITS_TRACE` (primitives returning events alongside a value);
             `BUILTIN_*` / `PRIMITIVE_*` in `cardlang/builtins/functions.py`
-            (the name axis); the bundle probes' kind axis is
+            (the name axis); the call boundary's freeze cell reads a
+            Primitive's shape through `primitives_block.implementation_sig`,
+            the one seam the signature table's Primitive half moves across; the bundle probes' kind axis is
             `PrimitiveReads`' own fields minus the two that identify a row,
             and the row they narrow against is SYNTHETIC — declaring one
             name of every kind, so the shape claim is the fixture's own
@@ -1403,11 +1405,15 @@ def test_collection_args_are_frozen_at_the_call_boundary() -> None:
     (`elements()` returns it by reference), so the native-call boundary freezes
     it. Without this a primitive could `cards.clear()` the argument and empty
     the zone."""
-    from cardlang.builtins.signatures import CALL_SIGS
+    from cardlang.primitives_block import implementation_sig
     from cardlang.runtime.reads import coerce_args
     from cardlang.runtime.state import Zone
 
-    sig = CALL_SIGS["gin_valid_meld"]  # its one parameter is a TCollection
+    # The implementation's own statement of its shape, through the one seam
+    # the signature table's Primitive half moves across when the last game
+    # migrates — so this pin's registry outlives that deletion.
+    sig = implementation_sig("gin_valid_meld")  # its one parameter is a TCollection
+    assert sig is not None
     z = Zone()
     z.cards.extend([Card("7", "clubs"), Card("8", "clubs")])
     coerced = coerce_args(sig, [z])[0]

@@ -23,9 +23,12 @@ Completeness ledger
                as elements (never a raw TypeError on a Zone), TAny params
                untouched (the adapter's own shape dispatch still sees the
                Zone).
-    domain:    {functions in CALL_SIGS} x declared param type
-               {TCollection, TAny, scalar} x {Zone, list} argument shapes.
-    registry:  cardlang/builtins/signatures.py CALL_SIGS (the param types);
+    domain:    {every function the boundary can be handed arguments against}
+               x declared param type {TCollection, TAny, scalar} x
+               {Zone, list} argument shapes.
+    registry:  the Builtin half of cardlang/builtins/signatures.py CALL_SIGS,
+               unioned with each registered Primitive's own signature through
+               `primitives_block.implementation_sig` (`_signatures` below);
                the shape axis is the evaluator's value universe
                (cardlang/runtime/state.py `elements` names it).
     covered:   TCollection axis — gin_valid_meld, gin_arrange_ok x Zone:
@@ -56,16 +59,40 @@ import random
 
 import pytest
 
-from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.builtins.functions import BUILTIN_CALL_FUNCS
+from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.pipeline import check_dsl
+from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS, implementation_sig
 from cardlang.runtime.driver import play_game
 from cardlang.types import TAny, TCollection
+
+
+def _signatures() -> dict[str, Sig]:
+    """Every signature the boundary can be handed arguments against: the
+    Builtin half of `CALL_SIGS`, plus each registered Primitive's own
+    statement of its shape.
+
+    Read through `implementation_sig` rather than off `CALL_SIGS` whole,
+    because the Primitive half of that table is what the legacy dispatch types
+    against and is deleted when the last game migrates — this is the one seam
+    that move goes through, so the domain below survives it unchanged."""
+    sigs = {
+        name: sig for name, sig in CALL_SIGS.items() if name in BUILTIN_CALL_FUNCS
+    }
+    for name in PRIMITIVE_IMPLEMENTATIONS:
+        sig = implementation_sig(name)
+        assert sig is not None, (
+            f"{name} is registered as implemented and states no signature, so "
+            f"the probe reconciliations below would silently skip it"
+        )
+        sigs[name] = sig
+    return sigs
 
 
 def _collection_param_funcs() -> set[str]:
     return {
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         if any(isinstance(p, TCollection) for p in sig.params)
     }
 
@@ -73,7 +100,7 @@ def _collection_param_funcs() -> set[str]:
 def _polymorphic_param_funcs() -> set[str]:
     return {
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         if any(isinstance(p, TAny) for p in sig.params)
     }
 
@@ -166,7 +193,7 @@ def test_no_native_param_demands_a_zone() -> None:
     param must revisit `coerce_args` in cardlang/runtime/reads.py."""
     offenders = [
         name
-        for name, sig in CALL_SIGS.items()
+        for name, sig in _signatures().items()
         for p in sig.params
         if isinstance(p, TCollection) and p.zone
     ]

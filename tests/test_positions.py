@@ -247,6 +247,10 @@ _SOURCE_PROBES: dict[str, _SourceProbe] = {
     "a zone type": _SourceProbe(),
     "a declared type name": _SourceProbe(extra="type R = { a : Integer }\n"),
     "a collection noun": _SourceProbe(board=True),
+    # The constructor word reserves for every game — the block's spelling is
+    # not conditional on anything a game declares — so the plain recipe is the
+    # whole recipe.
+    "a collection type constructor": _SourceProbe(),
 }
 
 assert _SOURCE_PROBES.keys() == {s.label for s in POSITION_NAME_SOURCES}, (

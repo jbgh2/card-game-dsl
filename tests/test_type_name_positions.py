@@ -4,7 +4,7 @@ Every syntactic position where a program writes a declared type name, crossed
 with every source a legal name can come from. Each cell states what that
 position's gate does with that name: `admit`, or a named rejection. The grid is
 DERIVED — the position axis is scraped from the grammar productions that
-reference `type_name` / `payload_type`, the admissible sets are computed from
+reference a type-carrying nonterminal, the admissible sets are computed from
 the registries — so a new position or a new name source arrives as uncovered
 cells that force someone to classify them, rather than as silence.
 
@@ -164,7 +164,7 @@ POSITIONS: dict[str, tuple[str, object]] = {
     # Primitive, so the only thing under test is the type-name gate: an
     # unimplemented name would trip its own guard first and the cell would be
     # measuring that instead.
-    "P10 primitive_param": ("primitive_decl", lambda d: _prog(
+    "P10 primitive_param": ("primitive_param", lambda d: _prog(
         extra_clause=f"\n  primitives {{ pinochle_meld_value(x : {d}) : Integer }}")),
     "P11 primitive_return": ("primitive_decl", lambda d: _prog(
         extra_clause=f"\n  primitives {{ pinochle_meld_value(p : Player) : {d} }}")),

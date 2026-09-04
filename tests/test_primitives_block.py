@@ -507,7 +507,13 @@ def test_the_type_constructor_partition_is_total() -> None:
     constructor added to the type model lands unclassified and is named here
     rather than silently joining the unspellable side.
 
-    red under: add a member to `cardlang.types.Type`."""
+    Reachability is derived through the block's whole SPELLABLE set, not its
+    bare names: a conversion run over names alone cannot see a constructor a
+    spelling wraps, which is how `TCollection` sat in the exclusion table while
+    the surface was about to reach it.
+
+    red under: add a member to `cardlang.types.Type`; or put `TCollection` back
+    in `UNDECLARABLE_TYPE_CONSTRUCTORS`, which the overlap assertion catches."""
     all_constructors = {t.__name__ for t in typing.get_args(Type)}
     unreachable = set(UNDECLARABLE_TYPE_CONSTRUCTORS)
     reachable = _reachable_type_constructors()
@@ -517,33 +523,66 @@ def test_the_type_constructor_partition_is_total() -> None:
     )
 
 
+def _spellable_types(names: frozenset[str]) -> list[str]:
+    """Every type spelling an entry slot admits over `names` — the bare form,
+    the `?` form, and the collection form for each admitted element.
+
+    The block's WHOLE spellable set, so reachability is derived from what a
+    designer can write rather than from the bare names the conversion site
+    happens to take. A second element admitted to `COLLECTION_ELEMENT_NAMES`
+    lands here as a new spelling without anyone editing this function."""
+    from cardlang.primitives_block import (
+        COLLECTION_ELEMENT_NAMES,
+        COLLECTION_TYPE_CONSTRUCTOR,
+    )
+
+    bare = sorted(names)
+    return (
+        bare
+        + [f"{name}?" for name in bare]
+        + [
+            f"{COLLECTION_TYPE_CONSTRUCTOR}<{element}>"
+            for element in sorted(COLLECTION_ELEMENT_NAMES)
+        ]
+    )
+
+
+def _constructors_of(t: Type) -> set[str]:
+    """Every constructor in a Type, at every depth — the collection's element
+    and the optional's inner included, so a nested one cannot hide."""
+    out = {type(t).__name__}
+    for part in (getattr(t, "inner", None), getattr(t, "element", None)):
+        if part is not None:
+            out |= _constructors_of(part)
+    return out
+
+
 def _reachable_type_constructors() -> set[str]:
     """Which `Type` constructors a declared spelling can produce, DERIVED by
-    running every declarable name through the language's one conversion site
-    (`typecheck.type_from_name`), in both the bare and the `?` spelling."""
-    from cardlang.typecheck import TypeEnv, type_from_name
+    running the block's whole spellable set through the site
+    `declared_primitive_sigs` itself uses (`typecheck._param_type`, and the one
+    conversion site beneath it)."""
+    from cardlang.typecheck import TypeEnv, _param_type
 
-    env = TypeEnv()
     out: set[str] = set()
     probe = _checks(_game(block="", body=""))
     names = DECLARABLE_BUILTIN_TYPE_NAMES | {p.name for p in probe.positions}
-    for name in sorted(names):
-        for optional in (False, True):
-            t = type_from_name(name, optional, env.structs, env.positions, env.directions)
-            out.add(type(t).__name__)
-            inner = getattr(t, "inner", None)
-            if inner is not None:
-                out.add(type(inner).__name__)
+    env = TypeEnv()
+    for spelling in _spellable_types(names):
+        out |= _constructors_of(
+            _param_type(n.Parameter(name="x", type_name=spelling), env)
+        )
     # A board game's `cell` domain is the one declarable name outside the
     # built-ins whose member type is not `TInteger`; probed on its own game
     # rather than by hand-adding `TCell`, so the reachability is measured.
     board = _checks(_board_game())
     from cardlang.typecheck import _position_types
 
-    positions = _position_types(board)
-    for name in sorted(positions):
-        t = type_from_name(name, False, env.structs, positions, {})
-        out.add(type(t).__name__)
+    board_env = TypeEnv(positions=_position_types(board))
+    for spelling in _spellable_types(frozenset(board_env.positions)):
+        out |= _constructors_of(
+            _param_type(n.Parameter(name="x", type_name=spelling), board_env)
+        )
     return out
 
 
@@ -922,17 +961,20 @@ def test_an_unspellable_type_name_is_refused(spelling: str) -> None:
     entry = f"pinochle_meld_value(x : {spelling}) : Integer"
     message = _refused(_game(block=entry, body="    score[0] := 1"))
     assert spelling in message
-    assert "#472" in message
+    assert "#547" in message
 
 
-def test_a_collection_type_has_no_spelling_at_all() -> None:
-    """The one unspellable shape that is grammatically inexpressible rather
-    than refused by name: the type slot is a bare name with an optional `?`,
-    and no production spells a collection. That is the state surface totality
-    calls inexpressible, and issue #472 is what would change it."""
+def test_the_phrase_spelling_teaches_the_ruled_one() -> None:
+    """A collection HAS a spelling, and the phrase form is not it.
+
+    No declaration in this language spells a type as a phrase, and `of` already
+    carries three senses in expressions — so the sentence the issue itself
+    wrote, and the first thing a reader of the design note writes, earns a
+    replacement naming the ruled form rather than a bare syntax error."""
     entry = "pinochle_meld_value(x : collection of Card) : Integer"
     message = _refused(_game(block=entry, body="    score[0] := 1"))
-    assert "syntax error" in message
+    assert "not a phrase" in message
+    assert "`Collection<Card>`" in message
 
 
 # --- axis 7-9: the reads clause ---------------------------------------------
@@ -2676,10 +2718,10 @@ _COLLECTION_SPELLINGS: dict[str, str] = {
 # grid over a new surface must not have.
 _COLLECTION_OUTCOMES: tuple[tuple[str, str], ...] = (
     ("is spellable in a `primitives { }` entry only", "elsewhere"),
-    ("write `Collection<Card>`", "phrase"),
+    ("not a phrase — write", "phrase"),
     ("takes an element type", "element-missing"),
     ("is not an element type", "element"),
-    ("has no registered implementation taking it", "element"),
+    ("no registered Primitive has an implementation taking it", "element"),
     ("may not spell", "unspellable"),
     ("syntax error", "syntax"),
     ("is not the signature its implementation takes", "gate-admits"),
@@ -3033,14 +3075,18 @@ _JOINT_GAME = """game JointProbe {
   max_length: 200
   cards: standard52
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
-  primitives { gin_valid_meld(cards : Collection<Card>) : Boolean }
+  primitives {
+    gin_valid_meld(cards : Collection<Card>) : Boolean
+    gin_can_declare_free(p : Player) : Boolean   reads hand[p], taken[p]
+  }
   zones { deck : Deck  hand[player] : Hand<player>
+          taken[player] : HiddenPile<player>
           meldA[player] : Discard  discard : Discard }
   state { score[player] : Integer = 0  arranged[player] : Boolean = false }
   phase play {
     move all cards to deck
     move all cards from deck where card.rank is "7" to hand[0]
-    move all cards from deck where card.rank is K or card.rank is Q to hand[1]
+    move 2 cards from deck where card.rank is K to hand[1]
     move all cards from deck to discard
     turns t from 0 over all players until arranged[0] and arranged[1] {
       offer to t one of [declare_meld, pass_arranging]
@@ -3049,7 +3095,7 @@ _JOINT_GAME = """game JointProbe {
   winner: highest score
 }
 move_type declare_meld {
-  when: not arranged[actor] and (number of cards in hand[actor]) > 0
+  when: not arranged[actor] and gin_can_declare_free(actor)
   effect {
     move chosen some cards from hand[actor]
          where jointly gin_valid_meld(cards) to meldA[actor]
@@ -3074,14 +3120,15 @@ def test_a_declared_entry_roots_a_joint_selection_that_plays() -> None:
     itself confounds the arm, since its own reads would materialize whether or
     not the entry declared them, and here the entry declares none.
 
-    Seat 0 holds the four 7s (a meld — the true witness) and seat 1 eight
-    cards of two ranks (no subset melds — the false one), so the score
-    separates on the predicate's own answer rather than on the move being
-    offered."""
+    Seat 0 holds the four 7s (a meld — the true witness) and seat 1 two cards
+    (no subset of them melds — the false one), so the score separates on the
+    declared predicates' own answers: the guard entry decides whether the
+    joint move is offered at all, and the joint entry decides which subsets it
+    offers."""
     from cardlang.openspiel.encoding import ActionSpace
 
     game = check_dsl(_JOINT_GAME, "joint.cardlang")
-    assert declared_names(game) == {"gin_valid_meld"}
+    assert declared_names(game) == {"gin_valid_meld", "gin_can_declare_free"}
     space = ActionSpace.for_game(game)
     assert space.num_distinct_actions > 0
     seen: set[tuple[int, int]] = set()
