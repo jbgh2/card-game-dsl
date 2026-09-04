@@ -80,7 +80,28 @@ from tools.glossary_index import (
 # against a subscript like `Callable` applied to a list, written in a docstring:
 # a subscript's brackets always follow an identifier or a closing bracket, a
 # reference's never do.
-_WIKI_LINK = r"(?<![\w\]])\[\[([^\[\]\n]+)\]\]"
+#
+# One more language survives the position discriminator the same way, and for a
+# reason doctrine creates: prose names the query
+# (decisions.md, "Prose names the registry, never the cardinality"), a shell
+# query spells whitespace portably with a POSIX character class, and a
+# docstring has no fence. A POSIX bracket
+# expression is a closed domain of three forms -- a character class from
+# POSIX's own twelve names (`:space:`), an equivalence class (`=a=`), a
+# collating symbol (`.ch.`), each inside the doubled brackets -- and the
+# lookaheads exclude exactly those, keyed to the class names rather than to a
+# shape. That narrows nothing about a slug: a misspelt class name, or a bare
+# class name with no colons, is still reported, because neither is POSIX. (The
+# forms are spelt without their brackets here because this comment is in the
+# scan.)
+POSIX_CLASSES = ("alnum", "alpha", "blank", "cntrl", "digit", "graph",
+                 "lower", "print", "punct", "space", "upper", "xdigit")
+_WIKI_LINK = (
+    r"(?<![\w\]])\[\["
+    r"(?!:(?:" + "|".join(POSIX_CLASSES) + r"):\]\])"
+    r"(?!([=.])[^\[\]\n]*\1\]\])"
+    r"([^\[\]\n]+)\]\]"
+)
 
 # Same discipline for the path spelling: accept any filename shape, then check
 # it, so an uppercase or underscored path is reported rather than skipped.
@@ -122,6 +143,12 @@ def _spellings(entry: dict[str, str]) -> list[str]:
             f"got {raw!r}"
         )
     return [s.strip().strip("`") for s in raw[1:-1].split(",") if s.strip()]
+
+
+def _wiki_links(prose: str) -> list[str]:
+    """Every doubled-bracket reference in `prose`, wide-captured; the POSIX
+    lookahead's backreference is a second group, so this reads the last."""
+    return [m.group(m.lastindex or 0) for m in re.finditer(_WIKI_LINK, prose)]
 
 
 def _prose_text(suffix: str, text: str) -> str:
@@ -329,7 +356,7 @@ def test_every_wiki_link_resolves_to_an_entry() -> None:
     bad: list[str] = []
     seen = 0
     for path, prose in _scannable():
-        for match in re.findall(_WIKI_LINK, prose):
+        for match in _wiki_links(prose):
             seen += 1
             if _canon(match) not in known:
                 bad.append(f"{path.relative_to(ROOT)}: doubled-bracket {match!r}")
@@ -375,6 +402,17 @@ def test_every_glossary_link_resolves_to_an_entry() -> None:
     # A type signature written inside a docstring: the lookbehind still earns
     # its place, because tokenising cannot tell prose from a signature.
     (".py", '"""Takes Callable[[int], str]."""\n', []),
+    # A shell query quoted in a docstring, as doctrine asks: the doubled
+    # brackets are POSIX's, in all three of its forms, and nothing is reported.
+    (".py", '"""holds while grep -vE \'^[[:space:]]*(//|$)\' prints nothing"""\n', []),
+    (".py", '"""tr \'[[:upper:]]\' \'[[:lower:]]\' folds case"""\n', []),
+    (".py", '"""[[=a=]] and [[.ch.]] are the other two POSIX forms"""\n', []),
+    # ... keyed to POSIX's own names, so a misspelt class, a slug that happens
+    # to be a class name, and an unpaired delimiter are all still reported.
+    (".py", '"""[[:spaec:]] is nothing POSIX names"""\n', [":spaec:"]),
+    (".py", '"""[[space]] is a slug"""\n', ["space"]),
+    (".py", '"""[[=a.]] pairs no delimiter"""\n', ["=a."]),
+    (".md", "Run `grep -E '[[:alpha:]]'` and see [[hand]].\n", ["hand"]),
     # Markdown is prose except inside a fence -- a Python example pasted into a
     # doc gets the same answer as the Python file it came from.
     (".md", "See [[owner-guard]].\n", ["owner-guard"]),
@@ -389,9 +427,10 @@ def test_only_prose_positions_are_scanned_for_references(
     handed to the pattern is prose; these rows pin both halves.
 
     red under: make `_prose_text` return `text` unchanged -- the three Python
-    list-literal rows flag `item`/`value`/`a`.
+    list-literal rows flag `item`/`value`/`a`; drop the POSIX lookaheads from
+    `_WIKI_LINK` -- the shell-query rows flag `:space:`, `:upper:`, `=a=`.
     """
-    assert re.findall(_WIKI_LINK, _prose_text(suffix, source)) == found
+    assert _wiki_links(_prose_text(suffix, source)) == found
 
 
 def test_the_entry_directory_is_not_empty() -> None:
