@@ -162,7 +162,9 @@ a new game reddens them rather than going quietly uncovered.
   absent module is a collection error across both of those grids before any
   named assertion runs, and the red does not name the file to write. Copy
   the smallest sibling, `tests/openspiel_ready/test_spades.py`, and replace
-  the short name, the filename, and the measured bounds.
+  the short name, the filename, and the measured bounds. This whole package
+  is skipped without the `openspiel` extra, so its reds are CI's and a core
+  install stays green on a game with no proof module.
 - **`PROSE_ONLY_TWINS`** (`tests/test_typecheck_corpus.py`) — the rulebook
   twins carrying no fenced block, which the type-check gate therefore cannot
   cover. A linking rulebook joins; a twin that gains a block leaves. The
