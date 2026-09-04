@@ -2929,6 +2929,11 @@ _COLLECTION_ADJACENCY: dict[str, tuple[str, str]] = {
     # The reverse confusion, which must stay refused: an element type where a
     # zone's index domain belongs.
     "zone-element": ("", "unknown owner 'Card'"),
+    # The other half of that confusion, one slot over: the CONSTRUCTOR word
+    # where a zone type belongs. `Collection` means something now, so a zone
+    # slot that calls it unknown spends the "unknown" currency on a spelled
+    # word — the positions ledger's own refusal.
+    "zone-head": ("", "a zone's angle brackets take an index domain"),
 }
 
 
@@ -2941,6 +2946,10 @@ def test_the_collection_spelling_s_neighbours_read_as_written(cell: str) -> None
     if cell == "zone-element":
         source = _game(block=None, body="").replace(
             "hand[player] : Hand<player>", "hand[player] : Hand<Card>"
+        )
+    elif cell == "zone-head":
+        source = _game(block=None, body="").replace(
+            "hand[player] : Hand<player>", "hand[player] : Collection<Card>"
         )
     else:
         source = _game(block=None, body="").replace(
