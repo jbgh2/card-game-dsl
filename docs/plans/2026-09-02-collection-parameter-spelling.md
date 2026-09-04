@@ -609,3 +609,42 @@ Where I stand on yesterday's against-case: I reaffirm it and I reaffirm the ruli
 ## Headnote (table talk; binds nothing and attaches nowhere)
 
 Keep yesterday's ruling — `Collection<Card>` in a `primitives { }` entry's two slots, one element — and write the convention down in the same change rather than widening the surface. The generic the operator senses is real but it lives in the checker's diagnostics, which already print `Collection<Collection<Integer>>`; in the declaration register 1 of 9 element types has an implementation, so `Collection<T>` over the whole set would admit 8 spellings that all die one layer down and would remove the pin that makes a second element land red. The angle-bracket inconsistency is designed and documented (principles.md's one deliberate deviation), disambiguated by case on the page, and redundant rather than defective — the zone argument restates the index and the checker refuses any disagreement; the only retrofit that would make `<>` mean one thing is dropping that argument, a rename across all 31 game files, 21 twins, 230 test files and 68 docs files for no semantic gain, deferred until an authoring instrument can measure the confusion it would cure. The cheap, real wins are prose: decisions.md promises parameterized user types the grammar does not have and library.md denies, and the spec spells the zone argument five ways — fix both, state the position-fixed rule in decisions.md, and let the `require_decl` comment cite it. Type variables I would refuse outright. The operator decides one thing: whether the convention paragraph and the two prose repairs ride the gin PR or land first as a Lane D sibling. This is parlor counsel, sourced fresh and priced, and it is not the counsel block — that stays attached to the plan as written.
+
+## Gate 4 record (addendum, 2026-09-03 — the implementation's derived domain)
+
+The grid's axes are derived in code, and three of the derivations came out
+differently from the accepted domain statement above. Recorded here rather
+than by rewriting the statement, per the change's own rule.
+
+1. **The positions axis is 12, not 13, and one row was miscounted.** Axis 1
+   states "13 positions x the spelling": `tests/test_type_name_positions.py`'s
+   eleven plus `require_decl` and the zone `type_ref`. The scraped carrier set
+   holds eleven grid rows plus `require_decl`; the zone `type_ref` is a
+   carrier of NEITHER type-carrying nonterminal — it derives `<...>` through
+   `type_args`, its own production — so it is a member of the zone registry's
+   domain, not this one. Its cell is `test_the_collection_spelling_s_neighbours
+   _read_as_written[zone-element]`, which pins that a zone type still refuses
+   an element argument, citing the zone registry as its Owner; `require_decl`'s
+   is `test_a_contract_cannot_require_a_collection`. Both refusals exist and
+   are cells; the axis that CROSSES the spelling is twelve.
+
+2. **The reverse scrape found a pre-existing orphan.** The Architect's (c)
+   asked for the positions scrape's missing direction, expecting it to redden
+   on `primitive_decl` leaving the carrier set. It reddened first on
+   `phase_outcome` — a grid row that has never referenced a type-carrying
+   nonterminal, reaching `payload_type` through `outcome_set` and
+   `outcome_case`. The two directions now share one host table
+   (`_INDIRECT_HOSTS`), which is where the four `parameter` hosts were already
+   expanded and where the miscount would otherwise have recurred.
+
+3. **The element cross runs over nine names, not the built-in set plus a
+   position domain.** Axis 4 states the element registry enforced at both
+   sites. The derived cross is `DECLARABLE_BUILTIN_TYPE_NAMES` plus the probe
+   game's position domains, and the probe game declares none — so the cells are
+   the nine built-in names. A board probe would add `cell`; the partition pin
+   covers that path instead, deriving reachability through the board game's own
+   `_position_types`.
+
+Born-red, measured on the branch: `84 failed, 1341 passed` before the grammar
+existed, and `72 failed, 1353 passed` with the production landed and no guard
+written.
