@@ -12,9 +12,12 @@ entry binds its Python by name through `PRIMITIVE_IMPLEMENTATIONS`, its
 [[reads-clause]] is the entry's own, and two games may declare one name —
 the heads-up game may declare `holdem_pot_share` itself. Retiring this
 module and the name's registry rows is issue #232. What a declared game
-cannot do is reach a name its own block does not declare
-(`primitives_block.call_namespace`); that a LEGACY game can call another
-legacy game's primitive with no pin is issue #238.
+cannot do is CALL a name its own block does not declare
+(`primitives_block.call_namespace`, the call-position namespace). The slots
+the block does not cover (`primitives_block.WALLED_NAMESPACES`, issue #142)
+still take any game's Primitive, as a legacy game's plain call does, and
+that no pin notices a game reaching another game's Primitive by either
+route is issue #238.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in
