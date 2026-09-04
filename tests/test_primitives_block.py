@@ -2869,30 +2869,52 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
     with no implementation lands red too.
 
     red under: register a `Collection<Player>` parameter in `CALL_SIGS` for
-    any name in `PRIMITIVE_IMPLEMENTATIONS`."""
+    any name in `PRIMITIVE_IMPLEMENTATIONS` — verified on `gin_arrange_ok`,
+    which reports `TPlayer at gin_arrange_ok's parameter 2`."""
     from cardlang.primitives_block import implementation_sig
     from cardlang.typecheck import TypeEnv, type_from_name
 
     env = TypeEnv()
-    implemented: set[str] = set()
+    # Keyed by element constructor so a mismatch can name the REGISTRATION
+    # that caused it — which Primitive, and which slot of its signature. The
+    # two sets alone say a number disagrees; an engine author needs the row.
+    implemented: dict[str, list[str]] = {}
     for name in sorted(PRIMITIVE_IMPLEMENTATIONS):
         sig = implementation_sig(name)
         assert sig is not None, (
             f"{name} is registered as implemented and states no signature, so "
             f"the element derivation below would skip it silently"
         )
-        for t in (*sig.params, sig.ret):
+        slots = [(f"parameter {i + 1}", t) for i, t in enumerate(sig.params)]
+        slots.append(("return", sig.ret))
+        for slot, t in slots:
             if isinstance(t, TCollection):
-                implemented.add(type(t.element).__name__)
+                implemented.setdefault(type(t.element).__name__, []).append(
+                    f"{name}'s {slot}"
+                )
     declarable = {
         type(
             type_from_name(name, False, env.structs, env.positions, env.directions)
-        ).__name__
+        ).__name__: name
         for name in COLLECTION_ELEMENT_NAMES
     }
-    assert declarable == implemented, (
-        f"the block spells collections of {sorted(declarable)} and the "
-        f"registered Primitives take collections of {sorted(implemented)}"
+    unregistered = sorted(set(declarable) - set(implemented))
+    unspellable = sorted(set(implemented) - set(declarable))
+    assert not unregistered, (
+        f"the block spells collections of "
+        f"{[declarable[c] for c in unregistered]} and no registered Primitive "
+        f"takes one — an element admitted with no implementation is a "
+        f"spelling that dies at the shape check"
+    )
+    assert not unspellable, (
+        "a registered Primitive takes a collection element the block cannot "
+        "spell: "
+        + "; ".join(
+            f"{constructor} at {', '.join(implemented[constructor])}"
+            for constructor in unspellable
+        )
+        + " — admit it with its witness, or the declaration route is closed "
+        "to that Primitive"
     )
 
 

@@ -215,7 +215,7 @@ Zone types: `Cell` (the one-card holding space FreeCell landed) is
 concept — with **capacity** made a typed zone-type property in the
 same change (1 for `Cell`, unbounded for the new stack row `Point`),
 enforced as a loud runtime Owner Guard and respected by movement guards.
-`HiddenCell<Owner>` (identity to owner, **trivial** to others —
+`HiddenCell<Owner: Player>` (identity to owner, **trivial** to others —
 `count_only` would leak occupancy, which for a board cell *is* the
 secret) pairs with `Cell` exactly as the landed `HiddenStack` pairs
 with `Cascade`. New rows land in the same closed registries as every

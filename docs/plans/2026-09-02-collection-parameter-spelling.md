@@ -663,8 +663,28 @@ test_primitives_block, 30 test_positions, 11 test_rejections, 6
 test_grammar_ambiguity, 3 test_family_libraries, 2 test_type_name_positions.
 Take 2 (the production landed, no guard written) is `72 failed, 2182 passed` —
 30 test_positions, 29 test_primitives_block, 8 test_rejections, 3
-test_type_name_positions, 2 test_family_libraries. The twelve cells the
-grammar itself closes are the two reject twins plus the ambiguity rows; the
-seventy-two that remain are what the surface alone admits and the guards owe a
-refusal. The narrower selection first used to take these counts reported the
-same two failing counts against `1341 passed` and `1353 passed`.
+test_type_name_positions, 2 test_family_libraries. The failing count falls by
+twelve across the two takes, and that is a NET: the grammar closes fourteen
+cells (the two reject twins plus the ambiguity rows) and opens two —
+`test_a_collection_type_has_no_spelling_at_all`, whose subject the surface
+retires, and `test_the_position_axis_is_the_grammar_s`, which reddens on the
+entry family joining the carrier set and is what the widened scrape exists to
+do. The seventy-two that remain are what the surface alone admits and the
+guards owe a refusal. The narrower selection first used to take these counts
+reported the same two failing counts against `1341 passed` and `1353 passed`.
+
+Two of the acceptance criteria's instruments left no artifact in the tree and
+are named here rather than implied: the gin main-vs-branch playout
+differential and the instrumented read oracle were SCRATCH instruments, run
+by the implementer and rebuilt independently by the review round in its own
+worktree. Neither is a file this change ships, so neither re-runs in CI; the
+substitute-instrument claim rests on two independent takes, not on a
+re-runnable test.
+
+## Fix round (2026-09-04)
+
+The adversarial review's findings are answered in the branch's later commits.
+Two touch this document: the addendum's net-versus-gross wording above, and
+the roadmap.md citations in the counsel sections, which named the file with no
+section title and were red under
+`tests/test_doc_references.py::test_every_roadmap_reference_names_a_live_section`.
