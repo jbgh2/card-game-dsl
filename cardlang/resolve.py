@@ -3784,16 +3784,17 @@ class ReservedNameSource:
     """One namespace a name minted into the type namespace is reserved against.
 
     The registry below is the AXIS of the reservation. Its domain is "every
-    namespace whose names a position domain must not collide with", and those
-    accumulate silently: three sources were unioned inline with `|` when review
-    found `positions { R : 1..4 }` beside `type R` reading the struct as the
-    position's Integer, and a fourth (the zone types) was added the same way
-    afterwards. An inline union has nothing to enumerate, so the sweep in
-    tests/test_positions.py could derive from each source it already knew and
-    still be blind to the next one — which is how the collection nouns stayed
-    invisible. A table can be iterated: by the guard below, by
-    the diagnostic that names which source matched, and by the grid that
-    crosses the sources against `RESERVATION_SITES`.
+    namespace whose names a position domain must not collide with", and that
+    domain accumulates: each construct that mints names into a namespace of
+    its own (struct types, zone types, collection nouns, the constructor
+    word) is one more source. An inline union of sources has nothing to
+    enumerate, so a sweep built on one can derive from every source it
+    already knows and stay blind to the next — a `positions { R : 1..4 }`
+    beside `type R` reads the struct as the position's Integer until someone
+    notices. A table can be iterated: by the guard below, by the diagnostic
+    that names which source matched, and by the grid in tests/test_positions.py
+    that crosses the sources against `RESERVATION_SITES` — so a source added
+    here reaches every site and every cell without a second edit.
 
     `names` takes the game because the sources are not homogeneous: some are
     static registries, fixed for every game, and one is the game's own `type`
