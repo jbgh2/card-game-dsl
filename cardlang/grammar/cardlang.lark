@@ -139,9 +139,28 @@ primitives_block: _PRIMITIVES_KW "{" primitive_decl* "}"
                 | _PRIMITIVES_KW ":" "{" primitive_decl* "}"  -> primitives_colon_reject
                 | _PRIMITIVES_KW "{" primitive_decl* primitive_arrow_decl (primitive_decl | primitive_arrow_decl)* "}"     -> primitives_arrow_reject
                 | _PRIMITIVES_KW "{" primitive_decl* primitive_default_decl (primitive_decl | primitive_default_decl)* "}" -> primitives_default_reject
-primitive_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [primitive_reads]
-primitive_arrow_decl: NAME "(" [parameter ("," parameter)*] ")" "->" payload_type [primitive_reads]
-primitive_default_decl: NAME "(" [parameter ("," parameter)*] ")" ":" payload_type [primitive_reads] "=" expr
+//
+// The entry's two type slots take their OWN production family, written out
+// rather than derived from `payload_type`: the teaching twin below lands ON
+// the shared productions, so a shared derivation would give the entry's own
+// spelling two derivations of one string. All three entry forms take it, so a
+// mis-spelled entry with a collection parameter reaches its own reject arm's
+// message instead of dying at the `<`.
+//
+// The element slot is a bare NAME and composes with neither the `?` arm nor a
+// second argument, which is what makes an optional, nested, keyed or
+// multi-argument collection inexpressible rather than refused by a pass
+// (decisions.md "Typed object model": a value-constructor head takes an
+// element type). WHICH element is the resolver's, from the block's own
+// allow-list.
+primitive_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads]
+primitive_arrow_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" "->" primitive_type [primitive_reads]
+primitive_default_decl: NAME "(" [primitive_param ("," primitive_param)*] ")" ":" primitive_type [primitive_reads] "=" expr
+primitive_param: NAME ":" primitive_type
+primitive_type: NAME "?"             -> primitive_optional_type
+              | NAME                 -> primitive_plain_type
+              | NAME "<" NAME ">"    -> primitive_collection_type
+              | NAME _OF_KW NAME     -> collection_phrase_reject
 primitive_reads: _READS_KW primitive_read ("," primitive_read)*
 primitive_read: NAME [index] [_IN_KW NAME]
               | NAME _IN_KW NAME index -> primitive_read_transposed_reject
@@ -276,8 +295,16 @@ type_arg: NAME
 
 state_block: _STATE_KW "{" state_decl* "}"
 state_decl: NAME [index] ":" type_name "=" expr
-type_name: NAME "?"   -> optional_type
-         | NAME       -> plain_type
+// The two type productions every declaration outside a `primitives { }` entry
+// spells its types with. Each carries the entry-only collection form as a
+// reject-with-replacement twin: the spelling is real and the designer's
+// mistake is placement, so a bare syntax error would report a placement
+// question as a shape one. `require_decl` and the zone `type_ref` get no twin
+// — both already derive `<…>` through `type_args`, so a twin there would give
+// one string two derivations, and their refusals are the zone registry's.
+type_name: NAME "?"              -> optional_type
+         | NAME                  -> plain_type
+         | NAME "<" NAME ">"     -> collection_type_reject
 
 // User-defined struct type: named fields plus optional computed `derived` fields.
 // The name is `STRUCT_TYPE_NAME`, not `NAME`, so declaration and use agree on
@@ -568,8 +595,12 @@ define_def: _DEFINE_KW NAME "->" outcome_set "{" statement* "}"
 outcome_set: "{" outcome_case ("|" outcome_case)* "}"
 outcome_case: NAME ["(" payload_type ("," payload_type)* ")"]
 // A payload type, optionally nullable (`Suit?` — Bridge's no-trump strain).
+// The collection twin rides here too, so a move type's, a procedure's, a
+// rule's, a function's and an outcome case's type slots all teach the same
+// placement rather than each meeting the lexer.
 payload_type: NAME      -> payload_plain
             | NAME "?"   -> payload_optional
+            | NAME "<" NAME ">" -> collection_type_reject
 
 // A rule may declare parameters (`rule NoLeadingSuitUntilBroken(suit: Suit)`),
 // making it a template: an `active_rules` reference instantiates it by

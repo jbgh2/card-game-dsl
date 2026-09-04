@@ -453,6 +453,62 @@ class _Builder(Transformer[Token, n.Game]):
     ) -> tuple[n.PrimitiveRead, ...]:
         return tuple(c)
 
+    def primitive_plain_type(self, meta: Meta, c: list[Token]) -> str:
+        return str(c[0])
+
+    def primitive_optional_type(self, meta: Meta, c: list[Token]) -> str:
+        # A nullable entry type keeps its `?` in the name string, exactly as a
+        # payload type does; the decomposition strips it.
+        return str(c[0]) + "?"
+
+    def primitive_collection_type(self, meta: Meta, c: list[Token]) -> str:
+        # The bracket rides in the string too, so a Primitive's parameters and
+        # a move type's stay one node shape. `primitives_block.decompose_type`
+        # is the ONE reader of it.
+        return f"{c[0]}<{c[1]}>"
+
+    def collection_type_reject(self, meta: Meta, c: list[Token]) -> str:
+        """A collection type written where the entry's slots are not.
+
+        The spelling is real, so this names WHERE it belongs rather than
+        calling the word unknown or dying at the bracket — the placement is the
+        designer's mistake, and the entry is the answer."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a collection type (`Collection<Card>`) is spellable in a "
+                "`primitives { }` entry only — everywhere else a set of cards "
+                "is a zone, and `move chosen some cards ... where jointly` is "
+                "how a game picks one",
+                self._span(meta),
+            )
+        )
+
+    def collection_phrase_reject(self, meta: Meta, c: list[Token]) -> str:
+        """The phrase form, taught back as the ruled one.
+
+        No declaration in this language spells a type as a phrase, and `of`
+        already carries three senses in expressions — so the sentence a reader
+        of the design note writes first earns a replacement, not a life."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a `primitives` entry spells a collection with angle "
+                f"brackets, not a phrase — write `Collection<{c[1]}>` in place "
+                f"of `{c[0]} of {c[1]}`",
+                self._span(meta),
+            )
+        )
+
+    def primitive_param(self, meta: Meta, c: list[object]) -> n.Parameter:
+        # The entry's own parameter production. One NODE with a move type's,
+        # because a Primitive's parameters and a move type's are one shape;
+        # one PRODUCTION of its own, because the shared type productions carry
+        # the teaching twin and a shared derivation would be ambiguous here.
+        return n.Parameter(
+            name=str(c[0]), type_name=str(c[1]), span=self._span(meta)
+        )
+
     def _primitive_decl(self, meta: Meta, c: list[object]) -> n.PrimitiveDecl:
         """The shared body of the entry and its two reject twins, so the three
         productions cannot drift in what they read out of the same slots."""
