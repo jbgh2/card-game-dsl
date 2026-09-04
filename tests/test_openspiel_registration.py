@@ -82,8 +82,9 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.game import (
     ENTRY_KINDS,
     GAMES_ENV_VAR,
-    _REGISTERED,
+    _register,
     _register_env_var,
+    _REGISTERED,
     register_game_file,
 )
 from cardlang.openspiel.registry import _derive_games, _short_name
@@ -282,9 +283,12 @@ def _corpus_cell(state: str, stem: str, tmp_path: Path) -> None:
         return
     if state == "diagnostic_file":
         _diagnostic_copy(tmp_path, stem)
-        games = _derive_games(tmp_path)
+        # What the corpus loop does with what the derivation hands it — the
+        # derivation itself reads filenames and never opens a game, so the
+        # check runs here or nowhere.
+        [(short_name, filename)] = _derive_games(tmp_path).items()
         with pytest.raises(DiagnosticError):
-            register_game_file(tmp_path / f"{next(iter(games.values()))}")
+            _register(short_name, str(tmp_path / filename))
         return
     if state == "directory_of_games":
         _green_copy(tmp_path, f"{stem}_a")
@@ -311,8 +315,12 @@ def _call_cell(state: str, stem: str, tmp_path: Path) -> None:
         assert name == f"cardlang_{stem}"
         game = pyspiel.load_game(name)
         assert game.get_type().short_name == name
-        state_ = game.new_initial_state()
-        state_.apply_action(state_.chance_outcomes()[0][0] if state_.is_chance_node() else state_.legal_actions()[0])
+        # A step through the pyspiel State, not just a load: the tree a
+        # path-registered game gets is the corpus tree or it is nothing.
+        opening = game.new_initial_state()
+        assert opening.is_chance_node()
+        opening.apply_action(opening.chance_outcomes()[0][0])
+        assert opening.legal_actions()
         return
     if state == "diagnostic_file":
         path = _diagnostic_copy(tmp_path, stem)
