@@ -90,8 +90,9 @@ from tools.glossary_index import (
 # POSIX's own twelve names (`:space:`), an equivalence class (`=a=`), a
 # collating symbol (`.ch.`), each inside the doubled brackets -- and the
 # lookaheads exclude exactly those, keyed to the class names rather than to a
-# shape. That narrows nothing about a slug: a misspelt class name, or a bare
-# class name with no colons, is still reported, because neither is POSIX. (The
+# shape. That narrows nothing about a slug: a misspelt class name, a bare
+# class name with no colons, or paired delimiters with nothing between them,
+# is still reported, because none of those is POSIX. (The
 # forms are spelt without their brackets here because this comment is in the
 # scan.)
 POSIX_CLASSES = ("alnum", "alpha", "blank", "cntrl", "digit", "graph",
@@ -99,7 +100,7 @@ POSIX_CLASSES = ("alnum", "alpha", "blank", "cntrl", "digit", "graph",
 _WIKI_LINK = (
     r"(?<![\w\]])\[\["
     r"(?!:(?:" + "|".join(POSIX_CLASSES) + r"):\]\])"
-    r"(?!([=.])[^\[\]\n]*\1\]\])"
+    r"(?!([=.])[^\[\]\n]+\1\]\])"
     r"([^\[\]\n]+)\]\]"
 )
 
@@ -412,6 +413,7 @@ def test_every_glossary_link_resolves_to_an_entry() -> None:
     (".py", '"""[[:spaec:]] is nothing POSIX names"""\n', [":spaec:"]),
     (".py", '"""[[space]] is a slug"""\n', ["space"]),
     (".py", '"""[[=a.]] pairs no delimiter"""\n', ["=a."]),
+    (".py", '"""[[==]] and [[..]] pair delimiters around nothing"""\n', ["==", ".."]),
     (".md", "Run `grep -E '[[:alpha:]]'` and see [[hand]].\n", ["hand"]),
     # Markdown is prose except inside a fence -- a Python example pasted into a
     # doc gets the same answer as the Python file it came from.
@@ -428,7 +430,9 @@ def test_only_prose_positions_are_scanned_for_references(
 
     red under: make `_prose_text` return `text` unchanged -- the three Python
     list-literal rows flag `item`/`value`/`a`; drop the POSIX lookaheads from
-    `_WIKI_LINK` -- the shell-query rows flag `:space:`, `:upper:`, `=a=`.
+    `_WIKI_LINK` -- the shell-query rows flag `:space:`, `:upper:`, `=a=`;
+    loosen the delimiter lookahead's `+` to `*` -- the empty-operand row
+    reports nothing.
     """
     assert _wiki_links(_prose_text(suffix, source)) == found
 
