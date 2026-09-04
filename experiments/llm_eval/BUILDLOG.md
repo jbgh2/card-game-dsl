@@ -201,10 +201,11 @@ python -m experiments.llm_eval.run_eval \
 ```
 
 The runner refuses to open a non-empty transcript for a matchup that is not
-resuming, so an unscoped resume now fails loudly instead of truncating every
+resuming, so an unscoped resume fails loudly instead of truncating every
 other transcript in that directory. It also refuses to append when the
 **treatment** changed — the arm, the model, the rendering flag, an opponent's
-`bluff_prob` — because matching seeds are not the same thing as the same
+`bluff_prob`, or the text and renderer code that shape what the model is shown
+(README, "Resuming") — because matching seeds are not the same thing as the same
 experiment, and appending across a change would aggregate two treatments into one
 matchup.
 
