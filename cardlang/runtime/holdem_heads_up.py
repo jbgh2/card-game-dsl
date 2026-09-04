@@ -6,14 +6,15 @@ does a contender show" fact is Hold'em-wide (`holdem.showdown_hands`, the two
 hole cards plus the shared board); both are imported. What is left is the
 delegation itself.
 
-Why this name stands beside `holdem_pot_share`, whose query it repeats
-exactly, is issue #232: what a variant of a corpus game duplicates is a
-BINDING, not arithmetic. Both games declare their own `primitives { }`
-block, so each entry carries its own reads per call — the same names in
-both, three-handed Hold'em's betting variables naming `phase play` where
-this game declares them at game level. That a LEGACY game can call another
-legacy game's primitive with no pin is issue #238; a declared game cannot,
-because its `f(...)` calls resolve against its own namespace alone.
+This name is a second BINDING of `holdem_pot_share`'s query, not a second
+query, and nothing in the engine keeps the two apart: a `primitives { }`
+entry binds its Python by name through `PRIMITIVE_IMPLEMENTATIONS`, its
+[[reads-clause]] is the entry's own, and two games may declare one name —
+the heads-up game may declare `holdem_pot_share` itself. Retiring this
+module and the name's registry rows is issue #232. What a declared game
+cannot do is reach a name its own block does not declare
+(`primitives_block.call_namespace`); that a LEGACY game can call another
+legacy game's primitive with no pin is issue #238.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in
