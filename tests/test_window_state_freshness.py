@@ -31,10 +31,10 @@ domain:          the corpus games that declare a flag window — an
                  offer-bearing `repeat until` gated on a declared Boolean
                  state variable. A window written as `round offering ...
                  until <state>` is a different construct and belongs to
-                 tests/test_poll_state_freshness.py, whose property quantifies
-                 over every decision outside the poll: a poll opens idle, so
-                 the entry anchor below is satisfied there, and the staleness
-                 shows at another episode's decisions. Crossed with each such game's
+                 tests/test_offering_round_state_freshness.py, whose property quantifies
+                 over every decision outside the round: a round opens idle,
+                 so the entry anchor below is satisfied there, and the
+                 staleness shows at another episode's decisions. Crossed with each such game's
                  window-scoped variables. Each game's state declarations
                  partition, totally, into the window-scoped set checked
                  here and the persistent set that outlives an episode by
@@ -145,7 +145,7 @@ def _flag_windows(game: n.Game) -> frozenset[str]:
     # `RepeatUntil` only: a `round offering ... until` window is the same
     # defect in another construct, and reaching it needs a stronger property
     # than this module's entry anchor, not a wider predicate — the one
-    # tests/test_poll_state_freshness.py quantifies over.
+    # tests/test_offering_round_state_freshness.py quantifies over.
     return frozenset(flags)
 
 
