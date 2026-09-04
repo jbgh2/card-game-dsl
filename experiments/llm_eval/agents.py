@@ -20,12 +20,15 @@ Illegal after: an agent method taking a game state.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import inspect
 import random
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from types import ModuleType
+from typing import Any, Final, Protocol
 
 from . import holdem, infostate as istate
 from . import kuhn
@@ -96,9 +99,17 @@ def game_text(name: str) -> tuple[str, str, Callable[[str], str] | None]:
         ) from None
 
 
+# The shape an `llm` roster entry takes when it says nothing: the raw arm and
+# the reasoning-bearing response format. One site, read by the roster and by
+# `LLMAgent`'s own defaults, so a config with no `arm:` key and a test that
+# constructs the agent directly cannot run two different arms.
+DEFAULT_RENDER: Final = False
+DEFAULT_ARM: Final = "reasoning"
+
+
 def llm_shape(spec: Mapping[str, Any]) -> tuple[bool, str]:
     """A roster entry's (render, arm), with the defaults an `llm` agent takes."""
-    return bool(spec.get("render", False)), str(spec.get("arm", "reasoning"))
+    return bool(spec.get("render", DEFAULT_RENDER)), str(spec.get("arm", DEFAULT_ARM))
 
 
 def shape_name(game: str, render: bool, arm: str) -> str:
@@ -134,6 +145,77 @@ def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+#: The package a renderer and everything it delegates to must live in.
+RIG_PACKAGE: Final = __package__ or __name__.rpartition(".")[0]
+
+
+def _in_rig(name: str) -> bool:
+    return name == RIG_PACKAGE or name.startswith(RIG_PACKAGE + ".")
+
+
+def rig_closure(module: ModuleType) -> list[ModuleType]:
+    """The rig modules whose source can shape what `module` computes.
+
+    Derived by walking module globals rather than listed: `module` itself,
+    every rig module it names, every rig module that defines a function or
+    class it names, and so on transitively. The closure is what the renderer
+    digest covers — a renderer that delegates its sentences to a sibling
+    module (`render.render_state` to `infostate.parse`) is shaped by that
+    sibling's source as much as by its own.
+    """
+    seen: dict[str, ModuleType] = {}
+    todo = [module]
+    while todo:
+        current = todo.pop()
+        if current.__name__ in seen:
+            continue
+        seen[current.__name__] = current
+        for value in vars(current).values():
+            owner: str | None
+            if isinstance(value, ModuleType):
+                owner = value.__name__
+            else:
+                owner = getattr(value, "__module__", None)
+            if isinstance(owner, str) and _in_rig(owner) and owner not in seen:
+                found = sys.modules.get(owner)
+                if found is not None:
+                    todo.append(found)
+    return [seen[name] for name in sorted(seen)]
+
+
+@functools.cache
+def _source_digest(module_name: str) -> str:
+    """The digest of one rig module's source, taken once per process.
+
+    Cached by name, and warmed for every registered renderer when this module
+    is imported, so the record describes the code the process LOADED — not
+    the file on disk at the moment a matchup starts, which an edit during a
+    long run would silently move.
+    """
+    return _digest(inspect.getsource(sys.modules[module_name]))
+
+
+def rig_name(module: ModuleType) -> str:
+    """A rig module's name relative to the package, so the record reads the
+    same whether the rig is imported as `experiments.llm_eval` or as
+    `llm_eval` — the two spellings one process and one test run give it."""
+    return module.__name__.removeprefix(RIG_PACKAGE + ".")
+
+
+def renderer_digest(renderer: Callable[[str], str]) -> str:
+    """The digest of a renderer's rig closure, one line per module."""
+    module = inspect.getmodule(renderer)
+    if module is None or not _in_rig(module.__name__):
+        raise ValueError(
+            f"renderer {renderer!r} is not a function defined in {RIG_PACKAGE}, "
+            f"so its source cannot be fingerprinted; a game's renderer is a "
+            f"module-level function of this package"
+        )
+    return _digest(
+        "\n".join(f"{rig_name(m)} {_source_digest(m.__name__)}" for m in rig_closure(module))
+    )
+
+
 def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | None]:
     """Digests of everything static a model is shown under one prompt shape.
 
@@ -146,8 +228,9 @@ def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | Non
       itself, so its scaffolding, the rules text and the arm's instruction are
       all inside the digest;
     - `retry`: the arm's retry note for the probe error;
-    - `renderer`: the source of the module defining the renderer, or `None`
-      when no renderer shapes the prompt. Source rather than a probe rendering,
+    - `renderer`: `renderer_digest` of the rendered arm's renderer — the source
+      of its module and of every rig module it delegates to — or `None` when
+      no renderer shapes the prompt. Source rather than a probe rendering,
       because a probe reaches only the branches it happens to exercise: an edit
       that does not alter what the model sees is refused loudly and accepted
       with `--accept-changed-treatment`, never missed silently.
@@ -157,14 +240,21 @@ def prompt_fingerprint(game: str, render: bool, arm: str) -> dict[str, str | Non
     engine's rules and action strings.
     """
     rules, renderer, spec = prompt_shape(game, render, arm)
-    module = inspect.getmodule(renderer) if renderer is not None else None
     return {
         "prompt": _digest(
             build_prompt(rules, _PROBE_INFOSTATE, _PROBE_ACTIONS, spec.instruction)
         ),
         "retry": _digest(spec.retry.format(error=_PROBE_ERROR)),
-        "renderer": _digest(inspect.getsource(module)) if module is not None else None,
+        "renderer": renderer_digest(renderer) if renderer is not None else None,
     }
+
+
+# Warmed at import: every registered renderer's closure is digested from the
+# source this process loaded, before any run can start or any file can move.
+for _raw, _rendered, _renderer in GAME_TEXT.values():
+    if _renderer is not None:
+        renderer_digest(_renderer)
+del _raw, _rendered, _renderer
 
 
 class Agent(Protocol):
@@ -369,13 +459,13 @@ class LLMAgent:
     # True: `render.render_state` of it — still a pure function of the same
     # string, so the leak-freeness argument is unchanged (BUILDLOG, "Leak-
     # freeness"), with a correspondingly shorter format guide.
-    render: bool = False
+    render: bool = DEFAULT_RENDER
     # The RESPONSE-FORMAT arm, by name from `prompts.RESPONSE_ARMS`. Selects the
     # answer instruction and its matching retry note together. A name rather
     # than a flag per arm: `neutral` and `reason_first` are mutually exclusive
     # (one removes the reasoning field, the other moves it), and as two booleans
     # their both-true combination would be accepted and silently resolved.
-    arm: str = "reasoning"
+    arm: str = DEFAULT_ARM
     # Which game's rules text and renderer to use. A name from `GAME_TEXT`, so an
     # unrecognized game is refused rather than silently defaulting to Cheat's
     # rules — which would produce a complete, expensive, entirely meaningless run.

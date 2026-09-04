@@ -212,14 +212,16 @@ The runner refuses to overwrite a non-empty transcript for a matchup that is not
 resuming, and refuses to append when the **treatment** changed — the arm, the
 model, the rendering flag, an opponent's `bluff_prob`, or what the model is
 shown: the rules text, the arm's instruction and retry note, the prompt's own
-framing, the renderer's module. Matching seeds are not the same thing as the
-same experiment, and a matching config is not either once the code that builds
-the prompt has moved. A difference the operator judges not to alter the
-treatment — a comment in the renderer's module, say — resumes with
-`--accept-changed-treatment`, which records what differed, both values and when
-in the matchup's `.treatment.json`, so the transcript never reads as one clean
-treatment. A sidecar with no `prompt` block is refused the same way rather than
-reconstructed: nothing can say what those games were shown.
+framing, and the source of the renderer's module and every rig module it
+delegates to. Matching seeds are not the same thing as the same experiment, and
+a matching config is not either once the code that builds the prompt has moved.
+A difference the operator judges not to alter the treatment — a comment in the
+renderer's module, say — resumes with `--accept-changed-treatment`, which
+records what differed, both values and when in the matchup's `.treatment.json`,
+so the transcript never reads as one clean treatment. The flag covers every
+matchup the invocation resumes, so it belongs beside `--matchup`. A sidecar with
+no `prompt` block is refused the same way rather than reconstructed: nothing can
+say what those games were shown.
 
 ---
 

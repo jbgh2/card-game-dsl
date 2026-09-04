@@ -353,35 +353,39 @@ def read_treatment(path: Path) -> dict[str, Any] | None:
     return loaded
 
 
-_ABSENT: Final = object()
+#: Sidecar keys that are bookkeeping about the record rather than part of the
+#: treatment: excluded from the comparison, carried across every rewrite.
+SIDECAR_ONLY: Final = frozenset({"overrides"})
+
+#: How a value one side of the comparison lacks is shown: distinct from a
+#: recorded `null`, which is a value (`renderer: null` is the raw arm).
+ABSENT: Final = "<absent>"
+_absent: Final = object()
 
 
-def differing_paths(recorded: Any, now: Any, prefix: str = "") -> list[str]:
-    """Dotted paths at which two treatment records disagree.
+def differing(recorded: Any, now: Any, prefix: str = "") -> list[tuple[str, Any, Any]]:
+    """Where two treatment records disagree: (path, recorded, now) triples.
 
     Descends into nested dicts, so a moved prompt digest is named by its shape
     and component rather than as the whole `prompt` block; a key one side lacks
-    is a difference at that key.
+    is a difference at that key, shown as `ABSENT`. The path is display only —
+    both values travel with it, so a key holding a "." is never re-split.
     """
     if isinstance(recorded, dict) and isinstance(now, dict):
         return sorted(
-            path
+            triple
             for key in set(recorded) | set(now)
-            for path in differing_paths(
-                recorded.get(key, _ABSENT), now.get(key, _ABSENT), f"{prefix}{key}."
+            for triple in differing(
+                recorded.get(key, _absent), now.get(key, _absent), f"{prefix}{key}."
             )
         )
-    return [] if recorded == now else [prefix.rstrip(".")]
-
-
-def value_at(record: dict[str, Any], path: str) -> Any:
-    """The value a dotted path names, or `None` where the record lacks it."""
-    node: Any = record
-    for key in path.split("."):
-        if not isinstance(node, dict) or key not in node:
-            return None
-        node = node[key]
-    return node
+    if recorded == now:
+        return []
+    shown = (
+        ABSENT if recorded is _absent else recorded,
+        ABSENT if now is _absent else now,
+    )
+    return [(prefix.rstrip("."), *shown)]
 
 
 def run_matchup(
@@ -530,15 +534,16 @@ def run_matchup(
                 f"fresh run rather than appending blind."
             )
         overrides = list(stored.get("overrides", []))
-        got_treat = {k: v for k, v in stored.items() if k != "overrides"}
-        differing = differing_paths(got_treat, want_treat)
-        if differing:
-            recorded_values = {p: value_at(got_treat, p) for p in differing}
-            now_values = {p: value_at(want_treat, p) for p in differing}
+        got_treat = {k: v for k, v in stored.items() if k not in SIDECAR_ONLY}
+        moved = differing(got_treat, want_treat)
+        if moved:
+            paths = [p for p, _, _ in moved]
+            recorded_values = {p: was for p, was, _ in moved}
+            now_values = {p: is_now for p, _, is_now in moved}
             if not accept_changed_treatment:
                 raise ValueError(
                     f"cannot resume {name!r}: the treatment changed since the "
-                    f"existing games were played. Differing: {differing}\n"
+                    f"existing games were played. Differing: {paths}\n"
                     f"  recorded: {recorded_values}\n"
                     f"  now:      {now_values}\n"
                     f"Appending would mix two treatments into one matchup. If "
@@ -550,7 +555,7 @@ def run_matchup(
                 {
                     "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "resumed_from": resume,
-                    "differing": differing,
+                    "differing": paths,
                     "recorded": recorded_values,
                     "now": now_values,
                 }
@@ -572,6 +577,7 @@ def run_matchup(
     # Written before the first game, so the record of what treatment produced a
     # transcript exists even if the run dies on game one.
     sidecar: dict[str, Any] = treatment(config, matchup, game_name)
+    assert not SIDECAR_ONLY & set(sidecar), "a treatment key is named as sidecar-only"
     if overrides:
         sidecar["overrides"] = overrides
     treatment_path.write_text(
@@ -893,7 +899,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="resume although the recorded treatment differs from this "
         "invocation's. The difference is recorded in the matchup's "
-        ".treatment.json, so the transcript never reads as one clean treatment.",
+        ".treatment.json, so the transcript never reads as one clean treatment. "
+        "Applies to every matchup this invocation resumes: pair it with --matchup.",
     )
     args = parser.parse_args(argv)
 
