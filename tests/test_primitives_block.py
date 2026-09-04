@@ -1641,6 +1641,97 @@ def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
     assert set(_phase_state_declarations(game)) == {("outer", "shallow"), ("inner", "deep")}
 
 
+_NESTING_SOURCE = (
+    "game Probe {\n"
+    "  players: 2\n"
+    "  max_length: 1000\n"
+    "  cards: standard52\n"
+    "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+    "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+    "  state { score[player] : Integer = 0 }\n"
+    "  phase top {\n"
+    "    phase outer {\n"
+    "      state { shallow : Integer = 0 }\n"
+    "      phase inner {\n"
+    "        state { deep : Integer = 0 }\n"
+    "        score[0] := 1\n"
+    "      }\n"
+    "    }\n"
+    "    phase later {\n"
+    "      state { aside : Integer = 0 }\n"
+    "      score[1] := 1\n"
+    "    }\n"
+    "  }\n"
+    "  winner: highest score\n"
+    "}\n"
+)
+
+
+def test_the_path_walk_carries_a_phase_that_declares_nothing() -> None:
+    """`top` declares no state, and its path is in the table anyway.
+
+    Ancestry is asked ABOUT phases, not about declarations: the phase a call
+    sits in may declare nothing and still enclose the region, and the
+    diagnostic that says "encloses" needs its path to know. A table built from
+    the declaring walk alone answers nothing about such a phase, and a
+    diagnostic would then have to guess.
+
+    Born green — the walk is written over the phase tree. red under: derive
+    `phase_paths` from `_phase_state_decls`'s paths instead of from
+    `_phase_tree`; `top` leaves the table and this cell names it."""
+    from cardlang.primitives_block import phase_paths
+
+    paths = phase_paths(_checks(_NESTING_SOURCE))
+    assert paths["top"] == ("top",)
+    assert paths["outer"] == ("top", "outer")
+    assert paths["inner"] == ("top", "outer", "inner")
+    assert paths["later"] == ("top", "later")
+
+
+@pytest.mark.parametrize(
+    "phases,expected",
+    [
+        (frozenset(), ()),
+        (frozenset({"inner"}), ("inner",)),
+        (frozenset({"outer", "inner"}), ("outer", "inner")),
+        (frozenset({"inner", "outer"}), ("outer", "inner")),
+        (frozenset({"top", "inner"}), ("top", "inner")),
+        (frozenset({"top", "outer", "inner"}), ("top", "outer", "inner")),
+        (frozenset({"outer", "later"}), None),
+        (frozenset({"inner", "later"}), None),
+        (frozenset({"top", "outer", "later"}), None),
+        (frozenset({"outer", "nowhere"}), None),
+    ],
+    ids=[
+        "empty",
+        "singleton",
+        "nested-outer-first",
+        "nested-inner-first",
+        "skip-level",
+        "three-chain",
+        "siblings",
+        "cousins",
+        "mixed-triple",
+        "not-a-phase",
+    ],
+)
+def test_the_nesting_predicate_orders_a_chain_and_refuses_the_rest(
+    phases: frozenset[str], expected: tuple[str, ...] | None
+) -> None:
+    """The nesting question over the phase tree: a set that lies on one
+    ancestor path comes back ordered OUTER to INNER, and everything else comes
+    back None.
+
+    The order the caller wrote the tails in carries no meaning — a set has
+    none — so the two spellings of one nested pair answer identically. The
+    empty set and the singleton answer rather than raising: one phase is the
+    degenerate chain, which is what keeps a single-phase entry and a nested one
+    on the same path through the resolver."""
+    from cardlang.primitives_block import phase_chain
+
+    assert phase_chain(_checks(_NESTING_SOURCE), phases) == expected
+
+
 def _collision_source(namespaces: frozenset[str], repeat: str | None = None) -> str:
     """A probe game declaring `_PROBE_NAME` in exactly `namespaces`, read by the
     block's one entry. `repeat` declares it TWICE in one namespace — the
