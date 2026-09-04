@@ -423,6 +423,84 @@ def test_every_reserved_name_is_refused_as_a_declared_type(
     )
 
 
+# --- the library `type` site ------------------------------------------------
+#
+# A library declares types too, and its declarations splice into the game — so
+# the reserved namespace is the same one, reached from a file the game's author
+# did not write. The site is its own row because the guard that covers it must
+# run where a LIBRARY-alone defect is named: inside `_apply_uses`, before the
+# contract check whose error would otherwise raise the pass before any
+# reservation ran.
+
+_LIBRARY_TYPE_LIB = (
+    "library probe_lib {{\n"
+    "  requires {{ unmet_probe : Integer }}\n"
+    "  type {name} = {{ q : Integer }}\n"
+    "  function probe_fn() = unmet_probe + 1\n"
+    "}}\n"
+)
+
+
+def _library_type_host(label: str, name: str, monkeypatch: pytest.MonkeyPatch) -> str:
+    """A game importing a library that declares `type <name>`.
+
+    The library's contract is deliberately UNMET by the host: that is the
+    condition under which the reservation must still be reported, because an
+    unmet contract raises `_apply_uses` and everything after it never runs.
+    """
+    library = parse_text(
+        _LIBRARY_TYPE_LIB.format(name=name), "probe_lib.cardlang", start="library"
+    )
+    monkeypatch.setattr(
+        "cardlang.resolve.library_names", lambda: frozenset({"probe_lib"})
+    )
+    monkeypatch.setattr("cardlang.resolve.load_library", lambda _n: library)
+    source = _SOURCE_PROBES[label].source_text()
+    return source.replace("  players:", "  uses probe_lib\n  players:", 1)
+
+
+@pytest.mark.parametrize("label,name", _type_declaration_cells())
+def test_every_reserved_name_is_refused_as_a_library_declared_type(
+    label: str, name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The library site, swept from the same registry as the game's own.
+
+    A library's `type` mints into the same TYPE namespace a game's does, and
+    the splice carries it into the game — so the reservation is the same one.
+    Covered incidentally before this row existed, and only by accident of the
+    splice running before the game-level guard: a library whose contract the
+    host does not meet raised `_apply_uses` first, so the author was told to
+    declare a state variable and learned the real defect only after doing it.
+
+    The cells therefore assert ORDERING, not merely refusal: the host does NOT
+    meet the library's contract, so a green here means the reservation was
+    reported anyway.
+
+    red under: move the library `type` reservation call to after
+    `_raise_if_errors(bag)` in `resolve` — every cell then reports only the
+    unmet contract.
+    """
+    source = _library_type_host(label, name, monkeypatch)
+    with pytest.raises(DiagnosticError) as ei:
+        check_dsl(source, "t")
+    message = "\n".join(
+        [str(ei.value), *(list(getattr(ei.value, "__notes__", None) or []))]
+    )
+    assert "collides with" in message, (
+        f"'{name}' was not refused as a library-declared type; the host does "
+        f"not meet the library's contract, so the reservation never ran:\n"
+        f"{message}"
+    )
+    assert label in message, (
+        f"'{name}' was refused, but the diagnostic did not name {label!r}: "
+        f"{message}"
+    )
+    assert "probe_lib.cardlang" in message, (
+        f"the reservation was reported away from the library that declared "
+        f"'{name}' — only the library's author can rename it:\n{message}"
+    )
+
+
 def test_every_reservation_site_passes_its_own_id() -> None:
     """The site axis is derived from the calls, not from this module's memory.
 
