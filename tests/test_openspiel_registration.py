@@ -45,7 +45,8 @@ registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, which the
                  env dispatch reads; the short-name rule and its character set:
                  `cardlang.openspiel.registry._short_name` and
-                 `SHORT_NAME_CHARS`; the one registration site:
+                 `cardlang.openspiel.registry.SHORT_NAME_CHARS`; the one
+                 registration site:
                  `test_one_registration_site_in_the_package` scrapes it;
                  module collection without the extra:
                  tests/test_optional_pyspiel.py::test_every_test_module_imports_without_pyspiel;
@@ -69,6 +70,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -84,11 +86,7 @@ from cardlang.openspiel.game import (
     _register_env_var,
     register_game_file,
 )
-from cardlang.openspiel.registry import (
-    SHORT_NAME_CHARS,
-    _derive_games,
-    _short_name,
-)
+from cardlang.openspiel.registry import _derive_games, _short_name
 from cardlang.runtime.errors import GameRegistrationError, InstallationError
 
 REPO = Path(__file__).resolve().parent.parent
@@ -301,8 +299,8 @@ def _corpus_cell(state: str, stem: str, tmp_path: Path) -> None:
             _derive_games(tmp_path)
         return
     assert state == "bad_stem_file", state
-    _green_copy(tmp_path, "a(b)")
-    with pytest.raises(InstallationError, match="OpenSpiel short name"):
+    _green_copy(tmp_path, "corpus(paren)")
+    with pytest.raises(InstallationError, match="pyspiel cannot load"):
         _derive_games(tmp_path)
 
 
@@ -339,8 +337,12 @@ def _call_cell(state: str, stem: str, tmp_path: Path) -> None:
             register_game_file("")
         return
     assert state == "bad_stem_file", state
-    path = _green_copy(tmp_path, "a(b)")
-    with pytest.raises(GameRegistrationError, match="OpenSpiel short name"):
+    # A stem unique to this cell, and a match on wording the collision refusal
+    # does not share: both name the short name, so a matcher on that phrase
+    # alone would read a collision as this refusal — and would, once a
+    # neighbouring cell had registered the same stem.
+    path = _green_copy(tmp_path, "call(paren)")
+    with pytest.raises(GameRegistrationError, match="pyspiel cannot load"):
         register_game_file(path)
 
 
@@ -379,9 +381,9 @@ def _environment_cell(
             _env_registration(monkeypatch, f"{path}{os.pathsep}{os.pathsep}{path}")
         return
     assert state == "bad_stem_file", state
-    _green_copy(tmp_path, "a(b)")
-    with pytest.raises(GameRegistrationError, match="OpenSpiel short name"):
-        _env_registration(monkeypatch, str(tmp_path / "a(b).cardlang"))
+    _green_copy(tmp_path, "env(paren)")
+    with pytest.raises(GameRegistrationError, match="pyspiel cannot load"):
+        _env_registration(monkeypatch, str(tmp_path / "env(paren).cardlang"))
 
 
 # ---------------------------------------------------------------------------
@@ -491,8 +493,6 @@ def test_a_refused_file_leaves_its_short_name_free() -> None:
     alone by convenience rather than by fact, and a refusal that registered the
     name anyway would sit in the gap between the two grids.
     """
-    import tempfile
-
     directory = Path(tempfile.mkdtemp())
     stem = "probe_factorization"
     bad = _diagnostic_copy(directory / "bad", stem)
@@ -500,6 +500,21 @@ def test_a_refused_file_leaves_its_short_name_free() -> None:
         register_game_file(bad)
     good = _green_copy(directory / "good", stem)
     assert register_game_file(good) == f"cardlang_{stem}"
+
+
+def test_the_corpus_directory_offered_again_registers_nothing_new(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`CARDLANG_GAMES=docs/games` is a no-op, not thirty-one collisions.
+
+    The first entry a designer reaches for, and the reason identity is the
+    resolved path rather than the string: every file in that directory is
+    already registered from the same file, so each offer is the same
+    registration rather than a rival for the name.
+    """
+    before = dict(_REGISTERED)
+    _env_registration(monkeypatch, str(CORPUS))
+    assert _REGISTERED == before
 
 
 @pytest.mark.parametrize("value", [None, "", "   "], ids=["unset", "empty", "whitespace"])
@@ -580,29 +595,17 @@ def test_one_registration_site_in_the_package() -> None:
     assert len(sites) == 1, f"expected one registration site, found: {sites}"
 
 
-def test_the_short_name_character_set_admits_every_corpus_stem() -> None:
-    """The refusal never fires for the corpus, and that is a measured claim.
-
-    red under: add a hyphen or a dot to `SHORT_NAME_CHARS`' complement — or
-    rename a corpus file to carry a space — and this names the file.
-    """
-    outside = [
-        p.name for p in sorted(CORPUS.glob("*.cardlang"))
-        if not SHORT_NAME_CHARS.fullmatch(p.stem.replace("-", "_"))
-    ]
-    assert not outside, f"corpus stems the short-name rule cannot render: {outside}"
-
-
 def test_a_registered_path_game_is_not_in_the_corpus_registry() -> None:
     """`GAMES` stays the corpus, so every table keyed on it stays corpus-shaped.
 
     The readiness proofs, the projection sweep and the chance-free pin all
     parametrize over `GAMES`; a path-registered game appearing there would
     demand a proof module its author cannot write (issue #25).
+
+    red under: have `register_game_file` write its result into
+    `registry.GAMES` alongside `_REGISTERED`. Verified by doing so.
     """
     from cardlang.openspiel.registry import GAMES
-
-    import tempfile
 
     path = _green_copy(Path(tempfile.mkdtemp()), "probe_not_in_registry")
     name = register_game_file(path)
