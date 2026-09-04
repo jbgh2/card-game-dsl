@@ -3790,8 +3790,8 @@ class ReservedNameSource:
     position's Integer, and a fourth (the zone types) was added the same way
     afterwards. An inline union has nothing to enumerate, so the sweep in
     tests/test_positions.py could derive from each source it already knew and
-    still be blind to the next one — which is how the fifth (the collection
-    nouns) stayed invisible. A table can be iterated: by the guard below, by
+    still be blind to the next one — which is how the collection nouns stayed
+    invisible. A table can be iterated: by the guard below, by
     the diagnostic that names which source matched, and by the grid that
     crosses the sources against `RESERVATION_SITES`.
 
@@ -3837,8 +3837,8 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     ReservedNameSource(
         "a declared type name", lambda game: frozenset(t.name for t in game.types)
     ),
-    # The fifth, found by crossing the sources against the slots that read
-    # them. `DomainQuery.binder` carries ONE name resolved against two
+    # The collection noun, found by crossing the sources against the slots that
+    # read them. `DomainQuery.binder` carries ONE name resolved against two
     # namespaces, and the optional `in <collection>` clause is what picks: bare
     # reads `game.positions`, the collection form reads `_COLLECTION_NOUNS`. So
     # in a board game `positions { line : 1..3 }` turns `any line where ...` —

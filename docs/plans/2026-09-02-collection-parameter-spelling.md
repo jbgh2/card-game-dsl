@@ -633,9 +633,11 @@ than by rewriting the statement, per the change's own rule.
    on `primitive_decl` leaving the carrier set. It reddened first on
    `phase_outcome` — a grid row that has never referenced a type-carrying
    nonterminal, reaching `payload_type` through `outcome_set` and
-   `outcome_case`. The two directions now share one host table
-   (`_INDIRECT_HOSTS`), which is where the four `parameter` hosts were already
-   expanded and where the miscount would otherwise have recurred.
+   `outcome_case`. Both directions translate a row through `_carrier_host`, a
+   breadth-first walk over the grammar's own right-hand sides, so neither
+   keeps a host list of its own and neither can hold a value the grammar does
+   not back — this row and the four `parameter` hosts alike fall out of the
+   walk.
 
 3. **The element cross runs over nine names, not the built-in set plus a
    position domain.** Axis 4 states the element registry enforced at both
