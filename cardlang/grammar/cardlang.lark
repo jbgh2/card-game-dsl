@@ -318,7 +318,8 @@ state_decl: NAME [index] ":" type_name "=" expr
 // the placement, and meeting the lexer on the suffix would answer the other
 // one. The entry-slot family's other three malformed shapes get no twin here:
 // at a non-entry position the sentence worth teaching is the well-formed one,
-// and a malformed collection in a slot that has none is loud either way.
+// and a malformed collection in a slot that has none is loud either way
+// (issue #560, which carries that class).
 // `require_decl` and the zone `type_ref` get no twin — both already derive
 // `<…>` through `type_args`, so a twin there would give one string two
 // derivations, and their refusals are the zone registry's.
