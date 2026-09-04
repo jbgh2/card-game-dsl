@@ -709,6 +709,18 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     ],
     "runtime/tichu.py": ["index < _BASE_PAIRSEQ"],
     "stdlib/boards.py": ["set(_GRID_DIRECTION_OFFSETS) != set(dirs)"],
+    # A `primitives { }` entry's collection element, checked against the
+    # block's own allow-list on the way into `TCollection`. It validates a
+    # value AGAINST the registry, so admitting a second element widens the
+    # guard with it and there is no hard-coded row to go stale. A Shadow Guard
+    # — resolve's `_check_primitive_type` refuses the element to the DESIGNER
+    # first, and this raises in the compiler's channel because the alternative,
+    # `type_from_name` mapping an unknown element to the permissive top, would
+    # exempt the argument from every guard the boundary freeze rests on. The
+    # Owner Guard's witness is the derived element sweep,
+    # test_the_element_slot_admits_exactly_the_allow_list
+    # (tests/test_primitives_block.py).
+    "typecheck.py": ["spelled.element in COLLECTION_ELEMENT_NAMES"],
 }
 
 
