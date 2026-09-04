@@ -60,9 +60,12 @@ game = pyspiel.load_game(name)
 `register_game_file` checks the file, registers it under `cardlang_<stem>`,
 and returns that short name. `CARDLANG_GAMES` does the same at import time: an
 `os.pathsep`-separated list of game files or directories, registered when the
-adapter loads. Your game does not go in `docs/games/`. That directory is the
-corpus, and it is for contributing a game, not for using one;
-`docs/maintaining.md`, "When the corpus changes" is the contributor's page.
+adapter loads. That path needs the `openspiel` extra; `check` and `play` do
+not.
+
+Your game does not go in `docs/games/`. That directory is the corpus, and it
+is for contributing a game, not for using one; `docs/maintaining.md`, "When
+the corpus changes" is the contributor's page.
 
 The learning path is `docs/authoring.md`.
 
@@ -113,9 +116,10 @@ own (issue #25).
 pytest -q        # the language's own gate
 ```
 
-`CLAUDE.md` is the entry: what the pieces are, where each doc lives, and the
-three checks CI runs. From there, `docs/maintaining.md` for the docs and the
-corpus, `docs/harness.md` for how work is claimed and merged.
+That runs after the editable install below. `CLAUDE.md` is the entry: what the
+pieces are, where each doc lives, and the three checks CI runs. From there,
+`docs/maintaining.md` for the docs and the corpus, `docs/harness.md` for how
+work is claimed and merged.
 
 ## Why
 
