@@ -18,10 +18,12 @@ domain:     (a) the surface slots a domain id can occupy: zone index, zone
             enumeration, static vocab enumeration); (d) the name reservation
             as a PRODUCT — every namespace a position name is reserved
             against, crossed with every site that mints or declares one.
-            (d) is its own axis because both halves accumulate silently: the
-            sources were unioned inline with `|` until a fifth (the collection
-            nouns) was found by crossing them against the slots that read
-            them, and the sites grew from one to three when `board:` landed.
+            (d) is its own axis because both halves accumulate silently, and
+            each half is read from its own registry rather than from this
+            module: a source unioned inline with `|` is invisible to the
+            sweep, and so is a site whose guard nobody crossed against the
+            sources. Both are why the collection nouns went unreserved for
+            as long as they did.
             Two things sit deliberately outside. A quantifier noun is
             grammatically inexpressible as a domain id -- the quantifier
             production is a closed alternative set -- so that slot is out by
@@ -36,9 +38,9 @@ registry:   cardlang/domains.py (built-in rows; DomainSources.positions) +
             n.Game.positions; and, for the reservation product,
             cardlang/resolve.py's `POSITION_NAME_SOURCES` (the namespaces,
             each carrying its own `names(game)`) x `RESERVATION_SITES` (the
-            declaring/minting sites). The sweep reads the SOURCE, never the
-            guard's own set, so a registry that grows is swept without anyone
-            editing this module.
+            declaring/minting sites, a game's own and a library's alike). The
+            sweep reads the SOURCE, never the guard's own set, so a registry
+            that grows is swept without anyone editing this module.
             Owner==index over roles:
             tests/test_zone_index_roles.py::test_owned_zone_owner_arg_must_match_its_index.
             Unowned ownership, `zone_observer_key` -> None and hence the
@@ -86,7 +88,7 @@ from cardlang.domains import (
     zone_observer_key,
 )
 from cardlang.ir import emit
-from cardlang.parse import parse_text
+from cardlang.parse import parse_library, parse_text
 from cardlang.pipeline import check_dsl
 from cardlang.resolve import (
     POSITION_NAME_SOURCES,
@@ -403,7 +405,8 @@ def _type_declaration_cells() -> list[tuple[str, str]]:
 def test_every_reserved_name_is_refused_as_a_declared_type(
     label: str, name: str
 ) -> None:
-    """The fourth site, swept from the same registry as the first three.
+    """The game's own `type` declarations, swept from the same registry as
+    every other reservation site.
 
     A `type` declaration mints a name into the TYPE namespace, and every slot
     that reads one consults the built-ins first — so a struct sharing a
@@ -448,8 +451,8 @@ def _library_type_host(label: str, name: str, monkeypatch: pytest.MonkeyPatch) -
     condition under which the reservation must still be reported, because an
     unmet contract raises `_apply_uses` and everything after it never runs.
     """
-    library = parse_text(
-        _LIBRARY_TYPE_LIB.format(name=name), "probe_lib.cardlang", start="library"
+    library = parse_library(
+        _LIBRARY_TYPE_LIB.format(name=name), "probe_lib.cardlang"
     )
     monkeypatch.setattr(
         "cardlang.resolve.library_names", lambda: frozenset({"probe_lib"})
@@ -504,13 +507,13 @@ def test_every_reserved_name_is_refused_as_a_library_declared_type(
 def test_every_reservation_site_passes_its_own_id() -> None:
     """The site axis is derived from the calls, not from this module's memory.
 
-    `RESERVATION_SITES` says how many sites exist; this scrape says which
-    call sites actually pass one. A fourth reservation site added without a
-    row in `RESERVATION_SITES` — or a row nobody consults — is exactly the
-    silent accumulation the source table was built to end, one axis over.
+    `RESERVATION_SITES` says which sites exist; this scrape says which call
+    sites actually pass one. A reservation site added without a row in
+    `RESERVATION_SITES` — or a row nobody consults — is exactly the silent
+    accumulation the source table was built to end, one axis over.
 
-    red under: add a fourth `_reserved_domain_source(game, X, SOME_SITE)` call
-    to `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
+    red under: add a `_reserved_domain_source(game, X, SOME_SITE)` call to
+    `cardlang/resolve.py` without adding `SOME_SITE` to `RESERVATION_SITES`.
     """
     tree = ast.parse(Path(resolve_mod.__file__).read_text())
     passed: set[str] = set()

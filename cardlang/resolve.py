@@ -34,14 +34,16 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               ``ir.emit`` prints. Also: every `primitives { }` entry's
               declared types are SHAPES the block's registries admit — the
               head from `declarable_type_names`, a collection's element from
-              `COLLECTION_ELEMENT_NAMES` — and no name minted into the TYPE
-              namespace, from any of the sites in ``RESERVATION_SITES``, takes
-              a spelling one of ``POSITION_NAME_SOURCES`` already holds.
+              `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
+              any of the sites in ``RESERVATION_SITES`` takes a spelling one of
+              ``POSITION_NAME_SOURCES`` already holds.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               zone/rule/move-type/phase reference reaching a later pass; a
-              declared struct shadowed by a built-in, a zone type or a type
-              constructor in any type slot; an entry's collection element
-              outside the block's allow-list reaching the type layer;
+              ``type`` declaration — a game's or an imported library's — whose
+              name a built-in type, a zone type, a domain id, a collection noun
+              or the collection type constructor already holds; an entry's
+              collection element outside the block's allow-list reaching the
+              type layer;
               the runtime hard-fails on an unclassified name
               (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
               a ``state { }`` default that cannot be evaluated where it
@@ -888,6 +890,15 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
+        # FIRST of the per-library checks: a reserved type name is the library
+        # author's own defect, and every check below it reports something the
+        # reserved name makes unusable anyway. Reported here rather than at
+        # the game-level reservation guard because that one runs after
+        # `_raise_if_errors`, so any other library error — an unmet contract
+        # above all — would raise the pass before the reservation ran, and the
+        # author would meet the real defect only after taking advice that does
+        # not fix it.
+        _check_library_type_names_are_not_taken(game, library, bag)
         _check_library_encapsulation(library, bag)
         _check_contract_shapes(library, bag)
         _check_require_indexes(library, bag)
@@ -3684,11 +3695,17 @@ def _check_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
     where the name is DECLARED, so the ambiguity cannot be built, rather than
     disambiguated at each use by a precedence nobody wrote down.
 
-    The fourth site of `POSITION_NAME_SOURCES`' registry, asked exactly as the
-    three that mint a position domain ask it. The game's OWN declared type
-    names are subtracted before the question: type-against-type is the
-    self-pair, and `_check_duplicate_names` owns it — a second refusal here
-    would co-report on one defect.
+    A site of `POSITION_NAME_SOURCES`' registry, asked exactly as the sites
+    that mint a position domain ask it. The game's OWN declared type names are
+    subtracted before the question: type-against-type is the self-pair, and
+    `_check_duplicate_names` owns it — a second refusal here would co-report
+    on one defect.
+
+    A LIBRARY's `type` declarations are the sibling site
+    (`_check_library_type_names_are_not_taken`), which runs inside
+    `_apply_uses` so a library-alone defect is named before anything that
+    would raise the pass. By the time this guard runs the splice has already
+    happened, so a library type reaching here has cleared that site.
 
     Free against the corpus — no game declares a struct type, and every
     position domain is lowercase — so this reserves a name space nobody is
@@ -3706,22 +3723,58 @@ def _check_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
             )
 
 
-# The sites that reserve a name against the sources below. A position domain
-# reaches the language from three places and the reservation is asked once per
-# place: the author's `positions { }` block, and the two domains a `board:`
-# clause mints. Named here so the set can be enumerated — the sources'
-# accumulation is one axis of this guard, and its consumers are the other;
-# tests/test_positions.py crosses them and scrapes the call sites, so a fourth
-# consumer cannot join in silence any more than a fifth source can.
+def _check_library_type_names_are_not_taken(
+    game: n.Game, library: n.Library, bag: DiagnosticBag
+) -> None:
+    """The same reservation, at a library's own `type` declarations.
+
+    A library's types splice into the game, so they mint into the very
+    namespace the sibling guard reserves — and a library that declares
+    `type Hand` is broken whichever game imports it, which is why it is
+    reported to the LIBRARY's author, at the library's span, like every other
+    library-alone property (decisions.md "Family libraries"). Reported from
+    inside `_apply_uses` so it lands before the errors that raise the pass:
+    every reserved spelling makes the type unusable in the very slots the rest
+    of the library's contract is about, so the author must hear about it
+    first, not after taking advice that cannot fix it.
+
+    The game's own declared types are subtracted before the question, which
+    settles two pairs at once, each with its Owner elsewhere: library-type
+    against library-type is the self-pair, refused post-splice by
+    `_check_duplicate_names`; library-type against the game's own is
+    `_check_library_collisions`, which says which file declared each.
+    """
+    without_game_types = replace(game, types=())
+    for declared in library.types:
+        source = _reserved_domain_source(
+            without_game_types, declared.name, LIBRARY_TYPE_SITE
+        )
+        if source is not None:
+            bag.error(
+                f"library '{library.name}' declares type '{declared.name}', "
+                f"which collides with {source} — pick another name",
+                declared.span,
+            )
+
+
+# The sites that reserve a name against the sources below: every place a
+# spelling enters a namespace the sources also name — the author's
+# `positions { }` block, the two domains a `board:` clause mints, and the two
+# `type` declaration sites, a game's and a library's. Named here so the set can
+# be enumerated — the sources' accumulation is one axis of this guard, and its
+# consumers are the other; tests/test_positions.py crosses them and scrapes the
+# call sites, so a consumer cannot join in silence any more than a source can.
 DECLARED_POSITION_SITE = "declared"
 MINTED_CELL_SITE = "board-minted cell"
 MINTED_DIRECTION_SITE = "board-minted dir"
 DECLARED_TYPE_SITE = "declared type"
+LIBRARY_TYPE_SITE = "library-declared type"
 RESERVATION_SITES: tuple[str, ...] = (
     DECLARED_POSITION_SITE,
     MINTED_CELL_SITE,
     MINTED_DIRECTION_SITE,
     DECLARED_TYPE_SITE,
+    LIBRARY_TYPE_SITE,
 )
 
 
@@ -3770,12 +3823,12 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     ),
     ReservedNameSource("a built-in type name", lambda game: KNOWN_TYPE_NAMES),
     ReservedNameSource("a zone type", lambda game: frozenset(LIBRARY_ZONE_TYPES)),
-    # The sixth: the word an entry's collection spelling is written with. It is
-    # a NAME, not a keyword — the grammar cannot tell it from any other head —
-    # so the reservation is what keeps `x : Collection<Card>` from reading two
-    # ways in a game that declares its own `Collection`. Held disjoint from the
-    # two registries beside it, so the constructor cannot become a third
-    # spelling of a type either registry already names.
+    # The word an entry's collection spelling is written with. It is a NAME,
+    # not a keyword — the grammar cannot tell it from any other head — so the
+    # reservation is what keeps `x : Collection<Card>` from reading two ways in
+    # a game that declares its own `Collection`. Held disjoint from the two
+    # registries beside it, so the constructor cannot become a third spelling
+    # of a type either registry already names.
     ReservedNameSource(
         "a collection type constructor",
         lambda game: frozenset({COLLECTION_TYPE_CONSTRUCTOR}),
