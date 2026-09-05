@@ -42,7 +42,7 @@ domain:     every top-construction site in `cardlang/`, counted by
 registry:   the role sets (`domains.Role` vs the parser's quantifier
             spellings, `_ITERATION_ROLES`, `SIMULTANEOUS_ROLES`,
             `ZONE_INDEX_ROLES`, `_KNOWN_ROLES`); `CALL_SIGS` vs
-            `CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
+            `BUILTIN_CALL_FUNCS`; `ZONE_CONTENT` vs `LIBRARY_ZONE_TYPES`;
             `NameRef.ref_kind` vs `_name_type`'s arms; `OP_CLASSES` vs
             `infer`'s BinOp arm (pinned in tests/test_operator_guards.py).
             Declaring position x name source:
@@ -86,7 +86,7 @@ import pytest
 
 from cardlang import domains, typecheck
 from cardlang.ast import nodes as n
-from cardlang.builtins.functions import CALL_FUNCS
+from cardlang.builtins.functions import BUILTIN_CALL_FUNCS
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError
 from cardlang.domains import BY_ID, SIMULTANEOUS_ROLES, ZONE_INDEX_ROLES
@@ -228,8 +228,17 @@ def test_quantifier_role_spellings_are_still_hard_coded_in_the_parser() -> None:
 
 def test_call_signature_registry_covers_every_native_call_function() -> None:
     """`infer`'s Call arm raises when a call has no signature; resolve rejects
-    a call to an unknown name, so the two native registries must agree."""
-    assert set(CALL_FUNCS) == set(CALL_SIGS)
+    a call to an unknown name, so the two native registries must agree.
+
+    `CALL_SIGS` states the BUILTIN half of that agreement. A Primitive's
+    signature is a column on the implementation index
+    (`primitives_block.PRIMITIVE_IMPLEMENTATIONS`), reached through
+    `implementation_sig`, and the Primitive half of the agreement is carried by
+    two facts this cell does not restate: the index's own import-time assert
+    that it is keyed exactly `PRIMITIVE_CALL_FUNCS` (existence), and `sig`
+    being a required field of `Implementation` (shape, at rung 1 — an entry
+    with no signature does not construct)."""
+    assert set(CALL_SIGS) == set(BUILTIN_CALL_FUNCS)
 
 
 def test_zone_content_registry_covers_every_library_zone_type() -> None:

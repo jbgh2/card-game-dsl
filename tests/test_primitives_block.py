@@ -277,6 +277,7 @@ from cardlang.primitives_block import (
     WALLED_NAMESPACES,
     call_namespace,
     declared_names,
+    implementation_sig,
     regime,
     walled_namespace_of,
 )
@@ -356,6 +357,30 @@ def test_the_implementation_index_covers_the_primitive_namespace() -> None:
     red under: delete any row from `PRIMITIVE_IMPLEMENTATIONS`, or add one for
     a name outside `PRIMITIVE_CALL_FUNCS`."""
     assert frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS
+
+
+def test_the_index_is_where_a_primitive_signature_is_stated() -> None:
+    """The row carries the shape as well as the location, and it is the only
+    table that does.
+
+    `implementation_sig` is the seam every consumer reads a Primitive's
+    signature through, and this says what it reads: the row's own authored
+    column, never the Builtins' table. The second assertion is what keeps the
+    first from being a statement about one of two agreeing copies — a name
+    keyed in both would let a consumer take either and read as correct.
+
+    red under: key any registered Primitive in `CALL_SIGS`, or return
+    `CALL_SIGS.get(name)` from `implementation_sig`."""
+    from cardlang.builtins.signatures import CALL_SIGS
+
+    for name, impl in PRIMITIVE_IMPLEMENTATIONS.items():
+        assert implementation_sig(name) is impl.sig, (
+            f"{name}'s signature does not come from its index row"
+        )
+    assert set(CALL_SIGS).isdisjoint(PRIMITIVE_IMPLEMENTATIONS), (
+        f"Primitives keyed in the Builtins' signature table: "
+        f"{sorted(set(CALL_SIGS) & set(PRIMITIVE_IMPLEMENTATIONS))}"
+    )
 
 
 @pytest.mark.parametrize("name", sorted(PRIMITIVE_IMPLEMENTATIONS))
@@ -2554,6 +2579,31 @@ def test_the_walled_exemption_names_the_rows_the_binders_bind() -> None:
     assert climb and climb <= keys, sorted(climb)
     assert shared and shared <= keys, sorted(shared)
     assert ("cardlang/runtime/tichu.py", "tichu.cardlang") in climb
+
+
+def test_every_authored_row_is_one_a_walled_binder_binds() -> None:
+    """The registry's end state, stated positively.
+
+    `_reconcile`'s claim (3) says no authored row states a coupling a block
+    states — a statement about the DECLARED games, which leaves a row for a
+    game that writes no block outside what it can see. This says the other
+    thing: there is no such row at all. Every row the table holds is one the
+    climb binder or the shared dispatch module's auction outcomes bind at
+    load, which is what makes `PRIMITIVE_READS` the declaration for the two
+    namespaces a block cannot name rather than a second route into the
+    call-position one.
+
+    Born green, and the mutation that reddens it is a call-namespace row —
+    executed 2026-09-04 by appending
+    `PrimitiveReads(module="cardlang/runtime/canasta.py",
+    game_file="canasta.cardlang", state_vars=frozenset({"stage"}))`:
+    "authored rows no walled binder binds: [('cardlang/runtime/canasta.py',
+    'canasta.cardlang')]"; demonstrated and reverted."""
+    keys = {(r.module, r.game_file) for r in PRIMITIVE_READS}
+    assert keys == _walled_binder_rows(PRIMITIVE_READS), (
+        f"authored rows no walled binder binds: "
+        f"{sorted(keys - _walled_binder_rows(PRIMITIVE_READS))}"
+    )
 
 
 @pytest.mark.slow

@@ -59,6 +59,19 @@ does not prove: that the Primitives half of the partition adds anything its
             deletes `call` and `DECLARED_ONLY_CALL_FUNCS` in its second
             change, re-deriving this grid's homes as {builtins, declared} --
             after which there is no Primitives half to state.
+red under (the end state, authored before it held):
+            the five cells that state the retirement were authored against the
+            tree that still carried the seam, and four of the five were red
+            there. Measured 2026-09-04, `.venv/bin/python -m pytest
+            tests/test_native_dispatch_split.py::test_the_legacy_dispatch_seam_is_gone
+            tests/test_permissive_top.py::test_call_signature_registry_covers_every_native_call_function
+            tests/test_signatures.py::test_tables_reconcile_with_name_sets
+            tests/test_primitives_block.py::test_the_index_is_where_a_primitive_signature_is_stated
+            tests/test_primitives_block.py::test_every_authored_row_is_one_a_walled_binder_binds -q`
+            -> `4 failed, 1 passed`. The fifth
+            (`test_every_authored_row_is_one_a_walled_binder_binds`) was
+            already true when it was written and carries its own reddening
+            mutation instead.
 residual:   the `climb_universe_function` / `climb_codec_function` /
             `joint_codec_function` key sets are not registries -- they exist
             only inside their own match -- so each carries a home row but no
@@ -174,6 +187,51 @@ def _name_dispatchers(path: Path) -> dict[str, frozenset[str]]:
 
 def _call_arms(path: Path) -> frozenset[str]:
     return _name_dispatchers(path).get("call", frozenset())
+
+
+def _legacy_dispatch_callers() -> list[str]:
+    """Every site in the package that calls `primitives.call`. Derived from the
+    AST rather than a text match, so a caller reintroduced under any spelling
+    of the import shows up here."""
+    offenders = []
+    for path in sorted(_PACKAGE.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "call"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "primitives"
+            ):
+                offenders.append(f"{path.relative_to(_PACKAGE)}:{node.lineno}")
+    return offenders
+
+
+def test_the_legacy_dispatch_seam_is_gone() -> None:
+    """A Primitive is reached by declaration and by nothing else.
+
+    Three statements of the one end state, each falsifiable on its own: the
+    dispatcher is not defined, nothing calls it, and the set that classified
+    which Primitives it held no arm for is not there to classify anything. The
+    third is asked of the module rather than by importing the name, so its
+    reappearance is a red assertion here and not an ImportError somewhere
+    else."""
+    import cardlang.builtins.functions as functions_mod
+
+    assert "call" not in _name_dispatchers(_PRIMITIVES), (
+        "cardlang/runtime/primitives.py defines a `call` dispatcher — a "
+        "Primitive's only route to its Python is `call_declared` off its "
+        "game's `primitives { }` block"
+    )
+    assert _legacy_dispatch_callers() == [], (
+        f"still dispatching through the retired seam: "
+        f"{_legacy_dispatch_callers()}"
+    )
+    assert not hasattr(functions_mod, "DECLARED_ONLY_CALL_FUNCS"), (
+        "DECLARED_ONLY_CALL_FUNCS is back — every Primitive is reached by "
+        "declaration, so the set that named the ones with no arm classifies "
+        "nothing `PRIMITIVE_CALL_FUNCS` does not"
+    )
 
 
 def _expected_home(name: str) -> str:

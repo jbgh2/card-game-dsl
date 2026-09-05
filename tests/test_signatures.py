@@ -82,8 +82,19 @@ from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, 
 
 def test_tables_reconcile_with_name_sets() -> None:
     # The declaration side is data: the signature tables must cover exactly
-    # the name sets, both directions.
-    assert set(CALL_SIGS) == set(CALL_FUNCS)
+    # the name sets, both directions. The call registry has two signature
+    # tables, one per half: `CALL_SIGS` for the Builtins, and the `sig` column
+    # of the implementation index for the Primitives. Each is asserted against
+    # its own half, so a Primitive keyed in `CALL_SIGS` fails here by name
+    # rather than being absorbed into a union.
+    from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
+
+    assert set(CALL_SIGS) == set(BUILTIN_CALL_FUNCS)
+    assert {
+        name: impl.sig for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
+    }.keys() == set(PRIMITIVE_CALL_FUNCS)
+    assert BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS == CALL_FUNCS
     assert set(VALUE_SIGS) == set(VALUE_NAMES)
     assert set(EARLY_SIGS) == set(PRIMITIVE_EARLY_PREDICATES)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
