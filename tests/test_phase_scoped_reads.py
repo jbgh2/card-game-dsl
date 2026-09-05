@@ -1005,10 +1005,10 @@ def test_an_untailed_phase_local_name_beside_a_tail_teaches_its_own_tail() -> No
 
 
 def test_the_same_name_under_two_tails_is_the_repeat_guards() -> None:
-    """Two declarations of ONE spelling. The bundle is keyed by bare name, so it
-    cannot carry both — the repeat guard owns it, and its message says which
-    fact makes the pair unrepresentable rather than only that a repeat replaces
-    the first."""
+    """Two declarations of ONE spelling. The entry receives one value per name,
+    so both cannot reach it — the repeat guard owns it, and its message says
+    which fact makes the pair unrepresentable rather than only that a repeat
+    replaces the first."""
     message = _refused(
         _nested(
             block="pinochle_meld_value(p : Player) : Integer\n"

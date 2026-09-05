@@ -5368,9 +5368,9 @@ def _check_primitive_reads(
         if read.name in seen:
             bag.error(
                 f"`{decl.name}` reads `{read.name}` more than once — a `reads` "
-                f"clause names each spelling at most once: the bundle is keyed "
-                f"by bare name, so two declarations of one spelling cannot both "
-                f"be carried; keep one",
+                f"clause names each spelling at most once: the entry receives "
+                f"one value per name, so two declarations of one name cannot "
+                f"both reach it; keep one",
                 read.span or decl.span,
             )
             return
