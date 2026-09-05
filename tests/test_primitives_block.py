@@ -188,12 +188,11 @@ does not prove: a green here says nothing about whether a declared read is
             `reads hand[p]` does not also need `trump_suit` is proven by the
             implementation failing, at playout, on the bundle it was handed,
             which only running the game can show. The witness fixture is the
-            one place that runs. And every name declarable in 3a is also in
-            `CALL_SIGS` with the SAME signature, so no cell here distinguishes
-            the two tables by the values they carry — the freeze cell plants a
-            divergence to observe which table is read, and the behavioral
-            distinction becomes visible only when 3b's declarations differ
-            from the registry they replace.
+            one place that runs. And a declarable name's entry states the SAME
+            signature its implementation row does — the shape check refuses a
+            game where they differ — so no cell here distinguishes the two by
+            the values they carry: the freeze cell plants a divergence to
+            observe which of them the runtime reads.
             And the reconciliation pin's exemption is only as right as the
             climb binder it asks: `primitives.climb_row` is a consumer of the
             rows, not the artifact being judged, so a green here says a
@@ -673,12 +672,9 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 # The Primitive every cell needing one name is written at, DERIVED from the
 # registry rather than written down: a literal is a name this module would have
 # to keep registered on its own account, and a migration that retires it would
-# leave the prose false with nothing saying so. Its rendering comes from
-# `CALL_SIGS` through `_entry_and_body`, so the name's own signature decides
-# the sentence. Keyed on the Primitive registry rather than on the
-# declared-only set, which the stage-3 closing change retires
-# (docs/plans/2026-09-05-coup-eviction-stage3-closing.md, its second change);
-# the two are equal while both stand.
+# leave the prose false with nothing saying so. Its rendering comes from the
+# implementation index's own signature column through `_entry_and_body`, so
+# the name's own signature decides the sentence.
 def _representative() -> str:
     return min(PRIMITIVE_CALL_FUNCS)
 
@@ -2982,9 +2978,10 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
     until the list admits its element with a witness, and an element admitted
     with no implementation lands red too.
 
-    red under: register a `Collection<Player>` parameter in `CALL_SIGS` for
-    any name in `PRIMITIVE_IMPLEMENTATIONS` — verified on `gin_arrange_ok`,
-    which reports `TPlayer at gin_arrange_ok's parameter 2`."""
+    red under: give any `PRIMITIVE_IMPLEMENTATIONS` row a
+    `Collection<Player>` parameter in its `sig` — verified on
+    `gin_arrange_ok`, which reports `TPlayer at gin_arrange_ok's
+    parameter 2`."""
     from cardlang.primitives_block import implementation_sig
     from cardlang.typecheck import TypeEnv, type_from_name
 

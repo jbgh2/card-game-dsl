@@ -216,10 +216,7 @@ def test_shadow_wall_still_guards_registered_names() -> None:
 
     The control name is DERIVED from the registry rather than written here:
     a literal is a name this module would have to keep registered on its own
-    account, and every eviction is a chance for it to stop being one. From
-    the Primitive registry, not the declared-only set the stage-3 closing
-    change retires (docs/plans/2026-09-05-coup-eviction-stage3-closing.md,
-    its second change); the two are equal while both stand."""
+    account, and every eviction is a chance for it to stop being one."""
     registered = min(PRIMITIVE_CALL_FUNCS)
     with pytest.raises(DiagnosticError, match="shadows the native function"):
         check_dsl(_shadow_probe(registered), "shadow_control.cardlang")

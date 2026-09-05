@@ -1,4 +1,4 @@
-"""Declared reads for game-local runtime [[primitive]]s.
+"""Declared reads for the [[primitive]]s a `primitives { }` block cannot name.
 
 A game-local primitive (`cardlang/runtime/<game>.py`, plus the per-game
 auction outcomes in `primitives.py`) is sanctioned Python for pure value
@@ -11,28 +11,31 @@ a coupling the front-end pipeline cannot see: nothing about
 `KeyError` mid-playout the first time either side renames
 (tests/metamorphic/rename.py first found it empirically).
 
-This module is the declaration. `PRIMITIVE_READS` is the single registry of
-every zone/state name each primitive module reads, keyed by (module, game
-file); the accessors below are the only sanctioned way for a primitive to
-touch state by name. The registry is pinned from both sides by
-tests/test_primitive_reads.py: every declared name against the game file's
-actual declarations (a rename in the `.cardlang` fails the test), and every
-module's accessor-call literals against its rows exactly (an undeclared or
-stale read fails the test). tests/metamorphic/rename.py derives its
-coupled-name exclusions from this registry rather than keeping its own copy.
+A call-position Primitive declares that coupling in its calling game's own
+`primitives { }` entry. `PRIMITIVE_READS` is the declaration for the two
+namespaces the block does not cover — the climb queries and the auction
+outcomes — whose binders bind a MODULE row at load
+(`primitives.climb_row`, and the rows `primitives.py` binds for its own
+auction outcomes): a row per (module, game file), holding every zone and
+state name that module reads on that game's behalf. The accessors below serve
+both those rows and the rows a block derives, and are the only sanctioned way
+for a primitive to touch state by name.
+
+The registry is pinned from both sides by tests/test_primitive_reads.py:
+every declared name against the game file's actual declarations (a rename in
+the `.cardlang` fails the test), and every module's accessor-call literals
+against its rows exactly (an undeclared or stale read fails the test). That
+every row here is a walled binder's — never a second statement of what a
+block already declares — is
+tests/test_primitives_block.py::test_every_authored_row_is_one_a_walled_binder_binds.
+tests/metamorphic/rename.py derives its coupled-name exclusions from this
+registry rather than keeping its own copy.
 
 The declared-reads idea is stage 3 of
-docs/design-notes/primitive-sidecars.md, landed at the Python layer: the
-sidecar design moves these declarations into a `primitives { }` block in the
-game file itself, at which point this table derives from the game files
-instead of being authored here.
-
-The rows below serve the two WALLED namespaces no block can name: the climb
-binders' rows (`primitives.climb_row`) and `primitives.py`'s own
-auction-outcome rows. Every other declared read is the calling game's own
-`primitives { }` entry, which is what the Contract's `establishes` states.
-The plan of record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
-restates this docstring for those two namespaces in its second change.
+docs/design-notes/primitive-sidecars.md; the walled namespaces take their own
+declaration slots when their mechanic-driven signatures are spellable
+(issue #142, the co-location stage), and this table retires with the last of
+them.
 
 Contract:
   assumes      the game file named by a row parses and declares the names
@@ -57,7 +60,9 @@ Contract:
                `zones.families[...]`/`zones.singles[...]`) in any
                `cardlang/runtime/` module outside the engine core's explicit
                exemption list (enforced by the AST scan in
-               tests/test_primitive_reads.py).
+               tests/test_primitive_reads.py); and a row here for a
+               call-position Primitive, whose coupling its calling game's own
+               block declares.
 """
 
 from __future__ import annotations
@@ -579,7 +584,8 @@ def game_reads(
     `primitive` is the DECLARED entry's name, when a declaration is what built
     the row. It appears only in the miss message, where the addressee's fix
     differs by regime: a declared entry's is its own `reads` clause, an
-    authored row's is `PRIMITIVE_READS`. The legacy binders pass none.
+    authored row's is `PRIMITIVE_READS`. The climb binder passes none — its
+    row is a module's, not an entry's.
 
     `scopes` names the phase each [[phase-scoped-read]] was declared in, and is
     read by `_scoped_state` alone — the miss it renames is unreachable while

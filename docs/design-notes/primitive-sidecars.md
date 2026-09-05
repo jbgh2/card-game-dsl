@@ -284,10 +284,9 @@ declaration's own typed channel, naming the primitive and the clause to
 extend.
 Typecheck materializes the declared `Sig`, and it is that signature the
 runtime's `coerce_args` freezes against. The driver builds the dispatch
-table at load, so a declared primitive has no hand-written arm; a
-declared game never reaches the legacy table, and its `f(...)` calls
-resolve against its own namespace, which closes the cross-game leakage
-(issue #364). The reads clause is per-primitive and per-CALL: an indexed
+table at load, so a primitive has no hand-written arm at all; a game's
+`f(...)` calls resolve against its own namespace, which closes the
+cross-game leakage (issue #364). The reads clause is per-primitive and per-CALL: an indexed
 read materializes the one instance the call names. Scope Owner Guard:
 the clause is checked for name validity and drives what the dispatch
 hands over — the derived-reveal analysis (hidden reads flowing into
@@ -301,7 +300,7 @@ completeness ledger in `tests/test_primitives_block.py`, the misuse
 probes there, and the corpus reconciliation pin with both reddening
 mutations demonstrated.
 
-**Stage 3b — the corpus sweep and the legacy deletion. In progress.** Every
+**Stage 3b — the corpus sweep and the legacy deletion. Done.** Every
 game with a primitive gains its block (the lockstep rule), the authored
 CALL-namespace `PRIMITIVE_READS` rows and the hand-written dispatch arms
 for those names go, and the coexistence window closes. Not every row of a
@@ -309,10 +308,11 @@ declaring game goes: a row serving a WALLED namespace outlives its game's
 block, because the block covers the call position while a climb or auction
 binder holds its own row at load — so the reconciliation pin quantifies per
 ROW, permitting exactly the rows those binders bind. Its own plan.
-Behavior unchanged, goldens byte-identical. The sweep is done: no
-call-namespace row is left, every Primitive is declared-only, and what
-remains is the deletion of the tables that served the other route
-(docs/plans/2026-09-05-coup-eviction-stage3-closing.md).
+Behavior unchanged, goldens byte-identical. The sweep is done and the
+tables that served the other route are deleted: no call-namespace row is
+left, no runtime module holds a `call` arm for a Primitive, and a
+Primitive's signature is a column on its implementation row rather than an
+entry in the Builtins' table. Stage 3 is closed; stage 4 is next.
 
 Which games have migrated is a query, not a number: the games whose
 `primitives { }` block the corpus holds
@@ -356,10 +356,9 @@ burn-down §6 promises). The rig mirrors are written from Salvo's DESIGN.md
 rather than from the sidecar, so their per-playout pins compare two
 independent authorings of the table; the arena reports per-type combo
 incidence, which is what re-tunes the values. This is also the stage that
-made the coexistence window's third dispatch route explicit: a Primitive
-reached only by declaration has no `call` arm, which the dispatch-split
-grid, the signature reconciliation and the declared-reads scan each now
-state rather than assume. Arena re-runs and REPORT verdicts close the
+made the declaration route explicit: a Primitive has no `call` arm, which
+the dispatch-split grid, the signature reconciliation and the
+declared-reads scan each state rather than assume. Arena re-runs and REPORT verdicts close the
 round.
 
 ## 6. One pressure to preserve
