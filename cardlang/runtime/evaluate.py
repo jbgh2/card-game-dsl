@@ -37,6 +37,10 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     declaration, and a game reaching one without declaring it would be running
     Python its own file never claimed. The regime is decided once, at resolve;
     the runtime's only job is to refuse a contradiction, never to fall back.
+
+    That refusal is the LAST of three: resolve's own arms own the class,
+    typecheck's `Call` arm stands behind them, and this stands behind both. A
+    firing here means both compile-stage guards leaked.
     """
     declared = ctx.rs.declared_primitives
     entry = None if declared is None else declared.get(name)

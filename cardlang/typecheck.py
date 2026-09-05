@@ -40,6 +40,12 @@ Now illegal:  a type-invalid program, per the Owner Guards above and their
               (``primitives_block.implementation_sig``). Recorded residuals
               live in the tracker (issue #143 orders them) and in each Owner
               Guard module's ledger.
+              The ``Call`` arm's own refusals are Shadow Guards, not Owner
+              Guards: a Primitive the game does not declare is
+              ``resolve._validate_refs``' (its unknown-name and declared-only
+              arms), and this pass raises ``ShadowGuardError`` naming them;
+              anything else with no signature is a registry divergence and
+              keeps the assert channel.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers.
 """
@@ -55,6 +61,7 @@ from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
+    PRIMITIVE_CALL_FUNCS,
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
@@ -68,6 +75,7 @@ from cardlang.primitives_block import (
     implementation_sig,
     regime,
 )
+from cardlang.runtime.errors import ShadowGuardError
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -701,12 +709,24 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.Call():
             sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
             if sig is None:
-                # `CALL_SIGS` covers `BUILTIN_CALL_FUNCS` exactly (pinned by
-                # tests/test_permissive_top.py) and a game's own entries cover
-                # the Primitives it declares, and resolve rejects a call to
-                # any name that is neither in its regime's namespace nor a
-                # declared function — so a missing signature is a registry
-                # divergence.
+                if e.func in PRIMITIVE_CALL_FUNCS:
+                    # A Primitive this game does not declare. `native_call_sigs`
+                    # builds it no row under either regime — the Builtins alone
+                    # without a block, the Builtins plus the block's own entries
+                    # with one — so the absence is the regime speaking, not a
+                    # table that lost a row, and the drift diagnosis below would
+                    # name the wrong defect.
+                    raise ShadowGuardError(
+                        "resolve._validate_refs (its unknown-name and "
+                        "declared-only arms)",
+                        f"'{e.func}' is a Primitive this game does not declare, "
+                        f"so no table states its signature",
+                    )
+                # What is left IS a registry divergence, and this diagnosis is
+                # the right one: `CALL_SIGS` covers `BUILTIN_CALL_FUNCS` exactly
+                # (pinned by tests/test_permissive_top.py) and resolve refuses a
+                # name no namespace holds, so a Builtin reaching here has lost
+                # its row.
                 raise AssertionError(
                     f"call to '{e.func}' has no signature in this game's native "
                     f"table and no declared function — resolve rejects unknown "

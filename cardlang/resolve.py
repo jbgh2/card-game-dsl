@@ -92,8 +92,9 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               arm of ``_validate_refs``): the name is in the corpus-wide
               namespace, so the unknown-name arm cannot speak for it, and a
               declaration is its only route to Python.
-              ``runtime/evaluate.py``'s ``native_call`` refusal is the Shadow
-              Guard behind this.
+              ``typecheck``'s ``Call`` arm is the Shadow Guard behind this —
+              no table states such a call's signature — with
+              ``runtime/evaluate.py``'s ``native_call`` refusal behind that.
               And a ``primitives { }`` entry whose ``reads`` clause names a
               declaration the game states in more than one of the four
               namespaces such a name can be declared in — the game's own
@@ -7905,8 +7906,9 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 # for it. A declaration is the ONLY route to a Primitive's
                 # Python — yet the name IS a Primitive, so the corpus-wide
                 # namespace (`CALL_FUNCS`) admits it and the unknown-name arm
-                # above says nothing. Without this the call checks clean and
-                # the dispatch reaches a Shadow Guard: the wrong channel, about
+                # above says nothing. Without this the call reaches typecheck's
+                # `Call` arm — the Shadow Guard behind this one, with
+                # `native_call`'s refusal behind that: the wrong channel, about
                 # a name the registry does hold.
                 #
                 # AFTER the flavor arms deliberately: a piece game cannot fix
