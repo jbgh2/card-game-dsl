@@ -168,7 +168,11 @@ seats reserve to the operator — that the non-nesting refusal closes as a
 DESIGNED constraint with NO issue, recorded at the arm, in the glossary
 sentence and in the rejection fixture, its premise pinned by the one-line
 frame-pop test — is taken as ruled by consensus under that instruction and
-is flagged in the PR body for the operator's veto at merge.
+is flagged in the PR body for the operator's veto at merge. Ben
+ratified it 2026-09-04 ("That's reasonable to me"): the non-nesting
+refusal is a designed constraint, recorded at the arm, in the glossary
+sentence and in the rejection fixture, its premise pinned by the
+frame-pop test; no issue is filed.
 
 The Architect's machinery, binding on the implementer: `phase_paths(game)`
 (one recursion over the phase tree yielding every phase's path, declaring
