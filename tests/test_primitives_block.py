@@ -2020,8 +2020,8 @@ def test_the_collidable_registry_intersections_are_derived() -> None:
 
 def test_a_designer_function_named_after_an_absent_primitive_escapes_the_flavor_guard() -> None:
     """DECK_ONLY: a piece game's designer function whose spelling reads a
-    card's rank in the legacy registry, but which the runtime dispatches to the
-    user function.
+    card's rank in the corpus-wide registry (`PRIMITIVE_CALL_FUNCS`), but which
+    the runtime dispatches to the user function.
 
     Checked rather than played, like its ranking-gate sibling: the guard under
     test is a compile-stage one, and the playout that proves a designer
