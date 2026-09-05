@@ -12,9 +12,9 @@ that replaces its Primitive lands in the language, which is the only event
 that moves Python out of the package.
 
 `call` below dispatches nothing: its arms are gone and only the refusal
-remains. It is deleted, with the legacy tables it keys, by the stage-3 closing
-change (docs/plans/2026-09-05-coup-eviction-stage3-closing.md), which is also
-what retires the LEGACY regime it speaks for.
+remains. The plan of record
+docs/plans/2026-09-05-coup-eviction-stage3-closing.md deletes it, with the
+legacy tables it keys, in its second change.
 
 Its two siblings are deliberately separate words: **[[builtins]]** are the
 generic native functions the language ships (`cardlang/runtime/builtins.py`),
