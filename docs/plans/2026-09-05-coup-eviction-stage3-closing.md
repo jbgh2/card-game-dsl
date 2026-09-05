@@ -602,3 +602,34 @@ Nothing moves, executed: probe B (§6) — per-player observation streams byte-i
 - `test_primitive_reads.py`'s accessor matrix and misuse probes need a new exemplar row (the synthetic-row route `test_primitive_narrowing.py` ledger `:38-45` took) — or the zone-kind arms of `_row_problems` go instance-less on the corpus.
 - `test_every_invocation_contract_has_a_member` vs `test_the_declarable_contracts_are_a_proper_subset`: jointly unsatisfiable at zero members; which survives is a decision, not a cell.
 - Issue #143's ordering text was not read; `#142`'s body still names `cardlang/runtime/sidecar.py` and `cardlang/runtime/stdlib.py`.
+
+## Gate-4 addendum (2026-09-04, recorded at implementation — the derived domain against the plan's statement)
+
+The plan's ruling (a) and the counsel's precedent P1 name
+`tests/test_cli_surface.py::test_play_reaches_a_terminal_position` as the
+Owner of the reader's emit-before-pop premise. It is not: that cell asserts
+`returns`, `decisions` and `seed` in the `play` summary line, all printed by
+`cli._summary` wherever the trace fires, so moving the emit past the pop
+leaves it green. The pin that reddens under that mutation is
+`tests/test_cli_surface.py::test_info_state_carries_the_state_variables`,
+whose own docstring states the fact: "This is the pin on the one thing the
+snapshot site depends on beyond the trace event existing: WHERE it fires."
+`TerminalState` cites that cell as its Owner. Recorded rather than rewritten
+above: the ruling's substance — read the terminal world at the existing
+moment, cite the pin that holds the ordering — is unchanged.
+
+Three further facts the derived domain adds to the red set the plan measured,
+each answered in the change rather than marked:
+
+- `tests/test_primitives_block.py::test_a_declared_game_cannot_reach_another_
+  games_primitive` was written at the legacy-half name for a counterfactual
+  the eviction removes ("this same call in a game with no block RESOLVES").
+  It derives its representative and states what it now proves.
+- `tests/test_signatures.py`'s `_facts_in` handled a STARRED argument for the
+  one arm that wrote `*_bind(ctx, ROW)`. With that arm gone no producer
+  remains, and treating a star as one skipped position would line every later
+  argument up against the wrong declared type, so the shape is refused rather
+  than left as dead code.
+- `_HASHSEED_CAPTURE`'s comment claimed its record sits at or below the grain
+  of every golden in its domain. Coup's coins now ride no channel it records;
+  the comment says which divergence is the golden's to catch instead.
