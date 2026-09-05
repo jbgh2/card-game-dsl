@@ -3,13 +3,18 @@
 A Primitive is native code whose meaning belongs to ONE game — Skat's trick
 winner, Canasta's pile-take legality, Belote's declaration classes. Its inputs
 are the **facts** (`narrowing.EngineFacts`) and its declared **reads**
-(`reads.GameReads`); the pair is the [[primitive-bundle]]. The arms below are
-the LEGACY dispatch seam, and an arm goes for either of two reasons: the
-construct that replaces its Primitive lands in the language, or the calling
-game declares the Primitive and `call_declared` derives the call instead. Only
-the first is elimination, so the metric is the REGISTRY
-(`PRIMITIVE_CALL_FUNCS`, `design-notes/primitive-inventory.md`) and never the
-count of arms here.
+(`reads.GameReads`); the pair is the [[primitive-bundle]]. Every Primitive is
+reached by DECLARATION: the calling game names it in a `primitives { }` block
+and `call_declared` derives the dispatch from that. The elimination metric is
+the REGISTRY (`PRIMITIVE_CALL_FUNCS`,
+`design-notes/primitive-inventory.md`) — a name leaves it when the construct
+that replaces its Primitive lands in the language, which is the only event
+that moves Python out of the package.
+
+`call` below dispatches nothing: its arms are gone and only the refusal
+remains. It is deleted, with the legacy tables it keys, by the stage-3 closing
+change (docs/plans/2026-09-05-coup-eviction-stage3-closing.md), which is also
+what retires the LEGACY regime it speaks for.
 
 Its two siblings are deliberately separate words: **[[builtins]]** are the
 generic native functions the language ships (`cardlang/runtime/builtins.py`),
@@ -20,14 +25,15 @@ Contract
 --------
 Assumes: `name` reached resolve's registries and its arguments were coerced by
 the caller (`reads.coerce_args`) — this module never freezes an argument
-itself, and `_bind` hands a game module only what its declared-reads row
-permits.
-Establishes: a value for every game-local call, or the loud refusal below.
+itself, and `narrowing.bind` hands a game module only what its declared-reads
+row permits.
+Establishes: a value for every declared call (`call_declared`); the walled
+dispatchers keep their own arms.
 Illegal after: reading engine state by any route other than a declared row.
 
 This module must not import `runtime/builtins.py`. Which half of the registry a
 name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
-the dependency absent is what makes the two arm counts independently readable.
+the dependency absent is what keeps the two halves independently readable.
 """
 
 from __future__ import annotations

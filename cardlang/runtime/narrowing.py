@@ -25,10 +25,10 @@ its [[primitive-bundle]], plain values and nothing else:
 
 Scope (docs/design-notes/primitive-sidecars.md §5): the two halves are
 declared at different granularities, and the difference is the live one.
-`GameReads` is PER-PRIMITIVE for a game that declares a `primitives { }`
-block — its row is built from that entry's own `reads` clause, and an indexed
-read narrows to the instance the CALL names — and per-MODULE for a game that
-declares none, where `PRIMITIVE_READS` is the declaration. `EngineFacts` is
+`GameReads` is PER-PRIMITIVE for a call-position Primitive — its row is built
+from the game's own `primitives { }` entry, and an indexed read narrows to the
+instance the CALL names — and per-MODULE for the walled namespaces a block
+cannot name, whose binders take an authored `PRIMITIVE_READS` row. `EngineFacts` is
 whole either way: its field names are not spellable in a `reads` clause, so
 every primitive receives every fact (issue #474). What no primitive can do,
 under either regime, is mutate, decide, emit, or reach a name nothing
@@ -36,7 +36,8 @@ declared.
 
 Contract:
   assumes      the caller is the dispatch layer, holding a live `Ctx`, and
-               the primitive's module has a `PRIMITIVE_READS` row.
+               the primitive has a row — the entry's own, built from its
+               declaration, or a walled binder's authored one (issue #535).
   establishes  a game module receives values only — no engine handle
                crosses the boundary, so purity is structural (pinned by the
                crossed grid in tests/test_primitive_narrowing.py).

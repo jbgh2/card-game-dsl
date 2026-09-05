@@ -32,8 +32,8 @@ completed-trick Excuse query and settlement arithmetic; Cribbage's pegging/show 
 and provenance decoder; Skat's bid
 ladder, matador count, and overbid arithmetic; 500's bid ladder and contract
 values; Tichu's climb queries over the shared `combinations.py` engine,
-team/finishing lookups, and the OpenSpiel combo codec; Coup's
-in-game scans and trace emitters. Schnapsen carries no module at all: its
+team/finishing lookups, and the OpenSpiel combo codec. Coup and Schnapsen
+carry no module at all. Schnapsen's
 trick resolution is the `highest_trump_or_led_suit` call form over the
 kernel's Arrival Record ([decisions.md](decisions.md), "Knowledge,
 visibility, and the projection model" — The Arrival Record), and the playout

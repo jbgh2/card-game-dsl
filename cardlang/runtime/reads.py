@@ -6,8 +6,8 @@ computation (library.md "Native functions"; kernel-migration.md). It reads
 live `RuntimeState` by the zone / [[state-variable]] name the game file
 declares —
 a coupling the front-end pipeline cannot see: nothing about
-`zones { influence[player] : Hand<player> }` tells resolve or typecheck that
-`coup.py` also spells this name. Undeclared, that coupling surfaces as a
+`state { opened : Boolean = false }` tells resolve or typecheck that
+`bigtwo.py` also spells this name. Undeclared, that coupling surfaces as a
 `KeyError` mid-playout the first time either side renames
 (tests/metamorphic/rename.py first found it empirically).
 

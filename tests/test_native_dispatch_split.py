@@ -100,8 +100,8 @@ _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 # already there; the classification of what it
 # keys is `cardlang/builtins/functions.py`'s statement, pinned by
 # tests/test_native_classification_prose.py, and the elimination metric is
-# `PRIMITIVE_CALL_FUNCS` (the call arms below) plus the epic scoreboard,
-# neither of which the winner reclassification touched.
+# `PRIMITIVE_CALL_FUNCS` plus the epic scoreboard, neither of which the winner
+# reclassification touched.
 DISPATCHER_HOMES: dict[str, str] = {
     "call": "both",
     "value_function": "primitives",

@@ -376,7 +376,8 @@ class RuntimeState:
         self.trick_order: TrickOrderTable | None = None
         # The game's declared [[primitive]]s, materialized once from its
         # `primitives { }` clause (`runtime/driver.py`); None for a game
-        # declaring no block, which is what puts it on the legacy dispatch.
+        # declaring no block, which is a game that borrows no Python at a
+        # call position.
         # `None` and an EMPTY dict are different states: an empty block
         # declares that the game borrows no Python, so every Primitive call in
         # it is refused.

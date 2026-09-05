@@ -6,8 +6,10 @@ A game declares the [[primitive]]s it borrows from outside the DSL in a
 partitions the game's native-call namespace in both directions, the `trick_order { }`
 mechanism one construct over: a game with a block names its own declared
 primitives and no other game's, and a game without one keeps the hand-authored
-`PRIMITIVE_CALL_FUNCS` namespace. `regime` below is the ONE site that asks
-which, so no consumer re-derives it from `game.primitives is None`.
+`PRIMITIVE_CALL_FUNCS` namespace — which admits every Primitive by name and
+lets none of them run, since a declaration is a Primitive's only route to
+Python. `regime` below is the ONE site that asks which, so no consumer
+re-derives it from `game.primitives is None`.
 
 This module is a LEAF of the front end: it holds names and classifications
 only, never types (`typecheck.type_from_name` is the one conversion site) and
@@ -104,7 +106,9 @@ class Regime(Enum):
 
     LEGACY = "legacy"
     """The game declares no block: the hand-authored `PRIMITIVE_CALL_FUNCS`
-    namespace, shared corpus-wide."""
+    namespace, shared corpus-wide. The namespace admits every Primitive and
+    resolve then refuses each one by name — a declaration is the only route to
+    a Primitive's Python — so what this regime reaches is the Builtins."""
 
 
 def regime(game: n.Game) -> Regime:

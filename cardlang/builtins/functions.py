@@ -248,9 +248,12 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 #
 # It is also what resolve refuses a legacy-regime game by (`_validate_refs`,
 # the declared-only arm): the name is a Primitive, so the legacy namespace
-# admits it, and a declaration is its only route to Python. Stage 3b
-# inverts the set (docs/design-notes/primitive-sidecars.md section 5):
-# every Primitive becomes declared and the legacy arms go with the window.
+# admits it, and a declaration is its only route to Python. The inversion
+# stage 3b aimed at has happened — this set holds every Primitive, so it is a
+# second authored copy of `PRIMITIVE_CALL_FUNCS` and states nothing that set
+# does not. It retires with the legacy dispatch table, in the stage-3 closing
+# change (docs/plans/2026-09-05-coup-eviction-stage3-closing.md), where
+# resolve's arm keys the registry directly.
 DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "belote_best_is",
