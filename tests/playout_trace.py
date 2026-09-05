@@ -1,11 +1,10 @@
 """Harness-side reconstruction of playout facts that no game text reports.
 
-The playout harness consumes per-game facts that used to arrive as `ctx.trace`
-events from registered "primitives": Coup's influence-flip sequence
-(`coup_reveal`), Tichu's per-hand double-victory flag and captured card points
-(`tichu_hand`), and Coup's end-of-game coins, alive vector and conservation
-totals (`coup_game`). They derive here, at the harness layer, so the rules text
-carries no instrumentation calls.
+The playout harness consumes three such facts: Coup's influence-flip sequence
+(`CoupReveals`), Tichu's per-hand double-victory flag and captured card points
+(`TichuHands`), and Coup's end-of-game coins, alive vector and conservation
+totals (`TerminalState`, through `coup_totals`). They derive here, at the
+harness layer, so the rules text carries no instrumentation calls.
 
 Which channel a fact derives from follows the law that decides where the fact
 lives (decisions.md, "Hidden information lives only in zones; state is
@@ -88,11 +87,15 @@ class TerminalState:
         terminal = TerminalState(("coins", "treasury"))
         play_game(game, rng, terminal.tracer, on_first_decision=terminal.hold)
 
-    Captured values are detached from the frame they are read out of: the
-    frames this reads are mutated and popped after the capture, so a reference
-    would record the terminal state only by accident. One level is the whole
-    depth — a declared state variable is a scalar, or a per-member dict of
-    them (`runtime/driver._declare_state`), and nothing nests below that.
+    Captured values are detached from the frame they are read out of. The
+    frame is POPPED after the capture rather than mutated, and popping does
+    not touch the per-member dict it held — a captured reference would stay
+    live, and would follow any later write through it. The driver only reads
+    between `game_end` and the pop, so the copy closes no live bug; what it
+    buys is that this is a capture, and not a handle on state that stays
+    someone else's to write. One level is the whole depth — a declared state
+    variable is a scalar, or a per-member dict of them
+    (`runtime/driver._declare_state`), and nothing nests below that.
     """
 
     def __init__(self, names: Sequence[str]) -> None:
