@@ -720,7 +720,21 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # Owner Guard's witness is the derived element sweep,
     # test_the_element_slot_admits_exactly_the_allow_list
     # (tests/test_primitives_block.py).
-    "typecheck.py": ["spelled.element in COLLECTION_ELEMENT_NAMES"],
+    # The Call arm's second guard discriminates the Shadow Guard's two cases
+    # by membership: a name in PRIMITIVE_CALL_FUNCS with no signature is a
+    # Primitive resolve's arms should have refused (a ShadowGuardError naming
+    # them), any other name is a Builtin missing its CALL_SIGS row (the drift
+    # assert). Widening the Primitive registry widens the guard; nothing is
+    # hard-coded. Witness:
+    # test_an_undeclared_primitive_meets_the_shadow_guard_naming_resolve and
+    # test_a_builtin_with_no_signature_row_meets_the_drift_assert
+    # (tests/test_typecheck.py), behind the Owner Guard's own cell
+    # test_the_regime_product_lands_where_the_table_says
+    # (tests/test_primitives_block.py).
+    "typecheck.py": [
+        "e.func in PRIMITIVE_CALL_FUNCS",
+        "spelled.element in COLLECTION_ELEMENT_NAMES",
+    ],
 }
 
 
