@@ -691,7 +691,7 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # namespace first (`_validate_refs`). What it protects is that a declared
     # game never falls through to the legacy dispatch, which is the property
     # the regime partition exists for; the Owner Guard's witness is
-    # test_an_empty_block_refuses_a_legacy_primitive_call
+    # test_an_empty_block_refuses_a_primitive_call
     # (tests/test_primitives_block.py).
     "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],
     "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],

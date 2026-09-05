@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
@@ -96,10 +96,25 @@ def declared_card_points(game: n.Game) -> dict[str, int]:
     return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
 
 
+def _bundled(contract: InvocationContract) -> bool:
+    """Whether the dispatch hands this implementation the [[primitive-bundle]].
+    Structural over the contract rather than a comparison against one member,
+    so a member added to the enum is a type error here instead of silently
+    dispatching as the other shape."""
+    match contract:
+        case InvocationContract.BUNDLED:
+            return True
+        case InvocationContract.PURE:
+            return False
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     """The game's `primitives { }` block, materialized: one dispatch entry per
-    declared [[primitive]]. None for a game declaring no block, which is what
-    leaves it on the legacy `PRIMITIVE_CALL_FUNCS` dispatch.
+    declared [[primitive]]. None for a game declaring no block, which is a
+    game that borrows no Python at a call position: the legacy dispatch it is
+    then left on holds no arm.
 
     Every fact a call needs is resolved HERE, at the one load site, the
     `declared_trick_order` precedent above: the implementation is imported from
@@ -108,9 +123,9 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     re-derives any of them, which is what keeps the bundle a primitive receives
     and the entry a designer wrote from being two readings of the same text.
 
-    Resolve has already refused a declaration naming no implementation, an
-    undeclarable contract, and an unclassifiable read, so the lookups below are
-    total by the time this runs. It has also established the
+    Resolve has already refused a declaration naming no implementation and an
+    unclassifiable read, so the lookups below are total by the time this
+    runs. It has also established the
     [[phase-scoped-read]]'s containment rule — every call of an entry with an
     `in <phase>` tail sits where that phase's frame stands — so a scoped read
     materializes through the SAME `rs.get` walk as a game-level one and there
@@ -153,7 +168,7 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
                 for r in decl.reads
                 if r.binder is not None
             ),
-            bundled=impl_ref.contract is InvocationContract.BUNDLED,
+            bundled=_bundled(impl_ref.contract),
             scopes=tuple(
                 (r.name, r.phase) for r in decl.reads if r.phase is not None
             ),

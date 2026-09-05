@@ -35,10 +35,14 @@ covered:    (a) registry↔game-file: every row's every name against the
             outside the pinned exemption list, `from …reads import …`
             forbidden (it would blind the scan), non-literal name
             arguments refused loud;
-            (c) runtime refusal: the accessor behavior matrix — unknown
-            row / undeclared name / declared-and-present / declared-but-
-            missing — exercised for every accessor, plus the magic-hand
-            Shadow Guard;
+            (c) runtime refusal: the accessor behavior matrix —
+            undeclared name / declared-and-present / declared-but-missing
+            — exercised through every accessor and asserted on each arm's
+            OWN words, so no arm can answer for another (`instance` has no
+            guard of its own: it reaches the undeclared refusal through
+            `family`, which it delegates to); the unknown row is `row()`'s
+            cell, the one place a row is looked up at all; plus the
+            magic-hand Shadow Guard;
             (d) misuse probes for each defect the pins exist to catch
             (game-side rename, stale row, undeclared read, raw-access
             bypass per forbidden pattern, non-literal name, kind
@@ -46,10 +50,12 @@ covered:    (a) registry↔game-file: every row's every name against the
 sampled:    end-to-end playout identity through the accessors rides the
             existing goldens and the metamorphic pairing suite (seed/step
             CI budget as before). Attribution of a name to the right row
-            WITHIN a multi-row module (stdlib.py) is pinned per game file
+            WITHIN a multi-row module is pinned per game file
             by (a) and per call site by the runtime refusal under the
             playout suite — the module-level scan (b) checks the union,
-            not per-function attribution.
+            not per-function attribution. The multi-row modules are the
+            registry's own: a module whose rows serve more than one game
+            file.
 residual:   kernel round-state keys (`state["played"]`, `st.get("current")`
             in tarot.py/tichu.py) are the round machinery's own vocabulary,
             not game-declared names — a game author cannot rename them, so
@@ -430,8 +436,9 @@ def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tu
 def test_module_source_agrees_with_registry(path: Path) -> None:
     """Both directions at once, for EVERY runtime module: an undeclared read
     (a literal the registry lacks) and a stale row entry (a declared name the
-    module no longer reads) both fail; a module with no registry rows must
-    make no accessor reads at all."""
+    module no longer reads) both fail. A module with no rows and no declaring
+    game makes no reads at all; a module whose reads are declared in
+    `primitives { }` blocks is held to those blocks' union (issue #535)."""
     if path.name in _EXEMPT_RAW_ACCESS:
         return  # raw access covered by test_raw_access_is_confined_to_the_exemptions
     scan = _scan_module(path)
@@ -547,10 +554,25 @@ def test_every_registry_module_is_scanned() -> None:
 # --- the runtime refusal (the accessor behavior matrix) ---------------------
 
 
-_COUP_ROW = reads.row("cardlang/runtime/coup.py", "coup.cardlang")
+# The row the accessor matrix and the misuse probes read through. SYNTHETIC —
+# a live registry row cannot serve, because the rows are what the corpus is
+# migrating off and any one of them can be deleted by a migration with no
+# reason to look here (the rule tests/test_primitive_narrowing.py wrote for
+# itself). It declares one name of each kind an accessor answers about, so the
+# matrix below has a state variable, a family, an instance and a single zone to
+# ask about. The GAME it names is real, because two of the probes hold the row
+# against a game's own declarations and that comparison is the thing they
+# probe; the module is not, because no module reads through this row.
+_PROBE_ROW = PrimitiveReads(
+    module="cardlang/runtime/probe.py",
+    game_file="coup.cardlang",
+    state_vars=frozenset({"coins"}),
+    zone_families=frozenset({"influence", "revealed"}),
+    single_zones=frozenset({"court_deck"}),
+)
 
 
-def _coup_like_state() -> RuntimeState:
+def _probe_row_state() -> RuntimeState:
     decls = (
         n.ZoneDecl(name="influence", index="player", type_ref=n.TypeRef(name="Hand")),
         n.ZoneDecl(name="revealed", index="player", type_ref=n.TypeRef(name="Pile")),
@@ -574,45 +596,56 @@ def test_unknown_row_is_refused() -> None:
 
 
 def test_undeclared_name_is_refused_by_every_accessor() -> None:
-    rs = _coup_like_state()
+    """Every accessor refuses a name its row does not declare, on the
+    UNDECLARED arm's OWN words. Matching the registry name alone would not
+    discriminate: the declared-but-missing arm interpolates it too, so a
+    read routed to the wrong arm would read as a pass. Reddened 2026-09-04
+    by dropping the `if name not in r.<kind>` guard from `state`, then
+    `family`, then `single` in turn — each drop routes its accessor (and,
+    behind `family`, `instance`) to the missing arm, whose message this
+    match refuses; demonstrated and reverted."""
+    rs = _probe_row_state()
     for read in (
-        lambda: reads.state(rs, _COUP_ROW, "not_declared"),
-        lambda: reads.family(rs, _COUP_ROW, "not_declared"),
-        lambda: reads.single(rs, _COUP_ROW, "not_declared"),
-        lambda: reads.instance(rs, _COUP_ROW, "not_declared", 0),
+        lambda: reads.state(rs, _PROBE_ROW, "not_declared"),
+        lambda: reads.family(rs, _PROBE_ROW, "not_declared"),
+        lambda: reads.single(rs, _PROBE_ROW, "not_declared"),
+        lambda: reads.instance(rs, _PROBE_ROW, "not_declared", 0),
     ):
-        with pytest.raises(PrimitiveReadError, match="PRIMITIVE_READS"):
+        with pytest.raises(PrimitiveReadError, match="read undeclared"):
             read()
 
 
 def test_declared_and_present_reads_pass_through() -> None:
-    rs = _coup_like_state()
-    assert reads.state(rs, _COUP_ROW, "coins") == {0: 2, 1: 2}
-    assert set(reads.family(rs, _COUP_ROW, "influence")) == {0, 1}
-    assert reads.single(rs, _COUP_ROW, "court_deck").cards == []
-    assert reads.instance(rs, _COUP_ROW, "revealed", 1).cards == []
+    rs = _probe_row_state()
+    assert reads.state(rs, _PROBE_ROW, "coins") == {0: 2, 1: 2}
+    assert set(reads.family(rs, _PROBE_ROW, "influence")) == {0, 1}
+    assert reads.single(rs, _PROBE_ROW, "court_deck").cards == []
+    assert reads.instance(rs, _PROBE_ROW, "revealed", 1).cards == []
 
 
 def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
     """The rename reproducer's runtime Shadow Guard: rename `influence` in
     coup.cardlang and (were the static pins somehow skipped) the playout
     fails as a PrimitiveReadError naming the registry and the game file —
-    never the bare KeyError the metamorphic suite first surfaced."""
+    never the bare KeyError the metamorphic suite first surfaced.
+
+    Matched on the MISSING arm's own words, for the reason its sibling
+    above is: the game file both arms name would let either answer."""
     rs = _bare_state()
     for read in (
-        lambda: reads.state(rs, _COUP_ROW, "coins"),
-        lambda: reads.family(rs, _COUP_ROW, "influence"),
-        lambda: reads.single(rs, _COUP_ROW, "court_deck"),
-        lambda: reads.instance(rs, _COUP_ROW, "influence", 0),
+        lambda: reads.state(rs, _PROBE_ROW, "coins"),
+        lambda: reads.family(rs, _PROBE_ROW, "influence"),
+        lambda: reads.single(rs, _PROBE_ROW, "court_deck"),
+        lambda: reads.instance(rs, _PROBE_ROW, "influence", 0),
     ):
-        with pytest.raises(PrimitiveReadError, match="coup.cardlang"):
+        with pytest.raises(PrimitiveReadError, match="is not in the live runtime state"):
             read()
 
 
 def test_instance_key_miss_fails_typed() -> None:
-    rs = _coup_like_state()
+    rs = _probe_row_state()
     with pytest.raises(PrimitiveReadError, match="no instance keyed 7"):
-        reads.instance(rs, _COUP_ROW, "influence", 7)
+        reads.instance(rs, _PROBE_ROW, "influence", 7)
 
 
 def test_magic_hand_guard() -> None:
@@ -634,24 +667,43 @@ def test_magic_hand_guard() -> None:
 
 def test_probe_game_side_rename_fails_the_row_pin() -> None:
     """The rename reproducer, statically: a game file that no longer
-    declares `influence` (renamed) makes coup's row dangle."""
+    declares `influence` (renamed) leaves the row naming a zone the game
+    does not have."""
     decls = _declared_names("coup.cardlang")
     renamed = DeclaredNames(
         state_vars=decls.state_vars,
         zone_families=frozenset(decls.zone_families - {"influence"} | {"influence2"}),
         single_zones=decls.single_zones,
     )
-    problems = _row_problems(_COUP_ROW, renamed)
+    problems = _row_problems(_PROBE_ROW, renamed)
     assert any("influence" in p and "renamed or removed" in p for p in problems)
+
+
+def _one_row_state_anchor() -> PrimitiveReads:
+    """A registry row that is its module's only one and declares a state
+    variable — the shape the source pin compares one-to-one, since a module
+    serving several games is scanned against the union of their rows. DERIVED,
+    so a migration retiring this row hands the probe the next one instead of
+    leaving it anchored on a module the tree no longer has."""
+    per_module: dict[str, int] = {}
+    for r in PRIMITIVE_READS:
+        per_module[r.module] = per_module.get(r.module, 0) + 1
+    rows = [r for r in PRIMITIVE_READS if per_module[r.module] == 1 and r.state_vars]
+    assert rows, (
+        "no single-row module declares a state variable — this probe compares "
+        "one row against one module's scan and has nothing to compare"
+    )
+    return rows[0]
 
 
 def test_probe_stale_registry_entry_fails_the_source_pin() -> None:
     """P2 — a row declaring a name the module never reads is a scan
     mismatch, not a quiet over-declaration."""
-    doctored = replace(_COUP_ROW, state_vars=_COUP_ROW.state_vars | {"ghost_var"})
-    scan = _scan_module(RUNTIME_DIR / "coup.py")
+    row = _one_row_state_anchor()
+    doctored = replace(row, state_vars=row.state_vars | {"ghost_var"})
+    scan = _scan_module(RUNTIME_DIR / Path(row.module).name)
     scanned_state = frozenset(scan.reads["state"])
-    assert scanned_state == _COUP_ROW.state_vars  # the real pin, green today
+    assert scanned_state == row.state_vars  # the real pin, green today
     assert scanned_state != doctored.state_vars  # the doctored row would fail it
 
 
@@ -712,8 +764,8 @@ def test_probe_kind_confusion_fails_the_row_pin() -> None:
     """P6 — a name declared as a single zone but listed as a state variable
     is a kind mismatch with its own message, not a missing-name report."""
     doctored = replace(
-        _COUP_ROW,
-        state_vars=_COUP_ROW.state_vars | {"court_deck"},
+        _PROBE_ROW,
+        state_vars=_PROBE_ROW.state_vars | {"court_deck"},
         single_zones=frozenset(),
     )
     problems = _row_problems(doctored, _declared_names("coup.cardlang"))

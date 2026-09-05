@@ -19,16 +19,17 @@ its [[primitive-bundle]], plain values and nothing else:
                  field is a visible change with a test that pins where the
                  value comes from.
   `GameReads`    the module's declared name-keyed reads (`reads.py`),
-                 bounded by its `PRIMITIVE_READS` row and materialized as
-                 tuples, so an undeclared zone is absent rather than merely
-                 unfetched.
+                 bounded by its row — the entry's own, built from its
+                 declaration, or a walled binder's authored one — and
+                 materialized as tuples, so an undeclared zone is absent
+                 rather than merely unfetched.
 
 Scope (docs/design-notes/primitive-sidecars.md §5): the two halves are
 declared at different granularities, and the difference is the live one.
-`GameReads` is PER-PRIMITIVE for a game that declares a `primitives { }`
-block — its row is built from that entry's own `reads` clause, and an indexed
-read narrows to the instance the CALL names — and per-MODULE for a game that
-declares none, where `PRIMITIVE_READS` is the declaration. `EngineFacts` is
+`GameReads` is PER-PRIMITIVE for a call-position Primitive — its row is built
+from the game's own `primitives { }` entry, and an indexed read narrows to the
+instance the CALL names — and per-MODULE for the walled namespaces a block
+cannot name, whose binders take an authored `PRIMITIVE_READS` row. `EngineFacts` is
 whole either way: its field names are not spellable in a `reads` clause, so
 every primitive receives every fact (issue #474). What no primitive can do,
 under either regime, is mutate, decide, emit, or reach a name nothing
@@ -36,7 +37,8 @@ declared.
 
 Contract:
   assumes      the caller is the dispatch layer, holding a live `Ctx`, and
-               the primitive's module has a `PRIMITIVE_READS` row.
+               the primitive has a row — the entry's own, built from its
+               declaration, or a walled binder's authored one (issue #535).
   establishes  a game module receives values only — no engine handle
                crosses the boundary, so purity is structural (pinned by the
                crossed grid in tests/test_primitive_narrowing.py).
@@ -54,19 +56,6 @@ from typing import Any, NamedTuple
 from cardlang.runtime import reads
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player, Seating
-
-TraceEvent = tuple[str, Any]
-"""One deferred [[trace-event]] emission: `(event name, payload)`.
-
-A few primitives compute a real value AND emit the engine's own
-`play`/`trick`/`trick_end` trace events from a game-local site. Emitting needs
-`ctx.trace`, which is exactly the handle this module removes — so a narrowed
-primitive RETURNS its events alongside its value and the dispatch layer
-performs the emission. The events stay data until they cross back into the
-engine, which keeps the primitive pure without changing what is emitted, in
-what order, or when (the goldens are byte-identical either way). Which
-primitives do this is pinned both ways by `EMITS_TRACE` in
-tests/test_primitive_narrowing.py."""
 
 
 @dataclass(frozen=True, slots=True)

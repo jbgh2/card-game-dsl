@@ -4,7 +4,7 @@ definition: One `(event name, payload)` emission from a primitive or the engine.
 layer: kernel
 status: canonical
 reserved: false
-home: `narrowing.py`
+home: `runtime/state.py` (`Ctx.trace`)
 see: []
 retired_spellings: []
 findings: []

@@ -201,7 +201,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
@@ -249,9 +248,12 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
 #
 # It is also what resolve refuses a legacy-regime game by (`_validate_refs`,
 # the declared-only arm): the name is a Primitive, so the legacy namespace
-# admits it, and a declaration is its only route to Python. Stage 3b
-# inverts the set (docs/design-notes/primitive-sidecars.md section 5):
-# every Primitive becomes declared and the legacy arms go with the window.
+# admits it, and a declaration is its only route to Python. This set holds
+# every Primitive, so it is a second authored copy of `PRIMITIVE_CALL_FUNCS`
+# and states nothing that set does not. The plan of record
+# docs/plans/2026-09-05-coup-eviction-stage3-closing.md retires it with the
+# legacy dispatch table in its second change, where resolve's arm keys the
+# registry directly.
 DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "belote_best_is",
@@ -440,7 +442,6 @@ TRICK_ORDER_EARLY_PREDICATES: frozenset[str] = frozenset()
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
-        "coup_game_summary",
         "error",
         "five_hundred_bid_level",
         "peg_origin_of",

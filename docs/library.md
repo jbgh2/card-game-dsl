@@ -825,9 +825,10 @@ and which one is the game's own choice:
   `design-notes/primitive-sidecars.md` §2). The declaration and the zone
   then live in one file, so renaming either moves both; the block's presence
   also means the game names its own primitives and no other game's.
-- A game that writes no block is coupled to the `PRIMITIVE_READS` registry
-  (`cardlang/runtime/reads.py`), which declares the same names on its behalf
-  and is reached through the same typed accessors:
+- The slots a block cannot name — a `round`'s climb queries and auction
+  outcomes — are coupled to the `PRIMITIVE_READS` registry
+  (`cardlang/runtime/reads.py`), which declares the same names on their
+  behalf and is reached through the same typed accessors:
   `tests/test_primitive_reads.py` pins those declarations against the game
   file's actual zone/state declarations and against each module's source, so
   renaming either side fails a static test rather than key-erroring
@@ -1000,15 +1001,11 @@ hand — are the game's own `card_points { }` clause, and the post-trick
 leader advance is the ring search, `the first player from leader where
 hand[player] is not empty`.)
 
-Coup's bookkeeping stays game-local in `cardlang/runtime/coup.py` (every
-window response, claim, and target is a chooser decision in the DSL body —
-see the Mechanics entry; the next-in-game seat scan is the ring search,
-decisions.md "Player-collection queries"):
-
-- `coup_game_summary() → Integer` — the `coup_game` trace emitter (the
-  50-coin / 15-card conservation invariants and the finals). The
-  reveal-sequence golden derives from observation events at the harness
-  layer instead (tests/playout_trace.py).
+Coup carries no module at all: every window response, claim, and target is a
+chooser decision in the DSL body (see the Mechanics entry), the next-in-game
+seat scan is the ring search (decisions.md "Player-collection queries"), and
+the playout harness derives the conservation totals and the finals from the
+terminal world and the observation stream (tests/playout_trace.py).
 
 French Tarot's trick play over its non-uniform 78-card deck
 ([decisions.md](decisions.md) "Deck declaration") is all the language's:

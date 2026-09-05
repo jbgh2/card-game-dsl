@@ -8,6 +8,15 @@ Looseness is deliberate where the corpus forces it: `suit_of` accepts a card or 
 single-card zone, so its argument is the [[permissive-top]] `TAny`; outcome
 value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
 These track the deferred parts of the typed object model.
+
+`CALL_SIGS` keys the whole call registry — the [[primitive]]s beside the
+[[builtins]] — though a Primitive is reached only by the
+`primitives { }` declaration of its game, and its Python only through the
+implementation index
+(`cardlang/primitives_block.py`, `PRIMITIVE_IMPLEMENTATIONS`). The plan of
+record docs/plans/2026-09-05-coup-eviction-stage3-closing.md ends that in its
+second change, moving the Primitive rows to an authored signature column on
+the index, which `implementation_sig` already reads them through.
 """
 
 from __future__ import annotations
@@ -109,7 +118,6 @@ CALL_SIGS: dict[str, Sig] = {
     "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
     "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
     "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "coup_game_summary": Sig((), TInteger()),  # Coup: conservation/finals trace
     "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
     "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
     "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card

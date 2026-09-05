@@ -15,9 +15,8 @@ module and the name's registry rows is issue #232. What a declared game
 cannot do is CALL a name its own block does not declare
 (`primitives_block.call_namespace`, the call-position namespace). The slots
 the block does not cover (`primitives_block.WALLED_NAMESPACES`, issue #142)
-still take any game's Primitive, as a legacy game's plain call does, and
-that no pin notices a game reaching another game's Primitive by either
-route is issue #238.
+still take any game's Primitive, and that no pin notices a game reaching
+another game's Primitive that way is issue #238.
 
 The duplication that would matter — two copies of side-pot arithmetic, which
 drift while both still conserve chips — does not occur: there is one copy, in

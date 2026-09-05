@@ -40,6 +40,13 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             Nothing forces a NEW registry to acquire a dispatchability pin —
             the registry-to-dispatcher pairing is not derivable from code,
             so each pin below names its own registry. Deferred: issue #108.
+
+red under (born-green guards):
+- the starred-argument refusal in `_facts_in`: no arm writes one, so the
+  guard is born green. Reddened 2026-09-04 by giving `builtins.call`'s
+  `suit_of` arm a `*args[0:1]` — the refusal fires by name, and every pin
+  that reads `_call_dispatch_facts` goes red with it: the parse-residual, the
+  arity and the annotation pins; demonstrated and reverted.
 """
 
 from __future__ import annotations
@@ -69,7 +76,6 @@ from cardlang.builtins.signatures import (
     ZONE_CONTENT,
     Sig,
 )
-from cardlang.runtime import narrowing
 from cardlang.stdlib.zones import LIBRARY_ZONE_TYPES
 from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, TTeam
 
@@ -218,8 +224,21 @@ def test_call_funcs_are_dispatchable() -> None:
                 if fell_through
                 else f"{name!r} has a legacy `call` arm and is declared-only"
             )
-        except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
-            pass  # dispatched; the channel split is guarded by test_assert_triage.py
+        except Exception as exc:  # noqa: BLE001 -- any non-AssertionError means
+            # the name reached real code past the match. A declared-only name
+            # must not: its refusal IS the fallthrough's channel, so accepting
+            # any other exception for one would let a fallthrough re-channelled
+            # to a different type pass here in silence.
+            assert not declared_only, (
+                f"{name!r} is declared-only, so the legacy dispatch refuses it "
+                f"through the fallthrough's AssertionError; it raised "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            assert not declared_only, (
+                f"{name!r} is declared-only, so the legacy dispatch must refuse "
+                f"it; the call returned instead"
+            )
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:
@@ -266,7 +285,6 @@ class _DispatchFact:
     arity: int  # 1 + the highest args[i] the arm reads (0 if none)
     helper: object | None  # the resolved helper callable, if the arm is a plain forward
     helper_args: tuple[object, ...]  # per helper param: 'ctx', an int (args[i]), or None
-    traced: bool = False  # the arm unpacks (value, events) and emits via _emit
 
 
 def _call_dispatch_facts() -> dict[str, _DispatchFact]:
@@ -304,9 +322,13 @@ def _declared_facts() -> dict[str, _DispatchFact]:
     for name in DECLARED_ONLY_CALL_FUNCS:
         impl = PRIMITIVE_IMPLEMENTATIONS[name]
         arity = len(CALL_SIGS[name].params)
-        bundles: list[object] = (
-            [None, None] if impl.contract is InvocationContract.BUNDLED else []
-        )
+        match impl.contract:
+            case InvocationContract.BUNDLED:
+                bundles: list[object] = [None, None]
+            case InvocationContract.PURE:
+                bundles = []
+            case _ as unreachable:
+                typing.assert_never(unreachable)
         facts[name] = _DispatchFact(
             arity=arity,
             helper=getattr(importlib.import_module(impl.module), impl.attribute),
@@ -352,28 +374,10 @@ def _facts_in(tree: ast.Module, module: object) -> dict[str, _DispatchFact]:
                     imported[alias.asname or alias.name] = stmt.module
         helper: object | None = None
         helper_args: tuple[object, ...] = ()
-        traced = False
         ret = next((s for s in case.body if isinstance(s, ast.Return)), None)
-        # A NARROWED tracing arm does not `return f(...)`: it unpacks
-        # `(value, events)`, emits the events, then returns the value. Find
-        # the call through the assignment so the annotation check below still
-        # reaches the helper — the shape this test exists to keep honest.
         call: ast.Call | None = None
         if ret is not None and isinstance(ret.value, ast.Call):
             call = ret.value
-        elif ret is not None and isinstance(ret.value, ast.Name):
-            for stmt in case.body:
-                if (
-                    isinstance(stmt, ast.Assign)
-                    and isinstance(stmt.targets[0], ast.Tuple)
-                    and isinstance(stmt.value, ast.Call)
-                    and any(
-                        isinstance(el, ast.Name) and el.id == ret.value.id
-                        for el in stmt.targets[0].elts
-                    )
-                ):
-                    call = stmt.value
-                    traced = True
         if call is not None and isinstance(call.func, ast.Name):
             fn_name = call.func.id
             if fn_name in imported:
@@ -384,11 +388,15 @@ def _facts_in(tree: ast.Module, module: object) -> dict[str, _DispatchFact]:
                 shapes: list[object] = []
                 for arg in call.args:
                     if isinstance(arg, ast.Starred):
-                        # `*_bind(ctx, ROW)` expands to the two value bundles
-                        # (EngineFacts, GameReads); hold their positions so the
-                        # later args still line up with the helper's params.
-                        shapes.extend([None, None])
-                    elif isinstance(arg, ast.Name) and arg.id == "ctx":
+                        # A starred argument expands to a parameter count this
+                        # scrape cannot see, so every position after it would
+                        # line up against the wrong declared type. Refused,
+                        # because skipping it is the silent form.
+                        raise AssertionError(
+                            f"{name}: the dispatch-fact scrape cannot align a "
+                            f"starred argument — give the arm its positions"
+                        )
+                    if isinstance(arg, ast.Name) and arg.id == "ctx":
                         shapes.append("ctx")
                     elif (
                         isinstance(arg, ast.Subscript)
@@ -404,7 +412,6 @@ def _facts_in(tree: ast.Module, module: object) -> dict[str, _DispatchFact]:
             arity=(max(indices) + 1) if indices else 0,
             helper=helper,
             helper_args=helper_args,
-            traced=traced,
         )
     return facts
 
@@ -501,18 +508,6 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
         expected_ret = _python_type(sig.ret)
         if expected_ret is not None:
             actual_ret = hints.get("return")
-            if fact.traced:
-                # A tracing primitive returns (declared value, events): the
-                # DECLARED type is the first element, and the second must be
-                # the trace-event tuple — checked, not waved through.
-                targs = typing.get_args(actual_ret)
-                if len(targs) != 2 or targs[1] != tuple[narrowing.TraceEvent, ...]:
-                    problems.append(
-                        f"{name}: EMITS_TRACE helper must return "
-                        f"(value, tuple[TraceEvent, ...]); got {actual_ret}"
-                    )
-                    continue
-                actual_ret = targs[0]
             if actual_ret != expected_ret:
                 problems.append(
                     f"{name}: helper returns {actual_ret}, CALL_SIGS declares "
