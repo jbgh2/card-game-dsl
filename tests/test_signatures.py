@@ -302,9 +302,13 @@ def _declared_facts() -> dict[str, _DispatchFact]:
     for name in DECLARED_ONLY_CALL_FUNCS:
         impl = PRIMITIVE_IMPLEMENTATIONS[name]
         arity = len(CALL_SIGS[name].params)
-        bundles: list[object] = (
-            [None, None] if impl.contract is InvocationContract.BUNDLED else []
-        )
+        match impl.contract:
+            case InvocationContract.BUNDLED:
+                bundles: list[object] = [None, None]
+            case InvocationContract.PURE:
+                bundles = []
+            case _ as unreachable:
+                typing.assert_never(unreachable)
         facts[name] = _DispatchFact(
             arity=arity,
             helper=getattr(importlib.import_module(impl.module), impl.attribute),

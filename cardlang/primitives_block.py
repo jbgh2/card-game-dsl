@@ -148,11 +148,14 @@ class InvocationContract(Enum):
     """How the dispatch layer calls one Primitive's Python.
 
     A closed domain over `PRIMITIVE_CALL_FUNCS`: every registered Primitive
-    answers exactly one of these, and the block admits `DECLARABLE_CONTRACTS`
-    alone. Every member outside that allow-list is refused BY NAME at resolve
-    rather than left to fail as a `TypeError` mid-playout, because the
-    mismatch is between a declaration and a Python signature — a compile-time
-    fact.
+    answers exactly one of these, and a `primitives { }` block declares them
+    all. Every member is a dispatch SHAPE, so every consumer dispatches with
+    a structural `match` closed by `typing.assert_never` — an added member is
+    a type error at each of them, which is where "a contract arrives with the
+    site that calls it" belongs (decisions.md "Closed-domain completeness":
+    enforcement follows the domain's visibility to the type checker). What
+    keeps a member from arriving with no Primitive answering it is the
+    registry-side reconciliation `test_every_invocation_contract_has_a_member`.
     """
 
     BUNDLED = "bundled"
@@ -163,12 +166,6 @@ class InvocationContract(Enum):
     """`impl(*args) -> value` — a Primitive that reads no engine state at all
     (500's bid ladder, Skat's Reizen step), so the dispatch hands it the
     coerced arguments and nothing else."""
-
-    EMITTING = "emitting"
-    """`impl(facts, gr, *args) -> (value, events)` — a Primitive that computes
-    a value AND returns the engine's own trace events for the dispatch layer
-    to emit (`narrowing.TraceEvent`). Not declarable: the one member is a
-    trace emitter by call shape whose eviction is its own step (issue #142)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,13 +230,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
     "tarot_per_opp": Implementation("cardlang.runtime.tarot", "tarot_per_opp", InvocationContract.BUNDLED),
     "tichu_dragon_won": Implementation("cardlang.runtime.tichu", "tichu_dragon_won", InvocationContract.BUNDLED),
 }
-
-# The contracts the block declares. Stated as the ALLOW-LIST, so a contract
-# added to the enum later is refused in the block until someone admits it with
-# a witness (decisions.md "Allow-list, never deny-list").
-DECLARABLE_CONTRACTS: frozenset[InvocationContract] = frozenset(
-    {InvocationContract.BUNDLED, InvocationContract.PURE}
-)
 
 
 # --- the walls ---------------------------------------------------------------
@@ -705,16 +695,6 @@ def unimplemented(names: frozenset[str]) -> frozenset[str]:
     unimplemented half of the both-ways check, asked at compile time so a
     designer's typo is a diagnostic rather than a playout crash."""
     return names - frozenset(PRIMITIVE_IMPLEMENTATIONS)
-
-
-def undeclarable_contract(name: str) -> InvocationContract | None:
-    """The contract that keeps `name` out of a block, or None when it may be
-    declared. A name with no implementation answers None — `unimplemented`
-    owns that case, and reporting both would co-report on one defect."""
-    impl = PRIMITIVE_IMPLEMENTATIONS.get(name)
-    if impl is None or impl.contract in DECLARABLE_CONTRACTS:
-        return None
-    return impl.contract
 
 
 # registry: a name registered as a Primitive with no implementation row, or a

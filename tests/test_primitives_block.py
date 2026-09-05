@@ -83,6 +83,19 @@ domain:     the block's own surface — clause placement x {game, library},
             are cells of that product: a declared game reaching a Primitive it
             did not declare, and an undeclared game reaching one no legacy
             dispatch arm serves.
+            The CONTRACT axis is the enum WHOLE: a block declares every
+            member, so its cross with the reads-clause shape is total over
+            `InvocationContract` rather than over an allow-list stated beside
+            it. There is no cell for a member a block may not declare, and
+            none for a member the dispatch does not handle: each consumer
+            matches the enum structurally and closes with
+            `typing.assert_never`, so an added member is a `mypy --strict`
+            error at every dispatch site (decisions.md, "Closed-domain
+            completeness" — enforcement follows the domain's visibility to
+            the type checker, and a pin whose fact could have been a type is
+            built on the wrong rung). The registry-side half of the same
+            completeness, which the type checker cannot state, is
+            `test_every_invocation_contract_has_a_member`.
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
@@ -256,7 +269,6 @@ from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     DECLARABLE_BUILTIN_TYPE_NAMES,
-    DECLARABLE_CONTRACTS,
     PRIMITIVE_IMPLEMENTATIONS,
     UNDECLARABLE_TYPE_CONSTRUCTORS,
     Implementation,
@@ -479,25 +491,13 @@ def test_the_rank_index_scrape_sees_a_reader_and_separates_two_file_mates() -> N
 def test_every_invocation_contract_has_a_member() -> None:
     """Every arm of the contract enum classifies at least one registered
     Primitive. An arm with no member is a distinction the registry does not
-    make, and the block's refusals would then be unreachable.
+    make. This is the registry-side half of the enum's completeness; the
+    dispatch-side half is the type checker's, since every consumer matches
+    the enum structurally and closes with `assert_never`.
 
     red under: add an arm to `InvocationContract` with no row using it."""
     used = {impl.contract for impl in PRIMITIVE_IMPLEMENTATIONS.values()}
     assert used == set(InvocationContract)
-
-
-def test_the_declarable_contracts_are_a_proper_subset() -> None:
-    """The allow-list admits some arms and refuses others — a partition that
-    admitted everything would make the refusal cells below vacuous.
-
-    red under: set `DECLARABLE_CONTRACTS` to `set(InvocationContract)`."""
-    assert DECLARABLE_CONTRACTS < set(InvocationContract)
-    refused = set(InvocationContract) - DECLARABLE_CONTRACTS
-    assert {
-        name
-        for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
-        if impl.contract in refused
-    }, "no registered Primitive carries a refused contract"
 
 
 def test_the_declarable_builtin_type_names_are_the_languages() -> None:
@@ -1247,26 +1247,25 @@ def test_a_declared_position_domain_reaches_them_too() -> None:
 
 
 def _declarable_contract_names() -> dict[str, str]:
-    """One registered Primitive per declarable contract, DERIVED — so a
-    contract admitted later arrives here as a missing key rather than a cell
-    nobody wrote."""
+    """One registered Primitive per contract, DERIVED — so a contract added
+    later arrives here as a missing key rather than a cell nobody wrote."""
     out: dict[str, str] = {}
     for name, impl in sorted(PRIMITIVE_IMPLEMENTATIONS.items()):
-        if impl.contract in DECLARABLE_CONTRACTS:
-            out.setdefault(impl.contract.value, name)
+        out.setdefault(impl.contract.value, name)
     return out
 
 
 def test_every_declarable_contract_has_a_reads_shape_cell() -> None:
-    """The cross below is complete over the contracts the block admits.
+    """The cross below is complete over the contract enum, which the block
+    declares whole.
 
-    red under: admit a third contract in `DECLARABLE_CONTRACTS`."""
+    red under: add an arm to `InvocationContract`."""
     assert set(_declarable_contract_names()) == {
-        c.value for c in DECLARABLE_CONTRACTS
+        c.value for c in InvocationContract
     }
     assert set(_READS_SHAPE_CELLS) == {
         (c.value, shape)
-        for c in DECLARABLE_CONTRACTS
+        for c in InvocationContract
         for shape in ("empty", "nonempty")
     }
 
@@ -2206,24 +2205,6 @@ def test_an_unimplemented_declaration_is_a_compile_diagnostic() -> None:
     nothing can run."""
     message = _refused(_game(block="no_such_primitive() : Integer", body="    score[0] := 1"))
     assert "no_such_primitive" in message
-
-
-@pytest.mark.parametrize(
-    "name",
-    sorted(
-        {
-            name
-            for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
-            if impl.contract not in DECLARABLE_CONTRACTS
-        }
-    ),
-)
-def test_an_undeclarable_contract_is_refused_by_name(name: str) -> None:
-    """A Primitive whose Python does not answer the narrowed contract is
-    refused where the mismatch is a compile-time fact — between a declaration
-    and a signature — rather than left to fail as a `TypeError` mid-playout."""
-    message = _refused(_game(block=f"{name}() : Integer", body="    score[0] := 1"))
-    assert name in message
 
 
 # --- axis 16/21: the value reaches the positions a Primitive is called in ----

@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, assert_never
 
 from cardlang.ast import nodes as n
 from cardlang.board_domains import directions_of, position_domains_of
@@ -96,6 +96,20 @@ def declared_card_points(game: n.Game) -> dict[str, int]:
     return {r: declared.get(r, default) for r in deck_ranks(game.deck)}
 
 
+def _bundled(contract: InvocationContract) -> bool:
+    """Whether the dispatch hands this implementation the [[primitive-bundle]].
+    Structural over the contract rather than a comparison against one member,
+    so a member added to the enum is a type error here instead of silently
+    dispatching as the other shape."""
+    match contract:
+        case InvocationContract.BUNDLED:
+            return True
+        case InvocationContract.PURE:
+            return False
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     """The game's `primitives { }` block, materialized: one dispatch entry per
     declared [[primitive]]. None for a game declaring no block, which is what
@@ -153,7 +167,7 @@ def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
                 for r in decl.reads
                 if r.binder is not None
             ),
-            bundled=impl_ref.contract is InvocationContract.BUNDLED,
+            bundled=_bundled(impl_ref.contract),
             scopes=tuple(
                 (r.name, r.phase) for r in decl.reads if r.phase is not None
             ),
