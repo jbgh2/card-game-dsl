@@ -63,12 +63,6 @@ red under (the end state, authored before it held):
             assertions of `test_the_legacy_dispatch_seam_is_gone` and of
             `test_the_index_is_where_a_primitive_signature_is_stated` carry
             their own per-assertion mutations, listed at each.
-does not prove (rung): that an `Implementation` can be registered without a
-            signature. It cannot: `sig` is a required field of a frozen
-            dataclass, so the construction does not typecheck and does not
-            run. There is no cell because there is no reachable input — the
-            guard is rung 1, held by `mypy --strict`, and this ledger is where
-            that answer lives.
 residual:   the `climb_universe_function` / `climb_codec_function` /
             `joint_codec_function` key sets are not registries -- they exist
             only inside their own match -- so each carries a home row but no
