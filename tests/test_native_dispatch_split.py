@@ -181,11 +181,12 @@ def _call_arms(path: Path) -> frozenset[str]:
 
 def _legacy_dispatch_callers() -> list[str]:
     """Every site in the package that calls `primitives.call` through the
-    module attribute — the form `runtime/evaluate.py` used. Derived from the
-    AST rather than a text match, so a caller under a reformatted call still
-    shows up. A caller reached through `from ... import call` is NOT matched,
-    and does not need to be: the assertion above this one says no such
-    function is defined to import."""
+    module attribute, which is the shape a dispatch site in
+    `runtime/evaluate.py` takes. Derived from the AST rather than a text
+    match, so a caller under a reformatted call still shows up. A caller
+    reached through `from ... import call` is NOT matched, and does not need
+    to be: the assertion above this one says no such function is defined to
+    import."""
     offenders = []
     for path in sorted(_PACKAGE.rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text())):
