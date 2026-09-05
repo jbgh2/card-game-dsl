@@ -74,8 +74,9 @@ def _signatures() -> dict[str, Sig]:
 
     Two tables because the halves state their signatures in two places —
     `CALL_SIGS` keys the Builtins exactly (pinned at
-    tests/test_permissive_top.py) and a Primitive's shape is the `sig` column
-    of its implementation row, read through `implementation_sig`."""
+    tests/test_permissive_top.py::test_call_signature_registry_covers_every_native_call_function)
+    and a Primitive's shape is the `sig` column of its implementation row,
+    read through `implementation_sig`."""
     sigs = dict(CALL_SIGS)
     for name in PRIMITIVE_IMPLEMENTATIONS:
         sig = implementation_sig(name)

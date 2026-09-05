@@ -868,8 +868,8 @@ def test_tichu_ws5_pins_per_seed_results() -> None:
 # values were produced independently of that derivation, so byte-identity here
 # is its standing witness — the dated differential is
 # tests/test_trace_emitter_eviction.py's `sampled:` row) — so a divergence
-# surfaces at the hand it first perturbs. The
-# monolith iterated no sets (measured: ZERO divergent seeds across
+# surfaces at the hand it first perturbs. The monolith iterated no sets
+# (measured: ZERO divergent seeds across
 # PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned pre-migration
 # with nothing sanctioned; any diff is a real draw divergence.
 _TICHU_HANDS_CAPTURE = """
