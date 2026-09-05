@@ -19,9 +19,10 @@ its [[primitive-bundle]], plain values and nothing else:
                  field is a visible change with a test that pins where the
                  value comes from.
   `GameReads`    the module's declared name-keyed reads (`reads.py`),
-                 bounded by its `PRIMITIVE_READS` row and materialized as
-                 tuples, so an undeclared zone is absent rather than merely
-                 unfetched.
+                 bounded by its row — the entry's own, built from its
+                 declaration, or a walled binder's authored one — and
+                 materialized as tuples, so an undeclared zone is absent
+                 rather than merely unfetched.
 
 Scope (docs/design-notes/primitive-sidecars.md §5): the two halves are
 declared at different granularities, and the difference is the live one.
