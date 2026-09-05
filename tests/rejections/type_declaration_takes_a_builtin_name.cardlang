@@ -1,0 +1,17 @@
+// Guard: resolve's type-declaration reservation site. A `type` declaration
+// mints a name into the TYPE namespace, and the built-in of the same spelling
+// wins every slot that reads one — so the struct would be declarable and
+// unusable, which is accepted-but-ignored one step removed.
+game TypeDeclarationTakesABuiltinName {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}
+type Card = { pips : Integer }

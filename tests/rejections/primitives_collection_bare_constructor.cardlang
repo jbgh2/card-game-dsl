@@ -1,0 +1,19 @@
+// Guard: resolve's `_check_primitives_block` element check. `Collection` is
+// the constructor word, not a type: it takes the element the collection holds,
+// and the refusal teaches the one spelling rather than calling a word the
+// language knows unknown.
+game PrimitivesCollectionBareConstructor {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  primitives {
+    gin_valid_meld(cards : Collection) : Boolean
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := if gin_valid_meld(hand[0]) then 1 else 0
+  }
+  winner: highest score
+}

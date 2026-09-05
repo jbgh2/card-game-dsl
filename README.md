@@ -8,7 +8,7 @@
 Source-available under a noncommercial license. See [License](#license)
 before building on it.
 
-## Three ways in
+## Usage
 
 A game is a rules file. Hearts begins:
 
@@ -32,44 +32,24 @@ game Hearts {
 }
 ```
 
-### Write a game
-
-Check a description, then play a hand of it:
+Check a description:
 
 ```
-cardlang check my-game.cardlang  # parse + static checks; silent on success
-cardlang play my-game.cardlang --seed 7 --info-state 1
+cardlang docs/games/hearts.cardlang  # parse + static checks; silent on success
 ```
 
-Both take any path. `play` is one uniform-random self-play: the outcome, the
-decision count, and the seed that reproduces the run, plus that seat's derived
-information state at the end of the game. `cardlang` is on PATH after the
-editable install below, and `python -m cardlang` runs the same front end
-straight from the source tree.
+Play a hand of it:
 
-Your own game reaches OpenSpiel by registering it:
-
-```python
-from cardlang.openspiel.game import register_game_file
-import pyspiel
-
-name = register_game_file("my-game.cardlang")
-game = pyspiel.load_game(name)
+```
+cardlang play docs/games/hearts.cardlang --seed 7 --info-state 1
 ```
 
-`register_game_file` checks the file, registers it under `cardlang_<stem>`,
-and returns that short name. `CARDLANG_GAMES` does the same at import time: an
-`os.pathsep`-separated list of game files or directories, registered when the
-adapter loads. That path needs the `openspiel` extra; `check` and `play` do
-not.
+One uniform-random self-play: the outcome, the decision count, and the seed
+that reproduces the run, plus that seat's derived information state at the
+end of the game. `cardlang` is on PATH after the editable install below, and
+`python -m cardlang` runs the same front end straight from the source tree.
 
-Your game does not go in `docs/games/`. That directory is the corpus, and it
-is for contributing a game, not for using one; `docs/maintaining.md`, "When
-the corpus changes" is the contributor's page.
-
-The learning path is `docs/authoring.md`.
-
-### Use a game as an environment
+Play it through OpenSpiel:
 
 ```python
 import cardlang.openspiel.game  # registers the corpus with pyspiel
@@ -104,23 +84,6 @@ player 1 see. Nobody wrote that string by hand, and a battery of tests
 These are executable checks, exhaustive where domains are closed and
 sampled where they are open. They are not theorem-prover proofs.
 
-They are also corpus-bound. A game registered from outside `docs/games/`
-gets the adapter's derived information states, but no readiness proof of its
-own (issue #25).
-
-`experiments/llm_eval/` is a worked example.
-
-### Work on the language
-
-```
-pytest -q        # the language's own gate
-```
-
-That runs after the editable install below. `CLAUDE.md` is the entry: what the
-pieces are, where each doc lives, and the three checks CI runs. From there,
-`docs/maintaining.md` for the docs and the corpus, `docs/harness.md` for how
-work is claimed and merged.
-
 ## Why
 
 Environments with hidden information are how multi-agent safety measures
@@ -131,11 +94,11 @@ invalidates the result. Here visibility is declared in the rules and
 observations are derived by one engine, so the checks above are possible
 at all, and a new environment is a rules file that inherits them.
 
-The corpus drives the language. `docs/games/` holds each game twice: the
+The corpus drives the language. `docs/games/` holds, for each game, the
 executable rules (`.cardlang`) and a Markdown rulebook complete enough
-that a non-player could pick it up and play a hand. Each rulebook links to
-its `.cardlang` rather than repeating it, so only the game file says what the
-game is. Constructs exist because a game needed them. The spec lives in
+that a non-player could pick it up and play a hand; the rulebook links to
+its `.cardlang` file rather than repeating the rules. Constructs exist
+because a game needed them. The spec lives in
 `docs/`; `decisions.md` is the settled design. `experiments/llm_eval/` is
 the pilot evaluation of language models playing these games, with its
 transcripts, audit files, and reports.
@@ -144,6 +107,7 @@ transcripts, audit files, and reports.
 
 ```
 pip install -e ".[dev,openspiel]"
+pytest -q        # the full gate
 ```
 
 Python 3.11+, in a virtualenv. The `openspiel` extra is optional for the

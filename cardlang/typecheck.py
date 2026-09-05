@@ -25,9 +25,16 @@ Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
               Downstream may assume every type Owner Guard held, but may not
               read types off the tree; a downstream consumer that needs a type
               is a signal to materialize it in this pass, never to re-infer it
-              there.
+              there. The sanctioned materialization is
+              ``declared_primitive_sigs``, and the `Sig` it builds for a
+              declared collection parameter is exactly
+              ``TCollection(element, key=None, zone=False)`` — the facets a
+              spelling can produce are the defaults, and no other are
+              reachable.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
-              completeness ledgers. Recorded residuals live in the tracker
+              completeness ledgers. Also a `Sig` built from an entry's
+              spelling anywhere but ``_param_type``, and a declared collection
+              carrying a facet reaching the runtime. Recorded residuals live in the tracker
               (issue #143 orders them) and in each Owner Guard module's ledger.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers.
@@ -48,7 +55,13 @@ from cardlang.builtins.functions import (
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
-from cardlang.primitives_block import Regime, implementation_sig, regime
+from cardlang.primitives_block import (
+    COLLECTION_ELEMENT_NAMES,
+    Regime,
+    decompose_type,
+    implementation_sig,
+    regime,
+)
 from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import require_role, role_of, role_type
@@ -1059,8 +1072,14 @@ def _check_primitive_signatures(game: Game, env: TypeEnv, bag: DiagnosticBag) ->
             expected = _index_domain_spelling(index, env)
             if expected is None:
                 continue  # resolve owns the unclassified-index diagnostic
-            written = params[read.binder].type_name.removesuffix("?")
-            if written != expected:
+            # The comparison is against the spelling's BASE and the message
+            # quotes the spelling the designer wrote. The base comes from the
+            # block's ONE decomposition rather than a local slice: this is an
+            # ENTRY's parameter, so its shape is `primitives_block`'s to read,
+            # and a spelling carrying a second combinator would otherwise be
+            # compared against a base name it no longer has.
+            written = params[read.binder].type_name
+            if decompose_type(written).base != expected:
                 bag.error(
                     f"`{decl.name}` keys `{read.name}` by `{read.binder}`, which "
                     f"is declared `{written}` — `{read.name}` is indexed by the "
@@ -1498,13 +1517,35 @@ def _function_sigs(game: Game, env: TypeEnv, bag: DiagnosticBag) -> dict[str, Si
 
 
 def _param_type(p: n.Parameter, env: TypeEnv) -> Type:
-    optional = p.type_name.endswith("?")
-    base = p.type_name[:-1] if optional else p.type_name
+    # Every host's parameter spelling reads through the block's ONE
+    # decomposition, so the collection form a `primitives { }` entry writes and
+    # the bare forms the other five hosts write are read once, in one place.
+    # The teaching twins keep a bracket out of every other host's spellings, so
+    # those take the collection arm never.
+    spelled = decompose_type(p.type_name)
+    if spelled.element is not None:
+        # The element is the block's own closed allow-list, checked at resolve.
+        # A miss here is an unvalidated tree, not an author's error, so it
+        # raises in the compiler's channel rather than falling to the top —
+        # `TCollection(TAny())` would exempt the argument from every guard the
+        # freeze contract rests on.
+        assert spelled.element in COLLECTION_ELEMENT_NAMES, (
+            f"`{p.type_name}` reached the type layer with an element outside "
+            f"`COLLECTION_ELEMENT_NAMES` — resolve's `_check_primitive_type` "
+            f"is what guarantees it cannot"
+        )
+        return TCollection(
+            type_from_name(
+                spelled.element, False, env.structs, env.positions, env.directions
+            )
+        )
     # Position domains resolve inside `type_from_name`, which maps `column` to
     # `TInteger` and the board-minted `cell` to `TCell`; a board-minted `dir`
     # maps to `TDir` via `env.directions`; and it keeps `slot?`/`dir?` optional
     # instead of flattening it.
-    return type_from_name(base, optional, env.structs, env.positions, env.directions)
+    return type_from_name(
+        spelled.base, spelled.optional, env.structs, env.positions, env.directions
+    )
 
 
 def _procedure_sigs(game: Game) -> dict[str, Sig]:

@@ -64,6 +64,11 @@ KUHN = REPO / "docs" / "games" / "kuhn-poker.cardlang"
 # runtime half of the failure rendering, reached without tying the test to one
 # corpus game's random line.
 OVERRUNS = REPO / "tests" / "fixtures" / "exceeds_max_length.cardlang"
+# A Markdown game file, its DSL in one fenced block: the shape `play` must
+# route to the extractor. The corpus rulebooks link to their `.cardlang` rather
+# than embedding one (docs/maintaining.md, "The rulebook twin"), so a fixture
+# is what carries the shape.
+MARKDOWN = REPO / "tests" / "fixtures" / "skeleton.md"
 
 
 # ---------------------------------------------------------------------------
@@ -332,10 +337,10 @@ def test_play_reaches_a_terminal_position(capsys: pytest.CaptureFixture[str]) ->
 
 
 def test_play_reads_the_markdown_shape_too(capsys: pytest.CaptureFixture[str]) -> None:
-    """Half the corpus ships its rules in a fenced block, and `play` dispatches
-    on the suffix through the same `check_source` the checker does — so a
-    designer reading a rulebook can run the file they are reading."""
-    assert main(["play", str(REPO / "docs" / "games" / "gops.md"), "--seed", "5"]) == 0
+    """A Markdown game file carries its DSL in a fenced block, and `play`
+    dispatches on the suffix through the same `check_source` the checker does,
+    so the file a designer is reading is the file they can run."""
+    assert main(["play", str(MARKDOWN), "--seed", "5"]) == 0
     assert "returns" in capsys.readouterr().out
 
 

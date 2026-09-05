@@ -63,6 +63,38 @@ game GinRummy {
     J: 10  Q: 10  K: 10
   }
 
+  // What this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/gin.py`: the optimal-deadwood floor under the knock and
+  // the two showdown guards, and the layoff test per shown meld. The
+  // combinatorial part is what the DSL cannot say — subset enumeration over a
+  // hand, and the joint validity of a card GROUP, which per-card filters
+  // cannot express and `where jointly` exists for.
+  //
+  // Every player-keyed entry reads the same two zones, because every one of
+  // them counts the same holding: `hand[p]` plus the `taken[p]` staging card,
+  // which is what "everything held" means here even though the discard pool
+  // is `hand` alone. The three layoff guards each read ONE meld family, the
+  // one they price a card against.
+  //
+  // `gin_valid_meld` declares no reads at all: it is pure over its argument,
+  // and the argument is the joint selection's own candidate set. It and
+  // `gin_arrange_ok` are the two entries that take a card COLLECTION — the
+  // shape a `where jointly` predicate needs, since the decision is about the
+  // group and not about any card in it.
+  primitives {
+    gin_deadwood(p : Player) : Integer                     reads hand[p], taken[p]
+    gin_can_knock(p : Player) : Boolean                    reads hand[p], taken[p]
+    gin_knock_ok(p : Player, discard : Card) : Boolean     reads hand[p], taken[p]
+    gin_valid_meld(cards : Collection<Card>) : Boolean
+    gin_arrange_ok(p : Player, cards : Collection<Card>) : Boolean
+                                                           reads hand[p], taken[p]
+    gin_can_declare(p : Player) : Boolean                  reads hand[p], taken[p]
+    gin_can_declare_free(p : Player) : Boolean             reads hand[p], taken[p]
+    gin_lay_ok_a(card : Card, knocker : Player) : Boolean   reads meldA[knocker]
+    gin_lay_ok_b(card : Card, knocker : Player) : Boolean   reads meldB[knocker]
+    gin_lay_ok_c(card : Card, knocker : Player) : Boolean   reads meldC[knocker]
+  }
+
   zones {
     deck                   : Deck                  // the stock
     hand[player]           : Hand<player>

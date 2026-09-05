@@ -86,3 +86,7 @@ even where the loser's boxes push their settled total past 100.)
   remaining hand still arranges to a legal knock; the defender's
   declarations are guard-free (`gin_valid_meld`), since a suboptimal
   defensive arrangement is rule-legal — it just scores worse.
+- Both arrangement guards take a card COLLECTION rather than a card: the
+  question is whether the GROUP melds, which no per-card filter can ask, and
+  that is what the `where jointly` surface exists for. The game declares them,
+  with the eight scalar siblings, in its `primitives { }` block.

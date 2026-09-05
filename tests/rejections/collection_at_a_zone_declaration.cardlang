@@ -1,0 +1,16 @@
+// Guard: resolve's `_resolve_zone`. `Collection` is a word the language has a
+// meaning for, so a zone slot may not call it unknown — the mistake is that a
+// zone's angle brackets take an INDEX DOMAIN while a collection's take an
+// element, and the refusal says which bracket the designer is standing in.
+game CollectionAtAZoneDeclaration {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  hand[player] : Collection<Card> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}

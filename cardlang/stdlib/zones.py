@@ -2,7 +2,7 @@
 
 The library zone aliases from library.md, recorded as a table the resolver
 checks references against. ``takes_owner`` records whether the type is
-parameterized by an owner/role (``Hand<Owner>``) or is a singleton
+parameterized by an owner/role (``Hand<player>``) or is a singleton
 (``Deck``). Seeded with what the walking skeleton needs; extended
 corpus-first as games require new aliases.
 """

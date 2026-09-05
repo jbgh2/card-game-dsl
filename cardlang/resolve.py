@@ -31,9 +31,19 @@ Establishes:  every ``NameRef`` carries its ``ref_kind`` classification;
               is expanded against the deck here (``_expand_ranking``), so
               no later pass may branch on ``ranking_convention`` for
               semantics — it survives only as the source-form record
-              ``ir.emit`` prints.
+              ``ir.emit`` prints. Also: every `primitives { }` entry's
+              declared types are SHAPES the block's registries admit — the
+              head from `declarable_type_names`, a collection's element from
+              `COLLECTION_ELEMENT_NAMES` — and no name declared or minted at
+              any of the sites in ``RESERVATION_SITES`` takes a spelling one of
+              ``POSITION_NAME_SOURCES`` already holds.
 Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
-              zone/rule/move-type/phase reference reaching a later pass;
+              zone/rule/move-type/phase reference reaching a later pass; a
+              ``type`` declaration — a game's or an imported library's — whose
+              name a built-in type, a zone type, a domain id, a collection noun
+              or the collection type constructor already holds; an entry's
+              collection element outside the block's allow-list reaching the
+              type layer;
               the runtime hard-fails on an unclassified name
               (``runtime/evaluate.py``, ``_name``) as its Shadow Guard. Also
               a ``state { }`` default that cannot be evaluated where it
@@ -157,6 +167,8 @@ from cardlang.primitives_block import (
     Regime,
     call_namespace,
     classify_read,
+    COLLECTION_ELEMENT_NAMES,
+    COLLECTION_TYPE_CONSTRUCTOR,
     declared_names,
     ambiguous_read_names,
     declaring_phases,
@@ -172,6 +184,7 @@ from cardlang.primitives_block import (
     unimplemented,
     walled_namespace_of,
 )
+from cardlang import primitives_block
 from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
 from cardlang.domains import (
     CARD_AXIS_ROLES,
@@ -877,6 +890,15 @@ def _apply_uses(game: n.Game, bag: DiagnosticBag) -> n.Game:
     _check_provided_shadowed_by_binder(game, claims.provided, bag)
     skip = claims.contested | frozenset(claims.provided)
     for use, library in libraries:
+        # FIRST of the per-library checks: a reserved type name is the library
+        # author's own defect, and every check below it reports something the
+        # reserved name makes unusable anyway. Reported here rather than at
+        # the game-level reservation guard because that one runs after
+        # `_raise_if_errors`, so any other library error — an unmet contract
+        # above all — would raise the pass before the reservation ran, and the
+        # author would meet the real defect only after taking advice that does
+        # not fix it.
+        _check_library_type_names_are_not_taken(game, library, bag)
         _check_library_encapsulation(library, bag)
         _check_contract_shapes(library, bag)
         _check_require_indexes(library, bag)
@@ -1405,13 +1427,14 @@ def is_zone_contract(want: n.RequireDecl) -> bool:
     `state { }` one.
 
     Read off the type registries, which is a DERIVATION rather than an authored
-    rule only because no name reaches two of them: `KNOWN_TYPE_NAMES` and
-    `LIBRARY_ZONE_TYPES` are disjoint, and the two author-chosen namespaces that
-    could have collided with either — a game's `positions { }` and a library's
-    own `type`s — are refused the zone spellings where they are DECLARED
-    (`POSITION_NAME_SOURCES`, `_check_zone_type_names_are_not_taken`). Without
-    those Owner Guards this function would be picking one meaning of an ambiguous name
-    with nowhere to record the choice."""
+    rule only because no name reaches two of them: `KNOWN_TYPE_NAMES`,
+    `LIBRARY_ZONE_TYPES` and the block's collection constructor are pairwise
+    disjoint, and the two author-chosen namespaces that could have collided
+    with any of them — a game's `positions { }` and its own `type`s — are
+    refused those spellings where they are DECLARED (`POSITION_NAME_SOURCES`,
+    asked at every site in `RESERVATION_SITES`). Without those Owner Guards
+    this function would be picking one meaning of an ambiguous name with
+    nowhere to record the choice."""
     return want.type_name in LIBRARY_ZONE_TYPES
 
 
@@ -1550,11 +1573,34 @@ def _slot_leaks(
     answers both, which is why they are computed together rather than in two
     passes that could disagree about what a slot reaches."""
     legal = _library_slot_names(library)
+    # A `requires` entry spelling the collection constructor is not a name the
+    # library is missing. `Collection` is a type word the language owns — the
+    # checker prints it, and `RESERVATION_SITES` keeps any declaration from
+    # taking the spelling — and its argument is an ELEMENT, not a zone owner.
+    # Both slots belong to `_check_contract_shapes`, which names the one place
+    # a collection is spellable; sweeping them here would answer the same
+    # defect first, and in a voice that sends the author to declare a type the
+    # reservation sweep then refuses.
+    collection_contracts = frozenset(
+        id(want)
+        for want in library.requires
+        if want.type_name == COLLECTION_TYPE_CONSTRUCTOR
+    )
+    collection_elements = frozenset(
+        id(arg)
+        for want in library.requires
+        if id(want) in collection_contracts
+        for arg in want.type_args
+    )
     leaks: list[_SlotLeak] = []
     reads: set[str] = set()
     zone_reads: set[str] = set()
     for node in _walk(library):
+        if id(node) in collection_elements:
+            continue
         for field_name in _NAMING_SLOTS_BY_TYPE.get(type(node), ()):
+            if field_name == "type_name" and id(node) in collection_contracts:
+                continue
             namespace = slot_namespace(node, field_name)
             if namespace is None:
                 continue
@@ -1902,6 +1948,24 @@ def _check_contract_shapes(library: n.Library, bag: DiagnosticBag) -> None:
     case does not arise here."""
     for want in library.requires:
         spelled = _spelled_contract(want)
+        if want.type_name == COLLECTION_TYPE_CONSTRUCTOR:
+            # A collection is neither a zone type nor a state type, so the
+            # split below would answer a placement question with a shape one.
+            # No parse twin lands here: a contract spells its type inline and
+            # derives `<…>` through `type_args`, and a twin over that
+            # derivation would give one string two derivations. This is the
+            # entry's ONLY speaker: `_slot_leaks` steps over both slots of a
+            # collection contract so the author does not first meet a sweep
+            # calling a word the language owns a name the library lacks.
+            bag.error(
+                f"library '{library.name}' requires `{spelled}`, and a "
+                f"collection type (`Collection<Card>`) is spellable in a "
+                f"`primitives {{ }}` entry only — a contract names a "
+                f"`state {{ }}` or a `zones {{ }}` declaration, and a library "
+                f"declares no Primitives",
+                want.span,
+            )
+            continue
         if not is_zone_contract(want):
             if want.type_args:
                 bag.error(
@@ -2241,7 +2305,7 @@ def resolve(game: n.Game) -> n.Game:
     _check_trick_order_partition(game, bag)
     _resolve_trump(game, bag)
     _check_duplicate_names(game, bag)
-    _check_zone_type_names_are_not_taken(game, bag)
+    _check_type_names_are_not_taken(game, bag)
     _check_reserved_params(game, bag)
     _check_reserved_binders(game, bag)
     _resolve_max_length(game, bag)
@@ -3621,66 +3685,116 @@ def _resolve_max_length(game: n.Game, bag: DiagnosticBag) -> None:
 _POSITION_MEMBER_CEILING = 256
 
 
-def _check_zone_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
-    """A declared `type` may not take a kernel zone type's spelling.
+def _check_type_names_are_not_taken(game: n.Game, bag: DiagnosticBag) -> None:
+    """A declared `type` may not take a name the type namespace already holds.
 
-    `Hand` already means a zone type. A `type Hand = { … }` beside it would make
-    one name mean two things in the one position that reads BOTH registries — a
-    library's `requires` entry, whose type slot says whether the entry names a
-    `state { }` or a `zones { }` declaration. Refused where the name is
-    DECLARED, so the ambiguity cannot be built, rather than disambiguated at
-    each use by a precedence nobody wrote down.
+    A `type` declaration mints a name into the TYPE namespace, and every slot
+    that reads one consults the kernel's registries first — so a struct sharing
+    a reserved spelling is declarable and then unusable in every slot it could
+    be written in, which is accepted-but-ignored one step removed. Refused
+    where the name is DECLARED, so the ambiguity cannot be built, rather than
+    disambiguated at each use by a precedence nobody wrote down.
 
-    The mirror for position domains is `POSITION_NAME_SOURCES`, which reserves
-    the same set: the two declaration sites that could take a zone-type
-    spelling, refused against one registry.
+    A site of `POSITION_NAME_SOURCES`' registry, asked exactly as the sites
+    that mint a position domain ask it. The game's OWN declared type names are
+    subtracted before the question: type-against-type is the self-pair, and
+    `_check_duplicate_names` owns it — a second refusal here would co-report
+    on one defect.
 
-    Free against the corpus — no game declares a struct type, and every position
-    domain is lowercase — so this reserves a name space nobody is using rather
-    than reclaiming one."""
+    A LIBRARY's `type` declarations are the sibling site
+    (`_check_library_type_names_are_not_taken`), which runs inside
+    `_apply_uses` so a library-alone defect is named before anything that
+    would raise the pass. By the time this guard runs the splice has already
+    happened, so a library type reaching here has cleared that site.
+
+    Free against the corpus — no game declares a struct type, and every
+    position domain is lowercase — so this reserves a name space nobody is
+    using rather than reclaiming one."""
+    without_own_types = replace(game, types=())
     for declared in game.types:
-        if declared.name in LIBRARY_ZONE_TYPES:
+        source = _reserved_domain_source(
+            without_own_types, declared.name, DECLARED_TYPE_SITE
+        )
+        if source is not None:
             bag.error(
-                f"type '{declared.name}' takes the name of a zone type, which a "
-                f"library's `requires` entry reads to tell a state contract from "
-                f"a zone one — a name may not mean two things there; rename the "
-                f"type",
+                f"type '{declared.name}' collides with {source} — pick another "
+                f"name",
                 declared.span,
             )
 
 
-# The sites that reserve a name against the sources below. A position domain
-# reaches the language from three places and the reservation is asked once per
-# place: the author's `positions { }` block, and the two domains a `board:`
-# clause mints. Named here so the set can be enumerated — the sources'
-# accumulation is one axis of this guard, and its consumers are the other;
-# tests/test_positions.py crosses them and scrapes the call sites, so a fourth
-# consumer cannot join in silence any more than a fifth source can.
+def _check_library_type_names_are_not_taken(
+    game: n.Game, library: n.Library, bag: DiagnosticBag
+) -> None:
+    """The same reservation, at a library's own `type` declarations.
+
+    A library's types splice into the game, so they mint into the very
+    namespace the sibling guard reserves — and a library that declares
+    `type Hand` is broken whichever game imports it, which is why it is
+    reported to the LIBRARY's author, at the library's span, like every other
+    library-alone property (decisions.md "Family libraries"). Reported from
+    inside `_apply_uses` so it lands before the errors that raise the pass:
+    every reserved spelling makes the type unusable in the very slots the rest
+    of the library's contract is about, so the author must hear about it
+    first, not after taking advice that cannot fix it.
+
+    The game's own declared types are subtracted before the question, which
+    settles two pairs at once, both owned by `_check_library_collisions`
+    earlier in the same pass: library-type against library-type — one library
+    declaring the name twice, or two libraries each declaring it — and
+    library-type against the game's own, whose diagnostic says which file
+    declared each.
+    """
+    without_game_types = replace(game, types=())
+    for declared in library.types:
+        source = _reserved_domain_source(
+            without_game_types, declared.name, LIBRARY_TYPE_SITE
+        )
+        if source is not None:
+            bag.error(
+                f"library '{library.name}' declares type '{declared.name}', "
+                f"which collides with {source} — pick another name",
+                declared.span,
+            )
+
+
+# The sites that reserve a name against the sources below: every place a
+# spelling enters a namespace the sources also name — the author's
+# `positions { }` block, the two domains a `board:` clause mints, and the two
+# `type` declaration sites, a game's and a library's. Named here so the set can
+# be enumerated — the sources' accumulation is one axis of this guard, and its
+# consumers are the other; tests/test_positions.py crosses them and scrapes the
+# call sites, so a consumer cannot join in silence any more than a source can.
 DECLARED_POSITION_SITE = "declared"
 MINTED_CELL_SITE = "board-minted cell"
 MINTED_DIRECTION_SITE = "board-minted dir"
+DECLARED_TYPE_SITE = "declared type"
+LIBRARY_TYPE_SITE = "library-declared type"
 RESERVATION_SITES: tuple[str, ...] = (
     DECLARED_POSITION_SITE,
     MINTED_CELL_SITE,
     MINTED_DIRECTION_SITE,
+    DECLARED_TYPE_SITE,
+    LIBRARY_TYPE_SITE,
 )
 
 
 @dataclass(frozen=True)
 class ReservedNameSource:
-    """One namespace a position domain's name is reserved against.
+    """One namespace a name minted into the type namespace is reserved against.
 
     The registry below is the AXIS of the reservation. Its domain is "every
-    namespace whose names a position domain must not collide with", and those
-    accumulate silently: three sources were unioned inline with `|` when review
-    found `positions { R : 1..4 }` beside `type R` reading the struct as the
-    position's Integer, and a fourth (the zone types) was added the same way
-    afterwards. An inline union has nothing to enumerate, so the sweep in
-    tests/test_positions.py could derive from each source it already knew and
-    still be blind to the next one — which is how the fifth (the collection
-    nouns) stayed invisible. A table can be iterated: by the guard below, by
-    the diagnostic that names which source matched, and by the grid that
-    crosses the sources against `RESERVATION_SITES`.
+    namespace whose names a position domain must not collide with", and that
+    domain accumulates: each construct that mints names into a namespace of
+    its own (struct types, zone types, collection nouns, the constructor
+    word) is one more source. An inline union of sources has nothing to
+    enumerate, so a sweep built on one can derive from every source it
+    already knows and stay blind to the next — a `positions { R : 1..4 }`
+    beside `type R` reads the struct as the position's Integer until someone
+    notices. A table can be iterated: by the guard below, by the diagnostic
+    that names which source matched, and by the grid in tests/test_positions.py
+    that crosses the sources against `RESERVATION_SITES` — so a source added
+    here reaches every site and every cell without a second edit.
 
     `names` takes the game because the sources are not homogeneous: some are
     static registries, fixed for every game, and one is the game's own `type`
@@ -3711,11 +3825,21 @@ POSITION_NAME_SOURCES: tuple[ReservedNameSource, ...] = (
     ),
     ReservedNameSource("a built-in type name", lambda game: KNOWN_TYPE_NAMES),
     ReservedNameSource("a zone type", lambda game: frozenset(LIBRARY_ZONE_TYPES)),
+    # The word an entry's collection spelling is written with. It is a NAME,
+    # not a keyword — the grammar cannot tell it from any other head — so the
+    # reservation is what keeps `x : Collection<Card>` from reading two ways in
+    # a game that declares its own `Collection`. Held disjoint from the two
+    # registries beside it, so the constructor cannot become a third spelling
+    # of a type either registry already names.
+    ReservedNameSource(
+        "a collection type constructor",
+        lambda game: frozenset({COLLECTION_TYPE_CONSTRUCTOR}),
+    ),
     ReservedNameSource(
         "a declared type name", lambda game: frozenset(t.name for t in game.types)
     ),
-    # The fifth, found by crossing the sources against the slots that read
-    # them. `DomainQuery.binder` carries ONE name resolved against two
+    # The collection noun, found by crossing the sources against the slots that
+    # read them. `DomainQuery.binder` carries ONE name resolved against two
     # namespaces, and the optional `in <collection>` clause is what picks: bare
     # reads `game.positions`, the collection form reads `_COLLECTION_NOUNS`. So
     # in a board game `positions { line : 1..3 }` turns `any line where ...` —
@@ -3951,7 +4075,21 @@ def _resolve_zone(
     ref = zone.type_ref
     takes_owner = LIBRARY_ZONE_TYPES.get(ref.name)
     if takes_owner is None:
-        bag.error(f"unknown zone type '{ref.name}'", ref.span)
+        if ref.name == COLLECTION_TYPE_CONSTRUCTOR:
+            # A word the language HAS a meaning for, so "unknown" would spend
+            # that currency on a spelling the checker itself prints. The two
+            # angle brackets are the confusion — a zone's takes an index
+            # domain, a collection's takes an element (decisions.md "Typed
+            # object model") — so the refusal says which bracket this is.
+            bag.error(
+                f"`{COLLECTION_TYPE_CONSTRUCTOR}` is a value type a "
+                f"`primitives {{ }}` entry declares, not a zone type — a "
+                f"zone's angle brackets take an index domain: write a zone "
+                f"type such as `Hand<player>`",
+                ref.span,
+            )
+        else:
+            bag.error(f"unknown zone type '{ref.name}'", ref.span)
         return
     if takes_owner and len(ref.args) != 1:
         bag.error(
@@ -5033,17 +5171,74 @@ def _check_primitives_block(game: n.Game, bag: DiagnosticBag) -> None:
         for slot, type_name in [("return type", decl.return_type)] + [
             (f"parameter `{p.name}`", p.type_name) for p in decl.params
         ]:
-            bare = type_name.removesuffix("?")
-            if bare not in declarable:
-                bag.error(
-                    f"`{decl.name}`'s {slot} names `{bare}`, which a "
-                    f"`primitives` entry may not spell — a declared signature "
-                    f"is what freezes the arguments, so its types are the "
-                    f"declared-type names ({', '.join(sorted(declarable))}); "
-                    f"issue #472 tracks the shapes that have no spelling",
-                    decl.span,
-                )
+            _check_primitive_type(game, decl, slot, type_name, declarable, bag)
         _check_primitive_reads(game, decl, collisions, bag)
+
+
+def _check_primitive_type(
+    game: n.Game,
+    decl: n.PrimitiveDecl,
+    slot: str,
+    type_name: str,
+    declarable: frozenset[str],
+    bag: DiagnosticBag,
+) -> None:
+    """One entry type slot, against the block's own registries.
+
+    A SHAPE question, in two parts the grammar has already separated: the head
+    is the declarable set's, and a collection's ELEMENT is the block's element
+    allow-list. Each refusal names the ruled spelling rather than calling a
+    word the language knows unknown — the designer wrote a real type in the
+    wrong shape, and the message that helps is the right shape."""
+    spelled = primitives_block.decompose_type(type_name)
+    if not spelled.is_collection:
+        if spelled.base == COLLECTION_TYPE_CONSTRUCTOR:
+            bag.error(
+                f"`{decl.name}`'s {slot} names `{COLLECTION_TYPE_CONSTRUCTOR}`,"
+                f" which takes an element type — write "
+                f"`{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
+                decl.span,
+            )
+        elif spelled.base not in declarable:
+            bag.error(
+                f"`{decl.name}`'s {slot} names `{spelled.base}`, which a "
+                f"`primitives` entry may not spell — a declared signature "
+                f"is what freezes the arguments, so its types are the "
+                f"declared-type names ({', '.join(sorted(declarable))}) and "
+                f"a collection of them (issue #547 tracks the shapes that "
+                f"have no spelling)",
+                decl.span,
+            )
+        return
+    element = spelled.element
+    assert element is not None  # `is_collection` is exactly this
+    if spelled.base != COLLECTION_TYPE_CONSTRUCTOR:
+        bag.error(
+            f"`{decl.name}`'s {slot} names `{type_name}`, and "
+            f"`{spelled.base}` takes no element type — "
+            f"`{COLLECTION_TYPE_CONSTRUCTOR}` is the one type an entry writes "
+            f"with angle brackets; a zone's are a `zones {{ }}` line's",
+            decl.span,
+        )
+    elif element in COLLECTION_ELEMENT_NAMES:
+        return
+    elif element in declarable:
+        bag.error(
+            f"`{decl.name}`'s {slot} names `{type_name}`, and no registered "
+            f"Primitive has an implementation taking it — a `primitives` "
+            f"entry spells collections of "
+            f"{', '.join(sorted(COLLECTION_ELEMENT_NAMES))} (issue #547 "
+            f"reopens this when one takes another element)",
+            decl.span,
+        )
+    else:
+        bag.error(
+            f"`{decl.name}`'s {slot} names `{type_name}`, and `{element}` is "
+            f"not an element type — a zone's angle brackets take an index "
+            f"domain (`Hand<player>`), a collection's take what it holds; "
+            f"write `{COLLECTION_TYPE_CONSTRUCTOR}<Card>`",
+            decl.span,
+        )
 
 
 def _check_primitive_name(

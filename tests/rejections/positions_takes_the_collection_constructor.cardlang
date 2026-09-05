@@ -1,0 +1,17 @@
+// Guard: resolve's `_resolve_positions`, over the collection constructor word
+// as a reserved-name source. A position domain named `Collection` would take
+// the spelling the entry slot reads as a type constructor.
+game PositionsTakesTheCollectionConstructor {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  positions { Collection : 1..4 }
+  zones { deck : Deck  hand[player] : Hand<player>
+          slot[Collection] : PlayerPile<Collection> }
+  state { score[player] : Integer = 0 }
+  phase play {
+    score[0] := 1
+  }
+  winner: highest score
+}

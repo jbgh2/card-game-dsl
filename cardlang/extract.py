@@ -1,7 +1,7 @@
 """Pull DSL out of Markdown fenced code [[block]]s.
 
-Game files in ``docs/games/`` are Markdown: prose plus one or more fenced
-code blocks holding the DSL. This is the only stage that knows about
+A Markdown game file is prose plus one or more fenced code blocks holding
+the DSL. This is the only stage that knows about
 Markdown; everything downstream consumes a :class:`FencedBlock`. Each block
 records the 1-based line where its content starts so later stages can map
 spans back to the real file.

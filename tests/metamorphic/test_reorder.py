@@ -88,6 +88,27 @@ _PARSE_LEVEL_CASES = frozenset(
         # production itself, so the wrong spelling is refused by the parse
         # builder and no tree ever exists.
         "primitives_scoped_read_transposed_binder",
+        # The collection type's two parse-level refusals. The TEACHING twin
+        # rides the two shared type productions, so a collection spelled
+        # anywhere but a `primitives { }` entry's slots is refused by the
+        # builder; the PHRASE twin rides the entry's own production. Neither
+        # leaves a tree.
+        "collection_at_a_function_parameter",
+        "collection_at_a_move_parameter",
+        "collection_at_a_state_row",
+        "primitives_collection_phrase_form",
+        # The entry slot's own reject family, one arm per malformed shape a
+        # designer writes on purpose: an optional collection, a second element
+        # type, a nested bracket, an optional element. Each raises in the
+        # builder, so none leaves a tree.
+        "primitives_collection_optional",
+        "primitives_collection_arity",
+        "primitives_collection_nested",
+        "primitives_collection_optional_element",
+        # The teaching twin carries the trailing `?` too, at both shared type
+        # productions.
+        "collection_optional_at_a_state_row",
+        "collection_optional_at_a_function_parameter",
         # The collection-quantifier register has no `number of <noun> in
         # <expr> where ...` production -- a raw grammar dead end, not a
         # resolve guard (issue #111).

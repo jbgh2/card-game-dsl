@@ -151,46 +151,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             from cardlang.runtime.cribbage import ROW, cribbage_crib_value
 
             return cribbage_crib_value(*_bind(ctx, ROW))
-        case "gin_deadwood":
-            from cardlang.runtime.gin import ROW, gin_deadwood
-
-            return gin_deadwood(*_bind(ctx, ROW), args[0])
-        case "gin_can_knock":
-            from cardlang.runtime.gin import ROW, gin_can_knock
-
-            return gin_can_knock(*_bind(ctx, ROW), args[0])
-        case "gin_knock_ok":
-            from cardlang.runtime.gin import ROW, gin_knock_ok
-
-            return gin_knock_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "gin_valid_meld":
-            from cardlang.runtime.gin import ROW, gin_valid_meld
-
-            return gin_valid_meld(*_bind(ctx, ROW), args[0])
-        case "gin_arrange_ok":
-            from cardlang.runtime.gin import ROW, gin_arrange_ok
-
-            return gin_arrange_ok(*_bind(ctx, ROW), args[0], args[1])
-        case "gin_can_declare":
-            from cardlang.runtime.gin import ROW, gin_can_declare
-
-            return gin_can_declare(*_bind(ctx, ROW), args[0])
-        case "gin_can_declare_free":
-            from cardlang.runtime.gin import ROW, gin_can_declare_free
-
-            return gin_can_declare_free(*_bind(ctx, ROW), args[0])
-        case "gin_lay_ok_a":
-            from cardlang.runtime.gin import ROW, gin_lay_ok_a
-
-            return gin_lay_ok_a(*_bind(ctx, ROW), args[0], args[1])
-        case "gin_lay_ok_b":
-            from cardlang.runtime.gin import ROW, gin_lay_ok_b
-
-            return gin_lay_ok_b(*_bind(ctx, ROW), args[0], args[1])
-        case "gin_lay_ok_c":
-            from cardlang.runtime.gin import ROW, gin_lay_ok_c
-
-            return gin_lay_ok_c(*_bind(ctx, ROW), args[0], args[1])
         case _:
             # Shadow Guard behind resolve's `_validate_refs`, which refuses
             # both names this arm can meet: one no registry holds (the

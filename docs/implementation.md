@@ -138,7 +138,7 @@ the round forms' own state frames that rules read by lexical scope
 ### C. Type checker
 
 Check against the typed object model ([decisions.md](decisions.md),
-"Typed object model"): zone parameterization (`Hand<Owner>`), generic
+"Typed object model"): zone parameterization (`Hand<player>`), generic
 parameters, the visibility-projection enum on each zone, rule clause
 types (`applies_when` is a state predicate; `demands` returns a set of
 candidate moves; `if_impossible` is a fallback), the `round`'s
@@ -146,10 +146,12 @@ candidate moves; `if_impossible` is a fallback), the `round`'s
 `ScoreDelta`, and exhaustiveness of pattern matches on typed phase
 outcomes ([decisions.md](decisions.md), "Typed phase outcomes").
 
-Handle the `<>` "type-shaping" value parameters explicitly: in
-`PrivateHand<Owner>` the parameter is a value (a `Player`) in
-type-parameter position, a deliberate deviation noted in
-[principles.md](principles.md). The checker needs a specific rule for it.
+Handle the `<>` "type-shaping" value arguments explicitly: in
+`Hand<player>` the argument is an index domain in type-parameter
+position, a deliberate deviation noted in
+[principles.md](principles.md). The checker needs a specific rule for it,
+and the rule that says which reading a head takes is
+[decisions.md](decisions.md), "Typed object model".
 
 *Forcing function:* this is where most hand-waving dies — a `demands`
 clause referencing a field that doesn't exist, a winner function

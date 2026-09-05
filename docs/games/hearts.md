@@ -1,133 +1,17 @@
 # Hearts
 
-```
-game Hearts {
+**Variant:** the standard four-player game as Pagat gives it: three cards
+passed left, then right, then across, then a hand with no pass; the holder
+of the 2 of clubs leads it to the first trick; no heart may be led until a
+heart has been played, unless the hand holds nothing else; each heart taken
+costs 1 point and the queen of spades 13; a player who takes all 26 scores 0 and every other player 26.
+Hands continue until a player reaches 100 or more, and the lowest total
+wins. **Players:** 4, clockwise. **Deck:** standard 52, aces high.
+**Executable spec:** [hearts.cardlang](hearts.cardlang). **Rules source:**
+https://www.pagat.com/reverse/hearts.html (fetched live).
 
-  players: 4
-  direction: clockwise
-  max_length: 5000
-
-  cards: standard52
-  ranking: aces high
-
-  zones {
-    deck             : Deck
-    hand[player]     : Hand<player>
-    trick_pile       : TrickPile
-    captured[player] : PlayerPile<player>
-  }
-
-  state {
-    // Game-level: persists across hands.
-    cumulative_score[player] : Integer = 0
-  }
-
-  phase hand_sequence repeat until (any player where cumulative_score[player] >= 100) {
-    state {
-      // Loop state: persists across hands; before_each rotates it each hand,
-      // so starting at `hold` makes hand 1 pass left.
-      pass_direction : SeatDirection = hold
-      // The trick leader, threaded from first_trick into play by lexical
-      // scope: first_trick seeds it (2 of clubs holder) and updates it to the
-      // winner; play continues from there.
-      leader         : Player?   = none
-    }
-
-    before_each {
-      move all cards to deck    // gather the previous hand's cards back home
-      shuffle deck
-      deal 13 cards from deck to each hand
-      rotate pass_direction through [left, right, across, hold]
-    }
-
-    phase passing when pass_direction is not hold {
-      legal_moves:  [transfer_between_hands]
-
-      // Exactly three cards, and the movement below is what binds that: the
-      // `chosen 3` count IS the law. A `rule` cannot state it — rules are
-      // consulted only at the trick round's card decision, never here
-      // (open-questions/rule-scope-beyond-trick-play.md).
-      each player simultaneously:
-        transfer chosen 3 cards
-          from hand[player]
-          to   hand[player offset_by pass_direction]
-    }
-
-    phase first_trick {
-      active_rules: [
-        MustFollowSuit,
-        MustLeadTwoOfClubsOnFirstPlay,
-        NoPenaltyCardsOnFirstTrick
-      ]
-      legal_moves: [play_to_trick]
-
-      leader := player_holding(2 of clubs)
-      round play_to_trick from leader over all players source hand into trick_pile
-            winner highest_of_led_suit
-      move all cards from trick_pile to captured[winner]
-      leader := winner
-    }
-
-    phase play {
-      // Continues from the enclosing `leader`, already set to the winner of
-      // the first trick.
-      active_rules: [MustFollowSuit]
-      legal_moves:  [play_to_trick]
-
-      mode hearts_not_broken {
-        active_rules: [+ NoLeadingSuitUntilBroken(hearts)]
-        transition_to: hearts_broken when play_to_trick where action.card.suit is hearts
-      }
-
-      mode hearts_broken { }
-
-      // Body: loop tricks until hands empty.
-      repeat until (all players where hand[player] is empty) {
-        round play_to_trick from leader over all players source hand into trick_pile
-              winner highest_of_led_suit
-        move all cards from trick_pile to captured[winner]
-        leader := winner
-      }
-    }
-
-    phase scoring {
-      // base and hand_score are phase-local lets, not declared state.
-      let base[p] = sum of (if card.suit is hearts       then 1
-                            elif card is Q of spades     then 13
-                            else 0)
-                    over cards in captured[p]
-
-      let hand_score[p] =
-        if (any player where base[player] is 26) then   // someone shot the moon
-          (if base[p] is 26 then 0 else 26)             // the shooter scores 0
-        else
-          base[p]
-
-      for each player p:
-        cumulative_score[p] += hand_score[p]
-    }
-  }
-
-  winner: lowest cumulative_score
-}
-
-// === Hearts-specific rules ===
-
-rule MustLeadTwoOfClubsOnFirstPlay {
-  constrains: play_to_trick
-  applies_when: state.led_suit is none      // i.e., leading
-  demands: cards in hand where card is 2 of clubs
-  if_impossible: error("first lead must be 2 of clubs; only the holder can lead")
-}
-
-rule NoPenaltyCardsOnFirstTrick {
-  constrains: play_to_trick
-  applies_when: always   // already scoped to the first_trick sub-phase
-  demands: cards in hand where card.suit is not hearts and card is not Q of spades
-  if_impossible: hand   // only penalty cards in hand: play one
-}
-
-// MustFollowSuit and NoLeadingSuitUntilBroken(hearts) are standard-library
-// rules (library.md "Rules"): activated by name above, defined once in
-// cardlang/stdlib/rules.cardlang.
-```
+Two choices the game file fixes where that page leaves a choice or lists a
+variation: shooting the moon always adds 26 to each other player (Pagat lets
+the shooter choose between that and subtracting 26 from their own score), and
+no heart or queen of spades may be played to the first trick unless the hand
+holds nothing else (a variation on that page, in force here).

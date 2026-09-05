@@ -1,0 +1,1 @@
+primitives_collection_nested.cardlang:10:28: error: a collection's element is a single type name — a collection of collections has no spelling here (issue #254 tracks the melds that would need one)
