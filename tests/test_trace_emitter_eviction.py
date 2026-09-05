@@ -25,8 +25,10 @@ domain:     evicted name x consulting site. The site axis was frozen by a
             (docs/games/*.{cardlang,md}, docs/library.md).
 registry:   cardlang/builtins/functions.py (all seven name-sets, imported
             below — a new namespace joins OTHER_NAMESPACES or the import
-            fails); cardlang/builtins/signatures.py CALL_SIGS;
-            cardlang/primitives_block.py PRIMITIVE_IMPLEMENTATIONS;
+            fails); both tables that state a native signature —
+            cardlang/builtins/signatures.py CALL_SIGS for the Builtins and
+            cardlang/primitives_block.py PRIMITIVE_IMPLEMENTATIONS, whose
+            rows carry the Primitives';
             cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
 covered:    the parametrized cells below. Cross-table sync (functions <->
@@ -216,10 +218,7 @@ def test_shadow_wall_still_guards_registered_names() -> None:
 
     The control name is DERIVED from the registry rather than written here:
     a literal is a name this module would have to keep registered on its own
-    account, and every eviction is a chance for it to stop being one. From
-    the Primitive registry, not the declared-only set the stage-3 closing
-    change retires (docs/plans/2026-09-05-coup-eviction-stage3-closing.md,
-    its second change); the two are equal while both stand."""
+    account, and every eviction is a chance for it to stop being one."""
     registered = min(PRIMITIVE_CALL_FUNCS)
     with pytest.raises(DiagnosticError, match="shadows the native function"):
         check_dsl(_shadow_probe(registered), "shadow_control.cardlang")

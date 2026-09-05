@@ -73,8 +73,8 @@ from cardlang.runtime.errors import OwnerGuardError
 def _game(body: str, block: str = "") -> str:
     """A probe game. `block` is its `primitives { }` entries, written by the
     cells whose joint predicate roots in a declared Primitive: gin's two are
-    reached by declaration alone (`DECLARED_ONLY_CALL_FUNCS`), so a game with
-    no block is refused at the name and the selection is never encoded."""
+    reached by declaration alone, as every Primitive is, so a game with no
+    block is refused at the name and the selection is never encoded."""
     return (
         "game G {\n"
         "  players: 2\n"

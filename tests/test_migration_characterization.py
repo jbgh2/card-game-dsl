@@ -865,10 +865,11 @@ def test_tichu_ws5_pins_per_seed_results() -> None:
 # we also pin the full per-hand vector — the sorted per-team score (the driver's
 # own `hand_end` trace) plus the hand's double-victory flag and card-point total,
 # derived at the harness from observation events (tests/playout_trace.py; the
-# golden's values were pinned while the game's own `tichu_hand` trace still
-# emitted them, so byte-identity here doubles as the derivation's standing
-# witness) — so a divergence surfaces at the hand it first perturbs. The
-# monolith iterated no sets (measured: ZERO divergent seeds across
+# values were produced independently of that derivation, so byte-identity here
+# is its standing witness — the dated differential is
+# tests/test_trace_emitter_eviction.py's `sampled:` row) — so a divergence
+# surfaces at the hand it first perturbs. The monolith iterated no sets
+# (measured: ZERO divergent seeds across
 # PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned pre-migration
 # with nothing sanctioned; any diff is a real draw divergence.
 _TICHU_HANDS_CAPTURE = """
@@ -1129,12 +1130,12 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # flip, in order, with its character — where every elimination happens),
 # derived at the harness from the flips' observation events, plus final coins,
 # the alive vector, and the winner, over 40 seeds (the WS5 behaviour-change
-# re-pin — see kernel-migration.md, Workstream 5). Every value here was pinned
-# while the game's own trace emitters still reported it — the reveals under
-# `coup_reveal`, the coins and the alive vector under `coup_game` — so
-# byte-identity doubles as the standing witness for both harness derivations
-# (tests/playout_trace.py, `CoupReveals` off the observation stream and
-# `TerminalState` off the terminal world).
+# re-pin — see kernel-migration.md, Workstream 5). The values are what the two
+# harness derivations produce (tests/playout_trace.py, `CoupReveals` off the
+# observation stream and `TerminalState` off the terminal world), and they were
+# produced independently of them, so byte-identity here is those derivations'
+# standing witness: the dated differentials that establish the independence are
+# tests/test_trace_emitter_eviction.py's `sampled:` row.
 # Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys

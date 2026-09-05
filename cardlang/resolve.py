@@ -88,12 +88,13 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               driver, the returns path, and the readiness proofs — may
               therefore read it as one.
               And a call, in a game that writes no ``primitives { }`` block,
-              to a Primitive that has no legacy dispatch arm
-              (``DECLARED_ONLY_CALL_FUNCS``, the declared-only arm of
-              ``_validate_refs``): the name is in the legacy namespace, so
-              the unknown-name arm cannot speak for it, and a declaration is
-              its only route to Python. ``runtime/primitives.py``'s
-              ``call`` fallthrough is the Shadow Guard behind this.
+              to any Primitive (``PRIMITIVE_CALL_FUNCS``, the declared-only
+              arm of ``_validate_refs``): the name is in the corpus-wide
+              namespace, so the unknown-name arm cannot speak for it, and a
+              declaration is its only route to Python.
+              ``typecheck``'s ``Call`` arm is the Shadow Guard behind this —
+              no table states such a call's signature — with
+              ``runtime/evaluate.py``'s ``native_call`` refusal behind that.
               And a ``primitives { }`` entry whose ``reads`` clause names a
               declaration the game states in more than one of the four
               namespaces such a name can be declared in — the game's own
@@ -142,7 +143,6 @@ from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
     DECK_ONLY_CALL_FUNCS,
-    DECLARED_ONLY_CALL_FUNCS,
     BUILTIN_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CALL_FUNCS,
@@ -7900,17 +7900,16 @@ def _validate_refs(game: n.Game, cats: _Categories, bag: DiagnosticBag) -> None:
                 _check_board_call(nd, game, bag)
             case n.Call() if (
                 regime(game) is Regime.LEGACY
-                and nd.func in DECLARED_ONLY_CALL_FUNCS
+                and nd.func in PRIMITIVE_CALL_FUNCS
             ):
                 # The regime partition's other direction, and the Owner Guard
-                # for it. A declared-only Primitive is one
-                # `runtime/primitives.py` holds no `call` arm for, so a
-                # declaration is the ONLY route to its Python — yet the name IS
-                # a Primitive, so the legacy namespace (`CALL_FUNCS`) admits it
-                # and the unknown-name arm above says nothing. Without this the
-                # call checks clean and the dispatch falls through to a
-                # compiler-bug assert: the wrong channel, about a name the
-                # registry does hold.
+                # for it. A declaration is the ONLY route to a Primitive's
+                # Python — yet the name IS a Primitive, so the corpus-wide
+                # namespace (`CALL_FUNCS`) admits it and the unknown-name arm
+                # above says nothing. Without this the call reaches typecheck's
+                # `Call` arm — the Shadow Guard behind this one, with
+                # `native_call`'s refusal behind that: the wrong channel, about
+                # a name the registry does hold.
                 #
                 # AFTER the flavor arms deliberately: a piece game cannot fix
                 # this call by writing a block — the deck-only refusal stands

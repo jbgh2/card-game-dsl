@@ -144,12 +144,13 @@ def _coupled_names(game: n.Game, game_file: str) -> frozenset[str]:
     refuses a name that resolves to nothing — but the IMPLEMENTATION still
     spells the name as a Python string literal (`gr.state["is_null"]`), and a
     renamed declaration only re-keys the bundle the literal then misses. What
-    the block moves is where the exclusion is DERIVED from: a declared game's
-    is its own text, a legacy game's is `PRIMITIVE_READS`.
+    the block moves is where the exclusion is DERIVED from: a call-position
+    Primitive's coupling is its calling game's own text, and a walled
+    namespace's is `PRIMITIVE_READS`.
 
     The union, not a choice between them: a game may hold both at once — a
-    block for its call-position Primitives and a surviving row for a walled
-    namespace its block does not cover.
+    block for its call-position Primitives and a row for a walled namespace
+    its block does not cover.
 
     The transform is what first surfaced this class empirically, as a playout
     `KeyError`, and it is what surfaces a wrong exclusion too: an under-excluded

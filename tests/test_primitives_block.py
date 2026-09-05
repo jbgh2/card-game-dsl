@@ -75,14 +75,12 @@ domain:     the block's own surface — clause placement x {game, library},
             name; an ENTRY name colliding with a keyed declaration is the
             other direction and its outcome is undecided (issue #497), so it
             is not a cell here.
-            The regime axis is crossed once in full: the Primitive's HOME
-            (`DECLARED_ONLY_CALL_FUNCS`, which is now the whole of
-            `PRIMITIVE_CALL_FUNCS` — no Primitive keeps a legacy `call` arm)
-            x {block declares it, block omits it, no block}, total over that
-            registry. Both directions of the partition
-            are cells of that product: a declared game reaching a Primitive it
-            did not declare, and an undeclared game reaching one no legacy
-            dispatch arm serves.
+            The regime axis is crossed once in full: `PRIMITIVE_CALL_FUNCS`
+            — a declaration is the only route to any of them — x {block
+            declares it, block omits it, no block}, total over that registry.
+            Both directions of the partition are cells of that product: a
+            declared game reaching a Primitive it did not declare, and an
+            undeclared game reaching one at all.
             The CONTRACT axis is the enum WHOLE: a block declares every
             member, so its cross with the reads-clause shape is total over
             `InvocationContract` rather than over an allow-list stated beside
@@ -152,9 +150,8 @@ domain:     the block's own surface — clause placement x {game, library},
             quantifies over the whole implementation index so the day one
             returns a collection its witness is owed here. The two guards
             answer different questions and the grid runs the gate's.
-registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces,
-            `BUILTIN_CALL_FUNCS`, and `DECLARED_ONLY_CALL_FUNCS` — which of
-            the Primitives a declaration is the only route to);
+registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
+            and `BUILTIN_CALL_FUNCS`);
             `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
             `DECLARABLE_BUILTIN_TYPE_NAMES`, `COLLECTION_ELEMENT_NAMES`,
@@ -191,12 +188,11 @@ does not prove: a green here says nothing about whether a declared read is
             `reads hand[p]` does not also need `trump_suit` is proven by the
             implementation failing, at playout, on the bundle it was handed,
             which only running the game can show. The witness fixture is the
-            one place that runs. And every name declarable in 3a is also in
-            `CALL_SIGS` with the SAME signature, so no cell here distinguishes
-            the two tables by the values they carry — the freeze cell plants a
-            divergence to observe which table is read, and the behavioral
-            distinction becomes visible only when 3b's declarations differ
-            from the registry they replace.
+            one place that runs. And a declarable name's entry states the SAME
+            signature its implementation row does — the shape check refuses a
+            game where they differ — so no cell here distinguishes the two by
+            the values they carry: the freeze cell plants a divergence to
+            observe which of them the runtime reads.
             And the reconciliation pin's exemption is only as right as the
             climb binder it asks: `primitives.climb_row` is a consumer of the
             rows, not the artifact being judged, so a green here says a
@@ -260,10 +256,9 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
-    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
-from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
@@ -277,6 +272,7 @@ from cardlang.primitives_block import (
     WALLED_NAMESPACES,
     call_namespace,
     declared_names,
+    implementation_sig,
     regime,
     walled_namespace_of,
 )
@@ -284,7 +280,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
-from cardlang.types import TCollection, TEnum, TOptional, Type
+from cardlang.types import TCollection, TEnum, TInteger, TOptional, TPlayer, Type
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -356,6 +352,34 @@ def test_the_implementation_index_covers_the_primitive_namespace() -> None:
     red under: delete any row from `PRIMITIVE_IMPLEMENTATIONS`, or add one for
     a name outside `PRIMITIVE_CALL_FUNCS`."""
     assert frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS
+
+
+def test_the_index_is_where_a_primitive_signature_is_stated() -> None:
+    """The row carries the shape as well as the location, and it is the only
+    table that does.
+
+    `implementation_sig` is the seam every consumer reads a Primitive's
+    signature through, and this says what it reads: the row's own authored
+    column, never the Builtins' table. The second assertion is what keeps the
+    first from being a statement about one of two agreeing copies — a name
+    keyed in both would let a consumer take either and read as correct.
+
+    red under, one mutation per assertion, each demonstrated and reverted
+    2026-09-05 (a red run stops at the first assertion, so each earns its own):
+    return `CALL_SIGS.get(name)` from `implementation_sig` — "belote_best_is's
+    signature does not come from its index row"; key `pinochle_meld_value` in
+    `CALL_SIGS` — "Primitives keyed in the Builtins' signature table:
+    ['pinochle_meld_value']"."""
+    from cardlang.builtins.signatures import CALL_SIGS
+
+    for name, impl in PRIMITIVE_IMPLEMENTATIONS.items():
+        assert implementation_sig(name) is impl.sig, (
+            f"{name}'s signature does not come from its index row"
+        )
+    assert set(CALL_SIGS).isdisjoint(PRIMITIVE_IMPLEMENTATIONS), (
+        f"Primitives keyed in the Builtins' signature table: "
+        f"{sorted(set(CALL_SIGS) & set(PRIMITIVE_IMPLEMENTATIONS))}"
+    )
 
 
 @pytest.mark.parametrize("name", sorted(PRIMITIVE_IMPLEMENTATIONS))
@@ -652,12 +676,9 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 # The Primitive every cell needing one name is written at, DERIVED from the
 # registry rather than written down: a literal is a name this module would have
 # to keep registered on its own account, and a migration that retires it would
-# leave the prose false with nothing saying so. Its rendering comes from
-# `CALL_SIGS` through `_entry_and_body`, so the name's own signature decides
-# the sentence. Keyed on the Primitive registry rather than on the
-# declared-only set, which the stage-3 closing change retires
-# (docs/plans/2026-09-05-coup-eviction-stage3-closing.md, its second change);
-# the two are equal while both stand.
+# leave the prose false with nothing saying so. Its rendering comes from the
+# implementation index's own signature column through `_entry_and_body`, so
+# the name's own signature decides the sentence.
 def _representative() -> str:
     return min(PRIMITIVE_CALL_FUNCS)
 
@@ -672,21 +693,18 @@ def test_an_empty_block_refuses_a_primitive_call() -> None:
 
 # --- axis 1 x the Primitive's own home: the regime product ------------------
 #
-# A declaration is the only route to a Primitive's Python: `runtime/primitives.py`
-# holds no `call` arm for any of them, so `DECLARED_ONLY_CALL_FUNCS` is the
-# whole Primitive registry and the home axis has one arm. Crossed with the
-# regime — a block that declares the name, a block that does not, no block at
-# all — each cell's outcome is stated once here rather than in three places.
-# The set retires with the legacy dispatch table it names (the stage-3 closing
-# change, docs/plans/2026-09-05-coup-eviction-stage3-closing.md), at which
-# point this axis keys `PRIMITIVE_CALL_FUNCS`.
+# A declaration is the only route to a Primitive's Python — no runtime module
+# holds a `call` arm for one — so the home axis has a single value and the
+# registry it keys is `PRIMITIVE_CALL_FUNCS`. Crossed with the regime — a
+# block that declares the name, a block that does not, no block at all — each
+# cell's outcome is stated once here rather than in three places.
 
 # LEAF `Type` -> (its declarable spelling, an EXPRESSION of that type). A
-# representative's signature is read from `CALL_SIGS` and rendered through this
-# table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
-# sampled at whichever member it holds — a member whose signature reaches a
-# type with no row fails by NAME rather than producing a sentence the parser
-# rejects for the wrong reason.
+# representative's signature is read from the implementation index's own
+# column and rendered through this table, so the product is TOTAL over
+# `PRIMITIVE_CALL_FUNCS` rather than sampled at whichever member it holds — a
+# member whose signature reaches a type with no row fails by NAME rather than
+# producing a sentence the parser rejects for the wrong reason.
 #
 # An expression, not a literal: the surface has no Card literal, so `Card`'s
 # column is a Builtin over a zone the probe game declares, and `Team`'s is a
@@ -757,9 +775,11 @@ def _spelling_of(t: Type) -> tuple[str, str]:
 
 def _entry_and_body(name: str) -> tuple[str, str]:
     """One Primitive as a `primitives { }` entry and as a call in a body, both
-    rendered from `CALL_SIGS` — the signature its implementation states, so the
-    entry cannot disagree with the shape check by construction."""
-    sig = CALL_SIGS[name]
+    rendered from the index's own signature column — the shape its
+    implementation states, so the entry cannot disagree with the shape check by
+    construction."""
+    sig = implementation_sig(name)
+    assert sig is not None, f"{name} is not a registered Primitive"
     params = ", ".join(f"a{i} : {_spelling_of(p)[0]}" for i, p in enumerate(sig.params))
     args = ", ".join(_spelling_of(p)[1] for p in sig.params)
     ret = _spelling_of(sig.ret)[0]
@@ -772,16 +792,17 @@ def _entry_and_body(name: str) -> tuple[str, str]:
 # home axis is the registry partition; the regime axis is `Regime` crossed with
 # the block's own contents, which is what `call_namespace` reads.
 _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
-    ("declared-only", "block declares it"): True,
-    ("declared-only", "block omits it"): False,
-    ("declared-only", "no block"): False,
+    ("declared", "block declares it"): True,
+    ("declared", "block omits it"): False,
+    ("declared", "no block"): False,
 }
 
 
 def _homes() -> dict[str, list[str]]:
-    """The homes, as the registries state them: one, holding every member, so
-    the product below covers the registry rather than sampling it."""
-    return {"declared-only": sorted(DECLARED_ONLY_CALL_FUNCS)}
+    """The homes, as the registries state them: one — the declaration — and it
+    holds every member, so the product below covers the registry rather than
+    sampling it."""
+    return {"declared": sorted(PRIMITIVE_CALL_FUNCS)}
 
 
 @pytest.mark.parametrize(
@@ -797,9 +818,9 @@ def test_the_regime_product_lands_where_the_table_says(
 ) -> None:
     """The product's cells, run.
 
-    The one that was ever in doubt is (declared-only, no block): the name IS in
-    `CALL_FUNCS`, so the legacy namespace admits it, and the dispatch it then
-    reaches has no arm for it. A refusal here is what keeps the declared-only
+    The one that was ever in doubt is (declared, no block): the name IS in
+    `CALL_FUNCS`, so the corpus-wide namespace admits it, and no dispatch it
+    then reaches has an arm for it. A refusal here is what keeps the Primitive
     half from being a namespace a game can enter without declaring anything.
 
     red under: drop the declared-only arm from resolve's `_validate_refs`."""
@@ -1915,9 +1936,9 @@ def test_library_provided_state_reaches_the_reads_clause(
 # A declared game may define a function named after a Primitive absent from its
 # namespace. Every guard keyed on the name against a corpus-wide native
 # registry would then fire on a call the runtime dispatches to the user
-# function. The axis is those registries, crossed with the legacy Primitive
-# set: a nonempty intersection is a registry whose names a designer function
-# may legally take.
+# function. The axis is those registries, crossed with the Primitive registry:
+# a nonempty intersection is a registry whose names a designer function may
+# legally take.
 
 
 def _collidable_native_registries() -> dict[str, frozenset[str]]:
@@ -1935,13 +1956,13 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     Sites keying a set of the GAME's own names (`fn_names`,
     `defined_functions`) are outside the class by construction — they answer
     about designer functions rather than about them. Sites exempt by ORDER —
-    a designer-function arm preceding them in their own function — are
-    `DECLARED_ONLY_CALL_FUNCS` in `_check_native_flavor`, and the derivation
-    query's two other hits, the `CALL_FUNCS` and `native_namespace` guards in
-    resolve, each behind its function's own designer arm.
+    a designer-function arm preceding them in their own function — are the
+    declared-only arm's `PRIMITIVE_CALL_FUNCS` in `_validate_refs`, and the
+    derivation query's two other hits, the `CALL_FUNCS` and `native_namespace`
+    guards in resolve, each behind its function's own designer arm.
 
     What is DERIVED is which of the census members can collide at all: each
-    crossed with the legacy Primitive set, since a Builtin's name is refused to
+    crossed with the Primitive registry, since a Builtin's name is refused to
     a designer function under every regime. The empty ones are kept as members
     so the boundary is computed here rather than asserted — a Primitive landing
     in one of them turns it into a cell."""
@@ -1999,8 +2020,8 @@ def test_the_collidable_registry_intersections_are_derived() -> None:
 
 def test_a_designer_function_named_after_an_absent_primitive_escapes_the_flavor_guard() -> None:
     """DECK_ONLY: a piece game's designer function whose spelling reads a
-    card's rank in the legacy registry, but which the runtime dispatches to the
-    user function.
+    card's rank in the corpus-wide registry (`PRIMITIVE_CALL_FUNCS`), but which
+    the runtime dispatches to the user function.
 
     Checked rather than played, like its ranking-gate sibling: the guard under
     test is a compile-stage one, and the playout that proves a designer
@@ -2211,20 +2232,25 @@ def test_the_declared_signature_is_materialized() -> None:
 def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
     """The table the runtime FREEZES against, observed.
 
-    Every name declarable in 3a is also in `CALL_SIGS` with the same
-    signature, so the two agree on every reachable cell and the distinction
-    this claims is unobservable as things stand. Made observable by planting a
-    DIFFERENT signature in `CALL_SIGS` for the declared name: the coercion
+    A declarable name's entry and its implementation row state the same
+    signature — the shape check refuses a game where they differ — so the two
+    agree on every reachable cell and the distinction this claims is
+    unobservable as things stand. Made observable by planting a DIFFERENT
+    signature on the IMPLEMENTATION ROW for the declared name: the coercion
     must still see the declaration's. Without the plant the assertion below
     could not fail, which is what makes the plant the cell rather than
     decoration."""
-    from cardlang.builtins.signatures import CALL_SIGS, Sig
+    import dataclasses
+
+    from cardlang.builtins.signatures import Sig
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
     from cardlang.runtime import reads as reads_mod
     from cardlang.types import TAny, TInteger, TPlayer
 
     game = _checks(_game(body=_SCORE_FROM_PRIMITIVE))
     planted = Sig((TAny(),), TInteger())
-    assert planted != CALL_SIGS["pinochle_meld_value"], "the plant changes nothing"
+    row = PRIMITIVE_IMPLEMENTATIONS["pinochle_meld_value"]
+    assert planted != row.sig, "the plant changes nothing"
     seen: list[object] = []
     real = reads_mod.coerce_args
 
@@ -2233,16 +2259,22 @@ def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
         return real(sig, args)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setitem(CALL_SIGS, "pinochle_meld_value", planted)
+        mp.setitem(
+            PRIMITIVE_IMPLEMENTATIONS,
+            "pinochle_meld_value",
+            dataclasses.replace(row, sig=planted),
+        )
         mp.setattr(reads_mod, "coerce_args", spy)
         play_game(game, random.Random(0))
     assert seen, "no native call was coerced — the probe reached nothing"
     assert planted not in seen, (
-        "the runtime froze the declared Primitive's arguments against CALL_SIGS"
+        "the runtime froze the declared Primitive's arguments against the "
+        "implementation index"
     )
     assert Sig((TPlayer(),), TInteger()) in seen
-    # red under: point `native_call`'s declared branch at `CALL_SIGS.get(name)`
-    # instead of `ctx.rs.declared_sigs` (demonstrated and reverted).
+    # red under: point `native_call`'s declared branch at
+    # `implementation_sig(name)` instead of `ctx.rs.declared_sigs`
+    # (demonstrated and reverted).
 
 
 # --- axis 8: the binder narrows what the bundle materializes ----------------
@@ -2449,21 +2481,9 @@ def _reconcile(
     sides — each game's block, the implementation index, and the authored
     `PRIMITIVE_READS` registry."""
     declared: dict[str, str] = {}
-    reached: set[str] = set()
     for name, game in games:
         for primitive in sorted(declared_names(game)):
             declared[primitive] = name
-        reached |= declared_names(game)
-        if regime(game) is Regime.LEGACY:
-            # A legacy game reaches every Primitive it CALLS. Reading the calls
-            # rather than the namespace is what makes the orphan question
-            # answerable: the namespace is corpus-wide, so quantifying over it
-            # would claim every implementation is reached by every game.
-            reached |= {
-                nd.func
-                for nd in _walk_calls(game)
-                if nd.func in PRIMITIVE_CALL_FUNCS
-            }
 
     # (1) declared -> implemented. resolve refuses this per game; the pin says
     # it over the whole corpus, so a game the pipeline never checks cannot
@@ -2473,12 +2493,13 @@ def _reconcile(
         f"declared with no implementation: {orphan_declarations}"
     )
 
-    # (2) implemented -> reached. An index row no game declares and no game
-    # calls is an orphan: Python the corpus cannot run.
-    orphans = sorted(set(implementations) - reached)
+    # (2) implemented -> declared. A declaration is a Primitive's ONLY route to
+    # its Python, so the reached set is exactly the declared one and an index
+    # row no game declares is an orphan: Python the corpus cannot run.
+    orphans = sorted(set(implementations) - set(declared))
     assert not orphans, (
         f"implementations no game reaches: {orphans} — a Primitive nothing "
-        f"declares and nothing calls is dead Python in the language package"
+        f"declares is dead Python in the language package"
     )
 
     # (3) one definition site per ROW. A game whose block declares its
@@ -2507,12 +2528,6 @@ def _reconcile(
         f"declare the same coupling, and two statements of one fact drift; a "
         f"row a walled binder binds is exempt and survives its game's block"
     )
-
-
-def _walk_calls(game: n.Game) -> list[n.Call]:
-    from cardlang.resolve import _walk
-
-    return [nd for nd in _walk(game) if isinstance(nd, n.Call)]
 
 
 @pytest.mark.slow
@@ -2556,6 +2571,31 @@ def test_the_walled_exemption_names_the_rows_the_binders_bind() -> None:
     assert ("cardlang/runtime/tichu.py", "tichu.cardlang") in climb
 
 
+def test_every_authored_row_is_one_a_walled_binder_binds() -> None:
+    """The registry's end state, stated positively.
+
+    `_reconcile`'s claim (3) says no authored row states a coupling a block
+    states — a statement about the DECLARED games, which leaves a row for a
+    game that writes no block outside what it can see. This says the other
+    thing: there is no such row at all. Every row the table holds is one the
+    climb binder or the shared dispatch module's auction outcomes bind at
+    load, which is what makes `PRIMITIVE_READS` the declaration for the two
+    namespaces a block cannot name rather than a second route into the
+    call-position one.
+
+    Born green, and the mutation that reddens it is a call-namespace row —
+    executed 2026-09-04 by appending
+    `PrimitiveReads(module="cardlang/runtime/canasta.py",
+    game_file="canasta.cardlang", state_vars=frozenset({"stage"}))`:
+    "authored rows no walled binder binds: [('cardlang/runtime/canasta.py',
+    'canasta.cardlang')]"; demonstrated and reverted."""
+    keys = {(r.module, r.game_file) for r in PRIMITIVE_READS}
+    assert keys == _walled_binder_rows(PRIMITIVE_READS), (
+        f"authored rows no walled binder binds: "
+        f"{sorted(keys - _walled_binder_rows(PRIMITIVE_READS))}"
+    )
+
+
 @pytest.mark.slow
 def test_reconciliation_reddens_on_a_planted_orphan() -> None:
     """An implementation nothing reaches. Demonstrated rather than asserted:
@@ -2563,7 +2603,10 @@ def test_reconciliation_reddens_on_a_planted_orphan() -> None:
     defect wearing a test's name."""
     planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["orphan_primitive"] = Implementation(
-        "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED
+        "cardlang.runtime.pinochle",
+        "pinochle_meld_value",
+        InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
     )
     with pytest.raises(AssertionError, match="orphan_primitive"):
         _reconcile(_checked_games(), planted, PRIMITIVE_READS)
@@ -2622,7 +2665,10 @@ def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> N
     the assert can speak."""
     planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["pinochle_meld_value"] = Implementation(
-        "cardlang.runtime.primitives", "call", InvocationContract.BUNDLED
+        "cardlang.runtime.primitives",
+        "bridge_auction_outcome",
+        InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
     )
     with pytest.raises(AssertionError, match=_SHARED_DISPATCH_MODULE):
         _reconcile(_checked_games(), planted, PRIMITIVE_READS)
@@ -2880,9 +2926,9 @@ def test_a_declared_collection_parameter_is_the_registry_s_signature() -> None:
 
     entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
     game = _checks(_game(block=entry, body="    score[0] := 1"))
-    assert declared_primitive_sigs(game)["gin_valid_meld"] == CALL_SIGS[
+    assert declared_primitive_sigs(game)["gin_valid_meld"] == implementation_sig(
         "gin_valid_meld"
-    ]
+    )
 
 
 # The ELEMENT axis, derived: every name an entry can spell in a bare slot,
@@ -2920,9 +2966,10 @@ def test_the_element_allow_list_is_what_the_implementations_take() -> None:
     until the list admits its element with a witness, and an element admitted
     with no implementation lands red too.
 
-    red under: register a `Collection<Player>` parameter in `CALL_SIGS` for
-    any name in `PRIMITIVE_IMPLEMENTATIONS` — verified on `gin_arrange_ok`,
-    which reports `TPlayer at gin_arrange_ok's parameter 2`."""
+    red under: give any `PRIMITIVE_IMPLEMENTATIONS` row a
+    `Collection<Player>` parameter in its `sig` — verified on
+    `gin_arrange_ok`, which reports `TPlayer at gin_arrange_ok's
+    parameter 2`."""
     from cardlang.primitives_block import implementation_sig
     from cardlang.typecheck import TypeEnv, type_from_name
 
