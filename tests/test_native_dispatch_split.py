@@ -98,6 +98,9 @@ _PACKAGE = Path(cardlang.__file__).parent
 _BUILTINS = _PACKAGE / "runtime" / "builtins.py"
 _PRIMITIVES = _PACKAGE / "runtime" / "primitives.py"
 _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
+# The two homes, keyed by the name `DISPATCHER_HOMES` uses for each. One map,
+# so the column's vocabulary and the files it names cannot drift apart.
+_HOMES: dict[str, Path] = {"builtins": _BUILTINS, "primitives": _PRIMITIVES}
 
 # The name-keyed dispatchers and the home each belongs to. `call` is the
 # Builtins' own; every other dispatcher keys slot callbacks (a winner
@@ -299,25 +302,28 @@ def test_homes_partition_the_call_registry() -> None:
 
 @pytest.mark.parametrize("dispatcher", sorted(DISPATCHER_HOMES))
 def test_dispatcher_home(dispatcher: str) -> None:
-    """Every name-keyed dispatcher lives in the home its kind belongs to.
-    `call` is the Builtins' own; a game-local callback dispatcher appearing in
-    `builtins.py` would put game knowledge in the generic layer."""
-    in_builtins = dispatcher in _name_dispatchers(_BUILTINS)
-    in_primitives = dispatcher in _name_dispatchers(_PRIMITIVES)
-    expected = DISPATCHER_HOMES[dispatcher]
-    assert (in_builtins, in_primitives) == (
-        expected in ("builtins", "both"),
-        expected in ("primitives", "both"),
-    ), (
-        f"{dispatcher} should live in {expected}, found "
-        f"builtins={in_builtins} primitives={in_primitives}"
+    """Every name-keyed dispatcher lives in ONE home, and it is the home its
+    kind belongs to. `call` is the Builtins' own; a game-local callback
+    dispatcher appearing in `builtins.py` would put game knowledge in the
+    generic layer.
+
+    The homes are asked as a set, from the same map that names their files, so
+    the column's vocabulary is the home set itself: a dispatcher found in both
+    homes and a column value naming no home are each red rather than
+    expressible."""
+    found = {
+        home for home, path in _HOMES.items() if dispatcher in _name_dispatchers(path)
+    }
+    assert found == {DISPATCHER_HOMES[dispatcher]}, (
+        f"{dispatcher} should live in {DISPATCHER_HOMES[dispatcher]} alone, "
+        f"found in {sorted(found)}"
     )
 
 
 def test_every_scraped_dispatcher_is_accounted_for() -> None:
     """The dispatcher axis is derived, so a NEW dispatcher added to either home
     fails here until this grid records which home it belongs to."""
-    scraped = set(_name_dispatchers(_BUILTINS)) | set(_name_dispatchers(_PRIMITIVES))
+    scraped = {d for path in _HOMES.values() for d in _name_dispatchers(path)}
     assert scraped == set(DISPATCHER_HOMES), (
         f"unrecorded dispatchers: {sorted(scraped - set(DISPATCHER_HOMES))}; "
         f"recorded but absent: {sorted(set(DISPATCHER_HOMES) - scraped)}"
