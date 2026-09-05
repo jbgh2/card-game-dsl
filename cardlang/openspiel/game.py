@@ -49,9 +49,13 @@ from cardlang.openspiel.registry import SHORT_NAME_CHARS, _GAMES_DIR, _short_nam
 # each a file or a directory globbed as the corpus is.
 GAMES_ENV_VAR = "CARDLANG_GAMES"
 
-# What one of that variable's entries can be. The dispatch below reads exactly
-# these names, so a kind added here without an arm is a name with no behavior
-# rather than a silent skip.
+# What one of that variable's entries can be: the names `_entry_kind` returns
+# and `_entry_files` answers, written out so the grid has a surface to cross.
+# Neither function reads this tuple — what holds the three in step is
+# tests/test_openspiel_registration.py::test_the_entry_kinds_and_the_dispatch_agree,
+# which derives both sets from those functions, plus `_entry_files`'s closing
+# assert, so a kind gained without an arm is refused as an unknown kind rather
+# than reported as a path that does not exist.
 ENTRY_KINDS: tuple[str, ...] = ("file", "directory", "missing", "empty")
 
 # short name -> the resolved file it was registered from. Seeded by the corpus

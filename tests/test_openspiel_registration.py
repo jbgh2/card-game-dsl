@@ -69,8 +69,10 @@ registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  `test_every_refusal_belongs_to_a_preflight_stage`; the
                  process-global registry those cells read:
                  `pyspiel.registered_names`; the entry
-                 vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, which the
-                 env dispatch reads; the short-name rule and its character set:
+                 vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, held in
+                 step with the env dispatch by
+                 `test_the_entry_kinds_and_the_dispatch_agree`; the short-name
+                 rule and its character set:
                  `cardlang.openspiel.registry._short_name` and
                  `cardlang.openspiel.registry.SHORT_NAME_CHARS`; the one
                  registration site:
@@ -365,7 +367,12 @@ def test_every_refusal_belongs_to_a_preflight_stage() -> None:
     Every stage is required to carry a refusal, too: a stage no grid cell
     reaches is a column the batch grid crosses for nothing.
 
-    red under: add a refusing cell to `_FILE_EXPECTED` without a stage row.
+    red under, both halves, both verified: add a refusing cell to
+    `_FILE_EXPECTED` with no stage row (`test_every_file_cell_is_authored`
+    reddens beside it, so the pair says which went missing); drop a stage from
+    `_PREFLIGHT_STAGES` (`test_every_batch_cell_is_authored` reddens beside
+    it). Born green — the map was written against grids that already existed,
+    so neither half's red run happened on its own.
     """
     outcomes = {**_FILE_EXPECTED, **_NAME_EXPECTED}
     refusing = {
@@ -377,11 +384,43 @@ def test_every_refusal_belongs_to_a_preflight_stage() -> None:
     assert set(_STAGE_OF_REFUSAL.values()) == set(_PREFLIGHT_STAGES)
 
 
-def test_the_entry_vocabulary_is_what_the_dispatch_reads() -> None:
-    """`ENTRY_KINDS` is the env dispatch's own vocabulary, and the file-state
-    axis crosses every member of it: a kind the dispatch gains without a cell
-    here fails this rather than riding unexercised."""
-    assert set(ENTRY_KINDS) == {"file", "directory", "missing", "empty"}
+def test_the_entry_kinds_and_the_dispatch_agree() -> None:
+    """`ENTRY_KINDS`, what `_entry_kind` returns, and what `_entry_files`
+    dispatches on are one set — so the file-state axis crosses every kind the
+    env source can produce, and a kind the dispatch gains without a cell here
+    fails this rather than riding unexercised.
+
+    Derived from those two functions' own source, because nothing at runtime
+    reads the tuple: it declares a set two functions state in bare literals,
+    and an equality against a literal set would pin only the tuple against
+    itself. Measured before this derivation existed — dropping a member from
+    `ENTRY_KINDS` reddened that equality and nothing else, the dispatch going
+    on handling the dropped kind correctly.
+
+    red under: drop a member from `ENTRY_KINDS`, or give `_entry_kind` a
+    `return "symlink"` arm `_entry_files` does not answer. Verified.
+    """
+    root = pathlib.Path(str(cardlang.__file__)).parent
+    tree = ast.parse((root / "openspiel" / "game.py").read_text())
+    functions = {
+        node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+    }
+    returned = {
+        node.value.value
+        for node in ast.walk(functions["_entry_kind"])
+        if isinstance(node, ast.Return)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+    dispatched = {
+        operand.value
+        for node in ast.walk(functions["_entry_files"])
+        if isinstance(node, ast.Compare)
+        for operand in node.comparators
+        if isinstance(operand, ast.Constant) and isinstance(operand.value, str)
+    }
+    assert returned == set(ENTRY_KINDS), returned
+    assert dispatched == set(ENTRY_KINDS), dispatched
 
 
 # ---------------------------------------------------------------------------
