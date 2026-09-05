@@ -48,18 +48,18 @@ def test_no_corpus_game_is_perfect_information_by_zone_type_alone(
     short_name: str, filename: str
 ) -> None:
     """The wall behind the adapter's asserted `information` field
-    (`cardlang/openspiel/game.py::_register`), and what can contradict it.
+    (`cardlang/openspiel/game.py::_plan`), and what can contradict it.
 
     "Perfect iff every declared zone type projects identity to all" is the
     obvious derivation of that field, and it discriminates nothing: every game
     in the adapter's registry declares at least one below-identity zone type,
     so the rule is the constant IMPERFECT wearing a function. The comment at
-    `_register` states that wall; this is the check that can redden it, on the
+    `_plan` states that wall; this is the check that can redden it, on the
     day a corpus game's declared zone types alone make it perfect-information.
 
     Born green, and reddened by giving `Deck` an identity-to-all projection in
     `ZONE_PROJECTIONS`: the games whose only below-identity type is `Deck`
-    declare no other, so their rows fail and name the `_register` site.
+    declare no other, so their rows fail and name the `_plan` site.
 
     A green does not say the corpus holds no perfect-information game -- the
     proof modules under `tests/openspiel_ready/` assert the singleton
@@ -75,5 +75,5 @@ def test_no_corpus_game_is_perfect_information_by_zone_type_alone(
     assert below, (
         f"{short_name} declares only identity-to-all zone types, so the "
         f"zone-type derivation of GameType.information is no longer vacuous "
-        f"-- revisit the wall stated at cardlang/openspiel/game.py::_register"
+        f"-- revisit the wall stated at cardlang/openspiel/game.py::_plan"
     )

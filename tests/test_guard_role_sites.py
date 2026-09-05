@@ -93,6 +93,7 @@ _ACCOUNTED = frozenset(
         "ShadowGuardError",
         # other Authors, each with its position pinned in the taxonomy
         "InstallationError",
+        "GameRegistrationError",
         "PrimitiveReadError",
         "DiagnosticError",
         # not a defect: the game author wrote `error(...)` and the refusal is
