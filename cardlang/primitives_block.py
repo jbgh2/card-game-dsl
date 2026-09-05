@@ -51,11 +51,13 @@ Now illegal:  a consumer deciding the regime by testing `game.primitives`
               to learn what it implements; any consumer testing a name's
               membership against the state or zone walks itself rather than
               asking the predicates here; and any consumer walking the phase
-              tree itself to answer a scope, ancestry or nesting question — the
-              one path-aware walk is here, and a POSITION question (which
-              phase's extent holds a given node) is resolve's, since it is
-              about the nodes of a game rather than about the shape of its
-              phase tree; any consumer reading an entry
+              tree itself to answer a scope, ancestry or nesting question about
+              a `reads` clause or a declared Primitive — the one path-aware
+              walk is here, and a POSITION question (which phase's extent holds
+              a given node) is resolve's, since it is about the nodes of a game
+              rather than about the shape of its phase tree, while resolve's
+              state-REFERENCE scope checks walk the tree themselves, outside
+              this limit (issue #574); any consumer reading an entry
               spelling's shape itself rather than asking `decompose_type` —
               the BRACKET half of that is held by a scrape over `cardlang/`
               (`tests/test_primitives_block.py::test_a_collection_spelling_is_
