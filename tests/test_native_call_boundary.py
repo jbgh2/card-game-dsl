@@ -26,8 +26,9 @@ Completeness ledger
     domain:    {every function the boundary can be handed arguments against}
                x declared param type {TCollection, TAny, scalar} x
                {Zone, list} argument shapes.
-    registry:  the Builtin half of cardlang/builtins/signatures.py CALL_SIGS,
-               unioned with each registered Primitive's own signature through
+    registry:  cardlang/builtins/signatures.py CALL_SIGS (the Builtins,
+               pinned equal to `BUILTIN_CALL_FUNCS`), unioned with each
+               registered Primitive's own signature through
                `primitives_block.implementation_sig` (`_signatures` below);
                the shape axis is the evaluator's value universe
                (cardlang/runtime/state.py `elements` names it).
@@ -59,7 +60,6 @@ import random
 
 import pytest
 
-from cardlang.builtins.functions import BUILTIN_CALL_FUNCS
 from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS, implementation_sig
@@ -69,16 +69,14 @@ from cardlang.types import TAny, TCollection
 
 def _signatures() -> dict[str, Sig]:
     """Every signature the boundary can be handed arguments against: the
-    Builtin half of `CALL_SIGS`, plus each registered Primitive's own
-    statement of its shape.
+    Builtins' table, plus each registered Primitive's own statement of its
+    shape.
 
-    Read through `implementation_sig` rather than off `CALL_SIGS` whole,
-    because the Primitive half of that table is what the legacy dispatch types
-    against and is deleted when the last game migrates — this is the one seam
-    that move goes through, so the domain below survives it unchanged."""
-    sigs = {
-        name: sig for name, sig in CALL_SIGS.items() if name in BUILTIN_CALL_FUNCS
-    }
+    Two tables because the halves state their signatures in two places —
+    `CALL_SIGS` keys the Builtins exactly (pinned at
+    tests/test_permissive_top.py) and a Primitive's shape is the `sig` column
+    of its implementation row, read through `implementation_sig`."""
+    sigs = dict(CALL_SIGS)
     for name in PRIMITIVE_IMPLEMENTATIONS:
         sig = implementation_sig(name)
         assert sig is not None, (

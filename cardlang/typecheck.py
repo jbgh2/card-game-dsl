@@ -33,9 +33,13 @@ Establishes:  type validity only. The inferred :class:`~cardlang.types.Type`
               reachable.
 Now illegal:  a type-invalid program, per the Owner Guards above and their
               completeness ledgers. Also a `Sig` built from an entry's
-              spelling anywhere but ``_param_type``, and a declared collection
-              carrying a facet reaching the runtime. Recorded residuals live in the tracker
-              (issue #143 orders them) and in each Owner Guard module's ledger.
+              spelling anywhere but ``_param_type``, a declared collection
+              carrying a facet reaching the runtime, and a Primitive's `Sig`
+              read from ``CALL_SIGS`` — that table keys the Builtins, and a
+              Primitive's shape is its index row's
+              (``primitives_block.implementation_sig``). Recorded residuals
+              live in the tracker (issue #143 orders them) and in each Owner
+              Guard module's ledger.
 Verified by:  the Owner Guard test modules (operator, aggregation, context,
               ranking, rule-ref) and their ledgers.
 """
@@ -51,10 +55,12 @@ from cardlang.ast import nodes as n
 from cardlang.ast.nodes import Game
 from cardlang.board_domains import directions_of
 from cardlang.builtins.functions import (
-    BUILTIN_CALL_FUNCS,
     TRICK_ORDER_GATED_WINNERS,
     TRICK_ORDER_ROWS,
 )
+from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
+from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
+from cardlang.domains import require_role, role_of, role_type
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     Regime,
@@ -62,9 +68,6 @@ from cardlang.primitives_block import (
     implementation_sig,
     regime,
 )
-from cardlang.builtins.signatures import CALL_SIGS, ZONE_CONTENT, Sig
-from cardlang.diagnostics import DiagnosticBag, DiagnosticError, Span
-from cardlang.domains import require_role, role_of, role_type
 from cardlang.runtime.values import component_set, content_kind_clause, content_noun
 from cardlang.stdlib.enums import SEAT_DIRECTION_VALUES, rank_names, suit_names
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
@@ -569,10 +572,10 @@ class TypeEnv:
     # The native call signatures THIS game's calls check against. A game with
     # a `primitives { }` block declares its own Primitives, so its table is the
     # Builtins plus the block's materialized signatures; a game without one
-    # gets `CALL_SIGS` whole. Materialized here rather than looked up
-    # try-then-fall at each call site: the regime is decided once, and a
-    # classified lookup is what keeps a declared name from ever reading a
-    # signature the corpus-wide registry happens to hold under the same
+    # gets the Builtins alone, which is what `CALL_SIGS` is. Materialized here
+    # rather than looked up try-then-fall at each call site: the regime is
+    # decided once, and a classified lookup is what keeps a declared name from
+    # ever reading a signature some other table happens to hold under the same
     # spelling.
     call_sigs: Mapping[str, Sig] = field(default_factory=lambda: CALL_SIGS)
     has_ranking: bool = False  # bool(game.ranking) — gates RANKING_GATED_FUNCS
@@ -698,10 +701,12 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.Call():
             sig = env.call_sigs.get(e.func) or env.functions.get(e.func)
             if sig is None:
-                # `CALL_SIGS` covers `CALL_FUNCS` exactly (pinned by
-                # tests/test_permissive_top.py), and resolve rejects a call to
-                # any name that is neither a native function nor a declared
-                # one — so a missing signature is a registry divergence.
+                # `CALL_SIGS` covers `BUILTIN_CALL_FUNCS` exactly (pinned by
+                # tests/test_permissive_top.py) and a game's own entries cover
+                # the Primitives it declares, and resolve rejects a call to
+                # any name that is neither in its regime's namespace nor a
+                # declared function — so a missing signature is a registry
+                # divergence.
                 raise AssertionError(
                     f"call to '{e.func}' has no signature in this game's native "
                     f"table and no declared function — resolve rejects unknown "
@@ -1097,13 +1102,14 @@ def native_call_sigs(game: Game) -> Mapping[str, Sig]:
     """The native signatures a call in `game` checks against — the game's
     regime, made into a table.
 
-    A declared game's table is the Builtins plus its own entries: the legacy
-    `PRIMITIVE_CALL_FUNCS` half is absent, which is what makes a neighbouring
-    game's Primitive unspellable rather than merely unresolvable."""
+    A blockless game's table is the Builtins, which is `CALL_SIGS` entire: it
+    can spell no Primitive, since a declaration is a Primitive's only route
+    and it makes none. A declared game's is the Builtins plus its own entries,
+    which is what makes a neighbouring game's Primitive unspellable rather
+    than merely unresolvable."""
     if regime(game) is Regime.LEGACY:
         return CALL_SIGS
-    builtin = {name: sig for name, sig in CALL_SIGS.items() if name in BUILTIN_CALL_FUNCS}
-    return {**builtin, **declared_primitive_sigs(game)}
+    return {**CALL_SIGS, **declared_primitive_sigs(game)}
 
 
 def env_from_game(

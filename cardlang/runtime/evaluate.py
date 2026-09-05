@@ -21,10 +21,9 @@ from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
 
 def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
-    """Dispatch `name` into native code: the Builtins half first (generic
-    functions the language ships), the Primitives half second (sanctioned
-    game-local Python), and a loud refusal from the second if neither claims
-    it.
+    """Dispatch `name` into native code: the Builtins (generic functions the
+    language ships), a game's own declared Primitives (sanctioned game-local
+    Python), and a loud refusal if neither claims it.
 
     The chain lives here rather than in either half so that neither half
     depends on the other — the two are then independently readable, against
@@ -32,27 +31,15 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     coerced ONCE, before the chain, because `deep_freeze` dominates playout
     cost.
 
-    The Primitives half holds no arm: `primitives.call` refuses every name it
-    is handed, which is the fall-through's whole content until the stage-3
-    closing change deletes both (docs/plans/2026-09-05-coup-eviction-stage3-closing.md).
-
-    A game that declares a `primitives { }` block takes the DERIVED half of
-    the chain: its own table, built at load from the block, and never the
-    legacy `PRIMITIVE_CALL_FUNCS` dispatch. The regime is decided once, at
-    resolve; the runtime's only job is to refuse a contradiction, never to
-    fall back — a game that reached a legacy arm through a declared name
-    would be running Python its own file never claimed.
+    A game that declares a `primitives { }` block takes the DERIVED route:
+    its own table, built at load from the block. A game that declares none
+    reaches the Builtins and nothing else — a Primitive has no route but a
+    declaration, and a game reaching one without declaring it would be running
+    Python its own file never claimed. The regime is decided once, at resolve;
+    the runtime's only job is to refuse a contradiction, never to fall back.
     """
     declared = ctx.rs.declared_primitives
-    if declared is None:
-        sig = CALL_SIGS.get(name)
-        if sig is not None:
-            args = reads.coerce_args(sig, args)
-        result = builtins.call(name, args, ctx)
-        if result is builtins.NOT_A_BUILTIN:
-            return primitives.call(name, args, ctx)
-        return result
-    entry = declared.get(name)
+    entry = None if declared is None else declared.get(name)
     sig = ctx.rs.declared_sigs.get(name) if entry is not None else CALL_SIGS.get(name)
     if sig is not None:
         args = reads.coerce_args(sig, args)
@@ -61,9 +48,9 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     result = builtins.call(name, args, ctx)
     if result is builtins.NOT_A_BUILTIN:
         raise ShadowGuardError(
-            "resolve._validate_refs (the game's own call namespace)",
-            f"'{name}' is neither a Builtin nor a Primitive this game's "
-            f"`primitives {{ }}` block declares, so nothing may dispatch it",
+            "resolve._validate_refs (its unknown-name and declared-only arms)",
+            f"'{name}' is neither a Builtin nor a Primitive this game "
+            f"declares, so nothing may dispatch it",
         )
     return result
 

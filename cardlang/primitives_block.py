@@ -11,11 +11,12 @@ lets none of them run, since a declaration is a Primitive's only route to
 Python. `regime` below is the ONE site that asks which, so no consumer
 re-derives it from `game.primitives is None`.
 
-This module is a LEAF of the front end: it holds names and classifications
-only, never types (`typecheck.type_from_name` is the one conversion site) and
-never an import of a game's Python (`PRIMITIVE_IMPLEMENTATIONS` is a table of
-strings, so the compile gate learns WHICH names Python implements without
-importing any of them).
+This module is a LEAF of the front end: it holds names, classifications and
+each implementation's STATED signature as data — never a CONVERSION from a
+spelling to a type, which is `typecheck.type_from_name`'s alone — and never an
+import of a game's Python (`PRIMITIVE_IMPLEMENTATIONS` names modules and
+attributes as strings, so the compile gate learns WHICH names Python
+implements without importing any of them).
 
 Scope: the block covers the CALL-position namespace. The five other Primitive
 namespaces — auction outcomes, climb leads, climb follows, early predicates,
@@ -31,7 +32,7 @@ Assumes:      a parsed `Game` — `regime` and `declared_names` read the parse
               stamp alone and hold before resolve has validated anything.
 Establishes:  ONE classification of a game's Primitive regime, and ONE
               statement of which Python each registered Primitive name is
-              implemented by. Also the ONE classification of a `reads` name
+              implemented by, and of the signature that Python takes. Also the ONE classification of a `reads` name
               (`classify_read`, which the read's own scope tail steers) and
               the collision predicates over the four namespaces such a name
               can be declared in — the game's own `state { }`, a phase's, an
@@ -49,7 +50,9 @@ Establishes:  ONE classification of a game's Primitive regime, and ONE
               form draws from (`COLLECTION_ELEMENT_NAMES`), which is pinned
               equal to the elements registered Python takes.
 Now illegal:  a consumer deciding the regime by testing `game.primitives`
-              itself; any front-end module importing a game's runtime module
+              itself; a Primitive's signature stated anywhere but its index
+              row, or read from anywhere but `implementation_sig`; any
+              front-end module importing a game's runtime module
               to learn what it implements; any consumer testing a name's
               membership against the state or zone walks itself rather than
               asking the predicates here; and any consumer walking the phase
@@ -116,9 +119,12 @@ class Regime(Enum):
 
     LEGACY = "legacy"
     """The game declares no block: the hand-authored `PRIMITIVE_CALL_FUNCS`
-    namespace, shared corpus-wide. The namespace admits every Primitive and
-    resolve then refuses each one by name — a declaration is the only route to
-    a Primitive's Python — so what this regime reaches is the Builtins."""
+    namespace, shared corpus-wide. It ADMITS every Primitive and then refuses
+    each one — a declaration is the only route to a Primitive's Python, so
+    resolve's declared-only arm speaks for every name in the half this regime
+    adds — which is why the namespace is that set rather than the Builtins:
+    the name IS a Primitive, and a diagnostic calling it unknown would be
+    false. What this regime can actually reach is the Builtins."""
 
 
 def regime(game: n.Game) -> Regime:

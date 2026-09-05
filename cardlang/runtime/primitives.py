@@ -11,11 +11,6 @@ the REGISTRY (`PRIMITIVE_CALL_FUNCS`,
 that replaces its Primitive lands in the language, which is the only event
 that moves Python out of the package.
 
-`call` below dispatches nothing: its arms are gone and only the refusal
-remains. The plan of record
-docs/plans/2026-09-05-coup-eviction-stage3-closing.md deletes it, with the
-legacy tables it keys, in its second change.
-
 Its two siblings are deliberately separate words: **[[builtins]]** are the
 generic native functions the language ships (`cardlang/runtime/builtins.py`),
 and the **[[stdlib]]** is the layer written in the language itself
@@ -29,7 +24,10 @@ itself, and `narrowing.bind` hands a game module only what its declared-reads
 row permits.
 Establishes: a value for every declared call (`call_declared`); the walled
 dispatchers keep their own arms.
-Illegal after: reading engine state by any route other than a declared row.
+Illegal after: reading engine state by any route other than a declared row;
+an arm for a call-position Primitive anywhere — there is no dispatcher here to
+add one to, and a Primitive that could be reached without a declaration would
+be Python a game file never claimed.
 
 This module must not import `runtime/builtins.py`. Which half of the registry a
 name belongs to is the caller's question (`runtime/evaluate.py`), and keeping
@@ -102,26 +100,6 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
         ),
         *args,
     )
-
-
-def call(name: str, args: list[Any], ctx: Ctx) -> Any:
-    """Dispatch a game-local native call. Arguments arrive already coerced."""
-    match name:
-        case _:
-            # Shadow Guard behind resolve's `_validate_refs`, which refuses
-            # both names this arm can meet: one no registry holds (the
-            # unknown-name arm) and one whose only route to Python is a
-            # `primitives { }` declaration (the declared-only arm). The
-            # message says LEGACY, because a registered Primitive is not
-            # unknown to the engine — only to this dispatch.
-            raise AssertionError(
-                f"unknown legacy native function '{name}' — the legacy "
-                f"dispatch keys the Builtins (cardlang/runtime/builtins.py) "
-                f"and the Primitives that carry an arm here; a declared-only "
-                f"Primitive (cardlang/builtins/functions.py, "
-                f"DECLARED_ONLY_CALL_FUNCS) reaches its Python through "
-                f"`call_declared` off its game's `primitives {{ }}` block"
-            )
 
 
 # --- value-callbacks (mechanic functions passed by name) ---

@@ -1,31 +1,30 @@
-"""The native-call dispatch has two homes, and the two homes partition it.
+"""A native call reaches its Python by exactly one route, and which one is
+its kind's.
 
-property:   every name the checker registers as a native call dispatches from
-            exactly one runtime home -- `runtime/builtins.py` (Builtins:
-            generic native functions the language ships) or
-            `runtime/primitives.py` (Primitives: sanctioned game-local
-            Python) -- with nothing in both and nothing in neither, EXCEPT the
-            Primitives a game reaches only by declaring them, whose dispatch
-            derives from the declaration and which therefore have an arm in
-            neither home; and every name-keyed dispatcher lives in the home its
-            kind belongs to
-domain:     CALL_FUNCS (the whole registry) x {builtins, primitives,
-            declared}; every name-keyed dispatcher in either home x its home;
-            the retired `runtime/stdlib.py` x {exists, imported}
-registry:   `cardlang/builtins/functions.py` for BOTH name axes --
+property:   every name the checker registers as a native call reaches its
+            Python by exactly one route -- a Builtin through the `call` match
+            `runtime/builtins.py` holds, a Primitive through the table its
+            game's own `primitives { }` block derives at load, which is why a
+            Primitive has an arm in NEITHER runtime home; and every name-keyed
+            dispatcher lives in the home its kind belongs to
+domain:     CALL_FUNCS (the whole registry) x {builtins, declared}; every
+            name-keyed dispatcher in either home x its home; the retired
+            `runtime/stdlib.py` x {exists, imported}; the retired legacy
+            dispatch seam x {the dispatcher, its callers, the set that
+            classified it}
+registry:   `cardlang/builtins/functions.py` for the name axis --
             `BUILTIN_CALL_FUNCS` / `PRIMITIVE_CALL_FUNCS` give the expected
-            home, `DECLARED_ONLY_CALL_FUNCS` the third value, and `CALL_FUNCS`
-            the first two's derived union; each home module's OWN
+            route and `CALL_FUNCS` their derived union; each home module's OWN
             `call` match AST for the actual home (scraped from the source,
             never hand-listed); each home module's module-level `match name:`
             functions for the dispatcher axis
 covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
-            member, crossed against the scraped home, including the
-            declared-only row whose expected home is no arm at all;
+            member, crossed against the scraped home, including every
+            Primitive row whose expected home is no arm at all;
             `test_homes_partition_the_call_registry` (scraped union ==
-            CALL_FUNCS minus the declared-only names, scraped intersection ==
-            empty, each scraped home == its declared set both ways, and the
-            declared-only set inside the Primitive registry);
+            CALL_FUNCS minus the Primitives, scraped intersection == empty,
+            the Builtins' scraped arms == their declared set both ways, and
+            the Primitives home's arm set empty);
             `test_dispatcher_home[<dispatcher>]`, one row per scraped
             dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
             so a NEW dispatcher cannot land unplaced (the dispatcher column
@@ -33,32 +32,19 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
             callbacks a dispatcher keys is the registries' statement, and
             `value_function` keys both homes' winners from primitives.py by
             design — see DISPATCHER_HOMES);
+            `test_the_legacy_dispatch_seam_is_gone` (the dispatcher, its
+            callers and `DECLARED_ONLY_CALL_FUNCS`, each falsifiable alone);
             `test_retired_module_is_gone`;
             `test_nothing_imports_the_retired_module`
 sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
-does not prove: that the Primitives half of the partition adds anything its
-            neighbours do not. Every Primitive is declared-only, so both
-            `primitives_arms` and the difference
-            `PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS` are empty, and
-            with both sides empty the equality restates two facts already
-            asserted beside it: that `runtime/primitives.py` holds no arm (the
-            union assertion's business, and the one that names the offender),
-            and that `PRIMITIVE_CALL_FUNCS` sits inside
-            `DECLARED_ONLY_CALL_FUNCS` -- the direction the subset assertion
-            above it does not carry, the two together making the sets equal.
-            Redundant, not vacuous: an arm added to `runtime/primitives.py`
-            falsifies it on its own, though the union assertion and the
-            arm-home row reach it first (executed 2026-09-04 by planting
-            `case "gin_deadwood": return 0` in `call`:
-            `test_call_arm_home[gin_deadwood]` and
-            `test_homes_partition_the_call_registry` both red, the union
-            assertion speaking; demonstrated and reverted). The plan of
-            record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
-            deletes `call` and `DECLARED_ONLY_CALL_FUNCS` in its second
-            change, re-deriving this grid's homes as {builtins, declared} --
-            after which there is no Primitives half to state.
+does not prove: that a Primitive's DECLARED route works. This grid says only
+            that no arm dispatches one; that the table a block derives finds
+            real Python and hands it the right shape is
+            tests/test_primitives_block.py's and tests/test_signatures.py's,
+            and a green here would survive the declared route being broken
+            outright.
 red under (the end state, authored before it held):
             the five cells that state the retirement were authored against the
             tree that still carried the seam, and four of the five were red
@@ -100,7 +86,6 @@ import cardlang
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
-    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
 
@@ -109,9 +94,9 @@ _BUILTINS = _PACKAGE / "runtime" / "builtins.py"
 _PRIMITIVES = _PACKAGE / "runtime" / "primitives.py"
 _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 
-# The name-keyed dispatchers and the home each belongs to. `call` is the only
-# one with a Builtins half; every other dispatcher keys slot callbacks (a
-# winner function, a climb query, an auction outcome, a codec) and lives in
+# The name-keyed dispatchers and the home each belongs to. `call` is the
+# Builtins' own; every other dispatcher keys slot callbacks (a winner
+# function, a climb query, an auction outcome, a codec) and lives in
 # primitives.py as ONE match statement per slot. This column is the
 # DISPATCHER's file, not the CLASSIFICATION of the names it keys:
 # `value_function` dispatches both the Builtin winners
@@ -125,7 +110,7 @@ _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 # `PRIMITIVE_CALL_FUNCS` plus the epic scoreboard, neither of which the winner
 # reclassification touched.
 DISPATCHER_HOMES: dict[str, str] = {
-    "call": "both",
+    "call": "builtins",
     "value_function": "primitives",
     "climb_row": "primitives",
     "climb_lead_function": "primitives",
@@ -239,19 +224,19 @@ def _expected_home(name: str) -> str:
     statements of the same fact rather than checking the implementation
     against a copy of itself.
 
-    Three values, because a Primitive has two routes to its Python: the `call`
-    match, and the table a game's own `primitives { }` block derives at load
-    (`runtime/primitives.py`, `Declared`). A declared-only name has NO arm in
-    either home, and expecting one would force a dead legacy arm into the
-    module whose docstring says there will never be one. The default is
-    "primitives", so a newly registered declared-only name is red here until
-    `DECLARED_ONLY_CALL_FUNCS` classifies it."""
-    if name in BUILTIN_CALL_FUNCS:
-        return "builtins"
-    return "declared" if name in DECLARED_ONLY_CALL_FUNCS else "primitives"
+    Two values, because a name has exactly one route to its Python: a Builtin
+    through the `call` match its home holds, a Primitive through the table a
+    game's own `primitives { }` block derives at load
+    (`runtime/primitives.py`, `Declared`). A Primitive has NO arm in either
+    home, and expecting one would ask for an arm in the module whose Contract
+    says there will never be one."""
+    return "builtins" if name in BUILTIN_CALL_FUNCS else "declared"
 
 
 def _actual_homes(name: str) -> list[str]:
+    """Scraped over BOTH runtime homes, though only one holds a `call` match:
+    a name dispatched from an arm the Primitives home grew back would be found
+    here rather than absorbed into the Builtins' set."""
     homes = []
     if name in _call_arms(_BUILTINS):
         homes.append("builtins")
@@ -263,8 +248,8 @@ def _actual_homes(name: str) -> list[str]:
 @pytest.mark.parametrize("name", sorted(CALL_FUNCS))
 def test_call_arm_home(name: str) -> None:
     """Each registered call dispatches from exactly the home its kind says —
-    and a declared-only Primitive from NEITHER, because its dispatch derives
-    from the declaration rather than from an arm."""
+    and a Primitive from NEITHER, because its dispatch derives from the
+    declaration rather than from an arm."""
     expected = [] if _expected_home(name) == "declared" else [_expected_home(name)]
     assert _actual_homes(name) == expected, (
         f"{name!r} should dispatch from {_expected_home(name)}, but its "
@@ -273,37 +258,37 @@ def test_call_arm_home(name: str) -> None:
 
 
 def test_homes_partition_the_call_registry() -> None:
-    """The two homes cover the arm-dispatched registry exactly. Stated over
-    the SCRAPED arm sets rather than by subtraction, so an arm in neither home
-    (or in both) fails here by name rather than being absorbed into a
-    complement. The declared-only names are the registry's third part: they
-    have no arm anywhere, and the set naming them is checked against the
-    registry both ways so it can neither go stale nor absorb a name."""
+    """The arm-dispatched registry is exactly the Builtins. Stated over the
+    SCRAPED arm sets rather than by subtraction, so an arm that appeared in
+    either home fails here by name rather than being absorbed into a
+    complement. The Primitives are the registry's other part: they have no arm
+    anywhere, and their route is the declaration."""
     builtins_arms, primitives_arms = _call_arms(_BUILTINS), _call_arms(_PRIMITIVES)
-    assert DECLARED_ONLY_CALL_FUNCS <= PRIMITIVE_CALL_FUNCS, (
-        f"declared-only names outside the Primitive registry: "
-        f"{sorted(DECLARED_ONLY_CALL_FUNCS - PRIMITIVE_CALL_FUNCS)}"
-    )
-    assert builtins_arms | primitives_arms == CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS, (
-        f"unhomed: {sorted(CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS - builtins_arms - primitives_arms)}; "
+    assert builtins_arms | primitives_arms == CALL_FUNCS - PRIMITIVE_CALL_FUNCS, (
+        f"unhomed: {sorted(CALL_FUNCS - PRIMITIVE_CALL_FUNCS - builtins_arms - primitives_arms)}; "
         f"unregistered: {sorted((builtins_arms | primitives_arms) - CALL_FUNCS)}"
     )
     assert builtins_arms.isdisjoint(primitives_arms), (
         f"dispatched from both homes: {sorted(builtins_arms & primitives_arms)}"
     )
     assert builtins_arms == BUILTIN_CALL_FUNCS
-    assert primitives_arms == PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
+    assert primitives_arms == frozenset(), (
+        f"the Primitives home dispatches by arm: {sorted(primitives_arms)}"
+    )
 
 
 @pytest.mark.parametrize("dispatcher", sorted(DISPATCHER_HOMES))
 def test_dispatcher_home(dispatcher: str) -> None:
-    """Every name-keyed dispatcher lives in the home its kind belongs to. Only
-    `call` has a Builtins half; a game-local callback dispatcher appearing in
+    """Every name-keyed dispatcher lives in the home its kind belongs to.
+    `call` is the Builtins' own; a game-local callback dispatcher appearing in
     `builtins.py` would put game knowledge in the generic layer."""
     in_builtins = dispatcher in _name_dispatchers(_BUILTINS)
     in_primitives = dispatcher in _name_dispatchers(_PRIMITIVES)
     expected = DISPATCHER_HOMES[dispatcher]
-    assert (in_builtins, in_primitives) == (expected in ("builtins", "both"), True), (
+    assert (in_builtins, in_primitives) == (
+        expected in ("builtins", "both"),
+        expected in ("primitives", "both"),
+    ), (
         f"{dispatcher} should live in {expected}, found "
         f"builtins={in_builtins} primitives={in_primitives}"
     )

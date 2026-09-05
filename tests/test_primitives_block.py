@@ -75,14 +75,12 @@ domain:     the block's own surface — clause placement x {game, library},
             name; an ENTRY name colliding with a keyed declaration is the
             other direction and its outcome is undecided (issue #497), so it
             is not a cell here.
-            The regime axis is crossed once in full: the Primitive's HOME
-            (`DECLARED_ONLY_CALL_FUNCS`, which is now the whole of
-            `PRIMITIVE_CALL_FUNCS` — no Primitive keeps a legacy `call` arm)
-            x {block declares it, block omits it, no block}, total over that
-            registry. Both directions of the partition
-            are cells of that product: a declared game reaching a Primitive it
-            did not declare, and an undeclared game reaching one no legacy
-            dispatch arm serves.
+            The regime axis is crossed once in full: `PRIMITIVE_CALL_FUNCS`
+            — a declaration is the only route to any of them — x {block
+            declares it, block omits it, no block}, total over that registry.
+            Both directions of the partition are cells of that product: a
+            declared game reaching a Primitive it did not declare, and an
+            undeclared game reaching one at all.
             The CONTRACT axis is the enum WHOLE: a block declares every
             member, so its cross with the reads-clause shape is total over
             `InvocationContract` rather than over an allow-list stated beside
@@ -152,9 +150,8 @@ domain:     the block's own surface — clause placement x {game, library},
             quantifies over the whole implementation index so the day one
             returns a collection its witness is owed here. The two guards
             answer different questions and the grid runs the gate's.
-registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces,
-            `BUILTIN_CALL_FUNCS`, and `DECLARED_ONLY_CALL_FUNCS` — which of
-            the Primitives a declaration is the only route to);
+registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
+            and `BUILTIN_CALL_FUNCS`);
             `cardlang/primitives_block.py`
             (`PRIMITIVE_IMPLEMENTATIONS`, `WALLED_NAMESPACES`,
             `DECLARABLE_BUILTIN_TYPE_NAMES`, `COLLECTION_ELEMENT_NAMES`,
@@ -260,7 +257,6 @@ from cardlang.ast import nodes as n
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
-    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
 from cardlang.builtins.signatures import CALL_SIGS, Sig
@@ -697,21 +693,18 @@ def test_an_empty_block_refuses_a_primitive_call() -> None:
 
 # --- axis 1 x the Primitive's own home: the regime product ------------------
 #
-# A declaration is the only route to a Primitive's Python: `runtime/primitives.py`
-# holds no `call` arm for any of them, so `DECLARED_ONLY_CALL_FUNCS` is the
-# whole Primitive registry and the home axis has one arm. Crossed with the
-# regime — a block that declares the name, a block that does not, no block at
-# all — each cell's outcome is stated once here rather than in three places.
-# The set retires with the legacy dispatch table it names (the stage-3 closing
-# change, docs/plans/2026-09-05-coup-eviction-stage3-closing.md), at which
-# point this axis keys `PRIMITIVE_CALL_FUNCS`.
+# A declaration is the only route to a Primitive's Python — no runtime module
+# holds a `call` arm for one — so the home axis has a single value and the
+# registry it keys is `PRIMITIVE_CALL_FUNCS`. Crossed with the regime — a
+# block that declares the name, a block that does not, no block at all — each
+# cell's outcome is stated once here rather than in three places.
 
 # LEAF `Type` -> (its declarable spelling, an EXPRESSION of that type). A
-# representative's signature is read from `CALL_SIGS` and rendered through this
-# table, so the product is TOTAL over `DECLARED_ONLY_CALL_FUNCS` rather than
-# sampled at whichever member it holds — a member whose signature reaches a
-# type with no row fails by NAME rather than producing a sentence the parser
-# rejects for the wrong reason.
+# representative's signature is read from the implementation index's own
+# column and rendered through this table, so the product is TOTAL over
+# `PRIMITIVE_CALL_FUNCS` rather than sampled at whichever member it holds — a
+# member whose signature reaches a type with no row fails by NAME rather than
+# producing a sentence the parser rejects for the wrong reason.
 #
 # An expression, not a literal: the surface has no Card literal, so `Card`'s
 # column is a Builtin over a zone the probe game declares, and `Team`'s is a
@@ -808,7 +801,7 @@ _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
 def _homes() -> dict[str, list[str]]:
     """The homes, as the registries state them: one, holding every member, so
     the product below covers the registry rather than sampling it."""
-    return {"declared-only": sorted(DECLARED_ONLY_CALL_FUNCS)}
+    return {"declared-only": sorted(PRIMITIVE_CALL_FUNCS)}
 
 
 @pytest.mark.parametrize(
@@ -1962,13 +1955,13 @@ def _collidable_native_registries() -> dict[str, frozenset[str]]:
     Sites keying a set of the GAME's own names (`fn_names`,
     `defined_functions`) are outside the class by construction — they answer
     about designer functions rather than about them. Sites exempt by ORDER —
-    a designer-function arm preceding them in their own function — are
-    `DECLARED_ONLY_CALL_FUNCS` in `_check_native_flavor`, and the derivation
-    query's two other hits, the `CALL_FUNCS` and `native_namespace` guards in
-    resolve, each behind its function's own designer arm.
+    a designer-function arm preceding them in their own function — are the
+    declared-only arm's `PRIMITIVE_CALL_FUNCS` in `_validate_refs`, and the
+    derivation query's two other hits, the `CALL_FUNCS` and `native_namespace`
+    guards in resolve, each behind its function's own designer arm.
 
     What is DERIVED is which of the census members can collide at all: each
-    crossed with the legacy Primitive set, since a Builtin's name is refused to
+    crossed with the Primitive registry, since a Builtin's name is refused to
     a designer function under every regime. The empty ones are kept as members
     so the boundary is computed here rather than asserted — a Primitive landing
     in one of them turns it into a cell."""

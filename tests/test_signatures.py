@@ -19,6 +19,15 @@ covered:    names (set equality both ways, every tabled registry),
             dispatcher), arity (all arms), annotations for every
             plain-forward arm and its return
 sampled:    none
+does not prove: that a designer can REACH the dispatch refusal
+            `test_call_funcs_are_dispatchable` exercises. That call is at
+            function grain, and resolve's declared-only arm refuses every
+            sentence that would reach it — so the green says the refusal
+            discriminates a Primitive from a Builtin, never that a game
+            description meets it. The Owner Guard's own witness is
+            tests/test_primitives_block.py::test_the_regime_product_lands_where_the_table_says,
+            with the rendered message at
+            tests/rejections/primitives_declared_only_no_block.
 residual:   inline arms (an expression instead of a helper call — team_of,
             card_points, error) get arity-only
             coverage: there is no annotation to introspect, and the
@@ -56,6 +65,8 @@ import dataclasses
 import importlib
 import inspect
 import typing
+
+import pytest
 
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
@@ -184,19 +195,22 @@ def test_climb_action_space_is_derivable() -> None:
             assert callable(climb_universe_function(name))
 
 
+@pytest.mark.expects_shadow_guard
 def test_call_funcs_are_dispatchable() -> None:
-    # Each name registered in CALL_FUNCS must reach a real arm of
-    # call()'s match — not fall through to its loud `case _` default. Unlike
+    # Each name registered in CALL_FUNCS must reach the route its kind has:
+    # a Builtin a real arm of `builtins.call`'s match, a Primitive the loud
+    # refusal that stands where its declaration would have put a table. Unlike
     # value_function/climb_lead_function (which just return a callable
-    # reference), call() dispatches AND executes in the same statement, so
-    # there is no args-free way to "just look up" an arm: invoke each name
-    # with no args and a minimal-but-real Ctx, and treat any exception other
-    # than the default arm's AssertionError as proof the name was dispatched
-    # (wrong arg count, missing runtime state, etc. all reach real code past
-    # the match).
+    # reference), the dispatch executes in the same statement, so there is no
+    # args-free way to "just look up" an arm: invoke each name with no args and
+    # a minimal-but-real Ctx, and treat any exception other than the refusal as
+    # proof the name was dispatched (wrong arg count, missing runtime state,
+    # etc. all reach real code past the match).
     import random
 
     from cardlang.ast import nodes as n
+    from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS
+    from cardlang.runtime.errors import ShadowGuardError
     from cardlang.runtime.evaluate import native_call as call
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
@@ -205,50 +219,46 @@ def test_call_funcs_are_dispatchable() -> None:
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
 
-    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
-
     for name in CALL_FUNCS:
-        # A declared-only Primitive reaches its Python through `call_declared`
-        # off the table a game's `primitives { }` block derives, so the legacy
-        # `call` MUST refuse it — asserting the complement rather than
-        # excluding the name keeps the exclusion from quietly growing to cover
-        # one that should have an arm. No game description reaches that
-        # refusal: resolve's declared-only arm (`_validate_refs`) is the Owner
-        # Guard, witnessed at
+        # This probe builds no `primitives { }` table, so it is a blockless
+        # game's dispatch: a Primitive MUST be refused here — asserting the
+        # complement rather than excluding the Primitives keeps the exclusion
+        # from quietly growing to cover a Builtin that should have an arm. No
+        # game description reaches that refusal: resolve's declared-only arm
+        # (`_validate_refs`) is the Owner Guard, witnessed at
         # test_the_regime_product_lands_where_the_table_says
         # (tests/test_primitives_block.py) and pinned as a rendered message at
-        # tests/rejections/primitives_declared_only_no_block. The fallthrough
-        # stands behind it, which is why the message says LEGACY: a registered
-        # Primitive is not unknown to the engine, only to this dispatch.
+        # tests/rejections/primitives_declared_only_no_block.
         # Shadow Guard: the Owner Guard for which names have an arm is
         # tests/test_native_dispatch_split.py::test_call_arm_home, and for
         # whether the index resolves to real Python it is
         # test_every_indexed_implementation_resolves
         # (tests/test_primitives_block.py).
-        declared_only = name in DECLARED_ONLY_CALL_FUNCS
+        is_primitive = name in PRIMITIVE_CALL_FUNCS
         try:
             call(name, [], ctx)
-        except AssertionError as e:
-            fell_through = "unknown legacy native function" in str(e)
-            assert fell_through == declared_only, (
-                f"{name!r} falls through call()'s default arm: {e}"
-                if fell_through
-                else f"{name!r} has a legacy `call` arm and is declared-only"
+        except ShadowGuardError as exc:
+            # The refusal's OWN channel and text, not merely "some exception":
+            # a Builtin whose body raised this would otherwise read as refused,
+            # and a refusal re-channelled elsewhere would read as dispatched.
+            assert "nothing may dispatch it" in str(exc), (
+                f"{name!r} met a Shadow Guard that is not the dispatch "
+                f"refusal: {exc}"
             )
-        except Exception as exc:  # noqa: BLE001 -- any non-AssertionError means
-            # the name reached real code past the match. A declared-only name
-            # must not: its refusal IS the fallthrough's channel, so accepting
-            # any other exception for one would let a fallthrough re-channelled
-            # to a different type pass here in silence.
-            assert not declared_only, (
-                f"{name!r} is declared-only, so the legacy dispatch refuses it "
-                f"through the fallthrough's AssertionError; it raised "
-                f"{type(exc).__name__}: {exc}"
+            assert is_primitive, (
+                f"{name!r} is a Builtin and the dispatch refused it: {exc}"
+            )
+        except Exception as exc:  # noqa: BLE001 -- anything else means the name
+            # reached real code past the match. A Primitive must not: its
+            # refusal IS the ShadowGuardError above.
+            assert not is_primitive, (
+                f"{name!r} is a Primitive, so a blockless game's dispatch "
+                f"refuses it; it raised {type(exc).__name__}: {exc}"
             )
         else:
-            assert not declared_only, (
-                f"{name!r} is declared-only, so the legacy dispatch must refuse "
-                f"it; the call returned instead"
+            assert not is_primitive, (
+                f"{name!r} is a Primitive, so a blockless game's dispatch must "
+                f"refuse it; the call returned instead"
             )
 
 
