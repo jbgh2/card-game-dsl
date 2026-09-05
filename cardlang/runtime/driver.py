@@ -442,7 +442,11 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
     # included — because the frame is pushed and the state declared before any
     # of them runs and popped in the outer `finally` after all of them. A
     # reordering that moved either hook outside that window would make that
-    # guard silently unsound.
+    # guard silently unsound. The pop is also what makes an entry naming two
+    # phases that do NOT nest a designed refusal rather than a deferral: a
+    # phase's frame does not outlive the phase, so no position runs both.
+    # `tests/test_phase_scoped_reads.py::test_a_phases_frame_does_not_outlive_
+    # the_phase` pins it — the depth is unchanged across this call.
     ctx.rs.push_frame()
     try:
         ctx = ctx.in_phase(phase)

@@ -20,7 +20,7 @@ covered:    names (set equality both ways, every tabled registry),
             plain-forward arm and its return
 sampled:    none
 residual:   inline arms (an expression instead of a helper call — team_of,
-            card_points, error, peg_pair/run_points) get arity-only
+            card_points, error) get arity-only
             coverage: there is no annotation to introspect, and the
             expression is its own statement of the types. `rank_value`
             forwards to `values.rank_strength` (the runtime Owner Guard for

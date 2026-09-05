@@ -655,7 +655,7 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 # which keeps its rendered sentences the shortest of the half. One name and one
 # guard: each such cell stays green when the name moves homes, so a literal per
 # cell would leave the prose false and nothing saying so.
-_LEGACY_HALF_NAME = "cribbage_crib_value"
+_LEGACY_HALF_NAME = "coup_game_summary"
 
 
 def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
@@ -791,6 +791,17 @@ _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
     ("legacy-arm too", "no block"): True,
 }
 
+# The cells of the product no registered name can spell. The legacy half's one
+# member answers the EMITTING contract, which the block refuses BY NAME, so
+# "a legacy-armed Primitive that its game's block declares" has no
+# representative to run. Marked rather than restated: the axis is not a
+# permanent one — coup's eviction (issue #142) empties the half outright,
+# `_homes()` then derives no legacy cell at all, and the representative pin
+# above reddens, which is the event that retires the axis whole.
+_NO_REPRESENTATIVE: frozenset[tuple[str, str]] = frozenset(
+    {("legacy-arm too", "block declares it")}
+)
+
 
 def _homes() -> dict[str, list[str]]:
     """The two homes, as the registries state them. The declared-only arm is
@@ -810,7 +821,24 @@ def _homes() -> dict[str, list[str]]:
 @pytest.mark.parametrize(
     "home,regime_label,name",
     [
-        (home, regime_label, name)
+        pytest.param(
+            home,
+            regime_label,
+            name,
+            marks=(
+                [
+                    pytest.mark.xfail(
+                        strict=True,
+                        raises=DiagnosticError,
+                        reason="the legacy half's one member answers the "
+                        "EMITTING contract, which a block refuses by name — "
+                        "the cell empties with coup's eviction (issue #142)",
+                    )
+                ]
+                if (home, regime_label) in _NO_REPRESENTATIVE
+                else []
+            ),
+        )
         for (home, regime_label) in sorted(_REGIME_PRODUCT)
         for name in _homes()[home]
     ],
@@ -1607,8 +1635,8 @@ def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
     walk that only looks at `game.phases` gets wrong.
 
     red under: drop the `n.Phase` recursion from
-    `primitives_block._phase_state_decls`, the ONE walk the attribution and the
-    paths both derive from."""
+    `primitives_block._phase_tree`, the ONE walk the attribution and the paths
+    both derive from."""
     from cardlang.primitives_block import _phase_state_declarations
 
     source = (
@@ -1639,6 +1667,97 @@ def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
     assert {name for _, name in _phase_state_declarations(game)} == engine
     assert engine == {"shallow", "deep"}, sorted(engine)
     assert set(_phase_state_declarations(game)) == {("outer", "shallow"), ("inner", "deep")}
+
+
+_NESTING_SOURCE = (
+    "game Probe {\n"
+    "  players: 2\n"
+    "  max_length: 1000\n"
+    "  cards: standard52\n"
+    "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+    "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+    "  state { score[player] : Integer = 0 }\n"
+    "  phase top {\n"
+    "    phase outer {\n"
+    "      state { shallow : Integer = 0 }\n"
+    "      phase inner {\n"
+    "        state { deep : Integer = 0 }\n"
+    "        score[0] := 1\n"
+    "      }\n"
+    "    }\n"
+    "    phase later {\n"
+    "      state { aside : Integer = 0 }\n"
+    "      score[1] := 1\n"
+    "    }\n"
+    "  }\n"
+    "  winner: highest score\n"
+    "}\n"
+)
+
+
+def test_the_path_walk_carries_a_phase_that_declares_nothing() -> None:
+    """`top` declares no state, and its path is in the table anyway.
+
+    Ancestry is asked ABOUT phases, not about declarations: the phase a call
+    sits in may declare nothing and still enclose the region, and the
+    diagnostic that says "encloses" needs its path to know. A table built from
+    the declaring walk alone answers nothing about such a phase, and a
+    diagnostic would then have to guess.
+
+    Born green — the walk is written over the phase tree. red under: derive
+    `phase_paths` from `_phase_state_decls`'s paths instead of from
+    `_phase_tree`; `top` leaves the table and this cell names it."""
+    from cardlang.primitives_block import phase_paths
+
+    paths = phase_paths(_checks(_NESTING_SOURCE))
+    assert paths["top"] == ("top",)
+    assert paths["outer"] == ("top", "outer")
+    assert paths["inner"] == ("top", "outer", "inner")
+    assert paths["later"] == ("top", "later")
+
+
+@pytest.mark.parametrize(
+    "phases,expected",
+    [
+        (frozenset(), ()),
+        (frozenset({"inner"}), ("inner",)),
+        (frozenset({"outer", "inner"}), ("outer", "inner")),
+        (frozenset({"inner", "outer"}), ("outer", "inner")),
+        (frozenset({"top", "inner"}), ("top", "inner")),
+        (frozenset({"top", "outer", "inner"}), ("top", "outer", "inner")),
+        (frozenset({"outer", "later"}), None),
+        (frozenset({"inner", "later"}), None),
+        (frozenset({"top", "outer", "later"}), None),
+        (frozenset({"outer", "nowhere"}), None),
+    ],
+    ids=[
+        "empty",
+        "singleton",
+        "nested-outer-first",
+        "nested-inner-first",
+        "skip-level",
+        "three-chain",
+        "siblings",
+        "cousins",
+        "mixed-triple",
+        "not-a-phase",
+    ],
+)
+def test_the_nesting_predicate_orders_a_chain_and_refuses_the_rest(
+    phases: frozenset[str], expected: tuple[str, ...] | None
+) -> None:
+    """The nesting question over the phase tree: a set that lies on one
+    ancestor path comes back ordered OUTER to INNER, and everything else comes
+    back None.
+
+    The order the caller wrote the tails in carries no meaning — a set has
+    none — so the two spellings of one nested pair answer identically. The
+    empty set and the singleton answer rather than raising: one phase is the
+    degenerate chain, which is what keeps a single-phase entry and a nested one
+    on the same path through the resolver."""
+    from cardlang.primitives_block import phase_chain
+
+    assert phase_chain(_checks(_NESTING_SOURCE), phases) == expected
 
 
 def _collision_source(namespaces: frozenset[str], repeat: str | None = None) -> str:
@@ -2379,8 +2498,8 @@ def _walled_binder_rows(rows: tuple[PrimitiveReads, ...]) -> frozenset[tuple[str
     covers the call-position namespace alone.
 
     Two sources, both consumer-derived: the climb binder's own answers, and the
-    shared dispatch module's rows, which serve the auction outcomes and
-    cribbage's pegging call sites. The second is stated per MODULE, which is
+    shared dispatch module's rows, which serve the auction outcomes. The
+    second is stated per MODULE, which is
     only safe while that module implements no call Primitive — `_reconcile`
     asserts exactly that, so a call implementation landing there reddens the
     pin instead of silently widening the exemption."""

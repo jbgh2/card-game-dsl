@@ -1,0 +1,1 @@
+primitives_scoped_read_in_the_enclosing_phase.cardlang:20:16: error: `pinochle_meld_value` reads `deep in inner`, so it is callable only where `inner` runs — this call is in `outer`, which encloses `inner` but runs outside it (`inner`'s state does not stand here); move the call inside `inner`, or pass the value as an argument

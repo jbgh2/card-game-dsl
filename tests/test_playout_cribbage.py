@@ -18,8 +18,8 @@ from cardlang.runtime.cribbage import (
     count_fifteens,
     flush_score,
     nob_score,
-    peg_pair_points,
-    peg_run_points,
+    peg_pairs,
+    peg_run,
     run_score,
     show_score,
 )
@@ -61,10 +61,10 @@ def test_show_scorer_known_hands() -> None:
 
 
 def test_pegging_scorers() -> None:
-    assert peg_pair_points([_c("7C"), _c("7D")]) == 2  # a pair
-    assert peg_pair_points([_c("7C"), _c("7D"), _c("7S")]) == 6  # pair royal
-    assert peg_run_points([_c("4C"), _c("6D"), _c("5S")], _ORDER) == 3  # run regardless of order
-    assert peg_run_points([_c("9C"), _c("4D"), _c("6S"), _c("5H")], _ORDER) == 3  # only the suffix
+    assert peg_pairs([_c("7C"), _c("7D")]) == 2  # a pair
+    assert peg_pairs([_c("7C"), _c("7D"), _c("7S")]) == 6  # pair royal
+    assert peg_run([_c("4C"), _c("6D"), _c("5S")], _ORDER) == 3  # run regardless of order
+    assert peg_run([_c("9C"), _c("4D"), _c("6S"), _c("5H")], _ORDER) == 3  # only the suffix
 
 
 def test_50_random_games_satisfy_invariants() -> None:

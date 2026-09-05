@@ -1,1 +1,1 @@
-primitives_repeated_read.cardlang:13:59: error: `pinochle_meld_value` reads `hand` more than once — a `reads` clause names each declaration at most once, and the repeat would silently replace the first; keep one
+primitives_repeated_read.cardlang:13:59: error: `pinochle_meld_value` reads `hand` more than once — a `reads` clause names each spelling at most once: the entry receives one value per name, so two declarations of one name cannot both reach it; keep one

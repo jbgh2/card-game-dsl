@@ -4,9 +4,9 @@ A `primitives { }` entry may declare a read of state a PHASE declares, by
 naming that phase (docs/plans/2026-08-30-phase-scoped-reads.md; issue #504).
 The tail is declaration-only surface — nothing new is emitted — and it buys
 one static obligation in exchange: an entry with a scoped read is callable
-only where the named phase runs. This module is that change's grid, authored
-red before the implementation: the born-red counts at the foot of this
-docstring are its provenance.
+only where the innermost named phase runs. This module is that change's grid,
+authored red before the implementation: the born-red counts at the foot of
+this docstring are its provenance.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -17,10 +17,11 @@ property:   (1) every combination the extended `primitive_read` grammar
             phase's own `state { }` entry, with no game-level, zone, sibling-
             phase or strict-descendant declaration of that name left able to
             answer instead; and (3) every call of an entry carrying a scoped
-            read sits where the named phase's frame stands — inside that
-            phase's subtree, or at a `run` site inside it, or in a game move
-            type every POSITION of which sits inside it — so the runtime's
-            innermost-frame walk returns the declared phase's value by
+            read sits where the innermost named phase's frame stands, every
+            enclosing named phase's standing with it — inside that phase's
+            subtree, or at a `run` site inside it, or in a game move type
+            every POSITION of which sits inside it — so the runtime's
+            innermost-frame walk returns each declared phase's value by
             construction rather than by luck. A position is where an offer
             HAPPENS, never where its text sits: an offer written in a procedure
             body happens at each `run` of that procedure, because expansion is
@@ -37,9 +38,16 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             crosses it with the tail) plus the two ancestry relations a flat
             membership set cannot see, "declared by a sibling phase only" and
             "re-declared by a STRICT DESCENDANT of the named phase";
-            CLAUSE COMPOSITION x {game-level names beside scoped ones, two
-            distinct phases in one clause, a scoped read on a PURE entry, one
-            name written both bare and scoped}; CONTAINMENT POSITION — every
+            CLAUSE COMPOSITION x {game-level names beside scoped ones, a
+            scoped read on a PURE entry, one name written both bare and
+            scoped, one name written under two tails, a binder beside a second
+            phase's tail, one misspelled tail beside a good one}; PHASE-SET
+            SHAPE — every subset of at most three phases of an authored
+            five-phase fixture, classified by prefix order into the shape
+            classes the law distinguishes and crossed with the call sitting in
+            the innermost named phase; the nested pair crossed with the whole
+            CONTAINMENT POSITION taxonomy below, where the enclosing phase's
+            own body and hooks are outside the region while its frame stands; CONTAINMENT POSITION — every
             syntactic position a `Call` to a declared Primitive can occupy,
             classified by the `n.Game` field its container hangs off and by
             the `PhaseItem` union inside a phase, both pinned TOTAL so a new
@@ -54,8 +62,9 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             `?phase_item`: a phase, a procedure body (crossed with that
             procedure's `run` sites: inside, both sides, none), another move
             type's body, a `define`'s body; and the three
-            standing collision arms, each re-probed WITH a tail present so
-            the new surface cannot lift them silently.
+            standing collision arms plus the repeat guard, each re-probed WITH
+            a tail present, and again with TWO tails present, so neither the
+            tail nor the nest can lift them silently.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
             production and its reject twin, read as text by the spelling
             axis); `cardlang.ast.nodes.Game`'s field set and
@@ -65,7 +74,13 @@ registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
             `cardlang.resolve._MOVE_TYPE_SLOT_OFFERS` (their
             classification); `cardlang/grammar/cardlang.lark`'s
             `statement*`-holding productions (the offering-container
-            candidates) and `cardlang.resolve._UNPOSITIONED_CONTAINERS` (which
+            candidates); `_SHAPE_PHASE_PATHS` below, the AUTHORED phase-path
+            table the shape axis derives its subsets and its classes from —
+            authored rather than read off `cardlang.primitives_block`'s walk,
+            so the
+            axis crosses a classification with the law instead of comparing a
+            derivation with itself;
+            and `cardlang.resolve._UNPOSITIONED_CONTAINERS` (which
             of them yield no position);
             `cardlang.primitives_block.PRIMITIVE_IMPLEMENTATIONS` (every
             fixture declares a REAL registered implementation);
@@ -126,12 +141,19 @@ does not prove: a green here says nothing about whether the runtime premise
             And a green says nothing about whether a declared read SUFFICES
             for its implementation — that is a fact about Python, proven only
             by a playout (tests/test_primitives_block.py's witness owns it).
+            The shape axis derives its subsets TOTALLY over a fixture that is
+            three levels deep and at most three phases per clause; the law
+            names no depth cap, so what a green there proves is that every
+            shape class the fixture can realise lands where the law says, not
+            that a fourth level would. The class pin beside it is what makes
+            a deeper fixture arrive as a class with no row rather than
+            joining an existing one.
 walls:      the refusals here are not one kind, and the ledger says which is
             which so a reader can tell an unbuilt feature from a built wall.
             DEFERRALS, each with a tracker record naming the game shape that
             unblocks it: a spelling two declarations answer to — the shadowed
-            pair and the phase-and-zone pair alike (issue #516); two phases in
-            one clause (issue #517); a scoped call in a function, define or
+            pair and the phase-and-zone pair alike (issue #516); a scoped call
+            in a function, define or
             rule body (issue #518); an offer made from inside another move
             type's body, which the analysis refuses rather than positioning,
             since following it means judging the OFFERING move type's own
@@ -142,8 +164,15 @@ walls:      the refusals here are not one kind, and the ledger says which is
             construct rather than filed: a library cannot declare a phase for
             a tail to name (unconstructible off the grammar); a move type
             nothing offers is refused rather than passing containment
-            vacuously; and a strict descendant re-declaring the name is
-            refused rather than resolved by tagging frames at run time.
+            vacuously; a strict descendant re-declaring the name is
+            refused rather than resolved by tagging frames at run time; and an
+            entry naming phases that do NOT nest is refused rather than
+            deferred, because a phase's frame is popped when the phase ends —
+            no position in the game runs both, so nothing anyone could build
+            makes such an entry callable. That last premise is a fact about
+            the runtime rather than about this guard, so it is pinned
+            (`test_a_phases_frame_does_not_outlive_the_phase`) rather than
+            argued.
 
 Born red (this branch, before any of the tail's grammar, AST, resolve or
 runtime existed): recorded at the foot of this docstring in two takes, because
@@ -178,6 +207,47 @@ and `produces:` rows and the never-run row of `_CONTAINMENT_CELLS` (the dict's
 own comments carry which was red against what), and the statement-holding
 container pin. A cell added after a take says so rather than being absorbed
 into a count that predates it.
+
+The NEST law's own two takes (a later change, its own record, counted
+separately for the same reason). The cells are the phase-set-shape axis, the
+nested position crossing, the two-tail composition rows, the standing arms
+re-probed under two tails, and the enclosure register's ancestor/sibling pair.
+Command: `.venv/bin/pytest tests/test_phase_scoped_reads.py -q`.
+
+    take 1 (2026-09-04, the cells against the one-phase arm):  53 failed, 76 passed
+    take 2 (2026-09-04, that arm lifted alone, nothing else):  30 failed, 99 passed
+
+Take 1's reds are two kinds and no third: every accept cell naming two phases
+dies on the one-phase arm, and every refusal cell dies because that arm's text
+carries none of the new law's fragments. Its passes include the five singleton
+shape cells (one phase is the degenerate chain, accepted before and after), the
+ancestor-also-declares accept (one tail), and the born-green pins, each of
+which carries its reddening mutation where it sits.
+
+TAKE 2 is the load-bearing one, and it is a measurement of the WINDOW rather
+than of a candidate implementation: the refusal arm deleted and nothing else
+touched — the containment analysis still skipping every entry that names more
+than one phase. The accepts go green, including the three-chain and the inner
+phase's own hooks, which is what says the runtime needs no line changed. Of
+the 30 reds, 27 are DID NOT RAISE: every outer-side refusal under the nest
+(the outer's body before and after the inner, its qualifier and both hooks, a
+sibling of the outer, a function body, `loser:`, both leaked-offer shapes,
+both leaked-run shapes, the three-chain's middle and outer positions) and
+every non-nesting shape cell CHECK CLEAN in that state. That is the
+accepted-and-unchecked class, executed — a designer's call refused by nothing
+and crashing at playout in the runtime's shadow guard — and it is why these
+cells exist before the arm moves rather than after. The other three reds are
+owned elsewhere and stay red through take 2: the enclosure register's pair and
+the repeat guard's wording, whose owners are `_outside` and the repeat arm.
+
+Cells sitting in neither count, added after both takes: the wrong-declarer
+tail and the untailed phase-local name, each probed with a second tail
+present, and the frame-pop pin
+(`test_a_phases_frame_does_not_outlive_the_phase`). The first two are green in
+both — their arms are the STANDING ones the lift must leave alone, so a red
+would have been the finding. The third pins a fact about the runtime rather
+than an arm of the lift, and is born green with its reddening mutation in its
+own docstring.
 """
 
 from __future__ import annotations
@@ -499,9 +569,8 @@ def test_the_phase_walk_carries_ancestry() -> None:
     would compare a derivation with itself, since the attribution IS the paths
     with each path's last element taken.
 
-    red under: drop the nesting recursion from
-    `primitives_block._phase_state_decls`, the ONE walk the paths derive
-    from."""
+    red under: drop the nesting recursion from `primitives_block._phase_tree`,
+    the ONE walk the paths derive from."""
     from cardlang.primitives_block import _phase_state_paths
 
     game = _checks(
@@ -535,10 +604,12 @@ def test_a_clause_may_mix_game_level_and_scoped_reads() -> None:
     )
 
 
-def test_two_phases_in_one_clause_are_refused() -> None:
-    """A wall. One entry has ONE containment region, because the entry is
-    callable only where its phase runs and two phases' extents are not one
-    place; the refusal names both phases and the two fixes."""
+def test_two_phases_that_do_not_nest_are_refused() -> None:
+    """A designed constraint, not a wall. `run_phase` pops a phase's frame when
+    the phase ends, so no position in the game runs two phases neither of which
+    is inside the other — an entry reading from both could never be called
+    anywhere, and "split the entry" is no fix, since the caller would need both
+    values in one place that does not exist."""
     source = _probe(
         block="pinochle_meld_value(p : Player) : Integer "
         "reads hand[p], trump_suit in outer, extra in later",
@@ -549,9 +620,12 @@ def test_two_phases_in_one_clause_are_refused() -> None:
     )
     message = _refused(source)
     assert "outer" in message and "later" in message, message
+    assert "do not nest" in message, message
+    assert "no place in this game runs both" in message, message
+    assert "split the entry" not in message, message
 
 
-def test_two_phases_in_one_clause_has_its_accept_twin() -> None:
+def test_two_phases_that_do_not_nest_has_its_accept_twin() -> None:
     """The same game with the second phase's read dropped — so the arm above is
     proven to discriminate rather than merely to fire."""
     _plays(
@@ -591,6 +665,412 @@ def test_a_name_written_bare_and_scoped_is_the_repeat_guards() -> None:
     message = _refused(source)
     assert "trump_suit" in message, message
     assert "once" in message or "repeat" in message, message
+
+
+# --- the nested probe: two phases on one ancestor path -----------------------
+#
+# `outer` is a top-level phase and `inner` sits inside it — cribbage's own
+# shape (`hand_sequence` > `play`). The entry names a state variable of each,
+# so its region is `inner`'s subtree: the innermost named phase's, which is the
+# intersection of the two named subtrees. `deep` is over-declared and the
+# implementation ignores it, exactly as the binder-and-tail cell's `seen[p]` is.
+
+_NESTED_ENTRY = (
+    "pinochle_meld_value(p : Player) : Integer\n"
+    "        reads hand[p], trump_suit in outer, deep in inner"
+)
+
+_NDEAL = "    shuffle deck\n    deal 12 cards from deck to each hand\n"
+
+
+def _call_at(indent: int) -> str:
+    return " " * indent + "meld[0] := pinochle_meld_value(0)\n"
+
+
+def _nested(
+    *,
+    block: str | None = _NESTED_ENTRY,
+    top: str = "",
+    game_state: str = "",
+    outer_qualifier: str = "",
+    outer_state: str = "trump_suit : Suit? = spades",
+    outer_items: str = "",
+    outer_before: str = "",
+    inner_qualifier: str = "",
+    inner_state: str = "deep : Integer = 0",
+    inner_items: str = "",
+    inner_body: str = _call_at(6),
+    outer_after: str = "",
+    after_outer: str = "",
+    winner: str = "  winner: highest meld\n",
+) -> str:
+    """A probe game with `outer` enclosing `inner`, both declaring state.
+
+    Every slot is a string spliced at one place, as `_probe`'s are, so each
+    cell reads as the ONE thing it varies from the accept baseline — a call in
+    `inner`'s body."""
+    outer_sb = f"    state {{ {outer_state} }}\n" if outer_state else ""
+    inner_sb = f"      state {{ {inner_state} }}\n" if inner_state else ""
+    return (
+        top
+        + "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 100\n"
+        "  cards: pinochle48\n"
+        "  ranking: A 10 K Q J 9\n"
+        + ("  primitives { " + block + " }\n" if block is not None else "")
+        + "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { meld[player] : Integer = 0" + game_state + " }\n"
+        + f"  phase outer {outer_qualifier}{{\n"
+        + outer_sb
+        + outer_items
+        + _NDEAL
+        + outer_before
+        + f"    phase inner {inner_qualifier}{{\n"
+        + inner_sb
+        + inner_items
+        + inner_body
+        + "    }\n"
+        + outer_after
+        + "  }\n"
+        + after_outer
+        + winner
+        + "}\n"
+    )
+
+
+# --- axis: PHASE-SET SHAPE — which sets of phases one clause may name --------
+#
+# The phases an entry's `reads` clause names must NEST, one inside the next,
+# and the entry is callable only where the innermost of them runs. The shape
+# axis is derived from the AUTHORED path table below rather than read off
+# `primitives_block`'s walk, so the pin crosses a classification with the
+# language's rule instead of comparing a derivation with itself.
+
+_SHAPE_PHASE_PATHS: dict[str, tuple[str, ...]] = {
+    "top": ("top",),
+    "outer": ("top", "outer"),
+    "inner": ("top", "outer", "inner"),
+    "later": ("top", "later"),
+    "cousin": ("top", "later", "cousin"),
+}
+
+# The isomorphism classes the table above realises over its subsets of at most
+# three phases. AUTHORED from the shapes the law distinguishes, and pinned
+# equal to what the derivation finds, which is what keeps the list checkable.
+# The skip-level class carries its GAP so a deeper fixture lands as a class
+# with no row rather than joining this one silently.
+_SHAPE_CLASSES: frozenset[str] = frozenset(
+    {
+        "singleton",
+        "adjacent pair",
+        "top-level-outer pair",
+        "skip-level pair (gap 2)",
+        "three-chain",
+        "sibling pair",
+        "cousin pair",
+        "mixed triple",
+    }
+)
+
+
+def _shape_class(members: tuple[str, ...]) -> tuple[bool, str]:
+    """(do these phases lie on one ancestor path, which shape class they are).
+
+    Prefix order over the authored paths IS the nesting question: a set nests
+    exactly when, sorted by depth, each path is a prefix of the next."""
+    paths = sorted((_SHAPE_PHASE_PATHS[m] for m in members), key=len)
+    chain = all(
+        paths[i] == paths[i + 1][: len(paths[i])] for i in range(len(paths) - 1)
+    )
+    if not chain:
+        if len(paths) > 2:
+            return False, "mixed triple"
+        first, second = paths
+        return False, ("sibling pair" if first[:-1] == second[:-1] else "cousin pair")
+    if len(paths) == 1:
+        return True, "singleton"
+    if len(paths) == 3:
+        return True, "three-chain"
+    first, second = paths
+    gap = len(second) - len(first)
+    if gap > 1:
+        return True, f"skip-level pair (gap {gap})"
+    return True, ("top-level-outer pair" if len(first) == 1 else "adjacent pair")
+
+
+def _shape_subsets() -> list[tuple[str, ...]]:
+    """Every subset of at most three of the fixture's phases, ordered so the
+    parametrized ids are stable."""
+    import itertools
+
+    names = sorted(_SHAPE_PHASE_PATHS)
+    return [
+        combo
+        for size in (1, 2, 3)
+        for combo in itertools.combinations(names, size)
+    ]
+
+
+def _shape_source(members: tuple[str, ...]) -> str:
+    """The fixture with one read tailed to each named phase, and the call in the
+    innermost of them — or, for a set that does not nest, in `top`, which the
+    entry-grain arm refuses whatever position the call takes."""
+    nests, _ = _shape_class(members)
+    innermost = (
+        max(members, key=lambda m: len(_SHAPE_PHASE_PATHS[m])) if nests else "top"
+    )
+    tails = "".join(f", s_{m} in {m}" for m in sorted(members))
+
+    def body(phase: str, indent: int) -> str:
+        own = " " * indent + f"s_{phase} := s_{phase}\n"
+        return own + (_call_at(indent) if phase == innermost else "")
+
+    def state(phase: str, indent: int) -> str:
+        return " " * indent + f"state {{ s_{phase} : Integer = 0 }}\n"
+
+    return (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 100\n"
+        "  cards: pinochle48\n"
+        "  ranking: A 10 K Q J 9\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer\n"
+        f"      reads hand[p], trump_suit{tails} }}\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { meld[player] : Integer = 0  trump_suit : Suit? = spades }\n"
+        "  phase top {\n"
+        + state("top", 4)
+        + "    shuffle deck\n"
+        "    deal 12 cards from deck to each hand\n"
+        + body("top", 4)
+        + "    phase outer {\n"
+        + state("outer", 6)
+        + body("outer", 6)
+        + "      phase inner {\n"
+        + state("inner", 8)
+        + body("inner", 8)
+        + "      }\n"
+        "    }\n"
+        "    phase later {\n"
+        + state("later", 6)
+        + body("later", 6)
+        + "      phase cousin {\n"
+        + state("cousin", 8)
+        + body("cousin", 8)
+        + "      }\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest meld\n"
+        "}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "members", _shape_subsets(), ids=lambda m: "+".join(m)
+)
+def test_the_phase_set_shape_axis(members: tuple[str, ...]) -> None:
+    """One cell per phase set the fixture can name. A set that nests is
+    ACCEPTED and PLAYS with the call in its innermost; a set that does not is
+    refused at entry grain with the designed constraint's reason, and the
+    containment analysis says nothing about it — a call site reported beside it
+    would make one defect look like two."""
+    source = _shape_source(members)
+    nests, _ = _shape_class(members)
+    if nests:
+        _plays(source)
+        return
+    message = _refused(source)
+    assert "do not nest" in message, message
+    assert "callable only where" not in message, message
+
+
+def test_the_shape_classes_the_fixture_realises_are_the_authored_rows() -> None:
+    """The authored class list, held equal to what the fixture's own subsets
+    realise — the derivation that keeps the list from going stale silently, and
+    the reason the shape axis is a domain rather than a hand-picked sample.
+
+    Born green: the table and the list are authored together. red under: add a
+    fourth level to `_SHAPE_PHASE_PATHS` (a `deeper` under `inner`) without a
+    row — its pairs with `top` realise a gap-3 skip class no row names."""
+    realised = {_shape_class(members)[1] for members in _shape_subsets()}
+    assert realised == _SHAPE_CLASSES, sorted(realised ^ _SHAPE_CLASSES)
+
+
+# --- axis: CLAUSE COMPOSITION under two tails --------------------------------
+
+
+def test_two_nested_phases_in_one_clause_play() -> None:
+    """The ruled sentence's shape: two phases on one ancestor path, the entry
+    called where the innermost runs."""
+    _plays(_nested())
+
+
+def test_a_binder_rides_beside_a_second_phases_tail() -> None:
+    """The binder axis crossed with the nest: an indexed phase-local read keyed
+    by a parameter, beside a read tailed to the enclosing phase."""
+    _plays(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in outer, stage[p] in inner",
+            inner_state="stage[player] : Integer = 0",
+        )
+    )
+
+
+def test_two_nested_phases_sit_beside_game_level_names() -> None:
+    """Canasta's mixing shape crossed with the nest: game-level names in the
+    same clause as two scoped ones."""
+    _plays(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], meld[p], trump_suit in outer, deep in inner"
+        )
+    )
+
+
+def test_an_inner_phase_redeclaring_an_outer_tails_name_is_the_descendant_arms(
+) -> None:
+    """The fourth predicate speaks per READ, so it is what refuses the inner
+    phase re-declaring a name the outer tail names — the innermost frame would
+    win at run time while the declaration names the ancestor's."""
+    message = _refused(
+        _nested(
+            inner_state="deep : Integer = 0  trump_suit : Suit? = hearts",
+        )
+    )
+    assert "inner" in message, message
+    assert "declares `trump_suit` too" in message, message
+
+
+def test_an_ancestor_declaring_the_tailed_name_too_plays() -> None:
+    """The converse, and an accept: the tail names the DESCENDANT and an
+    ancestor declares the name as well. The innermost walk returns the
+    descendant's value, which is what the declaration names — and the
+    ancestor's variable stays readable by an entry callable outside the
+    descendant, which is why this pair is not the game-and-phase shadow."""
+    _plays(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in inner",
+            inner_state="deep : Integer = 0  trump_suit : Suit? = hearts",
+        )
+    )
+
+
+def test_one_misspelled_tail_beside_a_good_one_reports_once() -> None:
+    """One defect, one diagnostic, with two tails present. A misspelled tail has
+    no phase path, so asking "do these nest?" first would co-report the
+    composition error on top of the typo — which is why the nest arm sits after
+    every per-read tail has validated."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in outer, deep in nowhere"
+        )
+    )
+    assert "no phase `nowhere`" in message, message
+    assert "do not nest" not in message, message
+    assert "callable only where" not in message, message
+
+
+def test_a_tail_naming_the_wrong_declarer_beside_a_good_one_reports_once() -> None:
+    """The plausible guess a designer writes when both phases are in view:
+    both tails name the phase they can see, and the inner one declares
+    neither. The wrong-declarer arm names the phase that DOES declare it, and
+    the nest arm stays quiet — the tail has no path until it resolves."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in inner, deep in inner"
+        )
+    )
+    assert "phase `inner` declares no state `trump_suit`" in message, message
+    assert "phase `outer` declares it" in message, message
+    assert "do not nest" not in message, message
+
+
+def test_an_untailed_phase_local_name_beside_a_tail_teaches_its_own_tail() -> None:
+    """The list-scope misreading: one tail written at the end of the clause,
+    read as if it scoped every name before it. The phase-local arm owns the
+    untailed name and teaches the tail that name wants — its OWN phase, not
+    the one the clause already mentions."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit, deep in inner"
+        )
+    )
+    assert "trump_suit in outer" in message, message
+
+
+def test_the_same_name_under_two_tails_is_the_repeat_guards() -> None:
+    """Two declarations of ONE spelling. The entry receives one value per name,
+    so both cannot reach it — the repeat guard owns it, and its message says
+    which fact makes the pair unrepresentable rather than only that a repeat
+    replaces the first."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in outer, trump_suit in inner",
+            inner_state="deep : Integer = 0  trump_suit : Suit? = hearts",
+        )
+    )
+    assert "more than once" in message, message
+    assert "each spelling at most once" in message, message
+
+
+def test_a_repeat_beside_two_tails_is_still_the_repeat_guards() -> None:
+    """The same guard where a designer meets it: two nested tails and one name
+    written twice."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in outer, deep in inner, deep"
+        )
+    )
+    assert "`deep` more than once" in message, message
+
+
+@pytest.mark.parametrize(
+    "extra,fragment",
+    [
+        ("  trump_suit : Suit? = hearts", "trump_suit"),
+        ("", "trump_suit"),
+    ],
+    ids=["shadowed-pair", "phase-and-zone"],
+)
+def test_the_standing_collision_arms_still_speak_under_two_tails(
+    extra: str, fragment: str
+) -> None:
+    """The lift must not loosen a standing refusal. #516's two arms are
+    re-probed with a second tail present: the game-and-phase shadow, and a name
+    a phase declares as state while the game declares it as a zone."""
+    if extra:
+        source = _nested(game_state=extra)
+    else:
+        source = _nested().replace(
+            "  zones { deck : Deck  hand[player] : Hand<player> }",
+            "  zones { deck : Deck  hand[player] : Hand<player>  "
+            "trump_suit : Discard }",
+        )
+    message = _refused(source)
+    assert fragment in message, message
+    assert "do not nest" not in message, message
+
+
+def test_a_pure_entry_under_two_tails_is_still_the_pure_guards() -> None:
+    """The pure-reads guard speaks before the nest arm: an implementation that
+    never receives the bundle cannot honour a `reads` clause, whatever its tails
+    name."""
+    message = _refused(
+        _nested(
+            block="skat_next_bid(x : Integer) : Integer\n"
+            "        reads trump_suit in outer, deep in inner",
+            inner_body="      meld[0] := skat_next_bid(0)\n",
+        )
+    )
+    assert "pure" in message, message
 
 
 # --- axis: CONTAINMENT POSITION ----------------------------------------------
@@ -642,7 +1122,7 @@ _CONTAINMENT_CELLS: dict[str, tuple[str, ...] | None] = {
     "descendant-phase": None,
     "declaring-phase-qualifier": None,
     "sibling-phase": ("outer", "pinochle_meld_value"),
-    "ancestor-phase": ("outer", "pinochle_meld_value"),
+    "ancestor-phase": ("outer", "pinochle_meld_value", "encloses"),
     "function-body": ("outer", "pinochle_meld_value"),
     "rule-applies-when": ("outer", "pinochle_meld_value"),
     "loser-expression": ("outer", "pinochle_meld_value"),
@@ -863,7 +1343,280 @@ def test_a_wrong_tail_and_a_wrong_call_site_report_once() -> None:
     )
     message = _refused(source)
     assert "declares no state" in message, message
-    assert "callable only where that phase runs" not in message, message
+    # Anchored on the containment sentence's INVARIANT half. The phase it names
+    # is interpolated, so a fragment carrying "that phase" would name text no
+    # diagnostic can produce and could never fail again.
+    assert "callable only where" not in message, message
+
+
+def test_the_enclosure_register_separates_an_ancestor_from_a_sibling() -> None:
+    """An ENCLOSING phase runs outside the region for a different reason than a
+    sibling does — its frame is standing, the region's is not — and the
+    diagnostic says which, because the fixes differ: move the call in, versus
+    the call is nowhere near. The pair is what pins the enclosure branch;
+    either sentence alone would pass a guard that said "encloses" of every
+    outside phase."""
+    ancestor = _refused(_containment_source("ancestor-phase"))
+    sibling = _refused(_containment_source("sibling-phase"))
+    assert "encloses `outer` but runs outside it" in ancestor, ancestor
+    assert "encloses" not in sibling, sibling
+    assert "runs outside it" in sibling, sibling
+
+
+# --- the position taxonomy crossed with the nested pair ----------------------
+#
+# The region of an entry naming two nested phases is the INNERMOST one's
+# subtree, so the outer phase's own body and hooks are outside it even though
+# the outer's frame is standing there. That is the position the lift makes
+# newly refusable, and the register separates it from a phase that is merely
+# elsewhere.
+
+_BINDING = "reads `deep in inner`"
+_REGION = "callable only where `inner` runs"
+_ENCLOSED = "encloses `inner` but runs outside it"
+
+_ENCLOSURE = (_BINDING, _REGION, _ENCLOSED)
+
+_NEST_CONTAINMENT_CELLS: dict[str, tuple[tuple[str, ...], tuple[str, ...]] | None] = {
+    # vector -> (fragments the refusal carries, fragments it must NOT), or None
+    # for an accepted position, which PLAYS.
+    "inner-body": None,
+    "inner-hooks": None,
+    "child-of-the-inner": None,
+    "outer-body-before-the-inner": (_ENCLOSURE, ()),
+    "outer-body-after-the-inner": (_ENCLOSURE, ()),
+    "outer-qualifier": (_ENCLOSURE, ()),
+    "outer-before-each": (_ENCLOSURE, ()),
+    "outer-after-each": (_ENCLOSURE, ()),
+    "sibling-of-the-outer": (
+        (_BINDING, _REGION, "in `later`, which runs outside it"),
+        ("encloses",),
+    ),
+    "function-body": ((_BINDING, _REGION), ("encloses",)),
+    "loser-expression": ((_BINDING, _REGION), ("encloses",)),
+    "move-type-offered-inside-the-inner": None,
+    "move-type-offered-in-the-outer": (("note", "inner"), ()),
+    "move-type-offered-both-sides": (("note", "inner"), ()),
+    "procedure-run-inside-the-inner": None,
+    "procedure-run-in-the-outer": (("bump", "inner"), ()),
+    "procedure-run-both-sides": (("bump", "inner"), ()),
+    "three-chain-innermost": None,
+    "three-chain-middle": (
+        ("reads `deepest_v in deepest`", "callable only where `deepest` runs"),
+        (),
+    ),
+    "three-chain-outer": (
+        ("reads `deepest_v in deepest`", "callable only where `deepest` runs"),
+        (),
+    ),
+}
+
+_INERT_INNER = "      deep := deep\n"
+
+# The three positions no corpus game reaches, one level deeper than the
+# single-phase fixture's: the INNER phase's own qualifier, `before_each` and
+# `after_each`, all of which run between its push and its pop and are therefore
+# inside the region — proven by which `stage` value each call presents.
+_NESTED_INNER_HOOKS_FIXTURE = (
+    "game Probe {\n"
+    "  players: 2\n"
+    "  max_length: 100\n"
+    "  cards: pinochle48\n"
+    "  ranking: A 10 K Q J 9\n"
+    "  primitives {\n"
+    "    pinochle_meld_value(p : Player) : Integer\n"
+    "        reads hand[p], stage, trump_suit in outer, deep in inner\n"
+    "  }\n"
+    "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+    "  state { meld[player] : Integer = 0  stage : Integer = 0 }\n"
+    "  phase outer {\n"
+    "    state { trump_suit : Suit? = spades }\n"
+    "    shuffle deck\n"
+    "    deal 12 cards from deck to each hand\n"
+    "    phase inner repeat until (pinochle_meld_value(0) >= 0 and done) {\n"
+    "      state { deep : Integer = 0  done : Boolean = false }\n"
+    "      before_each { stage := 1  meld[0] := pinochle_meld_value(0) }\n"
+    "      after_each  { stage := 3  meld[1] := pinochle_meld_value(1) }\n"
+    "      stage := 2\n"
+    "      meld[0] := pinochle_meld_value(0)\n"
+    "      done := true\n"
+    "    }\n"
+    "  }\n"
+    "  winner: highest meld\n"
+    "}\n"
+)
+
+
+def _three_chain(call_in: str) -> str:
+    """`outer` > `inner` > `deepest`, each declaring state the entry names, with
+    the call in one of the three — the no-depth-cap claim, sampled."""
+
+    def body(phase: str, indent: int) -> str:
+        return _call_at(indent) if phase == call_in else ""
+
+    return (
+        "game Probe {\n"
+        "  players: 2\n"
+        "  max_length: 100\n"
+        "  cards: pinochle48\n"
+        "  ranking: A 10 K Q J 9\n"
+        "  primitives { pinochle_meld_value(p : Player) : Integer\n"
+        "      reads hand[p], trump_suit in outer, deep in inner, "
+        "deepest_v in deepest }\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        "  state { meld[player] : Integer = 0 }\n"
+        "  phase outer {\n"
+        "    state { trump_suit : Suit? = spades }\n"
+        "    shuffle deck\n"
+        "    deal 12 cards from deck to each hand\n"
+        + body("outer", 4)
+        + "    phase inner {\n"
+        "      state { deep : Integer = 0 }\n"
+        + body("inner", 6)
+        + "      phase deepest {\n"
+        "        state { deepest_v : Integer = 0 }\n"
+        "        deepest_v := deepest_v\n"
+        + body("deepest", 8)
+        + "      }\n"
+        "    }\n"
+        "  }\n"
+        "  winner: highest meld\n"
+        "}\n"
+    )
+
+
+def _nest_containment_source(cell: str) -> str:
+    match cell:
+        case "inner-body":
+            return _nested()
+        case "inner-hooks":
+            return _NESTED_INNER_HOOKS_FIXTURE
+        case "child-of-the-inner":
+            return _nested(
+                inner_body=_INERT_INNER
+                + "      phase deeper {\n"
+                + _call_at(8)
+                + "      }\n"
+            )
+        case "outer-body-before-the-inner":
+            return _nested(inner_body=_INERT_INNER, outer_before=_call_at(4))
+        case "outer-body-after-the-inner":
+            return _nested(inner_body=_INERT_INNER, outer_after=_call_at(4))
+        case "outer-qualifier":
+            return _nested(
+                outer_qualifier="repeat until (pinochle_meld_value(0) >= 0) ",
+                inner_body=_INERT_INNER,
+            )
+        case "outer-before-each":
+            return _nested(
+                outer_qualifier="repeat until (done) ",
+                outer_state="trump_suit : Suit? = spades  done : Boolean = true",
+                outer_items="    before_each { meld[0] := pinochle_meld_value(0) }\n",
+                inner_body=_INERT_INNER,
+            )
+        case "outer-after-each":
+            return _nested(
+                outer_qualifier="repeat until (done) ",
+                outer_state="trump_suit : Suit? = spades  done : Boolean = true",
+                outer_items="    after_each { meld[0] := pinochle_meld_value(0) }\n",
+                inner_body=_INERT_INNER,
+            )
+        case "sibling-of-the-outer":
+            return _nested(
+                inner_body=_INERT_INNER,
+                after_outer="  phase later {\n" + _call_at(4) + "  }\n",
+            )
+        case "function-body":
+            return _nested(
+                top="function meld_of(q : Player) = pinochle_meld_value(q)\n",
+                inner_body="      for each player p: meld[p] := meld_of(p)\n",
+            )
+        case "loser-expression":
+            return _nested(
+                inner_body=_INERT_INNER,
+                winner="  loser: the player where pinochle_meld_value(player) >= 0\n",
+            )
+        case "move-type-offered-inside-the-inner":
+            return _nested(top=_NOTE, inner_body="      offer to 0 one of [note]\n")
+        case "move-type-offered-in-the-outer":
+            return _nested(
+                top=_NOTE,
+                inner_body=_INERT_INNER,
+                outer_after="    offer to 0 one of [note]\n",
+            )
+        case "move-type-offered-both-sides":
+            return _nested(
+                top=_NOTE,
+                inner_body="      offer to 0 one of [note]\n",
+                outer_after="    offer to 1 one of [note]\n",
+            )
+        case "procedure-run-inside-the-inner":
+            return _nested(top=_BUMP, inner_body="      run bump()\n")
+        case "procedure-run-in-the-outer":
+            return _nested(
+                top=_BUMP, inner_body=_INERT_INNER, outer_after="    run bump()\n"
+            )
+        case "procedure-run-both-sides":
+            return _nested(
+                top=_BUMP,
+                inner_body="      run bump()\n",
+                outer_after="    run bump()\n",
+            )
+        case "three-chain-innermost":
+            return _three_chain("deepest")
+        case "three-chain-middle":
+            return _three_chain("inner")
+        case "three-chain-outer":
+            return _three_chain("outer")
+    raise AssertionError(f"no source for nested containment cell {cell!r}")
+
+
+@pytest.mark.parametrize("cell", sorted(_NEST_CONTAINMENT_CELLS), ids=lambda c: c)
+def test_the_containment_position_taxonomy_under_the_nest(cell: str) -> None:
+    """One cell of the position taxonomy, crossed with two nested phases. An
+    admitted position PLAYS; a refused one names the read that binds the region
+    and the phase the call sits in — and says whether that phase encloses the
+    region, since a call inside the enclosing phase moves in while a call
+    elsewhere does not."""
+    expected = _NEST_CONTAINMENT_CELLS[cell]
+    source = _nest_containment_source(cell)
+    if expected is None:
+        _plays(source)
+        return
+    present, absent = expected
+    message = _refused(source)
+    for fragment in present:
+        assert fragment in message, message
+    for fragment in absent:
+        assert fragment not in message, message
+
+
+def test_the_admitted_inner_hook_positions_are_reached_by_a_playout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The accept row says the inner phase's hooks are ADMITTED; this says they
+    are REACHED, with both frames standing — the same discharge the
+    single-phase fixture makes one level up, since the outer frame's standing
+    is what a nested region's admission rests on.
+
+    stage 0 is reachable only by the qualifier (its first evaluation runs
+    before any statement), 1 only by `before_each`, 2 by the body, 3 by
+    `after_each` and by the qualifier's later evaluations."""
+    from cardlang.runtime import pinochle as pinochle_mod
+
+    seen: list[tuple[int, object]] = []
+    real = pinochle_mod.pinochle_meld_value
+
+    def spy(facts: object, gr: object, player: object) -> int:
+        state = gr.state  # type: ignore[attr-defined]
+        seen.append((int(state["stage"]), state["trump_suit"]))
+        return real(facts, gr, player)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(pinochle_mod, "pinochle_meld_value", spy)
+    play_game(_checks(_NESTED_INNER_HOOKS_FIXTURE), random.Random(0))
+    stages = {stage for stage, _ in seen}
+    assert {0, 1, 2, 3} <= stages, seen
+    assert all(trump == "spades" for _, trump in seen), seen
 
 
 def test_an_offer_outside_the_subtree_points_at_the_offer() -> None:
@@ -1024,6 +1777,42 @@ def _walk_all(node: object) -> list[object]:
 
 
 # --- the runtime premise the guard leans on ----------------------------------
+
+
+def test_a_phases_frame_does_not_outlive_the_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The premise the non-nesting refusal rests on, as a checked fact rather
+    than a comment. `run_phase` pops what it pushed, so a phase's state stands
+    nowhere outside that phase's extent — which is why no position in a game
+    runs two phases neither of which is inside the other, and why an entry
+    reading from both is refused as a designed constraint rather than deferred
+    as a wall. If the premise ever went false the refusal would become the
+    wrong answer silently, so it is pinned rather than argued.
+
+    Born green. red under: drop the `finally: ctx.rs.pop_frame()` from
+    `runtime/driver.run_phase` — every enclosing phase's depth then differs
+    across its own call, and a sibling's frame survives into the phase after
+    it."""
+    from cardlang.runtime import driver as driver_mod
+
+    real = driver_mod.run_phase
+    depths: list[tuple[str, int, int]] = []
+
+    def spy(phase: n.Phase, ctx: typing.Any, hands: typing.Any) -> None:
+        before = len(ctx.rs.frames)
+        real(phase, ctx, hands)
+        depths.append((phase.name, before, len(ctx.rs.frames)))
+
+    monkeypatch.setattr(driver_mod, "run_phase", spy)
+    play_game(_checks(_shape_source(("inner",))), random.Random(0))
+    assert depths, "no phase ran"
+    assert all(before == after for _, before, after in depths), depths
+    # And the frames were genuinely pushed, so the equality above is not the
+    # trivial one a runtime that pushed nothing would satisfy.
+    entered = {name: before for name, before, _ in depths}
+    assert entered["inner"] > entered["outer"] > entered["top"], depths
+    assert entered["later"] == entered["outer"], depths
 
 
 def test_the_move_type_index_readers_are_the_pinned_census() -> None:
@@ -1293,8 +2082,12 @@ def test_the_grid_is_not_empty() -> None:
 
     Born green, like every floor. red under: empty either dict, or delete every
     accept row from `_CONTAINMENT_CELLS`, leaving a taxonomy that only ever
-    proves the guard fires."""
+    proves the guard fires. The shape axis needs no floor here: its cells are
+    DERIVED from `_SHAPE_PHASE_PATHS`, and the class pin beside it is what
+    catches a table that stopped realising a class."""
     assert len(_MEMBERSHIP_CELLS) >= 11
     assert len(_CONTAINMENT_CELLS) >= 22
-    assert any(v is None for v in _CONTAINMENT_CELLS.values())
-    assert any(v is not None for v in _CONTAINMENT_CELLS.values())
+    assert len(_NEST_CONTAINMENT_CELLS) >= 20
+    for cells in (_CONTAINMENT_CELLS, _NEST_CONTAINMENT_CELLS):
+        assert any(v is None for v in cells.values())
+        assert any(v is not None for v in cells.values())

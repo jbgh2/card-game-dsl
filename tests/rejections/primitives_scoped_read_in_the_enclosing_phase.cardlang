@@ -1,0 +1,27 @@
+// Guard: resolve.py's `_check_scoped_read_containment`. The entry names two
+// phases that nest, so its region is the INNER one's subtree — the outer tail
+// says which declaration `trump_suit` is, never where the entry may be called.
+// This call sits in the enclosing phase's own body, where `inner`'s frame has
+// not been pushed yet, so the refusal says the phase encloses the region
+// rather than that it runs somewhere else entirely.
+game ScopedReadInTheEnclosingPhase {
+  players: 2
+  max_length: 100
+  cards: pinochle48
+  ranking: A 10 K Q J 9
+  primitives {
+    pinochle_meld_value(p : Player) : Integer reads hand[p], trump_suit in outer, deep in inner
+  }
+  zones { deck : Deck  hand[player] : Hand<player> }
+  state { meld[player] : Integer = 0 }
+  phase outer {
+    state { trump_suit : Suit? = spades }
+    deal 12 cards from deck to each hand
+    meld[0] := pinochle_meld_value(0)
+    phase inner {
+      state { deep : Integer = 0 }
+      deep := deep
+    }
+  }
+  winner: highest meld
+}
