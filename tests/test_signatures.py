@@ -4,13 +4,17 @@ signatures are correct (cardlang/builtins/signatures.py).
 property:   the Builtin and Primitive name sets, the signature tables, and
             the runtime dispatchers are one interface — every name in a *tabled*
             registry has a signature row, every *callable* name reaches a
-            dispatch arm, and for CALL_SIGS additionally the same per-name
-            arity and, where an arm plainly forwards to a named helper,
-            Python annotations that agree with the declared DSL types
+            dispatch arm, and for a call signature — `CALL_SIGS` for the
+            Builtins, the implementation index's `sig` column for the
+            Primitives — additionally the same per-name arity and, where an
+            arm plainly forwards to a named helper, Python annotations that
+            agree with the declared DSL types
 domain:     every registry with a signature table × that table; every
             callable registry × the dispatcher(s) serving it (the climb
             lead set is served twice — by its query, and by the action
-            space's codec-else-universe pair); every CALL_SIGS entry ×
+            space's codec-else-universe pair); every call-signature entry of
+            both tables that state one — the Builtins' `CALL_SIGS` and the
+            implementation index's `sig` column — ×
             {name, arity, param annotations, return annotation}
 registry:   the name sets themselves for names; the dispatch's own AST for
             what each arm consumes (derived by parsing, never hand-listed)
@@ -288,17 +292,20 @@ def test_known_call_signatures() -> None:
     assert CALL_SIGS["suit_of"].ret == TEnum("Suit")
 
 
-# --- CALL_SIGS <-> runtime dispatch reconciliation ----------------------------
+# --- declared signature <-> runtime dispatch reconciliation -------------------
 #
-# CALL_SIGS states each native function's interface once for the checker; the
-# `call()` match (across both dispatch homes) states it again for the runtime (how many
-# `args[i]` the arm consumes, and the Python annotations of the helper it
-# forwards to). Two statements of one interface, which nothing else
+# A native call's interface is stated once for the checker — `CALL_SIGS` for
+# the Builtins, the implementation index's `sig` column for the Primitives —
+# and once for the runtime: a Builtin's `call` arm by how many `args[i]` it
+# consumes and the Python annotations of the helper it forwards to, a
+# Primitive by the annotations of the Python its index row names. Two
+# statements of one interface, which nothing else
 # reconciles: a helper declared `Rank?` to the DSL but annotated `rank: str`
 # to Python would deny the `none` value the checker admits (and the body
 # deliberately handles — an unset claim matches no card), and the two
-# statements would disagree in silence. These pins derive both facts from the
-# dispatch's AST rather than a third hand-written list.
+# statements would disagree in silence. These pins derive the runtime side
+# from the dispatch's AST and the index's own rows rather than from a third
+# hand-written list.
 
 
 @dataclasses.dataclass(frozen=True)
