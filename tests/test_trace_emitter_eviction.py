@@ -25,8 +25,10 @@ domain:     evicted name x consulting site. The site axis was frozen by a
             (docs/games/*.{cardlang,md}, docs/library.md).
 registry:   cardlang/builtins/functions.py (all seven name-sets, imported
             below — a new namespace joins OTHER_NAMESPACES or the import
-            fails); cardlang/builtins/signatures.py CALL_SIGS;
-            cardlang/primitives_block.py PRIMITIVE_IMPLEMENTATIONS;
+            fails); both tables that state a native signature —
+            cardlang/builtins/signatures.py CALL_SIGS for the Builtins and
+            cardlang/primitives_block.py PRIMITIVE_IMPLEMENTATIONS, whose
+            rows carry the Primitives';
             cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
 covered:    the parametrized cells below. Cross-table sync (functions <->

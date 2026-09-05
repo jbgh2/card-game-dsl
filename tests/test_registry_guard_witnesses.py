@@ -688,9 +688,9 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # It reconciles no rows — the sentinel is the Builtin half's way of saying
     # "not mine" — and it is a Shadow Guard, unreachable from any game
     # description, because resolve refuses the name against the game's own
-    # namespace first (`_validate_refs`). What it protects is that a declared
-    # game never falls through to the legacy dispatch, which is the property
-    # the regime partition exists for; the Owner Guard's witness is
+    # namespace first (`_validate_refs`). What it protects is that no game
+    # reaches Python its own file never claimed, which is the property the
+    # regime partition exists for; the Owner Guard's witness is
     # test_an_empty_block_refuses_a_primitive_call
     # (tests/test_primitives_block.py).
     "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],

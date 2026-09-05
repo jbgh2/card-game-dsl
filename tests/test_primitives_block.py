@@ -1931,9 +1931,9 @@ def test_library_provided_state_reaches_the_reads_clause(
 # A declared game may define a function named after a Primitive absent from its
 # namespace. Every guard keyed on the name against a corpus-wide native
 # registry would then fire on a call the runtime dispatches to the user
-# function. The axis is those registries, crossed with the legacy Primitive
-# set: a nonempty intersection is a registry whose names a designer function
-# may legally take.
+# function. The axis is those registries, crossed with the Primitive registry:
+# a nonempty intersection is a registry whose names a designer function may
+# legally take.
 
 
 def _collidable_native_registries() -> dict[str, frozenset[str]]:

@@ -633,3 +633,40 @@ each answered in the change rather than marked:
 - `_HASHSEED_CAPTURE`'s comment claimed its record sits at or below the grain
   of every golden in its domain. Coup's coins now ride no channel it records;
   the comment says which divergence is the golden's to catch instead.
+
+## Gate-4 addendum (2026-09-05, recorded at the closing change — the derived consumer set against the counsel's statement)
+
+The counsel's (c) lists the `CALL_SIGS` consumers to re-point and the
+framing check's section 3 splits the table by half. Two derived facts the
+lists do not carry, each answered in the change rather than marked:
+
+- **The dispatchability pin's channel.** `test_call_funcs_are_dispatchable`
+  swallowed any non-`AssertionError` to mean "reached real code past the
+  match" (`tests/test_signatures.py`, the framing check's silent-pass
+  hazard). Re-channelling `native_call`'s refusal to `ShadowGuardError`
+  makes that swallow accept the refusal itself, so the cell would have gone
+  green while proving nothing. It asserts the refusal's own channel AND its
+  message text, and carries `expects_shadow_guard` — the house's mark for a
+  Shadow Guard exercised on purpose. The ledger says what the green proves:
+  the refusal discriminates a Primitive from a Builtin, never that a
+  designer reaches it.
+- **What replaces `set(CALL_FUNCS) == set(CALL_SIGS)`.** That one line
+  pinned "every call name has a signature". At the end state the fact has
+  two carriers, and the ledger sentence names both: the index's import-time
+  `frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS` for
+  existence, and `sig` being a required field of `Implementation` for
+  shape — rung 1, since an implementation with no signature does not
+  construct. Naming only the first would over-credit it: it says nothing
+  about shape.
+
+And one measured fact the counsel's (c) relies on without stating: the two
+halves of the call registry are disjoint (`BUILTIN_CALL_FUNCS &
+PRIMITIVE_CALL_FUNCS` is empty), which is what makes `set(CALL_SIGS) ==
+BUILTIN_CALL_FUNCS` a statement that no Primitive is keyed there rather than
+one an overlapping name could satisfy while remaining in both tables.
+
+The transcription of the 44 signatures was crossed against `CALL_SIGS` row by
+row while both statements stood, under an assert that shipped in the commit
+adding the column and left with the table half it crossed: `mypy --strict`
+catches a missing signature, and nothing but that assert could catch a wrong
+one.

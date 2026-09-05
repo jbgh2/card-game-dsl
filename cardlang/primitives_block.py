@@ -151,7 +151,7 @@ def call_namespace(game: n.Game) -> frozenset[str]:
     """Every name the game may write as a native `f(...)` call.
 
     The union both regimes agree on is the Builtins; what differs is the
-    Primitive half. A declared game reaching a legacy Primitive is the
+    Primitive half. A declared game reaching another game's Primitive is the
     cross-game leakage this block exists to end (issue #364): its neighbour's
     trick winner is not in ITS namespace, so the call is an unknown name."""
     match regime(game):
