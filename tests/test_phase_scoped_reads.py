@@ -140,6 +140,13 @@ does not prove: a green here says nothing about whether the runtime premise
             And a green says nothing about whether a declared read SUFFICES
             for its implementation — that is a fact about Python, proven only
             by a playout (tests/test_primitives_block.py's witness owns it).
+            The shape axis derives its subsets TOTALLY over a fixture that is
+            three levels deep and at most three phases per clause; the law
+            names no depth cap, so what a green there proves is that every
+            shape class the fixture can realise lands where the law says, not
+            that a fourth level would. The class pin beside it is what makes
+            a deeper fixture arrive as a class with no row rather than
+            joining an existing one.
 walls:      the refusals here are not one kind, and the ledger says which is
             which so a reader can tell an unbuilt feature from a built wall.
             DEFERRALS, each with a tracker record naming the game shape that
