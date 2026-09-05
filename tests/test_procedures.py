@@ -70,7 +70,7 @@ procedures", "Surface totality", "Closed-domain completeness").
                     the OpenSpiel action space.
 
     sampled:    Expansion fidelity is pinned by example rather than exhaustively:
-                Coup's trace golden (`tests/golden/coup_scores.json`, via
+                Coup's per-seed golden (`tests/golden/coup_scores.json`, via
                 test_migration_characterization) is byte-identical across the
                 inline->procedure rewrite of 22 pasted blocks. That is a stronger
                 witness than a synthetic matrix — it holds the reveal sequence,

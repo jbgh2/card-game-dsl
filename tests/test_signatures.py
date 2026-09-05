@@ -217,8 +217,21 @@ def test_call_funcs_are_dispatchable() -> None:
                 if fell_through
                 else f"{name!r} has a legacy `call` arm and is declared-only"
             )
-        except Exception:  # noqa: BLE001, S110 -- any non-AssertionError means it
-            pass  # dispatched; the channel split is guarded by test_assert_triage.py
+        except Exception as exc:  # noqa: BLE001 -- any non-AssertionError means
+            # the name reached real code past the match. A declared-only name
+            # must not: its refusal IS the fallthrough's channel, so accepting
+            # any other exception for one would let a fallthrough re-channelled
+            # to a different type pass here in silence.
+            assert not declared_only, (
+                f"{name!r} is declared-only, so the legacy dispatch refuses it "
+                f"through the fallthrough's AssertionError; it raised "
+                f"{type(exc).__name__}: {exc}"
+            )
+        else:
+            assert not declared_only, (
+                f"{name!r} is declared-only, so the legacy dispatch must refuse "
+                f"it; the call returned instead"
+            )
 
 
 def test_deck_only_classification_partitions_call_funcs() -> None:

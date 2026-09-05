@@ -38,6 +38,18 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
 sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
+does not prove: the Primitives half of the partition is VACUOUS. Every
+            Primitive is now declared-only, so `primitives_arms` and
+            `PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS` are both empty
+            and their equality holds whatever `runtime/primitives.py` says --
+            an arm added there would fail the union assertion beside it, but
+            the Primitive-half assertion itself can no longer discriminate.
+            The Builtins half and the union are unaffected and still carry the
+            partition. What ends the vacuity is the deletion of `call` and
+            `DECLARED_ONLY_CALL_FUNCS` -- the stage-3 closing change
+            (docs/plans/2026-09-05-coup-eviction-stage3-closing.md), which
+            re-derives this grid's homes as {builtins, declared} -- so it is
+            named here rather than papered over with a narrower assertion.
 residual:   the `climb_universe_function` / `climb_codec_function` /
             `joint_codec_function` key sets are not registries -- they exist
             only inside their own match -- so each carries a home row but no

@@ -454,11 +454,19 @@ def test_every_hash_seed_axis_entry_names_a_corpus_game() -> None:
 # This one records the run rather than its result: every field of `GameResult`
 # (derived from the dataclass, so a field added there enters the record without
 # being listed again), every tracer event, and every per-observer observation
-# event, in emission order. Those three channels are what every golden in the
-# removal's domain is computed from — driver return (all five modules), the
+# event, in emission order. Those three channels carry what the goldens in the
+# removal's domain are computed from — driver return (all five modules), the
 # `hand_end` trace (the per-hand vectors here), and the observation stream
 # (`playout_trace`'s TichuHands and CoupReveals) — so this record is at or
-# below the grain of each of them.
+# below the grain of each of those.
+#
+# One value in one golden rides no channel at all: Coup's final coins come off
+# the terminal world (`playout_trace`'s TerminalState), which nothing emits.
+# The record holds every decision and movement that produces them, and coup's
+# alive vector IS its `GameResult.scores`, so a divergence that reaches a
+# decision shows here; a divergence confined to a state variable's last value,
+# with every decision identical, is `coup_scores.json`'s to catch and not this
+# pin's.
 #
 # The record is `repr`-based and ORDER-SENSITIVE: two runs whose events carry
 # equal values in a different order still differ here, which is the point. It
