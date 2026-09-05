@@ -35,10 +35,14 @@ covered:    (a) registry↔game-file: every row's every name against the
             outside the pinned exemption list, `from …reads import …`
             forbidden (it would blind the scan), non-literal name
             arguments refused loud;
-            (c) runtime refusal: the accessor behavior matrix — unknown
-            row / undeclared name / declared-and-present / declared-but-
-            missing — exercised for every accessor, plus the magic-hand
-            Shadow Guard;
+            (c) runtime refusal: the accessor behavior matrix —
+            undeclared name / declared-and-present / declared-but-missing
+            — exercised through every accessor and asserted on each arm's
+            OWN words, so no arm can answer for another (`instance` reaches
+            the undeclared refusal through `family`, the guard it delegates
+            to, so three guards serve the four accessors); the unknown row
+            is `row()`'s cell, the one place a row is looked up at all;
+            plus the magic-hand Shadow Guard;
             (d) misuse probes for each defect the pins exist to catch
             (game-side rename, stale row, undeclared read, raw-access
             bypass per forbidden pattern, non-literal name, kind
@@ -592,6 +596,14 @@ def test_unknown_row_is_refused() -> None:
 
 
 def test_undeclared_name_is_refused_by_every_accessor() -> None:
+    """Every accessor refuses a name its row does not declare, on the
+    UNDECLARED arm's OWN words. Matching the registry name alone would not
+    discriminate: the declared-but-missing arm interpolates it too, so a
+    read routed to the wrong arm would read as a pass. Reddened 2026-09-04
+    by dropping the `if name not in r.<kind>` guard from `state`, then
+    `family`, then `single` in turn — each drop routes its accessor (and,
+    behind `family`, `instance`) to the missing arm, whose message this
+    match refuses; demonstrated and reverted."""
     rs = _probe_row_state()
     for read in (
         lambda: reads.state(rs, _PROBE_ROW, "not_declared"),
@@ -599,7 +611,7 @@ def test_undeclared_name_is_refused_by_every_accessor() -> None:
         lambda: reads.single(rs, _PROBE_ROW, "not_declared"),
         lambda: reads.instance(rs, _PROBE_ROW, "not_declared", 0),
     ):
-        with pytest.raises(PrimitiveReadError, match="PRIMITIVE_READS"):
+        with pytest.raises(PrimitiveReadError, match="read undeclared"):
             read()
 
 
@@ -615,7 +627,10 @@ def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
     """The rename reproducer's runtime Shadow Guard: rename `influence` in
     coup.cardlang and (were the static pins somehow skipped) the playout
     fails as a PrimitiveReadError naming the registry and the game file —
-    never the bare KeyError the metamorphic suite first surfaced."""
+    never the bare KeyError the metamorphic suite first surfaced.
+
+    Matched on the MISSING arm's own words, for the reason its sibling
+    above is: the game file both arms name would let either answer."""
     rs = _bare_state()
     for read in (
         lambda: reads.state(rs, _PROBE_ROW, "coins"),
@@ -623,7 +638,7 @@ def test_declared_but_missing_names_fail_typed_not_keyerror() -> None:
         lambda: reads.single(rs, _PROBE_ROW, "court_deck"),
         lambda: reads.instance(rs, _PROBE_ROW, "influence", 0),
     ):
-        with pytest.raises(PrimitiveReadError, match="coup.cardlang"):
+        with pytest.raises(PrimitiveReadError, match="is not in the live runtime state"):
             read()
 
 
