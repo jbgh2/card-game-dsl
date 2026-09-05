@@ -8,6 +8,14 @@ Looseness is deliberate where the corpus forces it: `suit_of` accepts a card or 
 single-card zone, so its argument is the [[permissive-top]] `TAny`; outcome
 value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
 These track the deferred parts of the typed object model.
+
+`CALL_SIGS` carries a row for every [[primitive]] beside every [[builtins]]
+name, though a Primitive is reached only by its game's `primitives { }`
+declaration and its Python only through the implementation index
+(`cardlang/primitives_block.py`, `PRIMITIVE_IMPLEMENTATIONS`). The plan of
+record docs/plans/2026-09-05-coup-eviction-stage3-closing.md ends that in its
+second change, moving the Primitive rows to an authored signature column on
+the index, which `implementation_sig` already reads them through.
 """
 
 from __future__ import annotations

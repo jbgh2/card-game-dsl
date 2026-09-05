@@ -27,6 +27,13 @@ sidecar design moves these declarations into a `primitives { }` block in the
 game file itself, at which point this table derives from the game files
 instead of being authored here.
 
+What the rows below serve are the two WALLED namespaces no block can name:
+the climb binders' rows (`primitives.climb_row`) and `primitives.py`'s own
+auction-outcome rows. Every other declared read is the calling game's own
+`primitives { }` entry, which is what the Contract's `establishes` states.
+The plan of record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
+restates this docstring for those two namespaces in its second change.
+
 Contract:
   assumes      the game file named by a row parses and declares the names
                the row lists (pinned statically by tests/test_primitive_reads.py;
