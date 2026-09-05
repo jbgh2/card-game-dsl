@@ -40,6 +40,11 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     """
     declared = ctx.rs.declared_primitives
     entry = None if declared is None else declared.get(name)
+    # One line picks the table because the two cannot both hold the name: a
+    # block entry named after a Builtin is refused at resolve
+    # (`_check_primitives_block`, witnessed at
+    # tests/test_primitives_block.py::test_a_declaration_may_not_shadow_a_builtin),
+    # and `CALL_SIGS` is exactly the Builtins.
     sig = ctx.rs.declared_sigs.get(name) if entry is not None else CALL_SIGS.get(name)
     if sig is not None:
         args = reads.coerce_args(sig, args)

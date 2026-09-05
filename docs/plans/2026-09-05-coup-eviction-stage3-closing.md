@@ -674,3 +674,27 @@ row while both statements stood, under an assert that shipped in the commit
 adding the column and left with the table half it crossed: `mypy --strict`
 catches a missing signature, and nothing but that assert could catch a wrong
 one.
+
+### The audit's framing check (2026-09-05, fresh-context over the whole package — the derived domain against this change's)
+
+Run per the `surface-totality-audit` skill's Step 1, over "how a native name
+reaches the Python that implements it, and where the facts about that name are
+stated", with the definition sources set to the entire `cardlang/` package and
+no sight of the diff. Its axes for the routes, the signature tables and the
+reads statement agree with the change's, and it reports the end state:
+`CALL_SIGS` covering `BUILTIN_CALL_FUNCS` exactly, the index's `sig` column
+covering `PRIMITIVE_CALL_FUNCS` exactly, `runtime/primitives.py`'s arm set
+empty, and the refusal a Shadow Guard naming resolve's arms.
+
+One axis it names that the change's derivation did not state, in the change:
+`native_call` picks between `ctx.rs.declared_sigs` and `CALL_SIGS` per NAME,
+and nothing at that line says the two cannot both hold it. They cannot —
+resolve refuses a block entry named after a Builtin, and `CALL_SIGS` is
+exactly the Builtins — so the line names that Owner and its witness.
+
+Two findings outside the change, each verified by execution before filing and
+neither touched by its diff: declaring the standard trick winner
+`highest_of_led_suit` in a block is refused as unimplemented, because the
+winner slot's namespace is walled only on its empty game-local half
+(issue #579); and `VALUE_SIGS` / `EARLY_SIGS` have no consumer in `cardlang/`,
+so the type each states is checked against nothing (issue #580).
