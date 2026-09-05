@@ -2481,21 +2481,9 @@ def _reconcile(
     sides — each game's block, the implementation index, and the authored
     `PRIMITIVE_READS` registry."""
     declared: dict[str, str] = {}
-    reached: set[str] = set()
     for name, game in games:
         for primitive in sorted(declared_names(game)):
             declared[primitive] = name
-        reached |= declared_names(game)
-        if regime(game) is Regime.LEGACY:
-            # A legacy game reaches every Primitive it CALLS. Reading the calls
-            # rather than the namespace is what makes the orphan question
-            # answerable: the namespace is corpus-wide, so quantifying over it
-            # would claim every implementation is reached by every game.
-            reached |= {
-                nd.func
-                for nd in _walk_calls(game)
-                if nd.func in PRIMITIVE_CALL_FUNCS
-            }
 
     # (1) declared -> implemented. resolve refuses this per game; the pin says
     # it over the whole corpus, so a game the pipeline never checks cannot
@@ -2505,12 +2493,13 @@ def _reconcile(
         f"declared with no implementation: {orphan_declarations}"
     )
 
-    # (2) implemented -> reached. An index row no game declares and no game
-    # calls is an orphan: Python the corpus cannot run.
-    orphans = sorted(set(implementations) - reached)
+    # (2) implemented -> declared. A declaration is a Primitive's ONLY route to
+    # its Python, so the reached set is exactly the declared one and an index
+    # row no game declares is an orphan: Python the corpus cannot run.
+    orphans = sorted(set(implementations) - set(declared))
     assert not orphans, (
         f"implementations no game reaches: {orphans} — a Primitive nothing "
-        f"declares and nothing calls is dead Python in the language package"
+        f"declares is dead Python in the language package"
     )
 
     # (3) one definition site per ROW. A game whose block declares its
@@ -2539,12 +2528,6 @@ def _reconcile(
         f"declare the same coupling, and two statements of one fact drift; a "
         f"row a walled binder binds is exempt and survives its game's block"
     )
-
-
-def _walk_calls(game: n.Game) -> list[n.Call]:
-    from cardlang.resolve import _walk
-
-    return [nd for nd in _walk(game) if isinstance(nd, n.Call)]
 
 
 @pytest.mark.slow
