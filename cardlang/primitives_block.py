@@ -94,7 +94,7 @@ from cardlang.builtins.functions import (
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
 )
-from cardlang.builtins.signatures import CALL_SIGS, Sig
+from cardlang.builtins.signatures import Sig
 from cardlang.types import (
     TBoolean,
     TCard,
@@ -289,6 +289,7 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.five_hundred", "five_hundred_bid_value", InvocationContract.PURE,
         Sig((TInteger(),), TInteger()),
     ),
+    # 0 is the return that means "no bid in this strain beats the standing one".
     "five_hundred_next_bid": Implementation(
         "cardlang.runtime.five_hundred", "five_hundred_next_bid", InvocationContract.PURE,
         Sig((TInteger(), TOptional(TEnum("Suit"))), TInteger()),
@@ -333,6 +334,8 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.gin", "gin_valid_meld", InvocationContract.BUNDLED,
         Sig((TCollection(TCard()),), TBoolean()),
     ),
+    # A second binding of `holdem_pot_share`'s query, not a second query;
+    # issue #232 retires the name.
     "holdem_heads_up_pot_share": Implementation(
         "cardlang.runtime.holdem_heads_up", "holdem_heads_up_pot_share", InvocationContract.BUNDLED,
         Sig((TPlayer(),), TInteger()),
@@ -831,19 +834,15 @@ def engine_fact_names() -> frozenset[str]:
 def implementation_sig(name: str) -> Sig | None:
     """The signature the PYTHON side states for `name`, or None if unregistered.
 
-    `CALL_SIGS` is that statement today: it is the table the legacy call sites
-    type against, so it is what every registered implementation is written to.
-    Reading it through this function rather than importing the table at each
-    consumer is what keeps the move to a signature column on
-    `PRIMITIVE_IMPLEMENTATIONS` — which is where it goes when 3b deletes the
-    Primitive half of `CALL_SIGS` — a one-site change.
+    The index row's own column, which is the only place a Primitive's shape is
+    stated. Reading it through this function rather than reaching into the
+    table at each consumer is what keeps that a fact about one site.
 
     This is the reconciliation side of the both-ways check: a declaration and
     an implementation are independently authored, so agreeing about EXISTENCE
     is only one leg. Agreeing about shape is the other."""
-    if name not in PRIMITIVE_IMPLEMENTATIONS:
-        return None
-    return CALL_SIGS.get(name)
+    impl = PRIMITIVE_IMPLEMENTATIONS.get(name)
+    return None if impl is None else impl.sig
 
 
 def unimplemented(names: frozenset[str]) -> frozenset[str]:
@@ -863,12 +862,3 @@ assert frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS, (
     "PRIMITIVE_IMPLEMENTATIONS and PRIMITIVE_CALL_FUNCS disagree: "
     f"{sorted(frozenset(PRIMITIVE_IMPLEMENTATIONS) ^ PRIMITIVE_CALL_FUNCS)}"
 )
-
-
-# TRANSITIONAL, deleted in the commit that removes CALL_SIGS' Primitive half:
-# the column above was transcribed from that table, and this is the one window
-# in which the transcription is falsifiable. mypy catches a MISSING signature
-# (the field is required); only this catches a wrong one.
-assert {n: PRIMITIVE_IMPLEMENTATIONS[n].sig for n in PRIMITIVE_CALL_FUNCS} == {
-    n: CALL_SIGS[n] for n in PRIMITIVE_CALL_FUNCS
-}, "the transcribed signature column disagrees with CALL_SIGS"

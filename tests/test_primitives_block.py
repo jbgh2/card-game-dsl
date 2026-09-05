@@ -263,7 +263,7 @@ from cardlang.builtins.functions import (
     DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_CALL_FUNCS,
 )
-from cardlang.builtins.signatures import CALL_SIGS
+from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.diagnostics import DiagnosticError
 from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
@@ -285,7 +285,7 @@ from cardlang.runtime.driver import play_game
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Seating
-from cardlang.types import TCollection, TEnum, TOptional, Type
+from cardlang.types import TCollection, TEnum, TInteger, TOptional, TPlayer, Type
 
 # --- the probe game ----------------------------------------------------------
 #
@@ -782,9 +782,11 @@ def _spelling_of(t: Type) -> tuple[str, str]:
 
 def _entry_and_body(name: str) -> tuple[str, str]:
     """One Primitive as a `primitives { }` entry and as a call in a body, both
-    rendered from `CALL_SIGS` — the signature its implementation states, so the
-    entry cannot disagree with the shape check by construction."""
-    sig = CALL_SIGS[name]
+    rendered from the index's own signature column — the shape its
+    implementation states, so the entry cannot disagree with the shape check by
+    construction."""
+    sig = implementation_sig(name)
+    assert sig is not None, f"{name} is not a registered Primitive"
     params = ", ".join(f"a{i} : {_spelling_of(p)[0]}" for i, p in enumerate(sig.params))
     args = ", ".join(_spelling_of(p)[1] for p in sig.params)
     ret = _spelling_of(sig.ret)[0]
@@ -2236,20 +2238,25 @@ def test_the_declared_signature_is_materialized() -> None:
 def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
     """The table the runtime FREEZES against, observed.
 
-    Every name declarable in 3a is also in `CALL_SIGS` with the same
-    signature, so the two agree on every reachable cell and the distinction
-    this claims is unobservable as things stand. Made observable by planting a
-    DIFFERENT signature in `CALL_SIGS` for the declared name: the coercion
+    A declarable name's entry and its implementation row state the same
+    signature — the shape check refuses a game where they differ — so the two
+    agree on every reachable cell and the distinction this claims is
+    unobservable as things stand. Made observable by planting a DIFFERENT
+    signature on the IMPLEMENTATION ROW for the declared name: the coercion
     must still see the declaration's. Without the plant the assertion below
     could not fail, which is what makes the plant the cell rather than
     decoration."""
-    from cardlang.builtins.signatures import CALL_SIGS, Sig
+    import dataclasses
+
+    from cardlang.builtins.signatures import Sig
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
     from cardlang.runtime import reads as reads_mod
     from cardlang.types import TAny, TInteger, TPlayer
 
     game = _checks(_game(body=_SCORE_FROM_PRIMITIVE))
     planted = Sig((TAny(),), TInteger())
-    assert planted != CALL_SIGS["pinochle_meld_value"], "the plant changes nothing"
+    row = PRIMITIVE_IMPLEMENTATIONS["pinochle_meld_value"]
+    assert planted != row.sig, "the plant changes nothing"
     seen: list[object] = []
     real = reads_mod.coerce_args
 
@@ -2258,16 +2265,22 @@ def test_the_freeze_follows_the_declaration_not_the_registry() -> None:
         return real(sig, args)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setitem(CALL_SIGS, "pinochle_meld_value", planted)
+        mp.setitem(
+            PRIMITIVE_IMPLEMENTATIONS,
+            "pinochle_meld_value",
+            dataclasses.replace(row, sig=planted),
+        )
         mp.setattr(reads_mod, "coerce_args", spy)
         play_game(game, random.Random(0))
     assert seen, "no native call was coerced — the probe reached nothing"
     assert planted not in seen, (
-        "the runtime froze the declared Primitive's arguments against CALL_SIGS"
+        "the runtime froze the declared Primitive's arguments against the "
+        "implementation index"
     )
     assert Sig((TPlayer(),), TInteger()) in seen
-    # red under: point `native_call`'s declared branch at `CALL_SIGS.get(name)`
-    # instead of `ctx.rs.declared_sigs` (demonstrated and reverted).
+    # red under: point `native_call`'s declared branch at
+    # `implementation_sig(name)` instead of `ctx.rs.declared_sigs`
+    # (demonstrated and reverted).
 
 
 # --- axis 8: the binder narrows what the bundle materializes ----------------
@@ -2613,7 +2626,10 @@ def test_reconciliation_reddens_on_a_planted_orphan() -> None:
     defect wearing a test's name."""
     planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["orphan_primitive"] = Implementation(
-        "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED
+        "cardlang.runtime.pinochle",
+        "pinochle_meld_value",
+        InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
     )
     with pytest.raises(AssertionError, match="orphan_primitive"):
         _reconcile(_checked_games(), planted, PRIMITIVE_READS)
@@ -2672,7 +2688,10 @@ def test_a_call_implementation_in_the_shared_module_reddens_the_exemption() -> N
     the assert can speak."""
     planted = dict(PRIMITIVE_IMPLEMENTATIONS)
     planted["pinochle_meld_value"] = Implementation(
-        "cardlang.runtime.primitives", "call", InvocationContract.BUNDLED
+        "cardlang.runtime.primitives",
+        "bridge_auction_outcome",
+        InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
     )
     with pytest.raises(AssertionError, match=_SHARED_DISPATCH_MODULE):
         _reconcile(_checked_games(), planted, PRIMITIVE_READS)
@@ -2930,9 +2949,9 @@ def test_a_declared_collection_parameter_is_the_registry_s_signature() -> None:
 
     entry = "gin_valid_meld(cards : Collection<Card>) : Boolean"
     game = _checks(_game(block=entry, body="    score[0] := 1"))
-    assert declared_primitive_sigs(game)["gin_valid_meld"] == CALL_SIGS[
+    assert declared_primitive_sigs(game)["gin_valid_meld"] == implementation_sig(
         "gin_valid_meld"
-    ]
+    )
 
 
 # The ELEMENT axis, derived: every name an entry can spell in a bare slot,

@@ -298,24 +298,38 @@ class _DispatchFact:
     helper_args: tuple[object, ...]  # per helper param: 'ctx', an int (args[i]), or None
 
 
-def _call_dispatch_facts() -> dict[str, _DispatchFact]:
-    """Both dispatch homes: `call` is split across the Builtins half and the
-    Primitives half (issue #201), and CALL_SIGS covers their union, so a scrape
-    of one home alone would report the other's whole set as undispatched."""
-    import cardlang.runtime.builtins as rt_builtins
-    import cardlang.runtime.primitives as rt_primitives
+def _all_call_sigs() -> dict[str, Sig]:
+    """Every native call's declared signature, from the table that states it:
+    `CALL_SIGS` for the Builtins, the index's own column for the Primitives.
+    The union is what the reconciliations below quantify over, because the
+    dispatch facts cover both halves and a per-half pin would leave the other
+    half's arms unreconciled."""
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
 
-    facts: dict[str, _DispatchFact] = {}
-    for module in (rt_builtins, rt_primitives):
-        facts.update(_facts_in(ast.parse(inspect.getsource(module)), module))
+    return {
+        **CALL_SIGS,
+        **{name: impl.sig for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()},
+    }
+
+
+def _call_dispatch_facts() -> dict[str, _DispatchFact]:
+    """The two routes a native call takes: the `call` match in the Builtins
+    home, scraped, and the table a game's own `primitives { }` block derives at
+    load, read off the implementation index. Between them they cover the whole
+    registry, which is what lets the pins below quantify over it."""
+    import cardlang.runtime.builtins as rt_builtins
+
+    facts = _facts_in(
+        ast.parse(inspect.getsource(rt_builtins)), rt_builtins
+    )
     facts.update(_declared_facts())
     return facts
 
 
 def _declared_facts() -> dict[str, _DispatchFact]:
-    """The third route to a Primitive's Python: the table a game's own
+    """The other route to a Primitive's Python: the table a game's own
     `primitives { }` block derives at load (`runtime/primitives.py`,
-    `call_declared`). Such a name has no `call` arm to scrape, so its fact is
+    `call_declared`). A Primitive has no `call` arm to scrape, so its fact is
     built from the implementation index instead — the same both-ways
     reconciliation, against the index's statement of where the Python lives
     rather than against an arm's.
@@ -323,16 +337,14 @@ def _declared_facts() -> dict[str, _DispatchFact]:
     The shape is the invocation contract's: a BUNDLED implementation takes the
     two value bundles first (two positions the annotation check skips) and the
     declared arguments after, a PURE one the arguments alone."""
-    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
     from cardlang.primitives_block import (
         PRIMITIVE_IMPLEMENTATIONS,
         InvocationContract,
     )
 
     facts: dict[str, _DispatchFact] = {}
-    for name in DECLARED_ONLY_CALL_FUNCS:
-        impl = PRIMITIVE_IMPLEMENTATIONS[name]
-        arity = len(CALL_SIGS[name].params)
+    for name, impl in PRIMITIVE_IMPLEMENTATIONS.items():
+        arity = len(impl.sig.params)
         match impl.contract:
             case InvocationContract.BUNDLED:
                 bundles: list[object] = [None, None]
@@ -474,15 +486,16 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
 
 
 def test_call_sigs_arity_matches_the_dispatch() -> None:
-    """Every CALL_SIGS entry consumes exactly its declared parameter count in
-    the runtime match — an arm reading args[2] for a two-parameter signature
+    """Every declared signature consumes exactly its parameter count in the
+    dispatch it reaches — an arm reading args[2] for a two-parameter signature
     (or ignoring a declared parameter) is the interface disagreeing with
     itself."""
     facts = _call_dispatch_facts()
-    assert set(facts) == set(CALL_SIGS)
+    sigs = _all_call_sigs()
+    assert set(facts) == set(sigs)
     mismatched = {
         name: (len(sig.params), facts[name].arity)
-        for name, sig in CALL_SIGS.items()
+        for name, sig in sigs.items()
         if len(sig.params) != facts[name].arity
     }
     assert not mismatched, (
@@ -495,10 +508,15 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
     Python annotations must agree with the declared DSL types at every mappable
     position (including the return). This is the pin that catches a helper
     annotated `str` for a `Rank?` parameter — a lie mypy then enforces against
-    the body, denying a `none` the checker admits."""
+    the body, denying a `none` the checker admits.
+
+    For a Primitive the two statements are the index's `sig` column and the
+    implementation's own annotations — independently authored, which is what
+    the column being authored rather than derived from those annotations buys:
+    a derivation would make this cell compare a value with itself."""
     facts = _call_dispatch_facts()
     problems: list[str] = []
-    for name, sig in CALL_SIGS.items():
+    for name, sig in _all_call_sigs().items():
         fact = facts[name]
         if fact.helper is None or not callable(fact.helper):
             continue  # inline arm: arity is pinned above; nothing to introspect
@@ -514,15 +532,15 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
             if actual != expected:
                 problems.append(
                     f"{name}: helper param '{params[pos]}' annotated {actual}, "
-                    f"CALL_SIGS declares {sig.params[shape]} (~ {expected})"
+                    f"the signature declares {sig.params[shape]} (~ {expected})"
                 )
         expected_ret = _python_type(sig.ret)
         if expected_ret is not None:
             actual_ret = hints.get("return")
             if actual_ret != expected_ret:
                 problems.append(
-                    f"{name}: helper returns {actual_ret}, CALL_SIGS declares "
-                    f"{sig.ret} (~ {expected_ret})"
+                    f"{name}: helper returns {actual_ret}, the signature "
+                    f"declares {sig.ret} (~ {expected_ret})"
                 )
     assert not problems, "\n".join(problems)
 
