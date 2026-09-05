@@ -1,31 +1,32 @@
-"""Stage-1 eviction grid: the trace emitters are out of the native registry.
+"""Eviction grid: the trace emitters are out of the native registry.
 
-`coup_note_reveal` and `tichu_hand_summary` were trace emitters for the
-playout harness, not game primitives (docs/design-notes/primitive-sidecars.md
-§3); stage 1 of that note's sequence evicts them from the stdlib surface and
-derives their facts at the harness layer instead (tests/playout_trace.py).
-This module is the change's grid, authored red before the eviction (strict
-xfails on every non-membership cell, flipped green with it — the red run is
-the proof the grid can fail).
+`coup_note_reveal`, `tichu_hand_summary` and `coup_game_summary` were trace
+emitters for the playout harness, not game primitives
+(docs/design-notes/primitive-sidecars.md §3); the note's sequence evicts them
+from the native surface and derives their facts at the harness layer instead
+(tests/playout_trace.py). This module is that work's grid, authored red before
+each eviction (strict xfails on every non-membership cell, flipped green with
+it — the red run is the proof the grid can fail).
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
-property:   the two evicted names are complete non-members of every
-            native-function namespace, of the runtime dispatch and
-            implementing modules, and of the spec-current corpus/prose
-            surface — and the trace facts they emitted derive at the
-            harness layer with identical values.
-domain:     evicted name {coup_note_reveal, tichu_hand_summary} x
-            consulting site. The site axis was frozen by a fresh-context
-            framing sweep of the whole cardlang/ package (the audit's
-            Step 1): the seven name registries in builtins/functions.py,
-            CALL_SIGS, the runtime dispatch arms, the implementing module
-            namespaces, resolve's unknown-call and shadow guards, the
-            PRIMITIVE_READS inventory, plus the lockstep docs surface
+property:   the evicted names are complete non-members of every
+            native-function namespace, of the runtime dispatch, signature
+            and implementation tables, of the implementing modules, and of
+            the spec-current corpus/prose surface — and the trace facts
+            they emitted derive at the harness layer with identical values.
+domain:     evicted name x consulting site. The site axis was frozen by a
+            fresh-context framing sweep of the whole cardlang/ package (the
+            audit's Step 1): the seven name registries in
+            builtins/functions.py, CALL_SIGS, PRIMITIVE_IMPLEMENTATIONS,
+            the runtime dispatch arms, the implementing module namespaces,
+            resolve's unknown-call and shadow guards, the PRIMITIVE_READS
+            inventory, plus the lockstep docs surface
             (docs/games/*.{cardlang,md}, docs/library.md).
 registry:   cardlang/builtins/functions.py (all seven name-sets, imported
             below — a new namespace joins OTHER_NAMESPACES or the import
             fails); cardlang/builtins/signatures.py CALL_SIGS;
+            cardlang/primitives_block.py PRIMITIVE_IMPLEMENTATIONS;
             cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
 covered:    the parametrized cells below. Cross-table sync (functions <->
@@ -33,26 +34,21 @@ covered:    the parametrized cells below. Cross-table sync (functions <->
             standing pin in tests/test_signatures.py; the reads-inventory
             consequence (Tichu's row dropped `captured`) is pinned by
             tests/test_primitive_reads.py's module-source scan; the
-            rendered unknown-call diagnostic for each evicted name is the
-            tests/rejections/call_evicted_trace_emitter_{coup,tichu} pair.
-sampled:    reproduction equality — proven at write time by a differential
-            that ran the harness derivation against the live emitters
-            (Coup 8 seeds, Tichu 4 seeds, in this module until the
-            eviction commit removed the emitters it compared against);
-            standing coverage is the byte-identical goldens
+            rendered unknown-call diagnostic for each evicted name is a
+            tests/rejections/call_evicted_trace_emitter_* pair.
+sampled:    reproduction equality — proven at write time by differentials
+            that ran each harness derivation against the live emitter, in
+            this module until the eviction commit removed the emitters they
+            compared against: `coup_note_reveal` (Coup 8 seeds) and
+            `tichu_hand_summary` (Tichu 4 seeds); `coup_game_summary`
+            2026-09-04, 40 of 40 seeds equal on all four facts
+            (`total_coins`, `total_cards`, the `coins` vector, the `alive`
+            vector). Standing coverage is the byte-identical goldens
             (tests/golden/coup_scores.json, tichu_hands.json — values
-            produced BY the emitters, reproduced by the derivation on
-            every suite run) and the 30-seed playout invariant
-            (tests/test_playout_tichu.py).
-residual:   `coup_game_summary` — a third dead-`let` trace emitter by call
-            shape (docs/games/coup.cardlang binds and drops its return) —
-            stays registered this stage: its `coup_game` payload
-            recomputes conservation totals from engine state, not from
-            movement views, so its harness reproduction is its own design
-            step. Guard: the staged plan (primitive-sidecars.md §5);
-            record: issue #142. The prose scan deliberately covers only
-            the spec-current surface — design notes legitimately name the
-            evicted names when describing this very migration.
+            produced BY the emitters, reproduced by the derivations on
+            every suite run), the 30-seed playout invariant
+            (tests/test_playout_tichu.py) and Coup's 40-seed conservation
+            invariant on the reader (tests/test_playout_coup.py).
 
 red under (born-green cells):
 - test_never_in_other_namespaces: adding "coup_note_reveal" to
@@ -63,20 +59,34 @@ red under (born-green cells):
   wearing the designed DiagnosticError — the control row's message match
   makes that failure mode loud instead of vacuous.
 - the write-time differentials were reddened by a rank_of identity
-  mutation (Coup, every reveal) and by dropping TichuHands' Dog-shed
-  exclusion (Tichu, a real double-victory flag flip at seed 2 hand 3);
-  both demonstrated and reverted before the goldens took over.
+  mutation (Coup, every reveal), by dropping TichuHands' Dog-shed
+  exclusion (Tichu, a real double-victory flag flip at seed 2 hand 3), and
+  by capturing the terminal state at the first decision instead of at
+  `game_end` (`coup_game_summary`, every seed, coins and alive both wrong);
+  all demonstrated and reverted before the goldens took over.
+
+take 1 (2026-09-04): the grid authored against the still-registered
+`coup_game_summary`, before any eviction hunk —
+`.venv/bin/pytest tests/test_trace_emitter_eviction.py tests/test_rejections.py -q`
+-> 8 failed, 160 passed. The eight are this module's six non-membership
+cells for the name (call registry, signature table, dispatch arm, corpus
+call site, prose reference, user-function freedom), the module-absent cell
+for `cardlang.runtime.coup`, and the rejection case. The differential
+passed on the same run — it compares against an emitter that still exists.
 """
 
 from __future__ import annotations
 
 import importlib
+import random
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from cardlang.builtins.functions import (
     CALL_FUNCS,
+    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
@@ -87,18 +97,27 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
-from cardlang.pipeline import check_dsl
+from cardlang.pipeline import check_dsl, check_source
+from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
+from cardlang.runtime.driver import play_game
+from tests.playout_trace import TerminalState, coup_totals
 
 REPO = Path(__file__).parent.parent
 GAMES = REPO / "docs" / "games"
 
-# The eviction set is the ratified stage-1 scope (primitive-sidecars.md §3:
-# the two pure trace emitters), paired with each name's former module.
+# The eviction set is the ratified scope (primitive-sidecars.md §3: the trace
+# emitters), paired with each name's former module.
 EVICTED: tuple[tuple[str, str], ...] = (
     ("coup_note_reveal", "cardlang.runtime.coup"),
     ("tichu_hand_summary", "cardlang.runtime.tichu"),
+    ("coup_game_summary", "cardlang.runtime.coup"),
 )
 _NAMES = [name for name, _ in EVICTED]
+
+# A module whose last evicted name took the whole file with it: nothing to
+# read a symbol out of, so its cell is the import's own absence.
+GONE_MODULES: tuple[str, ...] = ("cardlang.runtime.coup",)
+_SURVIVING = tuple((n, m) for n, m in EVICTED if m not in GONE_MODULES)
 
 # The seven namespaces the evicted names never belonged to: the domain's
 # boundary, pinned so "which namespace held them" stays a checked fact.
@@ -120,7 +139,10 @@ def test_not_in_call_registry(name: str) -> None:
 
 @pytest.mark.parametrize("name", _NAMES)
 def test_not_in_signature_table(name: str) -> None:
+    # Both tables that state a Primitive's type surface: a name still keyed in
+    # either would type-check and then find no implementation.
     assert name not in CALL_SIGS
+    assert name not in PRIMITIVE_IMPLEMENTATIONS
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -132,9 +154,15 @@ def test_no_dispatch_arm(name: str) -> None:
         assert f'case "{name}"' not in src, f"{name} has a dispatch arm in {home}"
 
 
-@pytest.mark.parametrize(("name", "module"), EVICTED)
+@pytest.mark.parametrize(("name", "module"), _SURVIVING)
 def test_implementing_symbol_gone(name: str, module: str) -> None:
     assert not hasattr(importlib.import_module(module), name)
+
+
+@pytest.mark.parametrize("module", GONE_MODULES)
+def test_implementing_module_gone(module: str) -> None:
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module(module)
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -188,12 +216,56 @@ def test_shadow_wall_still_guards_registered_names() -> None:
     still-registered name must die on the SHADOW guard's own message. This
     pins that the probe reaches the guard — without it, a probe broken
     earlier in the pipeline (a syntax error also raises DiagnosticError)
-    would make the freedom cells pass vacuously."""
+    would make the freedom cells pass vacuously.
+
+    The control name is DERIVED from the registry rather than written here:
+    a literal is a name this module would have to keep registered on its own
+    account, and every eviction is a chance for it to stop being one."""
+    registered = min(DECLARED_ONLY_CALL_FUNCS)
     with pytest.raises(DiagnosticError, match="shadows the native function"):
-        check_dsl(_shadow_probe("coup_game_summary"), "shadow_control.cardlang")
+        check_dsl(_shadow_probe(registered), "shadow_control.cardlang")
 
 
 @pytest.mark.parametrize("name", _NAMES)
 @pytest.mark.parametrize("namespace", sorted(OTHER_NAMESPACES))
 def test_never_in_other_namespaces(name: str, namespace: str) -> None:
     assert name not in OTHER_NAMESPACES[namespace]
+
+
+# ---------------------------------------------------------------------------
+# The write-time differential: it can only run while both the emitter and its
+# replacement exist, so it leaves in the eviction commit and its dated result
+# stands in the ledger's `sampled:` row.
+# ---------------------------------------------------------------------------
+
+
+def _coup_facts(game: Any, seed: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    """One Coup playout's four `coup_game` facts, twice: derived at the
+    harness from the terminal world and the driver's census, and as the live
+    emitter reported them."""
+    terminal = TerminalState(("coins", "treasury", "alive"))
+    emitted: dict[str, Any] = {}
+
+    def tracer(event: str, data: Any) -> None:
+        terminal.tracer(event, data)
+        if event == "coup_game":
+            emitted.update(data)
+
+    play_game(game, random.Random(seed), tracer, on_first_decision=terminal.hold)
+    derived: dict[str, Any] = dict(coup_totals(terminal))
+    derived["coins"] = terminal.state["coins"]
+    derived["alive"] = terminal.state["alive"]
+    return derived, emitted
+
+
+def test_terminal_reader_reproduces_the_live_emitter() -> None:
+    """The admission test for the reader that replaces `coup_game_summary`:
+    every fact the emitter reports, derived beside it over the golden's own
+    width. The comparison runs after `play_game` returns, so a reader holding
+    a reference into the popped frame instead of a copy would be reading a
+    frame nobody owns."""
+    game = check_source(GAMES / "coup.cardlang")
+    for seed in range(40):
+        derived, emitted = _coup_facts(game, seed)
+        assert emitted, f"seed {seed}: the emitter reported nothing to compare"
+        assert derived == emitted, f"seed {seed}"
