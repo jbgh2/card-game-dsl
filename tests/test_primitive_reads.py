@@ -38,11 +38,11 @@ covered:    (a) registry↔game-file: every row's every name against the
             (c) runtime refusal: the accessor behavior matrix —
             undeclared name / declared-and-present / declared-but-missing
             — exercised through every accessor and asserted on each arm's
-            OWN words, so no arm can answer for another (`instance` reaches
-            the undeclared refusal through `family`, the guard it delegates
-            to, so three guards serve the four accessors); the unknown row
-            is `row()`'s cell, the one place a row is looked up at all;
-            plus the magic-hand Shadow Guard;
+            OWN words, so no arm can answer for another (`instance` has no
+            guard of its own: it reaches the undeclared refusal through
+            `family`, which it delegates to); the unknown row is `row()`'s
+            cell, the one place a row is looked up at all; plus the
+            magic-hand Shadow Guard;
             (d) misuse probes for each defect the pins exist to catch
             (game-side rename, stale row, undeclared read, raw-access
             bypass per forbidden pattern, non-literal name, kind

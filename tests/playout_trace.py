@@ -1,10 +1,11 @@
 """Harness-side reconstruction of playout facts that no game text reports.
 
-The playout harness consumes three such facts: Coup's influence-flip sequence
-(`CoupReveals`), Tichu's per-hand double-victory flag and captured card points
-(`TichuHands`), and Coup's end-of-game coins, alive vector and conservation
-totals (`TerminalState`, through `coup_totals`). They derive here, at the
-harness layer, so the rules text carries no instrumentation calls.
+The harness consumes them through the reconstructors below: Coup's
+influence-flip sequence (`CoupReveals`), Tichu's per-hand double-victory flag
+and captured card points (`TichuHands`), and Coup's end-of-game coins, alive
+vector and conservation totals (`TerminalState`, read through `coup_totals`).
+They derive here, at the harness layer, so the rules text carries no
+instrumentation calls.
 
 Which channel a fact derives from follows the law that decides where the fact
 lives (decisions.md, "Hidden information lives only in zones; state is
