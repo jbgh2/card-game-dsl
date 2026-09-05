@@ -239,10 +239,14 @@ cells exist before the arm moves rather than after. The other three reds are
 owned elsewhere and stay red through take 2: the enclosure register's pair and
 the repeat guard's wording, whose owners are `_outside` and the repeat arm.
 
-Two cells sit in neither count, added after both takes and green in both: the
-wrong-declarer tail and the untailed phase-local name, each probed with a
-second tail present. Their arms are the STANDING ones the lift must leave
-alone, so a red would have been the finding.
+Cells sitting in neither count, added after both takes: the wrong-declarer
+tail and the untailed phase-local name, each probed with a second tail
+present, and the frame-pop pin
+(`test_a_phases_frame_does_not_outlive_the_phase`). The first two are green in
+both — their arms are the STANDING ones the lift must leave alone, so a red
+would have been the finding. The third pins a fact about the runtime rather
+than an arm of the lift, and is born green with its reddening mutation in its
+own docstring.
 """
 
 from __future__ import annotations
