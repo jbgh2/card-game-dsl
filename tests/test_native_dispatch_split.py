@@ -38,18 +38,27 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
 sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
-does not prove: the Primitives half of the partition is VACUOUS. Every
-            Primitive is now declared-only, so `primitives_arms` and
-            `PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS` are both empty
-            and their equality holds whatever `runtime/primitives.py` says --
-            an arm added there would fail the union assertion beside it, but
-            the Primitive-half assertion itself can no longer discriminate.
-            The Builtins half and the union are unaffected and still carry the
-            partition. What ends the vacuity is the deletion of `call` and
-            `DECLARED_ONLY_CALL_FUNCS` -- the stage-3 closing change
-            (docs/plans/2026-09-05-coup-eviction-stage3-closing.md), which
-            re-derives this grid's homes as {builtins, declared} -- so it is
-            named here rather than papered over with a narrower assertion.
+does not prove: that the Primitives half of the partition adds anything its
+            neighbours do not. Every Primitive is declared-only, so
+            `primitives_arms` and `PRIMITIVE_CALL_FUNCS -
+            DECLARED_ONLY_CALL_FUNCS` are both empty, and with both sides
+            empty the equality restates two facts already asserted beside
+            it: that `runtime/primitives.py` holds no arm (the union
+            assertion's business, and the one that names the offender), and
+            that `PRIMITIVE_CALL_FUNCS` sits inside
+            `DECLARED_ONLY_CALL_FUNCS` -- the direction the subset assertion
+            above it does not carry, the two together making the sets equal.
+            Redundant, not vacuous: an arm added to `runtime/primitives.py`
+            falsifies it on its own, though the union assertion and the
+            arm-home row reach it first (executed 2026-09-04 with `case
+            "gin_deadwood": return 0` in `call`:
+            `test_call_arm_home[gin_deadwood]` and
+            `test_homes_partition_the_call_registry` both red, the union
+            assertion speaking; demonstrated and reverted). The plan of
+            record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
+            deletes `call` and `DECLARED_ONLY_CALL_FUNCS` in its second
+            change, re-deriving this grid's homes as {builtins, declared} --
+            after which there is no Primitives half to state.
 residual:   the `climb_universe_function` / `climb_codec_function` /
             `joint_codec_function` key sets are not registries -- they exist
             only inside their own match -- so each carries a home row but no
