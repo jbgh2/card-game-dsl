@@ -16,12 +16,16 @@ domain:     every registry with a signature table × that table; every
             both tables that state one — the Builtins' `CALL_SIGS` and the
             implementation index's `sig` column — ×
             {name, arity, param annotations, return annotation}
-registry:   the name sets themselves for names; the dispatch's own AST for
-            what each arm consumes (derived by parsing, never hand-listed)
+registry:   the name sets themselves for names; for the runtime side of a
+            call signature, the Builtins' `call` match AST for what each arm
+            consumes (derived by parsing, never hand-listed) and the
+            implementation index's own rows, whose module and attribute
+            resolve to the Python a Primitive runs
 covered:    names (set equality both ways, every tabled registry),
             dispatchability (every callable registry, against its
-            dispatcher), arity (all arms), annotations for every
-            plain-forward arm and its return
+            dispatcher), arity (every call signature, over both tables),
+            annotations for every plain-forward arm, every indexed
+            implementation, and their returns
 sampled:    none
 does not prove: that a designer can REACH the dispatch refusal
             `test_call_funcs_are_dispatchable` exercises. That call is at
