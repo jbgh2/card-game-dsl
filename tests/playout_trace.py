@@ -88,9 +88,11 @@ class TerminalState:
         terminal = TerminalState(("coins", "treasury"))
         play_game(game, rng, terminal.tracer, on_first_decision=terminal.hold)
 
-    Captured values are copied, not referenced: the frames this reads are
-    mutated and popped after the capture, so a reference would record the
-    terminal state only by accident.
+    Captured values are detached from the frame they are read out of: the
+    frames this reads are mutated and popped after the capture, so a reference
+    would record the terminal state only by accident. One level is the whole
+    depth — a declared state variable is a scalar, or a per-member dict of
+    them (`runtime/driver._declare_state`), and nothing nests below that.
     """
 
     def __init__(self, names: Sequence[str]) -> None:
@@ -134,7 +136,8 @@ class TerminalState:
 
 def _copied(value: Any) -> Any:
     """One state variable, detached from the frame it was read out of. An
-    indexed variable is a per-member dict; a whole one is a scalar."""
+    indexed variable is a per-member dict of scalars; a whole one is a scalar,
+    so the shallow copy is the deep one."""
     return dict(value) if isinstance(value, dict) else value
 
 

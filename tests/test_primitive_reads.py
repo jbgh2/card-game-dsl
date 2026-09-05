@@ -432,8 +432,9 @@ def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tu
 def test_module_source_agrees_with_registry(path: Path) -> None:
     """Both directions at once, for EVERY runtime module: an undeclared read
     (a literal the registry lacks) and a stale row entry (a declared name the
-    module no longer reads) both fail; a module with no registry rows must
-    make no accessor reads at all."""
+    module no longer reads) both fail. A module with no rows and no declaring
+    game makes no reads at all; a module whose reads are declared in
+    `primitives { }` blocks is held to those blocks' union (issue #535)."""
     if path.name in _EXEMPT_RAW_ACCESS:
         return  # raw access covered by test_raw_access_is_confined_to_the_exemptions
     scan = _scan_module(path)

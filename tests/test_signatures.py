@@ -40,6 +40,13 @@ residual:   inline arms (an expression instead of a helper call — team_of,
             Nothing forces a NEW registry to acquire a dispatchability pin —
             the registry-to-dispatcher pairing is not derivable from code,
             so each pin below names its own registry. Deferred: issue #108.
+
+red under (born-green guards):
+- the starred-argument refusal in `_facts_in`: no arm writes one, so the
+  guard is born green. Reddened 2026-09-04 by giving `builtins.call`'s
+  `suit_of` arm a `*args[0:1]` — the refusal fires by name, and both the
+  annotation pin and the parse-residual pin go red with it; demonstrated and
+  reverted.
 """
 
 from __future__ import annotations
