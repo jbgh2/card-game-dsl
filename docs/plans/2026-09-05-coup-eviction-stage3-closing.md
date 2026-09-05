@@ -651,13 +651,17 @@ lists do not carry, each answered in the change rather than marked:
   the refusal discriminates a Primitive from a Builtin, never that a
   designer reaches it.
 - **What replaces `set(CALL_FUNCS) == set(CALL_SIGS)`.** That one line
-  pinned "every call name has a signature". At the end state the fact has
-  two carriers, and the ledger sentence names both: the index's import-time
-  `frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS` for
-  existence, and `sig` being a required field of `Implementation` for
-  shape — rung 1, since an implementation with no signature does not
-  construct. Naming only the first would over-credit it: it says nothing
-  about shape.
+  pinned "every call name has a signature". At the end state the Primitive
+  half of that fact has two carriers and the ledger sentences name both,
+  because each covers only its own half: the index's import-time
+  `frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS` says no
+  registered name lacks a ROW, and `sig` being a required field of a frozen
+  `Implementation` says no row lacks a SIGNATURE — rung 1, since such a row
+  does not construct. Naming either alone over-credits it. That the
+  signature a row states is the RIGHT one is a third fact, and it is the
+  cells' (`tests/test_signatures.py`'s annotation and arity
+  reconciliations, `typecheck._check_primitive_signatures` against the
+  game's declaration).
 
 And one measured fact the counsel's (c) relies on without stating: the two
 halves of the call registry are disjoint (`BUILTIN_CALL_FUNCS &

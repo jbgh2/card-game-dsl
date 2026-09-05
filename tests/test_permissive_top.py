@@ -233,11 +233,12 @@ def test_call_signature_registry_covers_every_native_call_function() -> None:
     `CALL_SIGS` states the BUILTIN half of that agreement. A Primitive's
     signature is a column on the implementation index
     (`primitives_block.PRIMITIVE_IMPLEMENTATIONS`), reached through
-    `implementation_sig`, and the Primitive half of the agreement is carried by
-    two facts this cell does not restate: the index's own import-time assert
-    that it is keyed exactly `PRIMITIVE_CALL_FUNCS` (existence), and `sig`
-    being a required field of `Implementation` (shape, at rung 1 — an entry
-    with no signature does not construct)."""
+    `implementation_sig`, and the Primitive half of the agreement is carried
+    by two facts this cell does not restate, each covering its own half: the
+    index's own import-time assert that it is keyed exactly
+    `PRIMITIVE_CALL_FUNCS` — no registered name lacks a ROW — and `sig` being
+    a required field of a frozen `Implementation` — no row lacks a SIGNATURE,
+    at rung 1, since such a row does not construct."""
     assert set(CALL_SIGS) == set(BUILTIN_CALL_FUNCS)
 
 
