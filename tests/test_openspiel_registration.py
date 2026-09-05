@@ -6,8 +6,12 @@ property:        Every way a `.cardlang` file reaches `pyspiel.register_game`
                  and every state a path or an entry can be in yields either a
                  registration or a refusal naming what is wrong — never a
                  short name `pyspiel.load_game` cannot reach, and never a
-                 silent replacement of a game already registered.
-domain:          Two crossings, each total over its axes. The first crosses
+                 silent replacement of a game already registered. An
+                 operation that offers SEVERAL files registers all of them or
+                 none: the refusal arrives with pyspiel untouched, so a
+                 corrected offer meets a registry holding nothing the refused
+                 one put there.
+domain:          Three crossings, each total over its axes. The first crosses
                  the registration SOURCE with the state of the file or entry
                  it offers; the second crosses the same sources with the state
                  of the short name that file derives. They factor because a
@@ -16,6 +20,18 @@ domain:          Two crossings, each total over its axes. The first crosses
                  take a name; `test_a_refused_file_leaves_its_short_name_free`
                  is the cell that holds the factorization, and without it the
                  halving would be a convenience rather than a fact.
+
+                 The third crosses each file-offering OPERATION with the stage
+                 at which one of its files is refused, and asks what became of
+                 the files planned before it. Operations rather than sources,
+                 because the environment performs two that strand different
+                 files: its entry list is one, and each directory entry it
+                 names is globbed into another. The batch guarantee is
+                 per-operation and stated that way — the corpus is registered
+                 before the variable is read, so a refused variable leaves a
+                 pyspiel holding exactly the corpus, which is what
+                 `_register_env_var` says and what makes a corrected variable
+                 safe to re-offer.
 
                  Inside the domain: the OpenSpiel short name and its character
                  set, the collision rule across every pair of sources, the
@@ -45,7 +61,14 @@ domain:          Two crossings, each total over its axes. The first crosses
                  import and `pyspiel.register_game` has no inverse.
 registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  below, crossed into `_FILE_EXPECTED`; name states:
-                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`; the entry
+                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`; batches and
+                 refusal stages: `_BATCHES` and `_PREFLIGHT_STAGES`, crossed
+                 into `_BATCH_EXPECTED`, with the batch axis tied to
+                 `_SOURCES` by `test_every_source_performs_a_batch` and the
+                 stage axis derived against the two authored columns by
+                 `test_every_refusal_belongs_to_a_preflight_stage`; the
+                 process-global registry those cells read:
+                 `pyspiel.registered_names`; the entry
                  vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, which the
                  env dispatch reads; the short-name rule and its character set:
                  `cardlang.openspiel.registry._short_name` and
@@ -86,7 +109,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.game import (
     ENTRY_KINDS,
     GAMES_ENV_VAR,
-    _register,
+    _register_all,
     _register_env_var,
     _REGISTERED,
     register_game_file,
@@ -140,10 +163,69 @@ _NAME_STATES: tuple[str, ...] = (
     "corpus_name",
 )
 
+# Every operation that offers files to the one registration function, named for
+# the source that performs it. A source appears once per operation, so the
+# environment appears twice: its entry list is one batch, and each directory
+# entry in that list is globbed into another. Those are different positions —
+# a refusal between two entries and a refusal inside one entry's glob strand
+# different files — and `test_every_source_performs_a_batch` ties the axis
+# back to `_SOURCES`, so a source whose operations nobody enumerated fails.
+_BATCHES: tuple[str, ...] = (
+    "call",
+    "corpus_glob",
+    "environment_directory",
+    "environment_entries",
+)
+
+_BATCH_SOURCE: dict[str, str] = {
+    "call": "call",
+    "corpus_glob": "corpus",
+    "environment_directory": "environment",
+    "environment_entries": "environment",
+}
+
+# The stage at which a file a batch offers is refused. `entry_shape` is whether
+# what the batch names is a game file at all; `stem` is the short name the
+# filename renders; `checker` is the front end over the file's text;
+# `collision` is that short name against the names already spoken for.
+# `test_every_refusal_belongs_to_a_preflight_stage` derives this axis's
+# totality from the two authored columns above rather than asserting it.
+_PREFLIGHT_STAGES: tuple[str, ...] = ("entry_shape", "stem", "checker", "collision")
+
+# Which stage refuses each refusing cell of the two grids above. Written
+# against those columns rather than listed from the implementation, so a
+# refusal state added to either grid arrives here as an unmapped cell and its
+# author has to say which stage catches it.
+_STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
+    ("corpus", "diagnostic_file"): "checker",
+    ("corpus", "empty_directory"): "entry_shape",
+    ("corpus", "bad_stem_file"): "stem",
+    ("corpus", "corpus_name"): "collision",
+    ("call", "diagnostic_file"): "checker",
+    ("call", "markdown_without_block"): "checker",
+    ("call", "missing"): "entry_shape",
+    ("call", "directory_of_games"): "entry_shape",
+    ("call", "empty_directory"): "entry_shape",
+    ("call", "empty_entry"): "entry_shape",
+    ("call", "bad_stem_file"): "stem",
+    ("call", "prior_call_other_path"): "collision",
+    ("call", "corpus_name"): "collision",
+    ("environment", "diagnostic_file"): "checker",
+    ("environment", "markdown_without_block"): "checker",
+    ("environment", "missing"): "entry_shape",
+    ("environment", "empty_directory"): "entry_shape",
+    ("environment", "empty_entry"): "entry_shape",
+    ("environment", "bad_stem_file"): "stem",
+    ("environment", "prior_call_other_path"): "collision",
+    ("environment", "corpus_name"): "collision",
+}
+
 # The outcome vocabulary. `inexpressible` is surface totality's third state:
-# the source cannot put a file in that state at all.
+# the source cannot put a file in that state at all. `atomic` is the batch
+# guarantee: a refusal leaves the batch's EARLIER files unregistered.
 _REGISTERS = "registers"
 _INEXPRESSIBLE = "inexpressible"
+_ATOMIC = "atomic"
 
 # source x file/entry state. Authored as decisions, never read back from the
 # implementation.
@@ -208,6 +290,38 @@ _NAME_EXPECTED: dict[tuple[str, str], str] = {
 }
 
 
+# batch x the stage at which one of its files is refused. `atomic` is the
+# claim: the batch's EARLIER files are not registered either. Authored as
+# decisions, never read back from the implementation.
+_BATCH_EXPECTED: dict[tuple[str, str], str] = {
+    # A call names one file. No stage has an earlier file to strand, which is
+    # what makes the other three batches the whole of this domain.
+    ("call", "entry_shape"): _INEXPRESSIBLE,
+    ("call", "stem"): _INEXPRESSIBLE,
+    ("call", "checker"): _INEXPRESSIBLE,
+    ("call", "collision"): _INEXPRESSIBLE,
+    # `_derive_games` refuses an empty directory, an unrenderable stem and a
+    # colliding pair while reading filenames, before the loop registers
+    # anything — so the checker is the one stage a corpus batch reaches with
+    # files already planned.
+    ("corpus_glob", "entry_shape"): _INEXPRESSIBLE,
+    ("corpus_glob", "stem"): _INEXPRESSIBLE,
+    ("corpus_glob", "collision"): _INEXPRESSIBLE,
+    ("corpus_glob", "checker"): _ATOMIC,
+    # A directory entry is globbed for `*.cardlang`, so every path it yields
+    # exists and is a file and the shape stage is settled by the glob itself.
+    ("environment_directory", "entry_shape"): _INEXPRESSIBLE,
+    ("environment_directory", "stem"): _ATOMIC,
+    ("environment_directory", "checker"): _ATOMIC,
+    ("environment_directory", "collision"): _ATOMIC,
+    # The entry list: the batch whose files a refusal used to strand.
+    ("environment_entries", "entry_shape"): _ATOMIC,
+    ("environment_entries", "stem"): _ATOMIC,
+    ("environment_entries", "checker"): _ATOMIC,
+    ("environment_entries", "collision"): _ATOMIC,
+}
+
+
 def test_every_file_cell_is_authored() -> None:
     """The derived cross and the authored column name the same cells."""
     derived = {(s, f) for s in _SOURCES for f in _FILE_STATES}
@@ -217,6 +331,50 @@ def test_every_file_cell_is_authored() -> None:
 def test_every_name_cell_is_authored() -> None:
     derived = {(s, n) for s in _SOURCES for n in _NAME_STATES}
     assert derived == set(_NAME_EXPECTED)
+
+
+def test_every_batch_cell_is_authored() -> None:
+    derived = {(b, s) for b in _BATCHES for s in _PREFLIGHT_STAGES}
+    assert derived == set(_BATCH_EXPECTED)
+
+
+def test_every_source_performs_a_batch() -> None:
+    """The batch axis is the source axis, one row per file-offering operation.
+
+    A fourth source cannot register a game without going through the site
+    `test_one_registration_site_in_the_package` pins, so a source with no row
+    here is a source whose operations nobody enumerated. The environment
+    carries two rows because `"directory"` is an entry kind: one entry can
+    name many files, and a refusal inside that glob strands different files
+    from a refusal between two entries.
+    """
+    assert set(_BATCH_SOURCE) == set(_BATCHES)
+    assert set(_BATCH_SOURCE.values()) == set(_SOURCES)
+    assert "directory" in ENTRY_KINDS
+
+
+def test_every_refusal_belongs_to_a_preflight_stage() -> None:
+    """The stage axis is total over what the two grids above refuse.
+
+    The batch grid asks what a refusal leaves behind, so its stage axis has to
+    name every refusal there is. Derived against the authored columns rather
+    than listed, so a refusal state added to either grid arrives here as an
+    unmapped cell — and nobody can add one without saying which stage catches
+    it, which is the question the batch grid then has to answer.
+
+    Every stage is required to carry a refusal, too: a stage no grid cell
+    reaches is a column the batch grid crosses for nothing.
+
+    red under: add a refusing cell to `_FILE_EXPECTED` without a stage row.
+    """
+    outcomes = {**_FILE_EXPECTED, **_NAME_EXPECTED}
+    refusing = {
+        cell
+        for cell, outcome in outcomes.items()
+        if outcome not in (_REGISTERS, _INEXPRESSIBLE, "idempotent")
+    }
+    assert set(_STAGE_OF_REFUSAL) == refusing
+    assert set(_STAGE_OF_REFUSAL.values()) == set(_PREFLIGHT_STAGES)
 
 
 def test_the_entry_vocabulary_is_what_the_dispatch_reads() -> None:
@@ -320,7 +478,7 @@ def _corpus_cell(state: str, stem: str, tmp_path: Path) -> None:
         # check runs here or nowhere.
         [(short_name, filename)] = _derive_games(tmp_path).items()
         with pytest.raises(DiagnosticError):
-            _register(short_name, str(tmp_path / filename))
+            _register_all([(short_name, str(tmp_path / filename))])
         return
     if state == "directory_of_games":
         _green_copy(tmp_path, f"{stem}_a")
@@ -539,6 +697,120 @@ def _environment_name_cell(
         _env_registration(monkeypatch, str(mine))
     assert str(CORPUS / "hearts.cardlang") in str(info.value)
     assert str(mine) in str(info.value)
+
+
+# ---------------------------------------------------------------------------
+# Grid 3 — batch x the stage at which one of its files is refused.
+# ---------------------------------------------------------------------------
+
+
+def _assert_unregistered(*short_names: str) -> None:
+    """Nothing took these names — read from pyspiel, not from bookkeeping.
+
+    `_REGISTERED` is this module's own map and the commit pass is the only
+    thing that writes it, so a cell reading it alone would be watching the
+    bookkeeping rather than the registry the bookkeeping describes. The
+    property is that the two agree, so both are read, and
+    `pyspiel.registered_names` is the half with no inverse.
+    """
+    registered = set(pyspiel.registered_names())
+    for short_name in short_names:
+        assert short_name not in _REGISTERED, short_name
+        assert short_name not in registered, short_name
+
+
+@pytest.mark.parametrize(("batch", "stage"), sorted(_BATCH_EXPECTED))
+def test_batch_atomicity_cell(
+    batch: str, stage: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file refused at `stage` leaves its batch's earlier files unregistered.
+
+    `pyspiel.register_game` is process-global and has no inverse, and the map
+    that makes the collision refusal possible dies with the module when a
+    refusal escapes adapter import. A batch that registered as it went would
+    therefore leave names registered that no later run knows are taken — and
+    the next registration under one of them would win silently, which is the
+    refusal this surface exists to give.
+    """
+    expected = _BATCH_EXPECTED[(batch, stage)]
+    if expected == _INEXPRESSIBLE:
+        pytest.skip(f"{batch} cannot strand a file at {stage}: see the authored column")
+    stem = f"probe_batch_{batch}_{stage}"
+    if batch == "corpus_glob":
+        _corpus_batch_cell(stem, tmp_path)
+    elif batch == "environment_directory":
+        _environment_directory_batch_cell(stage, stem, tmp_path, monkeypatch)
+    else:
+        _environment_entries_batch_cell(stage, stem, tmp_path, monkeypatch)
+
+
+def _corpus_batch_cell(stem: str, tmp_path: Path) -> None:
+    """The corpus loop over what `_derive_games` hands it, on a temporary
+    directory — the checkout's own `docs/games/` must never hold a game the
+    checker refuses, so the state this cell needs cannot be built there."""
+    _green_copy(tmp_path, f"{stem}_a")
+    _diagnostic_copy(tmp_path, f"{stem}_b")
+    derived = _derive_games(tmp_path)
+    assert list(derived) == [f"cardlang_{stem}_a", f"cardlang_{stem}_b"]
+    with pytest.raises(DiagnosticError):
+        _register_all((name, str(tmp_path / f)) for name, f in derived.items())
+    _assert_unregistered(f"cardlang_{stem}_a")
+
+
+def _environment_directory_batch_cell(
+    stage: str, stem: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One directory entry, whose glob holds a green game and then a refused
+    one. Filenames are chosen so the glob's sort puts the green game first —
+    the cell has nothing to say if the refusal comes before anything to
+    strand."""
+    _green_copy(tmp_path, f"{stem}_a")
+    protected = [f"cardlang_{stem}_a"]
+    raises: type[Exception] = GameRegistrationError
+    match: str | None
+    if stage == "stem":
+        _green_copy(tmp_path, f"{stem}_zz(paren)")
+        match = "pyspiel cannot load"
+    elif stage == "checker":
+        _diagnostic_copy(tmp_path, f"{stem}_b")
+        raises, match = DiagnosticError, None
+    else:
+        assert stage == "collision", stage
+        # One stem in two spellings inside one directory: `-` sorts before
+        # `_`, so the pair is planned after the green game above and the
+        # second of them is what the glob refuses.
+        _green_copy(tmp_path, f"{stem}-x")
+        _green_copy(tmp_path, f"{stem}_x")
+        protected.append(f"cardlang_{stem}_x")
+        match = "claim the OpenSpiel short name"
+    with pytest.raises(raises, match=match):
+        _env_registration(monkeypatch, str(tmp_path))
+    _assert_unregistered(*protected)
+
+
+def _environment_entries_batch_cell(
+    stage: str, stem: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two entries: a green file, then one refused at `stage`."""
+    first = _green_copy(tmp_path / "first", stem)
+    raises: type[Exception] = GameRegistrationError
+    match: str | None
+    if stage == "entry_shape":
+        second = str(tmp_path / "nowhere.cardlang")
+        match = "neither a file nor a directory"
+    elif stage == "stem":
+        second = str(_green_copy(tmp_path / "second", f"{stem}(paren)"))
+        match = "pyspiel cannot load"
+    elif stage == "checker":
+        second = str(_diagnostic_copy(tmp_path / "second", f"{stem}_refused"))
+        raises, match = DiagnosticError, None
+    else:
+        assert stage == "collision", stage
+        second = str(_green_copy(tmp_path / "second", stem))
+        match = "claim the OpenSpiel short name"
+    with pytest.raises(raises, match=match):
+        _env_registration(monkeypatch, f"{first}{os.pathsep}{second}")
+    _assert_unregistered(f"cardlang_{stem}")
 
 
 # ---------------------------------------------------------------------------
