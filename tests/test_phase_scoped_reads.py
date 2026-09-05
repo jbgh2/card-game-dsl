@@ -144,8 +144,8 @@ walls:      the refusals here are not one kind, and the ledger says which is
             which so a reader can tell an unbuilt feature from a built wall.
             DEFERRALS, each with a tracker record naming the game shape that
             unblocks it: a spelling two declarations answer to — the shadowed
-            pair and the phase-and-zone pair alike (issue #516); two phases in
-            one clause (issue #517); a scoped call in a function, define or
+            pair and the phase-and-zone pair alike (issue #516); a scoped call
+            in a function, define or
             rule body (issue #518); an offer made from inside another move
             type's body, which the analysis refuses rather than positioning,
             since following it means judging the OFFERING move type's own
@@ -156,8 +156,15 @@ walls:      the refusals here are not one kind, and the ledger says which is
             construct rather than filed: a library cannot declare a phase for
             a tail to name (unconstructible off the grammar); a move type
             nothing offers is refused rather than passing containment
-            vacuously; and a strict descendant re-declaring the name is
-            refused rather than resolved by tagging frames at run time.
+            vacuously; a strict descendant re-declaring the name is
+            refused rather than resolved by tagging frames at run time; and an
+            entry naming phases that do NOT nest is refused rather than
+            deferred, because a phase's frame is popped when the phase ends —
+            no position in the game runs both, so nothing anyone could build
+            makes such an entry callable. That last premise is a fact about
+            the runtime rather than about this guard, so it is pinned
+            (`test_a_phases_frame_does_not_outlive_the_phase`) rather than
+            argued.
 
 Born red (this branch, before any of the tail's grammar, AST, resolve or
 runtime existed): recorded at the foot of this docstring in two takes, because

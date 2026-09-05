@@ -42,8 +42,6 @@ from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player, rank_strength
 
-ROW = reads.row("cardlang/runtime/cribbage.py", "cribbage.cardlang")
-
 # The show scorers' card weights (fifteens sum to 15 over these) — a second
 # copy of the fact cribbage.cardlang declares as its `card_points { }` clause
 # and reads at the pegging sites. The two must agree or the show and the
@@ -74,7 +72,7 @@ def count_pairs(cards: list[Card]) -> int:
 def run_score(cards: list[Card], order: Mapping[str, int], reader: str) -> int:
     """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
     contains at most one run). `order` is the game's declared rank order —
-    `ctx.rs.rank_index` from cribbage.cardlang's `ranking: aces low` — under
+    `facts.rank_index` from cribbage.cardlang's `ranking: aces low` — under
     which "a run" means ranks ADJACENT in the declaration: strengths are dense
     consecutive integers (the driver's `enumerate` formula), so A-2-3 runs and
     Q-K-A does not, exactly the A-low no-wraparound rule. `order` must cover

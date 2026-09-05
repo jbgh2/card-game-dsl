@@ -259,13 +259,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("influence", "revealed"),
         single_zones=_fs("court_deck"),
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/cribbage.py",
-        game_file="cribbage.cardlang",
-        state_vars=_fs("seq_bits", "seq_len", "dealer"),
-        zone_families=_fs("played"),
-        single_zones=_fs("play_pile", "starter", "crib"),
-    ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle
     # from this row (primitives.climb_row), so the row must exist.

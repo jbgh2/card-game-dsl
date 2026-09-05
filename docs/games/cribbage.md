@@ -33,4 +33,7 @@ count) and decoded by the `peg_origin_of` Primitive at each close, which
 routes the pile into `played[dealer]` / `played[nondealer]`. The combination
 scorers (fifteens, pairs, runs, flush, his nob) and the pegging-count scorers are
 Primitives, unit-tested against known hands (the 29-hand, runs with
-multiplicity, flushes, his nob).
+multiplicity, flushes, his nob). The game declares all five, with what each
+reads, in its own `primitives { }` block; `peg_origin_of` reads state from
+`phase play` and from `phase hand_sequence` around it, which is what commits
+it to being called where the pegging runs.

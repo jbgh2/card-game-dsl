@@ -655,7 +655,7 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 # which keeps its rendered sentences the shortest of the half. One name and one
 # guard: each such cell stays green when the name moves homes, so a literal per
 # cell would leave the prose false and nothing saying so.
-_LEGACY_HALF_NAME = "cribbage_crib_value"
+_LEGACY_HALF_NAME = "coup_game_summary"
 
 
 def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
@@ -791,6 +791,17 @@ _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
     ("legacy-arm too", "no block"): True,
 }
 
+# The cells of the product no registered name can spell. The legacy half's one
+# member answers the EMITTING contract, which the block refuses BY NAME, so
+# "a legacy-armed Primitive that its game's block declares" has no
+# representative to run. Marked rather than restated: the axis is not a
+# permanent one — coup's eviction (issue #142) empties the half outright,
+# `_homes()` then derives no legacy cell at all, and the representative pin
+# above reddens, which is the event that retires the axis whole.
+_NO_REPRESENTATIVE: frozenset[tuple[str, str]] = frozenset(
+    {("legacy-arm too", "block declares it")}
+)
+
 
 def _homes() -> dict[str, list[str]]:
     """The two homes, as the registries state them. The declared-only arm is
@@ -810,7 +821,24 @@ def _homes() -> dict[str, list[str]]:
 @pytest.mark.parametrize(
     "home,regime_label,name",
     [
-        (home, regime_label, name)
+        pytest.param(
+            home,
+            regime_label,
+            name,
+            marks=(
+                [
+                    pytest.mark.xfail(
+                        strict=True,
+                        raises=DiagnosticError,
+                        reason="the legacy half's one member answers the "
+                        "EMITTING contract, which a block refuses by name — "
+                        "the cell empties with coup's eviction (issue #142)",
+                    )
+                ]
+                if (home, regime_label) in _NO_REPRESENTATIVE
+                else []
+            ),
+        )
         for (home, regime_label) in sorted(_REGIME_PRODUCT)
         for name in _homes()[home]
     ],
@@ -2470,8 +2498,8 @@ def _walled_binder_rows(rows: tuple[PrimitiveReads, ...]) -> frozenset[tuple[str
     covers the call-position namespace alone.
 
     Two sources, both consumer-derived: the climb binder's own answers, and the
-    shared dispatch module's rows, which serve the auction outcomes and
-    cribbage's pegging call sites. The second is stated per MODULE, which is
+    shared dispatch module's rows, which serve the auction outcomes. The
+    second is stated per MODULE, which is
     only safe while that module implements no call Primitive — `_reconcile`
     asserts exactly that, so a call implementation landing there reddens the
     pin instead of silently widening the exemption."""

@@ -122,26 +122,6 @@ def call(name: str, args: list[Any], ctx: Ctx) -> Any:
             total, events = coup_game_summary(*_bind(ctx, ROW))
             _emit(ctx, events)
             return total
-        case "peg_pair_points":
-            from cardlang.runtime.cribbage import ROW, peg_pair_points
-
-            return peg_pair_points(*_bind(ctx, ROW))
-        case "peg_run_points":
-            from cardlang.runtime.cribbage import ROW, peg_run_points
-
-            return peg_run_points(*_bind(ctx, ROW))
-        case "peg_origin_of":
-            from cardlang.runtime.cribbage import ROW, peg_origin_of
-
-            return peg_origin_of(*_bind(ctx, ROW), args[0])
-        case "cribbage_show_value":
-            from cardlang.runtime.cribbage import ROW, cribbage_show_value
-
-            return cribbage_show_value(*_bind(ctx, ROW), args[0])
-        case "cribbage_crib_value":
-            from cardlang.runtime.cribbage import ROW, cribbage_crib_value
-
-            return cribbage_crib_value(*_bind(ctx, ROW))
         case _:
             # Shadow Guard behind resolve's `_validate_refs`, which refuses
             # both names this arm can meet: one no registry holds (the

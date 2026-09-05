@@ -420,37 +420,84 @@ def test_accepts_the_pile_winner_call_with_a_declared_ranking() -> None:
     _accepts(_game("let w = highest_trump_or_led_suit(pile, clubs)"))
 
 
+# The three cribbage scorers reach Python only through a declaration, so a
+# probe that calls one declares it — and declares the zones that entry's
+# `reads` clause names, since a clause naming a zone the game does not have is
+# a different refusal than the one these cells are about. Each entry's reads
+# are unscoped here: the probe's own declarations are all game-level, so no
+# tail applies. What the cells assert is that the ranking gate fires by NAME,
+# ahead of the bundle and independently of the regime the caller writes in.
+_PEG_ZONES = (
+    "  play_pile : TrickPile  starter : Discard  crib : FaceDownPile  "
+    "played[player] : PlayerPile<player>"
+)
+_PEG_ENTRIES: dict[str, str] = {
+    "peg_run_points": "peg_run_points() : Integer reads play_pile",
+    "cribbage_show_value": (
+        "cribbage_show_value(p : Player) : Integer reads played[p], starter"
+    ),
+    "cribbage_crib_value": "cribbage_crib_value() : Integer reads crib, starter",
+}
+
+
+def _cribbage_probe(name: str, call: str, ranking: str) -> str:
+    return _game(
+        f"score[0] += {call}",
+        ranking=ranking,
+        extra_zones=_PEG_ZONES,
+        clauses="primitives { " + _PEG_ENTRIES[name] + " }",
+    )
+
+
 def test_rejects_peg_run_points_with_no_declared_ranking() -> None:
     _rejects(
-        _game("score[0] += peg_run_points()", ranking=""),
+        _cribbage_probe("peg_run_points", "peg_run_points()", ranking=""),
         "peg_run_points() reads a card's rank strength from ranking:",
     )
 
 
 def test_accepts_peg_run_points_with_a_declared_ranking() -> None:
-    _accepts(_game("score[0] += peg_run_points()"))
+    _accepts(
+        _cribbage_probe(
+            "peg_run_points",
+            "peg_run_points()",
+            ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
+        )
+    )
 
 
 def test_rejects_cribbage_show_value_with_no_declared_ranking() -> None:
     _rejects(
-        _game("score[0] += cribbage_show_value(0)", ranking=""),
+        _cribbage_probe("cribbage_show_value", "cribbage_show_value(0)", ranking=""),
         "cribbage_show_value() reads a card's rank strength from ranking:",
     )
 
 
 def test_accepts_cribbage_show_value_with_a_declared_ranking() -> None:
-    _accepts(_game("score[0] += cribbage_show_value(0)"))
+    _accepts(
+        _cribbage_probe(
+            "cribbage_show_value",
+            "cribbage_show_value(0)",
+            ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
+        )
+    )
 
 
 def test_rejects_cribbage_crib_value_with_no_declared_ranking() -> None:
     _rejects(
-        _game("score[0] += cribbage_crib_value()", ranking=""),
+        _cribbage_probe("cribbage_crib_value", "cribbage_crib_value()", ranking=""),
         "cribbage_crib_value() reads a card's rank strength from ranking:",
     )
 
 
 def test_accepts_cribbage_crib_value_with_a_declared_ranking() -> None:
-    _accepts(_game("score[0] += cribbage_crib_value()"))
+    _accepts(
+        _cribbage_probe(
+            "cribbage_crib_value",
+            "cribbage_crib_value()",
+            ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
+        )
+    )
 
 
 _TRICK_ROUND = (
