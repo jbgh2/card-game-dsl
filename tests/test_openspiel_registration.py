@@ -14,10 +14,15 @@ property:        Every way a `.cardlang` file reaches `pyspiel.register_game`
 domain:          Three crossings, each total over its axes. The first crosses
                  the registration SOURCE with the state of the file or entry
                  it offers; the second crosses the same sources with the state
-                 of the short name that file derives. They factor because a
-                 name binds only after the check passes — a file the checker
-                 refuses never reaches `pyspiel.register_game`, so it cannot
-                 take a name; `test_a_refused_file_leaves_its_short_name_free`
+                 of the short name that file derives — a state that spans BOTH
+                 registries a name can be spoken for in, the adapter's own map
+                 of the files it registered and the process-global one pyspiel
+                 keeps, since a name held only by the second is one no file of
+                 this process's own naming can be produced for. They factor
+                 because a name binds only after the check passes — a file the
+                 checker refuses never reaches `pyspiel.register_game`, so it
+                 cannot take a name;
+                 `test_a_refused_file_leaves_its_short_name_free`
                  is the cell that holds the factorization, and without it the
                  halving would be a convenience rather than a fact.
 
@@ -31,7 +36,13 @@ domain:          Three crossings, each total over its axes. The first crosses
                  before the variable is read, so a refused variable leaves a
                  pyspiel holding exactly the corpus, which is what
                  `_register_env_var` says and what makes a corrected variable
-                 safe to re-offer.
+                 safe to offer in a FRESH process. In the same one it is not:
+                 the refusal takes the adapter's map with it and leaves those
+                 corpus names held with no file to match them to, so
+                 re-importing meets the `registered_outside` refusal on the
+                 first of them —
+                 `test_a_refused_import_leaves_the_corpus_names_held`, which
+                 needs its own interpreter for the state and not the property.
 
                  Inside the domain: the OpenSpiel short name and its character
                  set, the collision rule across every pair of sources, the
@@ -61,13 +72,15 @@ domain:          Three crossings, each total over its axes. The first crosses
                  import and `pyspiel.register_game` has no inverse.
 registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  below, crossed into `_FILE_EXPECTED`; name states:
-                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`; batches and
+                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`, over both
+                 registries a short name can be taken in; batches and
                  refusal stages: `_BATCHES` and `_PREFLIGHT_STAGES`, crossed
                  into `_BATCH_EXPECTED`, with the batch axis tied to
                  `_SOURCES` by `test_every_source_performs_a_batch` and the
                  stage axis derived against the two authored columns by
                  `test_every_refusal_belongs_to_a_preflight_stage`; the
-                 process-global registry those cells read:
+                 adapter's own map: `cardlang.openspiel.game._REGISTERED`; the
+                 process-global registry the name and batch cells read:
                  `pyspiel.registered_names`; the entry
                  vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, held in
                  step with the env dispatch by
@@ -88,7 +101,14 @@ does not prove:  A green here says nothing about whether a registered game's
                  the short-name character set admits every name OpenSpiel can
                  load: it is a subset chosen so a refusal precedes the
                  irreversible `pyspiel.register_game`, so names outside it are
-                 refused whether or not OpenSpiel would have taken them.
+                 refused whether or not OpenSpiel would have taken them. Nor
+                 does it make the process-global registry safe against a
+                 CONCURRENT writer: the names a batch treats as taken are read
+                 once, before its first commit, and pyspiel offers no
+                 register-if-absent to close the window, so a name another
+                 component registers between a plan and its commit is replaced
+                 as it was before. A designed constraint of that API, not a
+                 deferral — there is no primitive to build the alternative on.
 """
 
 from __future__ import annotations
@@ -157,12 +177,16 @@ _FILE_STATES: tuple[str, ...] = (
 
 # The state of the short name the offered file derives, with the file itself
 # held green. `corpus_name` is the reachable collision — a designer's own
-# `hearts.cardlang` against the corpus one.
+# `hearts.cardlang` against the corpus one. `registered_outside` is the state
+# only the process-global registry can report: pyspiel holds the name and the
+# adapter's map has no file for it, so the refusal has a name to state and no
+# file to name.
 _NAME_STATES: tuple[str, ...] = (
     "fresh",
     "same_path",
     "prior_call_other_path",
     "corpus_name",
+    "registered_outside",
 )
 
 # Every operation that offers files to the one registration function, named for
@@ -189,7 +213,9 @@ _BATCH_SOURCE: dict[str, str] = {
 # The stage at which a file a batch offers is refused. `entry_shape` is whether
 # what the batch names is a game file at all; `stem` is the short name the
 # filename renders; `checker` is the front end over the file's text;
-# `collision` is that short name against the names already spoken for.
+# `collision` is that short name against the names already spoken for — in the
+# adapter's own map, in the batch being planned, and in pyspiel's process-global
+# registry alike, which is one stage because one comparison answers all three.
 # `test_every_refusal_belongs_to_a_preflight_stage` derives this axis's
 # totality from the two authored columns above rather than asserting it.
 _PREFLIGHT_STAGES: tuple[str, ...] = ("entry_shape", "stem", "checker", "collision")
@@ -203,6 +229,7 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("corpus", "empty_directory"): "entry_shape",
     ("corpus", "bad_stem_file"): "stem",
     ("corpus", "corpus_name"): "collision",
+    ("corpus", "registered_outside"): "collision",
     ("call", "diagnostic_file"): "checker",
     ("call", "markdown_without_block"): "checker",
     ("call", "missing"): "entry_shape",
@@ -212,6 +239,7 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("call", "bad_stem_file"): "stem",
     ("call", "prior_call_other_path"): "collision",
     ("call", "corpus_name"): "collision",
+    ("call", "registered_outside"): "collision",
     ("environment", "diagnostic_file"): "checker",
     ("environment", "markdown_without_block"): "checker",
     ("environment", "missing"): "entry_shape",
@@ -220,6 +248,7 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("environment", "bad_stem_file"): "stem",
     ("environment", "prior_call_other_path"): "collision",
     ("environment", "corpus_name"): "collision",
+    ("environment", "registered_outside"): "collision",
 }
 
 # The outcome vocabulary. `inexpressible` is surface totality's third state:
@@ -281,14 +310,23 @@ _NAME_EXPECTED: dict[tuple[str, str], str] = {
     # name.
     ("corpus", "prior_call_other_path"): _INEXPRESSIBLE,
     ("corpus", "corpus_name"): "InstallationError",
+    # Live where `prior_call_other_path` is not, and the temporal argument
+    # above is exactly why: taking a name through this adapter needs the
+    # adapter imported, and calling `pyspiel.register_game` does not — so a
+    # component that holds a corpus game's name before the corpus loop runs is
+    # a process anyone can compose. It is also the cell that shows the union is
+    # read where every batch passes rather than at the two entry points.
+    ("corpus", "registered_outside"): "GameRegistrationError",
     ("call", "fresh"): _REGISTERS,
     ("call", "same_path"): "idempotent",
     ("call", "prior_call_other_path"): "GameRegistrationError",
     ("call", "corpus_name"): "GameRegistrationError",
+    ("call", "registered_outside"): "GameRegistrationError",
     ("environment", "fresh"): _REGISTERS,
     ("environment", "same_path"): "idempotent",
     ("environment", "prior_call_other_path"): "GameRegistrationError",
     ("environment", "corpus_name"): "GameRegistrationError",
+    ("environment", "registered_outside"): "GameRegistrationError",
 }
 
 
@@ -459,6 +497,64 @@ def _markdown_copy(directory: Path, stem: str, *, with_block: bool) -> Path:
         body += "\n```\n" + GREEN_SOURCE.read_text() + "```\n"
     dst.write_text(body)
     return dst
+
+
+def _register_outside(short_name: str) -> str:
+    """Give `short_name` to pyspiel directly, as another component does, and
+    return the long name that identifies what it holds.
+
+    Nothing here touches the adapter, which is the whole of the state being
+    built: the name is spoken for in the process-global registry and the
+    adapter's map has no entry for it. The long name is the discriminator a
+    cell reads back — the adapter renders `Cardlang <game name>`, so one that
+    cannot be that spelling tells the game pyspiel still answers with apart
+    from a replacement.
+
+    The game is a shell rather than a copy of a corpus one: what a cell asks
+    of it is that it hold a name and load, and a shell that cannot step is the
+    stronger fixture for the second half, since a cell that accidentally
+    replaced it would then have to say so.
+    """
+    long_name = f"Outside cardlang, {short_name}"
+    game_type = pyspiel.GameType(
+        short_name=short_name,
+        long_name=long_name,
+        dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
+        chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
+        information=pyspiel.GameType.Information.PERFECT_INFORMATION,
+        utility=pyspiel.GameType.Utility.ZERO_SUM,
+        reward_model=pyspiel.GameType.RewardModel.TERMINAL,
+        max_num_players=2,
+        min_num_players=2,
+        provides_information_state_string=False,
+        provides_information_state_tensor=False,
+        provides_observation_string=False,
+        provides_observation_tensor=False,
+        provides_factored_observation_string=False,
+    )
+    game_info = pyspiel.GameInfo(
+        num_distinct_actions=1,
+        max_chance_outcomes=0,
+        num_players=2,
+        min_utility=-1.0,
+        max_utility=1.0,
+        utility_sum=0.0,
+        max_game_length=1,
+    )
+
+    # `pyspiel` reaches this module through `importorskip`, so it is a value
+    # and not a name mypy can resolve a base class through — the adapter and
+    # the experiment rigs `import pyspiel` and silence the untyped base as
+    # `misc` instead.
+    class _Outside(pyspiel.Game):  # type: ignore[name-defined,misc]
+        def __init__(self, params: object = None) -> None:
+            super().__init__(game_type, game_info, params or {})
+
+        def new_initial_state(self) -> object:
+            raise NotImplementedError
+
+    pyspiel.register_game(game_type, _Outside)
+    return long_name
 
 
 def _env_registration(
@@ -669,6 +765,18 @@ def _corpus_name_cell(state: str, stem: str, tmp_path: Path) -> None:
         name = _short_name("kuhn-poker.cardlang")
         assert pyspiel.load_game(name).get_type().short_name == name
         return
+    if state == "registered_outside":
+        # The corpus loop over what the derivation hands it, on a temporary
+        # directory — the same driving as `_corpus_cell`, because the state a
+        # component builds before adapter import cannot be built against the
+        # checkout's own `docs/games/` after it.
+        long_name = _register_outside(f"cardlang_{stem}")
+        _green_copy(tmp_path, stem)
+        [(short_name, filename)] = _derive_games(tmp_path).items()
+        with pytest.raises(GameRegistrationError, match="registered outside"):
+            _register_all([(short_name, str(tmp_path / filename))])
+        assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
+        return
     assert state == "corpus_name", state
     _green_copy(tmp_path, "a-b")
     _green_copy(tmp_path, "a_b")
@@ -700,6 +808,17 @@ def _call_name_cell(state: str, stem: str, tmp_path: Path) -> None:
         assert str(tmp_path / "a" / f"{stem}.cardlang") in message
         assert str(other) in message
         return
+    if state == "registered_outside":
+        # Matched on wording neither collision refusal shares: both name the
+        # short name and both say it is registered, so a matcher on either
+        # phrase alone would read one as the other.
+        long_name = _register_outside(f"cardlang_{stem}")
+        mine = _green_copy(tmp_path, stem)
+        with pytest.raises(GameRegistrationError, match="registered outside") as info:
+            register_game_file(mine)
+        assert str(mine) in str(info.value)
+        assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
+        return
     assert state == "corpus_name", state
     mine = _green_copy(tmp_path, "hearts")
     with pytest.raises(GameRegistrationError) as info:
@@ -729,6 +848,14 @@ def _environment_name_cell(
             _env_registration(monkeypatch, f"{first}{os.pathsep}{second}")
         assert str(first) in str(info.value)
         assert str(second) in str(info.value)
+        return
+    if state == "registered_outside":
+        long_name = _register_outside(f"cardlang_{stem}")
+        mine = _green_copy(tmp_path, stem)
+        with pytest.raises(GameRegistrationError, match="registered outside") as info:
+            _env_registration(monkeypatch, str(mine))
+        assert str(mine) in str(info.value)
+        assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
         return
     assert state == "corpus_name", state
     mine = _green_copy(tmp_path, "hearts")
@@ -912,10 +1039,10 @@ print("LOADED", " ".join(sorted(n for n in g._REGISTERED if n.startswith("cardla
 def test_the_variable_is_read_at_adapter_import(tmp_path: Path) -> None:
     """Importing the adapter is what runs the environment source.
 
-    The one cell that needs a fresh interpreter, and the reason the others do
-    not: every refusal above is a property of `_register_env_var`, which this
-    process can call, while "adapter import calls it" is a property of the
-    import and nothing else. `pyspiel.register_game` has no inverse, so
+    One of the two cells that need a fresh interpreter, and the reason the
+    others do not: every refusal above is a property of `_register_env_var`,
+    which this process can call, while "adapter import calls it" is a property
+    of the import and nothing else. `pyspiel.register_game` has no inverse, so
     re-importing here would re-register the corpus against a registry that
     cannot be rolled back.
     """
@@ -932,6 +1059,53 @@ def test_the_variable_is_read_at_adapter_import(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "cardlang_probe_import_time" in proc.stdout
+
+
+_REIMPORT_PROBE = """
+import os
+os.environ["CARDLANG_GAMES"] = "/no/such/cardlang/entry.cardlang"
+try:
+    import cardlang.openspiel.game
+except Exception as exc:
+    print("FIRST", type(exc).__name__)
+del os.environ["CARDLANG_GAMES"]
+try:
+    import cardlang.openspiel.game
+    print("SECOND registered")
+except Exception as exc:
+    print("SECOND", type(exc).__name__, exc)
+"""
+
+
+def test_a_refused_import_leaves_the_corpus_names_held() -> None:
+    """A corrected `CARDLANG_GAMES` is a fresh process, and says so.
+
+    The other cell needing a fresh interpreter, for the state it needs rather
+    than the property: a refusal escaping adapter import takes the map with it
+    while the corpus games it already committed stay in pyspiel, and no
+    process that imported the adapter successfully can be put back into that
+    state. Re-importing there is the one place the corpus source meets names
+    it holds no file for, so the refusal it earns is the same one a component
+    registering outside earns — loud, rather than a second game quietly
+    registered under each corpus name and answering `pyspiel.load_game`.
+
+    red under: read `taken` from `_REGISTERED` alone. The second import then
+    reports `SECOND registered`, having replaced all of them.
+    """
+    env = dict(os.environ)
+    env.pop(GAMES_ENV_VAR, None)
+    env["PYTHONPATH"] = str(REPO)
+    proc = subprocess.run(  # noqa: PLW1510 -- the returncode assert below carries proc.stderr
+        [sys.executable, "-c", _REIMPORT_PROBE],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "FIRST GameRegistrationError" in proc.stdout, proc.stdout
+    assert "SECOND GameRegistrationError" in proc.stdout, proc.stdout
+    assert "registered outside this module" in proc.stdout, proc.stdout
 
 
 # ---------------------------------------------------------------------------

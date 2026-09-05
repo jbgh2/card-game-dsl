@@ -59,11 +59,13 @@ GAMES_ENV_VAR = "CARDLANG_GAMES"
 ENTRY_KINDS: tuple[str, ...] = ("file", "directory", "missing", "empty")
 
 # short name -> the resolved file it was registered from. Seeded by the corpus
-# loop at the bottom of this module, which is what lets a later collision name
-# the corpus file it would otherwise have replaced: `pyspiel.register_game`
-# accepts a duplicate short name and the LAST registration wins, silently, so
-# without this map a designer's own `hearts.cardlang` would answer
-# `pyspiel.load_game("cardlang_hearts")` for the rest of the process.
+# loop at the bottom of this module, which is what lets a collision NAME the
+# corpus file it would otherwise have replaced. Which names are taken is
+# pyspiel's answer, not this map's — `_taken` reads both — and the division is
+# the point: `pyspiel.register_game` accepts a duplicate short name and the
+# LAST registration wins, silently, so a designer's own `hearts.cardlang` would
+# answer `pyspiel.load_game("cardlang_hearts")` for the rest of the process.
+# pyspiel can say that a name is spoken for; only this map can say by what.
 _REGISTERED: dict[str, str] = {}
 
 
@@ -189,11 +191,12 @@ class _Registration:
     Everything a batch can refuse is settled by the time one of these exists,
     so committing it cannot fail. That is what lets a batch be all-or-nothing,
     and the split is load-bearing rather than tidy: `pyspiel.register_game` is
-    process-global with no inverse, while `_REGISTERED` — the map that makes
-    the collision refusal possible — dies with this module when a refusal
-    escapes its import. A batch that registered as it went would leave names
-    held in pyspiel that no later run knows are taken, and the next
-    registration under one of them would win silently.
+    process-global with no inverse, while `_REGISTERED` — the map that lets a
+    collision name the file holding the name — dies with this module when a
+    refusal escapes its import. A batch that registered as it went would leave
+    names held in pyspiel with nothing left to match them to their files, and
+    the corrected batch could then not be offered again at all: every name the
+    first attempt reached refuses as registered outside this module.
     """
 
     short_name: str
@@ -202,13 +205,32 @@ class _Registration:
     game_class: type[pyspiel.Game]
 
 
-def _plan(short_name: str, path: str, taken: dict[str, str]) -> _Registration | None:
+def _taken() -> dict[str, str | None]:
+    """Every short name spoken for, mapped to the file it was registered from.
+
+    The one derivation of "taken", read once per batch by `_register_all`, so
+    every source answers the question the same way. Two registries can hold a
+    name and both are read: pyspiel's is the one that decides whether
+    `pyspiel.register_game` would replace something, and `_REGISTERED` is the
+    one that knows which file did it. A name only pyspiel holds maps to None —
+    spoken for, with no file this module can name — which is the state a
+    component registering outside the adapter leaves behind.
+    """
+    taken: dict[str, str | None] = dict.fromkeys(pyspiel.registered_names())
+    taken.update(_REGISTERED)
+    return taken
+
+
+def _plan(
+    short_name: str, path: str, taken: dict[str, str | None]
+) -> _Registration | None:
     """Decide the registration of `path` under `short_name`, or refuse.
 
-    `taken` is every short name already spoken for — those `_REGISTERED`
-    holds, plus those planned earlier in the same batch — so two files
-    claiming one name are refused whether they arrive in one batch or in two.
-    A repeat of the same file plans nothing and returns None.
+    `taken` is every short name already spoken for — `_taken`'s two registries,
+    plus the names planned earlier in the same batch — so two files claiming
+    one name are refused whether they arrive in one batch, in two, or with the
+    first of them registered by something that is not this module at all. A
+    repeat of the same file plans nothing and returns None.
 
     The path is used as given rather than normalized: it becomes
     `replay.load`'s cache key and the state's own `_path`, and the corpus's
@@ -224,10 +246,19 @@ def _plan(short_name: str, path: str, taken: dict[str, str]) -> _Registration | 
     way to retract the first.
     """
     key = str(Path(path).resolve())
-    prior = taken.get(short_name)
-    if prior is not None:
+    if short_name in taken:
+        prior = taken[short_name]
         if prior == key:
             return None
+        if prior is None:
+            raise GameRegistrationError(
+                f"the OpenSpiel short name {short_name!r} is registered "
+                f"outside this module, and {key} would replace it. pyspiel "
+                f"keeps one registry for the whole process and answers with "
+                f"the last registration under a name, so there is no file "
+                f"here to name — rename this one, or drop whatever registered "
+                f"that name first."
+            )
         raise GameRegistrationError(
             f"two files claim the OpenSpiel short name {short_name!r}: "
             f"{prior} is registered and {key} would replace it. Rename one — "
@@ -328,7 +359,7 @@ def _register_all(pairs: Iterable[tuple[str, str]]) -> None:
     Every source goes through here, so the collision rule and the
     classification read cannot come to differ between them.
     """
-    taken = dict(_REGISTERED)
+    taken = _taken()
     planned: list[_Registration] = []
     for short_name, path in list(pairs):
         registration = _plan(short_name, path, taken)
@@ -354,7 +385,9 @@ def register_game_file(path: str | Path) -> str:
     Registering the same file twice is a no-op returning the same name, so a
     caller may offer a directory's worth of games without tracking which it has
     already done. A short name another file holds is refused naming both, since
-    pyspiel would otherwise take the second and answer with it.
+    pyspiel would otherwise take the second and answer with it; a name pyspiel
+    holds that this module did not register is refused too, with the name alone
+    to state.
 
     What this does not do is prove the game ready: the readiness battery runs
     per corpus game from a hand-authored module under `tests/openspiel_ready/`,
@@ -453,13 +486,15 @@ def _register_env_var() -> None:
     looks applied. An unset variable and one set to nothing mean the same
     thing and register nothing.
 
-    What the refusal denies is this module — the adapter API and the map the
-    collision rule reads — while the corpus games registered above it stay
-    live in pyspiel, whose registry is process-global and has no inverse. The
-    variable's own entries are the batch that is all-or-nothing: every entry
-    is resolved and every file it names is checked before the first of them
-    registers, so a corrected variable meets a pyspiel that holds exactly what
-    the corpus put there.
+    What the refusal denies is this module — the adapter API and the map that
+    lets a collision name a file — while the corpus games registered above it
+    stay live in pyspiel, whose registry is process-global and has no inverse.
+    The variable's own entries are the batch that is all-or-nothing: every
+    entry is resolved and every file it names is checked before the first of
+    them registers, so pyspiel holds exactly what the corpus put there.
+    Correcting the variable is therefore a fresh process: re-importing here
+    meets those corpus names held with no file to match them to, and refuses
+    them rather than registering a second game under each.
     """
     value = os.environ.get(GAMES_ENV_VAR, "")
     if not value.strip():
