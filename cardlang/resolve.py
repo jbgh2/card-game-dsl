@@ -5294,8 +5294,7 @@ def _check_primitive_name(
         bag.error(
             f"`{decl.name}`'s implementation does not answer the declared "
             f"Primitive contract (it is {contract.value}), so a `primitives` "
-            f"entry cannot bind it — see issue "
-            f"{'#142' if contract is InvocationContract.EMITTING else '#473'}",
+            f"entry cannot bind it — see issue #142",
             decl.span,
         )
         return

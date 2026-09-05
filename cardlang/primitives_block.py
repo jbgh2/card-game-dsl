@@ -147,9 +147,10 @@ class InvocationContract(Enum):
 
     A closed domain over `PRIMITIVE_CALL_FUNCS`: every registered Primitive
     answers exactly one of these, and the block admits `DECLARABLE_CONTRACTS`
-    alone. The other two are refused BY NAME at resolve rather than left to
-    fail as a `TypeError` mid-playout, because the mismatch is between a
-    declaration and a Python signature — a compile-time fact.
+    alone. Every member outside that allow-list is refused BY NAME at resolve
+    rather than left to fail as a `TypeError` mid-playout, because the
+    mismatch is between a declaration and a Python signature — a compile-time
+    fact.
     """
 
     BUNDLED = "bundled"
@@ -166,12 +167,6 @@ class InvocationContract(Enum):
     a value AND returns the engine's own trace events for the dispatch layer
     to emit (`narrowing.TraceEvent`). Not declarable: the one member is a
     trace emitter by call shape whose eviction is its own step (issue #142)."""
-
-    SITE_READ = "site_read"
-    """The dispatch site materializes the reads itself rather than binding a
-    row. Not declarable: the reads such a Primitive makes are written at the
-    call site, so a `reads` clause would declare something the implementation
-    does not consult (issue #473)."""
 
 
 @dataclass(frozen=True, slots=True)

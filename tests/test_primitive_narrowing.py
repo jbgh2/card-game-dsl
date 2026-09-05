@@ -102,13 +102,17 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             `call()` coercion (`_coerce_args`, which copies both TCollection
             args AND scalar `TCard` args — a frozen+slots `Card` is still
             mutable via `object.__setattr__`), the climb hand AND the
-            standing `Play` (`state["current"]`), and the direct sites that
-            read live engine state rather than a bundle — the two cribbage
-            peg arms and the trick `outcome_fn` (`played` + `rank_index`). Keys are frozen with
+            standing `Play` (`state["current"]`), and the one direct site
+            that reads live engine state rather than a bundle — the trick
+            `outcome_fn` (`played` + `rank_index`). Keys are frozen with
             values, so a mutable-hashable key cannot be recovered by
             iterating a proxy. Each channel is proven: the boundary
-            snapshot is a tuple not the live list (captured at the peg and
-            outcome sites), and a mutable key/arg is refused. The auction
+            snapshot is a tuple not the live list (captured at the outcome
+            site), and a mutable key/arg is refused. The cribbage pegging
+            scorers are covered by (d) rather than here, by derivation:
+            they take the bundle like every other narrowed Primitive, so
+            the freeze they receive is `narrowing.bind`'s and the grid
+            proves it over the whole index. The auction
             outcomes are excluded on purpose — they are residual (1),
             still holding `ctx`, so freezing one of their args would be
             theater;
@@ -181,7 +185,9 @@ from cardlang.builtins.functions import (
     PRIMITIVE_EARLY_PREDICATES,
     TRICK_WINNER_NAMES,
 )
+from cardlang.pipeline import check_source
 from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
+from cardlang.resolve import _walk
 from cardlang.runtime import reads as reads_mod
 from cardlang.runtime.reads import PRIMITIVE_READS, PrimitiveReads
 from cardlang.runtime.state import RuntimeState, ZoneStore
@@ -189,6 +195,7 @@ from cardlang.runtime.values import Card, Seating
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_DIR = REPO_ROOT / "cardlang" / "runtime"
+GAMES_DIR = REPO_ROOT / "docs" / "games"
 
 # --- axis 1: the game-module set -------------------------------------------
 #
@@ -1472,42 +1479,6 @@ def test_climb_follow_freezes_the_standing_play() -> None:
     )
 
 
-def test_peg_direct_arm_args_are_frozen(monkeypatch: Any) -> None:
-    """The two cribbage peg arms read live engine state directly (not through
-    a bundle), so `call()` freezes their collection args at the site. Capture
-    what the primitive actually receives and prove it is immutable."""
-    from cardlang.runtime import cribbage
-    from cardlang.runtime import primitives as stdlib
-    from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
-
-    decls = (n.ZoneDecl(name="play_pile", index=None, type_ref=n.TypeRef(name="Pile")),)
-    rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
-    rs.zones.single("play_pile").cards.extend([Card("7", "clubs"), Card("7", "hearts")])
-    rs.rank_index = {"7": 0}
-    ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
-
-    seen: dict[str, Any] = {}
-
-    def capture_pair(seq: Any) -> int:
-        seen["pair"] = seq
-        return 0
-
-    def capture_run(seq: Any, order: Any) -> int:
-        seen["seq"], seen["order"] = seq, order
-        return 0
-
-    monkeypatch.setattr(cribbage, "peg_pair_points", capture_pair)
-    monkeypatch.setattr(cribbage, "peg_run_points", capture_run)
-    stdlib.call("peg_pair_points", [], ctx)
-    stdlib.call("peg_run_points", [], ctx)
-
-    live_cards = rs.zones.single("play_pile").cards
-    for key in ("pair", "seq", "order"):
-        assert not _reachable_mutable(seen[key], f"peg {key}"), f"{key} not frozen"
-    assert seen["pair"] is not live_cards and seen["seq"] is not live_cards  # snapshots
-    assert isinstance(seen["order"], MappingProxyType)  # rank_index frozen too
-
-
 def test_trick_outcome_freezes_its_collection_args() -> None:
     """TrickForm.outcome hands the outcome callback its plays and rank index
     directly, so both are frozen at the site — the direct-call analogue of the
@@ -1601,30 +1572,45 @@ def test_no_unlisted_migrated_primitive_emits_traces() -> None:
 
 # --- residual (1): the game knowledge that stays in engine core -------------
 
-_ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = frozenset(
-    {
-        "bridge_auction_outcome",
-        "pinochle_auction_outcome",
-        "tarot_auction_outcome",
-    }
-)
+_ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = PRIMITIVE_AUCTION_OUTCOMES
+"""The residual: the Primitive namespace whose implementations live INSIDE
+`cardlang/runtime/primitives.py`. Derived from the registry rather than
+re-typed, so a fourth auction outcome joins the residual by being registered."""
+
+
+def _games_with_an_auction_outcome() -> frozenset[str]:
+    """The corpus game files whose `round auction` names one of the residual
+    Primitives — the games engine core therefore reads state on behalf of."""
+    found: set[str] = set()
+    for path in sorted(GAMES_DIR.glob("*.cardlang")):
+        game = check_source(path)
+        if any(
+            isinstance(node, n.AuctionRound)
+            and node.outcome_fn in _ENGINE_CORE_GAME_KNOWLEDGE
+            for node in _walk(game)
+        ):
+            found.add(path.name)
+    return frozenset(found)
 
 
 def test_engine_core_game_knowledge_is_named() -> None:
     """The residual, pinned so it cannot grow quietly. These primitives are
     implemented inside primitives.py — engine core — so the game-module
-    guard does not reach them; stage 4 (co-location) owns their move. A NEW
-    per-game function added to primitives.py fails here."""
+    guard does not reach them; stage 4 (co-location) owns their move.
+
+    Both sides derive, and from DIFFERENT registries: the rows engine core
+    actually holds, against the games whose own text names a residual
+    Primitive. Comparing rows with rows would be the vacuous shape — it would
+    hold whatever the table said. A new per-game function in primitives.py
+    fails here, and so does a row engine core keeps for a game that has
+    stopped asking it for anything."""
     rows = {r.game_file for r in PRIMITIVE_READS if r.module == "cardlang/runtime/primitives.py"}
-    assert rows == {
-        "bridge.cardlang",
-        "cribbage.cardlang",
-        "pinochle.cardlang",
-        "french-tarot.cardlang",
-    }, (
-        f"primitives.py's per-game declared-reads rows changed to {sorted(rows)} — "
-        f"engine core is holding game knowledge for a different set of games "
-        f"than this ledger's residual (1) records"
+    assert rows == _games_with_an_auction_outcome(), (
+        f"primitives.py's per-game declared-reads rows are {sorted(rows)}, "
+        f"while the corpus games naming a residual Primitive are "
+        f"{sorted(_games_with_an_auction_outcome())} — engine core is holding "
+        f"game knowledge for a different set of games than this ledger's "
+        f"residual (1) records"
     )
     dispatched = {i.primitive for i in _implementations()}
     assert not (_ENGINE_CORE_GAME_KNOWLEDGE & dispatched), (
