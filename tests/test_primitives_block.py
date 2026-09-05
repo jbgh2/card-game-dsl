@@ -1635,8 +1635,8 @@ def test_the_phase_carrying_walk_agrees_with_the_engines() -> None:
     walk that only looks at `game.phases` gets wrong.
 
     red under: drop the `n.Phase` recursion from
-    `primitives_block._phase_state_decls`, the ONE walk the attribution and the
-    paths both derive from."""
+    `primitives_block._phase_tree`, the ONE walk the attribution and the paths
+    both derive from."""
     from cardlang.primitives_block import _phase_state_declarations
 
     source = (

@@ -564,9 +564,8 @@ def test_the_phase_walk_carries_ancestry() -> None:
     would compare a derivation with itself, since the attribution IS the paths
     with each path's last element taken.
 
-    red under: drop the nesting recursion from
-    `primitives_block._phase_state_decls`, the ONE walk the paths derive
-    from."""
+    red under: drop the nesting recursion from `primitives_block._phase_tree`,
+    the ONE walk the paths derive from."""
     from cardlang.primitives_block import _phase_state_paths
 
     game = _checks(
