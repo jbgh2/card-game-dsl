@@ -364,8 +364,12 @@ def test_the_index_is_where_a_primitive_signature_is_stated() -> None:
     first from being a statement about one of two agreeing copies — a name
     keyed in both would let a consumer take either and read as correct.
 
-    red under: key any registered Primitive in `CALL_SIGS`, or return
-    `CALL_SIGS.get(name)` from `implementation_sig`."""
+    red under, one mutation per assertion, each demonstrated and reverted
+    2026-09-05 (a red run stops at the first assertion, so each earns its own):
+    return `CALL_SIGS.get(name)` from `implementation_sig` — "belote_best_is's
+    signature does not come from its index row"; key `pinochle_meld_value` in
+    `CALL_SIGS` — "Primitives keyed in the Builtins' signature table:
+    ['pinochle_meld_value']"."""
     from cardlang.builtins.signatures import CALL_SIGS
 
     for name, impl in PRIMITIVE_IMPLEMENTATIONS.items():
