@@ -286,9 +286,9 @@ Typecheck materializes the declared `Sig`, and it is that signature the
 runtime's `coerce_args` freezes against. The driver builds the dispatch
 table at load, so a primitive has no hand-written arm at all; a game's
 `f(...)` calls resolve against its own namespace, which closes the
-cross-game leakage (issue #364). The reads clause is per-primitive and per-CALL: an indexed
-read materializes the one instance the call names. Scope Owner Guard:
-the clause is checked for name validity and drives what the dispatch
+cross-game leakage (issue #364). The reads clause is per-primitive and
+per-CALL: an indexed read materializes the one instance the call names.
+Scope Owner Guard: the clause is checked for name validity and drives what the dispatch
 hands over — the derived-reveal analysis (hidden reads flowing into
 public state) is recorded follow-on work (issue #471), not silently
 absent, and the engine-fact half of what a primitive sees stays whole
@@ -358,8 +358,8 @@ independent authorings of the table; the arena reports per-type combo
 incidence, which is what re-tunes the values. This is also the stage that
 made the declaration route explicit: a Primitive has no `call` arm, which
 the dispatch-split grid, the signature reconciliation and the
-declared-reads scan each state rather than assume. Arena re-runs and REPORT verdicts close the
-round.
+declared-reads scan each state rather than assume. Arena re-runs and
+REPORT verdicts close the round.
 
 ## 6. One pressure to preserve
 
