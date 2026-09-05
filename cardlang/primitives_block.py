@@ -32,7 +32,8 @@ Assumes:      a parsed `Game` — `regime` and `declared_names` read the parse
               stamp alone and hold before resolve has validated anything.
 Establishes:  ONE classification of a game's Primitive regime, and ONE
               statement of which Python each registered Primitive name is
-              implemented by, and of the signature that Python takes. Also the ONE classification of a `reads` name
+              implemented by, and of the signature that Python takes. Also
+              the ONE classification of a `reads` name
               (`classify_read`, which the read's own scope tail steers) and
               the collision predicates over the four namespaces such a name
               can be declared in — the game's own `state { }`, a phase's, an
