@@ -67,9 +67,12 @@ domain:          Three crossings, each total over its axes. The first crosses
                  gets the adapter's derived information states and no readiness
                  proof, which is issue #25 and states itself at the function.
                  This module runs only where the `openspiel` extra is
-                 installed; the environment cells additionally need a
-                 subprocess, because `CARDLANG_GAMES` is read once at adapter
-                 import and `pyspiel.register_game` has no inverse.
+                 installed; two cells additionally need a fresh interpreter,
+                 both for what adapter IMPORT does rather than for what a
+                 refusal is, because `CARDLANG_GAMES` is read once at that
+                 import and `pyspiel.register_game` has no inverse. The grids'
+                 own environment cells drive `_register_env_var` in this
+                 process instead.
 registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  below, crossed into `_FILE_EXPECTED`; name states:
                  `_NAME_STATES`, crossed into `_NAME_EXPECTED`, over both
