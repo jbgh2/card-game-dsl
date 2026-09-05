@@ -25,9 +25,12 @@ row permits.
 Establishes: a value for every declared call (`call_declared`); the walled
 dispatchers keep their own arms.
 Illegal after: reading engine state by any route other than a declared row;
-an arm for a call-position Primitive anywhere — there is no dispatcher here to
-add one to, and a Primitive that could be reached without a declaration would
-be Python a game file never claimed.
+and an arm that INVOKES a call-position Primitive on a game's behalf. The slot
+dispatchers below key names — `joint_codec_function`'s arms name two
+call-position Primitives, as the roots of a joint predicate whose codec they
+return — but none of them calls one, and `call_declared` off a game's own
+declaration is the only site that does. A Primitive reachable without a
+declaration would be Python a game file never claimed.
 
 This module must not import `runtime/builtins.py`. Which half of the registry a
 name belongs to is the caller's question (`runtime/evaluate.py`), and keeping

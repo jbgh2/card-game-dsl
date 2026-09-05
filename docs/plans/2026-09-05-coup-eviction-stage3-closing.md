@@ -698,3 +698,34 @@ neither touched by its diff: declaring the standard trick winner
 winner slot's namespace is walled only on its empty game-local half
 (issue #579); and `VALUE_SIGS` / `EARLY_SIGS` have no consumer in `cardlang/`,
 so the type each states is checked against nothing (issue #580).
+
+### The audit's misuse-probe pass (2026-09-05, fresh-context adversarial, ~95 probes)
+
+Run per the `surface-totality-audit` skill's Step 2 against the six claims
+the end state makes, from a fresh context told to break them. What HELD, in
+its words: the registries are disjoint every way it crossed them; the only
+import of a Primitive's Python is the driver's, gated on the declaration (a
+sweep of every registered attribute across `cardlang/` found no second
+route); a blockless game, an empty block, and a block omitting the name are
+refused with the block-naming diagnostic in every one of thirteen predicate
+and expression contexts; `native_call` under a blockless or empty table
+raises the Shadow Guard naming its owner; every signature-disagreement axis
+is caught; and the phase-scoped reads machinery held under every route it
+could construct.
+
+One finding lands in the change, and is fixed in it: `runtime/primitives.py`'s
+Contract said an arm for a call-position Primitive is illegal because "there is
+no dispatcher here to add one to". The module holds `joint_codec_function`,
+whose arms name two call-position Primitives as the roots of a joint
+predicate. The ban's substance holds — none of the slot dispatchers invokes a
+Primitive — and the clause now says that instead of a fact about the module
+that is not true of it.
+
+Three findings outside the change, each reproduced by the author before
+filing: a bare trick-winner or auction-outcome name is an accepted expression
+and leaves a Python function object in an `Integer` state variable, over all
+six of `VALUE_NAMES` (issue #581, and the false `AssertionError` its three
+auction outcomes reach rides with it); calling a walled Primitive is refused
+as an unknown function though the block position names its namespace, over all
+ten walled names (issue #582); and a library calling a Primitive is told the
+name is not a native function (issue #583).
