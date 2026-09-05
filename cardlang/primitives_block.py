@@ -84,7 +84,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 from cardlang.ast import nodes as n
-from cardlang.builtins.signatures import CALL_SIGS, Sig
 from cardlang.builtins.functions import (
     BUILTIN_CALL_FUNCS,
     CALL_FUNCS,
@@ -94,6 +93,17 @@ from cardlang.builtins.functions import (
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
     PRIMITIVE_TRICK_WINNERS,
+)
+from cardlang.builtins.signatures import CALL_SIGS, Sig
+from cardlang.types import (
+    TBoolean,
+    TCard,
+    TCollection,
+    TEnum,
+    TInteger,
+    TOptional,
+    TPlayer,
+    TTeam,
 )
 
 
@@ -186,53 +196,195 @@ class Implementation:
     module: str
     attribute: str
     contract: InvocationContract
+    sig: Sig
+    """The signature the Python states, authored beside the location that
+    finds it. Required, so an implementation registered without one does not
+    construct, and read through `implementation_sig` — the one seam every
+    consumer takes a Primitive's shape through. Authored rather than derived
+    from the Python annotations: a `Player`, a `Team` and an `Integer` are all
+    `int` there, and a collection has no annotation the mapping reads, so an
+    annotation cannot state a DSL type. What the two independent statements
+    buy is `tests/test_signatures.py`'s cross-check of one against the
+    other."""
 
 
 PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
-    "belote_best_is": Implementation("cardlang.runtime.belote", "belote_best_is", InvocationContract.BUNDLED),
-    "belote_decl_class": Implementation("cardlang.runtime.belote", "belote_decl_class", InvocationContract.BUNDLED),
-    "belote_decl_height": Implementation("cardlang.runtime.belote", "belote_decl_height", InvocationContract.BUNDLED),
-    "belote_decl_points": Implementation("cardlang.runtime.belote", "belote_decl_points", InvocationContract.BUNDLED),
-    "belote_decl_size": Implementation("cardlang.runtime.belote", "belote_decl_size", InvocationContract.BUNDLED),
-    "belote_decl_slot": Implementation("cardlang.runtime.belote", "belote_decl_slot", InvocationContract.BUNDLED),
-    "belote_decl_trump": Implementation("cardlang.runtime.belote", "belote_decl_trump", InvocationContract.BUNDLED),
-    "belote_royal_player": Implementation("cardlang.runtime.belote", "belote_royal_player", InvocationContract.BUNDLED),
-    "bring_in_seat": Implementation("cardlang.runtime.stud", "bring_in_seat", InvocationContract.BUNDLED),
-    "canasta_can_start": Implementation("cardlang.runtime.canasta", "canasta_can_start", InvocationContract.BUNDLED),
-    "canasta_can_take_pile": Implementation("cardlang.runtime.canasta", "canasta_can_take_pile", InvocationContract.BUNDLED),
-    "canasta_canasta_bonus": Implementation("cardlang.runtime.canasta", "canasta_canasta_bonus", InvocationContract.BUNDLED),
-    "canasta_close_ok": Implementation("cardlang.runtime.canasta", "canasta_close_ok", InvocationContract.BUNDLED),
-    "canasta_must_take_pile": Implementation("cardlang.runtime.canasta", "canasta_must_take_pile", InvocationContract.BUNDLED),
-    "canasta_stage_ok": Implementation("cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED),
-    "cribbage_crib_value": Implementation("cardlang.runtime.cribbage", "cribbage_crib_value", InvocationContract.BUNDLED),
-    "cribbage_show_value": Implementation("cardlang.runtime.cribbage", "cribbage_show_value", InvocationContract.BUNDLED),
-    "first_to_act_seat": Implementation("cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED),
-    "five_hundred_bid_level": Implementation("cardlang.runtime.five_hundred", "five_hundred_bid_level", InvocationContract.PURE),
-    "five_hundred_bid_value": Implementation("cardlang.runtime.five_hundred", "five_hundred_bid_value", InvocationContract.PURE),
-    "five_hundred_next_bid": Implementation("cardlang.runtime.five_hundred", "five_hundred_next_bid", InvocationContract.PURE),
-    "gin_arrange_ok": Implementation("cardlang.runtime.gin", "gin_arrange_ok", InvocationContract.BUNDLED),
-    "gin_can_declare": Implementation("cardlang.runtime.gin", "gin_can_declare", InvocationContract.BUNDLED),
-    "gin_can_declare_free": Implementation("cardlang.runtime.gin", "gin_can_declare_free", InvocationContract.BUNDLED),
-    "gin_can_knock": Implementation("cardlang.runtime.gin", "gin_can_knock", InvocationContract.BUNDLED),
-    "gin_deadwood": Implementation("cardlang.runtime.gin", "gin_deadwood", InvocationContract.BUNDLED),
-    "gin_knock_ok": Implementation("cardlang.runtime.gin", "gin_knock_ok", InvocationContract.BUNDLED),
-    "gin_lay_ok_a": Implementation("cardlang.runtime.gin", "gin_lay_ok_a", InvocationContract.BUNDLED),
-    "gin_lay_ok_b": Implementation("cardlang.runtime.gin", "gin_lay_ok_b", InvocationContract.BUNDLED),
-    "gin_lay_ok_c": Implementation("cardlang.runtime.gin", "gin_lay_ok_c", InvocationContract.BUNDLED),
-    "gin_valid_meld": Implementation("cardlang.runtime.gin", "gin_valid_meld", InvocationContract.BUNDLED),
-    "holdem_heads_up_pot_share": Implementation("cardlang.runtime.holdem_heads_up", "holdem_heads_up_pot_share", InvocationContract.BUNDLED),
-    "holdem_pot_share": Implementation("cardlang.runtime.holdem", "holdem_pot_share", InvocationContract.BUNDLED),
-    "peg_origin_of": Implementation("cardlang.runtime.cribbage", "peg_origin_of", InvocationContract.BUNDLED),
-    "peg_pair_points": Implementation("cardlang.runtime.cribbage", "peg_pair_points", InvocationContract.BUNDLED),
-    "peg_run_points": Implementation("cardlang.runtime.cribbage", "peg_run_points", InvocationContract.BUNDLED),
-    "pinochle_meld_value": Implementation("cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED),
-    "pot_share": Implementation("cardlang.runtime.stud", "pot_share", InvocationContract.BUNDLED),
-    "salvo_combos": Implementation("cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED),
-    "skat_matadors": Implementation("cardlang.runtime.skat", "skat_matadors", InvocationContract.BUNDLED),
-    "skat_next_bid": Implementation("cardlang.runtime.skat", "skat_next_bid", InvocationContract.PURE),
-    "tarot_excuse_player": Implementation("cardlang.runtime.tarot", "tarot_excuse_player", InvocationContract.BUNDLED),
-    "tarot_per_opp": Implementation("cardlang.runtime.tarot", "tarot_per_opp", InvocationContract.BUNDLED),
-    "tichu_dragon_won": Implementation("cardlang.runtime.tichu", "tichu_dragon_won", InvocationContract.BUNDLED),
+    "belote_best_is": Implementation(
+        "cardlang.runtime.belote", "belote_best_is", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TInteger(), TEnum("Rank"), TBoolean()), TBoolean()),
+    ),
+    "belote_decl_class": Implementation(
+        "cardlang.runtime.belote", "belote_decl_class", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "belote_decl_height": Implementation(
+        "cardlang.runtime.belote", "belote_decl_height", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "belote_decl_points": Implementation(
+        "cardlang.runtime.belote", "belote_decl_points", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "belote_decl_size": Implementation(
+        "cardlang.runtime.belote", "belote_decl_size", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "belote_decl_slot": Implementation(
+        "cardlang.runtime.belote", "belote_decl_slot", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TInteger(), TCard()), TBoolean()),
+    ),
+    "belote_decl_trump": Implementation(
+        "cardlang.runtime.belote", "belote_decl_trump", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "belote_royal_player": Implementation(
+        "cardlang.runtime.belote", "belote_royal_player", InvocationContract.BUNDLED,
+        Sig((), TOptional(TPlayer())),
+    ),
+    "bring_in_seat": Implementation(
+        "cardlang.runtime.stud", "bring_in_seat", InvocationContract.BUNDLED,
+        Sig((), TPlayer()),
+    ),
+    "canasta_can_start": Implementation(
+        "cardlang.runtime.canasta", "canasta_can_start", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TEnum("Rank")), TBoolean()),
+    ),
+    "canasta_can_take_pile": Implementation(
+        "cardlang.runtime.canasta", "canasta_can_take_pile", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "canasta_canasta_bonus": Implementation(
+        "cardlang.runtime.canasta", "canasta_canasta_bonus", InvocationContract.BUNDLED,
+        Sig((TTeam(),), TInteger()),
+    ),
+    "canasta_close_ok": Implementation(
+        "cardlang.runtime.canasta", "canasta_close_ok", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "canasta_must_take_pile": Implementation(
+        "cardlang.runtime.canasta", "canasta_must_take_pile", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "canasta_stage_ok": Implementation(
+        "cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TCard()), TBoolean()),
+    ),
+    "cribbage_crib_value": Implementation(
+        "cardlang.runtime.cribbage", "cribbage_crib_value", InvocationContract.BUNDLED,
+        Sig((), TInteger()),
+    ),
+    "cribbage_show_value": Implementation(
+        "cardlang.runtime.cribbage", "cribbage_show_value", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "first_to_act_seat": Implementation(
+        "cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED,
+        Sig((), TPlayer()),
+    ),
+    "five_hundred_bid_level": Implementation(
+        "cardlang.runtime.five_hundred", "five_hundred_bid_level", InvocationContract.PURE,
+        Sig((TInteger(),), TInteger()),
+    ),
+    "five_hundred_bid_value": Implementation(
+        "cardlang.runtime.five_hundred", "five_hundred_bid_value", InvocationContract.PURE,
+        Sig((TInteger(),), TInteger()),
+    ),
+    "five_hundred_next_bid": Implementation(
+        "cardlang.runtime.five_hundred", "five_hundred_next_bid", InvocationContract.PURE,
+        Sig((TInteger(), TOptional(TEnum("Suit"))), TInteger()),
+    ),
+    "gin_arrange_ok": Implementation(
+        "cardlang.runtime.gin", "gin_arrange_ok", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TCollection(TCard())), TBoolean()),
+    ),
+    "gin_can_declare": Implementation(
+        "cardlang.runtime.gin", "gin_can_declare", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "gin_can_declare_free": Implementation(
+        "cardlang.runtime.gin", "gin_can_declare_free", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "gin_can_knock": Implementation(
+        "cardlang.runtime.gin", "gin_can_knock", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TBoolean()),
+    ),
+    "gin_deadwood": Implementation(
+        "cardlang.runtime.gin", "gin_deadwood", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "gin_knock_ok": Implementation(
+        "cardlang.runtime.gin", "gin_knock_ok", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TCard()), TBoolean()),
+    ),
+    "gin_lay_ok_a": Implementation(
+        "cardlang.runtime.gin", "gin_lay_ok_a", InvocationContract.BUNDLED,
+        Sig((TCard(), TPlayer()), TBoolean()),
+    ),
+    "gin_lay_ok_b": Implementation(
+        "cardlang.runtime.gin", "gin_lay_ok_b", InvocationContract.BUNDLED,
+        Sig((TCard(), TPlayer()), TBoolean()),
+    ),
+    "gin_lay_ok_c": Implementation(
+        "cardlang.runtime.gin", "gin_lay_ok_c", InvocationContract.BUNDLED,
+        Sig((TCard(), TPlayer()), TBoolean()),
+    ),
+    "gin_valid_meld": Implementation(
+        "cardlang.runtime.gin", "gin_valid_meld", InvocationContract.BUNDLED,
+        Sig((TCollection(TCard()),), TBoolean()),
+    ),
+    "holdem_heads_up_pot_share": Implementation(
+        "cardlang.runtime.holdem_heads_up", "holdem_heads_up_pot_share", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "holdem_pot_share": Implementation(
+        "cardlang.runtime.holdem", "holdem_pot_share", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "peg_origin_of": Implementation(
+        "cardlang.runtime.cribbage", "peg_origin_of", InvocationContract.BUNDLED,
+        Sig((TCard(),), TPlayer()),
+    ),
+    "peg_pair_points": Implementation(
+        "cardlang.runtime.cribbage", "peg_pair_points", InvocationContract.BUNDLED,
+        Sig((), TInteger()),
+    ),
+    "peg_run_points": Implementation(
+        "cardlang.runtime.cribbage", "peg_run_points", InvocationContract.BUNDLED,
+        Sig((), TInteger()),
+    ),
+    "pinochle_meld_value": Implementation(
+        "cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "pot_share": Implementation(
+        "cardlang.runtime.stud", "pot_share", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "salvo_combos": Implementation(
+        "cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED,
+        Sig((TPlayer(), TInteger()), TInteger()),
+    ),
+    "skat_matadors": Implementation(
+        "cardlang.runtime.skat", "skat_matadors", InvocationContract.BUNDLED,
+        Sig((TPlayer(),), TInteger()),
+    ),
+    "skat_next_bid": Implementation(
+        "cardlang.runtime.skat", "skat_next_bid", InvocationContract.PURE,
+        Sig((TInteger(),), TInteger()),
+    ),
+    "tarot_excuse_player": Implementation(
+        "cardlang.runtime.tarot", "tarot_excuse_player", InvocationContract.BUNDLED,
+        Sig((), TOptional(TPlayer())),
+    ),
+    "tarot_per_opp": Implementation(
+        "cardlang.runtime.tarot", "tarot_per_opp", InvocationContract.BUNDLED,
+        Sig((TInteger(),), TInteger()),
+    ),
+    "tichu_dragon_won": Implementation(
+        "cardlang.runtime.tichu", "tichu_dragon_won", InvocationContract.BUNDLED,
+        Sig((), TBoolean()),
+    ),
 }
 
 
@@ -711,3 +863,12 @@ assert frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS, (
     "PRIMITIVE_IMPLEMENTATIONS and PRIMITIVE_CALL_FUNCS disagree: "
     f"{sorted(frozenset(PRIMITIVE_IMPLEMENTATIONS) ^ PRIMITIVE_CALL_FUNCS)}"
 )
+
+
+# TRANSITIONAL, deleted in the commit that removes CALL_SIGS' Primitive half:
+# the column above was transcribed from that table, and this is the one window
+# in which the transcription is falsifiable. mypy catches a MISSING signature
+# (the field is required); only this catches a wrong one.
+assert {n: PRIMITIVE_IMPLEMENTATIONS[n].sig for n in PRIMITIVE_CALL_FUNCS} == {
+    n: CALL_SIGS[n] for n in PRIMITIVE_CALL_FUNCS
+}, "the transcribed signature column disagrees with CALL_SIGS"
