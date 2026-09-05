@@ -288,11 +288,11 @@ table at load, so a primitive has no hand-written arm at all; a game's
 `f(...)` calls resolve against its own namespace, which closes the
 cross-game leakage (issue #364). The reads clause is per-primitive and
 per-CALL: an indexed read materializes the one instance the call names.
-Scope Owner Guard: the clause is checked for name validity and drives what the dispatch
-hands over — the derived-reveal analysis (hidden reads flowing into
-public state) is recorded follow-on work (issue #471), not silently
-absent, and the engine-fact half of what a primitive sees stays whole
-behind a refusal citing issue #474. ZERO corpus game files change; the
+Scope Owner Guard: the clause is checked for name validity and drives
+what the dispatch hands over — the derived-reveal analysis (hidden reads
+flowing into public state) is recorded follow-on work (issue #471), not
+silently absent, and the engine-fact half of what a primitive sees stays
+whole behind a refusal citing issue #474. ZERO corpus game files change; the
 witness is a fixture game that declares, calls and plays
 (`tests/fixtures/primitives_witness.cardlang`). Goldens byte-identical
 over behavior and observation. Audit artifacts: the grid and its
