@@ -4,9 +4,9 @@ A `primitives { }` entry may declare a read of state a PHASE declares, by
 naming that phase (docs/plans/2026-08-30-phase-scoped-reads.md; issue #504).
 The tail is declaration-only surface — nothing new is emitted — and it buys
 one static obligation in exchange: an entry with a scoped read is callable
-only where the named phase runs. This module is that change's grid, authored
-red before the implementation: the born-red counts at the foot of this
-docstring are its provenance.
+only where the innermost named phase runs. This module is that change's grid,
+authored red before the implementation: the born-red counts at the foot of
+this docstring are its provenance.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
@@ -17,10 +17,11 @@ property:   (1) every combination the extended `primitive_read` grammar
             phase's own `state { }` entry, with no game-level, zone, sibling-
             phase or strict-descendant declaration of that name left able to
             answer instead; and (3) every call of an entry carrying a scoped
-            read sits where the named phase's frame stands — inside that
-            phase's subtree, or at a `run` site inside it, or in a game move
-            type every POSITION of which sits inside it — so the runtime's
-            innermost-frame walk returns the declared phase's value by
+            read sits where the innermost named phase's frame stands, every
+            enclosing named phase's standing with it — inside that phase's
+            subtree, or at a `run` site inside it, or in a game move type
+            every POSITION of which sits inside it — so the runtime's
+            innermost-frame walk returns each declared phase's value by
             construction rather than by luck. A position is where an offer
             HAPPENS, never where its text sits: an offer written in a procedure
             body happens at each `run` of that procedure, because expansion is
