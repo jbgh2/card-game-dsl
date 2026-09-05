@@ -252,13 +252,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         game_file="big-two.cardlang",
         state_vars=_fs("opened"),
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/coup.py",
-        game_file="coup.cardlang",
-        state_vars=_fs("alive", "coins", "treasury"),
-        zone_families=_fs("influence", "revealed"),
-        single_zones=_fs("court_deck"),
-    ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle
     # from this row (primitives.climb_row), so the row must exist.

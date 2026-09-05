@@ -49,21 +49,6 @@ _PINOCHLE_R = reads.row("cardlang/runtime/primitives.py", "pinochle.cardlang")
 _TAROT_R = reads.row("cardlang/runtime/primitives.py", "french-tarot.cardlang")
 
 
-def _bind(
-    ctx: Ctx, row: reads.PrimitiveReads
-) -> tuple[narrowing.EngineFacts, reads.GameReads]:
-    """The two value bundles for one narrowed primitive call."""
-    return narrowing.bind(ctx.rs, ctx.current_player, row)
-
-
-def _emit(ctx: Ctx, events: tuple[narrowing.TraceEvent, ...]) -> None:
-    """Perform a narrowed primitive's deferred trace emissions. A game module
-    holds no tracer, so the events travel back as data and are emitted here,
-    in the order the primitive returned them (cardlang/runtime/narrowing.py)."""
-    for event, payload in events:
-        ctx.trace(event, payload)
-
-
 @dataclass(frozen=True, slots=True)
 class Declared:
     """One `primitives { }` entry, materialized for dispatch.
@@ -116,12 +101,6 @@ def call_declared(entry: Declared, args: list[Any], ctx: Ctx) -> Any:
 def call(name: str, args: list[Any], ctx: Ctx) -> Any:
     """Dispatch a game-local native call. Arguments arrive already coerced."""
     match name:
-        case "coup_game_summary":
-            from cardlang.runtime.coup import ROW, coup_game_summary
-
-            total, events = coup_game_summary(*_bind(ctx, ROW))
-            _emit(ctx, events)
-            return total
         case _:
             # Shadow Guard behind resolve's `_validate_refs`, which refuses
             # both names this arm can meet: one no registry holds (the

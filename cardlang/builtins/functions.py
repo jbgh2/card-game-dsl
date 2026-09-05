@@ -201,7 +201,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "skat_next_bid",  # Skat: the next Reizen ladder value (0 = exhausted)
         "skat_matadors",  # Skat: the with/without matador count (hand + skat)
         "tichu_dragon_won",  # Tichu: did the Dragon capture the trick just completed?
-        "coup_game_summary",  # Coup: emit the conservation/finals trace at game end
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
@@ -440,7 +439,6 @@ TRICK_ORDER_EARLY_PREDICATES: frozenset[str] = frozenset()
 ANY_FLAVOR_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bottom_of",
-        "coup_game_summary",
         "error",
         "five_hundred_bid_level",
         "peg_origin_of",

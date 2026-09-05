@@ -78,9 +78,7 @@ passed on the same run — it compares against an emitter that still exists.
 from __future__ import annotations
 
 import importlib
-import random
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -97,10 +95,8 @@ from cardlang.builtins.functions import (
 )
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.diagnostics import DiagnosticError
-from cardlang.pipeline import check_dsl, check_source
+from cardlang.pipeline import check_dsl
 from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
-from cardlang.runtime.driver import play_game
-from tests.playout_trace import TerminalState, coup_totals
 
 REPO = Path(__file__).parent.parent
 GAMES = REPO / "docs" / "games"
@@ -231,41 +227,3 @@ def test_shadow_wall_still_guards_registered_names() -> None:
 def test_never_in_other_namespaces(name: str, namespace: str) -> None:
     assert name not in OTHER_NAMESPACES[namespace]
 
-
-# ---------------------------------------------------------------------------
-# The write-time differential: it can only run while both the emitter and its
-# replacement exist, so it leaves in the eviction commit and its dated result
-# stands in the ledger's `sampled:` row.
-# ---------------------------------------------------------------------------
-
-
-def _coup_facts(game: Any, seed: int) -> tuple[dict[str, Any], dict[str, Any]]:
-    """One Coup playout's four `coup_game` facts, twice: derived at the
-    harness from the terminal world and the driver's census, and as the live
-    emitter reported them."""
-    terminal = TerminalState(("coins", "treasury", "alive"))
-    emitted: dict[str, Any] = {}
-
-    def tracer(event: str, data: Any) -> None:
-        terminal.tracer(event, data)
-        if event == "coup_game":
-            emitted.update(data)
-
-    play_game(game, random.Random(seed), tracer, on_first_decision=terminal.hold)
-    derived: dict[str, Any] = dict(coup_totals(terminal))
-    derived["coins"] = terminal.state["coins"]
-    derived["alive"] = terminal.state["alive"]
-    return derived, emitted
-
-
-def test_terminal_reader_reproduces_the_live_emitter() -> None:
-    """The admission test for the reader that replaces `coup_game_summary`:
-    every fact the emitter reports, derived beside it over the golden's own
-    width. The comparison runs after `play_game` returns, so a reader holding
-    a reference into the popped frame instead of a copy would be reading a
-    frame nobody owns."""
-    game = check_source(GAMES / "coup.cardlang")
-    for seed in range(40):
-        derived, emitted = _coup_facts(game, seed)
-        assert emitted, f"seed {seed}: the emitter reported nothing to compare"
-        assert derived == emitted, f"seed {seed}"

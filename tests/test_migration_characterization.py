@@ -1119,38 +1119,38 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # them uniformly at the offers. This golden pins the strongest per-seed
 # discriminator the playout yields: the full reveal sequence (every influence
 # flip, in order, with its character — where every elimination happens),
-# derived at the harness from the flips' observation events
-# (tests/playout_trace.py; the golden's values were pinned while the game's
-# own `coup_reveal` trace still emitted them, so byte-identity here doubles
-# as the derivation's standing witness), plus final coins, the alive vector,
-# and the winner, over 40 seeds (the WS5 behaviour-change re-pin — see
-# kernel-migration.md, Workstream 5).
+# derived at the harness from the flips' observation events, plus final coins,
+# the alive vector, and the winner, over 40 seeds (the WS5 behaviour-change
+# re-pin — see kernel-migration.md, Workstream 5). Every value here was pinned
+# while the game's own trace emitters still reported it — the reveals under
+# `coup_reveal`, the coins and the alive vector under `coup_game` — so
+# byte-identity doubles as the standing witness for both harness derivations
+# (tests/playout_trace.py, `CoupReveals` off the observation stream and
+# `TerminalState` off the terminal world).
 # Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from tests.playout_trace import CoupReveals
+from tests.playout_trace import CoupReveals, TerminalState
 
 game = check_dsl(Path("docs/games/coup.cardlang").read_text(), "coup.cardlang")
 out = {}
 for seed in range(int(sys.argv[1])):
     log = CoupReveals()
-    summary = {}
-
-    def tracer(event, data, _s=summary):
-        if event == "coup_game":
-            _s.update(
-                coins={str(k): v for k, v in sorted(data["coins"].items())},
-                alive={str(k): v for k, v in sorted(data["alive"].items())},
-            )
-
-    r = play_game(game, random.Random(seed), tracer, observer=log.observer)
+    terminal = TerminalState(("coins", "alive"))
+    r = play_game(
+        game,
+        random.Random(seed),
+        terminal.tracer,
+        observer=log.observer,
+        on_first_decision=terminal.hold,
+    )
     out[str(seed)] = {
         "reveals": log.reveals,
-        "coins": summary["coins"],
-        "alive": summary["alive"],
+        "coins": {str(k): v for k, v in sorted(terminal.state["coins"].items())},
+        "alive": {str(k): v for k, v in sorted(terminal.state["alive"].items())},
         "winner": r.winner,
     }
 print(json.dumps(out))

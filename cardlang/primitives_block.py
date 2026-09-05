@@ -203,7 +203,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
     "canasta_close_ok": Implementation("cardlang.runtime.canasta", "canasta_close_ok", InvocationContract.BUNDLED),
     "canasta_must_take_pile": Implementation("cardlang.runtime.canasta", "canasta_must_take_pile", InvocationContract.BUNDLED),
     "canasta_stage_ok": Implementation("cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED),
-    "coup_game_summary": Implementation("cardlang.runtime.coup", "coup_game_summary", InvocationContract.EMITTING),
     "cribbage_crib_value": Implementation("cardlang.runtime.cribbage", "cribbage_crib_value", InvocationContract.BUNDLED),
     "cribbage_show_value": Implementation("cardlang.runtime.cribbage", "cribbage_show_value", InvocationContract.BUNDLED),
     "first_to_act_seat": Implementation("cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED),
