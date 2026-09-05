@@ -84,8 +84,8 @@ import pytest
 
 from cardlang.builtins.functions import (
     CALL_FUNCS,
-    DECLARED_ONLY_CALL_FUNCS,
     PRIMITIVE_AUCTION_OUTCOMES,
+    PRIMITIVE_CALL_FUNCS,
     PRIMITIVE_CLIMB_FOLLOWS,
     PRIMITIVE_CLIMB_LEADS,
     PRIMITIVE_EARLY_PREDICATES,
@@ -216,8 +216,11 @@ def test_shadow_wall_still_guards_registered_names() -> None:
 
     The control name is DERIVED from the registry rather than written here:
     a literal is a name this module would have to keep registered on its own
-    account, and every eviction is a chance for it to stop being one."""
-    registered = min(DECLARED_ONLY_CALL_FUNCS)
+    account, and every eviction is a chance for it to stop being one. From
+    the Primitive registry, not the declared-only set the stage-3 closing
+    change retires (docs/plans/2026-09-05-coup-eviction-stage3-closing.md,
+    its second change); the two are equal while both stand."""
+    registered = min(PRIMITIVE_CALL_FUNCS)
     with pytest.raises(DiagnosticError, match="shadows the native function"):
         check_dsl(_shadow_probe(registered), "shadow_control.cardlang")
 

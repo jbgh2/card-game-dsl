@@ -44,9 +44,9 @@ residual:   inline arms (an expression instead of a helper call — team_of,
 red under (born-green guards):
 - the starred-argument refusal in `_facts_in`: no arm writes one, so the
   guard is born green. Reddened 2026-09-04 by giving `builtins.call`'s
-  `suit_of` arm a `*args[0:1]` — the refusal fires by name, and both the
-  annotation pin and the parse-residual pin go red with it; demonstrated and
-  reverted.
+  `suit_of` arm a `*args[0:1]` — the refusal fires by name, and every pin
+  that reads `_call_dispatch_facts` goes red with it: the parse-residual, the
+  arity and the annotation pins; demonstrated and reverted.
 """
 
 from __future__ import annotations

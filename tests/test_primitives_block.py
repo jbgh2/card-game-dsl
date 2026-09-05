@@ -654,9 +654,12 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
 # to keep registered on its own account, and a migration that retires it would
 # leave the prose false with nothing saying so. Its rendering comes from
 # `CALL_SIGS` through `_entry_and_body`, so the name's own signature decides
-# the sentence.
+# the sentence. Keyed on the Primitive registry rather than on the
+# declared-only set, which the stage-3 closing change retires
+# (docs/plans/2026-09-05-coup-eviction-stage3-closing.md, its second change);
+# the two are equal while both stand.
 def _representative() -> str:
-    return min(DECLARED_ONLY_CALL_FUNCS)
+    return min(PRIMITIVE_CALL_FUNCS)
 
 
 def test_an_empty_block_refuses_a_primitive_call() -> None:
