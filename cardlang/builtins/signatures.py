@@ -10,8 +10,9 @@ value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
 These track the deferred parts of the typed object model.
 
 `CALL_SIGS` keys the whole call registry — the [[primitive]]s beside the
-[[builtins]] — though a Primitive is reached only by its game's `primitives
-{ }` declaration and its Python only through the implementation index
+[[builtins]] — though a Primitive is reached only by the
+`primitives { }` declaration of its game, and its Python only through the
+implementation index
 (`cardlang/primitives_block.py`, `PRIMITIVE_IMPLEMENTATIONS`). The plan of
 record docs/plans/2026-09-05-coup-eviction-stage3-closing.md ends that in its
 second change, moving the Primitive rows to an authored signature column on

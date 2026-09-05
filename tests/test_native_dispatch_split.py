@@ -39,19 +39,19 @@ sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
 does not prove: that the Primitives half of the partition adds anything its
-            neighbours do not. Every Primitive is declared-only, so
-            `primitives_arms` and `PRIMITIVE_CALL_FUNCS -
-            DECLARED_ONLY_CALL_FUNCS` are both empty, and with both sides
-            empty the equality restates two facts already asserted beside
-            it: that `runtime/primitives.py` holds no arm (the union
-            assertion's business, and the one that names the offender), and
-            that `PRIMITIVE_CALL_FUNCS` sits inside
+            neighbours do not. Every Primitive is declared-only, so both
+            `primitives_arms` and the difference
+            `PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS` are empty, and
+            with both sides empty the equality restates two facts already
+            asserted beside it: that `runtime/primitives.py` holds no arm (the
+            union assertion's business, and the one that names the offender),
+            and that `PRIMITIVE_CALL_FUNCS` sits inside
             `DECLARED_ONLY_CALL_FUNCS` -- the direction the subset assertion
             above it does not carry, the two together making the sets equal.
             Redundant, not vacuous: an arm added to `runtime/primitives.py`
             falsifies it on its own, though the union assertion and the
-            arm-home row reach it first (executed 2026-09-04 with `case
-            "gin_deadwood": return 0` in `call`:
+            arm-home row reach it first (executed 2026-09-04 by planting
+            `case "gin_deadwood": return 0` in `call`:
             `test_call_arm_home[gin_deadwood]` and
             `test_homes_partition_the_call_registry` both red, the union
             assertion speaking; demonstrated and reverted). The plan of
