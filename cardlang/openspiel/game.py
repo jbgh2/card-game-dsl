@@ -44,9 +44,9 @@ from cardlang.openspiel.registry import SHORT_NAME_CHARS, _GAMES_DIR, _short_nam
 # each a file or a directory globbed as the corpus is.
 GAMES_ENV_VAR = "CARDLANG_GAMES"
 
-# What one of that variable's entries can be. The dispatch in
-# `_register_env_entry` reads this vocabulary, so a kind added here without an
-# arm is a name with no behavior rather than a silent skip.
+# What one of that variable's entries can be. The dispatch below reads exactly
+# these names, so a kind added here without an arm is a name with no behavior
+# rather than a silent skip.
 ENTRY_KINDS: tuple[str, ...] = ("file", "directory", "missing", "empty")
 
 # short name -> the resolved file it was registered from. Seeded by the corpus
