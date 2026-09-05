@@ -788,16 +788,17 @@ def _entry_and_body(name: str) -> tuple[str, str]:
 # home axis is the registry partition; the regime axis is `Regime` crossed with
 # the block's own contents, which is what `call_namespace` reads.
 _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
-    ("declared-only", "block declares it"): True,
-    ("declared-only", "block omits it"): False,
-    ("declared-only", "no block"): False,
+    ("declared", "block declares it"): True,
+    ("declared", "block omits it"): False,
+    ("declared", "no block"): False,
 }
 
 
 def _homes() -> dict[str, list[str]]:
-    """The homes, as the registries state them: one, holding every member, so
-    the product below covers the registry rather than sampling it."""
-    return {"declared-only": sorted(PRIMITIVE_CALL_FUNCS)}
+    """The homes, as the registries state them: one — the declaration — and it
+    holds every member, so the product below covers the registry rather than
+    sampling it."""
+    return {"declared": sorted(PRIMITIVE_CALL_FUNCS)}
 
 
 @pytest.mark.parametrize(
@@ -813,9 +814,9 @@ def test_the_regime_product_lands_where_the_table_says(
 ) -> None:
     """The product's cells, run.
 
-    The one that was ever in doubt is (declared-only, no block): the name IS in
-    `CALL_FUNCS`, so the legacy namespace admits it, and the dispatch it then
-    reaches has no arm for it. A refusal here is what keeps the declared-only
+    The one that was ever in doubt is (declared, no block): the name IS in
+    `CALL_FUNCS`, so the corpus-wide namespace admits it, and no dispatch it
+    then reaches has an arm for it. A refusal here is what keeps the Primitive
     half from being a namespace a game can enter without declaring anything.
 
     red under: drop the declared-only arm from resolve's `_validate_refs`."""
