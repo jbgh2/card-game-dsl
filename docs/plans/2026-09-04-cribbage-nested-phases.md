@@ -777,3 +777,69 @@ None in `PRIMITIVE_IMPLEMENTATIONS`, so the enum's stated domain ("a closed doma
 - `narrowing.py:38-39` / `tests/test_primitive_reads.py:434` (#535) — the closing-PR rider; this change makes cribbage one more instance.
 - `cribbage.cardlang:17-18` "the `peg_origin_of` Primitive primitive" (doubled word) — pre-existing, in the file the change edits.
 - The `EngineFacts` half stays whole (#474): `peg_run_points` reading `facts.rank_index` is undeclared by design; nothing pins that a declared entry's reads are sufficient (grid `does not prove:` row, `tests/test_primitives_block.py:203-210`).
+
+## Gate-4 addendum (2026-09-04, measured at implementation — recorded, not rewritten)
+
+Where the derived domain differed from this plan's statement. The counsels
+bind where they speak; these are the plan's own lines, and each is left above
+with its correction here.
+
+1. **The show entries' call positions.** "The block" section says the show
+   entries sit "inside `hand_sequence`'s body". Measured: all five call sites
+   sit inside `phase play` — the show calls are the last statements of that
+   phase's body, not of its parent's. Consequence: none. The show entries
+   carry no tail, so they enter no chain and the containment analysis never
+   judges them; the sentence was about where they happen to be written.
+2. **When the two site-read arms delete.** Step 1 says the arms delete at
+   normalization. Executed in two moves instead: at normalization they are
+   REWRITTEN to bind cribbage's own row (`peg_pair_points(*_bind(ctx, ROW))`),
+   and they delete with the other three at the migration. Deleting them at
+   step 1 would leave a legacy-regime corpus game whose calls reach no arm —
+   either a playout crash or, with the names moved early, a corpus game
+   refused at resolve. The step's own reddening artifact is unchanged and was
+   committed red: the contract partition pin, on exactly its recorded
+   mutation.
+3. **`RANKING_GATED_FUNCS`.** Re-executed: `peg_run_points` is already a
+   member and already a derived reader; `peg_pair_points` is neither. The
+   Architect's correction stands and Gate 2's "gains" line is false.
+4. **The classifier's question in `_scoped_entry_phases`.** Not stated
+   anywhere above, and load-bearing: the classifier is asked per READ against
+   that read's OWN tail, never against the region. Asked against the region,
+   `dealer in hand_sequence` classifies as nothing under `play`, cribbage's
+   entry drops out of the scoped table, and every one of its call sites goes
+   unjudged — the vacuous window surviving the arm's replacement.
+5. **A negative assertion that would have gone vacuous.**
+   `test_a_wrong_tail_and_a_wrong_call_site_report_once` asserted the absence
+   of "callable only where that phase runs". The new sentence interpolates the
+   phase name, so that literal cannot appear in any diagnostic and the
+   assertion could never fail again. Re-anchored on "callable only where".
+6. **The enclosure branch needs a pair.** Both the ancestor and the sibling
+   containment cells named only the entry and the region, so both would pass a
+   guard that said "encloses" of every phase outside the region. The ancestor
+   cell gains the fragment and a cell beside it asserts its absence for the
+   sibling.
+7. **The rejection corpus.** Step 3b says it gains "the non-path and
+   outer-body sentences". The non-path sentence is the existing
+   `primitives_scoped_read_two_phases` re-blessed; the outer-body one is new
+   (`primitives_scoped_read_in_the_enclosing_phase`).
+
+Measurements taken at implementation, all dated 2026-09-04:
+
+- The grid's two takes: 53 failed / 76 passed against the one-phase arm; 30
+  failed / 99 passed with that arm lifted alone, 27 of the 30 DID NOT RAISE.
+  Both are quoted in the grid module's own record.
+- Between the cells and the arm's replacement, four cells of the nested
+  crossing flip green: with `_scoped_entry_phases` chain-aware and the old arm
+  still refusing, containment runs for an entry the arm also refuses, so the
+  leaked-offer and leaked-run messages appear beside it. More diagnostics,
+  never fewer; it ends when the arm is replaced.
+- The frozen-pile equivalence at the first pegging call of seed 0: site tuple
+  and bundle tuple identical in container, order and element type, with the
+  same 13-entry `rank_index` mappingproxy.
+- The read oracle over 20 seeds: every declared name read, nothing
+  undeclared; a planted over-declaration reported, a planted under-declaration
+  refused at playout.
+- The call census over 20 seeds: 6813 dispatches, all through
+  `call_declared`, none through the legacy arm.
+- The full-width per-seed goldens byte-identical, nothing regenerated;
+  `tests/openspiel_ready/` unchanged against `origin/main`.

@@ -231,6 +231,11 @@ and crashing at playout in the runtime's shadow guard — and it is why these
 cells exist before the arm moves rather than after. The other three reds are
 owned elsewhere and stay red through take 2: the enclosure register's pair and
 the repeat guard's wording, whose owners are `_outside` and the repeat arm.
+
+Two cells sit in neither count, added after both takes and green in both: the
+wrong-declarer tail and the untailed phase-local name, each probed with a
+second tail present. Their arms are the STANDING ones the lift must leave
+alone, so a red would have been the finding.
 """
 
 from __future__ import annotations
@@ -956,6 +961,36 @@ def test_one_misspelled_tail_beside_a_good_one_reports_once() -> None:
     assert "no phase `nowhere`" in message, message
     assert "do not nest" not in message, message
     assert "callable only where" not in message, message
+
+
+def test_a_tail_naming_the_wrong_declarer_beside_a_good_one_reports_once() -> None:
+    """The plausible guess a designer writes when both phases are in view:
+    both tails name the phase they can see, and the inner one declares
+    neither. The wrong-declarer arm names the phase that DOES declare it, and
+    the nest arm stays quiet — the tail has no path until it resolves."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit in inner, deep in inner"
+        )
+    )
+    assert "phase `inner` declares no state `trump_suit`" in message, message
+    assert "phase `outer` declares it" in message, message
+    assert "do not nest" not in message, message
+
+
+def test_an_untailed_phase_local_name_beside_a_tail_teaches_its_own_tail() -> None:
+    """The list-scope misreading: one tail written at the end of the clause,
+    read as if it scoped every name before it. The phase-local arm owns the
+    untailed name and teaches the tail that name wants — its OWN phase, not
+    the one the clause already mentions."""
+    message = _refused(
+        _nested(
+            block="pinochle_meld_value(p : Player) : Integer\n"
+            "        reads hand[p], trump_suit, deep in inner"
+        )
+    )
+    assert "trump_suit in outer" in message, message
 
 
 def test_the_same_name_under_two_tails_is_the_repeat_guards() -> None:
