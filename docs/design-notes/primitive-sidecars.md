@@ -27,15 +27,15 @@ than the original one:
    `skat_*`, `gin_*`, ...), against a remainder of genuinely general names.
    That split is a proportion, not a tally, on purpose: the stages below
    move primitives out of the registry, so an exact count would rot behind
-   them ([decisions.md](../decisions.md) "Prose names the registry, never
-   the cardinality"). "Stdlib" is a misnomer for most of its contents.
-   Adding a corpus game
-   means editing three language-package files: the name registry,
-   `signatures.py`, and a hand-written `match` arm in
-   `cardlang/runtime/primitives.py` — a hand-enumerated dispatch over what
-   should be a registry-derived one, the shape
-   [decisions.md](../decisions.md) "Closed-domain completeness" warns
-   against.
+   them ([decisions.md](../decisions.md)
+   "Prose names the registry, never the cardinality").
+   "Stdlib" is a misnomer for most of its contents. Adding a corpus game
+   means editing two language-package files: the name registry, and the
+   implementation index (`cardlang/primitives_block.py`), whose row names
+   the module, attribute, invocation contract and signature its Python
+   has. The dispatch is not among them — a Primitive reaches its Python
+   through the declaration its own game writes, and no runtime module
+   holds a `call` arm for one.
 2. **Purity was conventional, not structural — CLOSED by stage 2.** A
    primitive used to receive `Ctx`, the engine's whole internal state
    object, and self-serve from it; nothing structural stopped a "pure
@@ -168,10 +168,14 @@ interface cannot express one.
   `stdlib.climb_row`), but they still need their own DECLARATION slots in
   the `primitives { }` block, because their signatures are mechanic-driven
   rather than free-form. Same principle, separate wiring.
-- **Registry derivation.** Whatever the placement, registry, signatures, and
-  dispatch should derive from the declarations rather than being maintained
-  as three parallel tables with a hand-written `match`; a static test pins
-  the derivation complete, per "Closed-domain completeness".
+- **Registry derivation.** Signatures and dispatch derive from declarations:
+  a game's entry states the signature its call is checked against, the
+  implementation index's own column states the one its Python takes, a shape
+  check holds the two equal, and no `match` arm enumerates a name. What stays
+  parallel is the pair a new name is entered in — the name registry and the
+  index row — held to each other and to the corpus by the reconciliation
+  pins, per [decisions.md](../decisions.md)
+  "Closed-domain completeness".
 
 ## 4. Why the stages run in this order
 
