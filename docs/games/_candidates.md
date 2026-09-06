@@ -68,7 +68,7 @@ regression.
 
 | Construct | Needs | Top candidates |
 |---|---|---|
-| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family that enumerates subsets of a zone and picks an element by a composite key | **[scopa](#scopa)** (a played card captures a table card of the same rank or a set of table cards that add up to it, the single-card capture forced when one exists — enumeration under a precedence requirement; the primiera is an argmax per suit under its own point scale), [cassino](#cassino) (the same capture plus builds, a separate stateful question), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545) |
+| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family for each of its three parts — enumerating subsets of a zone, comparing by a composite key, returning the element rather than the maximum | **[scopa](#scopa)** (a played card captures a table card of the same rank or a set of table cards that add up to it, the single-card capture forced when one exists — subset enumeration under a precedence requirement; its primiera is grouped aggregation — the best card per suit under a scalar point scale, then summed — which [combination-scoring.md](../design-notes/combination-scoring.md) classifies as aggregation rather than a composite key, so Scopa witnesses the enumeration part only), [cassino](#cassino) (the same capture plus builds, a separate stateful question), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545). Composite ranking and element-returning argmax have no candidate here: the design note defers composite ranking until a second ranking witness, and issue #251's body names Big Two's climb comparison, in the corpus, for that role |
 | issue #251 — play patterns with a derived action space (the climb queries) | a vocabulary the three corpus engines lack, and a play space too large to enumerate | **[dou-dizhu](#dou-dizhu)** (sequences of triplets with attached singles or pairs, quads with attachments, bombs and the rocket). In-family: it corroborates and stresses; the second mechanic family is the classify half of issue #246, so that construct is this one's other witness |
 | issue #252 — ordered ladders (bid ladders with successor and per-rung fields) | an ordered ladder outside the auction family | **[contract-rummy](#contract-rummy)** (seven deals, each a required contract of groups and sequences — a ladder whose rungs carry group quotas), [koenigrufen](#koenigrufen) (fourteen ranked contracts with base scores and an outbid keyed to seat priority — corroborates within the family). In the corpus: [Oh Hell](oh-hell.cardlang)'s deal schedule is a ladder written as arithmetic, the same flattening the issue names in Five Hundred's ordinals |
 | issue #254 — groups (meld shapes, quotas, partitions, catalogues) | a tradition beyond rummy melds, Pinochle's catalogue and Belote's declarations | **[piquet](#piquet)** (point, sequence and set declarations compared between the two players — only the better combination in each category scores, and its holder then scores every other combination held in that category — group declarations compared with no meld reaching the table), [spider](#spider) (a complete king-to-ace same-suit run as the removal criterion — a group in the solitaire family), [contract-rummy](#contract-rummy) (group-count quotas per deal). In the corpus: [Schnapsen](schnapsen.cardlang)'s marriage is a fixed two-card group written as a `move_type` with a suit parameter — the floor, where a fixed shape needs no group construct |
@@ -251,11 +251,13 @@ selected. Tests the settled access discipline ([decisions.md](../decisions.md)
 "Typed object model") on multi-card target selection and the move
 type's relation to a shared zone.
 
-**Construct.** Witness for issue #246 — a third mechanic family for
-subset enumeration (captures that add up to the played card, the
-single-card capture forced when one exists) and for argmax with a
-composite key (the primiera: best card per suit under its own point
-scale, summed over the four suits) (coverage by construct, above).
+**Construct.** Witness for issue #246's subset enumeration — captures
+that add up to the played card, the single-card capture forced when one
+exists — and for that part only: the primiera is grouped aggregation
+(the best card per suit under a scalar point scale, then summed),
+classified as aggregation rather than a composite key in
+[combination-scoring.md](../design-notes/combination-scoring.md)
+(coverage by construct, above).
 
 **Notes.** Correction to flag: in **base** Scopa, when a single-card
 rank match exists you are *forced* to take the single card — the
