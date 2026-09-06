@@ -353,6 +353,15 @@ in tests/test_trump_slot_class.py.
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
+  Each street's `round` carries an `until` terminator. `until` is a clause of
+  the form, and what the family library shares is the predicates the terminator
+  is built from rather than the terminator itself. Both arms are the ring's: the
+  street closes when no seat is `pending` — the settled field, everyone who can
+  act having acted and owing nothing — or when the seats able to act are down to
+  one that owes nothing, the street that opens behind an all-in, where
+  `open_street`'s cleared `acted` would otherwise leave that seat `pending` with
+  nobody to act against. A variant in which no seat can be all-in never reaches
+  that second arm and writes it all the same.
   The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
   (committed-total levels, ties split with the odd chip to the first winner in

@@ -114,6 +114,14 @@ seat's view because the engine exposes no world to project from (issue #555).
 An early skeleton often has no decision yet, and that refusal is what it looks
 like.
 
+The view is the terminal position and no other. A zone the hand empties on the
+way — a poker hand's hole cards, mucked at showdown — reads empty here, and
+what the seat saw of it survives in the observation log alone. A seat's view
+part-way through comes from pyspiel instead, on a game loaded through the
+adapter (below): `state.information_state_string(seat)` is the same derived
+string at any decision node and for any seat, and is empty at the chance root
+and at the terminal node.
+
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the
 equivalence class it induces, and the two are not interchangeable. It has
@@ -214,8 +222,11 @@ staging shape at [decisions.md](decisions.md),
 definitions and the stdlib, holding definition forms plus state. It is a whole
 library at a time, never a named-definitions manifest, and it does not
 inherit: a game-local definition under an imported name is an error, not an
-override. The tier and its rules are [decisions.md](decisions.md),
-"Family libraries".
+override. The name resolves out of the checkout's own library directory rather
+than anywhere near your file, so a game reaches its imports from wherever you
+keep it and whichever directory you run the command from, and a name no library
+answers to is refused with the available ones listed. The tier and its rules are
+[decisions.md](decisions.md), "Family libraries".
 
 The library's `requires { }` block is its **contract**: what the including game
 must declare for the import to resolve. State variables, and also zones — each
@@ -232,10 +243,11 @@ predicates; `fold` stays game-local, because where a folded card goes is a
 fact about your zones. The showdown is a Primitive your game *declares*
 rather than implements, and which one follows from where the holding sits —
 `pot_share` ranks each entrant's own cards and so reads the zone families
-`hole` and `upcards` **by name**, while the shared-board form reads `hole`,
-`shown` and `board`. Naming your zones to match is what lets a new variant
-reuse the family's showdown arithmetic without engine work. The whole
-arrangement is the betting bullet under [library.md](library.md), "Mechanics".
+`hole` and `upcards` **by name**, while `holdem_pot_share` ranks private cards
+against a shared board and so reads `hole` and `shown` plus the single zone
+`board`. Naming your zones to match is what lets a new variant reuse the
+family's showdown arithmetic without engine work. The whole arrangement is the
+betting bullet under [library.md](library.md), "Mechanics".
 
 ## When the checker refuses
 
