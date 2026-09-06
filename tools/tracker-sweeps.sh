@@ -12,7 +12,7 @@
 set -euo pipefail
 
 REPO=jbgh2/card-game-dsl
-LIMIT=200
+LIMIT=500
 
 # The gh --limit flag is a silent cap; refuse to report from a full page.
 OPEN=$(gh issue list --repo "$REPO" --state open --limit "$LIMIT" --json number --jq 'length')
