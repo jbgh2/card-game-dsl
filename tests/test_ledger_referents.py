@@ -533,8 +533,10 @@ def _rows(doc: str) -> dict[str, str]:
 
 
 @functools.cache
-def _ledgers() -> tuple[tuple[str, dict[str, str]], ...]:
-    found: list[tuple[str, dict[str, str]]] = []
+def _ledger_docstrings() -> tuple[tuple[str, str], ...]:
+    """Every docstring in the tree carrying the ledger signature, with its
+    module -- the one population walk every ledger sweep reads."""
+    found: list[tuple[str, str]] = []
     holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
     for name in _tracked():
         if not name.endswith(".py"):
@@ -549,10 +551,13 @@ def _ledgers() -> tuple[tuple[str, dict[str, str]], ...]:
             doc = ast.get_docstring(node, clean=False)
             if doc is None:
                 continue
-            rows = _rows(doc)
-            if _LEDGER_SIGNATURE <= set(rows):
-                found.append((name, rows))
+            if _LEDGER_SIGNATURE <= set(_rows(doc)):
+                found.append((name, doc))
     return tuple(found)
+
+
+def _ledgers() -> tuple[tuple[str, dict[str, str]], ...]:
+    return tuple((name, _rows(doc)) for name, doc in _ledger_docstrings())
 
 
 # --- the grid ---------------------------------------------------------------
