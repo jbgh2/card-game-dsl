@@ -34,7 +34,14 @@ registry:        the completeness rows -- `COMPLETENESS_ROWS`; the class
                  tests/test_ledger_referents.py. The label shape --
                  `_ROW_LABEL`, the same definition the row parse reads. The
                  population -- `_ledger_docstrings`.
-does not prove:  a green here says nothing about what the surviving rows
+does not prove:  that every template row is present. A ledger with no
+                 instrument limit omits `does not prove:`, and one whose
+                 axes need no locator omits `registry:`, by the routing
+                 table's own last row (decisions.md, "Nothing -- omit the
+                 row"); the population signature is `property` + `domain`,
+                 and presence of the other two is the author's routing, not
+                 this scan's.
+                 And a green here says nothing about what the surviving rows
                  SAY. A `does not prove:` row holding a coverage claim, or
                  deferred work, or a history, passes this scan unread; the
                  row's name is what stands there, and the reviewer at the
