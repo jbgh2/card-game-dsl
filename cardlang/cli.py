@@ -5,9 +5,9 @@
     cardlang check docs/games/hearts.cardlang      # the same check, named
     cardlang play docs/games/hearts.cardlang       # one uniform-random self-play
 
-`cardlang <file>` names no command, and stays the form the README documents:
-`main` reads it as `check`, so the two spellings reach one parser rather than
-two code paths that can disagree about what `--emit-ir` means.
+`cardlang <file>` names no command: `main` reads it as `check`, so the two
+spellings reach one parser rather than two code paths that can disagree about
+what `--emit-ir` means.
 
 This module owns one defect class — the values a caller supplies, which no
 earlier layer sees: the path argument, and the seat `--info-state` names.
