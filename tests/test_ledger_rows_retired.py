@@ -48,9 +48,9 @@ import re
 import pytest
 
 from tests.test_ledger_referents import (
+    _ROW_LABEL,
     CLASS_ROWS,
     COMPLETENESS_ROWS,
-    _ROW_LABEL,
     _ledger_docstrings,
 )
 
