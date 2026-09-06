@@ -84,8 +84,6 @@ game Coup {
       }
       turn := the first player from turn offset_by left where alive[player] and influence[player] is not empty
     }
-
-    let summary = coup_game_summary()
   }
 
   winner: highest alive

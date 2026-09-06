@@ -185,7 +185,6 @@ from cardlang.primitives_block import (
     declarable_type_names,
     engine_fact_names,
     regime,
-    undeclarable_contract,
     unimplemented,
     walled_namespace_of,
 )
@@ -5289,15 +5288,6 @@ def _check_primitive_name(
             decl.span,
         )
         return
-    contract = undeclarable_contract(decl.name)
-    if contract is not None:
-        bag.error(
-            f"`{decl.name}`'s implementation does not answer the declared "
-            f"Primitive contract (it is {contract.value}), so a `primitives` "
-            f"entry cannot bind it — see issue #142",
-            decl.span,
-        )
-        return
     if unimplemented(frozenset({decl.name})):
         bag.error(
             f"nothing implements the Primitive `{decl.name}` — a "
@@ -5380,14 +5370,20 @@ def _check_primitive_reads(
     # one declares a dependency the dispatch cannot honour — accepted-and-
     # ignored, which is the defect class this block exists to end.
     impl = PRIMITIVE_IMPLEMENTATIONS.get(decl.name)
-    if decl.reads and impl is not None and impl.contract is InvocationContract.PURE:
-        bag.error(
-            f"`{decl.name}` is implemented pure over its arguments, so it "
-            f"never receives the declared reads — a `reads` clause on it would "
-            f"be accepted and ignored; drop the clause",
-            decl.span,
-        )
-        return
+    if decl.reads and impl is not None:
+        match impl.contract:
+            case InvocationContract.PURE:
+                bag.error(
+                    f"`{decl.name}` is implemented pure over its arguments, so "
+                    f"it never receives the declared reads — a `reads` clause "
+                    f"on it would be accepted and ignored; drop the clause",
+                    decl.span,
+                )
+                return
+            case InvocationContract.BUNDLED:
+                pass
+            case _ as unreachable:
+                assert_never(unreachable)
     # The collision sets are consulted BEFORE `classify_read`, which is
     # collision-unaware by design: it is also the loader's materialization call
     # (`runtime/driver.declared_primitives`), where a refusal could never fire.

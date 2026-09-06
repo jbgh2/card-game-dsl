@@ -6,8 +6,8 @@ computation (library.md "Native functions"; kernel-migration.md). It reads
 live `RuntimeState` by the zone / [[state-variable]] name the game file
 declares —
 a coupling the front-end pipeline cannot see: nothing about
-`zones { influence[player] : Hand<player> }` tells resolve or typecheck that
-`coup.py` also spells this name. Undeclared, that coupling surfaces as a
+`state { opened : Boolean = false }` tells resolve or typecheck that
+`bigtwo.py` also spells this name. Undeclared, that coupling surfaces as a
 `KeyError` mid-playout the first time either side renames
 (tests/metamorphic/rename.py first found it empirically).
 
@@ -26,6 +26,13 @@ docs/design-notes/primitive-sidecars.md, landed at the Python layer: the
 sidecar design moves these declarations into a `primitives { }` block in the
 game file itself, at which point this table derives from the game files
 instead of being authored here.
+
+The rows below serve the two WALLED namespaces no block can name: the climb
+binders' rows (`primitives.climb_row`) and `primitives.py`'s own
+auction-outcome rows. Every other declared read is the calling game's own
+`primitives { }` entry, which is what the Contract's `establishes` states.
+The plan of record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
+restates this docstring for those two namespaces in its second change.
 
 Contract:
   assumes      the game file named by a row parses and declares the names
@@ -251,13 +258,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/bigtwo.py",
         game_file="big-two.cardlang",
         state_vars=_fs("opened"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/coup.py",
-        game_file="coup.cardlang",
-        state_vars=_fs("alive", "coins", "treasury"),
-        zone_families=_fs("influence", "revealed"),
-        single_zones=_fs("court_deck"),
     ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle

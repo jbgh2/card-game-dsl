@@ -27,10 +27,14 @@ def native_call(name: str, args: list[Any], ctx: Ctx) -> Any:
     it.
 
     The chain lives here rather than in either half so that neither half
-    depends on the other — `builtins.py`'s and `primitives.py`'s arm counts
-    are then independently readable, against the Primitive REGISTRY that is
-    the elimination metric. Arguments are coerced ONCE, before the
-    chain, because `deep_freeze` dominates playout cost.
+    depends on the other — the two are then independently readable, against
+    the Primitive REGISTRY that is the elimination metric. Arguments are
+    coerced ONCE, before the chain, because `deep_freeze` dominates playout
+    cost.
+
+    The Primitives half holds no arm: `primitives.call` refuses every name it
+    is handed, which is the fall-through's whole content until the stage-3
+    closing change deletes both (docs/plans/2026-09-05-coup-eviction-stage3-closing.md).
 
     A game that declares a `primitives { }` block takes the DERIVED half of
     the chain: its own table, built at load from the block, and never the

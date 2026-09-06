@@ -454,11 +454,19 @@ def test_every_hash_seed_axis_entry_names_a_corpus_game() -> None:
 # This one records the run rather than its result: every field of `GameResult`
 # (derived from the dataclass, so a field added there enters the record without
 # being listed again), every tracer event, and every per-observer observation
-# event, in emission order. Those three channels are what every golden in the
-# removal's domain is computed from — driver return (all five modules), the
+# event, in emission order. Those three channels carry what the goldens in the
+# removal's domain are computed from — driver return (all five modules), the
 # `hand_end` trace (the per-hand vectors here), and the observation stream
 # (`playout_trace`'s TichuHands and CoupReveals) — so this record is at or
-# below the grain of each of them.
+# below the grain of each of those.
+#
+# One value in one golden rides no channel at all: Coup's final coins come off
+# the terminal world (`playout_trace`'s TerminalState), which nothing emits.
+# The record holds every decision and movement that produces them, and coup's
+# alive vector IS its `GameResult.scores`, so a divergence that reaches a
+# decision shows here; a divergence confined to a state variable's last value,
+# with every decision identical, is `coup_scores.json`'s to catch and not this
+# pin's.
 #
 # The record is `repr`-based and ORDER-SENSITIVE: two runs whose events carry
 # equal values in a different order still differ here, which is the point. It
@@ -1119,38 +1127,38 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # them uniformly at the offers. This golden pins the strongest per-seed
 # discriminator the playout yields: the full reveal sequence (every influence
 # flip, in order, with its character — where every elimination happens),
-# derived at the harness from the flips' observation events
-# (tests/playout_trace.py; the golden's values were pinned while the game's
-# own `coup_reveal` trace still emitted them, so byte-identity here doubles
-# as the derivation's standing witness), plus final coins, the alive vector,
-# and the winner, over 40 seeds (the WS5 behaviour-change re-pin — see
-# kernel-migration.md, Workstream 5).
+# derived at the harness from the flips' observation events, plus final coins,
+# the alive vector, and the winner, over 40 seeds (the WS5 behaviour-change
+# re-pin — see kernel-migration.md, Workstream 5). Every value here was pinned
+# while the game's own trace emitters still reported it — the reveals under
+# `coup_reveal`, the coins and the alive vector under `coup_game` — so
+# byte-identity doubles as the standing witness for both harness derivations
+# (tests/playout_trace.py, `CoupReveals` off the observation stream and
+# `TerminalState` off the terminal world).
 # Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys
 from pathlib import Path
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
-from tests.playout_trace import CoupReveals
+from tests.playout_trace import CoupReveals, TerminalState
 
 game = check_dsl(Path("docs/games/coup.cardlang").read_text(), "coup.cardlang")
 out = {}
 for seed in range(int(sys.argv[1])):
     log = CoupReveals()
-    summary = {}
-
-    def tracer(event, data, _s=summary):
-        if event == "coup_game":
-            _s.update(
-                coins={str(k): v for k, v in sorted(data["coins"].items())},
-                alive={str(k): v for k, v in sorted(data["alive"].items())},
-            )
-
-    r = play_game(game, random.Random(seed), tracer, observer=log.observer)
+    terminal = TerminalState(("coins", "alive"))
+    r = play_game(
+        game,
+        random.Random(seed),
+        terminal.tracer,
+        observer=log.observer,
+        on_first_decision=terminal.hold,
+    )
     out[str(seed)] = {
         "reveals": log.reveals,
-        "coins": summary["coins"],
-        "alive": summary["alive"],
+        "coins": {str(k): v for k, v in sorted(terminal.state["coins"].items())},
+        "alive": {str(k): v for k, v in sorted(terminal.state["alive"].items())},
         "winner": r.winner,
     }
 print(json.dumps(out))

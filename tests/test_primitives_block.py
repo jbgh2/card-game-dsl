@@ -76,13 +76,26 @@ domain:     the block's own surface — clause placement x {game, library},
             other direction and its outcome is undecided (issue #497), so it
             is not a cell here.
             The regime axis is crossed once in full: the Primitive's HOME
-            (`DECLARED_ONLY_CALL_FUNCS` against its complement in
-            `PRIMITIVE_CALL_FUNCS`) x {block declares it, block omits it, no
-            block}, total over the declared-only registry and sampled at one
-            named member of the legacy half. Both directions of the partition
+            (`DECLARED_ONLY_CALL_FUNCS`, which is now the whole of
+            `PRIMITIVE_CALL_FUNCS` — no Primitive keeps a legacy `call` arm)
+            x {block declares it, block omits it, no block}, total over that
+            registry. Both directions of the partition
             are cells of that product: a declared game reaching a Primitive it
             did not declare, and an undeclared game reaching one no legacy
             dispatch arm serves.
+            The CONTRACT axis is the enum WHOLE: a block declares every
+            member, so its cross with the reads-clause shape is total over
+            `InvocationContract` rather than over an allow-list stated beside
+            it. There is no cell for a member a block may not declare, and
+            none for a member the dispatch does not handle: each consumer
+            matches the enum structurally and closes with
+            `typing.assert_never`, so an added member is a `mypy --strict`
+            error at every dispatch site (decisions.md, "Closed-domain
+            completeness" — enforcement follows the domain's visibility to
+            the type checker, and a pin whose fact could have been a type is
+            built on the wrong rung). The registry-side half of the same
+            completeness, which the type checker cannot state, is
+            `test_every_invocation_contract_has_a_member`.
             Deliberately OUTSIDE it: the five namespaces the block does not
             cover have exactly one cell each here (the block cannot name
             them), because their declaration slots are epic #142's stage-4
@@ -256,7 +269,6 @@ from cardlang.pipeline import check_dsl, check_source
 from cardlang.primitives_block import (
     COLLECTION_ELEMENT_NAMES,
     DECLARABLE_BUILTIN_TYPE_NAMES,
-    DECLARABLE_CONTRACTS,
     PRIMITIVE_IMPLEMENTATIONS,
     UNDECLARABLE_TYPE_CONSTRUCTORS,
     Implementation,
@@ -479,25 +491,13 @@ def test_the_rank_index_scrape_sees_a_reader_and_separates_two_file_mates() -> N
 def test_every_invocation_contract_has_a_member() -> None:
     """Every arm of the contract enum classifies at least one registered
     Primitive. An arm with no member is a distinction the registry does not
-    make, and the block's refusals would then be unreachable.
+    make. This is the registry-side half of the enum's completeness; the
+    dispatch-side half is the type checker's, since every consumer matches
+    the enum structurally and closes with `assert_never`.
 
     red under: add an arm to `InvocationContract` with no row using it."""
     used = {impl.contract for impl in PRIMITIVE_IMPLEMENTATIONS.values()}
     assert used == set(InvocationContract)
-
-
-def test_the_declarable_contracts_are_a_proper_subset() -> None:
-    """The allow-list admits some arms and refuses others — a partition that
-    admitted everything would make the refusal cells below vacuous.
-
-    red under: set `DECLARABLE_CONTRACTS` to `set(InvocationContract)`."""
-    assert DECLARABLE_CONTRACTS < set(InvocationContract)
-    refused = set(InvocationContract) - DECLARABLE_CONTRACTS
-    assert {
-        name
-        for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
-        if impl.contract in refused
-    }, "no registered Primitive carries a refused contract"
 
 
 def test_the_declarable_builtin_type_names_are_the_languages() -> None:
@@ -649,48 +649,37 @@ def test_an_empty_block_is_a_declaration_not_an_absence() -> None:
     assert call_namespace(game) == BUILTIN_CALL_FUNCS
 
 
-# The module's legacy-half representative — the name every cell needing a
-# Primitive that a game with NO block still reaches is written at, checked
-# against the registry rather than assumed. Chosen for taking no arguments,
-# which keeps its rendered sentences the shortest of the half. One name and one
-# guard: each such cell stays green when the name moves homes, so a literal per
-# cell would leave the prose false and nothing saying so.
-_LEGACY_HALF_NAME = "coup_game_summary"
+# The Primitive every cell needing one name is written at, DERIVED from the
+# registry rather than written down: a literal is a name this module would have
+# to keep registered on its own account, and a migration that retires it would
+# leave the prose false with nothing saying so. Its rendering comes from
+# `CALL_SIGS` through `_entry_and_body`, so the name's own signature decides
+# the sentence. Keyed on the Primitive registry rather than on the
+# declared-only set, which the stage-3 closing change retires
+# (docs/plans/2026-09-05-coup-eviction-stage3-closing.md, its second change);
+# the two are equal while both stand.
+def _representative() -> str:
+    return min(PRIMITIVE_CALL_FUNCS)
 
 
-def test_the_legacy_half_representative_still_has_a_legacy_arm() -> None:
-    """The cells below sample the legacy half at one name, and the sample means
-    nothing if the name has moved homes: `DECLARED_ONLY_CALL_FUNCS` grows as
-    stage 3b migrates games, and every migration is a name leaving this half.
-
-    red under: set `_LEGACY_HALF_NAME` to a declared-only Primitive."""
-    legacy_half = PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS
-    assert _LEGACY_HALF_NAME in legacy_half, (
-        f"{_LEGACY_HALF_NAME} no longer has a legacy `call` arm — the cells "
-        f"below sample that half at this name; pick another from "
-        f"{sorted(legacy_half)[:3]}"
-    )
-
-
-def test_an_empty_block_refuses_a_legacy_primitive_call() -> None:
-    message = _refused(
-        _game(
-            block="",
-            body=f"    score[0] := if {_LEGACY_HALF_NAME}() then 1 else 0",
-        )
-    )
-    assert _LEGACY_HALF_NAME in message
+def test_an_empty_block_refuses_a_primitive_call() -> None:
+    name = _representative()
+    _, body = _entry_and_body(name)
+    message = _refused(_game(block="", body=body))
+    assert name in message
     assert "primitives" in message
 
 
 # --- axis 1 x the Primitive's own home: the regime product ------------------
 #
-# A Primitive is reachable from one home or from two. `DECLARED_ONLY_CALL_FUNCS`
-# names the ones `runtime/primitives.py` holds no `call` arm for, so a
-# declaration is the ONLY route to their Python; every other Primitive keeps
-# the legacy arm as well. Crossed with the regime — a block that declares the
-# name, a block that does not, no block at all — that is a six-cell product,
-# and each cell's outcome is stated once here rather than in six places.
+# A declaration is the only route to a Primitive's Python: `runtime/primitives.py`
+# holds no `call` arm for any of them, so `DECLARED_ONLY_CALL_FUNCS` is the
+# whole Primitive registry and the home axis has one arm. Crossed with the
+# regime — a block that declares the name, a block that does not, no block at
+# all — each cell's outcome is stated once here rather than in three places.
+# The set retires with the legacy dispatch table it names (the stage-3 closing
+# change, docs/plans/2026-09-05-coup-eviction-stage3-closing.md), at which
+# point this axis keys `PRIMITIVE_CALL_FUNCS`.
 
 # LEAF `Type` -> (its declarable spelling, an EXPRESSION of that type). A
 # representative's signature is read from `CALL_SIGS` and rendered through this
@@ -786,59 +775,19 @@ _REGIME_PRODUCT: dict[tuple[str, str], bool] = {
     ("declared-only", "block declares it"): True,
     ("declared-only", "block omits it"): False,
     ("declared-only", "no block"): False,
-    ("legacy-arm too", "block declares it"): True,
-    ("legacy-arm too", "block omits it"): False,
-    ("legacy-arm too", "no block"): True,
 }
-
-# The cells of the product no registered name can spell. The legacy half's one
-# member answers the EMITTING contract, which the block refuses BY NAME, so
-# "a legacy-armed Primitive that its game's block declares" has no
-# representative to run. Marked rather than restated: the axis is not a
-# permanent one — coup's eviction (issue #142) empties the half outright,
-# `_homes()` then derives no legacy cell at all, and the representative pin
-# above reddens, which is the event that retires the axis whole.
-_NO_REPRESENTATIVE: frozenset[tuple[str, str]] = frozenset(
-    {("legacy-arm too", "block declares it")}
-)
 
 
 def _homes() -> dict[str, list[str]]:
-    """The two homes, as the registries state them. The declared-only arm is
-    every member, so the product below covers the registry; the legacy arm is
-    the one representative, whose membership the test beside it checks.
-
-    A plain lookup, deliberately: this runs inside the `parametrize` list, so
-    anything that raised here would be a COLLECTION error — the whole module
-    deselected on a fact about one representative, reported as a broken test
-    file rather than as the registry change it is."""
-    return {
-        "declared-only": sorted(DECLARED_ONLY_CALL_FUNCS),
-        "legacy-arm too": [_LEGACY_HALF_NAME],
-    }
+    """The homes, as the registries state them: one, holding every member, so
+    the product below covers the registry rather than sampling it."""
+    return {"declared-only": sorted(DECLARED_ONLY_CALL_FUNCS)}
 
 
 @pytest.mark.parametrize(
     "home,regime_label,name",
     [
-        pytest.param(
-            home,
-            regime_label,
-            name,
-            marks=(
-                [
-                    pytest.mark.xfail(
-                        strict=True,
-                        raises=DiagnosticError,
-                        reason="the legacy half's one member answers the "
-                        "EMITTING contract, which a block refuses by name — "
-                        "the cell empties with coup's eviction (issue #142)",
-                    )
-                ]
-                if (home, regime_label) in _NO_REPRESENTATIVE
-                else []
-            ),
-        )
+        (home, regime_label, name)
         for (home, regime_label) in sorted(_REGIME_PRODUCT)
         for name in _homes()[home]
     ],
@@ -1247,26 +1196,25 @@ def test_a_declared_position_domain_reaches_them_too() -> None:
 
 
 def _declarable_contract_names() -> dict[str, str]:
-    """One registered Primitive per declarable contract, DERIVED — so a
-    contract admitted later arrives here as a missing key rather than a cell
-    nobody wrote."""
+    """One registered Primitive per contract, DERIVED — so a contract added
+    later arrives here as a missing key rather than a cell nobody wrote."""
     out: dict[str, str] = {}
     for name, impl in sorted(PRIMITIVE_IMPLEMENTATIONS.items()):
-        if impl.contract in DECLARABLE_CONTRACTS:
-            out.setdefault(impl.contract.value, name)
+        out.setdefault(impl.contract.value, name)
     return out
 
 
 def test_every_declarable_contract_has_a_reads_shape_cell() -> None:
-    """The cross below is complete over the contracts the block admits.
+    """The cross below is complete over the contract enum, which the block
+    declares whole.
 
-    red under: admit a third contract in `DECLARABLE_CONTRACTS`."""
+    red under: add an arm to `InvocationContract`."""
     assert set(_declarable_contract_names()) == {
-        c.value for c in DECLARABLE_CONTRACTS
+        c.value for c in InvocationContract
     }
     assert set(_READS_SHAPE_CELLS) == {
         (c.value, shape)
-        for c in DECLARABLE_CONTRACTS
+        for c in InvocationContract
         for shape in ("empty", "nonempty")
     }
 
@@ -2170,13 +2118,13 @@ def test_a_declared_game_cannot_reach_another_games_primitive() -> None:
     """Issue #364's class: with a block, a neighbour's Primitive is not in this
     game's namespace, so the call is an unknown name.
 
-    Written at the legacy-half name, so the counterfactual holds: this same
-    call in a game with no block RESOLVES, which is what makes the refusal the
-    block's doing rather than the callee having no arm anywhere."""
-    message = _refused(
-        _game(body=f"    score[0] := if {_LEGACY_HALF_NAME}() then 1 else 0")
-    )
-    assert _LEGACY_HALF_NAME in message
+    What the refusal is the doing OF is the regime product's business, not this
+    cell's: no Primitive resolves in a game with no block either, so the two
+    regimes agree on the verdict and differ on which arm speaks it."""
+    name = _representative()
+    _, body = _entry_and_body(name)
+    message = _refused(_game(body=body))
+    assert name in message
 
 
 def test_a_declaration_may_not_shadow_a_builtin() -> None:
@@ -2206,24 +2154,6 @@ def test_an_unimplemented_declaration_is_a_compile_diagnostic() -> None:
     nothing can run."""
     message = _refused(_game(block="no_such_primitive() : Integer", body="    score[0] := 1"))
     assert "no_such_primitive" in message
-
-
-@pytest.mark.parametrize(
-    "name",
-    sorted(
-        {
-            name
-            for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
-            if impl.contract not in DECLARABLE_CONTRACTS
-        }
-    ),
-)
-def test_an_undeclarable_contract_is_refused_by_name(name: str) -> None:
-    """A Primitive whose Python does not answer the narrowed contract is
-    refused where the mismatch is a compile-time fact — between a declaration
-    and a signature — rather than left to fail as a `TypeError` mid-playout."""
-    message = _refused(_game(block=f"{name}() : Integer", body="    score[0] := 1"))
-    assert name in message
 
 
 # --- axis 16/21: the value reaches the positions a Primitive is called in ----

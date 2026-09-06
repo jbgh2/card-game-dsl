@@ -38,6 +38,27 @@ covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
 sampled:    that each arm still computes the right answer is not this grid's
             property -- the full suite and byte-identical goldens carry it.
             This grid pins WHERE a name dispatches, not WHAT it returns.
+does not prove: that the Primitives half of the partition adds anything its
+            neighbours do not. Every Primitive is declared-only, so both
+            `primitives_arms` and the difference
+            `PRIMITIVE_CALL_FUNCS - DECLARED_ONLY_CALL_FUNCS` are empty, and
+            with both sides empty the equality restates two facts already
+            asserted beside it: that `runtime/primitives.py` holds no arm (the
+            union assertion's business, and the one that names the offender),
+            and that `PRIMITIVE_CALL_FUNCS` sits inside
+            `DECLARED_ONLY_CALL_FUNCS` -- the direction the subset assertion
+            above it does not carry, the two together making the sets equal.
+            Redundant, not vacuous: an arm added to `runtime/primitives.py`
+            falsifies it on its own, though the union assertion and the
+            arm-home row reach it first (executed 2026-09-04 by planting
+            `case "gin_deadwood": return 0` in `call`:
+            `test_call_arm_home[gin_deadwood]` and
+            `test_homes_partition_the_call_registry` both red, the union
+            assertion speaking; demonstrated and reverted). The plan of
+            record docs/plans/2026-09-05-coup-eviction-stage3-closing.md
+            deletes `call` and `DECLARED_ONLY_CALL_FUNCS` in its second
+            change, re-deriving this grid's homes as {builtins, declared} --
+            after which there is no Primitives half to state.
 residual:   the `climb_universe_function` / `climb_codec_function` /
             `joint_codec_function` key sets are not registries -- they exist
             only inside their own match -- so each carries a home row but no
@@ -88,8 +109,8 @@ _RETIRED = _PACKAGE / "runtime" / "stdlib.py"
 # already there; the classification of what it
 # keys is `cardlang/builtins/functions.py`'s statement, pinned by
 # tests/test_native_classification_prose.py, and the elimination metric is
-# `PRIMITIVE_CALL_FUNCS` (the call arms below) plus the epic scoreboard,
-# neither of which the winner reclassification touched.
+# `PRIMITIVE_CALL_FUNCS` plus the epic scoreboard, neither of which the winner
+# reclassification touched.
 DISPATCHER_HOMES: dict[str, str] = {
     "call": "both",
     "value_function": "primitives",

@@ -32,7 +32,6 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             handle-free) and `MIGRATED` (primitives), both now covering
             everything the dispatch routes; `_STILL_REACHES` (the
             per-cell work list, now EMPTY — stage 2 is complete);
-            `EMITS_TRACE` (primitives returning events alongside a value);
             `BUILTIN_*` / `PRIMITIVE_*` in `cardlang/builtins/functions.py`
             (the name axis); the call boundary's freeze cell reads a
             Primitive's shape through `primitives_block.implementation_sig`,
@@ -115,9 +114,11 @@ covered:    (a) per-implementation-SITE: the site's signature names no
             proves it over the whole index. The auction
             outcomes are excluded on purpose — they are residual (1),
             still holding `ctx`, so freezing one of their args would be
-            theater;
-            (e) `EMITS_TRACE` two ways: every listed primitive returns
-            `(value, events)`, no unlisted migrated primitive does.
+            theater. A Primitive that emits a trace event is not a shape
+            with a registry of its own: no Primitive holds a tracer, and
+            grid (b) asserts `ctx.trace` absent from every game module, so
+            the guarantee an emitter registry stated is the crossed grid's
+            over a wider domain.
 sampled:    behavioral identity rides the byte-identical goldens and the
             playout suites, which is the whole gauge for this stage — a
             moved golden means the refactor changed behavior.
@@ -410,8 +411,6 @@ NARROWED: frozenset[str] = frozenset(
         "canasta.py::canasta_close_ok",
         "canasta.py::canasta_must_take_pile",
         "canasta.py::canasta_stage_ok",
-        "coup.py::ROW",
-        "coup.py::coup_game_summary",
         "cribbage.py::cribbage_crib_value",
         "cribbage.py::cribbage_show_value",
         "cribbage.py::peg_origin_of",
@@ -474,7 +473,6 @@ MIGRATED: frozenset[str] = frozenset(
         "canasta_close_ok",
         "canasta_must_take_pile",
         "canasta_stage_ok",
-        "coup_game_summary",
         "cribbage_crib_value",
         "cribbage_show_value",
         "first_to_act_seat",
@@ -507,15 +505,6 @@ MIGRATED: frozenset[str] = frozenset(
     }
 )
 
-# Primitives that return `(value, events)` — they compute a real value AND
-# emit the engine's own trace vocabulary from a game-local site, so the
-# emission travels back as data and the dispatch layer performs it.
-EMITS_TRACE: frozenset[str] = frozenset(
-    {
-        "coup_game_summary",
-    }
-)
-
 
 def test_progress_registries_name_real_things() -> None:
     """No progress claimed for a site or name the dispatch does not route."""
@@ -523,13 +512,6 @@ def test_progress_registries_name_real_things() -> None:
     assert MIGRATED <= known, f"MIGRATED names nothing real: {sorted(MIGRATED - known)}"
     sites = {s.key for s in _SITES}
     assert NARROWED <= sites, f"NARROWED names no site: {sorted(NARROWED - sites)}"
-
-
-def test_emits_trace_names_are_real_primitives() -> None:
-    known = {i.primitive for i in _GAME_IMPLS}
-    assert EMITS_TRACE <= known, (
-        f"EMITS_TRACE names nothing real: {sorted(EMITS_TRACE - known)}"
-    )
 
 
 # --- axis 3: the forbidden handles -----------------------------------------
@@ -1237,23 +1219,37 @@ def _reachable_mutable(value: Any, path: str = "") -> list[str]:
     return bad
 
 
-_COUP_ROW = reads_mod.row("cardlang/runtime/coup.py", "coup.cardlang")
+# The row the immutability probe below reads through. SYNTHETIC, for the same
+# reason `_BUNDLE_ROW` is: a live registry row is the thing the corpus is
+# migrating off, so a migration with no reason to look here can delete the
+# fixture out from under this module. It declares an indexed state variable —
+# the shape the probe injects nesting into — beside a whole one, a zone family
+# and a single zone, so every field `game_reads` materializes is present.
+_DEEP_ROW = PrimitiveReads(
+    module="cardlang/runtime/probe.py",
+    game_file="probe.cardlang",
+    state_vars=frozenset({"indexed_var", "whole_var"}),
+    zone_families=frozenset({"declared_family"}),
+    single_zones=frozenset({"declared_single"}),
+)
 
 
-def _coup_row_state() -> RuntimeState:
-    """A state populated for the WHOLE of coup's declared row — `game_reads`
+def _deep_row_state() -> RuntimeState:
+    """A state populated for the WHOLE of `_DEEP_ROW` — `game_reads`
     materializes every declared name, so a partial fixture would fail the
     read before the immutability check it exists to make."""
     decls = (
-        n.ZoneDecl(name="influence", index="player", type_ref=n.TypeRef(name="Hand")),
-        n.ZoneDecl(name="revealed", index="player", type_ref=n.TypeRef(name="Pile")),
-        n.ZoneDecl(name="court_deck", index=None, type_ref=n.TypeRef(name="Deck")),
+        n.ZoneDecl(
+            name="declared_family", index="player", type_ref=n.TypeRef(name="Hand")
+        ),
+        n.ZoneDecl(
+            name="declared_single", index=None, type_ref=n.TypeRef(name="Deck")
+        ),
     )
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     rs.push_frame()
-    rs.declare("coins", False, {0: 2, 1: 2})
-    rs.declare("alive", False, {0: True, 1: True})
-    rs.declare("treasury", False, 44)
+    rs.declare("indexed_var", False, {0: 2, 1: 2})
+    rs.declare("whole_var", False, 44)
     return rs
 
 
@@ -1264,10 +1260,10 @@ def test_game_reads_is_deeply_immutable_at_any_depth() -> None:
     bundle is a SNAPSHOT (mutating the live source afterward does not leak)."""
     from copy import deepcopy
 
-    rs = _coup_row_state()
+    rs = _deep_row_state()
     live = deepcopy(_NESTED)
-    rs.set("coins", live)  # coins is a declared indexed state var of coup's row
-    bundle = reads_mod.game_reads(rs, _COUP_ROW)
+    rs.set("indexed_var", live)  # a declared indexed state variable of the row
+    bundle = reads_mod.game_reads(rs, _DEEP_ROW)
 
     # Walk EVERY field of the bundle, not just the one carrying the nesting —
     # state, families and singles all go through the same freeze.
@@ -1276,9 +1272,9 @@ def test_game_reads_is_deeply_immutable_at_any_depth() -> None:
         bad += _reachable_mutable(getattr(bundle, fname), f"gr.{fname}")
     assert not bad, "mutable containers reachable through GameReads:\n" + "\n".join(bad)
 
-    before = repr(bundle.state["coins"])
+    before = repr(bundle.state["indexed_var"])
     live[0]["layer"].append("intrusion")  # mutate the ORIGINAL after building
-    assert repr(bundle.state["coins"]) == before, (
+    assert repr(bundle.state["indexed_var"]) == before, (
         "the bundle tracked a later mutation of live engine state — it is a "
         "view, not the snapshot the purity guarantee requires"
     )
@@ -1530,45 +1526,6 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
     for name in facts.__dataclass_fields__:
         offenders += _reachable_mutable(getattr(facts, name), f"facts.{name}")
     assert not offenders, "mutable containers in EngineFacts:\n" + "\n".join(offenders)
-
-
-# --- grid (e): the trace-returning registry, two ways -----------------------
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(
-            nm,
-            marks=() if nm in MIGRATED else _pending(f"{nm} {_STAGE2}"),
-            id=nm,
-        )
-        for nm in sorted(EMITS_TRACE)
-    ],
-)
-def test_tracing_primitive_returns_events(name: str) -> None:
-    """A listed primitive hands its events back as data. Until it is
-    migrated it still emits through `ctx.trace`, so the cell is a strict
-    xfail — the same self-closing shape as the guards above."""
-    impl = next(i for i in _GAME_IMPLS if i.primitive == name)
-    scan = _scan_module(impl.module)
-    assert "ctx.trace" not in scan.hits, (
-        f"{name} still emits through ctx.trace — a narrowed primitive returns "
-        f"(value, events) and the dispatch layer performs the emission"
-    )
-
-
-def test_no_unlisted_migrated_primitive_emits_traces() -> None:
-    """The other direction: a module that still touches `ctx.trace` after
-    migration means a tracing primitive escaped EMITS_TRACE."""
-    for impl in _GAME_IMPLS:
-        if impl.primitive not in MIGRATED or impl.primitive in EMITS_TRACE:
-            continue
-        scan = _scan_module(impl.module)
-        assert "ctx.trace" not in scan.hits, (
-            f"{impl.module} still reaches ctx.trace but {impl.primitive} is "
-            f"not in EMITS_TRACE — list it, or route the emission back as data"
-        )
 
 
 # --- residual (1): the game knowledge that stays in engine core -------------

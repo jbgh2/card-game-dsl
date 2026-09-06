@@ -43,14 +43,13 @@ than the original one:
    it had no business seeing. It now receives values only, so those are
    not expressible. What survives is a granularity question, not a safety
    one (§3).
-3. **A registered primitive is not a read at all.** `coup_game_summary` is
-   a trace emitter for the playout harness, called as `let summary =
-   coup_game_summary()` — a dead variable, purely for the side effect. That
-   is harness instrumentation leaking into the rules text. It is what §4's
-   first stage left behind when it evicted the emitters that could be
-   derived from movement views; why this one could not ride with them, and
-   what its own eviction needs, are recorded in
-   issue #142.
+3. **A registered primitive is not a read at all.** A trace emitter for the
+   playout harness, called as `let summary = f()` for the side effect alone,
+   is harness instrumentation leaking into the rules text. No such call
+   survives: §4's first stage evicted the emitters whose facts derive from
+   movement views, and its third evicted the one whose facts are public
+   state, which the harness reads off the terminal world where the
+   information state reads it (issue #142).
 
 That leaves item 1, which is stage 4's, and it is the reason this note
 exists: the central placement is not protecting anything. It is a
@@ -153,21 +152,15 @@ interface cannot express one.
   materializes, and a unit test of one primitive declares only what that
   primitive touches.
 - **The trace emitters.** A function called for a side effect rather than a
-  value is not a primitive and cannot be declared as one. `coup_note_reveal`
-  and `tichu_hand_summary` are gone from all three tables and from both
-  games' rules text (including Coup's dead `let`); the harness derives their
-  facts from the observation events the kernel already emits
-  (`tests/playout_trace.py`). The rest of the class stayed, and is narrowed
-  rather than evicted. `coup_game_summary` is a trace emitter by call shape, registered
-  because its `coup_game` payload recomputes conservation totals from engine
-  state rather than from movement views — reproducing it at the harness is
-  its own design step (issue #142).
-  A primitive that computes a real value AND emits the engine's own trace
-  vocabulary from a game-local site returns `(value, events)`, and the
-  dispatch layer performs the emission — which is how a primitive that emits
-  stays values-out. `coup_game_summary` is the one such primitive left; the
-  hand-rolled trick winners that used to share the shape have retired onto the
-  Trick Order, whose call form emits nothing.
+  value is not a primitive and cannot be declared as one. `coup_note_reveal`,
+  `tichu_hand_summary` and `coup_game_summary` are gone from all three tables
+  and from both games' rules text (including Coup's two dead `let`s); the
+  harness derives their facts (`tests/playout_trace.py`) — the zone facts
+  from the observation events the kernel already emits, and the public state
+  variables off the terminal world, which is where the information state
+  reads them. No call-position Primitive emits: a game module holds no
+  tracer, and the shape that let one return its events as data retired with
+  the last emitter.
 - **The climb queries and outcome functions.** `bigtwo_lead_options` /
   `tichu_follows` and the game-named outcome functions are named in `round`
   clauses, not called as `f(...)`. Their interface is narrowed like every
@@ -215,9 +208,10 @@ their runtime modules, and their call sites (including Coup's dead
 trace information from the observation events the kernel already emits
 (`tests/playout_trace.py`, grid and ledger in
 `tests/test_trace_emitter_eviction.py`). Goldens stayed byte-identical, so
-no regeneration was needed. The misuse probe holds: calling either removed
-name yields the standard unknown-function diagnostic. Residual:
-`coup_game_summary` (§3).
+no regeneration was needed. The misuse probe holds: calling a removed name
+yields the standard unknown-function diagnostic. `coup_game_summary` follows
+in stage 3's closing change, into the same grid and the same rejection
+pattern.
 
 **Stage 2 — narrow the interface (M). Landed.** For each game primitive, split surface from
 implementation: the game-file call and its checker signature stay
@@ -249,13 +243,14 @@ included — they are invoked by the round machinery rather than
 through `call`, so `mechanics.py` binds their bundles via
 `stdlib.climb_row`. Goldens byte-identical throughout.
 
-A primitive that emits is not values-out. Four game-local trick
-winners and `coup_game_summary` compute a value AND emit the engine's
-own `play`/`trick`/`trick_end` vocabulary; emitting needs the tracer,
-which is the handle this stage removes. They return `(value, events)`
-and the dispatch performs the emission — same events, same order,
-byte-identical goldens — which narrows `coup_game_summary` without
-evicting it (its eviction stays its own step, §3).
+A primitive that emits is not values-out. Four game-local trick winners
+and `coup_game_summary` computed a value AND emitted the engine's own
+trace vocabulary from a game-local site; emitting needs the tracer, which
+is the handle this stage removes, so they returned `(value, events)` and
+the dispatch performed the emission — same events, same order,
+byte-identical goldens. The trick winners have since retired onto the
+Trick Order, whose call form emits nothing, and the last emitter is
+evicted, so no Primitive returns events and the shape is gone.
 
 Risk closed: `pot_share`'s surface signature does NOT have to change.
 The core under it is already pure and values-in — `stud.showdown_hands`
@@ -314,17 +309,17 @@ declaring game goes: a row serving a WALLED namespace outlives its game's
 block, because the block covers the call position while a climb or auction
 binder holds its own row at load — so the reconciliation pin quantifies per
 ROW, permitting exactly the rows those binders bind. Its own plan.
-Behavior unchanged, goldens byte-identical.
+Behavior unchanged, goldens byte-identical. The sweep is done: no
+call-namespace row is left, every Primitive is declared-only, and what
+remains is the deletion of the tables that served the other route
+(docs/plans/2026-09-05-coup-eviction-stage3-closing.md).
 
 Which games have migrated is a query, not a number: the games whose
 `primitives { }` block the corpus holds
 (`rg -l 'primitives \{' docs/games/`), against the call-namespace rows
-`PRIMITIVE_READS` still carries. The games left in that second set are
-each held by a named wall, or queued behind one that has fallen — coup's
-trace emitter (its own step under issue #142) and the phase-local cohort
-whose wall the scope tail below removed, which rolls out one PR per game
-(issue #504) — so a row still standing there is a wall's record or a
-rollout's remainder, never an unswept game.
+`PRIMITIVE_READS` still carries. That second set is empty: every row the
+registry holds is a walled binder's, so a row standing there is a wall's
+record and never an unswept game.
 
 The wave's most common asymmetry is the one the [[phase-scoped-read]]
 answers: an authored row may name a variable a PHASE declares, because a
