@@ -194,14 +194,17 @@ def main(argv: list[str] | None = None) -> int:
     except IllegalMove as exc:
         print(f"cardlang: playing {path} failed", file=sys.stderr)
         _print_refusal(exc)
+        # `error(...)` is writable in any expression the engine evaluates, so
+        # the message names the position it most often guards without claiming
+        # the refusal came from there.
         print(
-            "  your game refused this move itself — no card satisfied the "
-            "rule, and a playout has no player to tell",
+            "  this is your game's own `error(...)` refusing, and a playout "
+            "has no player to tell",
             file=sys.stderr,
         )
         print(
-            "  widen the rule's `demands:`, or give its `if_impossible:` a "
-            "card set to fall back on",
+            "  from a rule's `if_impossible:` it means no card satisfied that "
+            "rule: widen its `demands:`, or give it a card set to fall back on",
             file=sys.stderr,
         )
         return _EXIT_GAME_AT_FAULT
@@ -218,8 +221,8 @@ def _print_refusal(exc: Located) -> None:
     Rendered through the checker's own `Diagnostic`, so the two halves of the
     [[failure-channel]] print one shape and cannot drift into two spellings of
     a file position. A refusal that reached no stamping site — during setup,
-    or while the result is read after the last phase — prints as it always
-    did; an invented span would point the reader at a line where nothing
+    or while the result is read after the last phase — prints without a
+    locator; an invented span would point the reader at a line where nothing
     happened.
     """
     if exc.span is None:
