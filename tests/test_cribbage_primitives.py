@@ -21,7 +21,6 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.runtime import reads, narrowing
 from cardlang.runtime.cribbage import (
-    ROW,
     cribbage_crib_value,
     cribbage_show_value,
     peg_origin,
@@ -29,6 +28,27 @@ from cardlang.runtime.cribbage import (
 )
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating, expand_ranking_convention
+
+
+def _row(entry: str) -> reads.PrimitiveReads:
+    """The row ONE of cribbage's declared entries carries, taken the way a
+    playout takes it — from the game's `primitives { }` block, through the one
+    load site. A probe binding a bundle by hand binds what that entry's own
+    `reads` clause says, so a read the block stops declaring reaches these
+    tests as a bundle miss rather than as a row this module kept alive on its
+    own — and each entry's bundle holds ITS reads, not the union of the
+    module's."""
+    from pathlib import Path
+
+    from cardlang.pipeline import check_source
+    from cardlang.runtime.driver import declared_primitives
+
+    game = check_source(
+        Path(__file__).parent.parent / "docs" / "games" / "cribbage.cardlang"
+    )
+    table = declared_primitives(game)
+    assert table is not None, "cribbage declares a `primitives { }` block"
+    return table[entry].row
 
 # --- peg_origin: the pure bit-decoder ---
 
@@ -105,7 +125,9 @@ def _peg_rs(
 def _peg_ctx(
     play_pile: list[Card], seq_bits: int, seq_len: int, dealer: int = 1
 ) -> _Bundles:
-    return narrowing.bind(_peg_rs(play_pile, seq_bits, seq_len, dealer), None, ROW)
+    return narrowing.bind(
+        _peg_rs(play_pile, seq_bits, seq_len, dealer), None, _row("peg_origin_of")
+    )
 
 
 def test_peg_origin_of_reads_the_pile_position() -> None:
@@ -135,7 +157,7 @@ def test_peg_origin_of_routing_round_trip() -> None:
     # Bound ONCE, against the intact pile — which is what the DSL's two split
     # movements do, and what the bundle now makes structural: the snapshot
     # cannot shift under the reads as the pile drains below.
-    ctx = narrowing.bind(rs, None, ROW)
+    ctx = narrowing.bind(rs, None, _row("peg_origin_of"))
     play_pile = rs.zones.single("play_pile")
     # The DSL's close routing: filter the dealer's cards first (predicate over
     # the intact pile), then take the unfiltered remainder — reproduced here
@@ -158,17 +180,23 @@ def test_peg_origin_of_requires_reading_before_the_pile_drains() -> None:
     rs = _peg_rs([c0, c1], seq_bits=0b01, seq_len=2, dealer=1)
     rs.zones.single("play_pile").remove(c0)
     with pytest.raises(ValueError):
-        peg_origin_of(*narrowing.bind(rs, None, ROW), c0)
+        peg_origin_of(*narrowing.bind(rs, None, _row("peg_origin_of")), c0)
 
 
 def _show_ctx(
-    played0: list[Card], played1: list[Card], crib: list[Card], starter: Card
+    entry: str,
+    played0: list[Card],
+    played1: list[Card],
+    crib: list[Card],
+    starter: Card,
 ) -> _Bundles:
     rs = RuntimeState(Seating(2), ZoneStore(_zone_decls(), (0, 1)), random.Random(0))
     rs.rank_index = _aces_low_index()
-    # The bundle materialises the module's WHOLE declared row, so a fixture
+    # The bundle materialises the ENTRY's whole declared row, so a fixture
     # must declare every name in it — an omission is indistinguishable from
-    # the game file and the module having drifted apart.
+    # the game file and the module having drifted apart. The whole world is
+    # set up either way, so an entry reading past its own clause meets the
+    # bundle miss rather than a fixture that happened to be thin.
     rs.push_frame()
     rs.declare("dealer", False, 1)
     rs.declare("seq_bits", False, 0)
@@ -177,7 +205,7 @@ def _show_ctx(
     rs.zones.instance("played", 1).add_all(played1)
     rs.zones.single("crib").add_all(crib)
     rs.zones.single("starter").add(starter)
-    return narrowing.bind(rs, None, ROW)
+    return narrowing.bind(rs, None, _row(entry))
 
 
 def test_cribbage_show_value_reads_the_players_pegged_hand() -> None:
@@ -187,7 +215,7 @@ def test_cribbage_show_value_reads_the_players_pegged_hand() -> None:
     # Total 29.
     hand = [Card("5", "clubs"), Card("5", "hearts"), Card("5", "spades"), Card("J", "diamonds")]
     starter = Card("5", "diamonds")
-    ctx = _show_ctx(hand, [], [], starter)
+    ctx = _show_ctx("cribbage_show_value", hand, [], [], starter)
     assert cribbage_show_value(*ctx, 0) == 29
     assert cribbage_show_value(*ctx, 1) == 0  # player 1's played hand is empty
 
@@ -195,7 +223,7 @@ def test_cribbage_show_value_reads_the_players_pegged_hand() -> None:
 def test_cribbage_crib_value_reads_the_crib_against_the_starter() -> None:
     hand = [Card("5", "clubs"), Card("5", "hearts"), Card("5", "spades"), Card("J", "diamonds")]
     starter = Card("5", "diamonds")
-    ctx = _show_ctx([], [], hand, starter)
+    ctx = _show_ctx("cribbage_crib_value", [], [], hand, starter)
     # The crib scores the same combination points as a hand would, EXCEPT the
     # crib-only flush rule (is_crib=True: a 4-flush is worth 0, not 4) — moot
     # here (the sample hand isn't a flush), so the value is the same 29.

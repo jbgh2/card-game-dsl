@@ -259,13 +259,6 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         zone_families=_fs("influence", "revealed"),
         single_zones=_fs("court_deck"),
     ),
-    PrimitiveReads(
-        module="cardlang/runtime/cribbage.py",
-        game_file="cribbage.cardlang",
-        state_vars=_fs("seq_bits", "seq_len", "dealer"),
-        zone_families=_fs("played"),
-        single_zones=_fs("play_pile", "starter", "crib"),
-    ),
     # An empty row, not a missing one: president.py's climb queries are pure
     # over their arguments, but the climb binder keys the module's bundle
     # from this row (primitives.climb_row), so the row must exist.
@@ -283,17 +276,12 @@ PRIMITIVE_READS: tuple[PrimitiveReads, ...] = (
         module="cardlang/runtime/tichu.py",
         game_file="tichu.cardlang",
     ),
-    # primitives.py's per-game functions: the auction outcomes and cribbage's
-    # pegging-scorer call sites. One row per game served.
+    # primitives.py's per-game functions: the auction outcomes. One row per
+    # game served.
     PrimitiveReads(
         module="cardlang/runtime/primitives.py",
         game_file="bridge.cardlang",
         state_vars=_fs("made_bid", "high_bidder", "cur_strain", "cur_level", "doubled"),
-    ),
-    PrimitiveReads(
-        module="cardlang/runtime/primitives.py",
-        game_file="cribbage.cardlang",
-        single_zones=_fs("play_pile"),
     ),
     PrimitiveReads(
         module="cardlang/runtime/primitives.py",

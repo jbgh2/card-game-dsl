@@ -37,6 +37,11 @@ Establishes:  ONE classification of a game's Primitive regime, and ONE
               fourth, ancestry-carrying one a flat membership set cannot state
               (`descendant_redeclarations`), with the phase attribution the
               diagnostics need (`declaring_phases`, `phase_names`). And the
+              ONE path-aware walk of the phase tree (`phase_paths`), from which
+              that attribution, the ancestry relation and the nesting question
+              (`phase_chain`, which orders a set of phases outer to inner or
+              answers None when they lie on no one ancestor path) all derive.
+              And the
               ONE decomposition of an entry's type spelling
               (`decompose_type`), beside the element allow-list its collection
               form draws from (`COLLECTION_ELEMENT_NAMES`), which is pinned
@@ -45,9 +50,14 @@ Now illegal:  a consumer deciding the regime by testing `game.primitives`
               itself; any front-end module importing a game's runtime module
               to learn what it implements; any consumer testing a name's
               membership against the state or zone walks itself rather than
-              asking the predicates here; and any consumer walking phase state
-              blocks itself to answer a scope or ancestry question — the one
-              path-aware walk is here; any consumer reading an entry
+              asking the predicates here; and any consumer walking the phase
+              tree itself to answer a scope, ancestry or nesting question about
+              a `reads` clause or a declared Primitive — the one path-aware
+              walk is here, and a POSITION question (which phase's extent holds
+              a given node) is resolve's, since it is about the nodes of a game
+              rather than about the shape of its phase tree, while resolve's
+              state-REFERENCE scope checks walk the tree themselves, outside
+              this limit (issue #574); any consumer reading an entry
               spelling's shape itself rather than asking `decompose_type` —
               the BRACKET half of that is held by a scrape over `cardlang/`
               (`tests/test_primitives_block.py::test_a_collection_spelling_is_
@@ -139,9 +149,10 @@ class InvocationContract(Enum):
 
     A closed domain over `PRIMITIVE_CALL_FUNCS`: every registered Primitive
     answers exactly one of these, and the block admits `DECLARABLE_CONTRACTS`
-    alone. The other two are refused BY NAME at resolve rather than left to
-    fail as a `TypeError` mid-playout, because the mismatch is between a
-    declaration and a Python signature — a compile-time fact.
+    alone. Every member outside that allow-list is refused BY NAME at resolve
+    rather than left to fail as a `TypeError` mid-playout, because the
+    mismatch is between a declaration and a Python signature — a compile-time
+    fact.
     """
 
     BUNDLED = "bundled"
@@ -158,12 +169,6 @@ class InvocationContract(Enum):
     a value AND returns the engine's own trace events for the dispatch layer
     to emit (`narrowing.TraceEvent`). Not declarable: the one member is a
     trace emitter by call shape whose eviction is its own step (issue #142)."""
-
-    SITE_READ = "site_read"
-    """The dispatch site materializes the reads itself rather than binding a
-    row. Not declarable: the reads such a Primitive makes are written at the
-    call site, so a `reads` clause would declare something the implementation
-    does not consult (issue #473)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,8 +223,8 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
     "holdem_heads_up_pot_share": Implementation("cardlang.runtime.holdem_heads_up", "holdem_heads_up_pot_share", InvocationContract.BUNDLED),
     "holdem_pot_share": Implementation("cardlang.runtime.holdem", "holdem_pot_share", InvocationContract.BUNDLED),
     "peg_origin_of": Implementation("cardlang.runtime.cribbage", "peg_origin_of", InvocationContract.BUNDLED),
-    "peg_pair_points": Implementation("cardlang.runtime.cribbage", "peg_pair_points", InvocationContract.SITE_READ),
-    "peg_run_points": Implementation("cardlang.runtime.cribbage", "peg_run_points", InvocationContract.SITE_READ),
+    "peg_pair_points": Implementation("cardlang.runtime.cribbage", "peg_pair_points", InvocationContract.BUNDLED),
+    "peg_run_points": Implementation("cardlang.runtime.cribbage", "peg_run_points", InvocationContract.BUNDLED),
     "pinochle_meld_value": Implementation("cardlang.runtime.pinochle", "pinochle_meld_value", InvocationContract.BUNDLED),
     "pot_share": Implementation("cardlang.runtime.stud", "pot_share", InvocationContract.BUNDLED),
     "salvo_combos": Implementation("cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED),
@@ -444,6 +449,74 @@ def _game_level_state_names(game: n.Game) -> frozenset[str]:
     return frozenset(d.name for d in game.state.decls) if game.state else frozenset()
 
 
+def _phase_tree(game: n.Game) -> tuple[tuple[tuple[str, ...], n.Phase], ...]:
+    """(the PATH from a top-level phase down to it, the phase) for EVERY phase
+    of the game — the one whose `state { }` declares a name and the one that
+    declares nothing alike.
+
+    The ONE path-aware walk. `phase_paths`, `phase_names`, `phase_chain` and
+    `_phase_state_decls` derive from it rather than walking again, so the phase
+    set, the attribution, the ancestry and the nesting question can never
+    disagree; that they agree with the engine-wide walk (`n.state_blocks`) is
+    tests/test_primitives_block.py's.
+
+    Every phase and not only the declarers, because ancestry is asked ABOUT
+    phases rather than about declarations: a phase that declares nothing can
+    still enclose the region an entry is callable in, and a diagnostic that
+    names the phase a call sits in has to find that phase's path to say whether
+    it encloses the region or merely runs elsewhere. Phase names are
+    game-unique (`_check_duplicate_names`), so a path is one chain and not a
+    set of them."""
+    found: list[tuple[tuple[str, ...], n.Phase]] = []
+
+    def rec(phase: n.Phase, path: tuple[str, ...]) -> None:
+        here = path + (phase.name,)
+        found.append((here, phase))
+        for item in phase.items:
+            if isinstance(item, n.Phase):
+                rec(item, here)
+
+    for phase in game.phases:
+        rec(phase, ())
+    return tuple(found)
+
+
+def phase_paths(game: n.Game) -> dict[str, tuple[str, ...]]:
+    """Every phase of the game -> its path from a top-level phase down to it.
+
+    The ancestry table: one path is a prefix of another exactly when the first
+    phase's extent contains the second's, which is the whole of what nesting,
+    enclosure and strict descent are asked here."""
+    return {path[-1]: path for path, _ in _phase_tree(game)}
+
+
+def phase_chain(game: n.Game, phases: frozenset[str]) -> tuple[str, ...] | None:
+    """`phases` ordered OUTER to INNER when they lie on ONE ancestor path, or
+    None when they do not.
+
+    The nesting question, asked once. Sorted by depth, their paths are
+    prefix-ordered exactly when each phase's extent contains the next's — and
+    then the innermost phase's subtree IS the intersection of all of them,
+    which is the region an entry naming them is callable in. Two phases neither
+    of which is inside the other intersect in nothing, and no position in the
+    game runs both, so they answer None.
+
+    The empty set answers `()` and a singleton `(p,)`: one phase is the
+    degenerate chain rather than a special case, which is what keeps a
+    single-phase entry on the same path as a nested one. A name that is not a
+    phase of the game answers None too — the tail arm speaks for that name
+    first, so no caller reaches here with one."""
+    paths = phase_paths(game)
+    if any(name not in paths for name in phases):
+        return None
+    ordered = tuple(sorted(phases, key=lambda name: len(paths[name])))
+    nests = all(
+        paths[ordered[i]] == paths[ordered[i + 1]][: len(paths[ordered[i]])]
+        for i in range(len(ordered) - 1)
+    )
+    return ordered if nests else None
+
+
 def _phase_state_decls(
     game: n.Game,
 ) -> tuple[tuple[tuple[str, ...], n.StateDecl], ...]:
@@ -453,27 +526,15 @@ def _phase_state_decls(
     The path, not just the declaring phase's name, because the fourth collision
     predicate asks an ANCESTRY question — is this declarer a strict descendant
     of the phase a read names — and a name-keyed attribution cannot answer it.
-    Phase names are game-unique (`_check_duplicate_names`), so a path is one
-    chain and not a set of them.
 
-    The ONE walk: `_phase_state_declarations`, `_phase_state_names` and
-    `descendant_redeclarations` all derive from it rather than walking again,
-    so the set, the attribution and the ancestry can never disagree; that they
-    agree with the engine-wide walk (`n.state_blocks`) is
-    tests/test_primitives_block.py's."""
-    found: list[tuple[tuple[str, ...], n.StateDecl]] = []
-
-    def rec(phase: n.Phase, path: tuple[str, ...]) -> None:
-        here = path + (phase.name,)
-        for item in phase.items:
-            if isinstance(item, n.StateBlock):
-                found.extend((here, sd) for sd in item.decls)
-            elif isinstance(item, n.Phase):
-                rec(item, here)
-
-    for phase in game.phases:
-        rec(phase, ())
-    return tuple(found)
+    The declaring subset of `_phase_tree`, which is the ONE walk."""
+    return tuple(
+        (path, sd)
+        for path, phase in _phase_tree(game)
+        for item in phase.items
+        if isinstance(item, n.StateBlock)
+        for sd in item.decls
+    )
 
 
 def _phase_state_paths(game: n.Game) -> tuple[tuple[tuple[str, ...], str], ...]:
@@ -495,17 +556,7 @@ def _phase_state_declarations(game: n.Game) -> tuple[tuple[str, str], ...]:
 def phase_names(game: n.Game) -> frozenset[str]:
     """Every phase of the game, nested ones included — what a scope tail may
     name. Game-unique by `_check_duplicate_names`, so a tail names one phase."""
-    found: set[str] = set()
-
-    def rec(phase: n.Phase) -> None:
-        found.add(phase.name)
-        for item in phase.items:
-            if isinstance(item, n.Phase):
-                rec(item)
-
-    for phase in game.phases:
-        rec(phase)
-    return frozenset(found)
+    return frozenset(phase_paths(game))
 
 
 def descendant_redeclarations(game: n.Game, phase: str, name: str) -> frozenset[str]:

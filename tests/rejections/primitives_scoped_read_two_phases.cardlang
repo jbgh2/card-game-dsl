@@ -1,6 +1,10 @@
-// Guard: resolve.py's `_check_primitive_reads`. One entry has ONE containment
-// region, because the entry is callable only where its phase runs and two
-// phases' extents are not one place.
+// Guard: resolve.py's `_check_read_tails_nest`. The phases an entry's `reads`
+// clause names lie on ONE ancestor path, and the entry is callable only where
+// the innermost of them runs. `outer` and `later` are siblings: a phase's
+// frame is popped when the phase ends, so no position in this game runs both
+// and the entry could never be called anywhere. A designed constraint, not a
+// deferral — splitting the entry is no fix, since one caller would need both
+// values in a place that does not exist.
 game ScopedReadTwoPhases {
   players: 2
   max_length: 100

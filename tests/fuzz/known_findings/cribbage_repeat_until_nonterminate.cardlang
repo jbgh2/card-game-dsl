@@ -20,6 +20,12 @@
 // nob) and the pegging-count scorers are Primitives, unit-tested
 // against known hands (tests/test_playout_cribbage.py,
 // tests/test_cribbage_primitives.py).
+//
+// The finding this file carries is the MISSING pegging move: the sub-round's
+// `repeat until` has no statement that plays a card, so the loop cannot
+// terminate. Everything else is here because the pipeline has to accept the
+// file for the finding to reproduce — the `primitives { }` block among them,
+// since these five names reach Python only through a declaration.
 
 game Cribbage {
 
@@ -33,6 +39,15 @@ game Cribbage {
     A: 1
     2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
     J: 10  Q: 10  K: 10
+  }
+
+  primitives {
+    peg_pair_points() : Integer                 reads play_pile
+    peg_run_points() : Integer                  reads play_pile
+    peg_origin_of(c : Card) : Player
+        reads play_pile, seq_bits in play, seq_len in play, dealer in hand_sequence
+    cribbage_show_value(p : Player) : Integer   reads played[p], starter
+    cribbage_crib_value() : Integer             reads crib, starter
   }
 
   zones {

@@ -15,7 +15,7 @@
 // sub-round's card provenance (who played each `play_pile` card) is carried
 // by two Integer state vars (`seq_bits`/`seq_len`, public information: every
 // player watched the count) and decoded by the `peg_origin_of` Primitive
-// primitive at each close, which routes the pile into `played[dealer]` /
+// at each close, which routes the pile into `played[dealer]` /
 // `played[nondealer]`. The combination scorers (fifteens/pairs/runs/flush/
 // nob) and the pegging-count scorers are Primitives, unit-tested
 // against known hands (tests/test_playout_cribbage.py,
@@ -34,6 +34,34 @@ game Cribbage {
     A: 1
     2: 2  3: 3  4: 4  5: 5  6: 6  7: 7  8: 8  9: 9  10: 10
     J: 10  Q: 10  K: 10
+  }
+
+  // Everything this game borrows from outside the DSL, implemented in
+  // `cardlang/runtime/cribbage.py`. Nothing else: cribbage names no round
+  // form, so it has no auction outcome, climb query or trick winner to
+  // declare, and this block is the whole of its borrowing.
+  //
+  // The pegging decoder is the one entry whose reads span two phases.
+  // `seq_bits` and `seq_len` are declared by `phase play`; `dealer` by
+  // `phase hand_sequence`, one level out. The phases a `reads` clause names
+  // must nest, one inside the next, and the entry is then callable only where
+  // the innermost of them runs — so naming both commits `peg_origin_of` to
+  // being called inside `phase play`, which is where its three call sites
+  // are, and the resolver checks that rather than taking the promise. The
+  // tail rides the READ, not the clause: every zone here is game-level and
+  // carries none.
+  //
+  // The two pegging scorers read the live pile and nothing else; the show
+  // entries read the zone they score and the shared starter. The rank order
+  // the run scorers need is an engine fact a Primitive receives whole, so no
+  // clause names it.
+  primitives {
+    peg_pair_points() : Integer                 reads play_pile
+    peg_run_points() : Integer                  reads play_pile
+    peg_origin_of(c : Card) : Player
+        reads play_pile, seq_bits in play, seq_len in play, dealer in hand_sequence
+    cribbage_show_value(p : Player) : Integer   reads played[p], starter
+    cribbage_crib_value() : Integer             reads crib, starter
   }
 
   zones {

@@ -117,7 +117,7 @@ uses_decl: _USES_KW NAME
 // A read may name the PHASE whose `state { }` declares it — `trump_suit in
 // hand_sequence` — which is what lets an entry read state a phase declares.
 // The tail is per-READ, not per clause, because a clause legitimately mixes
-// game-level names with one phase's (`reads hand[p], trump_suit in
+// game-level names with a phase's (`reads hand[p], trump_suit in
 // hand_sequence`); one clause-wide tail could not say that. `in` is reused
 // rather than a new word minted: it is already anchored, and its containment
 // sense is the one wanted — `committed in play` is the variable contained in
