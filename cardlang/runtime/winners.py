@@ -56,8 +56,8 @@ def recorded_plays(
     Order (issue #250), whose own winner deliberately consults no expected
     count, because a mid-trick read is the winner so far. It stays because the
     guard it carries is the one a future hand-rolled winner would need, and
-    its absence from the Trick Order path is a designed gap with a record —
-    tests/test_arrival_record.py's `residual` row owns it, citing issue #350.
+    its absence from the Trick Order path is designed surface, pending
+    issue #350.
 
     Two Owner Guards, both the hosting description's errors: the pile must
     hold exactly the completed trick (`expected` plays — a wrong call site

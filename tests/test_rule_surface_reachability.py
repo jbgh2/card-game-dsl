@@ -12,26 +12,25 @@ property:   A `rule` declaration is accepted only if some decision site can
             totality"), and this grid pins that each such shape is rejected
             loudly instead.
 domain:     constrains-target x demands-kind x exempts-presence.
+            Three things sit outside the axes, and none is a gap.
+            `applies_when:` and `if_impossible:` affect nothing about whether
+            a rule reaches a reader, so every inert combination involving
+            them already falls inside a cell: a rule carrying `if_impossible`
+            with no `demands`, or with an `actions` demand, is inert for the
+            reason the demands axis states, and an `applies_when` on an
+            otherwise-inert rule is unreachable for the reason the constrains
+            axis states -- crossing them would double the cell count and
+            change no outcome. And `legal_moves:` is a separate surface with
+            no runtime reader at all, owned by
+            open-questions/phase-legal-moves.md.
 registry:   constrains -- `stdlib.moves.LIBRARY_MOVE_TYPES`, plus the
                           clause-absent case (`constrains` is optional).
-                          Pinned by `test_constrains_axis_is_the_move_registry`.
-            demands    -- `ast.nodes.DEMAND_KINDS`. This registry did not
-                          exist before this change: the two kinds lived in a
-                          `# "cards" | "actions"` comment on the field, so
-                          the axis had no defining site in code and the guard
-                          had nothing to be the complement OF. Adding it is
-                          this change's first artifact (surface-totality
-                          audit, Step 1). Pinned by
-                          `test_demands_axis_is_the_kind_registry`, which
-                          also pins that the parse builder emits only these.
+                          Its pin: `test_constrains_axis_is_the_move_registry`.
+            demands    -- `ast.nodes.DEMAND_KINDS`, the defining site in code
+                          the guard is the complement OF. Its pin, and the
+                          parse builder's emit set:
+                          `test_demands_axis_is_the_kind_registry`.
             exempts    -- presence/absence of an optional clause.
-covered:    `test_rule_surface_grid`, the full
-            CONSTRAINS x DEMAND_KINDS_OR_ABSENT x EXEMPTS cross (54 rows).
-            Each rejected cell asserts the SPECIFIC diagnostic it must
-            produce, never bare rejection: several cells can trip more than
-            one guard (a `cards` demand still needs its `if_impossible`), and
-            a cell asserting only "rejected" passes for the wrong guard.
-sampled:    none.
 decided:    The vacuous rule (`constrains: play_to_trick`, no `demands:`, no
             `exempts:`) is REJECTED, and that is a judgment call rather than
             a consequence of the reachability condition — such a rule is
@@ -43,58 +42,25 @@ decided:    The vacuous rule (`constrains: play_to_trick`, no `demands:`, no
             differs. No corpus or stdlib rule is vacuous, so nothing is lost.
             Recorded here because a cell decided on judgment must read as
             decided, not as fallout.
-residual:   `applies_when:` and `if_impossible:` are NOT axes, deliberately.
-            Neither affects whether a rule reaches a reader, so every inert
-            combination involving them already falls inside a grid cell: a
-            rule carrying `if_impossible` with no `demands`, or with an
-            `actions` demand, is inert for the reason the demands axis
-            states, and an `applies_when` on an otherwise-inert rule is
-            unreachable for the reason the constrains axis states. Adding
-            them would double the cell count and change no outcome.
-
-            NOT closed here, each a DIFFERENT defect with its own record:
-            - duplicate rule clauses are silently last-wins (`rule X {
-              constrains: a  constrains: b }` keeps `b`) -- issue #173, R3.
-              A silent MISREAD, not accepted-but-ignored: these guards narrow
-              its blast radius but cannot close it, and
-              `test_duplicate_clause_misread_is_not_closed_by_these_guards`
-              below pins that honestly rather than letting the grid imply
-              otherwise.
-            - the four rule-clause expressions are typechecked for arity
-              only, so `applies_when: 5` is permanently true and a
-              non-collection `if_impossible` silently voids its rule's
-              demand -- issue #174, R3.
-            - a rule never named by any `active_rules:` is accepted
-              silently, while a parameterized rule never instantiated is a
-              hard error -- issue #175, R4.
-
-            One CONSEQUENCE of this guard, not a gap in it: a family library
-            can no longer declare a rule. An enforceable rule must name a
-            zone and a `requires { }` contract names state only, so every
-            library rule is either unenforceable (guarded here) or reaches
-            past its contract (guarded by the library encapsulation check).
-            No library declares one today and the standard library is
-            unaffected -- it is spliced by a separate path with no contract
-            to violate, which is the asymmetry epic #181 exists to remove.
-            The two control cells this strands in
-            tests/test_family_libraries.py are marked `xfail(strict)`
-            against issue #177 rather than deleted, so they flip loudly when
-            a contract can name a zone. Also recorded in roadmap.md,
-            "Grammar surface deferred by the checker".
-            - `legal_moves:` has no runtime reader at all. Owned by
-              open-questions/phase-legal-moves.md, recorded there.
+does not prove:  that an accepted rule changes play. Every cell stops at
+            `check_dsl`, and the acceptance predicate `_reaches_a_reader` is
+            AUTHORED from `rules.legal_cards`'s guards rather than read off
+            them -- so what a green establishes is that the checker agrees
+            with that reading of the reader, not that the reader, at its one
+            call site in `mechanics.py`, then acts on the rule. Nothing here
+            runs a game.
 
 Framing check: RAN, and changed the domain. A fresh-context subagent given
 only the definition sources (grammar, AST unions, the whole `cardlang/`
 package) enumerated the rule surface and its readers. Three of its findings
-are in this ledger and were absent from the author's derivation:
+are in this module and were absent from the author's derivation:
   - the `actions`-demand cell where the rule ALSO carries `exempts`. The
     rule is live (exempts is read) while the demand clause stays inert, so
     the guard had to become per-CLAUSE; the author's per-rule framing would
     have let that cell through.
   - `DEMAND_KINDS` had no defining site, which is why it is created here.
-  - the three separately-filed defects above, none of which the author's
-    reachability framing would have surfaced.
+  - three separately-filed defects (issues #173, #174, #175), none of which
+    the author's reachability framing would have surfaced.
 """
 
 from __future__ import annotations
@@ -296,7 +262,7 @@ def test_duplicate_clause_misread_is_not_closed_by_these_guards() -> None:
     read as closing it. Clauses are last-wins, so a duplicate `constrains:`
     whose LAST value is the enforced move type sails through — the guards
     narrow this defect's blast radius without closing it, and saying so in a
-    test keeps the ledger's residual row honest.
+    test is what keeps the grid from reading as a closure it is not.
 
     Delete this test when #173 lands; it will fail there, which is the point.
     """

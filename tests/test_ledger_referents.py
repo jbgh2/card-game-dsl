@@ -1038,14 +1038,13 @@ def _census() -> Census:
 
 
 # The whole actionable residue, each member with the reason it is not a
-# reference. All three are the same shape -- a word that is prose or DSL
+# reference. Both are the same shape -- a word that is prose or DSL
 # surface here and ALSO happens to be a tracked module's stem, so
 # `_module_stems` resolves it by coincidence. Naming them beats narrowing the
 # oracle until the number looks good: a coincidence recorded is a coincidence
-# a reader can check, and a fourth one arriving has to be ruled on.
+# a reader can check, and a third one arriving has to be ruled on.
 CENSUS_RESIDUE: dict[str, str] = {
     "__init__": "the dunder discussed as prose; collides with the `__init__` stem",
-    "active_rules": "the DSL clause `active_rules:`; collides with a module stem",
     "trick_order": "the DSL block and the mechanic; collides with a module stem",
 }
 

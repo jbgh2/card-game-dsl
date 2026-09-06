@@ -9,6 +9,17 @@ domain:     every (label, name) pair in tracked `.py`/`.md`/`.cardlang`/`.lark`
             prose where the label is ADJACENT to the name in one of the forms
             in `_ADJACENCY` -- crossed against every name in the native
             registries.
+            Three things sit outside, and none is a gap. A label at a
+            DISTANCE from the name it governs is review judgment: in
+            "Stud-local Primitives ... (like `team_of`)" the apposition makes
+            `team_of` an example of how they are called rather than a member
+            of the set, and no matcher resolves that without resolving the
+            English, while one that guessed would fire on correct prose --
+            the same ruling #214 D4 makes for glossary usage. So is prose
+            that classifies an unnamed thing ("a native registry", "the
+            Primitive slot"), which has no backticked name to bind to. And
+            this module is excluded from the walk, because its own
+            documentation must spell the wrong labels to be followable.
 registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
             union of every module-level frozenset named `BUILTIN_*` against
             the union of every one named `PRIMITIVE_*`, scraped from the
@@ -24,36 +35,18 @@ registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
             (`DECK_ONLY_*`, `ANY_FLAVOR_*`, `BOARD_ONLY_*`) are orthogonal
             classifications and carry neither prefix either. The file walk
             is `git ls-files`; the adjacency forms are `_ADJACENCY`.
-covered:    `test_no_prose_mislabels_a_native_function` over the full walk,
-            plus `test_each_adjacency_form_is_matched` -- one row per form,
-            each proving the matcher sees that form at all, so a form cannot
-            silently stop matching and leave the sweep looking clean. This
-            module is excluded from its own walk (its `red under:` must spell
-            the wrong labels to be followable), and
-            `test_the_self_exclusion_is_load_bearing` holds that exclusion to
-            exactly one file.
-sampled:    none.
-note:       The first version of this pin passed every local run and FAILED CI.
-            The walk is `git ls-files`, which lists TRACKED files only, and this
-            module was still untracked while it was written -- so it could not
-            see itself, and its own documentation's deliberately-wrong labels
-            were outside the domain until the commit put them in. An empty slice
-            of the domain is not a clean result: `_tracked` now asserts this
-            file IS in the walk before removing it, so the same blindness
-            cannot recur silently.
-residual:   A label at a DISTANCE from the name it governs is out of the
-            domain and stays review judgment: `kernel-migration.md` once read
-            "Stud-local Primitives ... (like `team_of`)", where the apposition
-            makes `team_of` an example of how they are called rather than a
-            member of the set. No matcher resolves that without resolving the
-            English, and a matcher that guessed would fire on correct prose --
-            the same ruling #214 D4 makes for glossary usage. R3, recorded
-            here rather than filed: the mechanism is the reviewer.
-            Also out of domain: prose that classifies an unnamed thing ("a
-            native registry", "the Primitive slot"), which has no backticked
-            name to bind to. Both defects were real -- see the PR #332 review
-            rounds -- and both are why this module claims the adjacent case
-            only rather than a reach it does not have.
+            This file's exclusion:
+            `test_the_self_exclusion_is_load_bearing`. Each adjacency form's
+            reach probe: `test_each_adjacency_form_is_matched`.
+note:       The walk is `git ls-files`, which lists TRACKED files only, so an
+            untracked module is outside the domain and its deliberately-wrong
+            labels with it. An empty slice of the domain is not a clean
+            result: `_tracked` asserts this file IS in the walk before
+            removing it, so that blindness cannot pass as green.
+does not prove:  that the tree's classifying prose is right, only that the
+            ADJACENT case is. A label separated from its name, or attached to
+            no backticked name at all, is read by nobody here, and the
+            mechanism for those is the reviewer.
 
 red under: relabel a known name -- e.g. in `docs/library.md` change
     "the Primitive `tarot_per_opp()`" to "the Builtin `tarot_per_opp()`"
@@ -116,7 +109,7 @@ def test_the_derived_universe_holds_every_home_registry() -> None:
 
 # The adjacency forms. Each binds ONE label to ONE immediately-neighbouring
 # backticked name; a name reached across a comma, a list, or another
-# backticked name is out of the domain (see `residual`).
+# backticked name is out of the domain (see the ledger's `domain:`).
 #
 # The name is the LEADING identifier of the backticked span, and the span may
 # carry anything after it: the catalogue writes call spellings and whole

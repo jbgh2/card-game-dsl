@@ -9,37 +9,25 @@ property:   reversing `game.zones`, `game.move_types`, `game.rules`, and
 domain:     corpus games (`pairing.CORPUS`) x seeds (`pairing.SEEDS`) for the
             playout property; `tests/rejections/*.cardlang` for the
             diagnostic property.
+            Two things sit outside, and neither is a gap. A parse-level
+            rejection case (`_PARSE_LEVEL_CASES`) has no declaration list to
+            permute, so it is outside the transform's domain by
+            construction. And `game.phases` and phase-body statement
+            sequences are EXCLUDED rather than deferred: decisions.md
+            affirmatively says phase/statement order IS meaningful
+            ("Sub-phase entry and exit"), so there is no metamorphic
+            property to check there — reorder.py's own module docstring
+            states the same exclusion at the transform.
 registry:   docs/games/*.cardlang (`pairing.CORPUS`); tests/rejections/ (the
-            same registry `tests/test_rejections.py` glob-pins).
-covered:    every corpus game (exhaustive), every seed in `pairing.SEEDS`;
-            every rejection-corpus case that PARSES (exhaustive,
-            `REJECTIONS_DIR.glob` minus `_PARSE_LEVEL_CASES` — a parse-level
-            case has no declaration list to permute, so it is outside the
-            transform's domain by construction; the membership is pinned in
-            both directions, and the case's diagnostic stays pinned by
-            tests/test_rejections.py).
-            Two structural PRECONDITIONS reorder.py's soundness argument
-            depends on are pinned as their own tests, not assumed:
-            `test_every_game_has_exactly_one_deck_zone` (zone order is
-            irrelevant to `driver.py`'s `next(... "Deck" ...)` only because
-            there is exactly one) and
-            `test_no_state_default_reads_a_sibling` (state-decl order is
-            irrelevant to `_declare_state` only because no default
-            expression reads a same-block sibling). Plus one ANTI-VACUITY
-            pin, `test_reorder_actually_changes_every_game`: reversal is the
-            identity on a list of length <= 1, so a game small enough would
-            pair against an equal tree — the same object once `_check` is
-            memoized — and pass for free. The zones axis covers
-            every game: a gather visits zones in canonical sorted-name order
-            (`execute.py::_gather`; decisions.md "Loop lifecycle: `before_each` and `after_each`"), the
-            canonicalization that retired this suite's original gather-order
-            finding and its per-game exclusion.
-sampled:    seeds and decision depth only (CI budget) — pairing.py.
-residual:   `game.phases` and phase-body statement sequences — EXCLUDED, not
-            deferred: decisions.md affirmatively says phase/statement order
-            IS meaningful ("Sub-phase entry and exit"), so there is no
-            metamorphic property to check there. Not a gap; see reorder.py's
-            module docstring.
+            same registry `tests/test_rejections.py` glob-pins, and where
+            each case's diagnostic is pinned). The canonical sorted-name
+            gather order the zones axis rests on:
+            cardlang.runtime.execute._gather; decisions.md, "Loop lifecycle:
+            `before_each` and `after_each`".
+does not prove:  that the property holds at every depth or from every deal.
+            Seeds and decision depth are sampled to a CI budget (pairing.py),
+            so a divergence reachable only from an unsampled seed, or deeper
+            than the step bound, passes here.
 """
 
 from __future__ import annotations

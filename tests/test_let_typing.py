@@ -21,30 +21,19 @@ domain:     statement context {phase body, nested phase via items fold, hook
             matrix-tested in test_operator_guards.py, test_procedures.py and
             test_movement_endpoints.py; this module pins the THREADING) —
             plus the form axis {plain let, chained let-of-let, indexed let}
-covered:    every context below with an executed laundering probe; the
-            chained and indexed forms; the scope boundary (a nested body's
-            let does not leak — pinned below); the positions the runtime
-            evaluates with a DIFFERENT context (a nested phase's qualifier
-            sees preceding lets — typed with them; same-phase hooks and state
-            defaults get ENTRY scope; a transition predicate reads NO let at
-            all, enclosing or not — it is fired by whichever round matches
-            its event, so no lexical position makes a binding reliably live —
-            all pinned below with contrast pairs); the facet axes (a non-card
-            collection is not a zone; unify merges each facet in its guard's
-            polarity — `zone` PERMITS so it ANDs, a maybe-zone is not an
-            endpoint; `key` PROHIBITS so it is STICKY, a maybe-map still
-            rejects `in`; keyed maps check their key domain on read and
-            write; `to each` consumes the family NAME, so even a zone-valued
-            binder is rejected there); the gradual case (a TAny initializer
-            stays permissive, by rule)
-sampled:    each context is probed with ONE guard (cross-enum equality),
-            because `_scoped_env` is the single resolution point every guard
-            reads — per-guard coverage lives in each guard's own matrix, which
-            now includes laundered rows
-residual:   a `let` whose initializer itself types `TAny` (`outcome`, an
-            unregistered `action.<field>`) carries `TAny` forward — gradual
-            typing's ordinary rule, pinned below, with the runtime's typed
-            Shadow Guards (test_fail_loud.py) behind it
+does not prove:  two things. That EVERY guard answers the same for the
+            laundered spelling as for the inline one: each context is probed
+            with one guard (cross-enum equality), because `_scoped_env` is
+            the single resolution point every guard reads, so a guard that
+            consulted the environment differently would not surface here —
+            per-guard coverage is each guard's own matrix
+            (tests/test_operator_guards.py, tests/test_procedures.py,
+            tests/test_movement_endpoints.py). And anything about a `let`
+            whose initializer itself types `TAny` (`outcome`, an
+            unregistered `action.<field>`): it carries `TAny` forward by
+            gradual typing's ordinary rule, so every guard reading it passes
+            vacuously, and what stands behind that path is the runtime's
+            typed Shadow Guards (tests/test_fail_loud.py).
 """
 
 from __future__ import annotations
@@ -564,7 +553,7 @@ def test_the_zone_hint_names_the_filter_only_where_one_can_be_written() -> None:
     )
 
 
-# --- the recorded residual: TAny initializers stay gradual ---------------------
+# --- TAny initializers stay gradual -------------------------------------------
 
 
 def test_a_tany_initializer_carries_tany_forward() -> None:

@@ -25,33 +25,33 @@ Completeness ledger
                Zone).
     domain:    {every function the boundary can be handed arguments against}
                x declared param type {TCollection, TAny, scalar} x
-               {Zone, list} argument shapes.
+               {Zone, list} argument shapes.  Two things sit inside that
+               statement rather than short of it.  A scalar param is
+               single-shape by construction, so the shape axis collapses for
+               it and no coercion applies.  And a TCollection param wanting
+               the Zone HANDLE (`zone=True`) is not a shape the registry
+               may hold — the boundary would strip it — so the registry
+               refuses one outright, and a signature that wanted it forces
+               the boundary decision to be made rather than the handle to be
+               silently stripped.
     registry:  cardlang/builtins/signatures.py CALL_SIGS (the Builtins,
                pinned equal to `BUILTIN_CALL_FUNCS`), unioned with each
                registered Primitive's own signature through
                `primitives_block.implementation_sig` (`_signatures` below);
                the shape axis is the evaluator's value universe
-               (cardlang/runtime/state.py `elements` names it).
-    covered:   TCollection axis — gin_valid_meld, gin_arrange_ok x Zone:
-               the pipeline probes below (true AND false witnesses, so the
-               value is proven, not just the absence of a crash); x list —
-               the corpus jointly path (tests/test_jointly_selection.py,
-               test_playout_gin_rummy.py).  TAny axis — suit_of x Zone:
-               the polymorphic probe below (plus the schnapsen playout
-               suite, whose trump indicator exercises it for real).  Both
-               probe tables are reconciled against the registry
-               (test_every_collection_param_function_has_a_zone_probe,
-               test_polymorphic_param_set_is_pinned), so a future
-               collection-param or TAny-param primitive cannot land
-               unprobed.
-    sampled:   scalar params (TCard/TPlayer/TInteger/...) are single-shape
-               by construction — no coercion, exercised by every corpus
-               playout.
-    residual:  a TCollection param with zone=True (an adapter wanting the
-               Zone HANDLE under a collection type) would be stripped by
-               the boundary; test_no_native_param_demands_a_zone guards the
-               registry so adding one forces the boundary decision to be
-               revisited instead of the handle being silently stripped.
+               (cardlang/runtime/state.py `elements` names it).  The
+               zone-handle refusal: `test_no_native_param_demands_a_zone`.
+               The TCollection arm's list shape end to end:
+               tests/test_jointly_selection.py,
+               tests/test_playout_gin_rummy.py.  The TAny arm in a real
+               game, through schnapsen's trump indicator:
+               tests/test_playout_schnapsen.py.
+    does not prove:  that an adapter behaves correctly on a shape its
+               declared param type does not admit.  What is executed is the
+               coercion the SIGNATURE dictates — a TCollection param
+               receives elements, a TAny param receives the value
+               untouched — and a TAny adapter's own shape dispatch is its
+               own code, checked where that adapter is.
 """
 
 from __future__ import annotations

@@ -26,18 +26,15 @@ domain:     zone position {movement from, movement to, epistemic target}
             player-indexed family is legal there)
 registry:   `resolve._WRITE_TARGET_KINDS` (the classification vocabulary) and
             the grammar's zone-position slots
-covered:    every rejected classification, each probed at two or more
-            positions (parametrized); both legal zone shapes (a
-            singleton/family name, a subscripted family); the classifier's
-            own rejection for an unresolved root
-sampled:    none
-residual:   a `local` root whose initializer types `TAny` (an `outcome`
+does not prove:  that a `local` root reaching one of these positions is
+            zone-shaped. A local whose initializer types `TAny` (an `outcome`
             pronoun, an unregistered action field) is accepted — gradual
-            typing's ordinary rule, not a blind spot: lets are TYPED now, so
-            `let h = 3` is rejected at check time (the type half of the rule,
-            `_check_transfer`) while `let h = hand[0]` still passes on its
-            merits. The executor's typed RuntimeError remains the Shadow Guard
-            for the TAny path (tests/test_fail_loud.py pins it directly).
+            typing's ordinary rule rather than a blind spot, since lets are
+            typed, so `let h = 3` is rejected at check time (the type half of
+            the rule, `_check_transfer`) while `let h = hand[0]` passes on its
+            merits. What stands for the `TAny` path is the executor's typed
+            RuntimeError, the Shadow Guard pinned directly at
+            tests/test_fail_loud.py.
 """
 
 from __future__ import annotations

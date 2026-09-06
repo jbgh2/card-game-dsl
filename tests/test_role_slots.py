@@ -38,26 +38,17 @@ domain:     role slot x value class. Both axes derived:
               board-minted direction domain (`dir`), and an unknown name.
 registry:   `cardlang.domains.DOMAINS` (role ids); `resolve._REFERENCE_SLOTS`
             (the slot axis); `cardlang.board_domains.BOARD_DOMAIN` /
-            `DIRECTION_DOMAIN` (the two minted names).
-covered:    the full cross product, executed by
-            `test_a_role_slot_admits_exactly_its_declared_domains` -- one row
-            per (slot, value), each commanded ACCEPT, REJECT or INEXPRESSIBLE.
-            `cell` and `dir` cells run on a BOARD base and the rest on a card
-            base, because a value class that does not exist in the game under
-            test would make its own row vacuous -- the cell would then prove
-            "an undeclared name is refused", which is the `unknown` row.
-sampled:    none -- every cell is executed.
-residual:   ONE. The grid commands ACCEPT/REJECT/INEXPRESSIBLE, not WHICH guard
-            reports: at the zone-owner slot the template holds index and owner
-            equal (what a designer writes), so for a non-indexable value the
-            INDEX guard reports first and the owner guard is not the one
-            measured. The owner guard is separately executed against a fixed
-            `player` index by
-            `tests/test_zone_index_roles.py::test_a_zone_type_may_not_be_owned_
-            by_a_value_domain`. R4 -- auditor-only, and it guards no
-            information-set guarantee: both spellings refuse, so no game is
-            accepted-and-ignored either way. Recorded here per decisions.md
-            "Reachability ranks the work"; no issue.
+            `DIRECTION_DOMAIN` (the two minted names). The owner guard against
+            a fixed `player` index:
+            tests/test_zone_index_roles.py::test_a_zone_type_may_not_be_owned_by_a_value_domain.
+does not prove:  WHICH guard reports at the zone-owner slot. The grid commands
+            ACCEPT/REJECT/INEXPRESSIBLE, and its template holds index and
+            owner equal -- what a designer writes -- so for a non-indexable
+            value the INDEX guard reports first and the owner guard is not the
+            one measured. R4, auditor-only, and it guards no information-set
+            guarantee: both spellings refuse, so no game is
+            accepted-and-ignored either way (decisions.md "Reachability ranks
+            the work").
 """
 
 from __future__ import annotations
@@ -248,7 +239,7 @@ def _run_state_index(value: str, _mp: pytest.MonkeyPatch) -> None:
 
 def _run_type_arg(value: str, _mp: pytest.MonkeyPatch) -> None:
     # Index and owner held EQUAL -- what a designer writes, and what the
-    # agreement guard demands. See the ledger's residual row.
+    # agreement guard demands. See the ledger's `does not prove:` row.
     base = _base_for(value)
     check_dsl(base(zones=f"h2[{value}] : PlayerPile<{value}>"), "probe.cardlang")
 

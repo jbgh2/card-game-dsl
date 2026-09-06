@@ -23,74 +23,47 @@ domain:    direction x operand value class (sign quadrants, exactness, zero,
            consuming layer (parse builder, resolve, typecheck, IR, evaluate)
            — plus the rejected-symbol surface `/`, `%` and the misuse
            sentences.
+           Banker's/half-even rounding (tarot_per_opp) sits outside, and it is
+           a scope limit rather than a gap: two directions are the surface the
+           expression register declares, and a third rounding mode is other
+           work (#250/#253/#255 own that surface).
 registry:  the direction axis derives from the grammar's term-level rule
            aliases (scraped from cardlang.lark by
            test_direction_axis_is_pinned_by_grammar_and_op_classes below) and
            from typecheck.OP_CLASSES; the operand-type axis and its
            accept-set are typecheck's ARITHMETIC class
            (tests/test_operator_guards.py owns that class's full operand
-           grid; this module probes the class routing and the new ops'
+           grid; this module probes the class routing and the division ops'
            message spelling); host positions derive from the grammar's
            expression-reaching productions (the framing-check enumeration on
            issue #249).
-covered:   the executed parametrizations and probes in this module —
-           test_value_grid (16 hand-authored sign/exactness cells x both
-           directions through a played game), the zero-divisor and
-           dynamic-operand OwnerGuardError cells (literal, computed, at-setup,
-           `Integer? = none`, and Boolean-through-the-permissive-top — both
-           truth values, both operand positions, a `false` divisor named
-           non-Integer and never zero, since bool subclasses int in the
-           host language), the host cells (lvalue index, transfer amount
-           bare and parenthesized, state default, choose pinned-range, choose
-           adjacency both spellings, aggregation body, function body,
-           predicate contexts), the typecheck rejection cells (collection /
-           enum / rank / card / string operands, mixed offset_by chains both
-           directions, TAny gradual accept), the resolve cells (unknown
-           divisor name, choose upper bound with no static ceiling), the
-           parse/builder cells (`/` and `%` reject-with-replacement, `//`
-           comment-absorption characterization, missing clause and fused
-           spellings, `x /= 2`, `a / / b`, and the bare-query dividend — a
-           query form is an expr-level alternative, never a term, so
-           `number of cards in z divided by ...` is refused unparenthesized),
-           the IR emission cell, and the names-stay-names cells (`by`,
-           `down`, `divided`, `rounded` as identifiers).
-sampled:   (a) the long tail of expression host positions (round/turns
-           clause slots, query kinds, if-expr branches, produce payloads,
-           library/stdlib start symbols): one AST node, one op-string, one
-           evaluator arm — every host funnels through the same _check_expr /
-           evaluate walk probed here; the load-bearing distinct paths
-           (statement registry, declaration tail, setup-time evaluation,
-           binder scopes) each hold an executed cell above. (b) the reject
-           branch of _check_arithmetic_operands for un-probed concrete types
-           (TTeam, TStruct, TNull, TOptional-of-rejected): one isinstance
-           check against {TAny, TInteger}, the same branch as the executed
-           collection/string/card cells — the class grid is
-           tests/test_operator_guards.py's. (c) rule_args: any non-suit-
-           NameRef argument already rejects at resolve's isinstance filter
-           (resolve.py, active-rules argument check) — the divided form is
-           one more non-NameRef through the same branch. (d) `round` vs
-           `rounded` prefix anchoring: the whole-word property is pinned
-           mechanically by tests/test_keyword_anchoring.py over Lark's
-           compiled terminal table.
-residual:  (a) `//` cannot be rejected at any layer: it is the comment
-           introducer, `a // b` parses as `a` with the line tail commented
-           out (characterized below, spec'd in decisions.md "The expression
-           register"); the closure options (comment-syntax change, a
-           source-text lint pass) are new machinery needing an operator
-           ruling — R2, issue #335; the executed evidence is the divided-by
-           counsel comment on issue #249, where the ruling record lives.
-           (b) a literal `0` divisor is caught at play time, not compile
-           time: no const-fold pass exists, and minting one is unruled
-           machinery — R2, issue #336. (c) pre-existing classes this
-           surface joins but does not own, each named in the framing-check
-           enumeration comment on issue #249: named-arg call values are
-           never type-walked (`f(x = expr)`) — R3, issue #337; deckcheck's
-           capacity gate skips non-IntLit transfer amounts — R3,
-           issue #338; and the `+ - *` evaluator arms lack the dynamic
-           non-Integer operand guard the division arms carry — R4,
-           issue #339. (d) banker's/half-even rounding (tarot_per_opp) is
-           not expressible with these two directions — a domain exclusion,
-           not a gap (#250/#253/#255 own that surface).
+           The `round` vs `rounded` whole-word property, over Lark's compiled
+           terminal table: tests/test_keyword_anchoring.py.
+           The ARITHMETIC class's full operand grid:
+           tests/test_operator_guards.py.
+does not prove:  three things, each a place where the grid argues rather
+           than executes.
+           Every expression HOST. The long tail — round/turns clause slots,
+           query kinds, if-expr branches, produce payloads, library/stdlib
+           start symbols — is one AST node, one op-string and one evaluator
+           arm, and every host funnels through the same `_check_expr` /
+           `evaluate` walk this module probes; the load-bearing distinct
+           paths (statement registry, declaration tail, setup-time
+           evaluation, binder scopes) each hold an executed cell. The funnel
+           is the argument, and a host that bypassed the walk would pass here.
+           Every REJECTED operand type. `_check_arithmetic_operands` is one
+           isinstance check against {TAny, TInteger}, and the concrete types
+           no cell names (TTeam, TStruct, TNull, TOptional-of-rejected) reach
+           the same branch as the executed collection/string/card cells —
+           reached by inspection of the branch, not by running them. The same
+           holds for a divided form in `rule_args`: any non-suit NameRef
+           argument already rejects at resolve's isinstance filter, and the
+           divided form is one more non-NameRef through that branch.
+           And that `a // b` fails loud. It cannot: `//` is the comment
+           introducer, so the sentence parses as `a` with the line tail
+           commented out. That trap is characterized below rather than
+           guarded, and it is the one shape the property's "every plausible
+           wrong sentence fails loud" clause does not reach.
 naming:    `divided by ... rounded up|down` mints no glossary entry: the
            register's operator forms carry none (`offset_by` lives inside
            the `direction` concept entry, not as its own), the phrase
@@ -244,6 +217,8 @@ def test_sum_binds_looser_than_division() -> None:
 
 @pytest.mark.parametrize("direction", ["up", "down"])
 def test_zero_divisor_literal_is_a_typed_runtime_error(direction: str) -> None:
+    # A LITERAL zero is caught at play time like any other: no const-fold pass
+    # exists, and minting one is unruled machinery — R2, issue #336.
     _play_rejects(
         _game(f"s[0] := 7 divided by 0 rounded {direction}"),
         "nonzero divisor",
@@ -602,7 +577,8 @@ def test_double_slash_is_a_comment_the_characterization() -> None:
     by an operator rejection at any layer (executed evidence in the divided-by
     counsel on issue #249: an un-prioritized terminal never wins the resolve,
     a prioritized one steals genuine comments). This pin makes any change to
-    the trap loud; the residual is issue #335, recorded in the module ledger.
+    the trap loud; closing it needs new machinery (a comment-syntax change, a
+    source-text lint pass) and an operator ruling — R2, issue #335.
 
     red under: give DIV_OP a prioritized `//` alternative
     (`DIV_OP.2: "//" | "/" | "%"`) — the operator reading then wins, the

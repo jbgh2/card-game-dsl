@@ -16,35 +16,29 @@ domain:     deck consumers keyed by deck name (size table, build_deck,
 registry:   DECKS (cardlang/runtime/values.py) / _DECK_SIZE
             (cardlang/stdlib/enums.py); CALL_FUNCS / PRIMITIVE_CALL_FUNCS;
             the `primitives { }` block canasta.cardlang declares, which is
-            where its reads live
-covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
-            (parametrized over sorted(DECKS) — the new entry enters
-            automatically); name/arity/annotation coherence:
-            tests/test_signatures.py (set equality + dispatch-AST
-            reconciliation, automatic); declared reads:
-            tests/test_primitive_reads.py (two-sided pin, the game's block
-            against the module's own accessor literals, automatic) — at
-            MODULE grain, its scan comparing the module-wide union; ENTRY
-            grain, whether one entry's own clause suffices for the code that
-            entry reaches, is answered at playout, where a narrowed clause
-            checks clean and the bundle refuses in the typed
-            PrimitiveReadError channel naming the entry and the clause to
-            extend (that module's `sampled:` row states the same limit for
-            per-call-site attribution);
-            adapter registration: the corpus glob <-> registry pin and the
-            proof-module coverage pin (both two-sided, automatic); a
-            declared-only name called from a game with no block:
-            tests/test_primitives_block.py's regime product, whose name axis
-            is `PRIMITIVE_CALL_FUNCS` itself, so these six enter it
-            automatically and it Owns that refusal; the
-            probes below (convention guard, combo guard, unknown name, wrong
-            arity); the 54-distinct-card block pin below
-sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
-            deal plan (tests/test_playout_canasta.py)
-residual:   joint selections on ANY duplicate-card deck (the combo block's
-            frozenset canonicalization collapses copies) — guarded loudly at
-            ActionSpace.for_game (probed below) and recorded in
-            roadmap.md, "Grammar surface deferred by the checker"
+            where its reads live.
+            Deck size against the runtime, over sorted(DECKS):
+            tests/test_deckcheck.py::test_deck_size_matches_runtime.
+            Primitive name / arity / annotation coherence:
+            tests/test_signatures.py. Declared reads, the game's block against
+            the module's own accessor literals:
+            tests/test_primitive_reads.py. A declared-only name called from a
+            game with no block, its name axis `PRIMITIVE_CALL_FUNCS` itself:
+            tests/test_primitives_block.py. Adapter registration, both
+            directions:
+            tests/openspiel_ready/test_coverage.py::test_every_registered_game_has_a_proof_module
+            and ::test_no_proof_module_without_a_registered_game.
+does not prove:  two things, each answered where the game runs rather than
+            where its seams are probed.
+            That one entry's own `primitives { }` clause suffices for the code
+            that entry reaches. The declared-reads pin holds at MODULE grain,
+            its scan comparing the module-wide union; ENTRY grain is answered
+            at playout, where a narrowed clause checks clean and the bundle
+            refuses in the typed PrimitiveReadError channel naming the entry
+            and the clause to extend.
+            That a 108-card deck deals. Deckcheck capacity at that size is
+            exercised by the corpus game's own deal plan
+            (tests/test_playout_canasta.py), and nothing here reaches it.
 """
 
 from __future__ import annotations
@@ -94,7 +88,8 @@ def test_joint_selection_walled_on_a_duplicate_card_deck() -> None:
     # canasta108 holds two copies of every standard card: the combo block's
     # frozenset canonicalization would collide {K♠,K♠} with {K♠}, so a
     # `where jointly` selection on such a deck is refused loudly at action-
-    # space construction — the audit's residual, guarded
+    # space construction. Supporting one is deferred surface, and this refusal
+    # is where a designer meets that
     # (roadmap.md, "Grammar surface deferred by the checker").
     from cardlang.openspiel.encoding import ActionSpace
 

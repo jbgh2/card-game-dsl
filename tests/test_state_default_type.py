@@ -3,9 +3,8 @@ type. `v : Integer = "s"` had parsed, resolved, and run — the declared
 `type_name` reached the checker only as the variable's type for later reads, and
 the default expression was never compared against it.
 
-Found by the surface-totality audit of the declare-time scope guard
-(`test_state_default_scope.py`), recorded as that grid's one residual (the
-`AllPlayers` row: `v : Integer = all players` was accepted), and closed here.
+The declare-time scope guard's grid (`test_state_default_scope.py`) admits
+`v : Integer = all players` by scope; the type mismatch is refused only here.
 The check mirrors `_check_assign`: `infer(default)` must be `assignable` to
 `type_from_name(decl.type_name, decl.optional)` — the value type, which is the
 element type an indexed default broadcasts to every key.
@@ -22,19 +21,14 @@ domain:     declared value type x inferred default type. The declared axis is
             declared)` — the same relation the guard uses, computed
             independently in the breadth sweep so the test drives the real
             pipeline against an expected column it did not scrape from the guard.
-covered:    the concrete cells below (hand-decided outcomes for the behaviours
-            that matter — primitive mismatch, the `all players` residual,
-            optional/non-optional `none`, indexed element-checking, struct
-            fit), executed at BOTH default sites (game-level and nested-phase);
-            plus the derived breadth sweep over the declared x default cross.
-residual:   PRECISION, stated like the `Call` ban's: the guard is exactly as
-            sharp as `infer`, which returns `TAny` (the permissive top) for its
-            unrefined arms, so a default whose inferred type is `TAny` passes
-            whatever the declared type. This is the type system's design, not a
-            hole in the guard — `assignable` treats `TAny` as compatible
-            everywhere. No corpus default is `TAny`-typed (all 268 are precise),
-            so nothing rides on the boundary today; it moves as `infer` gains
-            precision, never needing a change here.
+does not prove:  that a default `check_dsl` accepts is precisely typed. The
+            guard is exactly as sharp as `infer`, which returns `TAny` (the
+            permissive top) for its unrefined arms, and `assignable` treats
+            `TAny` as compatible everywhere — so a default whose inferred type
+            is `TAny` passes whatever the declared type is. That is the type
+            system's design rather than a hole in the guard, and the boundary
+            moves as `infer` gains precision, never needing a change here. No
+            corpus default is `TAny`-typed, so nothing rides on it today.
 """
 
 from __future__ import annotations

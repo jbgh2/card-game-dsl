@@ -19,86 +19,45 @@ domain:   every (dataclass, field) pair in `cardlang.ast.nodes` that can HOLD a
           string — bare `str`, `str | None`, `tuple[str, ...]`, a union with
           `str` among its members (`Transfer.amount`), and a `Literal` of
           strings (`Game.content_flavor`, annotated `Flavor`). The predicate is
-          "can hold", not "mentions `str`": the second spelling shipped first
-          and silently excluded the `Literal` member while this ledger claimed
-          no field could be excluded.
+          "can hold", not "mentions `str`": the narrower spelling silently
+          excludes the `Literal` member, which is why widening the domain means
+          widening the predicate rather than adding a row.
 registry: the AST module itself, introspected. `tests/test_node_registry.py`
           owns the prior link in the chain — that `n.Node` is exactly the
           module's dataclasses — so this module derives its node axis from the
           union and inherits that pin rather than repeating it.
-covered:  the full membership equation, both directions, plus pairwise
-          disjointness of the seven kinds. The SHAPE column is derived here and
-          checked against `resolve.slot_strings`, so the extraction is total by
-          construction rather than by the reader believing the annotations were
-          read. The gap between "holds a string" and "names `str`" is swept as
-          its own class (`test_the_string_valued_class_is_swept_not_patched`)
-          and pinned at its members, so widening the domain means widening the
-          predicate rather than adding a row.
-sampled:  none.
-residual: ONE, and it is worth stating in the shape a reader can act on rather
-          than as a caveat.
-
-          The SEMANTIC column is authored, not derived, and cannot be otherwise
-          — `str` is `str`, and what a slot MEANS is not in its annotation. What
-          is derived is the KEY set and the shape column. Stated because "derived
-          and pinned" would otherwise read as a claim the classification itself
-          is derived.
-
-          WHAT THE EXPOSURE IS: mis-classification, never omission. A slot
-          cannot be missing — the derived domain and the membership pin make that
-          impossible — so the surviving risk is a slot filed under the wrong kind
-          or namespace: something called `keyword`, `binder` or `opaque` that is
-          in fact a game-fed reference. That is precisely the original defect
-          (issue #138) surviving in a single cell, and a library author would
-          meet it exactly as before. A namespace that does not exist at all is
-          caught here (`test_every_namespace_is_named`); a wrong-but-real one is
-          caught by the consumer grids in `tests/test_family_libraries.py`, and
-          only for slots those grids reach.
-
-          WHAT HAS CLOSED, and what has not. The second family library landed
-          (`docs/libraries/smuggling.cardlang`, issue #143's first item), and it
-          closed part of this BY EXECUTION rather than by more checking
-          machinery. Executed: the `type` slot of a `requires` entry, whose
-          classification the widening to zone contracts put under real load;
-          `index_domain`, whose row in `_LIBRARY_UNSWEPT` claimed the namespace
-          was CLOSED and was falsified by a probe the moment a contract could
-          name a zone — a library could then reach a game's `positions { }`
-          domain through a contract index, and the namespace is now swept rather
-          than excused; and `zone`/`zone_type_arg`, both of which went from
-          unreachable to reachable and are swept.
-
-          NOT executed, and the residual survives for them: `round`,
-          `produces:`, and a struct type. Green Lane's shared core is a commit
-          and a wave, and it uses none of the three; the family was not contorted
-          into touching them, because a probe written to exercise a slot rather
-          than to play a game is the inspection this residual exists to distrust.
-          `offer` is a third case worth stating precisely: the family USES it,
-          but in game text rather than library text, because the offered move is
-          the one that varies. So the slot is exercised by the family and not by
-          a library, which is weaker than the closer this row asked for.
-
-          WHAT WOULD CLOSE THE REST: a library holding a `round` — a
-          trick-taking family is the natural candidate, and it is the same
-          witness issue #177 names. Still deliberately not closed by more
-          checking machinery: re-deriving the authored column mechanically would
-          re-check only the categories this module already invented, and its
-          expected findings are auditor-only — the shape the planning gate routes
-          to record-and-file rather than build (decisions.md, "Reachability ranks
-          the work"; CLAUDE.md, "Execution finds what enumeration cannot").
-
-The framing check (surface-totality-audit Step 1) ran against `nodes.py` and the
-grammar as the definition sources, with the author's table as provisional input;
-it did not run in a fresh context, so it is the weaker form of that check. That
-weakness lands on the same cell as the residual above and nowhere else: the
-check's job is to catch a NARROWED domain, and this domain is derived, so what
-it could still have narrowed is which bucket a slot went into. Same exposure,
-same closer — do not read the two as separate debts. Its
-diff is what moved `NameRef.name`/`ref_kind` out of `reference` into kinds of
-their own and what added `Transfer.item` as a game-fed slot. A later plant
-against this module's OWN totality claim — the adversarial form, negating the
-claim rather than re-reading the table — is what found the `Literal` member;
-that is evidence for the plant, not for the framing check, which had passed
-over it.
+          A slot filed under a wrong-but-real namespace, for the slots those
+          grids reach: tests/test_family_libraries.py.
+          The per-namespace sweep reasons a library import rests on:
+          `cardlang.resolve._LIBRARY_UNSWEPT`.
+does not prove:  that any slot's CLASSIFICATION is right. The semantic column
+          is authored, not derived, and cannot be otherwise — `str` is `str`,
+          and what a slot MEANS is not in its annotation; what is derived is
+          the key set and the shape column. So the exposure a green leaves is
+          mis-classification, never omission: a slot cannot be missing, the
+          derived domain and the membership pin make that impossible, but a
+          slot filed under the wrong kind or namespace — something called
+          `keyword`, `binder` or `opaque` that is in fact a game-fed reference
+          — passes here, and a library author meets it as the original defect
+          surviving in a single cell. A namespace that does not
+          exist at all is refused below; a wrong-but-real one is the consumer
+          grids', and only for the slots those grids reach. Closing it by
+          re-deriving the authored column mechanically would re-check only the
+          categories this module already invented, so the closer is execution:
+          a library that USES the slot.
+          Which slots execution has not reached: `round`, `produces:`, and a
+          struct type, none of which the family libraries in tree use. `offer`
+          is the case worth stating precisely — a family USES it, but in game
+          text rather than library text, because the offered move is the one
+          that varies, so the slot is exercised by the family and not by a
+          library.
+          And the framing check (surface-totality-audit Step 1) is the weaker
+          form: it rests on a reading of `nodes.py` and the grammar as the
+          definition sources with the author's table as provisional input,
+          rather than a fresh-context re-derivation. That weakness lands on
+          this same cell and nowhere else — the check's job is to catch a
+          NARROWED domain, and this domain is derived, so what it could still
+          have narrowed is which bucket a slot went into. Same exposure, same closer; not a separate debt.
 """
 
 from __future__ import annotations

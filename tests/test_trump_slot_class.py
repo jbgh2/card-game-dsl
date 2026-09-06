@@ -56,6 +56,14 @@ domain:     trump-slot: {game clause, round clause, call form, state.trump}
             statement CONTAINER x {reachable, unreachable};
             rank-to-order: every rank_index consumer x an unranked rank
             reaching its lookup.
+            Two shapes sit outside the type axis, and neither is a gap. A
+            non-NAME trump value (`trump: 5`, `trump: "spades"`) is refused
+            in the grammar's own channel before resolve -- the clause is
+            `trump: NAME` -- so the axis is spelled with NAME-shaped values,
+            the rank cell included. And board-minted shapes (Cell/Dir/Line)
+            and a `TAny` operand are not spelled at all: a card game mints
+            none, and `TAny` is the permissive top, admitted here exactly as
+            the call form admits it.
 registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
             (the winner slot's namespace) and `TRUMP_READING_WINNERS` (the
             body partition), reconciled by `test_trump_reading_registry_
@@ -66,7 +74,9 @@ registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
             #256 census), each crossed with an authored DRIVER (a member
             with no driver fails, `test_every_ranking_reader_has_a_driver`);
             the round clause's type axis is `_TRUMP_SPELLINGS`, authored
-            (see `sampled`); containers -- DERIVED from the AST by
+            rather than derived (see `does not prove:`), with the operand
+            routing it rests on pinned in tests/test_operand_choke_point.py;
+            containers -- DERIVED from the AST by
             `_name_reached_containers` (a statement-holding dataclass that
             appears as a field type on `n.Game`), reconciled against BOTH
             `_CONTAINER_FIXTURES` and resolve's `_DEFINITION_CONTAINERS` by
@@ -74,126 +84,29 @@ registry:   winners -- `cardlang.builtins.functions.TRICK_WINNER_NAMES`
             container paired with its reference namespace so a future
             invoking construct added to `_REFERENCE_SLOTS` reaches the sweep
             without editing it.
-covered:    `test_game_trump_value` (every deck x every suit of the deck +
-            three non-suit shapes), `test_game_trump_consumption`
-            (TRICK_WINNER_NAMES x {inherit, override} squared, plus no
-            round), `test_dead_clause_counts_reachable_rounds` (every
-            name-reached container x {reachable, unreachable} x {a reading
-            winner, a blind one}) with `test_every_name_reached_container_
-            is_classified` pinning the container axis complete,
-            `test_unreached_reader_message_names_its_container` and
-            `test_a_reachable_definition_keeps_its_trump` (the
-            over-reach complement), `test_round_trump_clause`
-            (TRICK_WINNER_NAMES x
-            `_TRUMP_SPELLINGS`), `test_call_form_trump_argument`
-            (`_TRUMP_SPELLINGS`), `test_state_trump_is_unpublished`,
-            `test_unranked_rank_reaches_the_typed_channel` (every
-            RANKING_GATED member x its driver), the registry reconciliation
-            pins, and the piece-game cell of the game clause.
-sampled:    the round clause's type axis (`_TRUMP_SPELLINGS`) is a spelling
+does not prove:  three things.
+            The round clause's type axis (`_TRUMP_SPELLINGS`) is a spelling
             per representative `cardlang.types` shape (Suit, Suit?, none, a
-            suit literal, Integer, String, Rank, Boolean, Collection,
-            Player, Card) rather than the whole `Type` lattice: the check
-            routes through `typecheck._check_operand` with expected `Suit?`,
-            so what stands for `Suit?` is `types.coercible`'s own domain
-            (its tests), and the choke-point pin
-            (tests/test_operand_choke_point.py) is what keeps the routing
-            honest. Board-minted shapes (Cell/Dir/Line) and a `TAny`
-            operand are not spelled: a card game mints none, and `TAny` is
-            the permissive top, admitted here exactly as the call form
-            admits it. The rank-to-order Primitives (belote, cribbage,
-            president) are driven at their Python entry with an unranked
-            rank rather than through a whole game: their DSL route is
-            pinned by their own game tests, and what this grid adds is the
-            lookup site's channel.
-residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
-            five_hundred43 -- a singleton pseudo-suit as the trump class.
-            ACCEPTED, as DESIGNED surface, not as a deferral: a pseudo-suit
-            is a suit by the deck's own declaration (`deck_suits`, the same
-            domain the `Suit` type and the `Suit?` move-parameter domain
-            range over), so a singleton trump class is the designer's to
-            write -- 500's joker-beats-all at no-trumps is the shape a
-            designer might reach for before issue #250's construct lands --
-            and the checker does not second-guess a suit name the deck
-            declares. The winner reads it faithfully. Not work: this ledger
-            OWNS the record (no issue), and the accept cells of
-            `test_game_trump_value` over every deck's `deck_suits` are its
-            executed pin.
-            (2) A Primitive winner named in a game whose deck its OWN
-            order table cannot rank dies on a bare KeyError/ValueError -- a
-            game-LOCAL order table, not the declared ranking, so outside this
-            class. NO instance remains: Belote's `_TRUMP_HEIGHT` lookup and
-            its `_round_state`'s missing `"trump"` key retired with issue #250
-            PR 4, and Tarot's `int(rank)` on a non-numeral led card retired
-            with PR 5, which emptied `PRIMITIVE_TRICK_WINNERS`. Issue #364
-            holds the record for the shape a future game-local winner would
-            revive; the guard it names (the crash is loud, never
-            silent-wrong) is a property of such a winner's body, not of
-            anything in the tree today.
-            (3) A static guard for the rank-to-order class was weighed and
-            not built: refusing a partial `ranking:` breaks a pinned
-            feature (test_ranking_guard.py, Canasta), and refusing
-            "partial ranking + a strength reader named" would refuse
-            issue #250's planned French Tarot (Excuse unranked, default
-            strength `rank_value`) while proving nothing about which cards
-            reach the read -- so the runtime Owner Guard is the honest
-            layer; the strict xfail that recorded the gap in
-            tests/test_ranking_guard.py is retired in the same change.
-            (4) `trump: 5` / `trump: "spades"` die in the grammar's channel
-            as a bare "No terminal matches" (the clause is `trump: NAME`;
-            an INT/String token is refused before resolve) -- loud, wrong
-            voice; and the `.lark` comment on the production still says
-            "(or rank-set)". Both are `.lark` edits, Merge Lane A; record:
-            issue #250, whose PR 1 is the grammar change under Hoyle's
-            counsel. The grid's rank cell uses a NAME-shaped rank for
-            exactly this reason.
-            (5) The consumption guard's reader model is the TRICK FORM's
-            inheritance, but `rs.trump` is not read only there: the form
-            publishes `state["trump"]` (runtime/mechanics.py), a channel a
-            game-local Primitive behind a trick round can read back and
-            `TRUMP_READING_WINNERS` cannot see. NO corpus game does today --
-            Belote's `belote_opp_winning` and `belote_royal_player` were the
-            instance, and the Trick Order migration closed both differently
-            (issue #250 PR 4): the first RETIRED, the second STAYED and
-            repointed onto the game's own `trump_suit` state variable, which
-            is a game clause the guard's model does cover. The residual is
-            what a future one would meet: a game whose ONLY reader is such a Primitive under a
-            blind winner is refused -- a FALSE REFUSAL, over-reach in the
-            safe direction, never a miss. Not work; this ledger owns it.
-            (6) The reachability filter is the CONSUMPTION guard's alone.
-            Its three siblings need none and are not shadowing one: the
-            membership guard reads `game.trump`, a game clause in no
-            container at all, and the round-clause guards (`_validate_refs`'
-            winner-slot arm, typecheck's `_check_round_trump`) validate a
-            clause WHERE IT IS WRITTEN, so a dead container's clause is
-            checked too -- over-reporting in the safe direction, and unable
-            to miss. Stated because the asymmetry otherwise reads as an
-            oversight someone would "fix". Not work; this ledger owns it.
-            (7) french-tarot's `trick_end` trace payload moves `"atouts"` to
-            `null` with no trace golden. No info-set consequence: the trace
-            channel (runtime/state.py, the tracer callback) is HARNESS-only
-            and distinct from `observe` (the per-observer projection the
-            adapter reads), so nothing a player can see changed. Not work;
-            this ledger owns the record.
-            (8) The library leak-sweep's `deck_suit` namespace is vacuous
-            for the `(n.Game, "trump")` slot: `trump:` is a game clause
-            with no library production. Recorded as a decision in
-            resolve.py's `_LIBRARY_UNSWEPT` header comment (a swept
-            namespace cannot carry an "unswept" row); the value's Owner
-            Guard is `_resolve_trump`, over the game.
-            (9) The MIXED consumption shape -- a reachable phase round with
-            a trump-blind winner AND a reading round stranded in an
-            unreachable container -- has no cell of its own: the
-            `test_dead_clause_counts_reachable_rounds` fixture puts a round
-            in the phase only for its reachable cells, so the cross of
-            "reachable blind" with "stranded reader" is unreached by the
-            grid. The verdict is the same either way (refused: no reachable
-            round reads the trump) and the message's `parts` list is built
-            uniformly, so both sentences appear in order; the PR #365 review
-            probed all four (rounds, stranded) combinations and found the
-            message correct in each. Not work: this ledger owns the record;
-            the cell is one `_container_source` parameter away if the
-            message shape ever gains a branch.
+            suit literal, Integer, String, Rank, Boolean, Collection, Player,
+            Card), not the whole `Type` lattice. The check routes through
+            `typecheck._check_operand` with expected `Suit?`, so what stands
+            for `Suit?` is `types.coercible`'s own domain -- a spelling
+            outside the representatives is ruled on there, never here.
+            The rank-to-order Primitives (belote, cribbage, president) are
+            driven at their Python entry with an unranked rank rather than
+            through a whole game, so what a green establishes for them is the
+            lookup site's channel, not that a designer reaches that site
+            through the DSL.
+            The MIXED consumption shape -- a reachable phase round with a
+            trump-blind winner AND a reading round stranded in an unreachable
+            container -- has no cell: `test_dead_clause_counts_reachable_
+            rounds`' fixture puts a round in the phase only for its reachable
+            cells, so that cross is unreached by the grid. The verdict is the
+            same either way (refused: no reachable round reads the trump) and
+            the message's `parts` list is built uniformly, so both sentences
+            appear in order -- argued from the message's construction rather
+            than observed, and one `_container_source` parameter away should
+            the message shape ever gain a branch.
 
 Framing check: RAN (a fresh-context subagent given the definition sources
 only -- grammar, AST, registries, runtime bodies -- with no plan or diff).
