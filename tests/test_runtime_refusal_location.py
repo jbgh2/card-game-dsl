@@ -75,12 +75,17 @@ import ast
 import importlib
 import pkgutil
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import get_args
 
+import pytest
+
 import cardlang
 from cardlang.ast import nodes as n
+from cardlang.cli import main
+from cardlang.diagnostics import Diagnostic, Severity, Span
 
 REPO = Path(__file__).parent.parent
 FIXTURES = REPO / "tests" / "fixtures"
@@ -258,3 +263,208 @@ def engine_exception_classes() -> Mapping[str, type[BaseException]]:
             ):
                 found[obj.__name__] = obj
     return found
+
+
+# A game sentence can raise these, and a designer is the one who must act.
+_REFUSALS: frozenset[str] = frozenset(
+    {"GameDescriptionError", "OwnerGuardError", "ShadowGuardError", "IllegalMove"}
+)
+
+# Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, and a
+# chooser suspending a steppable playout. Locating one would be locating an
+# ordinary control transfer.
+_SIGNALS: frozenset[str] = frozenset(
+    {"_ProduceSignal", "_ContinueTo", "_SkipHand", "ChooserAbort"}
+)
+
+# Real failures addressed to somebody other than the game author, so a game
+# file's line is not where their reader must look: the primitive maintainer,
+# whoever installed the checkout, whoever chose the files a process registers,
+# and the compile channel, which already carries its own span.
+_ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
+    {
+        "PrimitiveReadError",
+        "InstallationError",
+        "GameRegistrationError",
+        "DiagnosticError",
+    }
+)
+
+# The carrier the stamp writes through. Not itself raised.
+_CARRIERS: frozenset[str] = frozenset({"Located"})
+
+
+def test_every_engine_exception_is_classified_for_location() -> None:
+    """A new exception class cannot join the engine without a decision about
+    whether a game sentence can raise it — and so whether it must name one.
+
+    red under: drop `"ChooserAbort"` from `_SIGNALS`."""
+    classified = _REFUSALS | _SIGNALS | _ADDRESSED_ELSEWHERE | _CARRIERS
+    assert classified == set(engine_exception_classes())
+
+
+def test_every_refusal_can_carry_a_location() -> None:
+    """The classes a game sentence raises accept the stamp; the ones outside
+    that set do not silently gain it.
+
+    red under: remove `Located` from `IllegalMove`'s bases."""
+    from cardlang.runtime.errors import Located
+
+    classes = engine_exception_classes()
+    carries = {name for name, cls in classes.items() if issubclass(cls, Located)}
+    assert carries == _REFUSALS
+
+
+# ---------------------------------------------------------------------------
+# The rendering — what a designer reads when their playout dies.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Refusal:
+    """One game that dies, and the sentence a reader must be taken to."""
+
+    name: str
+    path: Path
+    # The source text of the sentence that refuses. The expected line is
+    # searched for rather than written down, so editing a fixture above the
+    # sentence cannot leave a stale number pinned here.
+    sentence: str
+    occurrence: int
+    phase: str
+    zone: str | None
+    # A line the refusal must NOT be reported at: the form enclosing the
+    # sentence, where one encloses it on another line.
+    not_at: str | None = None
+
+
+_CASES: tuple[_Refusal, ...] = (
+    _Refusal(
+        name="a hand emptied before the movement that asks it for a card",
+        path=EMPTY_ZONE,
+        sentence="move chosen 1 card from hand[p] to discards",
+        occurrence=-1,
+        phase="discard_again",
+        zone="hand[0]",
+    ),
+    _Refusal(
+        name="the same movement, run by the wrapper form itself",
+        path=SIMULTANEOUS,
+        sentence="move chosen 1 card from hand[player] to discards",
+        occurrence=-1,
+        phase="discard_again",
+        zone="hand[0]",
+        not_at="each player simultaneously:",
+    ),
+    _Refusal(
+        name="a rule whose `if_impossible:` refuses every card held",
+        path=RULE_REFUSES,
+        sentence="round play_to_trick from leader over all players",
+        occurrence=0,
+        phase="play",
+        zone=None,
+    ),
+    _Refusal(
+        name="a game that outruns its declared max_length",
+        path=OVERRUNS,
+        sentence="for each player p: offer to p one of [take_one, take_two]",
+        occurrence=0,
+        phase="play",
+        zone=None,
+    ),
+)
+
+
+def _line_of(path: Path, sentence: str, occurrence: int) -> int:
+    """The 1-based line the sentence sits on."""
+    hits = [
+        i for i, line in enumerate(path.read_text().splitlines(), 1) if sentence in line
+    ]
+    assert hits, f"{path.name} holds no line containing {sentence!r}"
+    return hits[occurrence]
+
+
+def _play(path: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, str]:
+    code = main(["play", str(path)])
+    return code, capsys.readouterr().err
+
+
+@pytest.mark.parametrize("case", _CASES, ids=[c.path.stem for c in _CASES])
+def test_the_refusal_names_the_sentence_that_refused(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`file:line:` — the same locator a checker diagnostic prints, pointing
+    at the smallest sentence that signifies rather than the form enclosing
+    it."""
+    _, err = _play(case.path, capsys)
+    line = _line_of(case.path, case.sentence, case.occurrence)
+    assert f"{case.path}:{line}:" in err, err
+
+
+@pytest.mark.parametrize(
+    "case",
+    [c for c in _CASES if c.not_at is not None],
+    ids=[c.path.stem for c in _CASES if c.not_at is not None],
+)
+def test_the_enclosing_form_is_not_reported_instead(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The discriminating cell. `each … simultaneously` runs its embedded
+    movement itself, so a location taken where the executor dispatched names
+    the wrapper — a line at which the game asked for nothing."""
+    _, err = _play(case.path, capsys)
+    assert case.not_at is not None
+    wrapper = _line_of(case.path, case.not_at, -1)
+    assert f"{case.path}:{wrapper}:" not in err, err
+
+
+@pytest.mark.parametrize("case", _CASES, ids=[c.path.stem for c in _CASES])
+def test_the_refusal_names_the_phase(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A sentence's line is not enough on its own: a procedure body, and any
+    text a library supplies, run in phases named somewhere else entirely."""
+    _, err = _play(case.path, capsys)
+    assert f"phase {case.phase}" in err, err
+
+
+@pytest.mark.parametrize(
+    "case",
+    [c for c in _CASES if c.zone is not None],
+    ids=[c.path.stem for c in _CASES if c.zone is not None],
+)
+def test_a_movement_names_the_zone_it_moved_from(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Named at the instance the movement resolved, so the message says which
+    seat's zone was short rather than repeating the reference on the line."""
+    _, err = _play(case.path, capsys)
+    assert case.zone is not None and case.zone in err, err
+
+
+@pytest.mark.parametrize("case", _CASES, ids=[c.path.stem for c in _CASES])
+def test_a_refusal_never_arrives_as_a_traceback(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every refusal a game sentence raises is rendered by the caller. A
+    traceback addresses the engine maintainer, who is not who must act."""
+    code, err = _play(case.path, capsys)
+    assert "Traceback" not in err, err
+    assert code == 1
+
+
+def test_the_runtime_locator_reads_as_the_checker_locator_does(
+    capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One shape for both halves of the failure channel — rendered through
+    the checker's own formatter, so the two cannot drift into two spellings
+    of a file position."""
+    _, err = _play(EMPTY_ZONE, capsys)
+    line = _line_of(EMPTY_ZONE, "move chosen 1 card from hand[p] to discards", -1)
+    located = next(
+        (row for row in err.splitlines() if row.startswith(f"{EMPTY_ZONE}:")), None
+    )
+    assert located is not None, err
+    span = Span(str(EMPTY_ZONE), 0, 0, line, int(located.split(":")[2]))
+    expected = Diagnostic(Severity.ERROR, "cannot choose 1 of 0 candidates", span)
+    assert located == expected.format()
