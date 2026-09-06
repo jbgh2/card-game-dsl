@@ -347,7 +347,15 @@ in tests/test_trump_slot_class.py.
   `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
   variant). Stud (see [games/seven-card-stud.md](games/seven-card-stud.md)) runs a
   `round offering [check, bet, call, fold, raise]` per street over the
-  non-folded, non-allin ring. The accumulator is the state `poker_betting`'s
+  non-folded, non-allin ring. Each street's `round` carries its own `until`
+  terminator, since `until` is a clause of the form and what the family library
+  shares is the predicates the terminator is built from: the street closes when
+  no seat is `pending` — the settled field, everyone who can act having acted
+  and owing nothing — or when the seats able to act are down to one that owes
+  nothing, the street that opens behind an all-in, where `open_street`'s
+  cleared `acted` would otherwise leave that seat `pending` with nobody to act
+  against. A variant in which no seat can be all-in never reaches that second
+  arm and writes it all the same. The accumulator is the state `poker_betting`'s
   `requires` block makes the game declare, plus the library's own provided
   intra-street bookkeeping; action-legality is the
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
