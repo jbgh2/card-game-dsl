@@ -6,7 +6,8 @@ property:        Every way a `.cardlang` file reaches `pyspiel.register_game`
                  and every state a path or an entry can be in yields either a
                  registration or a refusal naming what is wrong — never a
                  short name `pyspiel.load_game` cannot reach, and never a
-                 silent replacement of a game already registered. An
+                 silent replacement of a game already registered, and never a
+                 no-op reported for a name something else has taken since. An
                  operation that offers SEVERAL files registers all of them or
                  none: the refusal arrives with pyspiel untouched, so a
                  corrected offer meets a registry holding nothing the refused
@@ -16,9 +17,14 @@ domain:          Three crossings, each total over its axes. The first crosses
                  it offers; the second crosses the same sources with the state
                  of the short name that file derives — a state that spans BOTH
                  registries a name can be spoken for in, the adapter's own map
-                 of the files it registered and the process-global one pyspiel
-                 keeps, since a name held only by the second is one no file of
-                 this process's own naming can be produced for. They factor
+                 of what it registered and the process-global one pyspiel
+                 keeps. Taken is three states rather than one: a name this
+                 module registered that pyspiel still answers with the class it
+                 registered; a name only pyspiel holds, for which no file of
+                 this process's own naming can be produced; and a name this
+                 module registered that pyspiel now answers with another
+                 component's game, where the map's file is real and stale at
+                 once and the repeat that looks idempotent is not. They factor
                  because a name binds only after the check passes — a file the
                  checker refuses never reaches `pyspiel.register_game`, so it
                  cannot take a name;
@@ -75,14 +81,16 @@ domain:          Three crossings, each total over its axes. The first crosses
                  process instead.
 registry:        sources and file/entry states: `_SOURCES` and `_FILE_STATES`
                  below, crossed into `_FILE_EXPECTED`; name states:
-                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`, over both
-                 registries a short name can be taken in; batches and
+                 `_NAME_STATES`, crossed into `_NAME_EXPECTED`, over the three
+                 states a short name can be taken in; batches and
                  refusal stages: `_BATCHES` and `_PREFLIGHT_STAGES`, crossed
                  into `_BATCH_EXPECTED`, with the batch axis tied to
                  `_SOURCES` by `test_every_source_performs_a_batch` and the
                  stage axis derived against the two authored columns by
                  `test_every_refusal_belongs_to_a_preflight_stage`; the
-                 adapter's own map: `cardlang.openspiel.game._REGISTERED`; the
+                 adapter's own map and the record it holds per name:
+                 `cardlang.openspiel.game._REGISTERED` and
+                 `cardlang.openspiel.game._Held`; the
                  process-global registry the name and batch cells read:
                  `pyspiel.registered_names`; the entry
                  vocabulary: `cardlang.openspiel.game.ENTRY_KINDS`, held in
@@ -106,12 +114,22 @@ does not prove:  A green here says nothing about whether a registered game's
                  irreversible `pyspiel.register_game`, so names outside it are
                  refused whether or not OpenSpiel would have taken them. Nor
                  does it make the process-global registry safe against a
-                 CONCURRENT writer: the names a batch treats as taken are read
-                 once, before its first commit, and pyspiel offers no
-                 register-if-absent to close the window, so a name another
-                 component registers between a plan and its commit is replaced
-                 as it was before. A designed constraint of that API, not a
-                 deferral — there is no primitive to build the alternative on.
+                 CONCURRENT writer, the window being exactly plan-to-commit:
+                 the names a batch treats as taken are read once, before its
+                 first commit, and pyspiel offers no register-if-absent to
+                 close that window, so a name another component registers
+                 inside it is replaced with nothing said. A designed constraint
+                 of that API, not a deferral — there is no primitive to build
+                 the alternative on. And the replacement a repeat DOES catch is
+                 caught on one arm and asked one way, neither of which a green
+                 here speaks for: the arm is the repeat of the very file the
+                 map names, so a DIFFERENT file offered under a replaced name
+                 is refused as two files claiming one name, with a message
+                 naming the map's file — which the replacement has made stale;
+                 and the question is `pyspiel.load_game`, so a foreign
+                 registration whose game cannot be CONSTRUCTED surfaces as that
+                 component's own error rather than this module's refusal, loud
+                 in the wrong channel.
 """
 
 from __future__ import annotations
@@ -183,13 +201,17 @@ _FILE_STATES: tuple[str, ...] = (
 # `hearts.cardlang` against the corpus one. `registered_outside` is the state
 # only the process-global registry can report: pyspiel holds the name and the
 # adapter's map has no file for it, so the refusal has a name to state and no
-# file to name.
+# file to name. `replaced_outside` is the state the two registries report
+# DIFFERENTLY: the adapter's map holds a file for the name and pyspiel answers
+# it with something else, so the map's file is real and stale at once and
+# re-offering it is not the no-op it looks like.
 _NAME_STATES: tuple[str, ...] = (
     "fresh",
     "same_path",
     "prior_call_other_path",
     "corpus_name",
     "registered_outside",
+    "replaced_outside",
 )
 
 # Every operation that offers files to the one registration function, named for
@@ -234,6 +256,8 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("corpus", "corpus_name"): "collision",
     ("corpus", "registered_outside"): "collision",
     ("call", "diagnostic_file"): "checker",
+    ("call", "replaced_outside"): "collision",
+    ("environment", "replaced_outside"): "collision",
     ("call", "markdown_without_block"): "checker",
     ("call", "missing"): "entry_shape",
     ("call", "directory_of_games"): "entry_shape",
@@ -320,16 +344,24 @@ _NAME_EXPECTED: dict[tuple[str, str], str] = {
     # a process anyone can compose. It is also the cell that shows the union is
     # read where every batch passes rather than at the two entry points.
     ("corpus", "registered_outside"): "GameRegistrationError",
+    # Inexpressible for the reason `same_path` is, and it is the same reason
+    # read twice: this state is the idempotent path with the binding pulled out
+    # from under it, and the corpus glob has no idempotent path. It offers each
+    # short name exactly once per adapter import, and a second import brings a
+    # fresh map — which is `registered_outside` above, not this.
+    ("corpus", "replaced_outside"): _INEXPRESSIBLE,
     ("call", "fresh"): _REGISTERS,
     ("call", "same_path"): "idempotent",
     ("call", "prior_call_other_path"): "GameRegistrationError",
     ("call", "corpus_name"): "GameRegistrationError",
     ("call", "registered_outside"): "GameRegistrationError",
+    ("call", "replaced_outside"): "GameRegistrationError",
     ("environment", "fresh"): _REGISTERS,
     ("environment", "same_path"): "idempotent",
     ("environment", "prior_call_other_path"): "GameRegistrationError",
     ("environment", "corpus_name"): "GameRegistrationError",
     ("environment", "registered_outside"): "GameRegistrationError",
+    ("environment", "replaced_outside"): "GameRegistrationError",
 }
 
 
@@ -822,6 +854,18 @@ def _call_name_cell(state: str, stem: str, tmp_path: Path) -> None:
         assert str(mine) in str(info.value)
         assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
         return
+    if state == "replaced_outside":
+        # The same file, offered twice, with the name taken away in between:
+        # the second offer looks idempotent to the map and is not, because
+        # pyspiel now answers the name with another component's game.
+        mine = _green_copy(tmp_path, stem)
+        assert register_game_file(mine) == f"cardlang_{stem}"
+        long_name = _register_outside(f"cardlang_{stem}")
+        with pytest.raises(GameRegistrationError, match="replaced outside") as info:
+            register_game_file(mine)
+        assert str(mine) in str(info.value)
+        assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
+        return
     assert state == "corpus_name", state
     mine = _green_copy(tmp_path, "hearts")
     with pytest.raises(GameRegistrationError) as info:
@@ -856,6 +900,19 @@ def _environment_name_cell(
         long_name = _register_outside(f"cardlang_{stem}")
         mine = _green_copy(tmp_path, stem)
         with pytest.raises(GameRegistrationError, match="registered outside") as info:
+            _env_registration(monkeypatch, str(mine))
+        assert str(mine) in str(info.value)
+        assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name
+        return
+    if state == "replaced_outside":
+        # Two runs of the variable rather than two entries of one: the state
+        # needs a registration this module has COMMITTED, and a name planned
+        # earlier in the same batch is not one — which is what keeps the
+        # `same_path` cell above a no-op rather than this refusal.
+        mine = _green_copy(tmp_path, stem)
+        _env_registration(monkeypatch, str(mine))
+        long_name = _register_outside(f"cardlang_{stem}")
+        with pytest.raises(GameRegistrationError, match="replaced outside") as info:
             _env_registration(monkeypatch, str(mine))
         assert str(mine) in str(info.value)
         assert pyspiel.load_game(f"cardlang_{stem}").get_type().long_name == long_name

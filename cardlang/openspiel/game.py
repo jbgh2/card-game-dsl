@@ -58,15 +58,41 @@ GAMES_ENV_VAR = "CARDLANG_GAMES"
 # than reported as a path that does not exist.
 ENTRY_KINDS: tuple[str, ...] = ("file", "directory", "missing", "empty")
 
-# short name -> the resolved file it was registered from. Seeded by the corpus
+
+@dataclass(frozen=True)
+class _Held:
+    """What one short name in `_REGISTERED` is held by.
+
+    Both halves, because `pyspiel.load_game` answers with the LAST class
+    registered under a name and says nothing about which one that is. The
+    resolved file is what lets a collision name what it would replace; the
+    class is what tells this module's own registration from a component's that
+    has since taken the name, so an offer of that same file is refused rather
+    than read as the no-op it looks like.
+    """
+
+    key: str
+    game_class: type[pyspiel.Game]
+
+
+# What one short name in a batch's map of taken names is spoken for by. The
+# three are not interchangeable: a `_Held` is a registration this module has
+# COMMITTED, so pyspiel holds the name and can be asked what it answers with; a
+# bare path is one PLANNED earlier in the same batch, which pyspiel has not been
+# offered yet, so there is nothing to ask; `None` is a name only pyspiel holds,
+# with no file this module can name.
+_Spoken = _Held | str | None
+
+# short name -> what this module registered under it. Seeded by the corpus
 # loop at the bottom of this module, which is what lets a collision NAME the
 # corpus file it would otherwise have replaced. Which names are taken is
 # pyspiel's answer, not this map's — `_taken` reads both — and the division is
 # the point: `pyspiel.register_game` accepts a duplicate short name and the
 # LAST registration wins, silently, so a designer's own `hearts.cardlang` would
 # answer `pyspiel.load_game("cardlang_hearts")` for the rest of the process.
-# pyspiel can say that a name is spoken for; only this map can say by what.
-_REGISTERED: dict[str, str] = {}
+# pyspiel can say that a name is spoken for; only this map can say by what, and
+# only the class it records can say whether pyspiel still answers with it.
+_REGISTERED: dict[str, _Held] = {}
 
 
 class _Observer:
@@ -205,8 +231,8 @@ class _Registration:
     game_class: type[pyspiel.Game]
 
 
-def _taken() -> dict[str, str | None]:
-    """Every short name spoken for, mapped to the file it was registered from.
+def _taken() -> dict[str, _Spoken]:
+    """Every short name spoken for, mapped to what holds it.
 
     The one derivation of "taken", read once per batch by `_register_all`, so
     every source answers the question the same way. Two registries can hold a
@@ -215,14 +241,20 @@ def _taken() -> dict[str, str | None]:
     one that knows which file did it. A name only pyspiel holds maps to None —
     spoken for, with no file this module can name — which is the state a
     component registering outside the adapter leaves behind.
+
+    The overlay is where the two can DISAGREE rather than merely differ: this
+    map's entry survives a component re-registering the name, so it names a
+    file that is real and stale at once. That is why the entry carries the
+    class as well as the file — the disagreement is a question `_plan` asks
+    pyspiel, not one this union can answer.
     """
-    taken: dict[str, str | None] = dict.fromkeys(pyspiel.registered_names())
+    taken: dict[str, _Spoken] = dict.fromkeys(pyspiel.registered_names())
     taken.update(_REGISTERED)
     return taken
 
 
 def _plan(
-    short_name: str, path: str, taken: dict[str, str | None]
+    short_name: str, path: str, taken: dict[str, _Spoken]
 ) -> _Registration | None:
     """Decide the registration of `path` under `short_name`, or refuse.
 
@@ -231,6 +263,15 @@ def _plan(
     one name are refused whether they arrive in one batch, in two, or with the
     first of them registered by something that is not this module at all. A
     repeat of the same file plans nothing and returns None.
+
+    That repeat is the one place the map's own entry can be stale, so it is
+    the one place pyspiel is asked what the name currently answers with: a
+    component re-registering a tracked name replaces the game and leaves the
+    entry standing, and reading the repeat as a no-op would hand a caller the
+    foreign game under its own file's name. Only a committed entry is asked —
+    a prior spelled as a bare path was planned earlier in this batch, and
+    `_commit` writes the map only after `pyspiel.register_game` has taken the
+    name, so a plan is the one state with nothing yet to ask about.
 
     The path is used as given rather than normalized: it becomes
     `replay.load`'s cache key and the state's own `_path`, and the corpus's
@@ -248,8 +289,6 @@ def _plan(
     key = str(Path(path).resolve())
     if short_name in taken:
         prior = taken[short_name]
-        if prior == key:
-            return None
         if prior is None:
             raise GameRegistrationError(
                 f"the OpenSpiel short name {short_name!r} is registered "
@@ -259,12 +298,28 @@ def _plan(
                 f"here to name — rename this one, or drop whatever registered "
                 f"that name first."
             )
-        raise GameRegistrationError(
-            f"two files claim the OpenSpiel short name {short_name!r}: "
-            f"{prior} is registered and {key} would replace it. Rename one — "
-            f"the short name is the file's stem, so two files with one stem "
-            f"are one game to pyspiel."
-        )
+        prior_key = prior if isinstance(prior, str) else prior.key
+        if prior_key != key:
+            raise GameRegistrationError(
+                f"two files claim the OpenSpiel short name {short_name!r}: "
+                f"{prior_key} is registered and {key} would replace it. "
+                f"Rename one — the short name is the file's stem, so two "
+                f"files with one stem are one game to pyspiel."
+            )
+        if (
+            isinstance(prior, _Held)
+            and type(pyspiel.load_game(short_name)) is not prior.game_class
+        ):
+            raise GameRegistrationError(
+                f"the OpenSpiel short name {short_name!r} has been replaced "
+                f"outside this module: it is registered here from {key}, and "
+                f"pyspiel now answers it with a game something else "
+                f"registered. Offering that file again is therefore not the "
+                f"no-op it looks like — it would replace that other game in "
+                f"turn — so it is refused. Drop whatever took the name, or "
+                f"rename this file."
+            )
+        return None
     game_ast, space = replay.load(path)
     # The one read of the classification per registered game. The GameType's
     # chance mode, the declared outcome count and the state's opening node all
@@ -339,11 +394,12 @@ def _commit(planned: _Registration) -> None:
     The one call to `pyspiel.register_game` in the package and the only
     irreversible step on any registration path — which is why nothing reaches
     it until every file in the batch has been planned. `_REGISTERED` is
-    written here and nowhere else, so the map never claims a name pyspiel does
-    not hold.
+    written here and nowhere else, and only after the registration is made, so
+    the map never claims a name pyspiel does not hold — which is what lets
+    `_plan` read a bare path in `taken` as a plan rather than a registration.
     """
     pyspiel.register_game(planned.game_type, planned.game_class)
-    _REGISTERED[planned.short_name] = planned.key
+    _REGISTERED[planned.short_name] = _Held(planned.key, planned.game_class)
 
 
 def _register_all(pairs: Iterable[tuple[str, str]]) -> None:
@@ -387,7 +443,10 @@ def register_game_file(path: str | Path) -> str:
     already done. A short name another file holds is refused naming both, since
     pyspiel would otherwise take the second and answer with it; a name pyspiel
     holds that this module did not register is refused too, with the name alone
-    to state.
+    to state; and so is a name this module DID register that pyspiel has since
+    been made to answer with something else, because repeating that
+    registration would replace the other game in turn rather than change
+    nothing.
 
     What this does not do is prove the game ready: the readiness battery runs
     per corpus game from a hand-authored module under `tests/openspiel_ready/`,
