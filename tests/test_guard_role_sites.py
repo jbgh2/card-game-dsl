@@ -29,11 +29,25 @@ without either giving it a role type or recording it here with a reason.
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
 property:   every `raise <exc>` statement in `cardlang/` either names a class
-            whose Author `runtime/errors.py` records, or is a recorded residual
-            with a stated reason.
+            whose Author `runtime/errors.py` records, or holds a `_RESIDUAL`
+            row below with a stated reason.
 domain:     every `ast.Raise` node with an exception, in every module of the
             `cardlang` package — crossed with the exception class named at the
             raise. Both axes derive; neither is listed.
+
+            Two shapes sit outside, and neither is a gap here. Exceptions
+            raised with no `raise` token — `list.remove`, bare `next()`, raw
+            dict subscripts — are not `ast.Raise` nodes at all, and closing
+            them is authoring guards rather than classifying existing ones,
+            which is different work (issue #231). Bare `assert` statements
+            likewise raise no `ast.Raise` node; `tests/test_assert_triage.py`
+            owns that channel and is total over the same two runtime packages.
+            Assert-channel sites vanish under `python -O`, including three
+            import-time registry reconciliations (in `cardlang/domains.py`,
+            `cardlang/resolve.py` and `cardlang/runtime/reads.py`); nothing in
+            this repo runs `-O`, and the exposure is R4 — recorded at the
+            boundary rather than filed, per decisions.md "Reachability ranks
+            the work".
 registry:   the source scrape itself (`_raise_sites`): modules by globbing the
             package directory, so a new module is in domain the day it exists;
             sites by `ast.walk`, so a string containing the word "raise" is not
@@ -41,33 +55,15 @@ registry:   the source scrape itself (`_raise_sites`): modules by globbing the
             one either. The class axis is whatever the raise names — including
             helper factories (`_env_miss`, `_undeclared`), which are recorded
             by their helper name because that is what the site says.
-covered:    `test_no_unrecorded_raise_class` — the full derived site set
-            against `_ACCOUNTED` and `_RESIDUAL`.
-sampled:    none. The scrape is total over the package.
-residual:   three, each a limit of what a SCRAPE can see rather than a cell
-            nobody looked at:
-
-            1. Exceptions raised with no `raise` token — `list.remove`, bare
-               `next()`, raw dict subscripts. ~50 sites, derived and recorded
-               on issue #231. Structurally invisible here: this module walks
-               `ast.Raise`, and those are not raises. Guarded by that issue,
-               not by this test, and the distinction is worth keeping — closing
-               them is authoring guards, not classifying existing ones.
-            2. Counting, not identity. A change that converts one site and adds
-               another in the SAME module and class leaves the count unmoved
-               and passes. Accepted deliberately: keying by identity means
-               keying by line, which churns (see above). The exposure is one
-               change touching one module in one class in both directions at
-               once.
-            3. Bare `assert` statements are outside the domain — they raise no
-               `ast.Raise` node. `tests/test_assert_triage.py` owns them and is
-               total over the same two runtime packages, so the pair covers
-               the assert-channel sites this module cannot see. Note those
-               vanish under `python -O`, including three import-time registry
-               reconciliations (`domains.py:400`, `resolve.py:139`,
-               `runtime/reads.py:366`); nothing in this repo runs `-O`, and
-               R4 — recorded here rather than filed, per decisions.md
-               "Reachability ranks the work".
+            Each class's Author and position: tests/test_failure_taxonomy.py.
+            The assert channel: tests/test_assert_triage.py.
+does not prove:  WHICH site moved. The table counts per (module, class), it
+            does not identify sites, so a change that converts one site and
+            adds another in the SAME module and class leaves the count unmoved
+            and passes. That is a deliberate trade — keying by identity means
+            keying by line, which churns (see above) — and the exposure it
+            leaves is one change touching one module in one class in both
+            directions at once.
 
 red under: add `raise ValueError("x")` to any module of `cardlang/` —
 `test_no_unrecorded_raise_class` fails naming that module and class, and says

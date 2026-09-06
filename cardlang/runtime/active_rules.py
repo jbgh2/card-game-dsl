@@ -28,6 +28,10 @@ from cardlang.ast import nodes as n
 from cardlang.runtime.state import RuntimeState
 
 
+# Three behaviours here are unguarded and recorded as issue #282: a decision
+# site inside a nested phase reads only `current_phase`, `fired_transitions`
+# clears on every `repeat until` iteration, and a mode's delta outlasts the
+# trick in which its condition ends.
 def compute_active_rules(phase: n.Phase | None, rs: RuntimeState) -> tuple[n.RuleDef, ...]:
     if phase is None:
         return ()

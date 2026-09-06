@@ -39,55 +39,28 @@ domain:     (a) `?phase_item` alternatives x {phase body, mode body};
             transitions by bare name, and a source's exits die with it
 registry:   `tests/mode_axes.py` — `phase_item_alternatives()` and
             `item_containers()` scrape the grammar, `mode_roles()` crosses the
-            2x2 in code, `statement_alternatives()` bounds the sampled row.
-            Each raises rather than returning an empty tuple, so a drifted
-            scrape reddens instead of covering nothing.
-covered:    - (a) test_item_in_container, 9 x 2 = 18 cells
-            - (b) test_mode_placement, 1 x 4 containers
-            - (c) test_mode_role, the full 2x2
-            - (d) test_mode_set_shape, all 7 shapes
-            - (e) test_the_role_wall_reaches_every_nesting_depth, depths 1-3
-              (the corpus declares its modes at depth 3, this grid's other
-              cells at depth 1)
-            (f) is NOT covered — see `sampled` and `residual`.
-sampled:    (f), the RUNTIME behaviour of the shapes (a)-(e) accept, is
-            covered by EXAMPLE only, and the examples were retrofitted: each
-            was written after a review round pointed at it, so the set is a
-            record of what reviewers happened to find, not a derivation. Only
-            `fan_out` has a runtime test at all; `single_pair` and
-            `independent_pairs` have none, (e)x(f) is uncrossed, and the two
-            mode-name pins are `check_dsl` rejections rather than runtime.
-            Derived coverage of this axis is issue #271 — enumerate the mode
-            graphs the grammar admits and assert the invariant, rather than
-            choosing shapes by hand.
-
-            `?phase_item`'s `statement` alternative is one grid cell, not 20:
+            2x2 in code, `statement_alternatives()` bounds the statement
+            representatives. Each raises rather than returning an empty tuple,
+            so a drifted scrape reddens instead of covering nothing. Axis (d)
+            is the exception and says so: `mode_set_shapes()` is hand-listed,
+            because a mode SET is a property of a graph the grammar imposes no
+            shape on, so it has no defining site to scrape.
+does not prove:  three things, and the first is the whole runtime half.
+            Axis (f) — what the runtime does with a shape (a)-(e) accepts —
+            stands on examples rather than a derivation: `fan_out` has a
+            runtime probe, `single_pair` and `independent_pairs` have none,
+            (e)x(f) is uncrossed, and the two mode-name pins are `check_dsl`
+            rejections rather than runtime. A mode set that checks clean and
+            then behaves wrongly at play is invisible here.
+            Second, axis (d) being hand-listed means a set shape nobody
+            thought of is not a failing cell but an absent one — the axis
+            cannot redden for a member it does not name.
+            Third, the statement axis is representative rather than crossed.
             `?mode_item` names no `statement` alternative at all, so every
-            statement form is rejected by the same absence of a production.
-            Three representatives (assignment, movement, control flow) stand
-            for the 20 that `statement_alternatives()` enumerates; a per-form
-            crossing would test Lark's alternation, not this surface.
-residual:   - three RUNTIME behaviours reachable through this surface are
-              pre-existing engine semantics this change neither introduced nor
-              worsened, each verified identical on the merge base: a mode is
-              inert when the phase's decision site sits in a nested phase
-              (`compute_active_rules` reads `ctx.current_phase` with no
-              ancestor walk); `fired_transitions` clears per ITERATION of a
-              `repeat until`-qualified phase, so an unrelated nested loop
-              phase wipes a live ancestor's mode state; and a mode's delta
-              applies for the remainder of the trick in which its condition
-              ends (`trick_ctx` is computed once per trick). R2/R2/R3,
-              issue #282 — guarded by nothing, which is why they are here.
-            - a genuine 3+ stage progression has no mode encoding and routes
-              to a state variable with `applies_when`. Guarded by the role 2x2's
-              `both` cell with a diagnostic naming that route. R3 — a designer
-              with three rule sets meets it. Growth slot, issue #266.
-            - `mode` nested inside `mode` rejects (grid (b)); the growth slot
-              is deliberate and shares issue #266.
-            - the mode-SET axis (d) is hand-listed, not derived: it is a
-              property of a graph the grammar imposes no shape on, so it has
-              no defining site to scrape. Recorded here rather than presented
-              as derived coverage.
+            statement form is refused by the same absence of a production, and
+            three representatives (assignment, movement, control flow) stand
+            for the set `statement_alternatives()` enumerates; a per-form
+            crossing would test Lark's alternation rather than this surface.
 """
 
 from __future__ import annotations

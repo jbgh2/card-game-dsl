@@ -31,26 +31,26 @@ registry:   cardlang/builtins/functions.py (all seven name-sets, imported
             rows carry the Primitives';
             cardlang/runtime/primitives.py source (the dispatch's literal
             `case` arms); the docs globs.
-covered:    the parametrized cells below. Cross-table sync (functions <->
-            signatures <-> dispatch, set equality both ways) is the
-            standing pin in tests/test_signatures.py; the reads-inventory
-            consequence (Tichu's row dropped `captured`) is pinned by
-            tests/test_primitive_reads.py's module-source scan; the
-            rendered unknown-call diagnostic for each evicted name is a
-            tests/rejections/call_evicted_trace_emitter_* pair.
-sampled:    reproduction equality — proven at write time by differentials
-            that ran each harness derivation against the live emitter, in
-            this module until the eviction commit removed the emitters they
-            compared against: `coup_note_reveal` (Coup 8 seeds) and
-            `tichu_hand_summary` (Tichu 4 seeds); `coup_game_summary`
-            2026-09-04, 40 of 40 seeds equal on all four facts
-            (`total_coins`, `total_cards`, the `coins` vector, the `alive`
-            vector). Standing coverage is the byte-identical goldens
-            (tests/golden/coup_scores.json, tichu_hands.json — values
-            produced BY the emitters, reproduced by the derivations on
-            every suite run), the 30-seed playout invariant
-            (tests/test_playout_tichu.py) and Coup's 40-seed conservation
-            invariant on the reader (tests/test_playout_coup.py).
+            Cross-table sync, functions <-> signatures <-> dispatch, set
+            equality both ways: tests/test_signatures.py.
+            The reads-inventory consequence (Tichu's row without `captured`):
+            tests/test_primitive_reads.py's module-source scan.
+            The rendered unknown-call diagnostic per evicted name:
+            tests/rejections/call_evicted_trace_emitter_* .
+            The derived facts standing where the emitters' values stood:
+            tests/golden/coup_scores.json and tests/golden/tichu_hands.json,
+            values produced BY the emitters and reproduced by the derivations
+            on every suite run; the Tichu playout invariant,
+            tests/test_playout_tichu.py; Coup's conservation invariant on the
+            reader, tests/test_playout_coup.py.
+does not prove:  that a derivation reproduces its emitter. Nothing can run
+            that comparison here: the emitters the write-time differentials
+            ran against are gone, which is the eviction. What stands in its
+            place is byte-identity against goldens whose values those
+            emitters produced — strong for the histories the goldens hold,
+            and silent about any fact or seed outside them. The dated
+            differential runs below are the evidence for the equality itself,
+            and they are an artifact, not a check that runs.
 
 red under (born-green cells):
 - test_never_in_other_namespaces: adding "coup_note_reveal" to
@@ -66,6 +66,12 @@ red under (born-green cells):
   by capturing the terminal state at the first decision instead of at
   `game_end` (`coup_game_summary`, every seed, coins and alive both wrong);
   all demonstrated and reverted before the goldens took over.
+
+differentials (write time, each run in this module against the live emitter
+before the eviction hunk removed it): `coup_note_reveal`, Coup 8 seeds equal;
+`tichu_hand_summary`, Tichu 4 seeds equal; `coup_game_summary`, 2026-09-04,
+40 of 40 seeds equal on all four facts (`total_coins`, `total_cards`, the
+`coins` vector, the `alive` vector).
 
 take 1 (2026-09-04): the grid authored against the still-registered
 `coup_game_summary`, before any eviction hunk —

@@ -36,30 +36,29 @@ registry:   the ladders are DESIGN.md's table, transcribed here rather than
             `experiments/salvo/salvo.cardlang` so the fixture cannot drift
             into a private copy of the order; the family names the wrapper
             maps onto are the `reads` clause of that same file's block.
-covered:    every cell below, parametrized. The declaration's agreement with
-            the implementation — existence, contract, and signature shape —
-            is tests/test_primitives_block.py's reconciliation pin, whose
-            domain is every game that declares a block, this one among them;
-            that the game as a whole plays with the Primitive in it is the
-            arena rig's mirror pin
-            (`experiments/salvo/triage.py`), which restates the table
-            independently and compares on every playout. That the rigs' table
-            IS a second authoring — never an import of the module it mirrors,
-            which would make the comparison one statement against itself — is
-            a property of their source rather than of this domain, and carries
-            its own ledger at the pin that scrapes them.
-sampled:    the of-a-kind ladder's top rung is `>= 4` rather than exactly 4:
-            standard54 holds four cards of a natural rank, so five is
-            unreachable from any deal and the rung is written as a floor.
+            The declaration's agreement with the implementation — existence,
+            contract, and signature shape:
+            tests/test_primitives_block.py::test_the_corpus_reconciles_in_every_direction,
+            whose domain is every game that declares a block, this one among
+            them. The game playing as a whole with the Primitive in it: the
+            arena rig's mirror pin, `experiments/salvo/triage.py`, which
+            restates the table independently and compares on every playout.
+            That the rigs' table is a second AUTHORING rather than an import
+            of the module it mirrors is a property of their source rather than
+            of this domain: `test_a_rig_mirror_imports_no_salvo_runtime` below
+            carries its own ledger.
 does not prove: nothing here says the VALUES are right. They are DESIGN.md's
             starting values, declared there as "expected to move at the
             simulation step"; this grid pins that the code computes the table
             the design states, and the arena's combo-incidence instrumentation
-            is what will move it. And the "five or longer" rungs of the run
-            and flush ladders are unreachable in play — a location holds at
-            most four of one player's cards — so they are proven on synthetic
-            five-card inputs only, which is the designed table rather than the
-            reachable one (the game does not bend to the harness).
+            is what will move it. And the rungs above what a deal can reach are
+            proven on synthetic inputs only: a location holds at most four of
+            one player's cards, so the "five or longer" run and flush rungs
+            never arise in play, and the of-a-kind ladder's top rung is written
+            as `>= 4` rather than exactly 4 because standard54 holds four cards
+            of a natural rank and no fifth. Those cells are the designed table
+            rather than the reachable one (the game does not bend to the
+            harness).
 
 Red under the stub, replayed 2026-08-29 at this module's current width: the
 bare run while `cardlang/runtime/salvo.py` holds its five functions as

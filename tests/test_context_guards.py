@@ -26,23 +26,13 @@ registry:  `_stmt_exprs`'s own branches (read exhaustively — every one is
            bare name at all) and agree by construction on which field is
            special, which is what makes "the whole class is exactly these
            two members" a checked claim, not an assumption.
-covered:   Transfer.where and EpistemicOp.where, each: rejects an unknown
-           Card field inside the filter (the closed CARD_FIELDS guard, now
-           reachable — THE PROBE); rejects a non-Boolean filter; accepts the
-           real corpus shape (`card.suit is hearts`/`card.rank is Q`).
-           Transfer.source is confirmed to still run its own (unrelated,
-           pre-existing) zone-family-index guard in the SAME statement a
-           filter is present on — proof the two checks don't interfere.
-sampled:   none — the domain is small (8 `_stmt_exprs` branches) and every
-           branch is either exhaustively argued (the 6 non-Transfer/
-           EpistemicOp branches hold no predicate, confirmed by reading
-           `_stmt_exprs`'s source directly, restated in
-           `_check_stmt_exprs`'s docstring) or probed above.
-residual:  none for this property. (The general let-bound-locals residual
-           from test_operator_guards.py applies here too — a filter that
-           only references a `let`-bound name stays `TAny` — but that is
-           the same pre-existing, module-spanning gap, not specific to this
-           guard; not re-recorded.)
+does not prove:  that the branches holding no predicate hold none. Every
+           `_stmt_exprs` branch other than `Transfer` and `EpistemicOp` is
+           argued out of the property by READING `_stmt_exprs`'s source —
+           the argument restated in `_check_stmt_exprs`'s docstring — rather
+           than by a cell that would redden if one of them grew a
+           binder-scoped expression position. What is executed here is the
+           two branches that do hold one.
 
 Completeness ledger — IsCheck totality
 -----------------------------------------
@@ -59,27 +49,14 @@ domain:    `IsCheck.kind`'s closed 4-value domain (`none`/`not_none`/
            operand-type registry (`cardlang/types.py`'s `Type` union) at
            both typecheck (`_check_is_check`) and runtime (`_is_check`).
 registry:  `n.IsCheck.kind`'s docstring-declared 4-value set; `types.Type`.
-covered:   empty/not_empty x {TCollection (accept), TAny (accept, gradual),
-           TInteger (reject)}; none/not_none x {TOptional (accept — the
-           corpus shape, probed on a declared `Player?`), TNull (accept —
-           `none` itself), TAny (accept, gradual), TInteger (reject, with
-           the always-false/always-true framing for each of `none`/
-           `not_none`)}. Runtime: `_is_check`'s empty/not_empty arm over a
-           `Zone` (regression), a plain `list` (a CardQuery `set` result —
-           the shape a bare `assert isinstance(value, Zone)` used to
-           reject outright), and a non-sized value (the typed
-           `RuntimeError`, executed both ways — `empty` and `not_empty`).
-sampled:   none/not_none's reject branch is probed once (TInteger); every
-           other concrete non-optional type (TBoolean, TCard, TPlayer,
-           TCollection, TString, TStruct) shares the identical `isinstance
-           (t, (TAny, TOptional, TNull))` branch — one `isinstance` check,
-           not a per-type dispatch — so probing one member of the reject
-           set exercises the whole branch. Corpus sweep (all `is none`/`is
-           not none`/`is empty`/`is not empty` sites in `docs/games/*.
-           cardlang`) confirmed every real usage is on a declared `T?`
-           state var, a zone/zone-family, or a `TAny` pronoun member —
-           zero corpus trips from either guard.
-residual:  none.
+does not prove:  that an un-probed concrete non-optional type is rejected
+           as that TYPE. `none`/`not_none`'s reject branch is one
+           `isinstance(t, (TAny, TOptional, TNull))` check, not a per-type
+           dispatch, so TBoolean, TCard, TPlayer, TCollection, TString and
+           TStruct share the exact code path as the probed TInteger.
+           Probing one exercises the branch, and a guard that began
+           discriminating between members of its reject set would pass here
+           unchanged.
 """
 
 from __future__ import annotations

@@ -15,55 +15,23 @@ property:   every name a binder introduces resolves only within the binder's
             diagnostic (with a hint for the implicit `card`/`player`), never
             a runtime KeyError
 domain:     binder-introducing node kinds x their scope fields, plus the
-            statement-tuple sites the sequential `let` fold applies to
+            statement-tuple sites the sequential `let` fold applies to.
+            One thing sits deliberately outside, and it is not a gap:
+            one-level shadowing of the implicit binders is legal — the spec
+            allows an inner query's `card` inside an outer one
+            (decisions.md "The expression register") — so there is no
+            shadowing guard for a cell to reach.
 registry:   `resolve._introduced_binders` (which kinds bind which names) and
             `resolve._BINDER_SCOPE_FIELDS` (which sub-fields see them);
             tuple sites from the `Stmt`-sequence fields of the AST
             (Phase.items, IfStmt.then/else, RepeatUntil.body,
             BeforeEach/AfterEach.body, MoveTypeDef.effect, ProduceArm.body)
-covered:    - Quantifier: binder in `body` only (out-of-scope-after test)
-            - Comprehension: binder in `where`+`body`, NOT `default`,
-              NOT `source` (accept + reject tests; mirrors typecheck.py
-              `_check_expr`'s scoping of the same node)
-            - CardQuery: `card` in `where` only, NOT `source` (reject test);
-              nested queries shadow legally (accept test)
-            - PlayerQuery: `player` in `where` only (stray-`player` reject)
-            - Transfer / EpistemicOp: `card` in `filter` only (accept tests)
-            - ForEach / EachSimultaneous: binder/role in `body` (accept)
-            - LetStmt name: visible to LATER statements of the same tuple
-              and to later nested sub-phases (accept), NOT before its let,
-              NOT in a sibling phase (reject tests) — the same visibility
-              the runtime gives it (`driver.run_body` threads ctx forward
-              through one items tuple; `run_phase` returns nothing, so
-              locals never cross sibling phases)
-            - LetStmt index: visible in the let's own `value` only (reject)
-            - rotate of a let-bound local: rejected ("rotate of unknown
-              variable") — the runtime `_rotate` reads persistent state
-              (`ctx.rs`), never `ctx.locals`, so a local target could only
-              ever KeyError at playout; previously the flat classifier let
-              it through
-            - BeforeEach: a hook `let` is visible later in the same hook
-              (accept) and NOT in the phase items (reject) — matching the
-              runtime, where `run_stmts(before.body, ctx)` threads locals
-              within the hook and discards them before the body runs
-            - MoveTypeDef: an effect `let` is visible later in the effect
-              (accept) and NOT in the guard (reject) — guard and effect are
-              separate fields; only the effect tuple folds
-covered-by-design:
-            - a `let` in a phase body IS visible inside a later nested
-              sub-phase of the same body: not a leak — the runtime threads
-              the updated ctx into `run_phase` for nested items, so the
-              resolve scope matches the execution scope exactly (accept
-              test above pins the behavior)
-            - one-level shadowing of the implicit binders stays legal (the
-              spec allows an inner query's `card` inside an outer one —
-              decisions.md "The expression register"); no shadowing guard
-sampled:    the sequential fold at ProduceArm.body goes through the same
-            single tuple arm of `_rewrite_value` as every site above and is
-            corpus-witnessed (Schnapsen's `play produces:` arms bind
-            `game_pts`/`opp` and read them in later arm statements, green in
-            the full suite) — one code path, one live witness
-residual:   none
+does not prove:  that the sequential `let` fold is exercised at
+            ProduceArm.body. That site reaches the same single tuple arm of
+            `_rewrite_value` as every site this module probes, and Schnapsen's
+            `play produces:` arms bind `game_pts`/`opp` and read them in later
+            arm statements — one shared code path and one live corpus witness,
+            neither of them a cell here.
 """
 
 from __future__ import annotations

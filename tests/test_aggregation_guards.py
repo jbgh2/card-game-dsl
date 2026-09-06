@@ -21,62 +21,39 @@ domain:    the four binder-introducing expression forms `_check_expr`
            body, Comprehension.default (default only exists for `agg in
            {"max","min"}` — the grammar's `agg_order` production makes it
            mandatory there and absent for `agg_sum`).
+           The Comprehension.default position is narrower than the headline
+           misparse it is named for, and the narrowing is not a gap: the
+           misparse's own sentence (`where card.suit is hearts or card.suit
+           is spades`) is caught one layer earlier, because resolve evaluates
+           `Comprehension.default` OUTSIDE the `card` binder's scope (the
+           grammar's own reading: a default is a fallback value, not a
+           per-card predicate), so a misparsed default that references the
+           binder surfaces as an "unresolved name" at resolve time, a
+           stronger diagnosis of the identical bug. What this typecheck-level
+           guard owns is a misparsed default that does NOT reference the
+           binder — any Boolean expression valid in the outer scope, a plain
+           state var or a function call — which resolves clean and reaches
+           typecheck unchallenged.
 registry:  the four AST node types (`cardlang/ast/nodes.py`) and the `agg`
            field's closed domain (`sum`/`max`/`min`, pinned elsewhere by
            `tests/test_comprehension_aggregators.py::
            test_rank_dir_set_is_pinned` against the grammar's `RANK_DIR`
            terminal plus the separate `agg_sum` production).
-covered:   Quantifier.body (Boolean-checked, both roles reachable via
-           `any`/`all` x `player`/`team`/`suit`/`rank` share one code path —
-           `player` sampled); PlayerQuery.pred (Boolean-checked);
-           CardQuery.source (the shared `_check_card_source` guard, probed
-           on a wrong-element collection AND on a non-collection bare-Card
-           source — the latter cell is the easy one to miss: without it a
-           card-typed non-collection would unify with TCard and pass, then
-           crash at runtime iteration; reused by Comprehension);
-           CardQuery.pred (Boolean-checked); Comprehension.source (shared
-           guard, reused); Comprehension.where (Boolean-checked);
-           Comprehension.body (Integer-checked for all three `agg` values;
-           the TEnum sub-case is checked separately for `sum` — a
-           TypeError-at-runtime message — and `max`/`min` — a silent-
-           lexicographic-compare message, since evaluate.py's two code
-           paths diverge; verified empirically in this module's docstring
-           development, not asserted from reading the source);
-           Comprehension.default (the Boolean-misparse diagnostic — THE
-           headline probe — and the generic body/default type-mismatch
-           fallback when the default isn't Boolean). Note on the headline
-           probe: that exact sentence (`where card.suit is hearts or
-           card.suit is spades`) is caught one layer earlier — resolve
-           evaluates `Comprehension.default` OUTSIDE the `card` binder's
-           scope (the grammar's own reading: a default is a fallback value,
-           not a per-card predicate), so a misparsed default that references
-           `card` surfaces as an "unresolved name" at resolve time, a
-           stronger diagnosis of the identical bug. This typecheck-level guard's real,
-           non-redundant domain is a misparsed default that does NOT
-           reference the binder — any Boolean expression valid in the outer
-           scope (a plain state var, a function call) — which resolves
-           clean and reaches typecheck unchallenged; both are probed in
-           `test_the_headline_misparse_is_rejected`.
-sampled:   Quantifier's four roles (`player`/`team`/`suit`/`rank`) all route
-           through the same `_role_type`-bound scoped environment and the
-           same `_check_bool` call — `player` is the probed representative,
-           the others share the branch, not re-derived per role. CardQuery's
-           four kinds (`set`/`count`/`any`/`all`) all reach the same
-           `_check_card_source`/pred-Boolean calls before the kind-specific
-           runtime dispatch — `count` (no pred) and `set`/`any` (with pred)
-           are both probed; `all` shares `any`'s code path unprobed.
-residual:  same let-bound-locals residual as test_operator_guards.py (a
-           `let`-derived aggregation source/body/filter/default stays
-           `TAny` and passes every guard here vacuously) — not re-derived,
-           see that module's ledger, which owns it. No new residual is
-           introduced by this
-           module: the Boolean-default misparse guard is deliberately
-           over-broad by design (a `where`-clause-adjacent Boolean default
-           is flagged even in the vanishingly unlikely case that a
-           Boolean-body aggregation genuinely intends a Boolean default —
-           no corpus game does this, and the guard is deliberately scoped to
-           this trade-off: "almost always" the misparse, not "always"), so
-           it is not tracked as a coverage gap.
+does not prove:  two things. That each binder role and each query kind is
+           separately checked: Quantifier's four roles
+           (`player`/`team`/`suit`/`rank`) route through the same
+           `_role_type`-bound scoped environment and the same `_check_bool`
+           call, with `player` as the probed representative, and CardQuery's
+           four kinds (`set`/`count`/`any`/`all`) reach the same
+           `_check_card_source` and pred-Boolean calls before the
+           kind-specific runtime dispatch, with `all` sharing `any`'s code
+           path unprobed — a role or kind that stopped sharing its branch
+           would pass here. And nothing about an aggregation position
+           reached through a `let` whose initializer types `TAny`: it
+           carries `TAny` into the source, body, filter or default and
+           passes every guard here vacuously, gradual typing's ordinary rule
+           rather than a hole in the walk, with the class's ledger in
+           tests/test_operator_guards.py.
 """
 
 from __future__ import annotations

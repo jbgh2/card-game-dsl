@@ -70,6 +70,11 @@ domain:     THREE axes, each read off its own registry rather than off the guard
             false positives a naive "`actor` under `for each player`" guard
             would produce — every entry in it was written because the guard got
             that cell wrong, or would have.
+
+            One shape sits outside these axes and is not a gap: a comparison
+            whose operands are equal only through a CALL (`team_of(p) is
+            team_of(actor)`), which the property above does not reach because
+            it quantifies over NAMES.
 registry:   `n.Stmt` (alias sources); `typecheck.OP_CLASSES` (operators);
             `domains.binds_actor` / `domains.SIMULTANEOUS_ROLES` (which roles
             rebind the actor at all — a VALUE domain's binder is not an alias);
@@ -77,40 +82,24 @@ registry:   `n.Stmt` (alias sources); `typecheck.OP_CLASSES` (operators);
             member is pinned BEHAVIOURALLY (a pronoun tracks `acting_as` or it
             does not) rather than asserted, so a second acting-player pronoun
             cannot join the language unnoticed.
-covered:    the two parametrized grids below — `test_provably_equal_operands_
-            are_refused` (alias sources x operators x order) and
-            `test_contingent_comparisons_are_accepted_and_play` (scope
-            relations x operators x order) — plus the union/registry pins, the
-            pronoun behaviour pin, and the misuse probes: a role no registry
-            row defines must still reach the author as its OWN located
-            diagnostic rather than as this sweep's registry lookup raising in
-            compiler channel (`test_a_role_no_row_defines_still_gets_its_own_
-            diagnostic` — the metamorphic reorder suite found that one, on a
-            `for each column c` this grid had no cell for), and the procedure
-            pronoun guard that bounds the residual below.
-sampled:    one fixture game (2 players, `standard52`, a hand and a bid zone),
-            with every cell spliced into one `as 0 { … }` block so an acting
-            player exists at the top of every cell. A cell whose answer could
-            depend on the SHAPE of the game rather than on the scope relation
-            would be sampled by proxy here — none is known: the rule reads
-            names and binding constructs only, never zones, seats or content.
-residual:   an alias created by `expand`, not by the source: `run f(p, actor)`
-            inside `for each player p` binds both parameters to lets in the
-            caller's context, so a `q is r` inside f's body becomes a
-            tautology at THAT call site and stays meaningful at others. Not
-            reachable through the pronoun (a procedure body may not read
-            `actor` at all — `resolve._check_procedures`, pinned by
-            `test_procedure_bodies_cannot_read_the_actor_pronoun` below), so
-            the surviving shape needs two parameters both bound to the acting
-            player at one call site. It is interprocedural and call-site
-            dependent, the sweep runs pre-expansion, and it is recorded in
-            this ledger, which owns it. Deliberately NOT residual, and
-            NOT a gap: a comparison whose operands are equal only through a
-            call (`team_of(p) is team_of(actor)`) is outside the property
-            above, which quantifies over NAMES; and a merely redundant read
-            (`hand[actor]` where `hand[p]` would do) is accepted by design —
-            it is redundant, not wrong, and this is a totality guard, not a
-            lint.
+does not prove:  two things, and each is a shape the sweep cannot see from
+            where it runs.
+            An alias created by EXPANSION rather than by a source: `run
+            f(p, actor)` inside `for each player p` binds both parameters to
+            lets in the caller's context, so a `q is r` inside f's body is a
+            tautology at THAT call site and meaningful at others. The sweep
+            runs pre-expansion, and the shape is interprocedural and
+            call-site dependent, so no cell here reaches it. What bounds it
+            is that a procedure body may not read `actor` at all
+            (`test_procedure_bodies_cannot_read_the_actor_pronoun`), which
+            leaves only the two-parameter form.
+            And that the answer never depends on the SHAPE of the game. Every
+            cell is spliced into one fixture (2 players, `standard52`, a hand
+            and a bid zone) inside a single `as 0 { … }` block, so a cell
+            whose verdict turned on zones, seats or content rather than on
+            the scope relation would be sampled by proxy here — the rule
+            reads names and binding constructs only, and that reading is
+            argued rather than crossed against a second game.
 """
 
 from __future__ import annotations
@@ -635,10 +624,10 @@ def test_a_role_no_row_defines_still_gets_its_own_diagnostic(
 
 
 def test_procedure_bodies_cannot_read_the_actor_pronoun() -> None:
-    """The residual's boundary, pinned: the cross-call-site alias cannot be
-    reached through the pronoun, because a procedure body may not name it at
-    all. Without this, the ledger's residual row would be wider than the
-    language actually allows.
+    """The expansion alias's boundary, pinned: the cross-call-site alias cannot
+    be reached through the pronoun, because a procedure body may not name it at
+    all. Without this, the ledger's `does not prove:` row would be wider than
+    the language actually allows.
 
     red under: drop the `_CALL_SITE_PRONOUNS` arm from
     `resolve._check_procedures`."""

@@ -45,6 +45,20 @@ domain:     rows x body type x binder reads x reference direction x call
             trumps played x ties x pile state) and `follows_lead`'s (lead
             state x candidate class); slot/call agreement and the
             metamorphic pin against `highest_trump_or_led_suit`.
+            Three things sit outside, and none is a gap. The zone-visibility
+            axis treats a count-projected zone as concealed, so a count read
+            inside a row (`number of cards in deck`) is refused although the
+            projection makes the count public -- deliberately conservative,
+            since no game asks for it. The empty-candidate case belongs to
+            the MOVEMENT: `follows_lead(card, pile)` written bare as the
+            leader's `where` filter yields no candidate on the empty pile and
+            fails in the chooser's channel, and the guard for that sits at
+            the movement rather than at this construct (the `follow_ok`
+            shape, docs/library.md, is the pattern a game writes instead).
+            And a `choose` inside a designer function used as a `where`
+            filter is a decision site inside a legality computation wherever
+            it is written, Trick Order or not, so it is its own class
+            (issue #370).
 registry:   rows -- `TRICK_ORDER_ROWS` (cardlang.builtins.functions), pinned
             equal to `_ROWS` here and to the node's row-key literal
             (`test_row_registry_matches_the_grid`); readers' types --
@@ -59,242 +73,142 @@ registry:   rows -- `TRICK_ORDER_ROWS` (cardlang.builtins.functions), pinned
             `stdlib.zones.LIBRARY_ZONE_TYPES` x `ZONE_PROJECTIONS`
             (`identity_to_all`); early predicates --
             `PRIMITIVE_EARLY_PREDICATES` minus `TRICK_ORDER_EARLY_PREDICATES`;
-            the body-type axis is `_BODY_SPELLINGS`, authored (see sampled).
-covered:    `test_grammar_cell` (twins, absorbers, placement, empty block,
-            duplicate rows/blocks, `trump: 5` / `trump: "spades"`, row order
-            and the boundary sentences), `test_row_type_cell` (rows x
-            `_BODY_SPELLINGS`), `test_row_hermeticity_cell` (pronouns direct
-            + through a function, `choose`, zone reads over every library
-            zone type direct + through a function, bare families, count of a
-            concealed zone, every `BUILTIN_CALL_FUNCS` member as a row call,
-            a Primitive, reader references self/upward/downward direct +
-            through a function, the two consumers in a row),
-            `test_partition_cell` (with a block: game `trump:`, round
-            `trump`, every non-gated winner, the excluded call, `early`, a
-            dead block two ways, a live block via each consumer position;
-            without: the gated winner bare and with `trump`, every gated
-            call, and the existing winners/calls as controls),
-            `test_defaults_cell` (missing `trump:` row, `trump: false`, the
-            default-strength ranking gate, explicit `rank_value` with no
-            ranking, the reworded ranking-gate remedy),
-            `test_pile_argument_cell` (`ARRIVAL_RECORD_CALLS` x argument
-            shapes), `test_play_zone_cell` (every library zone type as a
-            trick round's `into`), the registry pins, the algorithm grid
-            (`test_winner_cell`, `test_follows_lead_cell`,
-            `test_strength_is_never_read_on_a_non_candidate`,
-            `test_first_of_equals_is_the_kernel_rule_for_every_winner`), and
-            the end-to-end cells (`test_slot_and_call_agree`,
-            `test_block_agrees_with_the_standard_winner`, `test_readers_end_to_end`,
-            `test_no_candidate_is_loud_end_to_end`, `test_dealt_pile_has_no_winner`,
-            `test_follows_lead_on_the_empty_pile_is_false`), plus the
-            ambiguity budget over every accept source
-            (tests/test_grammar_ambiguity.py, derived from `_grammar_cells`).
-            Skat (issue #250 PR 2) adds no cell and needs none: it is the
-            CORPUS witness for cells this grid only spelled synthetically --
-            a row reading declared state (`state-var-named-trump`) and a row
-            calling a designer function -- executed against a byte-identity
-            oracle (tests/test_trick_order_migration.py) rather than against
-            an authored expectation. Five Hundred (PR 3) adds none either,
-            and is the corpus's FIRST `follow_class:` row: Doppelkopf's and
-            Skat's both take the omitted default, so until 500 the row's
-            three-value axis (a class, `none`, a REMAPPED class) was
-            authored-only above. Its remap reads mutable public state -- the
-            joker's class is whatever the declarer nominated -- and its
-            `trump:` row is likewise a function of state rather than of the
-            printed card, so 500 witnesses "the trump SET differs between two
-            hands of the same game", the shape the block exists for. Same
-            byte-identity oracle, same 200 seeds.
-            A post-grammar framing check over the definition sources alone
-            (issue #250) added the crossed reject-habit cells, the
-            `trick_order`-as-a-NAME cell and the ambiguity budget; everything
-            else it enumerated was already a cell here or a guard in the
-            tree.
-sampled:    the body-type axis is one spelling per representative
-            `cardlang.types` shape (Boolean, Boolean?, Suit, Suit?, none,
-            Integer, Integer?, String, Rank, Card, Player, Collection, the
-            top) rather than the whole lattice: strict rows compare by type
-            equality, the `follow_class:` row routes through
-            `typecheck._check_operand` whose coercion domain has its own
-            tests. The through-a-function cells use one helper level; deeper
+            the body-type axis is `_BODY_SPELLINGS`, authored rather than
+            derived (see `does not prove:`).
+            The ambiguity budget over every accept source, derived from
+            `_grammar_cells`: tests/test_grammar_ambiguity.py. The corpus
+            witnesses' byte-identity oracle:
+            tests/test_trick_order_migration.py.
+does not prove:  five things, and the first two are about the VOICE of a
+            refusal rather than the fact of one.
+            (1) That a misplaced row is refused in the block's voice. `trump:
+            card.rank is J` written at GAME level dies as a bare syntax error
+            at `.`; `trump: trick_order { ... }` (the suit dropped) dies at
+            `{`; and the four CROSSED reject-with-replacement habits -- the
+            colon, the commas, the `=`/`:=` rows taken together -- match no
+            arm and die the same way, since each named arm covers its own
+            habit alone. The `habits-*` cells pin these loud, in the lexer's
+            voice, and a crossed arm would buy a better voice on a sentence
+            nobody has written.
+            (2) That three refusals are refusals BY DESIGN. `empty-block`,
+            `struct-literal-does-not-absorb-the-block` and
+            `block-in-phase-body` assert only "syntax error", which a tree
+            WITHOUT the construct also produces. What discriminates is the
+            ACCEPT cells beside them, which such a tree cannot pass.
+            (3) The ADMISSION direction of the `early` gate.
+            `TRICK_ORDER_EARLY_PREDICATES` is EMPTY, so only the refusal is
+            exercised, by the `with-block-early` cell -- and a test iterating
+            the empty set would pass over zero rows and read as coverage.
+            The direction opens when a predicate joins the set with a
+            witness.
+            (4) The whole type lattice on a row body. `_BODY_SPELLINGS` is one
+            spelling per representative `cardlang.types` shape (Boolean,
+            Boolean?, Suit, Suit?, none, Integer, Integer?, String, Rank,
+            Card, Player, Collection, the top): strict rows compare by type
+            equality, and the `follow_class:` row routes through
+            `typecheck._check_operand`, whose coercion domain nothing here
+            exercises. Nor does it reach past one helper level -- deeper call
             chains ride the same call-graph walk (`_check_functions`' call
-            map). A consumer inside a spliced family-library function is not
-            spelled (no library fixture); the guard runs over the resolved
-            game after the splice, pinned by the direct cells.
-residual:   (1) `trump: card.rank is J` written at GAME level (the row
-            outside its block) dies as a bare syntax error at `.` -- loud,
-            wrong voice; no reject arm is cheap here (Hoyle counsel PR 1,
-            section 1). R4, this ledger owns the record. (2) `trump:
-            trick_order { ... }` (the suit dropped) dies at `{` -- loud, wrong
-            voice; `trick_order` is not added to NAME's exclusion (a dead
-            first parse, not a second parse). R4, ledger. (3) A count read of
-            a count-projected zone inside a row (`number of cards in deck`)
-            is refused with the concealed-zone guard although the count is
-            public by projection -- conservative, no witness; R4, ledger.
-            (4) `trick_order { trump: card.suit is spades }` beside `winner
-            highest_by_trick_order` is a second spelling of `trump: spades` +
-            `highest_trump_or_led_suit` -- both loud about what they mean; the
-            glossary's Trick Order entry says which to prefer, no guard; R4,
-            ledger. (5) `follows_lead(card, pile)` written bare as the
-            LEADER's `where` filter yields no candidate on the empty pile and
-            fails in the chooser's channel ("cannot choose 1 of 0
-            candidates") -- accepted and recorded, the `follow_ok` shape
-            documented as the pattern; the empty-candidate guard belongs to
-            the movement, not to this construct (issue #250 framing check
-            C24). R3, this ledger owns the record (the movement guard is
-            not this change's). (6) `choose` inside a designer function used
-            as a `where` filter, and inside a filter directly, is accepted
-            today outside any Trick Order (a decision site inside a
-            legality computation) -- pre-existing, its own class;
-            `issue #370`. (7) Named alternate rankings (#360), the two R2s
-            the design phase found (#358 the `winner` pronoun mid-trick, #359
-            `active_rules` in a hand-rolled phase), and a Primitive winner's
-            own order table on a foreign deck (#364) are outside this grid
-            by their issues; #350 closes with this construct (mid-trick
-            reads of the pile winner are designed surface, pinned by the
-            winner-so-far cells). (9) The three reject-with-replacement
-            habits -- the colon, the commas, the `=`/`:=` rows -- each have a
-            named arm, but the four CROSSED combinations match no arm and die
-            as a bare syntax error: loud, in the lexer's voice rather than the
-            block's, the same class as residuals (1) and (2). Pinned loud by
-            the `habits-*` cells rather than assumed. R4, this ledger owns the
-            record: a crossed arm buys a better voice on a sentence nobody has
-            written, and the cells fail if one is ever added without the voice
-            improving. (10) `TRICK_ORDER_EARLY_PREDICATES` is EMPTY, so the
-            admission direction of the `early` gate cannot be exercised --
-            only its refusal, which the `with-block-early` cell pins. Recorded
-            rather than papered over: a test iterating the empty set would
-            pass over zero rows and read as coverage. R4, this ledger owns the
-            record; the direction opens when a predicate joins the set with a
-            witness. (11) `TRICK_ORDER_EQ: ":=" | "="` is a NAMED terminal
-            whose alternatives overlap `ASSIGN_OP`'s `:=` and every anonymous
-            `"="` in the grammar (`state_decl`, `let_stmt`, `derived_field`,
-            `type_def`, `function_def`, `vis_clause`, `named_arg`). Under
-            Earley with the dynamic lexer this resolves by position, and the
-            `eq-row-*` cells plus the ambiguity budget exercise it clean; it is
-            a stated FORWARD hazard for the LALR tightening the grammar header
-            announces, where a named terminal overlapping anonymous literals is
-            precisely what breaks. R4, this ledger owns the record: a recorded
-            trap, not work -- the reject arm is the point of the terminal, and
-            the tightening re-decides it with the rest of the grammar.
-            (8) Row-evaluation cost on the legality path: MEASURED, see
-            `cost:` below; no memo is built (the epoch-counter memo the repo
-            reverted); re-measured by PRs 2 and 3. (12) Three cells assert
-            only "syntax error" (`empty-block`,
-            `struct-literal-does-not-absorb-the-block`,
-            `block-in-phase-body`), which a tree WITHOUT the construct also
-            produces -- so none can tell "refused by design" from "not
-            implemented", and each passed at base for that reason. Kept,
-            because the sentence must stay refused, and recorded here rather
-            than counted as coverage: what discriminates is the ACCEPT cells
-            beside them, which base cannot pass. R4, this ledger owns the
-            record.
-ruled:      every cut-level point this grid's cells rest on is ruled (issue
-            #250, the operator's PR-1 ruling 5321676867), and each was ruled
-            as the cells were authored, so no cell flipped: the `trump:` row
-            is REQUIRED and `trump: false` is the no-trump spelling; `trump:`
-            and `card_strength:` type strictly, only `follow_class:` coerces,
-            `TAny` refused; a row reads no `_PRONOUNS` member and makes no
-            `choose`, directly or through a helper, while declared state
-            variables stay readable; the row-callable Builtin surface is an
-            allow-list with its complement listed; the pile argument of every
-            Arrival-Record call is a static identity-to-all zone reference at
-            resolve and every trick round's play zone is one, both tightening
-            the EXISTING call form; `early` is refused beside the block
-            winner; the winner slot has two contracts keyed by
-            `TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`;
-            the call form emits no `trick` trace.
-cost:       the legality path evaluates a row per candidate per decision.
-            MEASURED per Doppelkopf playout, base and head INTERLEAVED (three
-            alternating reps of 20 games each on one machine, front end
-            outside the clock, median): base 61.4 ms/game, head 94.7 --
-            **1.54x**, against the 1.5x the Architect's prototype measured
-            (62 -> 92) and the operator accepted.
-            The dominant cost is the number of ROW EVALUATIONS on the follow
-            filter, not the weight of any one row: `follow_ok` asks
-            `follows_lead` once per candidate per decision, and each ask
-            walks the pile. Counted over three games: 34,899 row evaluations,
-            of which 33,307 are the follows path. `card_strength` runs 440
-            times and NEVER on that path -- strength is a winner-path fact,
-            which is why the banded row a designer writes does not drive the
-            cost. An earlier reading of this ledger said it did; it was wrong,
-            and the number it explained (1.85x) was the cost of projecting
-            each arrival through BOTH rows on every ask, before the lazy
-            Effective Lead landed.
-            No memo is built -- none is sound without an epoch counter, and
-            this repo built and reverted that one already; the measurement is
-            the record.
-            RE-MEASURED on Skat (issue #250 PR 2, the same method: three
-            alternating reps of 6 games, medians): base 212.7 ms/game, head
-            220.4 -- **1.04x**, on rows that READ STATE, which Doppelkopf's do
-            not, and 55,585 row evaluations per game (30,330 `trump:`, 24,529
-            `follow_class:`, 726 `card_strength:` -- again almost none on the
-            follows path's account of strength) against Doppelkopf's 34,899
-            over three games. Two things make the ratio smaller rather than
-            larger, and neither is the construct getting cheaper. Skat's
-            playout is mostly NOT tricks -- thirty-six hands of Reizen
-            auction, declaration offers and scoring dilute the legality path
-            that Doppelkopf's playout is nearly all of. And Skat's baseline
-            was not a cheap read: `skat_follow_ok` scanned the whole hand
-            natively on every candidate, so the delta measures rows against a
-            comparable scan rather than against nothing. 1.54x stands as the
-            figure for a trick-dominated game; neither number motivates a
-            memo.
-            RE-MEASURED again on Five Hundred (issue #250 PR 3, the same
-            method: three alternating reps of 200 games, medians): base 16.2
-            ms/game, head 16.9 -- **1.04x**, on the heaviest rows in the
-            corpus (a three-branch `trump:` reading two state variables and
-            calling a designer function, a `follow_class:` remap, a
-            four-branch `card_strength:`). Per-row weight is NOT what the
-            ratio tracks, and this is the measurement that shows it: 500
-            evaluates 3,566 rows per game (1,815 `trump:`, 1,717
-            `follow_class:`, 34 `card_strength:` -- 99% of the first two on
-            the follows path, none of the third, the same split as the other
-            two games) against Skat's 55,585, because a 500 game is one to
-            three hands of ten tricks where a Skat game is thirty-six.
-            Normalized, that is ~57 row evaluations per DECISION over 63
-            decisions per game. Still no memo.
-            RE-MEASURED again on Belote (issue #250 PR 4, the same method:
-            interleaved reps, medians over 24 samples): base 192.1 ms/game,
-            head 190.7 -- **0.99x**, on the game whose WINNER sits on the
-            legality path (three rules gate on `opp_winning(actor)`, which
-            calls `highest_by_trick_order` over the partial pile). Row asks
-            went UP -- 33,724 over five games against 14,836 per-card
-            examinations before, 2.27x the per-card work -- and the ratio
-            still did not move, because what went away was 2,664
-            narrowed-Primitive bundle materializations: `belote_opp_winning`
-            bound and deep-froze its whole declared reads row on every gated
-            `applies_when`.
-            RE-MEASURED again on French Tarot (issue #250 PR 5, the same
-            method: three alternating reps of 6 games, medians): base 1630.6
-            ms/game, head 955.3 -- **0.59x**, the construct paying for itself
-            outright, and the sharpest test of the paragraph below rather than
-            an exception to it. Tarot writes the HEAVIEST row in the corpus (a
-            seven-branch `card_strength:` reaching a twenty-one-branch
-            `numeral` designer function, since no one `ranking:` can serve a
-            deck where rank "1" is both the petit and a plain ace) and asks it
-            far more often: 392,784 row evaluations over three games (248,353
-            `trump:`, 79,391 `follow_class:`, 65,040 `card_strength:` -- and
-            note the third is NOT near-zero here, because `MustOverTrump`
-            reads strength over the pile per candidate) against 115,057
-            Primitive calls before, 3.4x the per-card work. It still got
-            faster, because each of those 115,057 was `tarot_led_suit` or
-            `tarot_trump_height` crossing the narrowing boundary, and
-            `tarot_led_suit` deep-froze its whole declared reads row -- the
-            `trick_pile` zone included -- on every ask.
-            WHAT THE FIVE MEASUREMENTS SUPPORT, stated no wider. At the row
-            weights the corpus actually writes, the count of BOUNDARY
-            CROSSINGS dominates and per-row weight does not track the ratio:
-            500's rows were the heaviest in the corpus when its ratio came in
-            joint-lowest, and Tarot's are heavier still at the lowest ratio of
-            the five. That is not the same as "weight is noise", and the
-            counter-measurement is named rather than left for a reader to
-            find: padding Belote's `card_strength:` else-branch with 60 no-op
-            `+ 0` terms, at an UNCHANGED crossing count, costs 182.3 -> 202.8
-            ms/game, 1.11x (executed 2026-08-19; the PR #381 reviewer measured
-            +15% on the same shape). So row weight is spendable, not free --
-            it is simply small at the weights the corpus writes, and a row
-            that grew an order of magnitude heavier would need its own
-            measurement rather than this ledger's.
+            map), argued rather than run -- and a consumer inside a spliced
+            family-library function is not spelled at all, since there is no
+            library fixture; the guard runs over the resolved game after the
+            splice, and the direct cells stand for it.
+            (5) That `TRICK_ORDER_EQ: ":=" | "="` is safe under a different
+            parser. Its alternatives overlap `ASSIGN_OP`'s `:=` and every
+            anonymous `"="` in the grammar (`state_decl`, `let_stmt`,
+            `derived_field`, `type_def`, `function_def`, `vis_clause`,
+            `named_arg`). Under Earley with the dynamic lexer this resolves
+            by position, and the `eq-row-*` cells plus the ambiguity budget
+            exercise it clean THERE; a named terminal overlapping anonymous
+            literals is precisely what breaks under the LALR tightening the
+            grammar header announces.
+
+Every cut-level point this grid's cells rest on is ruled (issue #250, the
+operator's PR-1 ruling 5321676867), and each was ruled as the cells were
+authored, so no cell flipped: the `trump:` row is REQUIRED and `trump: false`
+is the no-trump spelling; `trump:` and `card_strength:` type strictly, only
+`follow_class:` coerces, `TAny` refused; a row reads no `_PRONOUNS` member and
+makes no `choose`, directly or through a helper, while declared state variables
+stay readable; the row-callable Builtin surface is an allow-list with its
+complement listed; the pile argument of every Arrival-Record call is a static
+identity-to-all zone reference at resolve and every trick round's play zone is
+one, both tightening the EXISTING call form; `early` is refused beside the
+block winner; the winner slot has two contracts keyed by
+`TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`; the call form
+emits no `trick` trace.
+
+The cost, measured at issue #250's two PRs: the legality path evaluates a row
+per candidate per decision. MEASURED per Doppelkopf playout, base and head
+INTERLEAVED (three alternating reps of 20 games each on one machine, front end
+outside the clock, median): base 61.4 ms/game, head 94.7 -- **1.54x**, against
+the 1.5x the Architect's prototype measured (62 -> 92) and the operator
+accepted. The dominant cost is the number of ROW EVALUATIONS on the follow
+filter, not the weight of any one row: `follow_ok` asks `follows_lead` once per
+candidate per decision, and each ask walks the pile. Counted over three games:
+34,899 row evaluations, of which 33,307 are the follows path. `card_strength`
+runs 440 times and NEVER on that path -- strength is a winner-path fact, which
+is why the banded row a designer writes does not drive the cost. An earlier
+reading of this ledger said it did; it was wrong, and the number it explained
+(1.85x) was the cost of projecting each arrival through BOTH rows on every ask,
+before the lazy Effective Lead landed. No memo is built -- none is sound
+without an epoch counter, and this repo built and reverted that one already;
+the measurement is the record. RE-MEASURED on Skat (issue #250 PR 2, the same
+method: three alternating reps of 6 games, medians): base 212.7 ms/game, head
+220.4 -- **1.04x**, on rows that READ STATE, which Doppelkopf's do not, and
+55,585 row evaluations per game (30,330 `trump:`, 24,529 `follow_class:`, 726
+`card_strength:` -- again almost none on the follows path's account of
+strength) against Doppelkopf's 34,899 over three games. Two things make the
+ratio smaller rather than larger, and neither is the construct getting cheaper.
+Skat's playout is mostly NOT tricks -- thirty-six hands of Reizen auction,
+declaration offers and scoring dilute the legality path that Doppelkopf's
+playout is nearly all of. And Skat's baseline was not a cheap read:
+`skat_follow_ok` scanned the whole hand natively on every candidate, so the
+delta measures rows against a comparable scan rather than against nothing.
+1.54x stands as the figure for a trick-dominated game; neither number motivates
+a memo. RE-MEASURED again on Five Hundred (issue #250 PR 3, the same method:
+three alternating reps of 200 games, medians): base 16.2 ms/game, head 16.9 --
+**1.04x**, on the heaviest rows in the corpus (a three-branch `trump:` reading
+two state variables and calling a designer function, a `follow_class:` remap, a
+four-branch `card_strength:`). Per-row weight is NOT what the ratio tracks, and
+this is the measurement that shows it: 500 evaluates 3,566 rows per game (1,815
+`trump:`, 1,717 `follow_class:`, 34 `card_strength:` -- 99% of the first two on
+the follows path, none of the third, the same split as the other two games)
+against Skat's 55,585, because a 500 game is one to three hands of ten tricks
+where a Skat game is thirty-six. Normalized, that is ~57 row evaluations per
+DECISION over 63 decisions per game. Still no memo. RE-MEASURED again on Belote
+(issue #250 PR 4, the same method: interleaved reps, medians over 24 samples):
+base 192.1 ms/game, head 190.7 -- **0.99x**, on the game whose WINNER sits on
+the legality path (three rules gate on `opp_winning(actor)`, which calls
+`highest_by_trick_order` over the partial pile). Row asks went UP -- 33,724
+over five games against 14,836 per-card examinations before, 2.27x the per-card
+work -- and the ratio still did not move, because what went away was 2,664
+narrowed-Primitive bundle materializations: `belote_opp_winning` bound and
+deep-froze its whole declared reads row on every gated `applies_when`.
+RE-MEASURED again on French Tarot (issue #250 PR 5, the same method: three
+alternating reps of 6 games, medians): base 1630.6 ms/game, head 955.3 --
+**0.59x**, the construct paying for itself outright, and the sharpest test of
+the paragraph below rather than an exception to it. Tarot writes the HEAVIEST
+row in the corpus (a seven-branch `card_strength:` reaching a twenty-one-branch
+`numeral` designer function, since no one `ranking:` can serve a deck where
+rank "1" is both the petit and a plain ace) and asks it far more often: 392,784
+row evaluations over three games (248,353 `trump:`, 79,391 `follow_class:`,
+65,040 `card_strength:` -- and note the third is NOT near-zero here, because
+`MustOverTrump` reads strength over the pile per candidate) against 115,057
+Primitive calls before, 3.4x the per-card work. It still got faster, because
+each of those 115,057 was `tarot_led_suit` or `tarot_trump_height` crossing the
+narrowing boundary, and `tarot_led_suit` deep-froze its whole declared reads
+row -- the `trick_pile` zone included -- on every ask. WHAT THE FIVE
+MEASUREMENTS SUPPORT, stated no wider. At the row weights the corpus actually
+writes, the count of BOUNDARY CROSSINGS dominates and per-row weight does not
+track the ratio: 500's rows were the heaviest in the corpus when its ratio came
+in joint-lowest, and Tarot's are heavier still at the lowest ratio of the five.
+That is not the same as "weight is noise", and the counter-measurement is named
+rather than left for a reader to find: padding Belote's `card_strength:`
+else-branch with 60 no-op `+ 0` terms, at an UNCHANGED crossing count, costs
+182.3 -> 202.8 ms/game, 1.11x (executed 2026-08-19; the PR #381 reviewer
+measured +15% on the same shape). So row weight is spendable, not free -- it is
+simply small at the weights the corpus writes, and a row that grew an order of
+magnitude heavier would need its own measurement rather than this ledger's.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line
@@ -557,7 +471,7 @@ def _grammar_cells() -> list[Cell]:
     # a list habit produces it, and it used to miss the comma arm because the
     # arm's tail demanded a row AFTER the comma -- so it earns the designer's
     # voice; the other three are rarer and stay in the lexer's, recorded in
-    # residual (9)'s family rather than assumed.
+    # the ledger's `does not prove:` (1) rather than assumed.
     add(Cell("separator-trailing-comma",
              _source(clauses="trick_order { trump: card.suit is hearts, }"), (P2,)))
     add(Cell("separator-leading-comma",
@@ -571,7 +485,8 @@ def _grammar_cells() -> list[Cell]:
              ("syntax error",)))
     # The three habits CROSSED. Each alone has a named reject arm above; the
     # four combinations match no arm and die as a bare syntax error -- loud,
-    # but in the lexer's voice rather than the block's (residual (9)). Pinned
+    # but in the lexer's voice rather than the block's (the ledger's `does
+    # not prove:` (1)). Pinned
     # LOUD here so the cells are recorded rather than assumed, and so a future
     # crossed arm makes them fail rather than pass silently.
     add(Cell("habits-colon-and-comma",
@@ -597,7 +512,8 @@ def _grammar_cells() -> list[Cell]:
         rows = "trump: card.suit is hearts  " if key != "trump" else ""
         add(Cell(f"duplicate-row-{key}", _source(clauses=_block(f"{rows}{key}: {body}  {key}: {body}")), (P5.format(key=key),)))
     add(Cell("two-blocks", _source(clauses=f"{BLOCK}\n  {BLOCK}"), (P6,)))
-    # The game clause's non-name values (PR 0's residual (4), the grammar's channel today).
+    # The game clause's non-name values, refused in the grammar's channel today
+    # (tests/test_trump_slot_class.py owns that record).
     add(Cell("game-trump-int", _source(clauses="trump: 5", body="score[1] += 1"), (P7,)))
     add(Cell("game-trump-string", _source(clauses='trump: "spades"', body="score[1] += 1"), (P7,)))
     # The empty block is entry-plus: a syntax error, the card_points precedent.
@@ -605,8 +521,8 @@ def _grammar_cells() -> list[Cell]:
     # is what a tree WITHOUT the construct also produces -- so each passed at
     # base for the wrong reason, and none can distinguish "refused by design"
     # from "not implemented". They are kept (the sentence must stay refused)
-    # and recorded in residual (12); their discriminating power comes from the
-    # accept cells beside them, which base cannot pass.
+    # and recorded in the ledger's `does not prove:` (2); their discriminating
+    # power comes from the accept cells beside them, which base cannot pass.
     add(Cell("empty-block", _source(clauses="trick_order { }"), ("syntax error",)))
     # Any row order accepts; the reference order is the language's, not the text's.
     add(Cell("row-order-strength-first",
@@ -797,7 +713,8 @@ def _row_hermeticity_cells() -> list[Cell]:
             add(Cell(f"zone-{ztype}-bare-through-function",
                      _source(clauses=_block("trump: helper(card)"), zones=decl,
                              tail=_HELPER.format(body=f"any card in {bare} where card.rank is Q")), (R11, THROUGH)))
-    # A count read of a count-projected zone: refused (conservative; residual (3)).
+    # A count read of a count-projected zone: refused (conservative; the
+    # ledger's `domain:`).
     add(Cell("count-of-concealed-zone", _source(clauses=_block("trump: (number of cards in deck) > 10")), (R10,)))
     # (d) every BUILTIN_CALL_FUNCS member as a row call (the axis grows by the
     # five new names; the census pin below keeps the classification total).
@@ -1822,7 +1739,8 @@ game G {
 def test_follows_lead_on_the_empty_pile_is_false() -> None:
     """`follows_lead` on a pile with nothing led is the value false (issue
     #345's ruling), so a bare `where follows_lead(...)` on the LEADER admits no
-    candidate and fails in the movement's channel -- recorded (residual (5)),
+    candidate and fails in the movement's channel -- recorded in the ledger's
+    `domain:`,
     the `follow_ok` shape (void => any card) is the pattern."""
     with pytest.raises(OwnerGuardError, match="cannot choose 1 of 0 candidates"):
         _play(_LEADER_FILTER_GAME, 0)

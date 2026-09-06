@@ -18,14 +18,12 @@ domain:     every `"kind"` tag literal and every dict-key literal in
 registry:   `cardlang/ir.py`'s own AST, scraped below rather than
             hand-listed, so a construct added to the emitter arrives as a
             new member instead of silently widening the schema
-covered:    `test_the_emitted_ir_schema_is_the_pinned_one` -- set equality
-            both ways, so an ADDED tag and a REMOVED one both fail by name
-sampled:    none
-residual:   a field whose spelling is unchanged but whose MEANING or value
-            SHAPE changes is not caught: the scrape reads names, not
-            semantics. That is a real hole in the guarantee and this ledger
-            owns the record -- closing it needs a typed schema, which is
-            work nobody has asked for while the IR has no consumer. R4.
+does not prove:  that the schema MEANS what the version says it does. The
+            scrape reads names, not semantics, so a field whose spelling
+            matches the pin while its value SHAPE or meaning differs passes
+            here -- and
+            since no code path reads a document by version, no consumer
+            catches it downstream either. R4.
 
 red under (both pins, each demonstrated and reverted):
 - schema pin: rename an emitted tag in `cardlang/ir.py` -- `outcome_case` to

@@ -40,32 +40,22 @@ domain:    every class defined in the `cardlang` package that is a
            that carry a design decision — membership in the
            `GameDescriptionError` tree, and `RuntimeError`-ness (the relation
            that keeps `PrimitiveReadError` disjoint for free).
+           Two things sit outside, and neither is a gap. Builtin Python
+           exception classes the engine raises directly (`ValueError`,
+           `KeyError`, ...) are not classes the engine DEFINES, so they have
+           no position to pin; whether one is raised where a role type
+           belongs is the guard-role census's property. And a `BaseException`
+           subclass that is not an `Exception` subclass is a design question
+           the engine has not had to answer, since nothing in it defines one;
+           the axis quantifies over `BaseException`, so the day one is
+           defined it arrives inside the domain rather than beside it.
 registry:  the class axis derives by importing every module of the package and
            reading back the `BaseException` subclasses whose `__module__` is
            `cardlang.*` (`_engine_exception_classes`) — a new class is in
            domain the day it is defined, and `test_every_engine_exception_is_placed`
            fails until it is placed. The predicate axis is `_PREDICATES`.
-covered:   the full cross product, as `test_containment` — every derived class
-           against every predicate, expected values in `_EXPECTED`.
-sampled:   none. The cross product is total over both axes.
-residual:  builtin Python exception classes raised directly by the engine
-           (`ValueError`, `KeyError`, ...) are not classes the engine DEFINES,
-           so they have no position to pin here; that they are raised at all
-           where a role type belongs is the census's property, not this
-           module's (`tests/test_guard_role_sites.py`). `BaseException`
-           subclasses that are not `Exception` subclasses would be a new
-           design question (nothing in the engine defines one); the derivation
-           catches one arriving, since it quantifies over `BaseException`.
-
-class:     the import-at-run-time hazard Codex found here is one member of
-           "test code that imports `cardlang` modules wholesale, on a tree
-           where `openspiel` is deliberately outside `[dev]`". Derived from
-           `tests/`: the only wholesale walk is this module's.
-           `tests/test_guard_role_sites.py` parses source and never imports;
-           `test_trace_emitter_eviction.py` and `test_signatures.py` import
-           specific named modules; `tests/openspiel_ready/*` sits under the
-           `importorskip` umbrella `tests/test_optional_pyspiel.py` pins. One
-           member, examined rather than assumed.
+           The census over builtin raises at role-type sites:
+           tests/test_guard_role_sites.py.
 
 red under: three, each verified by making the edit and watching the named
 cells — and only those — go red.

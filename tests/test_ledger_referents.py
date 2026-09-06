@@ -21,7 +21,8 @@ property:        a reference written inside a completeness ledger resolves to
                  what the forms do not classify is counted rather than
                  assumed, so the reach of the module as a whole is a number
                  that can move.
-domain:          every module-level ledger docstring in the tree, crossed
+domain:          every ledger in the tree -- a docstring or a `#` comment
+                 block carrying the signature (`_ledger_texts`) -- crossed
                  with every reference form in `REFERENCE_FORMS`, with the row
                  the reference sits in, and with MARKUP -- whether the
                  referent sits in a code span or bare. The row axis is total
@@ -148,9 +149,11 @@ from __future__ import annotations
 
 import ast
 import functools
+import io
 import pathlib
 import re
 import subprocess
+import tokenize
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -532,27 +535,73 @@ def _rows(doc: str) -> dict[str, str]:
     return {k: _join_rows(v) for k, v in collected.items()}
 
 
-@functools.cache
-def _ledgers() -> tuple[tuple[str, dict[str, str]], ...]:
-    found: list[tuple[str, dict[str, str]]] = []
+def _comment_blocks(source: str) -> list[str]:
+    """Every maximal run of full-line `#` comments in `source`, each with its
+    `#` markers stripped -- the second shape a ledger is written in, beside a
+    docstring, and the shape `ast.get_docstring` cannot see. Read from the
+    tokenizer's COMMENT tokens, never from the text: a `# property:` line
+    inside a string literal is fixture data, not a comment."""
+    blocks: list[str] = []
+    run: list[str] = []
+    last_row = 0
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, SyntaxError):  # pragma: no cover - fails elsewhere
+        return blocks
+    for tok in tokens:
+        if tok.type != tokenize.COMMENT:
+            continue
+        row, col = tok.start
+        full_line = tok.line[:col].strip() == ""
+        if full_line and (row == last_row + 1 or not run):
+            run.append(tok.string[1:].removeprefix(" "))
+        elif full_line:
+            blocks.append("\n".join(run))
+            run = [tok.string[1:].removeprefix(" ")]
+        else:
+            continue
+        last_row = row
+    if run:
+        blocks.append("\n".join(run))
+    return blocks
+
+
+def _ledger_texts(source: str) -> list[str]:
+    """Every docstring and every comment block in one module's source that
+    carries the ledger signature -- the population, for one file."""
+    texts: list[str] = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:  # pragma: no cover - a broken tree fails elsewhere
+        return texts
     holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-    for name in _tracked():
-        if not name.endswith(".py"):
+    for node in ast.walk(tree):
+        if not isinstance(node, holders):
             continue
-        try:
-            tree = ast.parse((ROOT / name).read_text())
-        except SyntaxError:  # pragma: no cover - a broken tree fails elsewhere
-            continue
-        for node in ast.walk(tree):
-            if not isinstance(node, holders):
-                continue
-            doc = ast.get_docstring(node, clean=False)
-            if doc is None:
-                continue
-            rows = _rows(doc)
-            if _LEDGER_SIGNATURE <= set(rows):
-                found.append((name, rows))
-    return tuple(found)
+        doc = ast.get_docstring(node, clean=False)
+        if doc is not None and _LEDGER_SIGNATURE <= set(_rows(doc)):
+            texts.append(doc)
+    for block in _comment_blocks(source):
+        if _LEDGER_SIGNATURE <= set(_rows(block)):
+            texts.append(block)
+    return texts
+
+
+@functools.cache
+def _ledger_docstrings() -> tuple[tuple[str, str], ...]:
+    """Every ledger in the tree -- docstring or comment block carrying the
+    signature -- with its module: the one population walk every ledger sweep
+    reads."""
+    return tuple(
+        (name, text)
+        for name in _tracked()
+        if name.endswith(".py")
+        for text in _ledger_texts((ROOT / name).read_text())
+    )
+
+
+def _ledgers() -> tuple[tuple[str, dict[str, str]], ...]:
+    return tuple((name, _rows(doc)) for name, doc in _ledger_docstrings())
 
 
 # --- the grid ---------------------------------------------------------------
@@ -1033,14 +1082,13 @@ def _census() -> Census:
 
 
 # The whole actionable residue, each member with the reason it is not a
-# reference. All three are the same shape -- a word that is prose or DSL
+# reference. Both are the same shape -- a word that is prose or DSL
 # surface here and ALSO happens to be a tracked module's stem, so
 # `_module_stems` resolves it by coincidence. Naming them beats narrowing the
 # oracle until the number looks good: a coincidence recorded is a coincidence
-# a reader can check, and a fourth one arriving has to be ruled on.
+# a reader can check, and a third one arriving has to be ruled on.
 CENSUS_RESIDUE: dict[str, str] = {
     "__init__": "the dunder discussed as prose; collides with the `__init__` stem",
-    "active_rules": "the DSL clause `active_rules:`; collides with a module stem",
     "trick_order": "the DSL block and the mechanic; collides with a module stem",
 }
 
@@ -1131,3 +1179,34 @@ def test_every_ledger_reference_resolves() -> None:
         "completeness\"); a reference that stopped resolving reads as "
         "authoritative forever."
     )
+
+
+
+_COMMENT_FORM_LEDGER = (
+    "x = 1\n"
+    "# Completeness ledger\n"
+    "# property:   p\n"
+    "# domain:     d\n"
+    "# registry:   tests/test_ledger_referents.py\n"
+    "# does not prove:  q\n"
+    "\n"
+    "y = 2\n"
+    '"""not a ledger"""\n'
+)
+
+
+def test_a_comment_block_ledger_is_in_the_population() -> None:
+    """The population walk reads the comment shape as well as the docstring
+    shape; a ledger written in `#` lines is a ledger to every sweep. Reddens
+    under: dropping the `_comment_blocks` half of `_ledger_texts`."""
+    texts = _ledger_texts(_COMMENT_FORM_LEDGER)
+    assert len(texts) == 1
+    assert _rows(texts[0])["registry"] == "tests/test_ledger_referents.py"
+    assert _ledger_texts(_COMMENT_FORM_LEDGER.replace("# domain:", "# dom:")) == []
+    # The same lines inside a string literal are fixture data, not a comment
+    # block: the walk reads COMMENT tokens, never the text.
+    as_fixture = 'FIXTURE = """\n' + _COMMENT_FORM_LEDGER + '"""\n'
+    assert _ledger_texts(as_fixture) == []
+    # A comment beside code is not a full-line comment and joins no block.
+    beside_code = _COMMENT_FORM_LEDGER.replace("# property:   p", "x = 2  # property:   p")
+    assert _ledger_texts(beside_code) == []

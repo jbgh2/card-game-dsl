@@ -4,47 +4,32 @@ property:   splicing every `run NAME(args)` call site with the named
             procedure's body, independently reimplemented at SOURCE-TEXT
             level (inline.py — never calling `cardlang.expand`), does not
             change a playout's observable trace or terminal result.
-domain:     every corpus game DECLARING a procedure (`PROCEDURE_GAMES`,
-            derived by source-text scan and pinned below, not assumed) —
-            x seeds (`pairing.SEEDS`) x that game's policies
-            (`_POLICIES`).
+domain:     the corpus games DECLARING a procedure (`PROCEDURE_GAMES`,
+            pinned below rather than assumed) x seeds (`pairing.SEEDS`) x
+            that game's policies (`_POLICIES`). Two things sit outside, and
+            both are named rather than absent. The games that `run` a
+            procedure declared in a family library
+            (`LIBRARY_PROCEDURE_GAMES`) are beyond a source-text splice: it
+            reads one file, and reading the library too would not help —
+            the game still `uses` that library, the then-uninvoked library
+            procedure is a resolve error, and the spliced text would not
+            compile. T3's property is unchecked for them, and reaching them
+            means teaching inline.py the import tier (issue #132). And the
+            splice is deliberately not a general procedure inliner:
+            inline.py's own docstring states the shape envelope the pinned
+            games sit inside — no nested `run` inside a procedure body, no
+            call-site argument beyond a bare identifier or literal, every
+            call site brace-scoped — so a game outside that envelope is
+            outside this domain until the splice is generalized.
 registry:   docs/games/*.cardlang (`pairing.CORPUS`), split two ways by
             source-text scan: games declaring a `procedure` (T3's domain)
-            and games that `run` one without declaring it (out of domain
-            — see residual), both pinned by name.
-covered:    every game in `PROCEDURE_GAMES`, every seed in
-            `pairing.SEEDS`, under each policy in `_POLICIES[game]` ("Why
-            reverse=True" below: Coup needs the DESCENDING chooser to
-            reach its procedures at all; Cheat runs under BOTH —
-            descending challenges every window, ascending allows every
-            one, and the two together reach every branch of its single
-            procedure);
-            `test_procedure_bodies_are_exercised` proves the procedure
-            bodies actually execute per game, not just that the (possibly
-            vacuous) comparison passes.
-sampled:    seeds and decision depth only (CI budget) — pairing.py.
-residual:   THREE GAMES ARE OUT OF DOMAIN, and named rather than absent
-            (`test_the_library_procedure_games_are_pinned_as_uncovered`):
-            Kuhn, Leduc and Seven-Card Stud `run open_street(...)`, whose
-            body is in `docs/libraries/poker_betting.cardlang`. A
-            source-text splice reads one file, so it cannot see the body —
-            and reading the library too would not fix it, because the game
-            still `uses` that library and the then-uninvoked library
-            procedure is a resolve error, so the spliced text would not
-            compile. T3's property is genuinely UNCHECKED for these three;
-            covering them means teaching inline.py the import tier
-            (issue #132). This gap arrived with provided state and is the
-            price of the poker family sharing a procedure at all.
-            inline.py's splice is also deliberately NOT a general procedure
-            inliner (its module docstring lists exactly the shape envelope
-            both pinned games sit inside: no nested `run` inside a
-            procedure body — a resolve-level guard — no call-site argument
-            beyond a bare identifier/literal, every call site
-            brace-scoped). A game outside that envelope needs the splice
-            generalized before this suite covers it — not fixed here,
-            since none exists today; `test_run_and_procedure_domain_is_
-            pinned` fails loudly the day one is added, which is the
-            trigger to generalize.
+            and games that `run` one without declaring it (out of domain —
+            see `domain:` above), both pinned below.
+            The splice's shape envelope: tests/metamorphic/inline.py.
+does not prove:  anything about the seeds and the decision depths this suite
+            does not reach. Both are cut to a CI budget (pairing.py), so the
+            property is held over a sampled slice of each game's play space
+            rather than over the whole of it.
 
 This also subsumes the plan's stated acceptance criterion for T3
 ("the inline-vs-`run` regression test's invariant is subsumed by transform

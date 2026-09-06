@@ -13,38 +13,27 @@ domain:     `ZoneStore`'s keyed lookup methods (`single`, `instance`) x their
             message names that role: `player`, `team`, and the declared
             position domains (decisions.md "Position domains and positional
             zones"). Three failure cells; the key cell spans three roles.
+            Game-local primitives sit outside, and their absence is not a
+            gap: they reach zones through cardlang/runtime/reads.py, a
+            different registry and a different channel.
 
 registry:   `ZONE_INDEX_ROLES` + a game's declared `positions` block (the key
             axis), and `ZoneStore`'s own method set (the lookup axis). The
-            method set is pinned below by derivation from the class rather
-            than by a hand-copied list, so a fourth keyed lookup arriving on
-            `ZoneStore` fails this module the day it exists.
+            method set is derived from the class below rather than
+            hand-copied, so a fourth keyed lookup arriving on `ZoneStore`
+            fails this module the day it exists.
+            The primitives' own registry and channel:
+            tests/test_primitive_reads.py.
+            An Integer admitted at a zone-family subscript:
+            tests/test_zone_family_typing.py::test_accepts_an_integer_literal_zone_family_index.
+            An out-of-range player literal refused statically:
+            tests/test_player_literal_range.py.
 
-covered:    all three failure cells and both hits; the key cell over all
-            three index roles, including a position-indexed family whose
-            keys are neither seats nor teams. Exhaustive over the matrix as
-            declared — the index-role axis is enumerated from
-            `ZONE_INDEX_ROLES` plus the position case, not sampled.
-
-sampled:    nothing on the failure matrix. The message's key LIST is asserted
-            to name the family's real keys, not pinned character-for-character
-            — the guard is the channel and the named role, not the rendering.
-
-residual:   the key branch is reachable from a checker-accepted game, not
-            only from an engine bug: a zone-family subscript's index is
-            checked with `types.assignable`, which admits an Integer, so a
-            COMPUTED out-of-range key like `hand[0 + 9]` in a 4-player game
-            type-checks and arrives here (the index-strictness residual in
-            tests/test_zone_family_typing.py's ledger). An out-of-range player LITERAL
-            (`hand[9]`) is now caught earlier by the static player-literal
-            guard (typecheck `_check_role_literal`,
-            tests/test_player_literal_range.py) — that tightened the literal
-            half of the deferral; the computed half is why this is still a
-            guard owing a typed error rather than a Shadow Guard. Probed below.
-            Game-local primitives are outside
-            this module's domain — they reach zones through
-            cardlang/runtime/reads.py, whose registry and channel are
-            pinned by tests/test_primitive_reads.py.
+does not prove:  that the message READS any particular way. The key list is
+            asserted to name the family's real keys, never
+            character-for-character, so what a green holds is the failure
+            channel and the named role; a rewording of the sentence around
+            them passes here unchanged.
 """
 
 from __future__ import annotations
@@ -185,22 +174,20 @@ def test_instance_refuses_a_key_a_position_family_does_not_cover() -> None:
     assert "seat" not in message and "team" not in message
 
 
-# --- the recorded residual, probed ------------------------------------------
+# --- the guard is author-reachable, probed ----------------------------------
 
 
 def test_a_checker_accepted_game_can_reach_the_key_guard() -> None:
-    """The `residual:` cell above, made real. A zone-family index is checked
-    with `types.assignable`, which admits an Integer, so `hand[0 + 9]` in a
-    4-player game type-checks (the index-strictness residual in this
-    module's ledger) and
-    arrives here — the guard is author-reachable and owes a typed error rather
-    than an assert. The index is COMPUTED (`0 + 9`), not the literal `9`: an
-    out-of-range player LITERAL is caught earlier by the static guard
-    (typecheck `_check_role_literal`, tests/test_player_literal_range.py),
-    which tightened exactly the literal half of this residual; the computed
-    half is what keeps this a reachable guard. If the index rule is tightened
-    further (computed keys too), this test fails and the residual — and the
-    channel argument resting on it — must be revisited."""
+    """The key guard is reachable from a checker-accepted game, not only from
+    an engine bug. A zone-family index is checked with `types.assignable`,
+    which admits an Integer, so `hand[0 + 9]` in a 4-player game type-checks
+    and arrives here — the guard owes a typed error rather than an assert.
+    The index is COMPUTED (`0 + 9`), not the literal `9`: an out-of-range
+    player LITERAL is caught earlier by the static guard (typecheck
+    `_check_role_literal`, tests/test_player_literal_range.py), so the
+    computed half is what keeps this a reachable guard. If the index rule is
+    tightened to computed keys too, this test fails and the channel argument
+    resting on that reachability must be revisited."""
     game = check_dsl(
         """game G {
   players: 4

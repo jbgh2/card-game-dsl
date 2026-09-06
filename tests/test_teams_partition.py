@@ -35,6 +35,13 @@ domain:     {candidate `teams:` value} x {`players:` shape}. The candidate
             a range, count actually varies, bounds well formed — NOT the two
             surface spellings, which cannot express a degenerate
             `players: 4..4` (written as a range, denotes four fixed seats).
+            Two things sit outside these axes. `teams:` beside `pieces:` or
+            `board:` is unexercised rather than a gap: a team-partnered board
+            game is a coherent thing to write, nothing about it is known to be
+            wrong, and no corpus game writes one. And a game declaring no
+            `teams:` has no declaration to check at all — what its
+            team-reading constructs do with an empty partition is issues #299
+            and #300, not this guard's surface.
 registry:   `tests/teams_axes.py` derives both axes in code. The candidate
             axis is CLASSIFIED by `teams_axes.classify`, the one place the
             partition property is spelled out, which computes each cell's
@@ -47,42 +54,15 @@ registry:   `tests/teams_axes.py` derives both axes in code. The candidate
             isolate a clause while each tested two. The shape axis reads
             `n.PlayersSpec`'s own `is_range` discriminator, asserted against
             the node's fields so a third form reddens it.
-covered:    the grid below — `teams_axes.cells()` x `PLAYERS_SHAPES`,
-            `test_teams_cell`, 20 rows. Each rejecting row asserts the
-            diagnostic names the specific seat at fault, so a guard that
-            fires for the right cell with an unusable message fails.
-sampled:    team ARITY and COUNT are sampled, not crossed: the candidates
-            include a one-team game and multi-team games, but the property
-            is per-seat and does not vary with how many teams there are.
-            Member magnitude is sampled at one out-of-range value; the
-            check is `s < count`, so 5 and 999999 take the same branch.
-residual:   cells on this surface that this ledger does NOT close, each
-            with its guard and its record:
-            - `team_of(p)` and the thirteen primitives reading
-              `facts.team_of[p]` raise a bare `KeyError` rather than the
-              runtime's own error, in a game that declares no `teams:`
-              (issue #299); guard: none — this guard makes the seat-in-no-team
-              trigger unreachable for a game that DOES declare teams, but
-              the teamless trigger survives it.
-            - a teamless game's `any team where` is silently `False`,
-              `all teams where` silently vacuously true, and `for each team`
-              runs zero iterations (issue #300); guard: none.
-            - `teams:` beside `pieces:`/`board:` is accepted with no gate
-              and no corpus witness. NOT guarded and NOT filed: a
-              team-partnered board game is a coherent thing to write and
-              nothing about it is known to be wrong — this is an
-              unexercised cell, not a defect (R4, this ledger owns the
-              record).
-            - which seat count a range `players:` game's teams must cover
-              is genuinely undecided (issue #296), so this grid does NOT
-              guess it: the combination is REFUSED rather than given a
-              meaning, and the refusal relaxes when #296 rules. Guard: the
-              range rows below.
-            - a `winner:` target that is unindexed, or indexed but declared
-              with a type no game can be ranked by, is the sibling defect on
-              the other declaration clause (issue #153); guard: none yet —
-              it is its own change because 124 fixture games in this suite
-              declare one.
+does not prove:  two things, each a place the grid samples rather than
+            crosses.
+            That the property survives team ARITY and COUNT. The candidates
+            include a one-team game and multi-team games, but the partition
+            property is per-seat, so how many teams a declaration names is
+            read as immaterial rather than crossed against the candidate axis.
+            That an out-of-range member is refused at every magnitude. It is
+            sampled at one such value, because the check is `s < count` and 5
+            and 999999 reach that branch alike.
 """
 
 from __future__ import annotations
@@ -143,7 +123,7 @@ def test_teams_cell(
         assert "player" in message and "teams" not in message, message
         return
     # A game declaring no `teams:` has nothing to partition, whatever its
-    # player count: the guard must not fire on the 25 corpus games that
+    # player count: the guard must not fire on the corpus games that
     # declare none.
     if label == "absent":
         check_dsl(source, "teams.cardlang")

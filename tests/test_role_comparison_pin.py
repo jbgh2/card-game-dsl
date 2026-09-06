@@ -53,31 +53,28 @@ domain:     the first half is mypy's, over every expression in the package --
             in. Both axes DERIVED: the role ids from `domains.Role` (so adding
             a row widens the guard without editing it), the module set from the
             filesystem glob (so a new module is covered the day it lands).
+
+            The `tests/` tree sits outside the second half, and it is a scope
+            limit rather than a hole. mypy holds test code to the same
+            `--strict` bar, so the TYPE half of the property reaches it exactly
+            as it reaches the package -- a test comparing a `Role` to a string
+            literal fails the build. What is unswept there is only the
+            coincidence band, whose members in test code are overwhelmingly
+            game SOURCE text (`hand[player]` inside a DSL fixture), where a
+            role spelling is the thing under test rather than a classification
+            anyone could have got wrong. R4 -- auditor-only, and it guards no
+            information-set guarantee; whether to sweep it at all is issue #152.
 registry:   `cardlang.domains.Role` for the spellings; `cardlang/**/*.py[i]`
-            for the modules.
-covered:    the multiset guard over every coincident literal in every module
-            (`test_role_spellings_outside_the_type_are_guarded`); the derivation
-            pin (`test_the_role_axis_follows_whatever_registry_it_is_given`),
-            which calls the derivation with a SYNTHETIC registry so a
-            hand-written set fails even when it happens to equal today's; and
-            the exemption pin (`test_only_the_top_level_domains_module_is_
-            exempt`), which builds a tree carrying both `pkg/domains.py` and
-            `pkg/sub/domains.py`.
-sampled:    none.
-residual:   ONE, down from three. The `tests/` tree is not swept. mypy DOES
-            hold it to the same `--strict` bar, so the type half of the
-            property covers it exactly as it covers the package -- a test
-            comparing a `Role` to a string literal fails the build. What is
-            unswept there is only the coincidence band, whose members in test
-            code are overwhelmingly game SOURCE text (`hand[player]` inside a
-            DSL fixture), where a role spelling is the thing under test rather
-            than a classification anyone could have got wrong. R4 --
-            auditor-only, and it guards no information-set guarantee. Recorded
-            in issue #152, which stays open for it and for the `tests/` sweep's
-            own framing check. The other two residuals this module used to
-            carry are CLOSED by the type: a role reached through a variable is
-            now a type error at every consumer, and marker reasons no longer
-            exist to be unreadable prose.
+            for the modules. `_RETURNS_KEYED_ROLES` against `ZONE_INDEX_ROLES`:
+            tests/test_openspiel_returns_keying.py.
+does not prove:  that any authorized coincidence IS one. The guard compares a
+            per-module MULTISET of spellings, so replacing one `"player"` with
+            another inside the same module -- an axis name retired and a role
+            dispatch spelled as a string in its place -- leaves the multiset
+            unmoved and passes. What a green establishes is that no NEW
+            coincident literal enters a module unlooked-at; the classification
+            of each one is the reader's, recorded in the comments above
+            `_COINCIDENT_ROLE_LITERALS`.
 """
 from __future__ import annotations
 

@@ -63,6 +63,10 @@ is excluded (`RenamePlan.excluded_contract`) rather than renamed. Note this
 exclusion is derived from the library's own `requires` block, not a
 hand-listed set, so it tracks the libraries automatically.
 
+A gather reached with cards in both an excluded zone and a renamed one
+collects in a different order under the rename, so the pairing property
+fails on a correct game; issue #194 holds that false-positive class.
+
 **`hand` is a language-wide magic name, not a renamable zone.** decisions.md
 "Declared parameter domains": a `Card`-typed move parameter enumerates "the
 acting player's live hand" and "a Card parameter in a game with no
