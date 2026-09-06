@@ -113,8 +113,8 @@ def _bundled(contract: InvocationContract) -> bool:
 def declared_primitives(game: n.Game) -> dict[str, primitives.Declared] | None:
     """The game's `primitives { }` block, materialized: one dispatch entry per
     declared [[primitive]]. None for a game declaring no block, which is a
-    game that borrows no Python at a call position: the legacy dispatch it is
-    then left on holds no arm.
+    game that borrows no Python at a call position: nothing else dispatches
+    one.
 
     Every fact a call needs is resolved HERE, at the one load site, the
     `declared_trick_order` precedent above: the implementation is imported from

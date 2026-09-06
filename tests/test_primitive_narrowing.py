@@ -1432,6 +1432,7 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     `coerce_args` copies it rather than passing the engine's live card.
     Immutable scalars (`Player`, ...) pass through unchanged."""
     from cardlang.builtins.signatures import CALL_SIGS
+    from cardlang.primitives_block import implementation_sig
     from cardlang.runtime.reads import coerce_args
 
     card = Card("3", "hearts")
@@ -1441,7 +1442,8 @@ def test_scalar_card_args_are_copied_at_the_call_boundary() -> None:
     assert card.rank == "3", "mutating the copy reached the engine's Card"
 
     # An immutable scalar (a TPlayer int) is a no-op, not refused.
-    p_sig = CALL_SIGS["canasta_stage_ok"]  # [TPlayer, TCard]
+    p_sig = implementation_sig("canasta_stage_ok")  # [TPlayer, TCard]
+    assert p_sig is not None
     assert coerce_args(p_sig, [1, card])[0] == 1
 
 

@@ -633,3 +633,99 @@ each answered in the change rather than marked:
 - `_HASHSEED_CAPTURE`'s comment claimed its record sits at or below the grain
   of every golden in its domain. Coup's coins now ride no channel it records;
   the comment says which divergence is the golden's to catch instead.
+
+## Gate-4 addendum (2026-09-05, recorded at the closing change — the derived consumer set against the counsel's statement)
+
+The counsel's (c) lists the `CALL_SIGS` consumers to re-point and the
+framing check's section 3 splits the table by half. Two derived facts the
+lists do not carry, each answered in the change rather than marked:
+
+- **The dispatchability pin's channel.** `test_call_funcs_are_dispatchable`
+  swallowed any non-`AssertionError` to mean "reached real code past the
+  match" (`tests/test_signatures.py`, the framing check's silent-pass
+  hazard). Re-channelling `native_call`'s refusal to `ShadowGuardError`
+  makes that swallow accept the refusal itself, so the cell would have gone
+  green while proving nothing. It asserts the refusal's own channel AND its
+  message text, and carries `expects_shadow_guard` — the house's mark for a
+  Shadow Guard exercised on purpose. The ledger says what the green proves:
+  the refusal discriminates a Primitive from a Builtin, never that a
+  designer reaches it.
+- **What replaces `set(CALL_FUNCS) == set(CALL_SIGS)`.** That one line
+  pinned "every call name has a signature". At the end state the Primitive
+  half of that fact has two carriers and the ledger sentences name both,
+  because each covers only its own half: the index's import-time
+  `frozenset(PRIMITIVE_IMPLEMENTATIONS) == PRIMITIVE_CALL_FUNCS` says no
+  registered name lacks a ROW, and `sig` being a required field of a frozen
+  `Implementation` says no row lacks a SIGNATURE — rung 1, since such a row
+  does not construct. Naming either alone over-credits it. That the
+  signature a row states is the RIGHT one is a third fact, and it is the
+  cells' (`tests/test_signatures.py`'s annotation and arity
+  reconciliations, `typecheck._check_primitive_signatures` against the
+  game's declaration).
+
+And one measured fact the counsel's (c) relies on without stating: the two
+halves of the call registry are disjoint (`BUILTIN_CALL_FUNCS &
+PRIMITIVE_CALL_FUNCS` is empty), which is what makes `set(CALL_SIGS) ==
+BUILTIN_CALL_FUNCS` a statement that no Primitive is keyed there rather than
+one an overlapping name could satisfy while remaining in both tables.
+
+The transcription of the 44 signatures was crossed against `CALL_SIGS` row by
+row while both statements stood, under an assert that shipped in the commit
+adding the column and left with the table half it crossed: `mypy --strict`
+catches a missing signature, and nothing but that assert could catch a wrong
+one.
+
+### The audit's framing check (2026-09-05, fresh-context over the whole package — the derived domain against this change's)
+
+Run per the `surface-totality-audit` skill's Step 1, over "how a native name
+reaches the Python that implements it, and where the facts about that name are
+stated", with the definition sources set to the entire `cardlang/` package and
+no sight of the diff. Its axes for the routes, the signature tables and the
+reads statement agree with the change's, and it reports the end state:
+`CALL_SIGS` covering `BUILTIN_CALL_FUNCS` exactly, the index's `sig` column
+covering `PRIMITIVE_CALL_FUNCS` exactly, `runtime/primitives.py`'s arm set
+empty, and the refusal a Shadow Guard naming resolve's arms.
+
+One axis it names that the change's derivation did not state, in the change:
+`native_call` picks between `ctx.rs.declared_sigs` and `CALL_SIGS` per NAME,
+and nothing at that line says the two cannot both hold it. They cannot —
+resolve refuses a block entry named after a Builtin, and `CALL_SIGS` is
+exactly the Builtins — so the line names that Owner and its witness.
+
+Two findings outside the change, each verified by execution before filing and
+neither touched by its diff: declaring the standard trick winner
+`highest_of_led_suit` in a block is refused as unimplemented, because the
+winner slot's namespace is walled only on its empty game-local half
+(issue #579); and `VALUE_SIGS` / `EARLY_SIGS` have no consumer in `cardlang/`,
+so the type each states is checked against nothing (issue #580).
+
+### The audit's misuse-probe pass (2026-09-05, fresh-context adversarial, ~95 probes)
+
+Run per the `surface-totality-audit` skill's Step 2 against the six claims
+the end state makes, from a fresh context told to break them. What HELD, in
+its words: the registries are disjoint every way it crossed them; the only
+import of a Primitive's Python is the driver's, gated on the declaration (a
+sweep of every registered attribute across `cardlang/` found no second
+route); a blockless game, an empty block, and a block omitting the name are
+refused with the block-naming diagnostic in every one of thirteen predicate
+and expression contexts; `native_call` under a blockless or empty table
+raises the Shadow Guard naming its owner; every signature-disagreement axis
+is caught; and the phase-scoped reads machinery held under every route it
+could construct.
+
+One finding lands in the change, and is fixed in it: `runtime/primitives.py`'s
+Contract said an arm for a call-position Primitive is illegal because "there is
+no dispatcher here to add one to". The module holds `joint_codec_function`,
+whose arms name two call-position Primitives as the roots of a joint
+predicate. The ban's substance holds — none of the slot dispatchers invokes a
+Primitive — and the clause now says that instead of a fact about the module
+that is not true of it.
+
+Three findings outside the change, each reproduced by the author before
+filing: a bare trick-winner or auction-outcome name is an accepted expression
+and leaves a Python function object in an `Integer` state variable, over all
+six of `VALUE_NAMES` (issue #581, and the false `AssertionError` its three
+auction outcomes reach rides with it); calling a walled Primitive is refused
+as an unknown function though the block position names its namespace, over all
+ten walled names (issue #582); and a library calling a Primitive is told the
+name is not a native function (issue #583).

@@ -17,7 +17,7 @@ the corpus as well as the code — while the naming authority had said since the
 glossary's first commit that `stdlib` names only the layer written in the
 language. `native` was already the repo's own word for the union
 (`builtins/__init__.py`: "both halves of the native surface";
-`runtime/primitives.py`: "unknown legacy native function"); the sweep promoted
+`runtime/evaluate.py`'s dispatcher is `native_call`); the sweep promoted
 it from incidental usage to the name.
 
 Four sibling words divide the space, and a sentence that reaches for `stdlib`

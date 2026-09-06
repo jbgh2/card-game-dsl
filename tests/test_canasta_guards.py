@@ -14,9 +14,9 @@ domain:     deck consumers keyed by deck name (size table, build_deck,
             duplicate-cards x joint-selection interaction; the primitive
             namespace's registries and the game's own declaration
 registry:   DECKS (cardlang/runtime/values.py) / _DECK_SIZE
-            (cardlang/stdlib/enums.py); CALL_FUNCS / CALL_SIGS /
-            DECLARED_ONLY_CALL_FUNCS; the `primitives { }` block
-            canasta.cardlang declares, which is where its reads live
+            (cardlang/stdlib/enums.py); CALL_FUNCS / PRIMITIVE_CALL_FUNCS;
+            the `primitives { }` block canasta.cardlang declares, which is
+            where its reads live
 covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             (parametrized over sorted(DECKS) — the new entry enters
             automatically); name/arity/annotation coherence:
@@ -34,9 +34,9 @@ covered:    size pin: tests/test_deckcheck.py::test_deck_size_matches_runtime
             adapter registration: the corpus glob <-> registry pin and the
             proof-module coverage pin (both two-sided, automatic); a
             declared-only name called from a game with no block:
-            tests/test_primitives_block.py's regime product, whose
-            declared-only axis is `DECLARED_ONLY_CALL_FUNCS` itself, so these
-            six enter it automatically and it Owns that refusal; the
+            tests/test_primitives_block.py's regime product, whose name axis
+            is `PRIMITIVE_CALL_FUNCS` itself, so these six enter it
+            automatically and it Owns that refusal; the
             probes below (convention guard, combo guard, unknown name, wrong
             arity); the 54-distinct-card block pin below
 sampled:    deckcheck capacity at 108 — exercised by the corpus game's own
@@ -62,8 +62,8 @@ def _game(
     """A canasta108 probe game. `block` is its `primitives { }` entries,
     written only by the cell whose subject is a declared Primitive's CALL:
     Canasta's Primitives are reached by declaration alone
-    (`DECLARED_ONLY_CALL_FUNCS`), so a game with no block is refused at the
-    name and the call is never typed at all."""
+    (`PRIMITIVE_CALL_FUNCS`, every member of it), so a game with no block is
+    refused at the name and the call is never typed at all."""
     return (
         "game G {\n"
         "  players: 4\n"

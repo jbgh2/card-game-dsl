@@ -1,6 +1,6 @@
-// Guard: resolve.py's `_validate_refs`, the declared-only arm. A Primitive in
-// `DECLARED_ONLY_CALL_FUNCS` has no legacy `call` arm, so a declaration is the
-// only route to its Python. The name is still a Primitive, so the legacy
+// Guard: resolve.py's `_validate_refs`, the declared-only arm. No runtime
+// module holds a `call` arm for a Primitive, so a declaration is the only
+// route to its Python. The name is still a Primitive, so the corpus-wide
 // namespace admits it and "unknown function" would be false; this game writes
 // no `primitives { }` block, which is what the diagnostic must say.
 game PrimitivesDeclaredOnlyNoBlock {

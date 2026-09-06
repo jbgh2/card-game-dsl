@@ -409,7 +409,9 @@ def _expected_for_module(module: str) -> tuple[dict[str, frozenset[str]], set[tu
     """What a module's DECLARATIONS say it reads: per-kind name unions over
     both declaration sites — its `PRIMITIVE_READS` rows and the blocks of the
     games declaring its Primitives — and the exact (module, game) keys it must
-    look up through `reads.row`, which is the legacy site's alone."""
+    look up through `reads.row`, which is the ROWS' site alone: a block's reads
+    reach the implementation as its bundle, and every row a module still holds
+    is one a walled binder binds."""
     rows = [r for r in PRIMITIVE_READS if r.module == module]
     declared = _declared_for_module(module)
     state: set[str] = set(declared["state"])

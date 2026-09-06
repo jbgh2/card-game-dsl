@@ -9,14 +9,12 @@ single-card zone, so its argument is the [[permissive-top]] `TAny`; outcome
 value-callbacks return `TAny`; the `Resource` zone (`ChipStack`) holds `TAny`.
 These track the deferred parts of the typed object model.
 
-`CALL_SIGS` keys the whole call registry — the [[primitive]]s beside the
-[[builtins]] — though a Primitive is reached only by the
-`primitives { }` declaration of its game, and its Python only through the
-implementation index
-(`cardlang/primitives_block.py`, `PRIMITIVE_IMPLEMENTATIONS`). The plan of
-record docs/plans/2026-09-05-coup-eviction-stage3-closing.md ends that in its
-second change, moving the Primitive rows to an authored signature column on
-the index, which `implementation_sig` already reads them through.
+`CALL_SIGS` keys the [[builtins]] — the generic native functions the language
+ships — and nothing else. A [[primitive]]'s signature is the `sig` column of
+its row in the implementation index (`cardlang/primitives_block.py`,
+`PRIMITIVE_IMPLEMENTATIONS`), read through `implementation_sig`, beside the
+module and attribute that find its Python: one table per half, so a Primitive
+key here is a signature no declaration reconciles.
 """
 
 from __future__ import annotations
@@ -76,14 +74,6 @@ CALL_SIGS: dict[str, Sig] = {
     "suit_of": Sig((TAny(),), TEnum("Suit")),
     "strain_index": Sig((TOptional(TEnum("Suit")),), TInteger()),  # strain bidding rank
     "error": Sig((TString(),), TAny()),  # the if_impossible fallback
-    "bring_in_seat": Sig((), TPlayer()),  # Stud: lowest-door seat (no args; reads upcards)
-    "first_to_act_seat": Sig((), TPlayer()),  # Stud: highest-upcards live seat
-    "pot_share": Sig((TPlayer(),), TInteger()),  # Stud: showdown chips for a player
-    # Hold'em: the showdown side-pot share (ranks cards, so deck-only).
-    "holdem_pot_share": Sig((TPlayer(),), TInteger()),
-    # Heads-up Hold'em's showdown share: a second binding of `holdem_pot_share`'s
-    # query, not a second query; issue #232 retires the name.
-    "holdem_heads_up_pot_share": Sig((TPlayer(),), TInteger()),
     "rank_value": Sig((TCard(),), TInteger()),  # a card's rank strength (higher = stronger)
     "card_points": Sig((TCard(),), TInteger()),  # a card's points under `card_points { }`
     # Positional order reads (decisions.md "Position domains and positional
@@ -91,9 +81,6 @@ CALL_SIGS: dict[str, Sig] = {
     # arrival), bottom = the front. Loud runtime error on an empty collection.
     "top_of": Sig((TCollection(TCard()),), TCard()),
     "bottom_of": Sig((TCollection(TCard()),), TCard()),
-    "pinochle_meld_value": Sig((TPlayer(),), TInteger()),  # Pinochle: a hand's meld under trump
-    "tarot_excuse_player": Sig((), TOptional(TPlayer())),  # French Tarot: who played the Excuse
-    "tarot_per_opp": Sig((TInteger(),), TInteger()),  # French Tarot: the per-opponent settlement
     # The standard trump-game trick winner over a fully public pile's Arrival
     # Record (issue #256). The zone argument is polymorphic like `suit_of`'s
     # (TAny: the runtime needs the Zone handle, not coerced elements — the
@@ -115,56 +102,6 @@ CALL_SIGS: dict[str, Sig] = {
     # `ARRIVAL_RECORD_CALLS`.
     "follows_lead": Sig((TCard(), TAny()), TBoolean()),
     "highest_by_trick_order": Sig((TAny(),), TPlayer()),
-    "skat_next_bid": Sig((TInteger(),), TInteger()),  # Skat: the next Reizen ladder value
-    "skat_matadors": Sig((TPlayer(),), TInteger()),  # Skat: with/without matador count
-    "tichu_dragon_won": Sig((), TBoolean()),  # Tichu: Dragon captured the last trick?
-    "peg_pair_points": Sig((), TInteger()),  # Cribbage: live pegging-count pair points
-    "peg_run_points": Sig((), TInteger()),  # Cribbage: live pegging-count run points
-    "peg_origin_of": Sig((TCard(),), TPlayer()),  # Cribbage: who played a pegging-pile card
-    "salvo_combos": Sig((TPlayer(), TInteger()), TInteger()),  # Salvo: an army's combo bonus at one location
-    "cribbage_show_value": Sig((TPlayer(),), TInteger()),  # Cribbage: a hand's show score
-    "cribbage_crib_value": Sig((), TInteger()),  # Cribbage: the crib's show score
-    "gin_deadwood": Sig((TPlayer(),), TInteger()),  # Gin: optimal-partition deadwood of the hand
-    "gin_can_knock": Sig((TPlayer(),), TBoolean()),  # Gin: some discard leaves <= 10 (the announce guard)
-    "gin_knock_ok": Sig((TPlayer(), TCard()), TBoolean()),  # Gin: knock legality after this discard
-    "gin_valid_meld": Sig(
-        (TCollection(TCard()),), TBoolean()
-    ),  # Gin: joint meld validity (the defender's arrangement guard)
-    "gin_arrange_ok": Sig(
-        (TPlayer(), TCollection(TCard())), TBoolean()
-    ),  # Gin: valid meld AND the rest still arranges to <= 10 (the knocker's guard)
-    "gin_can_declare": Sig((TPlayer(),), TBoolean()),  # Gin: some declarable meld exists
-    "gin_can_declare_free": Sig(
-        (TPlayer(),), TBoolean()
-    ),  # Gin: some valid meld exists (defender — no knock budget)
-    "gin_lay_ok_a": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld A
-    "gin_lay_ok_b": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld B
-    "gin_lay_ok_c": Sig((TCard(), TPlayer()), TBoolean()),  # Gin: card extends knocker's meld C
-    "five_hundred_next_bid": Sig(
-        (TInteger(), TOptional(TEnum("Suit"))), TInteger()
-    ),  # 500: cheapest bid ordinal in a strain beating the standing bid (0 = none)
-    "five_hundred_bid_value": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> score value
-    "five_hundred_bid_level": Sig((TInteger(),), TInteger()),  # 500: contract ordinal -> trick target
-    "belote_royal_player": Sig((), TOptional(TPlayer())),  # Belote: who played a trump K/Q
-    "belote_best_is": Sig(
-        (TPlayer(), TInteger(), TEnum("Rank"), TBoolean()), TBoolean()
-    ),  # Belote: the declaration guard — stated combination is the best exactly
-    "belote_decl_points": Sig((TPlayer(),), TInteger()),  # Belote: best combination's points
-    "belote_decl_class": Sig((TPlayer(),), TInteger()),  # Belote: best combination's class
-    "belote_decl_height": Sig((TPlayer(),), TInteger()),  # Belote: best combination's height
-    "belote_decl_trump": Sig((TPlayer(),), TBoolean()),  # Belote: best combination in trump?
-    "belote_decl_size": Sig((TPlayer(),), TInteger()),  # Belote: declared-card count
-    "belote_decl_slot": Sig((TPlayer(), TInteger(), TCard()), TBoolean()),  # Belote: k-th declared card?
-    "canasta_can_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: legal pile take exists
-    "canasta_must_take_pile": Sig((TPlayer(),), TBoolean()),  # Canasta: no-stock forced take
-    "canasta_can_start": Sig(
-        (TPlayer(), TEnum("Rank")), TBoolean()
-    ),  # Canasta: a new meld of the rank is completable
-    "canasta_stage_ok": Sig(
-        (TPlayer(), TCard()), TBoolean()
-    ),  # Canasta: card joins the open attempt, close stays reachable
-    "canasta_close_ok": Sig((TPlayer(),), TBoolean()),  # Canasta: attempt closes as it stands
-    "canasta_canasta_bonus": Sig((TTeam(),), TInteger()),  # Canasta: canasta bonuses
 }
 
 # Outcome / value callbacks passed by bare name — result type is mechanic-driven.

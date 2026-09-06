@@ -40,9 +40,9 @@ covered:    name/arity/type misuse at resolve/typecheck (the probes
             top-five quinte cut, and the non-declarable 8/7 carres
 does not prove: that a call to an implemented Primitive this block OMITS is
             refused — that cell belongs to the regime product over
-            `DECLARED_ONLY_CALL_FUNCS`
+            `PRIMITIVE_CALL_FUNCS`
             (tests/test_primitives_block.py), which covers it for every
-            declared-only name including these, and restating it per game
+            Primitive including these, and restating it per game
             would be the same fact on a lower rung
 sampled:    the ctx-reading accessors (belote_decl_* / royal_player) are
             exercised end-to-end by the playout oracle

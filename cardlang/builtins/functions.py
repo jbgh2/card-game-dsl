@@ -188,6 +188,13 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
 # PRIMITIVES — game-local: sanctioned Python whose meaning belongs to one game.
 # This set is the elimination metric's declaration side; it shrinks as
 # `design-notes/primitive-inventory.md`'s constructs land in the language.
+#
+# Every member is reached by DECLARATION and by nothing else: a game names it
+# in its `primitives { }` block and the dispatch derives from that
+# (`runtime/primitives.py`, `Declared`). This set is therefore also what
+# resolve refuses a blockless game by (`_validate_refs`, the declared-only
+# arm): the name is a Primitive, so the corpus-wide namespace admits it, and a
+# declaration is its only route to Python.
 PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
@@ -237,75 +244,11 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
     }
 )
 
-# The Primitives a game reaches ONLY by declaring them in its `primitives { }`
-# block, so `runtime/primitives.py` holds no `call` arm for them: the dispatch
-# derives from the declaration (`runtime/primitives.py`, `Declared`). Stated
-# here on the DECLARATION side, which is what lets the dispatch-split grid
-# (tests/test_native_dispatch_split.py) cross this against its scrape of the
-# home modules rather than checking either against a copy of itself. A
-# Primitive absent from this set is expected to carry an arm, so a newly
-# registered declared-only name lands red until it is classified here.
-#
-# It is also what resolve refuses a legacy-regime game by (`_validate_refs`,
-# the declared-only arm): the name is a Primitive, so the legacy namespace
-# admits it, and a declaration is its only route to Python. This set holds
-# every Primitive, so it is a second authored copy of `PRIMITIVE_CALL_FUNCS`
-# and states nothing that set does not. The plan of record
-# docs/plans/2026-09-05-coup-eviction-stage3-closing.md retires it with the
-# legacy dispatch table in its second change, where resolve's arm keys the
-# registry directly.
-DECLARED_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
-    {
-        "belote_best_is",
-        "belote_decl_class",
-        "belote_decl_height",
-        "belote_decl_points",
-        "belote_decl_size",
-        "belote_decl_slot",
-        "belote_decl_trump",
-        "belote_royal_player",
-        "bring_in_seat",
-        "canasta_can_start",
-        "canasta_can_take_pile",
-        "canasta_canasta_bonus",
-        "canasta_close_ok",
-        "canasta_must_take_pile",
-        "canasta_stage_ok",
-        "cribbage_crib_value",
-        "cribbage_show_value",
-        "first_to_act_seat",
-        "five_hundred_bid_level",
-        "five_hundred_bid_value",
-        "five_hundred_next_bid",
-        "gin_arrange_ok",
-        "gin_can_declare",
-        "gin_can_declare_free",
-        "gin_can_knock",
-        "gin_deadwood",
-        "gin_knock_ok",
-        "gin_lay_ok_a",
-        "gin_lay_ok_b",
-        "gin_lay_ok_c",
-        "gin_valid_meld",
-        "holdem_heads_up_pot_share",
-        "holdem_pot_share",
-        "peg_origin_of",
-        "peg_pair_points",
-        "peg_run_points",
-        "pinochle_meld_value",
-        "pot_share",
-        "salvo_combos",
-        "skat_matadors",
-        "skat_next_bid",
-        "tarot_excuse_player",
-        "tarot_per_opp",
-        "tichu_dragon_won",
-    }
-)
 
-# The whole call namespace: what resolve accepts as a known `f(...)` name, and
-# the surface CALL_SIGS must cover. DERIVED from the two homes, so a name can
-# never be in the namespace without a home having claimed it.
+# The whole call namespace: what resolve accepts as a known `f(...)` name.
+# DERIVED from the two homes, so a name can never be in the namespace without
+# a home having claimed it. Each home states its own signatures — `CALL_SIGS`
+# the Builtins', the implementation index's `sig` column the Primitives'.
 CALL_FUNCS: frozenset[str] = BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS
 
 

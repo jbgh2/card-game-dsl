@@ -374,9 +374,10 @@ def _round_game(*, leader: str = "0", participants: str = "all players") -> str:
 # `canasta_canasta_bonus` is the one Primitive whose signature takes a `Team`,
 # and a declaration is its only route to Python, so a cell putting a team
 # literal in its argument needs a block to reach the range check at all. The
-# entry is rendered from `CALL_SIGS` through the regime product's own renderer
-# rather than spelled a second time here, so it cannot drift from the signature
-# the declared shape check compares it against.
+# entry is rendered from the implementation index's own signature column
+# through the regime product's renderer rather than spelled a second time
+# here, so it cannot drift from the signature the declared shape check
+# compares it against.
 _TEAM_PRIMITIVE = "  primitives { " + _entry_and_body("canasta_canasta_bonus")[0] + " }\n"
 
 

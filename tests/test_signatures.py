@@ -4,21 +4,38 @@ signatures are correct (cardlang/builtins/signatures.py).
 property:   the Builtin and Primitive name sets, the signature tables, and
             the runtime dispatchers are one interface — every name in a *tabled*
             registry has a signature row, every *callable* name reaches a
-            dispatch arm, and for CALL_SIGS additionally the same per-name
-            arity and, where an arm plainly forwards to a named helper,
-            Python annotations that agree with the declared DSL types
+            dispatch arm, and for a call signature — `CALL_SIGS` for the
+            Builtins, the implementation index's `sig` column for the
+            Primitives — additionally the same per-name arity and, where an
+            arm plainly forwards to a named helper, Python annotations that
+            agree with the declared DSL types
 domain:     every registry with a signature table × that table; every
             callable registry × the dispatcher(s) serving it (the climb
             lead set is served twice — by its query, and by the action
-            space's codec-else-universe pair); every CALL_SIGS entry ×
+            space's codec-else-universe pair); every call-signature entry of
+            both tables that state one — the Builtins' `CALL_SIGS` and the
+            implementation index's `sig` column — ×
             {name, arity, param annotations, return annotation}
-registry:   the name sets themselves for names; the dispatch's own AST for
-            what each arm consumes (derived by parsing, never hand-listed)
+registry:   the name sets themselves for names; for the runtime side of a
+            call signature, the Builtins' `call` match AST for what each arm
+            consumes (derived by parsing, never hand-listed) and the
+            implementation index's own rows, whose module and attribute
+            resolve to the Python a Primitive runs
 covered:    names (set equality both ways, every tabled registry),
             dispatchability (every callable registry, against its
-            dispatcher), arity (all arms), annotations for every
-            plain-forward arm and its return
+            dispatcher), arity (every call signature, over both tables),
+            annotations for every plain-forward arm, every indexed
+            implementation, and their returns
 sampled:    none
+does not prove: that a designer can REACH the dispatch refusal
+            `test_call_funcs_are_dispatchable` exercises. That call is at
+            function grain, and resolve's declared-only arm refuses every
+            sentence that would reach it — so the green says the refusal
+            discriminates a Primitive from a Builtin, never that a game
+            description meets it. The Owner Guard's own witness is
+            tests/test_primitives_block.py::test_the_regime_product_lands_where_the_table_says,
+            with the rendered message at
+            tests/rejections/primitives_declared_only_no_block.
 residual:   inline arms (an expression instead of a helper call — team_of,
             card_points, error) get arity-only
             coverage: there is no annotation to introspect, and the
@@ -57,6 +74,8 @@ import importlib
 import inspect
 import typing
 
+import pytest
+
 from cardlang.builtins.functions import (
     BOARD_ONLY_CALL_FUNCS,
     CALL_FUNCS,
@@ -82,8 +101,19 @@ from cardlang.types import TAny, TCard, TCollection, TEnum, TOptional, TPlayer, 
 
 def test_tables_reconcile_with_name_sets() -> None:
     # The declaration side is data: the signature tables must cover exactly
-    # the name sets, both directions.
-    assert set(CALL_SIGS) == set(CALL_FUNCS)
+    # the name sets, both directions. The call registry has two signature
+    # tables, one per half: `CALL_SIGS` for the Builtins, and the `sig` column
+    # of the implementation index for the Primitives. Each is asserted against
+    # its own half, so a Primitive keyed in `CALL_SIGS` fails here by name
+    # rather than being absorbed into a union.
+    from cardlang.builtins.functions import BUILTIN_CALL_FUNCS, PRIMITIVE_CALL_FUNCS
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
+
+    assert set(CALL_SIGS) == set(BUILTIN_CALL_FUNCS)
+    assert {
+        name: impl.sig for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()
+    }.keys() == set(PRIMITIVE_CALL_FUNCS)
+    assert BUILTIN_CALL_FUNCS | PRIMITIVE_CALL_FUNCS == CALL_FUNCS
     assert set(VALUE_SIGS) == set(VALUE_NAMES)
     assert set(EARLY_SIGS) == set(PRIMITIVE_EARLY_PREDICATES)
     assert set(ZONE_CONTENT) == set(LIBRARY_ZONE_TYPES)
@@ -173,19 +203,22 @@ def test_climb_action_space_is_derivable() -> None:
             assert callable(climb_universe_function(name))
 
 
+@pytest.mark.expects_shadow_guard
 def test_call_funcs_are_dispatchable() -> None:
-    # Each name registered in CALL_FUNCS must reach a real arm of
-    # call()'s match — not fall through to its loud `case _` default. Unlike
+    # Each name registered in CALL_FUNCS must reach the route its kind has:
+    # a Builtin a real arm of `builtins.call`'s match, a Primitive the loud
+    # refusal that stands where its declaration would have put a table. Unlike
     # value_function/climb_lead_function (which just return a callable
-    # reference), call() dispatches AND executes in the same statement, so
-    # there is no args-free way to "just look up" an arm: invoke each name
-    # with no args and a minimal-but-real Ctx, and treat any exception other
-    # than the default arm's AssertionError as proof the name was dispatched
-    # (wrong arg count, missing runtime state, etc. all reach real code past
-    # the match).
+    # reference), the dispatch executes in the same statement, so there is no
+    # args-free way to "just look up" an arm: invoke each name with no args and
+    # a minimal-but-real Ctx, and treat any exception other than the refusal as
+    # proof the name was dispatched (wrong arg count, missing runtime state,
+    # etc. all reach real code past the match).
     import random
 
     from cardlang.ast import nodes as n
+    from cardlang.builtins.functions import PRIMITIVE_CALL_FUNCS
+    from cardlang.runtime.errors import ShadowGuardError
     from cardlang.runtime.evaluate import native_call as call
     from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
     from cardlang.runtime.values import Seating
@@ -194,50 +227,46 @@ def test_call_funcs_are_dispatchable() -> None:
     rs = RuntimeState(Seating(2), ZoneStore(decls, (0, 1)), random.Random(0))
     ctx = Ctx(rs=rs, chooser=lambda p, c, k: list(c[:k]))
 
-    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
-
     for name in CALL_FUNCS:
-        # A declared-only Primitive reaches its Python through `call_declared`
-        # off the table a game's `primitives { }` block derives, so the legacy
-        # `call` MUST refuse it — asserting the complement rather than
-        # excluding the name keeps the exclusion from quietly growing to cover
-        # one that should have an arm. No game description reaches that
-        # refusal: resolve's declared-only arm (`_validate_refs`) is the Owner
-        # Guard, witnessed at
+        # This probe builds no `primitives { }` table, so it is a blockless
+        # game's dispatch: a Primitive MUST be refused here — asserting the
+        # complement rather than excluding the Primitives keeps the exclusion
+        # from quietly growing to cover a Builtin that should have an arm. No
+        # game description reaches that refusal: resolve's declared-only arm
+        # (`_validate_refs`) is the Owner Guard, witnessed at
         # test_the_regime_product_lands_where_the_table_says
         # (tests/test_primitives_block.py) and pinned as a rendered message at
-        # tests/rejections/primitives_declared_only_no_block. The fallthrough
-        # stands behind it, which is why the message says LEGACY: a registered
-        # Primitive is not unknown to the engine, only to this dispatch.
+        # tests/rejections/primitives_declared_only_no_block.
         # Shadow Guard: the Owner Guard for which names have an arm is
         # tests/test_native_dispatch_split.py::test_call_arm_home, and for
         # whether the index resolves to real Python it is
         # test_every_indexed_implementation_resolves
         # (tests/test_primitives_block.py).
-        declared_only = name in DECLARED_ONLY_CALL_FUNCS
+        is_primitive = name in PRIMITIVE_CALL_FUNCS
         try:
             call(name, [], ctx)
-        except AssertionError as e:
-            fell_through = "unknown legacy native function" in str(e)
-            assert fell_through == declared_only, (
-                f"{name!r} falls through call()'s default arm: {e}"
-                if fell_through
-                else f"{name!r} has a legacy `call` arm and is declared-only"
+        except ShadowGuardError as exc:
+            # The refusal's OWN channel and text, not merely "some exception":
+            # a Builtin whose body raised this would otherwise read as refused,
+            # and a refusal re-channelled elsewhere would read as dispatched.
+            assert "nothing may dispatch it" in str(exc), (
+                f"{name!r} met a Shadow Guard that is not the dispatch "
+                f"refusal: {exc}"
             )
-        except Exception as exc:  # noqa: BLE001 -- any non-AssertionError means
-            # the name reached real code past the match. A declared-only name
-            # must not: its refusal IS the fallthrough's channel, so accepting
-            # any other exception for one would let a fallthrough re-channelled
-            # to a different type pass here in silence.
-            assert not declared_only, (
-                f"{name!r} is declared-only, so the legacy dispatch refuses it "
-                f"through the fallthrough's AssertionError; it raised "
-                f"{type(exc).__name__}: {exc}"
+            assert is_primitive, (
+                f"{name!r} is a Builtin and the dispatch refused it: {exc}"
+            )
+        except Exception as exc:  # noqa: BLE001 -- anything else means the name
+            # reached real code past the match. A Primitive must not: its
+            # refusal IS the ShadowGuardError above.
+            assert not is_primitive, (
+                f"{name!r} is a Primitive, so a blockless game's dispatch "
+                f"refuses it; it raised {type(exc).__name__}: {exc}"
             )
         else:
-            assert not declared_only, (
-                f"{name!r} is declared-only, so the legacy dispatch must refuse "
-                f"it; the call returned instead"
+            assert not is_primitive, (
+                f"{name!r} is a Primitive, so a blockless game's dispatch must "
+                f"refuse it; the call returned instead"
             )
 
 
@@ -267,17 +296,20 @@ def test_known_call_signatures() -> None:
     assert CALL_SIGS["suit_of"].ret == TEnum("Suit")
 
 
-# --- CALL_SIGS <-> runtime dispatch reconciliation ----------------------------
+# --- declared signature <-> runtime dispatch reconciliation -------------------
 #
-# CALL_SIGS states each native function's interface once for the checker; the
-# `call()` match (across both dispatch homes) states it again for the runtime (how many
-# `args[i]` the arm consumes, and the Python annotations of the helper it
-# forwards to). Two statements of one interface, which nothing else
+# A native call's interface is stated once for the checker — `CALL_SIGS` for
+# the Builtins, the implementation index's `sig` column for the Primitives —
+# and once for the runtime: a Builtin's `call` arm by how many `args[i]` it
+# consumes and the Python annotations of the helper it forwards to, a
+# Primitive by the annotations of the Python its index row names. Two
+# statements of one interface, which nothing else
 # reconciles: a helper declared `Rank?` to the DSL but annotated `rank: str`
 # to Python would deny the `none` value the checker admits (and the body
 # deliberately handles — an unset claim matches no card), and the two
-# statements would disagree in silence. These pins derive both facts from the
-# dispatch's AST rather than a third hand-written list.
+# statements would disagree in silence. These pins derive the runtime side
+# from the dispatch's AST and the index's own rows rather than from a third
+# hand-written list.
 
 
 @dataclasses.dataclass(frozen=True)
@@ -287,24 +319,38 @@ class _DispatchFact:
     helper_args: tuple[object, ...]  # per helper param: 'ctx', an int (args[i]), or None
 
 
-def _call_dispatch_facts() -> dict[str, _DispatchFact]:
-    """Both dispatch homes: `call` is split across the Builtins half and the
-    Primitives half (issue #201), and CALL_SIGS covers their union, so a scrape
-    of one home alone would report the other's whole set as undispatched."""
-    import cardlang.runtime.builtins as rt_builtins
-    import cardlang.runtime.primitives as rt_primitives
+def _all_call_sigs() -> dict[str, Sig]:
+    """Every native call's declared signature, from the table that states it:
+    `CALL_SIGS` for the Builtins, the index's own column for the Primitives.
+    The union is what the reconciliations below quantify over, because the
+    dispatch facts cover both halves and a per-half pin would leave the other
+    half's arms unreconciled."""
+    from cardlang.primitives_block import PRIMITIVE_IMPLEMENTATIONS
 
-    facts: dict[str, _DispatchFact] = {}
-    for module in (rt_builtins, rt_primitives):
-        facts.update(_facts_in(ast.parse(inspect.getsource(module)), module))
+    return {
+        **CALL_SIGS,
+        **{name: impl.sig for name, impl in PRIMITIVE_IMPLEMENTATIONS.items()},
+    }
+
+
+def _call_dispatch_facts() -> dict[str, _DispatchFact]:
+    """The two routes a native call takes: the `call` match in the Builtins
+    home, scraped, and the table a game's own `primitives { }` block derives at
+    load, read off the implementation index. Between them they cover the whole
+    registry, which is what lets the pins below quantify over it."""
+    import cardlang.runtime.builtins as rt_builtins
+
+    facts = _facts_in(
+        ast.parse(inspect.getsource(rt_builtins)), rt_builtins
+    )
     facts.update(_declared_facts())
     return facts
 
 
 def _declared_facts() -> dict[str, _DispatchFact]:
-    """The third route to a Primitive's Python: the table a game's own
+    """The other route to a Primitive's Python: the table a game's own
     `primitives { }` block derives at load (`runtime/primitives.py`,
-    `call_declared`). Such a name has no `call` arm to scrape, so its fact is
+    `call_declared`). A Primitive has no `call` arm to scrape, so its fact is
     built from the implementation index instead — the same both-ways
     reconciliation, against the index's statement of where the Python lives
     rather than against an arm's.
@@ -312,16 +358,14 @@ def _declared_facts() -> dict[str, _DispatchFact]:
     The shape is the invocation contract's: a BUNDLED implementation takes the
     two value bundles first (two positions the annotation check skips) and the
     declared arguments after, a PURE one the arguments alone."""
-    from cardlang.builtins.functions import DECLARED_ONLY_CALL_FUNCS
     from cardlang.primitives_block import (
         PRIMITIVE_IMPLEMENTATIONS,
         InvocationContract,
     )
 
     facts: dict[str, _DispatchFact] = {}
-    for name in DECLARED_ONLY_CALL_FUNCS:
-        impl = PRIMITIVE_IMPLEMENTATIONS[name]
-        arity = len(CALL_SIGS[name].params)
+    for name, impl in PRIMITIVE_IMPLEMENTATIONS.items():
+        arity = len(impl.sig.params)
         match impl.contract:
             case InvocationContract.BUNDLED:
                 bundles: list[object] = [None, None]
@@ -463,15 +507,16 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
 
 
 def test_call_sigs_arity_matches_the_dispatch() -> None:
-    """Every CALL_SIGS entry consumes exactly its declared parameter count in
-    the runtime match — an arm reading args[2] for a two-parameter signature
+    """Every declared signature consumes exactly its parameter count in the
+    dispatch it reaches — an arm reading args[2] for a two-parameter signature
     (or ignoring a declared parameter) is the interface disagreeing with
     itself."""
     facts = _call_dispatch_facts()
-    assert set(facts) == set(CALL_SIGS)
+    sigs = _all_call_sigs()
+    assert set(facts) == set(sigs)
     mismatched = {
         name: (len(sig.params), facts[name].arity)
-        for name, sig in CALL_SIGS.items()
+        for name, sig in sigs.items()
         if len(sig.params) != facts[name].arity
     }
     assert not mismatched, (
@@ -484,10 +529,15 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
     Python annotations must agree with the declared DSL types at every mappable
     position (including the return). This is the pin that catches a helper
     annotated `str` for a `Rank?` parameter — a lie mypy then enforces against
-    the body, denying a `none` the checker admits."""
+    the body, denying a `none` the checker admits.
+
+    For a Primitive the two statements are the index's `sig` column and the
+    implementation's own annotations — independently authored, which is what
+    the column being authored rather than derived from those annotations buys:
+    a derivation would make this cell compare a value with itself."""
     facts = _call_dispatch_facts()
     problems: list[str] = []
-    for name, sig in CALL_SIGS.items():
+    for name, sig in _all_call_sigs().items():
         fact = facts[name]
         if fact.helper is None or not callable(fact.helper):
             continue  # inline arm: arity is pinned above; nothing to introspect
@@ -503,15 +553,15 @@ def test_helper_annotations_agree_with_call_sigs() -> None:
             if actual != expected:
                 problems.append(
                     f"{name}: helper param '{params[pos]}' annotated {actual}, "
-                    f"CALL_SIGS declares {sig.params[shape]} (~ {expected})"
+                    f"the signature declares {sig.params[shape]} (~ {expected})"
                 )
         expected_ret = _python_type(sig.ret)
         if expected_ret is not None:
             actual_ret = hints.get("return")
             if actual_ret != expected_ret:
                 problems.append(
-                    f"{name}: helper returns {actual_ret}, CALL_SIGS declares "
-                    f"{sig.ret} (~ {expected_ret})"
+                    f"{name}: helper returns {actual_ret}, the signature "
+                    f"declares {sig.ret} (~ {expected_ret})"
                 )
     assert not problems, "\n".join(problems)
 
