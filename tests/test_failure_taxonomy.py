@@ -129,6 +129,11 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # report an illegal game must not swallow a missing corpus directory and
     # carry on with an empty game list.
     "InstallationError": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever chose which game files this process registers -------
+    # A sibling of InstallationError, not a child: the CLI answers that type by
+    # saying the checkout is incomplete, which is not what a caller who passed
+    # a path can act on.
+    "GameRegistrationError": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},

@@ -34,10 +34,11 @@ than `RuntimeError`: rooting at `RuntimeError` would silently make every
 `error(...)` deliberately and the move being refused IS the rule working. It
 stays a plain `Exception`.
 
-`InstallationError` is defined here but is deliberately NOT under
-`GameDescriptionError` — see its own docstring. It lives in this module because
-this is where the engine says who must act on a failure, and "the person who
-installed it" is one of those people.
+`InstallationError` and `GameRegistrationError` are defined here but are
+deliberately NOT under `GameDescriptionError` — see their own docstrings. They
+live in this module because this is where the engine says who must act on a
+failure, and "the person who installed it" and "the person who chose which
+game files this process loads" are two of those people.
 """
 
 from __future__ import annotations
@@ -102,4 +103,29 @@ class InstallationError(Exception):
     than on a list of file:line exclusions — an exclusion list would go stale
     the first time these modules were edited, and would silently swallow a
     genuine game-description guard added to them later.
+    """
+
+
+class GameRegistrationError(Exception):
+    """A game file offered to the OpenSpiel adapter cannot be registered.
+
+    Author: whoever chose which files this process registers — the caller of
+    `cardlang.openspiel.game.register_game_file`, or whoever set
+    `CARDLANG_GAMES`. Not the game author: the file may be legal cardlang and
+    still be unregisterable, because its short name is already taken or its
+    stem renders a name `pyspiel.load_game` cannot reach. A game the CHECKER
+    refuses raises the checker's own `DiagnosticError`, which addresses the
+    game author and reaches them with a span; that failure never arrives here.
+
+    A sibling of `InstallationError` rather than the same type, though the two
+    conditions rhyme — two files claiming one short name is the corpus's
+    failure when both sit in `docs/games/` and this one when a path is
+    offered. Their Authors differ, so a consumer that renders one renders it
+    wrongly for the other: `cardlang/cli.py` answers an `InstallationError` by
+    telling the reader their checkout is incomplete and to reinstall the
+    package, which is advice a caller who passed a path cannot act on.
+
+    Also not under `GameDescriptionError`, for the reason that keeps
+    `InstallationError` out: a harness catching that base to report an illegal
+    game must not swallow a registration that never happened.
     """

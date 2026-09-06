@@ -602,12 +602,15 @@ def test_widening_zone_index_roles_fails_resolve_at_import() -> None:
 
 
 # The registry-referencing guards the literal-collection predicate excludes.
-# Authorized one by one: each either validates a value AGAINST the registry
-# (widening the table widens the guard, so there is no hard-coded row to
-# witness) or reconciles two derived views against each other, which likewise
-# has no literal to go stale. Guarded rather than trusted, because the predicate
-# is a proxy: a reconciliation written without a literal collection lands here,
-# and must be looked at rather than pass unnoticed.
+# Authorized one by one: each validates a value AGAINST the registry (widening
+# the table widens the guard, so there is no hard-coded row to witness),
+# reconciles two derived views against each other, which likewise has no
+# literal to go stale, or matches a value against a registry that is a PATTERN
+# rather than a collection — where widening the pattern widens the guard the
+# same way, and there is no collection for a literal to be compared to at all.
+# Guarded rather than trusted, because the predicate is a proxy: a
+# reconciliation written without a literal collection lands here, and must be
+# looked at rather than pass unnoticed.
 _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # Not a hard-coded row pinned against a registry — it reconciles two
     # readings of ONE registry (every `Role` has a `Domain`), which is what
@@ -618,6 +621,18 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     "domains.py": ["set(BY_ID) == set(Role)"],
     "libraries.py": ["not _LIBRARIES_DIR.is_dir()"],
     "openspiel/encoding.py": ["not 0 <= action < NUM_DISTINCT_ACTIONS"],
+    # The pattern-registry shape, and the two sites of it. Each validates a
+    # short name the filesystem admitted against `SHORT_NAME_CHARS`, which owns
+    # what a stem may hold; widening the pattern widens both, and neither
+    # carries a hard-coded row. Two guards rather than one because the Authors
+    # differ — a corpus file that cannot be named is this checkout's problem,
+    # a path a caller offers is that caller's — so each raises in its own
+    # channel, which `registry._short_name` states as the reason the rule has
+    # one home and two appliers. Their witnesses are the `bad_stem_file` cells
+    # of the registration grid, one per source
+    # (tests/test_openspiel_registration.py).
+    "openspiel/game.py": ["not SHORT_NAME_CHARS.fullmatch(short_name)"],
+    "openspiel/registry.py": ["not SHORT_NAME_CHARS.fullmatch(name)"],
     # `runtime/reads.py`'s shape, one module over: it reconciles two registries
     # against each other rather than pinning one against a literal, so there is
     # no collection to widen and no witness of this module's shape. What it
