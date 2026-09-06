@@ -1,0 +1,20 @@
+// Guard: parse.py's failure rendering, the balanced-braces arm. A state row
+// separates its type from its initial value with `=`; a designer reaching for
+// the `:` that separated the name from the type writes a second one. The file's
+// braces balance, so no block is unclosed and the diagnostic names what the
+// language accepts at that point instead.
+game SyntaxColonForEquals {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer : 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}
