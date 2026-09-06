@@ -61,11 +61,11 @@ does not prove: that an exclusion reads only state its chooser can see. The
            property is the per-game proof harness, which runs over the
            corpus witness alone. No pass refuses a hidden read in any
            choose operand — issue #529.
-naming:    `excluding` mints no glossary entry: the clause is one English
-           word with one meaning on one construct, the sibling clause
-           `up to` carries none, the word appears in neither the glossary's
-           reserved-words table nor the grammar's NAME exclusions, and it
-           stays a legal identifier (the names-stay-names cells below).
+
+`excluding` mints no glossary entry: the clause is one English word with one
+meaning on one construct, the sibling clause `up to` carries none, the word
+appears in neither the glossary's reserved-words table nor the grammar's NAME
+exclusions, and it stays a legal identifier (the names-stay-names cells below).
 """
 
 from __future__ import annotations

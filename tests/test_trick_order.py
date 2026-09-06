@@ -122,113 +122,93 @@ does not prove:  five things, and the first two are about the VOICE of a
             exercise it clean THERE; a named terminal overlapping anonymous
             literals is precisely what breaks under the LALR tightening the
             grammar header announces.
-ruled:      every cut-level point this grid's cells rest on is ruled (issue
-            #250, the operator's PR-1 ruling 5321676867), and each was ruled
-            as the cells were authored, so no cell flipped: the `trump:` row
-            is REQUIRED and `trump: false` is the no-trump spelling; `trump:`
-            and `card_strength:` type strictly, only `follow_class:` coerces,
-            `TAny` refused; a row reads no `_PRONOUNS` member and makes no
-            `choose`, directly or through a helper, while declared state
-            variables stay readable; the row-callable Builtin surface is an
-            allow-list with its complement listed; the pile argument of every
-            Arrival-Record call is a static identity-to-all zone reference at
-            resolve and every trick round's play zone is one, both tightening
-            the EXISTING call form; `early` is refused beside the block
-            winner; the winner slot has two contracts keyed by
-            `TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`;
-            the call form emits no `trick` trace.
-cost:       the legality path evaluates a row per candidate per decision.
-            MEASURED per Doppelkopf playout, base and head INTERLEAVED (three
-            alternating reps of 20 games each on one machine, front end
-            outside the clock, median): base 61.4 ms/game, head 94.7 --
-            **1.54x**, against the 1.5x the Architect's prototype measured
-            (62 -> 92) and the operator accepted.
-            The dominant cost is the number of ROW EVALUATIONS on the follow
-            filter, not the weight of any one row: `follow_ok` asks
-            `follows_lead` once per candidate per decision, and each ask
-            walks the pile. Counted over three games: 34,899 row evaluations,
-            of which 33,307 are the follows path. `card_strength` runs 440
-            times and NEVER on that path -- strength is a winner-path fact,
-            which is why the banded row a designer writes does not drive the
-            cost. An earlier reading of this ledger said it did; it was wrong,
-            and the number it explained (1.85x) was the cost of projecting
-            each arrival through BOTH rows on every ask, before the lazy
-            Effective Lead landed.
-            No memo is built -- none is sound without an epoch counter, and
-            this repo built and reverted that one already; the measurement is
-            the record.
-            RE-MEASURED on Skat (issue #250 PR 2, the same method: three
-            alternating reps of 6 games, medians): base 212.7 ms/game, head
-            220.4 -- **1.04x**, on rows that READ STATE, which Doppelkopf's do
-            not, and 55,585 row evaluations per game (30,330 `trump:`, 24,529
-            `follow_class:`, 726 `card_strength:` -- again almost none on the
-            follows path's account of strength) against Doppelkopf's 34,899
-            over three games. Two things make the ratio smaller rather than
-            larger, and neither is the construct getting cheaper. Skat's
-            playout is mostly NOT tricks -- thirty-six hands of Reizen
-            auction, declaration offers and scoring dilute the legality path
-            that Doppelkopf's playout is nearly all of. And Skat's baseline
-            was not a cheap read: `skat_follow_ok` scanned the whole hand
-            natively on every candidate, so the delta measures rows against a
-            comparable scan rather than against nothing. 1.54x stands as the
-            figure for a trick-dominated game; neither number motivates a
-            memo.
-            RE-MEASURED again on Five Hundred (issue #250 PR 3, the same
-            method: three alternating reps of 200 games, medians): base 16.2
-            ms/game, head 16.9 -- **1.04x**, on the heaviest rows in the
-            corpus (a three-branch `trump:` reading two state variables and
-            calling a designer function, a `follow_class:` remap, a
-            four-branch `card_strength:`). Per-row weight is NOT what the
-            ratio tracks, and this is the measurement that shows it: 500
-            evaluates 3,566 rows per game (1,815 `trump:`, 1,717
-            `follow_class:`, 34 `card_strength:` -- 99% of the first two on
-            the follows path, none of the third, the same split as the other
-            two games) against Skat's 55,585, because a 500 game is one to
-            three hands of ten tricks where a Skat game is thirty-six.
-            Normalized, that is ~57 row evaluations per DECISION over 63
-            decisions per game. Still no memo.
-            RE-MEASURED again on Belote (issue #250 PR 4, the same method:
-            interleaved reps, medians over 24 samples): base 192.1 ms/game,
-            head 190.7 -- **0.99x**, on the game whose WINNER sits on the
-            legality path (three rules gate on `opp_winning(actor)`, which
-            calls `highest_by_trick_order` over the partial pile). Row asks
-            went UP -- 33,724 over five games against 14,836 per-card
-            examinations before, 2.27x the per-card work -- and the ratio
-            still did not move, because what went away was 2,664
-            narrowed-Primitive bundle materializations: `belote_opp_winning`
-            bound and deep-froze its whole declared reads row on every gated
-            `applies_when`.
-            RE-MEASURED again on French Tarot (issue #250 PR 5, the same
-            method: three alternating reps of 6 games, medians): base 1630.6
-            ms/game, head 955.3 -- **0.59x**, the construct paying for itself
-            outright, and the sharpest test of the paragraph below rather than
-            an exception to it. Tarot writes the HEAVIEST row in the corpus (a
-            seven-branch `card_strength:` reaching a twenty-one-branch
-            `numeral` designer function, since no one `ranking:` can serve a
-            deck where rank "1" is both the petit and a plain ace) and asks it
-            far more often: 392,784 row evaluations over three games (248,353
-            `trump:`, 79,391 `follow_class:`, 65,040 `card_strength:` -- and
-            note the third is NOT near-zero here, because `MustOverTrump`
-            reads strength over the pile per candidate) against 115,057
-            Primitive calls before, 3.4x the per-card work. It still got
-            faster, because each of those 115,057 was `tarot_led_suit` or
-            `tarot_trump_height` crossing the narrowing boundary, and
-            `tarot_led_suit` deep-froze its whole declared reads row -- the
-            `trick_pile` zone included -- on every ask.
-            WHAT THE FIVE MEASUREMENTS SUPPORT, stated no wider. At the row
-            weights the corpus actually writes, the count of BOUNDARY
-            CROSSINGS dominates and per-row weight does not track the ratio:
-            500's rows were the heaviest in the corpus when its ratio came in
-            joint-lowest, and Tarot's are heavier still at the lowest ratio of
-            the five. That is not the same as "weight is noise", and the
-            counter-measurement is named rather than left for a reader to
-            find: padding Belote's `card_strength:` else-branch with 60 no-op
-            `+ 0` terms, at an UNCHANGED crossing count, costs 182.3 -> 202.8
-            ms/game, 1.11x (executed 2026-08-19; the PR #381 reviewer measured
-            +15% on the same shape). So row weight is spendable, not free --
-            it is simply small at the weights the corpus writes, and a row
-            that grew an order of magnitude heavier would need its own
-            measurement rather than this ledger's.
+
+Every cut-level point this grid's cells rest on is ruled (issue #250, the
+operator's PR-1 ruling 5321676867), and each was ruled as the cells were
+authored, so no cell flipped: the `trump:` row is REQUIRED and `trump: false`
+is the no-trump spelling; `trump:` and `card_strength:` type strictly, only
+`follow_class:` coerces, `TAny` refused; a row reads no `_PRONOUNS` member and
+makes no `choose`, directly or through a helper, while declared state variables
+stay readable; the row-callable Builtin surface is an allow-list with its
+complement listed; the pile argument of every Arrival-Record call is a static
+identity-to-all zone reference at resolve and every trick round's play zone is
+one, both tightening the EXISTING call form; `early` is refused beside the
+block winner; the winner slot has two contracts keyed by
+`TRICK_ORDER_GATED_WINNERS`, both dispatched by `value_function`; the call form
+emits no `trick` trace.
+
+The cost, measured at issue #250's two PRs: the legality path evaluates a row
+per candidate per decision. MEASURED per Doppelkopf playout, base and head
+INTERLEAVED (three alternating reps of 20 games each on one machine, front end
+outside the clock, median): base 61.4 ms/game, head 94.7 -- **1.54x**, against
+the 1.5x the Architect's prototype measured (62 -> 92) and the operator
+accepted. The dominant cost is the number of ROW EVALUATIONS on the follow
+filter, not the weight of any one row: `follow_ok` asks `follows_lead` once per
+candidate per decision, and each ask walks the pile. Counted over three games:
+34,899 row evaluations, of which 33,307 are the follows path. `card_strength`
+runs 440 times and NEVER on that path -- strength is a winner-path fact, which
+is why the banded row a designer writes does not drive the cost. An earlier
+reading of this ledger said it did; it was wrong, and the number it explained
+(1.85x) was the cost of projecting each arrival through BOTH rows on every ask,
+before the lazy Effective Lead landed. No memo is built -- none is sound
+without an epoch counter, and this repo built and reverted that one already;
+the measurement is the record. RE-MEASURED on Skat (issue #250 PR 2, the same
+method: three alternating reps of 6 games, medians): base 212.7 ms/game, head
+220.4 -- **1.04x**, on rows that READ STATE, which Doppelkopf's do not, and
+55,585 row evaluations per game (30,330 `trump:`, 24,529 `follow_class:`, 726
+`card_strength:` -- again almost none on the follows path's account of
+strength) against Doppelkopf's 34,899 over three games. Two things make the
+ratio smaller rather than larger, and neither is the construct getting cheaper.
+Skat's playout is mostly NOT tricks -- thirty-six hands of Reizen auction,
+declaration offers and scoring dilute the legality path that Doppelkopf's
+playout is nearly all of. And Skat's baseline was not a cheap read:
+`skat_follow_ok` scanned the whole hand natively on every candidate, so the
+delta measures rows against a comparable scan rather than against nothing.
+1.54x stands as the figure for a trick-dominated game; neither number motivates
+a memo. RE-MEASURED again on Five Hundred (issue #250 PR 3, the same method:
+three alternating reps of 200 games, medians): base 16.2 ms/game, head 16.9 --
+**1.04x**, on the heaviest rows in the corpus (a three-branch `trump:` reading
+two state variables and calling a designer function, a `follow_class:` remap, a
+four-branch `card_strength:`). Per-row weight is NOT what the ratio tracks, and
+this is the measurement that shows it: 500 evaluates 3,566 rows per game (1,815
+`trump:`, 1,717 `follow_class:`, 34 `card_strength:` -- 99% of the first two on
+the follows path, none of the third, the same split as the other two games)
+against Skat's 55,585, because a 500 game is one to three hands of ten tricks
+where a Skat game is thirty-six. Normalized, that is ~57 row evaluations per
+DECISION over 63 decisions per game. Still no memo. RE-MEASURED again on Belote
+(issue #250 PR 4, the same method: interleaved reps, medians over 24 samples):
+base 192.1 ms/game, head 190.7 -- **0.99x**, on the game whose WINNER sits on
+the legality path (three rules gate on `opp_winning(actor)`, which calls
+`highest_by_trick_order` over the partial pile). Row asks went UP -- 33,724
+over five games against 14,836 per-card examinations before, 2.27x the per-card
+work -- and the ratio still did not move, because what went away was 2,664
+narrowed-Primitive bundle materializations: `belote_opp_winning` bound and
+deep-froze its whole declared reads row on every gated `applies_when`.
+RE-MEASURED again on French Tarot (issue #250 PR 5, the same method: three
+alternating reps of 6 games, medians): base 1630.6 ms/game, head 955.3 --
+**0.59x**, the construct paying for itself outright, and the sharpest test of
+the paragraph below rather than an exception to it. Tarot writes the HEAVIEST
+row in the corpus (a seven-branch `card_strength:` reaching a twenty-one-branch
+`numeral` designer function, since no one `ranking:` can serve a deck where
+rank "1" is both the petit and a plain ace) and asks it far more often: 392,784
+row evaluations over three games (248,353 `trump:`, 79,391 `follow_class:`,
+65,040 `card_strength:` -- and note the third is NOT near-zero here, because
+`MustOverTrump` reads strength over the pile per candidate) against 115,057
+Primitive calls before, 3.4x the per-card work. It still got faster, because
+each of those 115,057 was `tarot_led_suit` or `tarot_trump_height` crossing the
+narrowing boundary, and `tarot_led_suit` deep-froze its whole declared reads
+row -- the `trick_pile` zone included -- on every ask. WHAT THE FIVE
+MEASUREMENTS SUPPORT, stated no wider. At the row weights the corpus actually
+writes, the count of BOUNDARY CROSSINGS dominates and per-row weight does not
+track the ratio: 500's rows were the heaviest in the corpus when its ratio came
+in joint-lowest, and Tarot's are heavier still at the lowest ratio of the five.
+That is not the same as "weight is noise", and the counter-measurement is named
+rather than left for a reader to find: padding Belote's `card_strength:`
+else-branch with 60 no-op `+ 0` terms, at an UNCHANGED crossing count, costs
+182.3 -> 202.8 ms/game, 1.11x (executed 2026-08-19; the PR #381 reviewer
+measured +15% on the same shape). So row weight is spendable, not free -- it is
+simply small at the weights the corpus writes, and a row that grew an order of
+magnitude heavier would need its own measurement rather than this ledger's.
 Born red (the bare run, `TRICK_ORDER_GRID_BARE=1`, on main 8a722cd before any
 implementation): `285 failed, 13 passed in 4.57s` -- every block-bearing cell
 dies at the block's own line (verified: each syntax error's line is the line

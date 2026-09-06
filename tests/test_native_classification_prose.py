@@ -20,6 +20,10 @@ domain:     every (label, name) pair in tracked `.py`/`.md`/`.cardlang`/`.lark`
             Primitive slot"), which has no backticked name to bind to. And
             this module is excluded from the walk, because its own
             documentation must spell the wrong labels to be followable.
+            The walk is `git ls-files`, which lists TRACKED files only, so an
+            untracked module is outside the domain and its deliberately-wrong
+            labels with it; `_tracked` asserts this file IS in the walk
+            before removing it, so an empty slice cannot pass as green.
 registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
             union of every module-level frozenset named `BUILTIN_*` against
             the union of every one named `PRIMITIVE_*`, scraped from the
@@ -38,11 +42,6 @@ registry:   the names come from `cardlang.builtins.functions`, DERIVED: the
             This file's exclusion:
             `test_the_self_exclusion_is_load_bearing`. Each adjacency form's
             reach probe: `test_each_adjacency_form_is_matched`.
-note:       The walk is `git ls-files`, which lists TRACKED files only, so an
-            untracked module is outside the domain and its deliberately-wrong
-            labels with it. An empty slice of the domain is not a clean
-            result: `_tracked` asserts this file IS in the walk before
-            removing it, so that blindness cannot pass as green.
 does not prove:  that the tree's classifying prose is right, only that the
             ADJACENT case is. A label separated from its name, or attached to
             no backticked name at all, is read by nobody here, and the

@@ -78,14 +78,14 @@ does not prove:  four things. (1) That every expression HOST reaches the
            refused by `_check_logical_operands`, and concrete non-Boolean
            operands are rejected by the operator guards
            (tests/test_operator_guards.py).
-naming:    `the first player from ... where ...` mints no glossary entry:
-           no player-collection query form carries one (the family's naming
-           home is decisions.md "Player-collection queries", whose prose
-           already says "the player ring"), matching the divided-by
-           precedent for operator forms; `first` appears in neither
-           glossary section 6 nor any NAME exclusion, and
-           RESERVED_VALUE_NAMES is hand-listed so `first` stays declarable
-           (pinned by the names-stay-names cells below).
+
+`the first player from ... where ...` mints no glossary entry: no
+player-collection query form carries one (the family's naming home is
+decisions.md "Player-collection queries", whose prose already says "the player
+ring"), matching the divided-by precedent for operator forms; `first` appears
+in neither glossary section 6 nor any NAME exclusion, and RESERVED_VALUE_NAMES
+is hand-listed so `first` stays declarable (pinned by the names-stay-names
+cells below).
 red-first: authored before the implementation; the red run is recorded in
            the PR. Born-green pins carry per-pin reddening mutations
            (executed = plant, red, revert, green was run; documented = the

@@ -78,14 +78,11 @@ does not prove:  the Builtin in every expression host — aggregation bodies,
            And the keyword FUSION sweep, tests/keyword_fusion_sweep.py, is
            run by hand rather than collected; only the anchoring grid runs
            in the suite.
-naming:    `card_points` joins the glossary as its own entry (the concept
-           "card points" previously lived only inside the reserved word
-           "value"'s compound list, citing `Deck.values` — a referent this
-           change retires); the entry and the updated compound land in the
-           same change. The clause keyword, the Builtin name, and the
-           runtime field `rs.card_points` share the one spelling; the
-           grammar rule is `card_points_table` (the card-point table, the
-           phrase the corpus modules already use).
+
+`card_points` is its own glossary entry. The clause keyword, the Builtin name,
+and the runtime field `rs.card_points` share the one spelling; the grammar rule
+is `card_points_table` (the card-point table, the phrase the corpus modules
+already use).
 """
 
 from __future__ import annotations

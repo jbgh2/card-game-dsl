@@ -31,17 +31,15 @@ registry:   constrains -- `stdlib.moves.LIBRARY_MOVE_TYPES`, plus the
                           parse builder's emit set:
                           `test_demands_axis_is_the_kind_registry`.
             exempts    -- presence/absence of an optional clause.
-decided:    The vacuous rule (`constrains: play_to_trick`, no `demands:`, no
-            `exempts:`) is REJECTED, and that is a judgment call rather than
-            a consequence of the reachability condition — such a rule is
-            well-formed and reaches the reader; it simply gives that reader
-            nothing to do. It is rejected because a designer who writes
-            `rule X { constrains: play_to_trick  applies_when: <pred> }`
-            believes they have constrained something, which is the
-            accepted-but-ignored experience even though the mechanism
-            differs. No corpus or stdlib rule is vacuous, so nothing is lost.
-            Recorded here because a cell decided on judgment must read as
-            decided, not as fallout.
+
+The vacuous rule (`constrains: play_to_trick`, no `demands:`, no `exempts:`) is
+REJECTED, and that is a judgment call rather than a consequence of the
+reachability condition — such a rule is well-formed and reaches the reader; it
+simply gives that reader nothing to do. It is rejected because a designer who
+writes `rule X { constrains: play_to_trick  applies_when: <pred> }` believes
+they have constrained something, which is the accepted-but-ignored experience
+even though the mechanism differs. No corpus or stdlib rule is vacuous, so
+nothing is lost; the cell is decided on judgment and reads as decided.
 does not prove:  that an accepted rule changes play. Every cell stops at
             `check_dsl`, and the acceptance predicate `_reaches_a_reader` is
             AUTHORED from `rules.legal_cards`'s guards rather than read off

@@ -64,13 +64,13 @@ does not prove:  three things, each a place where the grid argues rather
            commented out. That trap is characterized below rather than
            guarded, and it is the one shape the property's "every plausible
            wrong sentence fails loud" clause does not reach.
-naming:    `divided by ... rounded up|down` mints no glossary entry: the
-           register's operator forms carry none (`offset_by` lives inside
-           the `direction` concept entry, not as its own), the phrase
-           composes ordinary English with no overload risk, and none of
-           `divided`/`by`/`rounded`/`down`/`up` appears in glossary
-           section 6 or the NAME exclusions (checked fresh in the
-           divided-by counsel on issue #249).
+
+`divided by ... rounded up|down` mints no glossary entry: the register's
+operator forms carry none (`offset_by` lives inside the `direction` concept
+entry, not as its own), the phrase composes ordinary English with no overload
+risk, and none of `divided`/`by`/`rounded`/`down`/`up` appears in glossary
+section 6 or the NAME exclusions (checked fresh in the divided-by counsel on
+issue #249).
 """
 
 from __future__ import annotations
