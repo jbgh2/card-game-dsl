@@ -331,7 +331,7 @@ say who can trigger the defect cannot be ordered. The reachability sweep
 is the kind sweep's sibling — absence of the label, asked for by superset:
 
 ```bash
-gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 500 \
   --json number,title,labels --jq '.[] | select(([.labels[].name] | any(startswith("reachability:")) or any(. == "epic")) | not) | "\(.number) \(.title)"'
 ```
 
@@ -352,7 +352,7 @@ convention cannot catch, so the sweep asks for the absence of a kind rather
 than the presence of a marker (completeness by superset, never by judgment):
 
 ```bash
-gh issue list --repo jbgh2/card-game-dsl --state open --limit 200 \
+gh issue list --repo jbgh2/card-game-dsl --state open --limit 500 \
   --json number,title,labels --jq '.[] | select([.labels[].name] | any(. == "bug" or . == "enhancement" or . == "documentation" or . == "tech-debt" or . == "epic") | not) | "\(.number) \(.title)"'
 ```
 
