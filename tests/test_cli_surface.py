@@ -13,9 +13,12 @@ property:        Every option the parser declares is accepted by exactly the
 domain:          The commands and options are whatever `cardlang.cli`'s
                  parser declares, derived from the parser itself, and the
                  combination cross is the power set of the `play` command's
-                 own options, derived the same way. The value classes are the
-                 integer/non-integer and in-range/out-of-range splits of the
-                 three options that take a value. `--at` numbers the
+                 own options, derived the same way. That cross varies an
+                 option's PRESENCE and holds one representative value; the
+                 value classes — the integer/non-integer and
+                 in-range/out-of-range splits of the three options that take
+                 one — are crossed separately, in the probes below. `--at`
+                 numbers the
                  playout's decisions — one Chooser call, one moment a seat is
                  asked — so every index names a position with a view of its
                  own; the summary's `decisions` line counts the picks those
@@ -584,6 +587,24 @@ def test_at_indexes_the_moment_not_the_pick(capsys: pytest.CaptureFixture[str]) 
     assert total < picks, "Hearts' pass takes three cards in one decision"
     assert str(picks) in header, "the listing reconciles its count with the summary's"
     assert f"0..{total - 1}" in header, "the header names the range --at takes"
+
+
+def test_a_long_candidate_pool_trails_off(capsys: pytest.CaptureFixture[str]) -> None:
+    """A line names enough candidates to recognize the decision, not the whole
+    pool — and says so, because the ellipsis is the only sign a designer gets
+    that the pool runs on. Hearts' pass offers a full hand.
+
+    red under: drop the `shown.append("...")` arm from `cardlang.cli._decision`.
+    """
+    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    _, rows = _listing_of(capsys.readouterr().out)
+    long_pools = [row for row in rows if int(row.split(" of ")[1].split(":")[0]) > 6]
+    assert long_pools, "the pin needs a decision offering more than a line names"
+    for row in long_pools:
+        assert row.endswith("..."), "a pool a line cannot hold must trail off"
+    assert not any(row.endswith("...") for row in rows if row not in long_pools), (
+        "a pool a line holds whole must not claim it was cut"
+    )
 
 
 def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) -> None:
