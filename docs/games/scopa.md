@@ -1,8 +1,8 @@
 # Scopa
 
 **Variant:** base Scopa (Pagat's main rules: the forced single-card capture,
-the scopa sweep with its final-play exception, four scoring categories, game
-to 11). **Players:** 2. **Deck:** 40 cards — the Italian pack, played here in
+the scopa sweep with its final-play exception, four scoring categories beside
+the scopas, game to 11). **Players:** 2. **Deck:** 40 cards — the Italian pack, played here in
 French suits, where coins are diamonds. **Executable spec:**
 [scopa.cardlang](scopa.cardlang). **Rules source:**
 https://www.pagat.com/fishing/scopa.html (fetched live).
