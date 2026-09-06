@@ -109,10 +109,9 @@ LIBRARY_PROCEDURE_GAMES = tuple(
 # merges unchallenged), so the pair reaches every branch of `resolve_play`.
 # `test_procedure_bodies_are_exercised` holds direct evidence per (game,
 # policy), so a wrong entry here fails loudly rather than passing vacuously.
-# Scopa: either policy reaches both bodies — `score_the_deal` runs once per
-# player per deal unconditionally, and `take_the_played_card` runs on every
-# capture, which a deal cannot avoid (the layout would otherwise grow past the
-# distinct capture values the deck holds). Descending alone, for the cost.
+# Scopa: either policy reaches its one body — `take_the_played_card` runs on
+# every capture, which a deal cannot avoid (the layout would otherwise grow past
+# the distinct capture values the deck holds). Descending alone, for the cost.
 _POLICIES: dict[str, tuple[bool, ...]] = {
     "coup.cardlang": (True,),
     "cheat.cardlang": (True, False),
@@ -246,6 +245,29 @@ def test_procedure_bodies_are_exercised(path: Path, reverse: bool, seed: int) ->
         assert any(e[0] == "move" and e[1] == "played" and e[3] == "pile" for e in events), (
             "resolve_play never merged an unchallenged play"
         )
+    elif path.name == "scopa.cardlang":
+        # `take_the_played_card` has TWO call sites — the forced single-card
+        # capture and the sum-capture — and the splice replaces each with the
+        # body, so the evidence that matters is that both ran. A capture's
+        # movement out of the layout names its own size, which separates them:
+        # one card is the single-match site, more is the joint one. Both then
+        # bank the played card, which is the body's own movement.
+        #
+        # The body's two state writes leave no movement of their own. Their
+        # consequences are a deal deeper than this suite's sampled prefix
+        # reaches, and tests/test_playout_scopa.py's per-deal settlement is
+        # what proves them.
+        taken = [
+            len(e[4])
+            for e in events
+            if e[0] == "move" and e[1] == "table" and str(e[3]).startswith("captured[")
+        ]
+        assert any(n == 1 for n in taken), "the forced single-card capture never ran"
+        assert any(n > 1 for n in taken), "the sum-capture never ran"
+        assert any(
+            e[0] == "move" and e[1] == "played" and str(e[3]).startswith("captured[")
+            for e in events
+        ), "take_the_played_card never banked a played card"
     else:  # a new domain member slipped past the pin — never pass silently
         raise AssertionError(f"no exercise evidence declared for {path.name}")
 

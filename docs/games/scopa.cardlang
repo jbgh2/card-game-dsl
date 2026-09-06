@@ -136,8 +136,15 @@ game Scopa {
       for each player p: if last_capturer is p { move all cards from table to captured[p] }
     }
 
+    // A deal's five components. Each of the four categories is won outright
+    // or by nobody, and each scopa is worth a point. Nothing here reads a
+    // score, so the components settle independently and in any order.
     phase scoring {
-      for each player p: run score_the_deal(p)
+      for each player p: if takes_the_cards(p)      { match_score[p] += 1 }
+      for each player p: if takes_the_coins(p)      { match_score[p] += 1 }
+      for each player p: if takes_the_settebello(p) { match_score[p] += 1 }
+      for each player p: if takes_the_primiera(p)   { match_score[p] += 1 }
+      for each player p: match_score[p] += scopas[p]
       dealer := dealer offset_by left     // the deal alternates
     }
   }
@@ -159,16 +166,6 @@ procedure take_the_played_card() {
      and not ((deck is empty) and (all players where hand[player] is empty)) {
     scopas[active] += 1
   }
-}
-
-// A deal's five components. The four counted categories are worth a point
-// each; the scopas are worth one apiece and are already counted.
-procedure score_the_deal(p : Player) {
-  if takes_the_cards(p)      { match_score[p] += 1 }
-  if takes_the_coins(p)      { match_score[p] += 1 }
-  if takes_the_settebello(p) { match_score[p] += 1 }
-  if takes_the_primiera(p)   { match_score[p] += 1 }
-  match_score[p] += scopas[p]
 }
 
 // The four counted categories. Each is won outright or by nobody: a tie for
