@@ -37,7 +37,11 @@ game Scopa {
 
   players: 2
   direction: clockwise            // irrelevant with two players; kept for uniformity
-  max_length: 4000
+  // A deal is thirty-six plays, each making at most two decisions — which card
+  // to play, and which capture to take — so this bounds a match at about
+  // twenty-five deals. A match runs past the target only while the leaders are
+  // level on it, so the bound is a non-termination backstop rather than a rule.
+  max_length: 2000
 
   cards: scopa40
   ranking: K Q J 7 6 5 4 3 2 A
