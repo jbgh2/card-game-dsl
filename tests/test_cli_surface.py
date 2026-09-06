@@ -486,8 +486,8 @@ def test_a_negative_decision_index_is_refused(capsys: pytest.CaptureFixture[str]
     would read this one as counting from the end."""
     assert main(["play", str(KUHN), "--info-state", "0", "--at", "-1"]) == 2
     err = capsys.readouterr().err
-    assert "--at" in err
-    assert "0" in err, "the refusal must name where a playout's decisions start"
+    assert "--at -1" in err
+    assert "start at 0" in err, "the refusal must name where a playout's decisions start"
 
 
 def test_non_integer_at_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
@@ -514,9 +514,18 @@ def test_at_on_a_game_with_no_decisions_says_there_are_none(
 ) -> None:
     """The skeleton deals and scores without asking anyone to choose, so there
     is no decision for `--at` to name — a different answer from an index past
-    the last, and the designer of an early skeleton meets this one first."""
-    assert main(["play", str(MARKDOWN), "--seed", "5", "--info-state", "0", "--at", "0"]) == 2
-    assert "without a decision" in capsys.readouterr().err
+    the last, and the designer of an early skeleton meets this one first.
+
+    Both indices take that answer. The range refusal would spell an empty
+    playout `0..-1`, so the order of the two is what keeps that off the
+    screen, and only the higher index would reach it.
+    """
+    for index in ("0", "5"):
+        argv = ["play", str(MARKDOWN), "--seed", "5", "--info-state", "0", "--at", index]
+        assert main(argv) == 2
+        err = capsys.readouterr().err
+        assert "without a decision" in err
+        assert "0..-1" not in err, "an empty playout has no range to name"
 
 
 def test_the_last_decision_index_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
