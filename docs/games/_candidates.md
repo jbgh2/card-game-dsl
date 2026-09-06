@@ -4,8 +4,9 @@ A curated list of games to consider implementing next. Corpus-first
 development means each addition to [games/](.) is a chance either to
 confirm a pattern (third data point on an open question) or to surface
 a new edge case the current design doesn't handle. The entries below
-are organized by mechanism family; the coverage table maps them to the
-open questions they would unblock.
+are organized by mechanism family; the two coverage tables map them to
+the open questions they would unblock and to the epic #248 constructs
+they would witness.
 
 This file is the pipeline, not the corpus. Entries are not
 commitments — the *current* corpus is whatever's in [games/](.).
@@ -13,7 +14,8 @@ When a candidate is implemented, its entry is deleted from here and
 replaced by a real game file. Treat the entries as "why this game is
 interesting" signals, not as rule references.
 
-The table below lists questions a new game could unblock.
+The tables below list questions a new game could unblock and constructs
+it could witness.
 Decision-ready questions (no new evidence required) live in
 [open-questions/_index.md](../open-questions/_index.md) under the
 relevant tier.
@@ -51,6 +53,27 @@ blocked on a *scope decision* rather than on finding a game: their
 cleanest forcing functions (Hanabi; Mascarade / Love Letter) are
 dedicated-deck games outside the current standard-deck corpus.
 
+## Coverage by construct (epic #248)
+
+Epic #248 retires the last game-local Python by landing constructs, and
+each construct wants witnesses from more than one mechanic family before
+it is designed — the same corpus-first bar the open questions carry. This
+table maps each open construct to what a witness must show and to the
+candidates that show it. Where the corpus already holds a data point it
+is named in the same cell, because it bounds the design from below. A
+witness lands before its construct, carrying the Python it borrows in a
+`primitives { }` declaration block, so it joins the epic's to-eliminate
+list until the construct retires it — that is the bargain, not a
+regression.
+
+| Construct | Needs | Top candidates |
+|---|---|---|
+| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family that enumerates subsets of a zone and picks an element by a composite key | **[scopa](#scopa)** (a played card captures a table card of the same rank or a set of table cards that add up to it, the single-card capture forced when one exists — enumeration under a precedence requirement; the primiera is an argmax per suit under its own point scale), [cassino](#cassino) (the same capture plus builds, a separate stateful question), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545) |
+| issue #251 — play patterns with a derived action space (the climb queries) | a vocabulary the three corpus engines lack, and a play space too large to enumerate | **[dou-dizhu](#dou-dizhu)** (sequences of triplets with attached singles or pairs, quads with attachments, bombs and the rocket). In-family: it corroborates and stresses; the second mechanic family is the classify half of issue #246, so that construct is this one's other witness |
+| issue #252 — ordered ladders (bid ladders with successor and per-rung fields) | an ordered ladder outside the auction family | **[contract-rummy](#contract-rummy)** (seven deals, each a required contract of groups and sequences — a ladder whose rungs carry group quotas), [koenigrufen](#koenigrufen) (fourteen ranked contracts with base scores and an outbid keyed to seat priority — corroborates within the family). In the corpus: [Oh Hell](oh-hell.cardlang)'s deal schedule is a ladder written as arithmetic, the same flattening the issue names in Five Hundred's ordinals |
+| issue #254 — groups (meld shapes, quotas, partitions, catalogues) | a tradition beyond rummy melds, Pinochle's catalogue and Belote's declarations | **[piquet](#piquet)** (point, sequence and set declarations compared between the two players — only the better combination in each category scores, and its holder then scores every other combination held in that category — group declarations compared with no meld reaching the table), [spider](#spider) (a complete king-to-ace same-suit run as the removal criterion — a group in the solitaire family), [contract-rummy](#contract-rummy) (group-count quotas per deal). In the corpus: [Schnapsen](schnapsen.cardlang)'s marriage is a fixed two-card group written as a `move_type` with a suit parameter — the floor, where a fixed shape needs no group construct |
+| issue #255 — an auction's result as an expression in the `outcome` slot (Bridge's declarer from the bid history) | an auction form whose result carries a payload read from its own history, between a plain read of state variables and Bridge's query | **[euchre](#euchre)** (trump-making by turn — order up, then name a suit — yields the trump, the making team and whether it plays alone; the maker is whichever seat's decision closed the trump-making), [sheepshead](#sheepshead) and [koenigrufen](#koenigrufen) (the payload includes a runtime-chosen card — the called ace or king — that resolves to a partner later). In the corpus: [Skat](skat.cardlang) and [Five Hundred](five-hundred.cardlang) set their declarer from state variables when the auction closes — the existence proof for the state-variable shape |
+
 ## Trick-taking with bidding
 
 ### euchre
@@ -70,6 +93,9 @@ not a variant. Secondary pressures: the 24-card stripped deck exercises the
 deck declaration, and the accept-or-name trump-making is a compact two-round
 auction shape. "Going alone" adds a mid-auction participation change.
 
+**Construct.** Witness for issue #255 — the making team and the trump
+read from the trump-making decisions (coverage by construct, above).
+
 **Notes.** **Pagat** for the trump-making sequence, stick-the-dealer, and
 going-alone scoring: <https://www.pagat.com/euchre/euchre.html>. North
 American rules; British variants differ in deck size.
@@ -87,8 +113,11 @@ test for the scoring-component composition story in
 [decisions.md](../decisions.md) and for the triggered-scoring
 machinery committed there.
 
+**Construct.** Witness for issue #254 — declarations compared between
+the two players, category by category (coverage by construct, above).
+
 **Notes.** **Pagat is mandatory** here — Piquet's scoring is
-notoriously edge-case heavy: <https://www.pagat.com/last/piquet.html>.
+notoriously edge-case heavy: <https://www.pagat.com/notrump/piquet.html>.
 
 ## Trick-taking with teams
 
@@ -109,6 +138,12 @@ talon" (the holding query resolves to no player). Scoring bonuses
 the call-derived side. If its runtime-chosen relational subject resists
 the player-indexed-state flattening Doppelkopf's Fox rule settled on,
 the discipline gets its stress test.
+
+**Construct.** Corroborates issue #252 within the auction family
+(fourteen ranked contracts, an outbid keyed to seat priority) and adds to
+issue #255 a payload that is a runtime-chosen card — the called king
+(coverage by construct, above).
+
 **Pagat**: <https://www.pagat.com/tarot/koenig.html>.
 
 ### sheepshead
@@ -130,22 +165,18 @@ is first-order hidden information, and no rule reads knowledge-of-
 knowledge (that question is now resolved as not-forced). **Pagat**:
 <https://www.pagat.com/schafkopf/shep.html>.
 
+**Construct.** Adds to issue #255 the same runtime-chosen-card payload
+as Königrufen — the called ace (coverage by construct, above).
+
 ## Climbing & shedding
 
 ### president
 
-3+ players, standard 52, climbing where each play must beat the
-previous play (single card, pair, triple, etc.). Cross-hand routing:
-losers must give their highest cards to winners at the start of the
-next hand.
+President is in the corpus ([president.cardlang](president.cardlang)):
+the multi-hand game with its cross-hand routing and the transparent-threes
+variant. What remains a candidate is the single-joker variant, listed for
+one draw:
 
-**Why interesting — two distinct draws:**
-
-- *Cross-hand routing* that fires *between hands* (President of last
-  hand receives from Asshole, etc.) — a different shape from Getaway's
-  first-trick-to-waste, and probably the cleanest shape for a cross-hand
-  setup helper rather than a Trick parameter. Cross-hand state (the
-  President/Asshole assignment) gates the next hand's setup.
 - *Contextual rank* — the verified forcing function for the
   [special-cards-declaration](../open-questions/special-cards-declaration.md)
   residual (play-time relative rank, the hard Phoenix shape). In the
@@ -154,10 +185,10 @@ next hand.
   Tichu-Phoenix shape ("half a rank above the last play") in a
   standard-52 game, documented on Pagat. The related "transparent
   threes" variant (a three becomes the rank it beats) is also
-  relative-to-play. By contrast Haggis's wild J/Q/K and the Great
-  Dalmuti's Jester are *chosen-constant* wilds (the easy shape) — they
-  do **not** force the relative-rank design, despite looking like they
-  might.
+  relative-to-play, and is the variant the corpus file carries. By
+  contrast Haggis's wild J/Q/K and the Great Dalmuti's Jester are
+  *chosen-constant* wilds (the easy shape) — they do **not** force the
+  relative-rank design, despite looking like they might.
 
 **Notes.** Known by many names: Asshole, Daihinmin (Japan), Capitalism,
 Scum. Contextual rank is *variant-gated* — the basic game has no jokers;
@@ -167,6 +198,28 @@ cite the joker-single variant specifically. **Pagat**:
 (Big Two, formerly a candidate here, is now in the corpus
 ([big-two.cardlang](big-two.cardlang)) as the second combination-climbing
 instance after Tichu — it drives the `climb` kernel construct.)
+
+### dou-dizhu
+
+3 players (one landlord against two), standard 52 plus two jokers,
+climbing with the richest combination vocabulary of the family: singles,
+pairs, triplets, a triplet with an attached single or pair, sequences of
+five or more, sequences of pairs, sequences of triplets with or without
+attached singles or pairs ("airplanes", with or without "wings"), quads
+with two singles or two pairs attached, bombs, and the two-joker rocket.
+
+**Why interesting.** The attachments are a shape none of the three corpus
+climbing engines has, and the play space is far too large to list, so it
+forces the generated-codec half of the play-pattern construct rather than
+the enumerated half.
+
+**Construct.** Witness for issue #251 — in-family, so it corroborates and
+stresses rather than adding a second mechanic family (coverage by
+construct, above).
+
+**Notes.** Pagat's page is the rule source, including the exact attachment
+shapes and what beats what:
+<https://www.pagat.com/climbing/doudizhu.html>.
 
 ### crazy-eights
 
@@ -198,6 +251,12 @@ selected. Tests the settled access discipline ([decisions.md](../decisions.md)
 "Typed object model") on multi-card target selection and the move
 type's relation to a shared zone.
 
+**Construct.** Witness for issue #246 — a third mechanic family for
+subset enumeration (captures that add up to the played card, the
+single-card capture forced when one exists) and for argmax with a
+composite key (the primiera: best card per suit under its own point
+scale, summed over the four suits) (coverage by construct, above).
+
 **Notes.** Correction to flag: in **base** Scopa, when a single-card
 rank match exists you are *forced* to take the single card — the
 sum-capture is only the fallback, and free choice between rank-match and
@@ -220,6 +279,10 @@ player can capture it, add to it (extending the build), or pass.
 Strong test of stateful intermediate zones and per-player claims on
 shared content. Distinct from Scopa's simpler capture-only model.
 
+**Construct.** Witness for issue #246 alongside Scopa; the builds are a
+separate, stateful question the construct does not own (coverage by
+construct, above).
+
 **Notes.** Royal Cassino lets face cards capture by named value;
 Diamond Cassino adds bonus scoring. Standard Cassino suffices.
 
@@ -232,6 +295,28 @@ zone-state question, both now in [decisions.md](../decisions.md). Hand
 and Foot, a Canasta extension with two hands per player — the "hand"
 played first, then the "foot" — would be a delta on the Canasta file if
 ever wanted.)
+
+### contract-rummy
+
+Seven deals; each sets a required contract the player must meld first and
+exactly — two groups of three; a group of three and a sequence of four; two
+sequences of four; three groups of three; two groups and a sequence; a
+group and two sequences; three sequences of four with no discard — with
+jokers wild in either shape, and the deal growing from ten cards to twelve
+partway through.
+
+**Why interesting.** The contract sequence is an ordered ladder whose rungs
+carry structured fields — how many groups, how many sequences, how many
+cards are dealt — and it sits outside the auction family that supplies
+every other ladder witness. The requirement to meld exactly the contract
+before anything else is a group-count quota, a shape neither Gin Rummy nor
+Canasta imposes.
+
+**Construct.** Witness for issue #252 (a ladder outside auctions) and issue
+#254 (group quotas per rung) in one file (coverage by construct, above).
+
+**Notes.** Contract lists vary by household; Pagat's seven-deal sequence is
+the reference: <https://www.pagat.com/rummy/ctrummy.html>.
 
 ## Memory, bluff, inference
 
@@ -365,6 +450,11 @@ decisions.md "Scoring composition". The use-exactly-two constraint
 is a second pressure: Hold'em's evaluator takes the best five of
 seven unconstrained, which Omaha cannot.
 
+**Construct.** A design input for issue #246 rather than a witness:
+using exactly two hole cards and three board cards is a partitioned
+choose that a subsets-of-k over one zone cannot state, tracked as
+issue #545 (coverage by construct, above).
+
 **Notes.** "Eight or better" is the standard low-half qualifier;
 "Omaha 8" is a common shorthand.
 
@@ -408,6 +498,9 @@ mid-game deals drop a fresh row onto the piles, so a face-up pile is
 NOT rank-monotone and the rank-filter suffix denotation no longer
 covers every legal unit move — the positional-slice movement
 recorded as deferred in issue #111.
+
+**Construct.** Witness for issue #254 — the removal criterion is a group
+in the solitaire family (coverage by construct, above).
 
 ## Boards: the topology witness ladder
 
