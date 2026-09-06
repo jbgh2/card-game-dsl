@@ -11,14 +11,16 @@ card that matches a single layout card takes exactly that one card, and a
 capture's cards sum to the played card. Both are decidable from the layout
 alone, so neither recomputation shares code with the Primitives it checks.
 
-The **pinned-match oracle** settles a whole match from one shuffle seed, then
-scores every deal's capture piles by hand — cards, coins, settebello,
-primiera, scopas — and asserts the match score the game awarded. Each deal's
-piles are a partition of the forty cards, so hand-scoring them shares nothing
-with the game's own scoring functions; a wrong primiera or a mis-taken point
-is a contradiction rather than a plausible number. A separate cell holds the
-pinned match to separating the categories, because a match in which one seat
-takes everything cannot tell a wrong primiera from a right one.
+The **settlement** scores every deal's capture piles by hand — cards, coins,
+settebello, primiera, scopas — and asserts the match score the game awarded.
+Each deal's piles are a partition of the forty cards, so hand-scoring them
+shares nothing with the game's own scoring functions; a wrong primiera or a
+mis-taken point is a contradiction rather than a plausible number. It runs
+over every random seed AND over one pinned match, which are different
+instruments: the sweep reaches the last-play clear the scopa exception exempts
+and so makes that exception load-bearing, while the pinned match is a named,
+reproducible example held to separating the categories — a match in which one
+seat takes everything cannot tell a wrong primiera from a right one.
 
 A uniform-random layout would leave the layout-size claim resting on whatever
 the seeds happened to show, so it is asserted against the deck's own
@@ -52,6 +54,11 @@ PRIMIERA = {"7": 21, "6": 18, "A": 16, "5": 15, "4": 14, "3": 13, "2": 12}
 COURT_PRIMIERA = 10
 
 TARGET = 11  # the match score Pagat states
+
+# Every card but the four dealt face up is played from a hand, so a deal is
+# exactly this many plays and the last of them is the one the scopa
+# exception exempts.
+PLAYS_PER_DEAL = 36
 
 # One shuffle seed, so the settlement below is the same match every run.
 # Chosen for separation rather than arbitrarily: its deals give the cards to
@@ -96,6 +103,10 @@ class ScopaPlay:
         self._before: list[tuple[str, str]] = []
         self._taken: list[tuple[str, str]] = []
         self.sweep_zone_drains = 0
+        self.plays_this_deal = 0
+        # How many deals ended with the last play clearing the layout — the one
+        # clear the rules do NOT score as a scopa.
+        self.final_play_clears = 0
         # One settled deal: its final capture piles and the sweeps in it. A
         # deal closes when its cards are gathered back to the deck; the last
         # one is closed by `close_deal` after the match ends.
@@ -106,6 +117,7 @@ class ScopaPlay:
             self.deals.append(({p: list(c) for p, c in self.piles.items()}, list(self.sweeps)))
             self.piles = {0: [], 1: []}
             self.sweeps = []
+        self.plays_this_deal = 0
 
     def observer(self, player: Player, event: tuple[Any, ...]) -> None:
         if player != 0 or event[0] != "move":
@@ -131,6 +143,7 @@ class ScopaPlay:
             self._before = list(self.layout)
             self._taken = []
             self.plays += 1
+            self.plays_this_deal += 1
         elif src == "table" and isinstance(dst, str) and dst.startswith("captured["):
             for c in cards:
                 self.layout.remove(c)
@@ -148,7 +161,14 @@ class ScopaPlay:
             self.piles[seat].extend(self._taken)
             self.piles[seat].append(self.in_play)
             if not self.layout:
-                self.sweeps.append(seat)
+                # A clear scores a scopa except on the last play of the deal,
+                # which the rules exempt however it clears. Every deal plays the
+                # pack bar the four face-up cards, so the count says which play
+                # that is without reading the hands.
+                if self.plays_this_deal == PLAYS_PER_DEAL:
+                    self.final_play_clears += 1
+                else:
+                    self.sweeps.append(seat)
             self.in_play = None
         elif src == "played" and dst == "table":
             assert self.in_play is not None
@@ -227,15 +247,21 @@ def _hand_score(piles: dict[Player, list[tuple[str, str]]], sweeps: list[Player]
 
 
 @pytest.mark.slow
-def test_random_games_obey_the_capture_rules() -> None:
+def test_random_games_obey_the_capture_and_scoring_rules() -> None:
     """Every capture of every deal, checked against the layout an observer saw.
 
+    The settlement runs here too, seed by seed, because that is where the
+    scopa exception becomes load-bearing: the pinned match below reaches no
+    final-play clear, and this sweep reaches several.
+
     red under: swap `is` for `is not` in the game file's single-match
-    movement filter."""
+    movement filter; or drop the final-play exception from the game file's
+    `take_the_played_card`."""
     game = _scopa()
     seen_singles = 0
     seen_sums = 0
     seen_sweeps = 0
+    seen_final_clears = 0
     for seed in range(40):
         census: dict[str, int] = {}
 
@@ -265,14 +291,29 @@ def test_random_games_obey_the_capture_rules() -> None:
         for piles, _sweeps in recon.deals:
             assert len(piles[0]) + len(piles[1]) == 40, f"seed {seed}: {piles}"
 
+        # The same hand settlement the pinned match asserts, over every deal
+        # of every seed: the engine's match score against a by-hand reading of
+        # the capture piles the observation stream recorded.
+        total = {p: 0 for p in result.scores}
+        for piles, sweeps in recon.deals:
+            for p, points in _hand_score(piles, sweeps).items():
+                total[p] += points
+        assert dict(result.scores) == total, (
+            f"seed {seed}: engine {dict(result.scores)} against {total}"
+        )
+
         seen_singles += sum(1 for c in recon.captures if len(c[2]) == 1)
         seen_sums += sum(1 for c in recon.captures if len(c[2]) > 1)
         seen_sweeps += sum(len(s) for _p, s in recon.deals)
+        seen_final_clears += recon.final_play_clears
 
     # The anti-vacuity floor: the checks above would pass on a run that never
-    # took a sum-capture or never swept the layout.
-    assert seen_singles and seen_sums and seen_sweeps, (
-        f"singles={seen_singles} sums={seen_sums} sweeps={seen_sweeps}"
+    # took a sum-capture, never swept the layout, or never reached the one
+    # clear the rules exempt — the last of which is the only thing that makes
+    # the settlement above sensitive to the scopa exception at all.
+    assert seen_singles and seen_sums and seen_sweeps and seen_final_clears, (
+        f"singles={seen_singles} sums={seen_sums} sweeps={seen_sweeps} "
+        f"final_clears={seen_final_clears}"
     )
 
 
