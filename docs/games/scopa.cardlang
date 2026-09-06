@@ -1,0 +1,210 @@
+// Scopa — base game, two players, 40-card Italian pack in French suits.
+// Rules per pagat.com/fishing/scopa.html. Companion: scopa.md.
+//
+// A fishing game: on your turn you play one card face up, and it captures from
+// the shared layout. A played card takes a single layout card of equal capture
+// value, or — only when no single card matches — a set of two or more layout
+// cards whose capture values sum to it. Capturing is compulsory. Clearing the
+// layout is a scopa, worth a point, except on the final play of the deal. When
+// the cards run out the player who captured last takes what remains. Each deal
+// scores five ways: cards, coins, the settebello, the primiera, and the
+// scopas. First to eleven with a strictly higher total wins the match.
+//
+// Capture values are the deck's own ordinal: A=1 through 7=7, J=8, Q=9, K=10.
+// `ranking:` declares that order and `capture_value` reads it, so the fact is
+// stated once. The `card_points { }` clause carries the primiera scale
+// instead, because that scale is neither an ordering nor a capture value —
+// 7 outranks 6 outranks A there — so nothing in the game derives it and a
+// clause is the only place it can be said once. A game declares at most one
+// Card Points table, so the two facts cannot both take it.
+//
+// What this game borrows from Python is subset enumeration over the layout,
+// and only that. `scopa_can_sum` asks whether ANY set of layout cards sums to
+// the played card, and `scopa_sums_to` is the joint predicate the capture
+// decision selects over. The language aggregates over the cards of a zone one
+// at a time; no binder ranges over its subsets, so neither sentence can be
+// written (issue #246). Everything else is in the language, the primiera
+// included: `highest card_points(card) over cards in captured[p] where
+// card.suit is s or 0` is the best card of a suit under the scale, and the
+// four-suit sum is a `for each suit` loop.
+//
+// Zone types. The layout and both capture piles are public: every card in a
+// capture pile arrived through a movement both seats watched, so an identity
+// projection to both observers tells neither anything recall does not already
+// give. The rules source says nothing about inspecting a capture pile.
+
+game Scopa {
+
+  players: 2
+  direction: clockwise            // irrelevant with two players; kept for uniformity
+  max_length: 4000
+
+  cards: scopa40
+  ranking: K Q J 7 6 5 4 3 2 A
+  card_points { 7: 21  6: 18  A: 16  5: 15  4: 14  3: 13  2: 12  else: 10 }
+
+  // Subset enumeration over the layout, which the language cannot express:
+  // every aggregation ranges over the cards of a zone one at a time, and no
+  // binder ranges over its subsets (issue #246). `scopa_can_sum` is the guard
+  // that keeps the joint selection below from being offered with no satisfying
+  // subset; `scopa_sums_to` is that selection's predicate, and its root call
+  // names the subset codec the OpenSpiel action space encodes captures by.
+  // Both read the layout: the candidate sets are drawn from it, and the
+  // played card's capture value arrives as an argument.
+  primitives {
+    scopa_can_sum(target : Integer) : Boolean                          reads table
+    scopa_sums_to(cards : Collection<Card>, target : Integer) : Boolean
+  }
+
+  zones {
+    deck             : Deck
+    table            : Discard              // the face-up layout, seen by both
+    played           : Discard              // the card in play, before its capture resolves
+    hand[player]     : Hand<player>
+    captured[player] : PlayerPile<player>   // the capture pile, scored at the end of the deal
+  }
+
+  state {
+    match_score[player] : Integer = 0
+  }
+
+  phase deal_sequence repeat until (any player where takes_the_match(player)) {
+    state {
+      dealer         : Player  = 0
+      active         : Player  = 0
+      last_capturer  : Player? = none   // who takes the layout when the cards run out
+      played_value   : Integer = 0      // the capture value of the card in play
+      scopas[player] : Integer = 0
+    }
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+      for each player p: scopas[p] := 0
+      last_capturer := none
+      // Four cards face up. Three or four Kings is a misdeal: the layout is
+      // gathered and dealt again by the same dealer. Redealing the layout
+      // alone reaches the same deal as gathering everything would, because the
+      // hands are dealt from what is left either way.
+      deal 4 cards from deck to table
+      repeat until ((number of cards in table where card.rank is K) < 3) {
+        move all cards from table to deck
+        shuffle deck
+        deal 4 cards from deck to table
+      }
+      active := the player where player is not dealer   // the non-dealer leads
+    }
+
+    // Three cards each, replenished three at a time whenever both hands run
+    // out, until the pack is exhausted. The players alternate, so the active
+    // seat facing an empty hand is the seat that leads the next round of
+    // three, and both hands are empty at that moment.
+    phase play {
+      repeat until ((deck is empty) and (all players where hand[player] is empty)) {
+        as active {
+          if hand[active] is empty {
+            deal 3 cards from deck to each hand
+          }
+          move chosen one card from hand[active] to played
+          played_value := sum of capture_value(card) over cards in played
+
+          if any card in table where capture_value(card) is played_value {
+            // A single matching card must be taken; the sum-capture is only
+            // the fallback. Several single matches are a choice among them.
+            move chosen one card from table
+                 where capture_value(card) is played_value to captured[active]
+            run take_the_played_card()
+          } else {
+            if scopa_can_sum(played_value) {
+              move chosen some cards from table
+                   where jointly scopa_sums_to(cards, played_value) to captured[active]
+              run take_the_played_card()
+            } else {
+              move all cards from played to table
+            }
+          }
+        }
+        active := the player where player is not active
+      }
+
+      // The last player to capture takes whatever is still face up. This is
+      // not a capture and never scores a scopa.
+      for each player p: if last_capturer is p { move all cards from table to captured[p] }
+    }
+
+    phase scoring {
+      for each player p: run score_the_deal(p)
+      dealer := dealer offset_by left     // the deal alternates
+    }
+  }
+
+  winner: highest match_score
+}
+
+// The card's capture value: A=1 through 7=7, J=8, Q=9, K=10 — the deck's own
+// ordinal, one above its strength under `ranking:`.
+function capture_value(c : Card) = rank_value(c) + 1
+
+// The played card joins the capture pile behind whatever it took, and clearing
+// the layout scores a scopa — except on the final play of the deal, which
+// never does however it clears.
+procedure take_the_played_card() {
+  move all cards from played to captured[active]
+  last_capturer := active
+  if (table is empty)
+     and not ((deck is empty) and (all players where hand[player] is empty)) {
+    scopas[active] += 1
+  }
+}
+
+// A deal's five components. The four counted categories are worth a point
+// each; the scopas are worth one apiece and are already counted.
+procedure score_the_deal(p : Player) {
+  if takes_the_cards(p)      { match_score[p] += 1 }
+  if takes_the_coins(p)      { match_score[p] += 1 }
+  if takes_the_settebello(p) { match_score[p] += 1 }
+  if takes_the_primiera(p)   { match_score[p] += 1 }
+  match_score[p] += scopas[p]
+}
+
+// The four counted categories. Each is won outright or by nobody: a tie for
+// most scores neither side the point.
+function cards_taken(p : Player)  = number of cards in captured[p]
+function coins_taken(p : Player)  = number of cards in captured[p] where card.suit is diamonds
+
+function takes_the_cards(p : Player) =
+  all players where (player is p) or (cards_taken(p) > cards_taken(player))
+function takes_the_coins(p : Player) =
+  all players where (player is p) or (coins_taken(p) > coins_taken(player))
+
+// The settebello is the seven of coins, which is the seven of diamonds here.
+function takes_the_settebello(p : Player) =
+  any card in captured[p] where (card.suit is diamonds) and (card.rank is "7")
+
+// A prime is one card of each suit, valued on the primiera scale the
+// `card_points { }` clause declares, and a player holding no card of some suit
+// can form none. The prime is the best card of each suit, so the four-suit sum
+// of `highest card_points(card)` IS the prime's total.
+function has_a_prime(p : Player) =
+  (any card in captured[p] where card.suit is diamonds)
+  and (any card in captured[p] where card.suit is hearts)
+  and (any card in captured[p] where card.suit is clubs)
+  and (any card in captured[p] where card.suit is spades)
+
+function prime_total(p : Player) =
+  (highest card_points(card) over cards in captured[p] where card.suit is diamonds or 0)
+  + (highest card_points(card) over cards in captured[p] where card.suit is hearts or 0)
+  + (highest card_points(card) over cards in captured[p] where card.suit is clubs or 0)
+  + (highest card_points(card) over cards in captured[p] where card.suit is spades or 0)
+
+function takes_the_primiera(p : Player) =
+  has_a_prime(p)
+  and (all players where (player is p)
+                      or (not has_a_prime(player))
+                      or (prime_total(p) > prime_total(player)))
+
+// The match ends when a player is at eleven or more AND alone at the top.
+// Level at the target, another deal is played.
+function takes_the_match(p : Player) =
+  (match_score[p] >= 11)
+  and (all players where (player is p) or (match_score[p] > match_score[player]))

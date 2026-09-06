@@ -261,6 +261,15 @@ def joint_codec_function(name: str) -> Any | None:
             from cardlang.runtime.gin import GIN_MELD_CODEC
 
             return GIN_MELD_CODEC
+        case "scopa_sums_to":
+            # Scopa's predicate takes the played card's capture value as an
+            # argument, so its satisfying set varies with the position; the
+            # universe is the union over every value a played card can carry,
+            # and which of those sets is legal HERE is the movement's own
+            # candidate set, matched per state by `ActionSpace.match`.
+            from cardlang.runtime.scopa import SCOPA_CAPTURE_CODEC
+
+            return SCOPA_CAPTURE_CODEC
         case _:
             return None
 

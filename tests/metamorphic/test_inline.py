@@ -4,21 +4,21 @@ property:   splicing every `run NAME(args)` call site with the named
             procedure's body, independently reimplemented at SOURCE-TEXT
             level (inline.py — never calling `cardlang.expand`), does not
             change a playout's observable trace or terminal result.
-domain:     `docs/games/coup.cardlang` and `docs/games/cheat.cardlang` —
-            the corpus games DECLARING a procedure (pinned below, not
-            assumed) — x seeds (`pairing.SEEDS`) x that game's policies
+domain:     every corpus game DECLARING a procedure (`PROCEDURE_GAMES`,
+            derived by source-text scan and pinned below, not assumed) —
+            x seeds (`pairing.SEEDS`) x that game's policies
             (`_POLICIES`).
 registry:   docs/games/*.cardlang (`pairing.CORPUS`), split two ways by
-            source-text scan: games declaring a `procedure` (T3's domain,
-            today exactly two) and games that `run` one without declaring
-            it (out of domain — see residual — today exactly three, both
-            pinned).
-covered:    both witness games, every seed in `pairing.SEEDS`, under each
-            policy in `_POLICIES[game]` ("Why reverse=True" below: Coup
-            needs the DESCENDING chooser to reach its procedures at all;
-            Cheat runs under BOTH — descending challenges every window,
-            ascending allows every one, and the two together reach every
-            branch of its single procedure);
+            source-text scan: games declaring a `procedure` (T3's domain)
+            and games that `run` one without declaring it (out of domain
+            — see residual), both pinned by name.
+covered:    every game in `PROCEDURE_GAMES`, every seed in
+            `pairing.SEEDS`, under each policy in `_POLICIES[game]` ("Why
+            reverse=True" below: Coup needs the DESCENDING chooser to
+            reach its procedures at all; Cheat runs under BOTH —
+            descending challenges every window, ascending allows every
+            one, and the two together reach every branch of its single
+            procedure);
             `test_procedure_bodies_are_exercised` proves the procedure
             bodies actually execute per game, not just that the (possibly
             vacuous) comparison passes.
@@ -124,9 +124,14 @@ LIBRARY_PROCEDURE_GAMES = tuple(
 # merges unchallenged), so the pair reaches every branch of `resolve_play`.
 # `test_procedure_bodies_are_exercised` holds direct evidence per (game,
 # policy), so a wrong entry here fails loudly rather than passing vacuously.
+# Scopa: either policy reaches both bodies — `score_the_deal` runs once per
+# player per deal unconditionally, and `take_the_played_card` runs on every
+# capture, which a deal cannot avoid (the layout would otherwise grow past the
+# distinct capture values the deck holds). Descending alone, for the cost.
 _POLICIES: dict[str, tuple[bool, ...]] = {
     "coup.cardlang": (True,),
     "cheat.cardlang": (True, False),
+    "scopa.cardlang": (True,),
 }
 
 _GAME_POLICY_CASES = tuple(
@@ -138,7 +143,7 @@ _GAME_POLICY_CASES = tuple(
 
 def test_run_and_procedure_domain_is_pinned() -> None:
     names = sorted(p.name for p in PROCEDURE_GAMES)
-    assert names == ["cheat.cardlang", "coup.cardlang"], (
+    assert names == ["cheat.cardlang", "coup.cardlang", "scopa.cardlang"], (
         f"the procedure/run domain changed: {names} — a new procedure-using "
         f"game needs inline.py generalized (its module docstring lists what "
         f"it currently assumes) and a `_POLICIES` entry with exercise "

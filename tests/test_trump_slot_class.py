@@ -963,6 +963,33 @@ def _drive_salvo_combos() -> None:
     )
 
 
+def _drive_scopa(entry: str) -> Callable[[], None]:
+    def drive() -> None:
+        from cardlang.runtime import reads, scopa
+        from cardlang.runtime.narrowing import EngineFacts
+
+        facts = EngineFacts(
+            seating=Seating(2),
+            team_of=MappingProxyType({}),
+            rank_index=_PARTIAL,
+            round_state=None,
+            last_round_state=None,
+            actor=None,
+        )
+        layout = (Card("2", "clubs"), Card("3", "hearts"))
+        gr = reads.GameReads(
+            state=MappingProxyType({}),
+            families=MappingProxyType({}),
+            singles=MappingProxyType({"table": layout}),
+        )
+        if entry == "scopa_can_sum":
+            scopa.scopa_can_sum(facts, gr, 5)
+        else:
+            scopa.scopa_sums_to(facts, gr, list(layout), 5)
+
+    return drive
+
+
 def _drive_president(query: str) -> Callable[[], None]:
     def drive() -> None:
         from cardlang.runtime import president, reads
@@ -1004,6 +1031,8 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "cribbage_show_value": _drive_cribbage_show(False),
     "cribbage_crib_value": _drive_cribbage_show(True),
     "salvo_combos": _drive_salvo_combos,
+    "scopa_can_sum": _drive_scopa("scopa_can_sum"),
+    "scopa_sums_to": _drive_scopa("scopa_sums_to"),
     "president_lead_options": _drive_president("president_lead_options"),
     "president_follows": _drive_president("president_follows"),
 }
