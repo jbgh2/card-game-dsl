@@ -358,6 +358,10 @@ def _decision(player: Player, count: int, candidates: list[Any]) -> str:
     offers cards where a betting round offers `call, fold, raise` — so they
     carry the line. `observe.render` is the rendering the observation log
     already uses, so a candidate reads the same way in both places.
+
+    Two betting rounds offer the same candidates and so read alike; the phase
+    is the name that would separate them, and the Chooser seam carries no
+    phase to put there (issue #605).
     """
     shown = [str(render(c)) for c in candidates[:_CANDIDATES_SHOWN]]
     if len(candidates) > _CANDIDATES_SHOWN:
