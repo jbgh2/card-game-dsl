@@ -28,10 +28,12 @@ An exception outside those channels keeps its traceback. For the engine's own
 assertions that is right — they address the engine maintainer, and the
 traceback is what that reader needs.
 
-Exit codes: 0 on success; 1 when the game file is at fault, whether a compile
-stage or the runtime says so; 2 when the invocation cannot be carried out —
-an unreadable path, a seat the game does not seat, a broken checkout, an
-argparse usage error.
+Exit codes: 0 on success; 1 when the game file is where to look, whether a
+compile stage or the runtime says so — which covers both a file that is at
+fault and one whose own rule refused with nobody to tell; 2 when the
+invocation cannot be carried out — an unreadable path, a seat the game does
+not seat, a broken checkout, an argparse usage error. The two are split by
+who must act, not by how badly it went.
 """
 
 from __future__ import annotations

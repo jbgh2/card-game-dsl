@@ -90,6 +90,7 @@ from __future__ import annotations
 import ast
 import importlib
 import pkgutil
+import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
@@ -102,6 +103,9 @@ import cardlang
 from cardlang.ast import nodes as n
 from cardlang.cli import main
 from cardlang.diagnostics import Diagnostic, Severity, Span
+from cardlang.pipeline import check_source
+from cardlang.runtime.state import Ctx, RuntimeState, ZoneStore
+from cardlang.runtime.values import Seating
 
 REPO = Path(__file__).parent.parent
 FIXTURES = REPO / "tests" / "fixtures"
@@ -267,9 +271,13 @@ def test_the_self_running_set_is_read_off_the_executor() -> None:
 def test_no_module_runs_game_text_around_the_executor() -> None:
     """A form can reach a body through an INDEX instead of a field — a move
     type's `effect`, a `define`'s body — and the module that fetches it is not
-    the executor. Every such module still runs it through `run_body`, which
-    dispatches statement by statement, so the stamp reaches text the executor's
-    own walk never sees.
+    the executor. Those modules take only the two entry points that stamp, so
+    the way AROUND the stamp is closed at the import: reaching the dispatch
+    itself, or any helper below it, is what this refuses.
+
+    It says nothing about what a module does with a body once `run_body` has
+    handed it back — interpreting an embedded node directly, the way the
+    simultaneous pass does, needs the arm's own stamp and is the cell above.
 
     red under: in `cardlang/runtime/mechanics.py`, import `_dispatch` from the
     executor and call it in place of `run_body`."""
@@ -454,6 +462,14 @@ _CASES: tuple[_Refusal, ...] = (
 )
 
 
+def _bare_state(game: n.Game) -> RuntimeState:
+    """A world with the game's zones and nothing played, so a zone the store
+    holds and one it does not can be handed to the same helper."""
+    seating = Seating(game.players.low, clockwise=True)
+    zones = ZoneStore(game.zones, seating.players)
+    return RuntimeState(seating, zones, random.Random(0))
+
+
 def _line_of(path: Path, sentence: str, occurrence: int) -> int:
     """The 1-based line the sentence sits on."""
     hits = [
@@ -530,6 +546,27 @@ def test_a_refusal_never_arrives_as_a_traceback(
     code, err = _play(case.path, capsys)
     assert "Traceback" not in err, err
     assert code == 1
+
+
+def test_a_zone_the_store_cannot_address_leaves_the_refusal_intact() -> None:
+    """The stamp is metadata on a refusal already in flight, so a zone the
+    store cannot address costs the message its zone and nothing else.
+
+    Every fixture above moves cards between zones the store holds, so the miss
+    is unreachable through them and this is the cell that reaches it.
+
+    red under: in `cardlang/runtime/execute.py`, make `_stamped_zone` call
+    `zone_label` directly — the loud form — and this raises `KeyError` in
+    place of returning None."""
+    from cardlang.runtime.execute import _stamped_zone
+    from cardlang.runtime.state import Zone
+
+    game = check_source(EMPTY_ZONE)
+    rs = _bare_state(game)
+    ctx = Ctx(rs=rs, chooser=lambda p, c, n: c[:n])
+    stray = Zone()  # never added to the store
+    assert _stamped_zone(ctx, stray) is None
+    assert _stamped_zone(ctx, rs.zones.instance("hand", 0)) == "hand[0]"
 
 
 def test_the_runtime_locator_reads_as_the_checker_locator_does(

@@ -76,9 +76,27 @@ def zone_label(ctx: Ctx, zone: Zone) -> str:
     """A zone as a designer writes it, at the instance it resolved to:
     `discards`, or `hand[1]` for the seat whose hand it is. Read off the
     store's Address rather than off the reference on the line, so a message
-    says WHICH instance was short instead of repeating `hand[p]` back."""
+    says WHICH instance was short instead of repeating `hand[p]` back.
+
+    Loud on a zone the store does not hold, which is what a caller BUILDING a
+    message wants. A caller decorating a refusal already in flight wants the
+    opposite and uses `_stamped_zone`."""
     name, key = ctx.rs.zones.locate(zone)
     return name if key is None else f"{name}[{key}]"
+
+
+def _stamped_zone(ctx: Ctx, zone: Zone) -> str | None:
+    """The same label, or None when the store cannot address the zone.
+
+    A location is metadata on a refusal that is already being raised, so it
+    must never be able to REPLACE it: a lookup failure here would unwind a
+    designer-readable refusal into a bare engine traceback — the very thing a
+    span is being added to prevent. Best-effort by design, not a Shadow Guard
+    for `locate`, whose loudness every other caller keeps."""
+    try:
+        return zone_label(ctx, zone)
+    except KeyError:
+        return None
 
 
 def _dispatch(stmt: n.Stmt, ctx: Ctx) -> Ctx:
@@ -381,7 +399,7 @@ def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Ca
     try:
         return _select_from(source, stmt, ctx, player)
     except REFUSALS as exc:
-        exc.locate(zone=zone_label(ctx, source))
+        exc.locate(zone=_stamped_zone(ctx, source))
         raise
 
 
@@ -888,7 +906,7 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
     try:
         chosen = ctx.chooser(actor, list(source.cards), count)
     except REFUSALS as exc:
-        exc.locate(zone=zone_label(ctx, source))
+        exc.locate(zone=_stamped_zone(ctx, source))
         raise
     observe.choice(ctx, actor, chosen)
     return chosen

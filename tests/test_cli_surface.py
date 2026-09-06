@@ -16,10 +16,14 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  nothing, a name that is a directory, a file that will not
                  decode as text — because the command line owns that argument
                  and no earlier layer sees it. The failures it RENDERS are the
-                 two the runtime types as catchable, `GameDescriptionError`
-                 and `InstallationError`; an `IllegalMove` escaping a playout
-                 is typed as neither and keeps its traceback while issue #554
-                 settles what it means to a caller. Which file shapes exist is
+                 three the runtime types as catchable: `GameDescriptionError`,
+                 `InstallationError`, and an `IllegalMove` escaping a playout,
+                 which is the game's own refusal with no player to tell and is
+                 rendered as that rather than as a fault. What each of those
+                 says, and where it says it happened, is
+                 tests/test_runtime_refusal_location.py's claim; this module's
+                 is that each is rendered rather than left to a traceback.
+                 Which file shapes exist is
                  `pipeline.check_source`'s question, answered in the pipeline
                  suite: `.cardlang` is raw DSL and every other suffix routes
                  to the Markdown extractor. What the checker decides about a
