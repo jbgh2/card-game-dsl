@@ -42,6 +42,14 @@ domain:     four axes. Two are crossed with each other and two stand alone,
             offers at a given point. That is the grammar's business and this
             module asserts nothing about it — only that whatever set is offered
             renders into designer words.
+            The domain covers the RENDERING of a parse failure under all three
+            entry points; WHO each entry point's sentence is addressed to is a
+            separate property, and holds for two of them. A game file and a
+            family library are both written by the reader the sentence
+            instructs. `cardlang/stdlib/rules.cardlang` ships inside the engine
+            and is parsed during resolve, so its reader is told to close a
+            brace in a file that is not theirs; routing that entry point to the
+            installation channel is issue #604.
 registry:   failure kinds: `lark.exceptions.UnexpectedInput.__subclasses__()`,
             closed here by `_failure_kinds`. Entry points:
             `tests/test_parse.py::_parse_entry_points`, itself a scrape of
@@ -353,11 +361,10 @@ def test_the_offending_lexeme_is_quoted_as_the_designer_wrote_it() -> None:
 
 
 def test_a_non_word_lexeme_is_quoted_as_the_single_character() -> None:
+    """A printable ASCII character is shown, and nothing more: the designer can
+    already see it, so a Unicode gloss beside it would be noise."""
     message = _render("game G {\n  players: 2 @\n}\n").diagnostic.message
-    assert "`@`" in message, message
-    assert "(" not in message.split(";")[0], (
-        f"a printable ASCII character needs no gloss: {message}"
-    )
+    assert message.startswith("syntax error: unexpected `@`;"), message
 
 
 # Characters that reach a game file by paste rather than by typing. Each is
