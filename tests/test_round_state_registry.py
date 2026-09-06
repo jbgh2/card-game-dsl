@@ -17,6 +17,9 @@
                     is no third category, and that is what
                     `test_every_form_key_is_classified` pins, by watching the real
                     accumulator through a real playout.
+                Which FRAME a read sees is a separate axis and sits outside this
+                one: only the NAME axis is closed here, and the design seam is
+                open-questions/round-state-in-information-states.md.
 
     registry:   `cardlang.stdlib.round_state` — TRICK_PUBLISHED / TRICK_INTERNAL,
                 CLIMB_PUBLISHED / CLIMB_INTERNAL, AUCTION_PUBLISHED /
@@ -24,36 +27,21 @@
                 Consumers: `typecheck` (types the member, rejects the rest) and
                 `runtime/mechanics` (the forms pinned against it here).
 
-    covered:    Surface — exhaustive by construction: the whitelist is the
-                registry, and `test_rejects_every_internal_field` sweeps every
-                internal of every form (derived from the registry, not hand-listed).
-                Implementation — exhaustive over what actually runs:
-                `test_every_form_key_is_classified` instruments the accumulator and
-                plays a trick game (hearts) and a climb game (president), asserting
-                every key written partitions into published + internal. A form that
-                starts writing a new key fails until it is classified.
-                Typing — the five published fields each assert their declared type,
-                and `test_a_typed_member_reaches_the_enum_guard` pins the
-                consequence: `TAny` used to be contagious, and the enum-comparison
-                guard was dark behind it.
-
-    sampled:    The corpus is the witness that the published set is the RIGHT one:
-                every `state.` reference in docs/games/*.cardlang and
-                stdlib/rules.cardlang resolves against it (pinned by the corpus
-                typecheck suite), and there are exactly five distinct members used.
-
-    residual:   Which FRAME a `state.` read sees is a separate axis from which NAME
-                it may spell, and only the name axis is closed here. A reference is
-                not statically attached to a form — `MustFollowSuit` lives once in
-                stdlib/rules.cardlang and is activated by games in context — so the
-                checker validates against the UNION of the forms' published sets
-                and cannot prove that the round actually running publishes the
-                field read. `state.shed_first` inside a trick phase type-checks.
-                Guard: the runtime now fails loudly rather than returning a stale or
-                foreign frame (the AuctionForm `last_round_state` clear, pinned by
-                `test_auction_does_not_leave_a_stale_trick_frame`). The design seam
-                is open-questions/round-state-in-information-states.md, which
-                records the frame axis.
+    does not prove:  that the round actually running publishes the field a
+                reference reads. A reference is not statically attached to a form
+                — `MustFollowSuit` lives once in stdlib/rules.cardlang and is
+                activated by games in context — so the checker validates against
+                the UNION of the forms' published sets, and `state.shed_first`
+                inside a trick phase type-checks. What holds at runtime is that a
+                stale or foreign frame is refused rather than served (the
+                AuctionForm `last_round_state` clear,
+                `test_auction_does_not_leave_a_stale_trick_frame`).
+                Nor that the published set is the RIGHT one. Whether the members
+                games reach are the members published is the corpus's answer,
+                given by every `state.` reference in docs/games/*.cardlang and
+                stdlib/rules.cardlang resolving through the registry
+                (tests/test_typecheck_corpus.py); a published field no game reads,
+                and a working key a form ought to publish, both pass here.
 """
 
 from __future__ import annotations

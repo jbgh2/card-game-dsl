@@ -17,12 +17,11 @@ domain:     each `_close_legal` condition arm x {satisfied, violated at its
 registry:   canasta.py: POINTS, WILD_RANKS, NATURAL_MELD_RANKS,
             initial_minimum, canasta_bonus_for, red3_bonus_for,
             _Attempt/_close_legal/_completable
-covered:    every condition arm probed on and off at its boundary below;
-            every table bracket probed at both edges
-sampled:    `_completable`'s (a, b) search — probed at representative cells;
-            the search is a two-variable brute force over the FULL pool
-            ranges by construction, so cells differ only in data
-residual:   none
+does not prove:  that `_completable` answers correctly at every (a, b) pair.
+            Its search is probed at representative cells: it is a
+            two-variable brute force over the FULL pool ranges by
+            construction, so the cells differ only in data, and a defect
+            that depended on one particular pair would pass here.
 """
 
 from __future__ import annotations

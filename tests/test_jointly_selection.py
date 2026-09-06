@@ -14,44 +14,13 @@ domain:     selection-mode (dealt/chosen/random) × amount (one/expr/all/
 registry:   the movement grammar matrix (cardlang.lark `movement`,
             `selection`, `amount`, `where_clause`); the `Transfer` node's
             (mode, amount, filter, joint) fields.
-covered:    - `where jointly` parses with `joint=True`; plain `where` stays
-              per-card [grammar/parse]
-            - `jointly` requires `chosen` (dealt and random rejected,
-              located) [resolve]
-            - `some` requires `jointly` (rejected otherwise, located)
-              [resolve]
-            - `cards` binds ONLY inside the joint predicate, as a card
-              collection; `card` does not bind there; outside the filter
-              `cards` is unresolved [resolve/typecheck]
-            - the chooser is offered exactly the satisfying subsets, in
-              deterministic enumeration order — the order itself is pinned
-              (a reversed-order mutant fails) [runtime]
-            - subset sizes are >= 1: zero/negative counts and `all` over an
-              empty pool fall to the loud no-subset error; negative amounts
-              are typed errors on EVERY movement path and a zero `chosen`
-              amount is a vacuous-decision refusal (`_check_count`)
-              [runtime]
-            - no satisfying subset → loud RuntimeError (no-implicit-actions)
-              [runtime]
-            - a source pool above the enumeration bound → loud RuntimeError
-              naming the bound [runtime]
-            - `to each` under `jointly` → located resolve rejection (each
-              destination seat would become its own subset decider)
-              [resolve]
-            - fused amount typos (`onecards`, `allcards`) are loud, never a
-              silent keyword-split parse (anchored amount keywords)
-              [grammar]
-            - a joint `some` return INTO the deck credits ONE card, not a
-              refill — the over-credit accepted a mid-deal crash [deckcheck]
-            - the action space guards an unregistered/inline joint predicate,
-              a climb+joint game, and two distinct joint codecs — all three
-              NotImplementedError guards probed [encoding]
-sampled:    the single-dest destination shape shares the ordinary movement
-            path after selection — pinned by one single-dest test.
-residual:   `jointly` under `random` mode (uniform over satisfying subsets)
-            is implementable but has no corpus user — rejected loudly,
-            recorded in roadmap.md "Grammar surface deferred by the
-            checker" alongside `some` without `jointly` and `to each`.
+does not prove:  that every destination SHAPE behaves under a joint
+            selection. The destination is an ordinary movement destination
+            expression — a bare zone, a subscripted family, the verb-implied
+            form — and once the subset is chosen the movement takes the
+            ordinary path, so one single-dest cell is what stands for the
+            whole axis here; a destination shape that diverged after
+            selection would not surface.
 """
 
 from __future__ import annotations

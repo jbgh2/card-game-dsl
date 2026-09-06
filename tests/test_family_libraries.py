@@ -51,6 +51,20 @@ domain:   two layers. At PARSE, the library file's clause skeleton: the
           game but is not a binder; the pronoun rebinds, whose spellings a
           library may not provide; a Primitive's parameters, which scope no DSL
           body; and a spelling a registry admits that no game text can reach.
+          Three things sit outside all five products, and none is a gap. A
+          position-indexed contract cell is absent by construction: a contract
+          cannot be position-indexed. There is no DEAD-PROVISION check —
+          a `requires` entry no definition reads is dead contract and is
+          guarded, but the mirror does not hold for provided state, because a
+          provided variable exists precisely so it CAN be read from outside
+          the library, by the importing game; whether any game reads it is
+          not a library-local question, so no library-local check can answer
+          it, and one that only asked "does the library read it?" would reject
+          a legitimate provision. And in the collision product, the kernel
+          row's accepting cells are decisions rather than gaps: kernel move
+          types and a game's `move_type` definitions are disjoint consult
+          paths that never share a namespace (`cardlang/stdlib/moves.py`), and
+          types, defines and procedures have no kernel table at all.
           The grid quantifies over WHICH sentences the bag holds, not over
           where each one points: a parameter row is reported at its own
           parameter and a binder row at the construct that introduces it, which
@@ -62,16 +76,15 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           `library_item_alternatives` (shared with tests/test_game_clause_guards,
           which owns the other half of the same absorption class and pins the
           `STRUCT_TYPE_NAME` terminal against both clause registries); the
-          DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, pinned to
-          `n.Library`'s own fields by `test_def_kinds_covers_every_library_field`;
+          DEFINITION-KIND axis from `resolve._LIBRARY_DEF_KINDS`, its pin against
+          `n.Library`'s own fields: `test_def_kinds_covers_every_library_field`;
           the LEAK-SITE axis from `n.Library`'s fields MINUS `requires`, which is
           the only clause with no expression slot to leak through
           (`test_leak_sites_cover_every_expression_bearing_clause`) — derived by
           subtraction rather than by listing, so a clause added with an
           expression in it joins the grid without anyone remembering to add it; the SHAPE axis from `n.RequireDecl`'s own fields
           minus its key and span — the field set `_check_requires` compares —
-          pinned by `test_shape_axis_covers_every_compared_field`, which is how
-          the `optional` row came to exist;
+          its pin: `test_shape_axis_covers_every_compared_field`;
           the COLLISION-SOURCE axis from the three namespaces a library name can
           land in — the game (`n.Game`'s same-named fields), another library, and
           the engine's own name registries (`stdlib_rules()`, `CALL_FUNCS`,
@@ -80,14 +93,14 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           scrapes every `ctx.rs.set()` call in `cardlang/runtime/execute.py` and
           reads its handler's first-parameter annotation, because
           `runtime/state.py`'s `Store.set` is the one door onto persistent state,
-          so the statements reaching it ARE the write sites. Pinned in both
-          directions against `resolve._STATE_WRITE_SITES` (what the guard sweeps)
-          and `_WRITE_STMT` (what this grid probes) by
+          so the statements reaching it ARE the write sites. Its two-direction
+          pin against `resolve._STATE_WRITE_SITES` (what the guard sweeps)
+          and `_WRITE_STMT` (what this grid probes):
           `test_write_sites_cover_every_state_writing_node`, with
           `test_every_write_site_field_exists_on_its_node` under it so a renamed
           field cannot leave the guard silently covering two forms of three;
           the CLAIM-KIND axis from `n.Library`'s state clauses — its fields minus
-          its name, its span and the definition kinds — pinned by
+          its name, its span and the definition kinds — its pin:
           `test_claim_axis_covers_every_library_state_clause`;
           the INTRODUCER axis from the union of the two registries owning the
           ways a game narrows a scope — `_binding_node_kinds()` scrapes
@@ -95,20 +108,20 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           tuple binds a name, which is why `Transfer`/`EpistemicOp` count through
           their guarded arms and not their plain ones), and `resolve._PARAM_
           BEARING` supplies the declaration parameters that registry deliberately
-          excludes. Crossed against the grid's rows by `test_introducer_axis_
-          covers_every_way_a_game_introduces_a_name`, which also asserts the two
-          registries disjoint, so neither can quietly absorb the other's members.
+          excludes. The cross against the grid's rows, and the two registries'
+          disjointness: `test_introducer_axis_
+          covers_every_way_a_game_introduces_a_name`.
           Under it, the SUB-POSITION axis: `_fixed_spellings()` reads each
           language-fixed kind's spellings off the registry that fixes them —
           `domains.DOMAINS` for the quantifier nouns, `SIMULTANEOUS_ROLES` for
           `each … simultaneously`, `runtime.values.content_noun` crossed with
           `types.Flavor` and singular/plural for the transfer and reveal filters,
           `resolve._COLLECTION_NOUNS` with `board_domains.BOARD_DOMAIN` for the
-          position queries — pinned by `test_the_fixed_binder_spellings_come_
+          position queries — its pin: `test_the_fixed_binder_spellings_come_
           from_their_registries`, with `_UNREACHABLE_SPELLINGS` carrying the one
           a registry admits and no game text reaches. The author-chosen /
-          language-fixed split the guard's two diagnostics turn on is pinned to
-          the same scrape by `test_the_author_chosen_split_classifies_every_
+          language-fixed split the guard's two diagnostics turn on, against
+          the same scrape: `test_the_author_chosen_split_classifies_every_
           binding_kind` — an unfiled kind would not fail, it would take the
           language-fixed branch and tell an author to edit a library over a
           binder they could have respelled;
@@ -129,228 +142,38 @@ registry: the ITEM axis from the grammar's `?library_item`, scraped by
           namespaces `_library_slot_names` sweeps, with every remaining
           reachable namespace pinned to a reason in `_LIBRARY_UNSWEPT`. Every axis is
           computed, never spelled: the probe NAMES come out of the registries
-          too, which is the fix for how this file's first kernel move-type cell
-          shipped vacuous (it probed `play_card`, which `stdlib/moves.py`
-          documents as game-defined, so no edit could redden it).
-covered:  the parse grid — item x neighbour, all 49 truncated cells executed by
-          `test_a_truncated_library_item_may_not_absorb_its_neighbour`, all
-          commanded REJECT, plus the 42 off-diagonal well-formed cells as its
-          control; the diagonal's one real cell (a repeated `requires` block) is
-          its own probe, the rest of the diagonal asserting nothing the
-          off-diagonal does not. One truncated cell was open when this grid was
-          written — `function_def` then `requires_block` — and its
-          red-before-green transition is in this branch's history; the other 48
-          are refused by brace structure rather than by the fix and are the
-          sweep of the class. The builder's side of the same registry is
-          `test_the_library_builder_files_every_item_kind` (7 cells, each item
-          filed in its own `n.Library` field and no other) with
-          `test_an_unhandled_library_item_is_loud` as the pin under it.
-          The encapsulation grid — leak site x reference kind, all 35 cells
-          executed by `test_a_library_may_not_reach_past_its_contract`, all
-          commanded REJECT and all asserted to land in the LIBRARY file, each
-          against a game that satisfies the contract AND happens to provide what
-          the leak reaches for (without that second half the cells would be
-          ordinary unresolved names and would prove nothing about the contract).
-          Fourteen carry a control twin in `test_the_same_site_reaching_only_
-          its_contract_is_accepted`, differing by one name; the other three
-          columns have no legal counterpart to be a twin, and the two controls
-          beside them establish the site.
-          The SLOT grid — the same property reached through the bare-string
-          door, one cell per reference slot the registry says a library can
-          reach into a namespace the sweep covers
-          (`test_a_library_may_not_name_what_it_does_not_have`), all commanded
-          REJECT, each asserted to land in the library file AND to quote the
-          leaked name — the second half is what tells the two zone cells apart,
-          since they share a statement that leaks twice. Every cell was open
-          before the sweep: a probe over all of them accepted, and the reddening
-          edit was RUN, not reasoned about — emptying the `slot_leaks` loop
-          fails exactly those cells and no others, and neutering `_slot_leaks`
-          itself additionally fails the `card_literal` and `call` columns above,
-          which is the evidence that the registry SUBSUMED the hand-list rather
-          than landing beside it. Twelve carry a control twin
-          (`test_the_same_slot_naming_what_the_library_has_is_accepted`); the
-          other five have no legal counterpart, because a library declares no
-          zones, no phases and no position domains. The axis is derived twice
-          over — reachability from `n.Library` by walking the AST's annotations,
-          intersected with the swept namespaces — and the namespaces it leaves
-          out are pinned to a written reason by
-          `test_every_reachable_reference_namespace_is_swept_or_excused`, so
-          "not swept" cannot be spelled the same way as "not thought of".
-          The MINIMALITY direction of the same sweep has its own cell
-          (`test_the_bare_string_state_read_counts_toward_the_contract`): before
-          it, `turns … again <var>` had no correct spelling at all — naming the
-          variable in `requires` made the entry look dead to the ledger test
-          below, and leaving it out was the leak. 24 cells were open before the guard and
-          the `card_literal` column for a commit after it — both red-before-green
-          transitions are in this branch's history. The `state` ROW was born
-          green (its sweep shipped with the splice, a commit ahead of its
-          cells), so it is not evidence of the same kind; its reddening edit was
-          RUN rather than reasoned about — deleting `_library_reach`'s
-          `provided_state` sweep fails those five cells and no others.
-          The `requires` grid — multiplicity x shape, 9 cells executed by
-          `test_a_requirement_is_answered_by_exactly_one_matching_declaration`,
-          accepting in exactly one; the multiplicity-2 row was open and is the
-          reason the grid exists. The three long-standing single-axis probes
-          beside it stay, asserting the MESSAGES the grid only asserts the
-          verdict of.
-          The DISCRIMINATOR grid — 72 cells executed by
-          `test_a_contract_entry_is_answered_from_the_block_its_type_names`,
-          each commanding not just a verdict but the CURRENCY of the refusal: a
-          shape no game could answer is refused against the library ALONE, and a
-          well-formed entry the game does not answer lands on its `uses` line.
-          57 of the 72 ran red before the implementation existed — 48 of them
-          because the sentence could not be spelled at all — and the transition
-          is in this branch's history. Beside it, the guard the discriminator
-          RESTS on: a declared `type` or a `positions { }` name may not take a
-          zone type's spelling (2 cells,
-          `test_an_author_may_not_take_a_zone_type_name`, both red before the
-          guard). Without it `type Hand = { … }` makes `requires { x : Hand }`
-          mean two things and the classification picks one silently.
-          The SHAPE-AGREEMENT grid — every `LIBRARY_ZONE_TYPES` member x
-          {owner argument, none} x {indexed, not}, 64 cells executed by
-          `test_a_contract_shape_is_refused_exactly_when_the_declaration_would_
-          be`. `_check_contract_shapes` is a second implementation of
-          `_resolve_zone`'s class rather than a call into it (different
-          channels, different times), so what is pinned is that the two agree
-          — 20 cells redden under disabling the owner-arity rule on one side
-          alone. Position-indexed cells are absent by construction, not by
-          omission: a contract cannot be position-indexed.
-          The collision grid — definition kind x collision source, all 18 cells
-          executed: `test_game_local_definition_may_not_shadow_a_library_one`
-          (6), `test_two_libraries_may_not_define_the_same_name` (6), and
-          `test_library_definition_against_the_kernel_namespace` (6, of which
-          the 3 kinds with no kernel table skip with that reason named).
-          Every cell's expected outcome is a commanded decision: The kernel row
-          is `_ENGINE_REGISTRY_REJECTS`, where `False` is as deliberate as `True`.
-          Born-green cells carry their reddening edit as `red under:` in the
-          test docstring; the move-type accept was demonstrated red by extending
-          `_check_library_collisions`'s engine leg to move_types.
-          The read-only grid — write-site kind x state kind, 6 cells executed by
-          `test_game_text_may_not_write_library_provided_state`, the 3 provided
-          cells commanded REJECT (to the GAME's author, naming the variable and
-          its library) and the 3 required cells commanded ACCEPT as the control
-          that keeps the guard from passing by making provided state unwritable
-          because unreachable. `test_game_text_may_read_library_provided_state`
-          is the other control: read-only has to permit the read.
-          The shadow grid — introducer sub-position x claim, every cell executed
-          by `test_a_game_introduced_name_may_not_shadow_provided_state`. The
-          `provided` column is commanded REJECT, except two rows that say why
-          they are not: a DECLARED position domain is refused a door earlier by
-          the injection guard and is commanded against that guard's sentence
-          instead, and a Primitive parameter is a designed non-error commanded
-          ACCEPT, because no DSL text sits inside its scope. Every commanded
-          rejection ran red under `xfail(strict=True,
-          raises=pytest.fail.Exception)` before the guard existed —
-          constrained, so a broken fixture could not have counted as the
-          designed red — and the transition is in this branch's history. The two
-          accepting columns are different controls: `requires` holds the
-          spelling fixed and moves only which library clause claims it, so a
-          guard refusing every collision with a library NAME rather than a
-          library-OWNED one fails there; `neither` proves each row's game text
-          valid on its own. Both columns read the WHOLE bag (`_whole_bag`), not
-          the diagnostic the stage leads with — the `already` row asserts that
-          this guard adds no second sentence, and against `str(exc)` alone that
-          assertion cannot fail. Around the grid, four claims it leans on, each
-          executed rather than asserted, since "closed elsewhere" is the claim
-          that rots: `test_a_library_may_bind_its_own_provided_name` bounds the
-          guard from the other side (a library's own binders are spliced into
-          the same Game the sweep walks, so a guard one line later would refuse
-          a file the game's author cannot edit — its reddening edit was RUN);
-          `test_a_declaration_level_collision_is_reported_by_another_guard`
-          holds every bucket the guard skips to a diagnostic;
-          `test_a_phase_local_declaration_of_a_provided_name_is_refused` and
-          `test_no_provided_name_can_be_a_pronoun` hold the two name
-          introductions that are not binders; and
-          `test_a_piece_game_reveal_is_refused_before_it_binds` holds the one
-          spelling a registry admits and no game text reaches. Beside them
-          `test_one_node_spelling_a_name_twice_draws_one_sentence` holds what the
-          grid's cells cannot see at all — how MANY times the bag says a thing,
-          where a `let` binds twice from one span.
-          The claim grid — 6 one-library cells
-          (`test_one_library_claiming_a_state_name`) and 6 two-library cells
-          (`test_two_libraries_claiming_one_state_name`), each asserting the
-          MESSAGE and not merely the verdict, since three of the rejecting cells
-          would also fail for the unrelated reason that the game does not declare
-          the name. Two cells accept: a contract the game meets, and two
-          libraries requiring one name. All 11 rejecting-or-newly-accepting cells
-          across both grids were commanded before the guards existed and ran red
-          under `xfail(strict=True)`; the transition is in this branch's history.
-sampled:  the read-only guard's CONTAINER axis — six game-owned places a write
-          can sit (`test_the_read_only_wall_reaches_every_container`), sampled
-          rather than derived on purpose: the guard walks `_walk(game)`, total
-          dataclass recursion over the whole Game, so reachability is one
-          property of `_walk` and not a per-site dispatch that could cover some
-          containers and miss others. The cells are regression evidence for that
-          one property; the reddening edit was measured (narrowing the walk to
-          `game.phases` fails all six).
-          the `uses`-line failure modes (unknown library, repeated import) are
-          one probe each — a single-axis error with no second axis to cross.
-          The truncation axis takes ONE truncation per item (its last required
-          slot); an item can also be cut mid-slot, but every such cut is a
-          strict prefix of this one and cannot absorb more.
-          Note the parse grid's counts move with `?library_item`: it is 8
-          alternatives now (`state_block` joined), so 64 truncated cells and 56
-          off-diagonal well-formed ones. The 30 `state_block` cells were green on
-          arrival — `state` was already excluded from STRUCT_TYPE_NAME as an
-          absorbable clause reachable from `?game_item` — which makes them the
-          sweep of the class rather than new coverage.
-residual: one on provided state, deliberate and named here so its absence from
-          the probes is not read as an omission. There is no DEAD-PROVISION
-          check: a `requires` entry no definition reads is dead contract and is
-          guarded (`test_every_library_contracts_for_exactly_what_it_reaches`),
-          but the mirror does not hold for provided state, because a provided
-          variable exists precisely so it CAN be read from outside the library —
-          by the importing game. Whether any game reads it is not a
-          library-local question, so no library-local check can answer it, and a
-          check that only asked "does the library read it?" would reject a
-          legitimate provision. Not a gap the tier can close.
-
-          none of the collision grid. The kernel row's three accepting cells are
-          decisions, not gaps: kernel move types and a game's `move_type`
-          definitions are disjoint consult paths that never share a namespace
-          (`cardlang/stdlib/moves.py`), and types/defines/procedures have no
-          kernel table at all. `test_the_accepting_move_type_cell_has_real_
-          corpus_dependents` keeps the first decision honest by DERIVING its
-          dependent games from the corpus — the hand-written version of that
-          list named four games of which three were wrong, and named Stud, which
-          the same change that wrote it had just made wrong.
-
-          none of the shadow grid. Its one boundary is the other side of the same
-          collision: a library may PROVIDE state spelled like a binder the
-          language fixes, and nothing refuses it, so the grid's language-fixed
-          rows prescribe a fix no guard makes the library take. That belongs at
-          the library's own `state { }` declaration, addressed to its author —
-          issue #499.
-
-          ONE residual outside it, recorded in issue #138:
-
-          1. SCOPE. The multiplicity grid proves a requirement is answered by
-             exactly one declaration of the right shape; it does NOT prove that
-             declaration is in scope where the library's definitions run. Moving
-             Kuhn's `limit` into `phase deal` while the imported `bet` runs in
-             `phase betting` passes resolve and typecheck and dies mid-playout
-             on a bare KeyError. Deliberately not guarded here: the root cause is
-             the general cross-phase state-scope hole (a plain game with no
-             library reproduces it), and the guard bounding it is that a
-             requirement declared NOWHERE is rejected, so what is unchecked is a
-             declaration that exists but cannot be reached. The grid does not
-             claim this cell — `_check_requires`'s docstring says what is
-             checked and what is not, so the claim and the check agree.
-
-          And ONE inside the slot grid, recorded in issue #170: `Transfer.item`
-          is a game-fed slot (the item noun comes from the content flavor, which
-          the component set fixes) and is NOT swept. The residual stands; its
-          REASON has been replaced, because zone contracts falsified the old one.
-          It used to be that every movement also names a zone, so the classified
-          pass refused the statement before the noun could matter — probed with
-          `move 1 coin from hand to pile` failing on `hand`. A library can now
-          contract for `hand`, so that probe resolves clean and the noun IS
-          reached. Re-probed, both ways: an unknown noun (`coin`) and a REAL but
-          flavor-dependent one (`piece` in a card game) are each refused by
-          typecheck's item-noun and flavor guards, to the LIBRARY's author. So
-          the outcome holds on a guard that names the noun rather than on one that
-          never got there — a stronger reason than the one it replaces. R4, and
-          its `_LIBRARY_UNSWEPT` row says so.
+          too, so a probe cannot name a member no edit could redden.
+does not prove: four things a green over these grids leaves open.
+          The read-only guard's CONTAINER axis is sampled rather than derived
+          — six game-owned places a write can sit
+          (`test_the_read_only_wall_reaches_every_container`). That is on
+          purpose: the guard walks `_walk(game)`, total dataclass recursion
+          over the whole Game, so reachability is one property of `_walk` and
+          not a per-site dispatch that could cover some containers and miss
+          others. The cells are regression evidence for that one property,
+          never a per-container proof; the reddening edit was measured
+          (narrowing the walk to `game.phases` fails all six).
+          The truncation axis takes ONE truncation per item, its last required
+          slot. An item can also be cut mid-slot, and no cell executes such a
+          cut: every one of them is a strict prefix of the truncation the grid
+          does run and so cannot absorb more, which is an argument rather than
+          a measurement.
+          SCOPE. The multiplicity grid proves a requirement is answered by
+          exactly one declaration of the right shape; it does NOT prove that
+          declaration is in scope where the library's definitions run. Moving
+          Kuhn's `limit` into `phase deal` while the imported `bet` runs in
+          `phase betting` passes resolve and typecheck and dies mid-playout on
+          a bare KeyError. Deliberately not guarded here: the root cause is the
+          general cross-phase state-scope hole (a plain game with no library
+          reproduces it), and the guard bounding it is that a requirement
+          declared NOWHERE is rejected, so what is unchecked is a declaration
+          that exists but cannot be reached. The grid does not claim the cell
+          — `_check_requires`'s docstring says what is checked and what is
+          not, so the claim and the check agree.
+          And a green over the shadow grid says nothing about the other side
+          of the same collision: a library may PROVIDE state spelled like a
+          binder the language fixes, and nothing refuses it, so the grid's
+          language-fixed rows prescribe a fix no guard makes the library take.
 
 One deliberate NON-error, recorded here so a later reader does not mistake its
 absence from the probes for an omission: an imported definition a game never
@@ -825,7 +648,7 @@ def test_two_libraries_may_not_define_the_same_name(
 # property:   for every way a library injects a name and every way a game binds
 #             that same name, resolve refuses it, names the library, and is
 #             located. One uniform verdict across the whole matrix — there is no
-#             "harmless" coincidence, by design (see `residual`).
+#             "harmless" coincidence, by design.
 # domain:     INJECT x TARGET.
 #             INJECT = the namespaces a library contributes to the game: its
 #               provided `state`, plus every kind in `_LIBRARY_DEF_KINDS`.
@@ -835,6 +658,18 @@ def test_two_libraries_may_not_define_the_same_name(
 #               `VALUE_NAMES`, NOT the game's own functions (those resolve
 #               as `Call`s, never bare) — plus the def kinds and position domains
 #               that own a name without going through `_classify`.
+#             Two things sit outside, and neither is a gap. Library-vs-LIBRARY
+#               cross-kind collisions (lib A provides `foo`, lib B defines
+#               `function foo`) are not this property's, which is injected-vs-
+#               GAME; only same-kind lib-vs-lib is compared, by
+#               `_check_library_collisions` / `_check_state_claims`, and the
+#               cross-kind pool is issue #136's shared name registry. And the
+#               refusal is CONSERVATIVE by decision, like the `Call` ban in
+#               `test_state_default_scope.py`: a coincidence is refused even
+#               where precedence would make it harmless (a library `function`
+#               named after a game `state` var, which `_classify` never
+#               confuses), because the rule a designer holds is "a library may
+#               not bring in a name you already use", not a table of safe pairs.
 # registry:   `_INJECT` is derived from `{"state"} | _LIBRARY_DEF_KINDS`. The
 #               TARGET buckets are pinned two ways: `_game_bindings` is checked to
 #               cover every value bucket `_categories` exposes
@@ -843,31 +678,12 @@ def test_two_libraries_may_not_define_the_same_name(
 #               by construction), and the grid's `_TARGET_NAME` is checked against
 #               those buckets plus def kinds and positions
 #               (`test_target_axis_names_every_resolvable_bucket`). Neither axis is
-#               a hand-list compared to another hand-list.
-# covered:    the full INJECT x TARGET cross, executed. Three guards share it and
-#             the grid does not care which fires: same-kind def collisions are
-#             `_check_library_collisions`, provided-vs-game-state is
-#             `_check_state_claims`, and every off-diagonal cell (D3 = deck /
-#             native values, D4 = zones / positions / cross-kind definitions) is
-#             `_check_library_shadows_game`. All three name the library.
-# sampled:    none — every cell is executed.
-# residual:   library-vs-LIBRARY cross-kind. The property is injected-vs-GAME;
-#             two libraries whose injected names cross KINDS (lib A provides
-#             `foo`, lib B defines `function foo`) are not compared — only
-#             same-kind lib-vs-lib is, by `_check_library_collisions` /
-#             `_check_state_claims`. It is unreachable in the one-library corpus
-#             (no game `uses` two), so it is recorded in issue #136 against the
-#             shared name-registry deferral rather than guarded now: the honest
-#             fix folds every library's injected names into one pool and is the
-#             same table the `requires`-residual wants, not a second bolt-on.
-#             The refusal that IS built is CONSERVATIVE by decision, like the
-#             `Call` ban in `test_state_default_scope.py`: a coincidence is
-#             refused even where precedence would make it harmless (a library
-#             `function` named after a game `state` var, which `_classify` never
-#             confuses), because the rule a designer holds is "a library may not
-#             bring in a name you already use", not a table of safe pairs. No
-#             corpus game pays for it — poker_betting's injected names touch none
-#             of Kuhn/Leduc/Stud's.
+#               a hand-list compared to another hand-list. The guards behind
+#               the cells -- `_check_library_collisions` (same-kind defs),
+#               `_check_state_claims` (provided-vs-game state),
+#               `_check_library_shadows_game` (every off-diagonal cell).
+# does not prove:  which of the three guards answers a cell: the grid asserts
+#               the verdict and the library's name, not the guard.
 
 # INJECT axis: name -> a library body binding NAME in that namespace. `filler`
 # keeps the library non-trivial where the injected form alone would be empty.
@@ -1153,7 +969,8 @@ def test_the_accepting_move_type_cell_has_real_corpus_dependents() -> None:
         f"only {dependents} still define a move type under a kernel move-type name; "
         f"if this "
         f"reaches zero the non-collision is no longer load-bearing and the "
-        f"residual ledger row should be revisited rather than left standing"
+        f"ledger's `domain:` boundary should be revisited rather than left "
+        f"standing"
     )
 
 
@@ -2468,8 +2285,8 @@ def test_game_text_may_not_write_library_provided_state(
 # `_walk(game)`, which is total dataclass recursion over the whole Game, so
 # reachability is ONE property of `_walk` rather than a per-container dispatch
 # that could cover some sites and miss others. These cells are regression
-# evidence for that, not a completeness argument — the ledger records them as
-# sampled. They exist because "the guard fires at a phase statement" would
+# evidence for that, not a completeness argument — the ledger records them
+# under `does not prove:`. They exist because "the guard fires at a phase statement" would
 # otherwise have been the only thing anyone had checked, and a write inside a
 # game's own move-type effect is the cell an author would actually hit.
 _WRITE_CONTAINER: dict[str, tuple[str, str]] = {
@@ -3052,7 +2869,9 @@ def test_the_author_chosen_split_classifies_every_binding_kind() -> None:
     language-fixed branch and tells the author to go and edit a library over a
     binder they could have respelled themselves. That is a wrong-advice default,
     which is why the split is pinned to the binder registry rather than left to a
-    membership test.
+    membership test. The fix a language-fixed row prescribes is not itself
+    forced: a library may provide state spelled like a language-fixed binder
+    and nothing refuses it (issue #499).
 
     The parameter kinds are author-chosen by construction (a parameter name is a
     free NAME in every one of their productions), so they are asserted to need no

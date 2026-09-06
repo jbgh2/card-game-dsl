@@ -16,32 +16,12 @@ registry:   the Stmt/Node unions (assert_never dispatch in resolve,
             typecheck ×4, ir, deckcheck, execute — mypy-forced) plus the
             two generic walkers (expand, openspiel/encoding) whose guard is
             reflection over dataclass fields.
-covered:    - `turns` with and without `again` parse to the Turns node;
-              fused keyword typos (`turnst`, `againgo`) are loud syntax
-              errors (anchored `_TURNS_KW`/`_AGAIN_KW`) [grammar/parse]
-            - binder scoped to the body only; reading it after the loop is
-              an unresolved-name diagnostic [resolve]
-            - non-Boolean `until`, non-Player `from`, non-collection `over`,
-              undeclared / non-Boolean `again` var → located diagnostics
-              [resolve/typecheck]
-            - rotation binds each participant in GAME direction from the
-              leader (counterclockwise pinned); `until` is checked before
-              the FIRST turn (the zero-iteration run exists); participants
-              re-evaluated per advance, including eligibility revoked by an
-              earlier seat's turn (the snapshot-mutant witness); `again`
-              repeats the same player and is CONSUMED on read (a stale flag
-              buys at most one repeat) [runtime]
-            - a non-seat leader (out-of-range Integer, loose pronoun) is a
-              typed RuntimeError at the bind — the `as`/`offer` seat-guard
-              class, never rotation-arithmetic ValueError [runtime]
-            - a full lap with no eligible participant is a loud
-              RuntimeError, never a silent skip or an infinite spin
-              [runtime]
-sampled:    body statement kinds run through the same execute dispatch used
-            by `if`/`as` — the form adds rotation, not per-statement logic.
-residual:   a `direction` override clause — not grammar (no corpus user);
-            recorded in roadmap.md "Grammar surface deferred by the
-            checker".
+does not prove:  that a body statement of any given kind behaves under
+            `turns`. The body-kind axis is sampled: a body's statements run
+            through the same execute dispatch `if`/`as` use, and the form
+            adds rotation rather than per-statement logic, so what a green
+            establishes is the rotation around a body, never the body's own
+            dispatch.
 """
 
 from __future__ import annotations

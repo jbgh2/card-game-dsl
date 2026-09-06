@@ -52,44 +52,31 @@ property:   every mutant produced by `MUTATORS` (mutate.py) over
 domain:     `CORPUS x OPERATORS x MUTATION_SEEDS` — the full
             `docs/games/*.cardlang` glob (mirroring every other corpus-wide
             harness in this repo) x every operator (`mutate.MUTATORS`, the
-            plan's full Stage-1 list) x 2 seeds by default.
-registry:   `mutate.MUTATORS` (closed, pinned by `test_mutate.py`'s own
-            enumeration test) and `findings.KNOWN_FINDINGS` (closed, pinned
-            by `test_known_findings_directory_matches_ledger` below against
-            `known_findings/*.cardlang`, and held non-empty by
+            plan's full Stage-1 list) x the checked-in seed list. Grammar-
+            DIRECTED generation (walking `cardlang.grammar` productions) and
+            mechanized shrinking sit outside it, and are scope rather than
+            hole: the population here is mutants of text the corpus already
+            holds, and every finding is shrunk by hand (grammar-fuzzing.md,
+            stages T4 and T5; issue #273).
+registry:   `mutate.MUTATORS` (closed; its enumeration pin: `test_mutate.py`)
+            and `findings.KNOWN_FINDINGS` (closed; its directory pin:
+            `test_known_findings_directory_matches_ledger` below, against
+            `known_findings/*.cardlang`; its non-empty floor:
             `empty_parameter_set_mark = "fail_at_collect"` over
             `test_known_findings_still_reproduce`'s parametrization).
             `EXCUSED` has no such parametrization and so carries its own
             floor, `test_the_excused_table_is_not_empty` — at zero entries
             both ledgers' pins pass over nothing.
-covered:    a discovery sweep at authoring time (seeds 0-4, the whole corpus,
-            every operator) found 6 crashing triples,
-            all under `delete_line`; all 6 were in `EXCUSED`/`KNOWN_FINDINGS`.
-            Re-run in full after the chooser was strengthened to the runtime
-            chooser's whole `k <= len(candidates)` contract (it previously
-            checked only the empty-pool special case): identical 6 findings —
-            no mutant at these seeds requests an over-sized pick from a
-            non-empty pool within the step budget.
-            Two of the six were Skat's, and both were FIXED rather than
-            re-keyed when the Trick Order retired the Primitives whose reads
-            crashed (issue #250 PR 2, the `EXCUSED` comment below); they left
-            the ledger by the feed-forward rule, so four remain.
-            `MUTATION_SEEDS = (0, 2)` was chosen specifically because it
-            covers 3 of those 4 triples (`getaway_no_legal_play...` needed
-            seed 4 and is validated only by the frozen pinned test, not by
-            this live sweep — see its `EXCUSED` comment below).
-sampled:    every other `(game, operator, seed)` triple outside that
-            discovery sweep — the checked-in default is a small slice of an
-            all-operator x whole-corpus x unbounded-seed space.
-residual:   grammar-DIRECTED generation (the plan's T4, walking
-            `cardlang.grammar` productions) and mechanized shrinking (T5)
-            are not implemented — every finding above was shrunk by hand
-            (`oracle.py`'s "Residual"). `duplicate_declaration` and
-            `swap_adjacent_tokens` found nothing in the discovery sweep;
-            that is evidence those guards hold against THESE five seeds on
-            THIS corpus, not a completeness claim about the operators
-            themselves — a wider `CARDLANG_FUZZ_SEEDS` or `FUZZ_BUDGET_SECONDS`
-            run may surface more.
+does not prove:  anything about a triple outside the grid, and the grid is a
+            small slice of an all-operator x whole-corpus x unbounded-seed
+            space. An operator that produces no finding — as
+            `duplicate_declaration` and `swap_adjacent_tokens` do not — is
+            evidence about these seeds on this corpus, never a claim about the
+            guards that operator probes; a wider `CARDLANG_FUZZ_SEEDS` or
+            `FUZZ_BUDGET_SECONDS` run may surface more. An `EXCUSED` triple
+            whose seed is outside the checked-in list is likewise not
+            exercised here at all: what holds it is the frozen fixture behind
+            `test_known_findings_still_reproduce`.
 """
 
 from __future__ import annotations

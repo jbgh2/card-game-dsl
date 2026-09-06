@@ -12,39 +12,31 @@ domain:     CALL_FUNCS (the whole registry) x {builtins, declared}; every
             `runtime/stdlib.py` x {exists, imported}; the retired legacy
             dispatch seam x {the dispatcher, its callers, the set that
             classified it}
+            Three key sets -- `climb_universe_function`,
+            `climb_codec_function`, `joint_codec_function` -- carry a home
+            row and no membership row, and that is not a gap: each exists
+            only inside its own `match`, so there is no registry for a
+            membership row to quantify over.
 registry:   `cardlang/builtins/functions.py` for the name axis --
             `BUILTIN_CALL_FUNCS` / `PRIMITIVE_CALL_FUNCS` give the expected
             route and `CALL_FUNCS` their derived union; each home module's OWN
             `call` match AST for the actual home (scraped from the source,
             never hand-listed); each home module's module-level `match name:`
-            functions for the dispatcher axis
-covered:    the grid -- `test_call_arm_home[<name>]`, one row per registry
-            member, crossed against the scraped home, including every
-            Primitive row whose expected home is no arm at all;
-            `test_homes_partition_the_call_registry` (scraped union ==
-            CALL_FUNCS minus the Primitives, scraped intersection == empty,
-            the Builtins' scraped arms == their declared set both ways, and
-            the Primitives home's arm set empty);
-            `test_dispatcher_home[<dispatcher>]`, one row per scraped
-            dispatcher, plus `test_every_scraped_dispatcher_is_accounted_for`
-            so a NEW dispatcher cannot land unplaced (the dispatcher column
-            is the dispatcher's FILE; the classification of the slot
-            callbacks a dispatcher keys is the registries' statement, and
-            `value_function` keys both homes' winners from primitives.py by
-            design — see DISPATCHER_HOMES);
-            `test_the_legacy_dispatch_seam_is_gone` (the dispatcher, its
-            callers and `DECLARED_ONLY_CALL_FUNCS`, each falsifiable alone);
-            `test_retired_module_is_gone`;
-            `test_nothing_imports_the_retired_module`
-sampled:    that each arm still computes the right answer is not this grid's
-            property -- the full suite and byte-identical goldens carry it.
-            This grid pins WHERE a name dispatches, not WHAT it returns.
+            functions for the dispatcher axis. The three key sets' joint
+            coverage of `PRIMITIVE_CLIMB_LEADS`: tests/test_signatures.py.
 does not prove: that a Primitive's DECLARED route works. This grid says only
             that no arm dispatches one; that the table a block derives finds
             real Python and hands it the right shape is
             tests/test_primitives_block.py's and tests/test_signatures.py's,
             and a green here would survive the declared route being broken
             outright.
+            Nor that an arm computes the right answer: this grid pins WHERE
+            a name dispatches, not WHAT it returns, and the byte-identical
+            goldens and the rest of the suite carry that.
+            Nor that the three key sets above jointly cover
+            `PRIMITIVE_CLIMB_LEADS` -- a lead missing from every one of them
+            passes this grid, and the property is tests/test_signatures.py's.
+
 red under (the end state, authored before it held):
             the five cells that state the retirement were authored against the
             tree that still carried the seam, and four of the five were red
@@ -63,21 +55,6 @@ red under (the end state, authored before it held):
             assertions of `test_the_legacy_dispatch_seam_is_gone` and of
             `test_the_index_is_where_a_primitive_signature_is_stated` carry
             their own per-assertion mutations, listed at each.
-residual:   the `climb_universe_function` / `climb_codec_function` /
-            `joint_codec_function` key sets are not registries -- they exist
-            only inside their own match -- so each carries a home row but no
-            membership row. Their joint coverage of PRIMITIVE_CLIMB_LEADS is
-            tests/test_signatures.py's property, not this grid's. R4, and
-            this ledger owns the record: the two codec dispatchers return
-            None on a miss by design, and the absence is guarded loudly where
-            it matters (`ActionSpace.for_game`).
-
-            Not a residual, recorded because it was one until issue #202:
-            the expected-home column is now DERIVED from the declaration
-            side, so this grid crosses two independent statements of where a
-            name lives instead of checking the implementation against a copy
-            of itself. A name declared in neither half is not in CALL_FUNCS
-            and resolve refuses it.
 """
 
 from __future__ import annotations

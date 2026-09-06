@@ -43,11 +43,17 @@ domain:     {position} x {in range | over high} x role {Player | Team}, plus the
             shared lower bound pinned once (a negative literal). {position} = the
             framing-reconciled set above (`_PLAYER_BUILDERS`/`_TEAM_BUILDERS`
             below): expression/call, declaration/binding, and the
-            formerly-untyped clauses. Player positions run on a fixed 2-seat game
+            clause positions. Player positions run on a fixed 2-seat game
             (plus a `players: 2..4` range-count boundary: seat 3 accepted, seat 4
             rejected); Team positions on a 2-team (`teams: [[0,2],[1,3]]`)
             game, plus the empty-team boundary -- a TEAMLESS game (`max_teams ==
             0`) is a KNOWN empty domain, so every team literal, even `0`, rejects.
+
+            A COMPUTED index (`hand[0 + 9]`) sits outside, and it is a scope
+            limit rather than a hole: this domain is LITERALS, which is what a
+            check-time bound can decide. Index strictness over a computed
+            expression is the zone-family typing ledger's, and the runtime's
+            typed `ZoneStore` miss stands behind it.
 registry:   the range check is `_check_role_literal`, called from the ONE choke
             point `_check_operand`. The pin `tests/test_operand_choke_point.py`
             derives the coercion set from the `coercible(...)` CALL nodes in
@@ -56,35 +62,31 @@ registry:   the range check is `_check_role_literal`, called from the ONE choke
             Bounds: `TypeEnv.max_players` (from `game.players`) and
             `TypeEnv.max_teams` (`len(game.teams)`), threaded in
             `env_from_game`.
-covered:    the grid below -- `_PLAYER_BUILDERS` x {over high rejected, in range
-            accepted} (`test_choke_point_rejects_out_of_range_player`,
-            `test_choke_point_accepts_in_range_player`) and
-            `_TEAM_BUILDERS` likewise; a negative literal rejected (`score[-1]`,
-            the lower bound); the range-count boundary; the formerly-untyped
-            clauses additionally rejecting a non-player String
-            (`test_untyped_clause_now_rejects_a_non_player`); a team literal in a
-            TEAMLESS game rejected as an empty domain
-            (`test_team_literal_in_a_teamless_game_is_rejected`). The pin proves no
-            coercion escapes the choke point. Runtime Shadow Guards behind the static
-            guard stay covered: a COMPUTED out-of-range frame-verb seat
-            (tests/test_movement_verbs.py::test_frame_verb_runtime_seat_backstop),
-            a COMPUTED phantom key and a `TAny`-typed non-player `loser:`
-            selection (both tests/test_fail_loud.py).
-sampled:    the Team axis runs two positions (a team-keyed index, a Team call
-            arg). The other Team-reachable positions (struct field, variant
-            payload, state default, scalar assign) are covered COMPOSITIONALLY,
-            not each executed: the pin proves every position routes through
-            `_check_operand`, the Player grid proves each such position reaches
-            it, and the two team rows prove `_check_operand`->`_check_role_literal`
-            ranges a `Team`. Their product is every team position ranged.
-residual:   a range game's seat literals are bounded by `high` while the game is
-            PLAYED at `low` (`players: 2..5` accepts `hand[3]`, then the runtime
-            has two seats), so this ledger's own bound is the one nothing
-            executes at (issue #296); guard: the runtime's typed
-            `OwnerGuardError` on the phantom key. A COMPUTED
-            out-of-range index (`hand[0 + 9]`) is the separate zone-family
-            index-strictness residual (ledger tests/test_zone_family_typing.py),
-            backstopped at runtime by the typed `ZoneStore` miss.
+            The `teams:` declaration's own integer lists, guarded at their
+            declaration instead: tests/test_teams_partition.py.
+            Computed index strictness: tests/test_zone_family_typing.py.
+            The runtime Shadow Guards behind the static guard -- a computed
+            out-of-range frame-verb seat:
+            tests/test_movement_verbs.py::test_frame_verb_runtime_seat_backstop;
+            a computed phantom key and a `TAny`-typed non-player `loser:`
+            selection: tests/test_fail_loud.py.
+does not prove:  two things.
+            That every TEAM position is ranged. The team grid runs two
+            positions -- a team-keyed index and a Team call argument -- and
+            the rest (struct field, variant payload, state default, scalar
+            assign) rest on a COMPOSITION rather than an executed cell: the
+            choke-point pin proves every position routes through
+            `_check_operand`, the Player grid proves each such position
+            reaches it, and the two team rows prove
+            `_check_operand` -> `_check_role_literal` ranges a `Team`. Their
+            product is an argument that every team position is ranged; nothing
+            here runs one.
+            And that an ACCEPTED literal names a seat the played game has. A
+            range game's seat literals are bounded by `high` while the game is
+            played at `low`, so `players: 2..5` accepts `hand[3]` against a
+            bound no run reaches -- the acceptances at the top of that range
+            are the cells nothing executes. What stands there instead is the
+            runtime's typed `OwnerGuardError` on the phantom key.
 """
 
 from __future__ import annotations

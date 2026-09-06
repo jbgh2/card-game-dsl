@@ -10,27 +10,20 @@ property:   every statement kind states its deck behaviour in `_stmt_usage`
             (count / branch / skip / inert), and the gate never rejects a
             valid game
 domain:     the `Stmt` union (statement kinds) × deck effect {draw, refill,
-            branch, repeat, inert}
+            branch, repeat, inert}. Draws inside MOVE effects (via
+            `offer`/rounds) sit outside it, and that is a scope limit rather
+            than a hole: the gate walks phase bodies, and a move effect's
+            draws are not statically boundable from there (issue #135)
 registry:   `cardlang.ast.nodes.Stmt` — the walk is an exhaustive match
             (mypy-enforced), so a new statement kind cannot fall to a silent
             "draws nothing" default (that default is how deals inside a
-            `Block`, and then inside a `produces:` arm, were invisible)
-covered:    Transfer (count / full refill / literal partial return — all
-            pinned; a partial return SUBTRACTS rather than resetting,
-            since modeling one returned card as a full refill accepted a
-            genuinely overflowing game), IfStmt (taken-branch
-            counting AND max-not-sum, both pinned below), ForEach (per-role
-            iteration counts from the domain table — overflow and exact-fit
-            pinned below), Block (unconditional sequence — both failure
-            directions pinned in test_procedures' capacity-parity test),
-            Produces (max over arms, both directions pinned below),
-            RepeatUntil (skip — sound because the runtime checks the
-            condition first, so the zero-iteration path is always possible)
-sampled:    the inert group (let/assign/rotate/offer/round/produce/jumps) is
-            asserted inert by the match arms' own comments; no per-kind probe,
-            since inertness is "no Transfer reachable", a structural fact
-residual:   draws inside MOVE effects (via `offer`/rounds) are outside the
-            gate's domain — not statically boundable; recorded in issue #135
+            `Block`, and then inside a `produces:` arm, were invisible). The
+            `Block`/`run` capacity parity, both directions:
+            tests/test_procedures.py::test_a_run_is_capacity_checked_exactly_as_the_inline_text
+does not prove:  that each inert statement kind is inert. The inert group
+            (let/assign/rotate/offer/round/produce/jumps) carries no per-kind
+            probe: inertness is "no Transfer reachable", argued at each match
+            arm of `_stmt_usage` and read there, never executed kind by kind.
 """
 
 from __future__ import annotations

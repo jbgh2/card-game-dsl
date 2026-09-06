@@ -27,7 +27,7 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            x deck flavor (card / piece) x host (game body; the clause is
            grammatically inexpressible in a library, a phase, or at top
            level) x consumers (the renamed Builtin through a played game; the
-           census total; the four surviving Python point tables) x the rename
+           census total; the surviving Python point tables) x the rename
            axis (`card_points` resolves, `card_value` does not) x the
            wrong-spelling POSITION axis (the game_item position, canonical
            and ranking-adjacent, where the reject alternatives teach the
@@ -35,6 +35,16 @@ domain:    clause presence x block shape (rows, else-row states, duplicates,
            slot, an ordinary expression slot — where `card_values` is
            refused at parse via its STRUCT_TYPE_NAME exclusion instead of
            being read as a struct literal).
+           Two things sit outside, and neither is a gap. A state variable,
+           zone, or local spelled `card_points` beside the clause and the
+           Builtin is a naming-hygiene question rather than a correctness
+           one: `Call.func` and `NameRef` classification are separate
+           channels that cannot cross, so the coexistence is left undecided
+           rather than sanctioned, and no corpus game writes it. And a
+           call-name repair hint for `card_value(card)` is outside: the
+           reject-with-replacement treatment is spent on the two wrong CLAUSE
+           spellings the counsel names, and a hint keyed on a call name would
+           be new machinery.
 registry:  the clause axis derives from the grammar's `?game_item`
            alternation and the `card_points_table` production (scraped from
            cardlang.lark by test_clause_axes_are_pinned_by_grammar_and_
@@ -42,80 +52,37 @@ registry:  the clause axis derives from the grammar's `?game_item`
            terminal's `else` exclusion from CARD_POINTS_KEY; the Builtin's
            home from BUILTIN_CALL_FUNCS / CALL_SIGS; the key-validity set
            from the deck registry via `rank_names`; the migration tables
-           from the five game runtime modules' own dicts. The enumeration
+           from the migrating games' own runtime dicts. The enumeration
            record is the framing-check comment on issue #249; the design
            record is the per-PR counsel comment there.
-covered:   the executed parametrizations and probes in this module —
-           test_value_grid (NAME/INT keys, positive/zero/negative/spaced/
-           leading-zero values, sparse-unlisted-0, else-row default,
-           full-table-with-inert-else), the census cells (sparse and
-           else-materialized totals agreeing with the Builtin through the
-           same played game), the resolve cells (duplicate key, unknown
-           rank naming the deck, convention-word key, `elsex` whole-word
-           key, the piece-game rejection, the clause-less call, the
-           call-less clause accepted), the parse cells (colon and
-           `card_values` reject-with-replacement in the canonical and
-           ranking-adjacent game_item positions, the duplicate-clause wall,
-           and the absorber positions — both wrong spellings after an empty
-           `loser:`, `card_values` in an expression slot — each a
-           parse-layer refusal, executed red-under on the exclusion
-           revert), the misuse syntax probes, the host cells (Team-param
-           function summing over a team zone family; the library / phase /
-           top-level impossibilities), the IR cells (conditional key), and
-           the four migration agreement pins (gin, cribbage, canasta
-           directly; tarot composed through its bout layer over the whole
-           78-card pack).
-sampled:   (a) expression host positions for the renamed Builtin (aggregation
-           bodies, movement filters, move-type `when:` guards, let values):
-           one Call node through one evaluator arm — the four migration
-           games and the five retirement games exercise the live positions
-           end to end under their byte-identical playout suites; the value
-           grid here pins the arm itself. (b) clause absorption after a
-           `ranking:` enumeration and by an empty expression slot: derived
-           sweeps in tests/test_game_clause_guards.py cover every clause
-           including this one (the absorbable-shape scrape widened in this
-           change to see entry-plus blocks and non-NAME entry heads).
-           (c) `else`-value-0 rows: the same load path as the else cells
-           with the default coinciding with the no-else default.
-           (d) keyword anchoring and fusion for `_CARD_POINTS_KW` /
-           `_CARD_VALUES_KW`: the derived grid in
-           tests/test_keyword_anchoring.py mints the rows mechanically;
-           tests/keyword_fusion_sweep.py re-run by hand with the change.
-residual:  (a) a state variable, zone, or local spelled `card_points`
-           coexists with the clause and the Builtin (three namespaces, one
-           spelling): mechanically legal today — Call.func and NameRef
-           classification are separate channels — and deliberately left
-           undecided rather than pinned as sanctioned; the corpus witness
-           (schnapsen's `card_points[player]`) renames to `points_taken` in
-           this change, so no game exercises the coexistence. R4,
-           auditor-only, recorded here; guarding it is a naming-hygiene
-           question, not a correctness one (the channels cannot cross).
-           (b) `_PARSE_HINTS` has no entry for a game clause written in a
-           phase body, so the misplaced-clause probes report bare syntax
-           errors rather than a repair hint — pre-existing for every game
-           clause, R4, recorded here.
-           (c) the census `total_value` for the five retirement games rises
-           from 0 to the declared table's sum (their decks carried no
-           table before), and french-tarot's census prices bouts at the
-           else value (158 for the 78-card pack, not the settlement's
-           doubled 182) because the bout layer is deliberately inline at
-           the call sites while `tarot_per_opp` owns the settlement — a
-           domain fact of the census diagnostic, asserted by no golden,
-           recorded here.
-           (d) `card_value(card)` after the rename is an unknown-function
-           resolve diagnostic (executed below) without a
-           did-you-mean-card_points hint: the reject-with-replacement
-           treatment is spent on the two wrong CLAUSE spellings the counsel
-           names; a call-name hint mechanism would be new machinery. R4,
-           recorded here.
-naming:    `card_points` joins the glossary as its own entry (the concept
-           "card points" previously lived only inside the reserved word
-           "value"'s compound list, citing `Deck.values` — a referent this
-           change retires); the entry and the updated compound land in the
-           same change. The clause keyword, the Builtin name, and the
-           runtime field `rs.card_points` share the one spelling; the
-           grammar rule is `card_points_table` (the card-point table, the
-           phrase the corpus modules already use).
+           Clause absorption over every game clause, this one included:
+           tests/test_game_clause_guards.py. Keyword anchoring for
+           `_CARD_POINTS_KW` / `_CARD_VALUES_KW`: the derived grid in
+           tests/test_keyword_anchoring.py.
+does not prove:  the Builtin in every expression host — aggregation bodies,
+           movement filters, move-type `when:` guards, let values. One Call
+           node through one evaluator arm runs here: the arm is what a green
+           establishes, not the hosts around it.
+           Nor an `else: 0` row as its own case. It takes the same load path
+           as the else cells with the default coinciding with the no-else
+           default, so nothing here separates the two.
+           Nor that a misplaced clause is refused BY DESIGN. `_PARSE_HINTS`
+           carries no entry for a game clause written in a phase body, so
+           those probes assert a bare syntax error — which a tree without
+           the clause produces too.
+           Nor the census total. `total_value` is asserted by no golden, and
+           french-tarot's prices bouts at the `else:` value over the whole
+           pack rather than at the settlement's doubled figure, because the
+           bout layer is inline at the call sites while `tarot_per_opp` owns
+           the settlement.
+           And the keyword FUSION sweep, tests/keyword_fusion_sweep.py, is
+           run by hand rather than collected; only the anchoring grid runs
+           in the suite.
+
+`card_points` is its own glossary entry. The clause keyword, the Builtin name,
+and the runtime field `rs.card_points` share the one spelling; the grammar rule
+is `card_points_table` (the card-point table, the phrase the corpus modules
+already use).
 """
 
 from __future__ import annotations

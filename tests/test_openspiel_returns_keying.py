@@ -27,7 +27,12 @@ property:   for a game whose `winner:` names score variable V, every seat p
             distinguish the two when the counts coincide.
 domain:     {V player-indexed | V team-indexed} x {team count == player count |
             != player count} x {rank_dir highest | lowest}, plus the `loser:`
-            (no `winner:`) form, which has no score variable at all.
+            (no `winner:`) form, which has no score variable at all. A SCALAR
+            `winner:` target (`winner: highest pot`, no index) sits outside,
+            and the boundary is real rather than a hole in the grid: such a
+            game never reaches `returns_for` at all, because `driver` dies
+            building the score dict from an int first. The checker guard that
+            would make that loud is issue #153.
 registry:   the keying comes from the `winner:` target's `StateDecl.index`
             (`nodes.state_blocks` walks the game-level block and every nested
             phase block -- a winner target may be declared in either), and the
@@ -40,32 +45,14 @@ registry:   the keying comes from the `winner:` target's `StateDecl.index`
             `domains.zone_observer_key`. The sign axis is
             `replay.RANK_DIR_TO_SIGN`; `team_of` is built from
             `game.teams` exactly as `runtime/driver` builds it.
-covered:    the grid below -- every {keying x coincidence} cell with its
-            expected returns computed from the game's own structure (the
-            authored decision), including the two cells the key-set guess got
-            wrong; both signs; and the `loser:` form. Plus the registry pin
-            (`test_the_mapping_covers_every_zone_index_role`, red under dropping
-            a role from `_RETURNS_KEYED_ROLES` or adding a `zone_key_of` domain
-            -- RUN) and its loud half
-            (`test_an_unhandled_index_role_raises_rather_than_defaulting`,
-            which plants an unhandled role in the declaration the mapping reads).
-sampled:    the end-to-end path (a real playout reaching `returns_for` through
-            `replay.run`) is exercised by the existing
-            tests/test_openspiel_replay.py and the per-game proof modules in
-            tests/openspiel_ready/; this grid drives `returns_for` directly so
-            the score dict is controlled exactly.
-residual:   none for the keying itself -- every game that REACHES `returns_for`
-            is covered, because the keying axis is binary and both values are
-            executed at both count relations. Adjacent, NOT closed here and
-            recorded in issue #153 instead: a `winner:`
-            target that is a SCALAR
-            (`winner: highest pot`, no index) never reaches this function at all
-            -- it type-checks, then `driver` dies building the score dict
-            (`dict(rs.get(target))` on an int) with a bare `TypeError`, the
-            wrong channel for a checked game. Run and confirmed while writing
-            this. That is a missing checker guard on the `winner:` target, not a
-            returns-mapping hole.
+does not prove:  that a real playout reaches `returns_for` the way this grid
+            drives it. The grid calls `returns_for` directly, so the score
+            dict is controlled exactly and nothing upstream of it runs; the
+            end-to-end path through `replay.run` is
+            tests/test_openspiel_replay.py and the per-game proof modules
+            under tests/openspiel_ready/.
 """
+
 from __future__ import annotations
 
 import dataclasses

@@ -8,79 +8,42 @@ property:  every operator a `BinOp` node can carry has its operands checked
            arm without a matching `OP_CLASSES` entry fails loud (a test, not
            a silent unwalled pass-through) rather than reaching runtime.
 domain:    the operator registry — `infer`'s BinOp arm, `cardlang/
-           typecheck.py` (15 operators: `== != < > <= >= and or in + - *
+           typecheck.py` (`== != < > <= >= and or in + - *
            offset_by divided_by_rounded_up divided_by_rounded_down`) —
-           classified into 6 operand-shape families
+           classified into operand-shape families
            (`OP_CLASSES`) — crossed with the operand-type registry
            (`cardlang/types.py`'s closed `Type` union: TInteger, TBoolean,
            TString, TPlayer, TTeam, TCard, TEnum{Suit,Rank,SeatDirection},
            TOptional, TCollection, TNull, TAny, TStruct, TOutcome).
+           Two things sit outside that operand-type domain, and neither is a
+           gap. `TOutcome` is excluded: this checker never infers a concrete
+           `TOutcome` for an expression reachable from a BinOp/aggregation/
+           IsCheck position — the `outcome` pronoun, the only place a variant
+           value flows, stays `TAny`, and `_check_produce_stmt`/
+           `_check_define_outcomes` type variants through a disjoint path that
+           never calls `_check_binop`. And the `TOptional` unwrap itself
+           (`_bare`) is `types.py`'s domain rather than the dispatcher's; what
+           the dispatcher owes is that each class reaches it, which a
+           `Player?`/`Suit?`-shaped operand per class exercises.
 registry:  `OP_CLASSES` (operator -> class) pinned against `infer`'s BinOp
            arm by `test_op_classes_is_exactly_infers_binop_registry` below
            (scraped from `infer`'s own source, not hand-copied — a new
            operator without a matching entry fails this test). The operand-
            type registry is `cardlang.types.Type`.
-covered:   (class, operand-type) cells with an executed probe in this
-           module:
-             equality    x TEnum(cross-enum), TEnum-vs-Integer  [pre-existing
-                          guard, re-probed here for the dispatcher wiring],
-                          TEnum-vs-TCard (reject + whole-card hint),
-                          TEnum-vs-TBoolean (reject) — the default arm that
-                          makes `_check_enum_operand` total over concrete
-                          operand types (the same arm closes the literal-list
-                          membership hole, `card.suit in [Q of spades]`,
-                          probed below)
-             ordering    x TInteger (accept), TEnum(Rank) (hint), TEnum(Suit)
-                          (enum-message), TCard (generic message), TAny
-                          (accept, gradual)
-             arithmetic  x TInteger (accept), TEnum(Rank) (hint), TEnum(Suit)
-                          (concatenation message — true of the `+ - *` fork
-                          only; the rounded-division ops read the neutral
-                          no-numeric-value message, pinned by the fork-subset
-                          test below and probed in tests/test_divided_by.py),
-                          TBoolean (generic message)
-             logical     x TBoolean (accept), TInteger (reject), TAny
-                          (accept, gradual)
-             membership  x TCollection-of-matching-element (accept),
-                          non-collection right-hand-side (reject),
-                          TInteger-vs-TCollection<Suit> (reject, the
-                          `unify` generalization), TCard-vs-TCollection
-                          <Card> zone family (accept, the pre-existing
-                          zone-membership shape), TEnum literal-list (both
-                          the valid-literal accept and the invalid-literal
-                          reject — the retained per-element path,
-                          `card.rank in [A, "10"]`)
-             offset_by   x TPlayer/SeatDirection (accept), non-Player left
-                          (reject), non-SeatDirection right (reject), TAny on
-                          either side (accept, gradual)
-sampled:   every class's "everything else concrete rejects" branch is one
-           `isinstance` check against a fixed accept-set (`{TAny, TInteger}`
-           for ordering/arithmetic, `{TAny, TBoolean}` for logical), so the
-           un-probed members of the reject set (TTeam, TString, TStruct,
-           TCollection, TOptional-of-a-rejected-payload, TNull) share the
-           exact same code path as the probed TCard/TBoolean/TInteger
-           representatives — probing one exercises the branch, not the
-           type. `TOptional` unwrapping (`_bare`) is exercised once per
-           class via a `Player?`/`Suit?`-shaped operand (`offset_by`'s
-           corpus probe already routes through a nullable-adjacent binder);
-           the unwrap itself is `types.py`'s own domain (not re-litigated
-           here). `TOutcome` is excluded from the operand-type domain
-           entirely: this checker never infers a concrete `TOutcome` for an
-           expression reachable from a BinOp/aggregation/IsCheck position
-           (the `outcome` pronoun — the only place a variant value flows —
-           stays `TAny`; `_check_produce_stmt`/`_check_define_outcomes` type
-           variants through a disjoint path that never calls `_check_binop`)
-           — not a residual, a domain exclusion.
-residual:  a `let` whose initializer itself types `TAny` (an unregistered
-           `action.<field>`, a call with a loose signature) carries `TAny`
-           forward, so the gradual-typing pass-through applies one binding
-           later — the same rule as everywhere else `TAny` flows, not a
-           blind spot of the walk. `let`-bound locals are otherwise TYPED
-           across statements (the sequential fold in `_seq_tree_scoped`,
-           resolved by `_scoped_env`), so every guard in this module fires
-           through a `let` exactly as it fires on the inline expression —
-           pinned by the let-laundered probes in this module and the
-           dedicated ledger in tests/test_let_typing.py.
+           The rounded-division fork's neutral no-numeric-value message:
+           tests/test_divided_by.py. Let-bound local typing across statements
+           (the sequential fold in `_seq_tree_scoped`, resolved by
+           `_scoped_env`): tests/test_let_typing.py.
+does not prove:  that an un-probed member of a class's reject set is rejected
+           as that TYPE. Every class's "everything else concrete rejects"
+           branch is one `isinstance` check against a fixed accept-set
+           (`{TAny, TInteger}` for ordering and arithmetic, `{TBoolean}` for
+           logical, whose `TAny` carries its own refusal), so TTeam, TString,
+           TStruct, TCollection, TOptional-of-a-rejected-payload and TNull
+           share the exact code path as the probed
+           TCard/TBoolean/TInteger representatives. Probing one exercises the
+           branch, not the type, and a class that began discriminating
+           between members of its reject set would pass here unchanged.
 """
 
 from __future__ import annotations

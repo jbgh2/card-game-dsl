@@ -29,97 +29,54 @@ Completeness ledger
 
     domain:     Two axes, each derived from its own registry in code, never from
                 the implementation's coverage:
-                  A. domain rows — `cardlang.domains.DOMAINS` (4 rows today).
+                  A. domain rows — `cardlang.domains.DOMAINS`.
                   B. forms that range over a domain — enumerated from the GRAMMAR
                      (cardlang/grammar/cardlang.lark), not from the registry:
-                     the 8 `quantifier` productions (`any`/`all` x 4 nouns), the
-                     `for_each` production, the `each_simultaneous` production,
-                     and the `move_param` type slot.
+                     the fixed-noun `quantifier` productions (`any`/`all` over
+                     each keyword noun), the `for_each` production, the
+                     `each_simultaneous` production, and the `move_param` type
+                     slot.
                 Axis B is crossed with the declared-type spelling x {plain,
-                optional} for the move-parameter cells (8 spellings), so the
-                optional forms no row admits (`Player?`, `Rank?`, `Team?`) are
-                cells that must be REJECTED, not cells that go unmentioned.
+                optional} for the move-parameter cells, so the optional forms no
+                row admits (`Player?`, `Rank?`, `Team?`) are cells that must be
+                REJECTED, not cells that go unmentioned.
+
+                One layer sits outside, and it is a scope limit rather than a
+                hole. The GRAMMAR surface is not derived from this table: the
+                semantic layers all read it — binder typing, iteration,
+                actorhood, member enumeration, and the move-param/action-space
+                domains — while a row's `any <noun> where` spelling is a fixed
+                keyword production. So a NEW row arrives with its semantic
+                columns live and its quantifier spelling matched by the generic
+                `any QNOUN where` production, which belongs to a DIFFERENT
+                registry (`game.positions`): the sentence parses, reaches
+                `resolve._check_domain_query`, and is refused as an unknown
+                POSITION domain — loud, and under a universe's name that is not
+                the one it was competing with. Deriving the productions from
+                the table is issue #112. `for_each` and `each … simultaneously`
+                are unaffected: both parse any NAME and guard on
+                `_ITERATION_ROLES`/`SIMULTANEOUS_ROLES` membership at resolve.
 
     registry:   A. `cardlang.domains.DOMAINS` (rows + columns)
                 B. `cardlang/grammar/cardlang.lark` — `quantifier`, `for_each`,
                    `each_simultaneous`, `move_param`
+                Per-row `role_members` non-emptiness:
+                tests/test_role_registry.py::test_role_members_is_non_empty_for_every_registry_member.
+                Iteration ORDER, held byte-for-byte across the corpus:
+                tests/test_migration_characterization.py.
 
-    covered:    Exhaustive over A x B — 4 rows x (2 quantifier forms + `for each`
-                + `each … simultaneously` + 2 move-param spellings) = 24 cells,
-                every one executed as a probe below, plus:
-                  - quantifier: all 8 productions accepted
-                    (`test_every_row_is_quantifiable_in_both_forms`), and
-                    each row's BINDER TYPE witnessed by a
-                    cross-typed predicate that must be guarded by the type layer
-                    (`test_a_quantifier_binder_types_as_its_rows_binder_type`) —
-                    a binder typed `TAny` would let those through.
-                  - `for each`: accepted for every `iterable` row, and ACTORHOOD
-                    checked at runtime against `binds_actor` for every row
-                    (`test_for_each_binds_the_actor_iff_the_row_is_a_seat_domain`)
-                    — the seat/value asymmetry is checked as data, not asserted.
-                  - `each … simultaneously`: accepted for the `simultaneous` row,
-                    guarded with "simultaneous moves are per player" for the other
-                    three. The guard message itself is derived from the column.
-                  - move params: the 8 declared-type spellings — `Player`, `Suit`,
-                    `Suit?`, `Rank` accepted; `Player?`, `Team`, `Team?`, `Rank?`
-                    guarded with "unsupported parameter domain". Plus `Card` (the
-                    documented non-row outlier, accepted), an unknown type name,
-                    and `Integer` (deferred), each guarded.
-                  - the rank divergence: `for each rank` is legal with no
-                    `ranking:` (it iterates deck order) while a `Rank` PARAM in
-                    the same game is guarded — the two member columns really are
-                    two columns (`test_the_rank_rows_two_member_columns_diverge`).
-                Non-row nouns (`for each color`, `each color simultaneously`) are
-                guarded against THIS registry's `_ITERATION_ROLES`/
-                `SIMULTANEOUS_ROLES` columns — closed, not open. A non-row
-                QUANTIFIER noun (`any color where …`) is a different cell with a
-                different guard, against a DIFFERENT registry (`game.positions`,
-                not `cardlang.domains.DOMAINS`) — see residual 1.
-
-    sampled:    Member ORDER is pinned by example, not exhaustively: the corpus
-                goldens (tests/test_migration_characterization.py) hold every
-                iteration order fixed byte-for-byte across the corpus, which is a
-                stronger witness than a synthetic matrix but is not a per-row
-                enumeration. `role_members` non-emptiness per row is pinned in
-                tests/test_role_registry.py.
-
-    residual:   1. THE GRAMMAR SURFACE DOES NOT LIGHT UP FROM A NEW ROW — RIGHT,
-                   BUT THE MECHANISM CHANGED. The claim "a new domain registers
-                   itself and arrives with its full column green" is TRUE for the
-                   semantic layers — binder typing, iteration, actorhood, member
-                   enumeration, and the move-param/action-space domains all read
-                   the table — and NOT YET TRUE for the grammar surface, but not
-                   for the reason it used to be. Before the position-domain /
-                   cell-line query register (Task 7, decisions.md "Boards and
-                   cells"), `cardlang.lark` had exactly 8 quantifier productions
-                   and a 5th row's `any <noun> where` was a SYNTAX error — no
-                   production matched. Task 7 added a generic `any QNOUN where`
-                   production alongside the 8 fixed ones, for a DIFFERENT
-                   registry (`game.positions`, board cells / `positions {}`
-                   names — not `cardlang.domains.DOMAINS`). A 5th DOMAINS row's
-                   `any <noun> where` now PARSES, reaches
-                   `resolve.py::_check_domain_query`, and is rejected as an
-                   "unknown position domain" — a diagnostic naming the wrong
-                   universe (position domains) rather than the DOMAINS rows it
-                   was actually competing with. Still a loud guard (a resolve
-                   diagnostic, not a silent accept), so still a residual and not
-                   a defect — but the failure moved from grammar-inexpressible
-                   to resolve-rejected-under-a-misleading-name, which is the more
-                   surprising of the two. `for_each`/`each … simultaneously` are
-                   unaffected: both already parsed any NAME before Task 7 and
-                   guard on `_ITERATION_ROLES`/`SIMULTANEOUS_ROLES` membership at
-                   resolve, unchanged. Witnessed by
-                   `test_a_non_row_noun_parses_but_is_rejected_at_resolve`, which
-                   pins the current mechanism in place of the retired one.
-                   Recorded in issue #112.
-                2. `each player simultaneously` accepts a body that is not a
-                   `chosen` movement (`marker[0] += 1`, or a plain `move one card
-                   …`), then dies on a BARE ASSERT in `execute._pass_selection`.
-                   Pre-existing, and on the form's BODY axis rather than this
-                   module's domain axis — the domain gate is total; the body gate
-                   is missing. Wrong failure channel (a bare assert, not a
-                   diagnostic). Recorded here, in this ledger, which owns
-                   it: the form's BODY axis has no other home.
+    does not prove:  two things.
+                Member ORDER per row. Nothing here enumerates it; the corpus
+                goldens hold every iteration order fixed byte-for-byte, which
+                is a stronger witness than a synthetic matrix and is also not a
+                per-row check — a row whose members reordered where no corpus
+                game iterates it passes both.
+                And the BODY axis of `each … simultaneously`. This module's
+                axis is the DOMAIN axis: which rows the form admits. Whether a
+                body the form admits is a legal one is
+                `nodes.simultaneous_body_error`, an Owner Guard at resolve with
+                a Shadow Guard in `execute._pass_selection`, and a green here
+                says nothing about either.
 """
 
 from __future__ import annotations
@@ -189,7 +146,8 @@ def _param_move(spelling: str) -> str:
 #
 # The quantifier productions spell the plural for `all` (`all players where`),
 # the singular for `any` (`any player where`). Both are literal nouns in
-# cardlang.lark — see the grammar-surface residual in the module ledger.
+# cardlang.lark — see the grammar-surface boundary in the module ledger's
+# `domain:` row.
 def _any(row: Domain) -> str:
     return f"any {row.id.value} where"
 
@@ -231,13 +189,12 @@ def test_a_quantifier_binder_types_as_its_rows_binder_type() -> None:
 
 
 def test_a_non_row_noun_parses_but_is_rejected_at_resolve() -> None:
-    # Retired truth: pre-Task-7, `any <noun> where` had 8 literal productions
-    # and a non-row noun was a SYNTAX error. Task 7's `any QNOUN where`
-    # production (for `game.positions`, a registry separate from
-    # `cardlang.domains.DOMAINS` — module ledger, residual 1) now matches ANY
-    # noun, so `any color where` parses and is guarded by resolve instead,
-    # under the position-domain registry's name rather than this one's. Still
-    # a closed cell -- the channel moved from parse.py to resolve.py.
+    # The `any QNOUN where` production belongs to `game.positions`, a registry
+    # separate from `cardlang.domains.DOMAINS` (module ledger, `domain:`), and
+    # it matches ANY noun — so `any color where` parses and resolve guards it,
+    # under the position-domain registry's name rather than this one's. A
+    # closed cell in the wrong universe's words; deriving the productions from
+    # the table is issue #112.
     #
     # red under: removing (or `pass`-ing) the `_check_domain_query` call in
     # `resolve()` (cardlang/resolve.py) makes this assertion fail -- verified

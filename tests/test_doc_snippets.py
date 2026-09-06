@@ -58,13 +58,19 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             its tag, and not merely "rejected" as an artifact of not being
             a whole game or of the pipeline crashing.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
-            docs/decisions.md, docs/library.md, docs/model.md. The per-doc
-            and total counts are asserted, not stated, by
-            test_the_block_domain_is_the_size_the_ledger_claims — a count in
-            prose drifts silently as the docs grow.
-registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
-            cardlang, cardlang-fragment, cardlang-bad, cardlang-bad-
-            fragment, text, ebnf. The three docs are the block source.
+            docs/decisions.md, docs/library.md, docs/model.md. Every one of
+            them is classified; the EXECUTED half stops where the wrapping
+            harness does, and that is a scope limit rather than a hole: a
+            fragment shape with no WRAPPER_RECIPES recipe is tagged `text`,
+            so it is held to carrying a tag and never run. The shapes with no
+            cheap skeleton can carry — grammar surface the checker defers
+            (roadmap.md, "Grammar surface deferred by the checker"), scoring
+            composition (issue #115), forms the grammar has no production for
+            at all, and fragments needing game-specific companion
+            declarations a generic skeleton cannot supply.
+registry:   KNOWN_TAGS (below) is the closed tag vocabulary — cardlang,
+            cardlang-fragment, cardlang-bad, cardlang-bad-fragment, text,
+            ebnf. The three docs are the block source.
             WRAPPER_RECIPES (below) is the closed set of fragment shapes
             with a cheap wrapping harness, shared verbatim by
             cardlang-fragment and cardlang-bad-fragment blocks and keyed by
@@ -73,76 +79,15 @@ registry:   KNOWN_TAGS (below) is the closed tag vocabulary — six tags:
             with the block through edits rather than a line number that
             every prose change shifts. BAD_FRAGMENT_SMOKE is the closed set
             of benign fillers keyed by the same label, paired 1:1 with
-            cardlang-bad-fragment blocks, each proven to PASS through that
-            block's wrapper before the block's own (bad) text is checked.
-covered:    every block in the domain carries a recognized tag
-            (test_every_block_is_classified, parametrized over every
-            block). Every `cardlang-fragment` block executes through its
-            registered WRAPPER_RECIPES entry and is proven to pass
-            (test_fragment_blocks_pass_when_wrapped). The
-            classify/cardlang/cardlang-bad/fragment/bad-fragment code paths
-            are each independently proven with synthetic fixtures
-            (test_self_*), since the real docs currently contain zero
-            `cardlang`, zero `cardlang-bad`, and zero `cardlang-bad-
-            fragment` blocks — the guard still has to have teeth on the day
-            one of those tags is used for the first time. For
-            cardlang-bad-fragment specifically, the synthetic fixtures also
-            prove the negative: a *benign* fragment mistagged
-            cardlang-bad-fragment does NOT read as a valid rejection
-            (test_self_cardlang_bad_fragment_mistagged_benign_is_not_rejected),
-            which is the exact failure mode PR #56 review flagged.
-sampled:    n/a — every block this module classifies as executable is
-            executed, not sampled.
-residual:   fragment KINDS with no cheap wrapping harness. These are never
-            tagged `cardlang-fragment` (or, symmetrically, `cardlang-bad-
-            fragment` — the same WRAPPER_RECIPES ceiling applies to both)
-            in the docs (they are `text` instead, so
-            `test_every_block_is_classified` still covers them as a tag,
-            just not as an execution) — each kind is listed here and
-            recorded here, in this ledger, which owns them:
-              - phase-outcome pattern matches (`<phase> produces:` /
-                `continue to <phase>`) — need a sibling phase declaring a
-                matching `-> outcome {...}` variant set plus the variant's
-                own tag vocabulary (Tarot's Petite/Garde bid levels); a
-                generic skeleton can supply the shape but not the
-                game-specific tags.
-              - resource-zone movements (`transfer 1 coin from treasury to
-                coins[player]`) — roadmap.md "Grammar surface deferred by
-                the checker": "resource movements ... undesigned"; no
-                zone type in cardlang/stdlib/zones.py models an unowned
-                resource pool, so no skeleton can embed one.
-              - the `override` rule-delta (`active_rules: [override X]`)
-                — grammatically accepted, rejected at resolve time
-                (cardlang/resolve.py, `_resolve_phase_item`) as "not yet
-                supported by the runtime"; roadmap.md, "Grammar surface
-                deferred by the checker", already records it.
-              - `legal_moves:` with `+`/`-`/`override` deltas — the
-                `legal_moves` grammar production takes a bare NAME list
-                only; those operators exist solely on `rule_ref`
-                (`active_rules:`).
-              - `scoring_component` / `apply_components` — decisions.md's
-                own "Scoring composition" section discloses "designed, not
-                yet built"; issue #115 already records it.
-              - user-facing `Zone<ContentType> { composition: ... }`
-                declarations — no such production exists; per-observer
-                projection is a closed Python registry
-                (cardlang/stdlib/zones.py `ZONE_PROJECTIONS`), keyed by the
-                kernel zone-type name a game references inside `zones {}`,
-                never authored inline.
-              - `type` fields with a range/union/parameterized shape
-                (`level : Integer in 1..7`, `suit : Suit | NT`,
-                `type X<Layer: Integer> = ...`) — `struct_field`/`type_def`
-                grammar has none of these; a `type_name` is a bare NAME
-                (optionally `?`).
-              - the retired `choose <Type> with <constraint>` statement
-                form and the `<actor> chooses <description>` expression
-                form — superseded by the `round offering [...]` kernel
-                construct and plain function calls (`team_of(winner)`);
-                no corpus game uses either retired form today.
-              - the retired `move_type X { source: ... destination: ...
-                emits: ... }` shape — superseded by `when:` / `effect {}`.
-            Each kind above is `text`-tagged at every site it appears in
-            the three docs today.
+            cardlang-bad-fragment blocks, each a filler the wrapper runs
+            before the block's own (bad) text is checked.
+does not prove:  that the live docs exercise every tag. Where no block in the
+            three docs carries a tag, that tag's path through the pipeline
+            runs only against the synthetic fixtures written here, never
+            against a block the spec actually publishes — the classification,
+            pass, reject and mistagged-benign paths each have one, so the
+            guard has teeth on the day a tag is first used, and until then a
+            green says nothing about the docs on that tag.
 """
 
 from __future__ import annotations
@@ -183,8 +128,8 @@ KNOWN_TAGS = frozenset(
 # never an invented game-specific one). Fragments that need genuinely
 # game-specific vocabulary (a bid-level enum, an undeclared rule with no
 # kernel analog) have no recipe and are not tagged `cardlang-fragment` or
-# `cardlang-bad-fragment` in the docs — see the module docstring's ledger
-# "residual" section.
+# `cardlang-bad-fragment` in the docs — they are `text`, the boundary the
+# module docstring's `domain:` row states.
 #
 # `WRAPPER_RECIPES` is keyed by the block's recipe LABEL — the second word of
 # its fence info string (```cardlang-fragment <label>) — regardless of whether
@@ -489,9 +434,9 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
 # WRAPPER_RECIPES entry and required to PASS
 # (test_bad_fragment_blocks_are_rejected_when_wrapped). Every
 # `cardlang-bad-fragment` block must have one, in addition to its
-# WRAPPER_RECIPES entry. Empty today: the docs currently tag zero blocks
-# `cardlang-bad-fragment` (see the module docstring's ledger "covered"
-# section — the code path is proven with synthetic fixtures instead).
+# WRAPPER_RECIPES entry. Empty while no block in the three docs carries that
+# tag: the code path is proven with synthetic fixtures instead, which is the
+# limit the module docstring's `does not prove:` row states.
 BAD_FRAGMENT_SMOKE: dict[str, str] = {}
 
 
@@ -511,7 +456,7 @@ def _load_blocks() -> list[FencedBlock]:
 _BLOCKS: list[FencedBlock] = _load_blocks()
 
 
-def test_the_block_domain_is_the_size_the_ledger_claims() -> None:
+def test_the_block_domain_is_the_size_the_recipes_define() -> None:
     """The `domain:` cell above, as an assertion rather than a sentence.
     A count stated in prose drifts silently as the docs grow; stated here it
     fails the day it does, and whoever adds a block updates the ledger in the
@@ -718,7 +663,7 @@ def test_fragment_blocks_pass_when_wrapped(block: FencedBlock) -> None:
         f"{_block_id(block)}: tagged `cardlang-fragment {_label(block)}` but "
         f"label {_label(block)!r} has no entry in WRAPPER_RECIPES — every "
         "cardlang-fragment block must be either wrapped and checked here, or "
-        "retagged `text` and added to the residual list in this module's "
+        "retagged `text` and classified in this module's ledger `domain:` "
         "docstring."
     )
     wrapped = wrapper(block.text)
@@ -746,7 +691,7 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
         f"{_block_id(block)}: tagged `cardlang-bad-fragment {label}` but "
         f"label {label!r} has no entry in WRAPPER_RECIPES — every "
         "cardlang-bad-fragment block must be either wrapped and checked here, "
-        "or retagged `text` and added to the residual list in this module's "
+        "or retagged `text` and classified in this module's ledger `domain:` "
         "docstring."
     )
     smoke = BAD_FRAGMENT_SMOKE.get(label)

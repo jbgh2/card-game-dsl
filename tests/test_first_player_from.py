@@ -34,6 +34,12 @@ domain:    match position (at-start / mid-lap / wrap-to-last / composed
            bounds, piece game, postfix composition) x consuming layer
            (parse, resolve, typecheck, IR, evaluate) — plus the misuse
            sentences and the retiring hold'em unit arrangements 1:1.
+           One thing sits deliberately outside. A never-in-the-language
+           spelling — `the next player after ...`, a trailing direction
+           word — fails as a loud syntax error rather than through a
+           reject-with-replacement production of its own, because minting
+           rejection surface for a spelling the grammar never carried is
+           un-ruled grammar; there is no diagnostic cell to cover for them.
 registry:  the kind axis derives from the grammar's `player_query` aliases
            (scraped by test_kind_axis_is_pinned_by_grammar below) against
            the builder's kind strings; the ring itself is
@@ -41,86 +47,45 @@ registry:  the kind axis derives from the grammar's `player_query` aliases
            declared direction — the single convergence point every `from
            <leader>` clause shares) and `GAME_DIRECTIONS`; the start slot's
            static gate is the operand choke point (`_check_operand` +
-           `_check_role_literal`, pinned by tests/test_operand_choke_point);
+           `_check_role_literal`; its pin: tests/test_operand_choke_point);
            host positions derive from the grammar's expr-reaching
            productions (the framing-check enumeration on issue #249, both
            runs).
-covered:   the executed parametrizations and probes in this module — the
-           lap grid (match position x direction x count through played
-           games, including the ccw absolute-offset cell and the four
-           retiring hold'em unit arrangements), the exhaustion cells
-           (mid-phase and at-setup OwnerGuardError), the start-slot cells
-           (chained offset_by, Integer arithmetic in range, Player
-           arithmetic refused by the standing operator rule, literal and
-           computed out-of-range through the existing Owner Guards,
-           non-seat type, `players` absorbed as a NAME, `player` out of
-           scope, parenthesized pick query), the predicate cells (or-compound
-           semantics, nested card query, nested shadowing player query with
-           the outer binder visible in the inner START slot, call predicate,
-           non-Boolean, absorbed-offset_by refused in the type layer), the
-           host cells (let, if-expression arm, lvalue index, turns-from
-           executed end to end, transfer amount executed, state default at
-           setup, function body, library function body, choose bounds
-           parenthesized and unparenthesized, piece game, postfix
-           composition, auction- and trick-round from at parse shape), the
-           misuse probes (no-from, no-where, no-the, doubled where,
-           next/after spelling, trailing direction word), the IR cells
-           (conditional `start` key both ways), and the zero-ambiguity cell
-           over the form's adjacency sentences.
-sampled:   (a) the long tail of expression hosts (produce/run args, rule
-           clauses, reveal filters, vis_clause, quantifier bodies, agg
-           bodies, list literals, struct field inits): one AST node, one
-           builder, one evaluator arm — every host funnels through the same
-           `_check_expr`/`evaluate` walk probed here; the load-bearing
-           distinct paths (setup-time evaluation, binder scopes, the round
-           forms' leader slot, library bodies) each hold an executed cell.
-           (b) the auction- and trick-round `from` slots run end to end
-           through the rewritten hold'em corpus file (four `round offering
-           ... from the first player ...` sites) and its playout suite; the
-           grid pins their parse shape only.
-           (c) `is`/`in`/`team_of`/zone-subscript consumption of the result:
-           the result is an ordinary TPlayer value through the same infer
-           arm the pick form uses; the lvalue-index and offset_by
-           composition cells are the executed representatives.
-residual:  (a) a runtime `bool` reaching the start slot through a gradual
-           type is silently seat 1/0 — `turn_order_from`'s membership guard
-           accepts `True == 1`; the class belongs to that Owner Guard and is
-           shared by every `from` clause (turns/round/auction/climb), so a
-           check in this form's arm would be a Shadow Guard; pre-existing,
-           R4 here (needs a TAny-valued seat expression nobody writes;
-           recorded, no issue — the sibling dynamic-operand class is
-           issue #339). (b) the transfer amount slot is statically
-           unchecked (a String or Player amount checks green; a bad one
-           dies at play in a raw ValueError — executed during this grid's
-           authoring); the amount slot's own standing class, R3 — its capacity
-           face is issue #338 and its static-type face is named in the
-           divided-by framing enumeration on issue #249; this grid pins the
-           fence and the seat-as-count semantics that fall out today,
-           adding reach, not cause.
-           (c) concrete non-Boolean operands in an `or`/`and` predicate ARE
-           rejected by the operator guards — executed during review
-           response: `where mark[player] or seat` and `... or s[0]` both
-           fail with "'or' expects Boolean operands, got Player/Integer"
-           (the framing enumeration's folded claim of an unchecked operand
-           conflated infer's unconditionally-Boolean RESULT type with the
-           check side, and execution disproves it). The true residue is the
-           TAny-gradual pass-through — a gradual operand in a disjunct
-           checks green and decides truthiness at play — the standing
-           gradual class whose owner is tests/test_operator_guards.py's
-           ledger; the or-cell here pins the SEMANTICS (the disjunction is
-           the predicate, never a default). (d) reject-with-replacement productions
-           for `the next player after ...` and a trailing direction word
-           were weighed and declined — never-in-the-language spellings get
-           loud syntax errors (pinned below), and minting rejection surface
-           for them is un-ruled grammar.
-naming:    `the first player from ... where ...` mints no glossary entry:
-           no player-collection query form carries one (the family's naming
-           home is decisions.md "Player-collection queries", whose prose
-           already says "the player ring"), matching the divided-by
-           precedent for operator forms; `first` appears in neither
-           glossary section 6 nor any NAME exclusion, and
-           RESERVED_VALUE_NAMES is hand-listed so `first` stays declarable
-           (pinned by the names-stay-names cells below).
+           The round `from` slots end to end: docs/games/holdem.cardlang
+           (its four `round offering ... from the first player ...` sites)
+           and tests/test_playout_holdem.py. The gradual-operand class:
+           tests/test_operator_guards.py.
+does not prove:  four things. (1) That every expression HOST reaches the
+           form. The long tail (produce/run args, rule clauses, reveal
+           filters, vis_clause, quantifier bodies, agg bodies, list
+           literals, struct field inits) is one AST node, one builder and
+           one evaluator arm, and every host funnels through the same
+           `_check_expr`/`evaluate` walk, so the hosts probed here stand for
+           it — a host that stopped funnelling would not surface. (2) That
+           the auction- and trick-round `from` slots EVALUATE correctly:
+           this grid pins their parse shape, and what runs them end to end
+           is the hold'em corpus file and its playout suite. (3) That the
+           result is consumed correctly by `is`/`in`/`team_of`/a zone
+           subscript: it is an ordinary TPlayer value through the same infer
+           arm the pick form uses, and the lvalue-index and offset_by
+           composition cells are the executed representatives. (4) Anything
+           about a gradual value reaching the form. A runtime `bool` in the
+           start slot is silently seat 1/0 — `turn_order_from`'s membership
+           guard accepts `True == 1` — a standing gradual class owned by that
+           Owner Guard, shared by every `from` clause
+           (turns/round/auction/climb), so a check in this form's arm would
+           be a Shadow Guard. A `TAny` operand in an `or`/`and` predicate is
+           refused by `_check_logical_operands`, and concrete non-Boolean
+           operands are rejected by the operator guards
+           (tests/test_operator_guards.py).
+
+`the first player from ... where ...` mints no glossary entry: no
+player-collection query form carries one (the family's naming home is
+decisions.md "Player-collection queries", whose prose already says "the player
+ring"), matching the divided-by precedent for operator forms; `first` appears
+in neither glossary section 6 nor any NAME exclusion, and RESERVED_VALUE_NAMES
+is hand-listed so `first` stays declarable (pinned by the names-stay-names
+cells below).
 red-first: authored before the implementation; the red run is recorded in
            the PR. Born-green pins carry per-pin reddening mutations
            (executed = plant, red, revert, green was run; documented = the
@@ -667,8 +632,9 @@ def test_trick_round_from_parse_shape() -> None:
 def test_transfer_amount_host_fences_and_computes() -> None:
     # The form abuts the transfer's own noun and `from`: the amount is the
     # query, `cards from deck` is the transfer's machinery. The amount slot
-    # is statically unchecked today (a standing residual, see the ledger);
-    # the seat coerces to a count at play: seat 2 moves 2 cards.
+    # is statically unchecked today (a String or Player amount checks green
+    # and dies at play in a raw ValueError; issue #338); the seat coerces to
+    # a count at play: seat 2 moves 2 cards.
     src = _game(
         """
         shuffle deck

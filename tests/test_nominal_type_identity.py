@@ -32,6 +32,22 @@ domain:     (position at which a `Type` nests inside another, plus the
             plus the cross-member cell (a struct and an outcome type sharing
             one name), and the classified exclusion (a union member carrying a
             name and no payload).
+            Two neighbouring populations sit deliberately outside, and
+            neither is a gap in this rule. Every property of the relations
+            that is NOT the nominal rule is a different rule over the same
+            union: their behaviour over the union's non-nominal members
+            (`TAny` absorption at depth, optional widening, `Integer`
+            standing for `Player`), their algebraic laws (reflexivity —
+            `coercible(TNull(), TNull())` is False, since the `TNull` arm
+            precedes the equality arm — symmetry, transitivity, and the
+            order-independence of the left fold in `_ifexpr_type`), and the
+            nesting DEPTH the relations can manufacture but no construction
+            site builds (`join(TNull(), X)` yields `TOptional(X)`). And
+            `TypeEnv.zone_families`' index type is the OTHER index-like slot
+            the relations consume (`TPlayer`/`TTeam`/`TInteger`/`TCell`,
+            checked through `coercible` at the subscript); it is not a
+            `TCollection.key`, so it is not a position of this grid's axis,
+            and the two index-like slots are not one.
 registry:   tests/type_shape_axes.py derives all four axes in code —
             `SHAPE_POSITIONS` from `dataclasses.fields` over
             `typing.get_args(Type)` resolved through `typing.get_type_hints`
@@ -40,70 +56,37 @@ registry:   tests/type_shape_axes.py derives all four axes in code —
             `RELATIONS` from the signatures of `cardlang.types`' public
             module-level functions taking two `Type` operands; `ORDERINGS`
             from that same arity; `NOMINAL_MEMBERS` from the union members
-            carrying a `name: str` beside a structural payload.
-covered:    `test_a_declared_types_identity_is_its_name_at_every_position`
-            (position x relation x order x member), plus
-            `test_a_struct_and_an_outcome_type_may_share_a_name_and_stay_
-            distinct` (member x member x relation x order) and
-            `test_a_name_only_member_is_already_nominal_under_equality`
-            (the classified exclusion). The behaviour-class column is half
-            derived (`_OPAQUE` is `position.ctor in NOMINAL_MEMBERS`) and half
-            authored (`_AUTHORED_CLASSES`), and the authored half is pinned to
-            cover exactly the derived positions it does not derive — so a new
-            nested position fails collection rather than being guessed into a
-            row. The keying domain's own rule, which is NOT this one, is
-            covered by `test_the_keying_domain_admits_no_nominal_type` and
-            `test_the_keying_domain_is_governed_by_the_sticky_key_rule`.
-sampled:    one nested payload per nominal member (`TAny` vs `TInteger` for
-            the stale/settled pair, one field or case tag). At the transparent
-            and opaque positions the rule under test reads only the NAME, so
-            the payload's shape is not a dimension of it — a second field or a
-            second case tag would exercise the same branch. The stale/settled
-            pair is the shape the registry fixpoint actually produces
-            (`_provisional_structs` seeds every derived field at the permissive
-            top and refines it).
-            The keying position is the exception, and that argument does NOT
-            cover it: `join` compares keys with raw `==`, so the payload is
-            exactly what its cells turn on. What makes one payload enough there
-            is the closed inhabitant set — no nominal type can reach the slot
-            at all (`test_the_keying_domain_admits_no_nominal_type`) — and the
-            rule that does govern it is run over agreeing, disagreeing and
-            absent keys rather than sampled.
-residual:   (1) A `TOutcome` cannot reach either relation from a well-formed
-            program: no `infer` arm returns one — it is a registry entry
+            carrying a `name: str` beside a structural payload. The
+            behaviour-class column is half derived — `_OPAQUE` is
+            `position.ctor in NOMINAL_MEMBERS` — and half authored,
+            `_AUTHORED_CLASSES`.
+            The relations' per-arm behaviour over the non-nominal members:
+            tests/test_types.py and tests/test_permissive_top.py. The other
+            index-like slot: tests/test_positions.py and
+            tests/test_zone_index_roles.py.
+does not prove:  two things, and the second is about how the outcome
+            rows are reached at all.
+            That the rule holds for a payload of another shape. One nested
+            payload per nominal member is exercised (`TAny` vs `TInteger`
+            for the stale/settled pair, one field or case tag). At the
+            transparent and opaque positions the rule under test reads only
+            the NAME, so the payload's shape is not a dimension of it, and
+            the stale/settled pair is the shape the registry fixpoint
+            produces (`_provisional_structs` seeds every derived field at
+            the permissive top and refines it) — but that argument does NOT
+            reach the keying position, where `join` compares keys with raw
+            `==` and the payload is exactly what the cells turn on. What
+            makes one payload enough there is the closed inhabitant set: no
+            nominal type can reach the slot at all.
+            That a `TOutcome` reaches either relation from a DSL sentence.
+            It cannot: no `infer` arm returns one — it is a registry entry
             consulted when checking `produce` / `produces:`
             (cardlang/types.py's module docstring) — and no declared field,
-            parameter or payload type can name one (`type_from_name` resolves
-            against the STRUCT registry). The grid therefore exercises the
-            outcome rows by calling the relations directly. R4 — reaching
-            them from source needs a new `infer` arm, i.e. editing the
-            machinery. Recorded here; the guarantee is the type checker's, so
-            it is rigor-critical, and the closure is the rule itself rather
-            than a wall: the arms below answer for an outcome type whether or
-            not one ever arrives.
-            (2) NOT the nominal rule, and deliberately outside this grid: the
-            relations' behaviour over the union's non-nominal members
-            (`TAny` absorption at depth, optional widening, `Integer` standing
-            for `Player`), the relations' algebraic laws (reflexivity —
-            `coercible(TNull(), TNull())` is False, since the `TNull` arm
-            precedes the equality arm — symmetry, transitivity, and the
-            order-independence of the left fold in `_ifexpr_type`), and the
-            nesting DEPTH the relations can manufacture but no construction
-            site builds (`join(TNull(), X)` yields `TOptional(X)`). Each is a
-            property of a different rule over the same union; guarded today
-            only by the per-arm behaviour tests in tests/test_types.py and
-            tests/test_permissive_top.py. R4 — an auditor calling the
-            relations directly meets them; no DSL sentence infers a `TNull`
-            or an outcome into either side. Recorded as issue #113's
-            follow-on scope in this row rather than filed, since no cell of it
-            is known wrong.
-            (3) `TypeEnv.zone_families`' index type is the OTHER index-like
-            slot the relations consume (`TPlayer`/`TTeam`/`TInteger`/`TCell`,
-            checked through `coercible` at the subscript). It is not a
-            `TCollection.key`, so it is not a position of this grid's axis;
-            its own coverage is tests/test_positions.py and
-            tests/test_zone_index_roles.py. R4 — recorded so the two
-            index-like slots are not read as one.
+            parameter or payload type can name one (`type_from_name`
+            resolves against the STRUCT registry). The outcome rows are
+            exercised by calling the relations directly, so what they
+            establish is that the arms answer for an outcome type, not that
+            a program can put one there.
 """
 
 from __future__ import annotations

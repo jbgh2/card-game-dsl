@@ -46,9 +46,9 @@ each row declares them and each half carries the OPPOSITE executed claim:
   `{"trump": null}`; measured 2026-08-19 over seeds 0-2: 96/72/72 of 1042/787/790
   trace events differ, all of them `trick_end`, and the per-observer
   observation stream is identical). No info-set consequence -- the trace
-  channel is HARNESS-only and distinct from `observe`, which is the ruling
-  tests/test_trump_slot_class.py's residual (7) already made for french-tarot's
-  identical `"atouts"` -> `null` move. `test_reshaped_traces_are_still_emitted`
+  channel is HARNESS-only and distinct from `observe`, the same ruling
+  tests/test_trump_slot_class.py makes for french-tarot's identical
+  `"atouts"` -> `null` move. `test_reshaped_traces_are_still_emitted`
   executes THIS claim: a row calling a retirement a reshaping is red.
 
 There is no global base. A `_BASE_RETIRED_TRACES` union over `play`/`trick`
@@ -62,65 +62,59 @@ Completeness ledger (decisions.md "Closed-domain completeness")
 property:   a migrated game's per-observer observation stream, decision
             trace and final scores are byte-identical to the pre-migration
             tree on every seed of the pin.
-domain:     `MIGRATIONS` x `SEEDS` (200 seeds: the coverage-manifest head
-            plus the long tail; the first 40 coincide with the score golden's
-            seeds), and `MIGRATIONS` x each row's declared exclusions, in
-            BOTH halves (`retired_traces`, `reshaped_traces`).
+domain:     `MIGRATIONS` x `SEEDS` (the coverage-manifest head plus the long
+            tail; its head coincides with the score golden's seeds), and
+            `MIGRATIONS` x each row's declared exclusions, in BOTH halves
+            (`retired_traces`, `reshaped_traces`). A row declaring one half
+            only sits inside that domain rather than short of it. An
+            undeclared half is the claim "this migration moves no such
+            trace", and the primary pin executes it by hashing the whole
+            trace channel rather than a subset of it.
 registry:   `MIGRATIONS` below -- one row per migrated game, keyed by its
             hash file; the row is added in the PR that migrates the game and
             its hash file is captured on the parent commit. Each row declares
             its own exclusions outright, in the half that says what happened
             to the event; there is no shared base to widen.
-covered:    `test_stream_hash_is_byte_identical` (every game x every seed);
-            `test_hash_file_covers_every_seed` (a hash file with a missing
-            or extra seed is a stale capture, not a pass);
-            `test_retired_traces_are_actually_gone` (every row x every trace
-            it claims to retire -- the claim executed, so an exclusion
-            cannot silence a live event);
-            `test_reshaped_traces_are_still_emitted` (every row x every trace
-            it claims merely moved -- the opposite claim, executed, so a row
-            cannot label a retirement a reshaping and cover strictly less
-            than it says);
-            `test_the_two_exclusion_halves_are_disjoint` (an event is gone or
-            it is not; a name in both halves would make one of the two claims
-            unfalsifiable).
-sampled:    nothing -- the pin is exact. The two trace-claim tests run one
-            seed per row: a trace emitted from a trick site fires in every
-            seed that plays a trick, so a second seed adds no cell.
-            Every row declares exactly ONE half, so each contributes cells to
-            one exclusion test and none to the other. That is not a gap in the
-            domain -- the domain is `MIGRATIONS` x each row's declared
-            exclusions, and an undeclared half is the claim "this migration
-            moves no such trace", executed by the primary pin, which hashes
-            the whole trace channel rather than a subset of it.
-            The THIRD claim test, `test_the_two_exclusion_halves_are_disjoint`,
-            is vacuous for EVERY row: an intersection needs both halves
-            populated, and no row populates both (rows 1-3 declare no
-            reshaping, belote no retirement). It is a guard against a shape the registry has never
-            held, kept because the shape it refuses is what would make one of
-            the other two claims unfalsifiable -- and its capacity to fail is
-            recorded, not assumed: the born-green mutation below moves
-            belote's `trick_end` into both halves and reddens it.
-residual:   (1) the information-state string, moved BY DESIGN and owned by
-            the openspiel_ready proof modules (above); R4, this ledger owns
-            the record. It moves only where a migration retires or hoists a
-            state variable, so a row that does neither can close it by
-            MEASUREMENT rather than by argument. (2) A row could under-declare -- omit a trace the
-            migration really does retire -- which no pin here catches,
-            because the hash then simply moves and
+            The information-state surface, per manifest seed -- one proof
+            module per migrated game: tests/openspiel_ready/test_doppelkopf.py,
+            tests/openspiel_ready/test_skat.py,
+            tests/openspiel_ready/test_five_hundred.py,
+            tests/openspiel_ready/test_belote.py,
+            tests/openspiel_ready/test_french_tarot.py.
+does not prove:  four things.
+            (1) The OpenSpiel information-state string. It renders every
+            public state variable, so it moves wherever a migration retires
+            or hoists one, and this pin excludes it by design; the
+            per-game proof modules named above hold it instead. A migration that
+            retires and hoists nothing can close that by MEASUREMENT rather
+            than by argument, and this module is not where the measurement
+            reads.
+            (2) That a row declares every trace its migration retires. The
+            unsafe direction is guarded -- a row naming a trace the game
+            still emits is red -- and the safe one is not: a row that OMITS a
+            retirement leaves the hash to move, so
             `test_stream_hash_is_byte_identical` reports it as the
-            byte-identity failure it is. That is the wanted direction: the
-            unsafe error (silencing a live event) is guarded, the safe one
-            (forgetting an exclusion) is loud through the primary pin. R4,
-            this ledger owns the record. (3) A `reshaped_traces` row excludes
-            a WHOLE event, where what moved is one field of its payload, so a
-            second, unrelated change to a reshaped event's payload would ride
-            along unseen. Bounded and measured rather than guarded: the
-            excluded event is `trick_end`, whose payload is two fields, and
-            the other (`early`) is constant for a game that declares no
-            `early` predicate -- which the presence partition REFUSES beside a
-            block (`TRICK_ORDER_EARLY_PREDICATES`, empty), so no row here can
-            have a moving one. R4, this ledger owns the record.
+            byte-identity failure it is rather than as the under-declaration
+            it is.
+            (3) That a reshaped event's payload moved only where the row
+            says. A `reshaped_traces` row excludes a WHOLE event, so a
+            second, unrelated change to that event's payload rides along
+            unseen. The reach is bounded by measurement rather than by a
+            guard. The excluded event is `trick_end`, whose payload is two
+            fields, and the other (`early`) is constant for a game that
+            declares no `early` predicate -- which the presence partition
+            refuses beside a block (`TRICK_ORDER_EARLY_PREDICATES`).
+            (4) That the two exclusion halves are disjoint over a registry
+            that populates both. `test_the_two_exclusion_halves_are_disjoint`
+            is vacuous for every row, because an intersection needs both
+            halves and no row declares both; it guards a shape the registry
+            has never held, kept because that shape is what would make one of
+            the other two claims unfalsifiable. Its capacity to fail is
+            recorded rather than assumed, by the mutation below. The two
+            trace-claim tests are sampled on the seed axis in the same
+            spirit -- they run one seed per row, on the argument that a
+            trace emitted from a trick site fires in every seed that plays a
+            trick.
 
 A HAZARD EVERY MIGRATION AFTER THE FIRST INHERITS, stated once here because
 the next row added will meet it. A `trick_order` block is a game clause and

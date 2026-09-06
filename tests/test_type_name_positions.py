@@ -63,69 +63,42 @@ Completeness ledger
                      the block's one parameterized value spelling
                      (`COLLECTION_NAME`), and an unknown name as the negative
                      control.
+                Two things sit outside these axes, and neither is a gap. The
+                bare constructor word `Collection` is not a column: it is
+                refused at every position, and the split it exposes — a
+                `primitives { }` entry names the ruled spelling while every
+                position here says `unknown type 'Collection'`, the "unknown"
+                currency spent on a word the language has a meaning for —
+                belongs to issue #560, whose class spans the sites phrasing
+                "unknown type" plus the move-parameter domain gate rather than
+                a column of this grid. And namespaces B and C are a different
+                domain: zone type names (`Hand<player>`) and role/domain ids
+                (the `player` in `hand[player]`, `for each player`) are
+                type-ish names carrying their own registries and their own
+                guards, and their raggedness — a zone index admits position
+                domains where a state index does not — is issue #98.
 
     registry:   A. cardlang/grammar/cardlang.lark (scraped by the pin below)
                 B. typecheck.KNOWN_TYPE_NAMES; domains.PARAM_DOMAINS;
                    resolve._PROCEDURE_PARAM_DOMAINS; resolve's inline `Card`
                    and `Suit` literals; the game's own TypeDef / PositionDecl
 
-    covered:    The grid: `test_the_type_name_grid` over CELLS — `POSITIONS` x
-                `NAMES`, every one executed. `EXPECTED_ADMITS` is computed per
-                position from the registries, so the covered set cannot drift
-                from the domain set by hand-editing a row. `_outcome` reads the
-                verdict through an ALLOW-LIST over the message space
-                (`_GATE_REFUSALS`, `_PAST_THE_GATE`) and raises on a diagnostic
-                neither names, so a refusal in an unlisted voice cannot pass
-                for an admit. The collection column carries a second
-                assertion the rest of the grid does not:
-                `test_the_collection_column_reaches_the_message_its_position_owns`
-                pins WHICH refusal each position gives, derived from the type
-                nonterminal that position writes through, because "not
-                admitted" is satisfied by a lexer error as readily as by the
-                ruled twin.
-
-    sampled:    The `?` spelling is sampled at `Rank?` and `Suit?` rather than
-                crossed over every base name: the three disciplines that handle
-                it (exact-string at P3/P5, base-stripped at P6/P7/P8, a separate
-                `optional` flag at P1/P2) are each witnessed at least once, but
-                base x optional is not a full sub-product.
-
-    residual:   1. A POSITION DOMAIN AS A STATE-VAR OR STRUCT-FIELD TYPE
-                   (P1/P2 x a `positions {}` name, and a board `cell`) is
-                   rejected, and whether it SHOULD be admitted is undecided —
-                   semantically such a value is an Integer with a declared
-                   range (a TCell for a board cell), but no corpus game wants
-                   one, so this grid does not guess a cell nobody has decided.
-                   The guard is loud but the message spells it `unknown type
-                   '<name>'`; naming the sharper reason (a position domain is
-                   not a declared type in this slot) is a message-quality
-                   residual, and the grid asserts admit-vs-reject only, not the
-                   message text. Recorded in issue #133.
-                2. THE BARE CONSTRUCTOR WORD IS NOT A COLUMN. `Collection`
-                   with no argument is refused everywhere, and the SENTENCE
-                   splits: a `primitives { }` entry says it takes an element
-                   type and names the ruled spelling, while every position
-                   here says `unknown type 'Collection'` — the "unknown"
-                   currency spent on a word the language has a meaning for
-                   and the checker itself prints. The BRACKETED spelling has
-                   no such split any more (the teaching twin reaches every
-                   type position, and the zone slot names which bracket it
-                   is), so this is the remainder of that class rather than
-                   part of it, and closing it is a change across the five
-                   sites that phrase "unknown type" plus the move-parameter
-                   domain gate — its own grid, not a column here. R2: a
-                   designer who writes `s : Collection` at a state row meets
-                   it. Recorded in issue #560, which carries the whole class:
-                   this word, two malformations composed at an entry, and a
-                   malformed collection outside one.
-                3. NAMESPACES B AND C ARE NOT IN THIS GRID. Zone type names
-                   (`Hand<player>`) and role/domain ids (the `player` in
-                   `hand[player]`, `for each player`) are type-ish names with
-                   their own registries and their own guards; the framing check
-                   enumerated seven such positions. They are a different
-                   domain, not a missing part of this one. Their own raggedness
-                   -- a zone index admits position domains where a state index
-                   does not -- is recorded in issue #98.
+    does not prove:  two things about a cell beyond its admit-vs-reject verdict.
+                WHICH MESSAGE a rejection gives. A loud refusal in the wrong
+                words passes every cell: a position domain written as a state
+                variable's or a struct field's type is refused as `unknown type
+                '<name>'` rather than as a domain that is not a declared type in
+                that slot. The one column that pins its own wording is the
+                collection column
+                (`test_the_collection_column_reaches_the_message_its_position_owns`),
+                which derives the refusal each position owns from the type
+                nonterminal that position writes through.
+                That the `?` spelling behaves alike on every base name. It is
+                written at `Rank?` and `Suit?`, which reach each of the three
+                disciplines handling it — exact-string at P3/P5, base-stripped
+                at P6/P7/P8, a separate `optional` flag at P1/P2 — so the
+                disciplines are each witnessed and base x optional is not a
+                full sub-product.
 """
 
 from __future__ import annotations
@@ -243,6 +216,8 @@ _PRIMITIVE_SPELLABLE = frozenset(
 # a hand-written row, so a registry change moves the expectation with it.
 EXPECTED_ADMITS: dict[str, frozenset[str]] = {
     # Plain declared-name positions; `?` is a separate AST flag, so both spellings pass.
+    # A position domain is not among them, and whether such a value (an Integer
+    # with a declared range) should be declarable here is issue #133.
     "P1 state_decl": frozenset(_BASE_STRIPPED),
     "P2 struct_field": frozenset(_BASE_STRIPPED),
     # Enumerable move-parameter domains, plus the inline `Card` literal, plus
@@ -707,7 +682,7 @@ def test_the_position_axis_is_the_grammar_s() -> None:
     # the including game must declare the same name, and `_check_requires`
     # rejects a require type that does not match the game's declaration — naming
     # the library and quoting the type, so a library-side typo (`Integar`) is
-    # surfaced, not silently dropped. The residual is span PRECISION only (the
+    # surfaced, not silently dropped. What remains open is span PRECISION only (the
     # diagnostic lands on the game's `uses` line, not the library's `requires`),
     # recorded in issue #128; the coverage lives in test_family_libraries.py.
     library_only = {"require_decl"}
