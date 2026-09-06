@@ -294,7 +294,7 @@ def test_the_structural_sentence_matches_the_sources_brace_balance(
     if expected_fragment is None:
         assert "never closed" not in message, message
         assert "more `}`" not in message, message
-        assert "expected " in message, (
+        assert "; expected " in message, (
             f"a balanced source earns the expectation clause: {message}"
         )
     else:
@@ -313,7 +313,7 @@ def test_a_named_site_replaces_the_expectation_clause() -> None:
     source, _ = _BALANCE_CELLS["unclosed"]
     message = _render(source).diagnostic.message
     assert "never closed" in message, message
-    assert "expected " not in message, (
+    assert "; expected " not in message, (
         "the unclosed-block sentence names the fix, so the expectation clause "
         f"it would otherwise carry is withheld: {message}"
     )
@@ -325,7 +325,7 @@ def test_a_surplus_brace_keeps_the_expectation_clause() -> None:
     source, _ = _BALANCE_CELLS["surplus"]
     message = _render(source).diagnostic.message
     assert "more `}` than `{`" in message, message
-    assert "expected " in message, message
+    assert "; expected " in message, message
 
 
 # --------------------------------------------------------------------------

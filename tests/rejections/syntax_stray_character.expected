@@ -1,0 +1,1 @@
+syntax_stray_character.cardlang:6:14: error: syntax error: unexpected `@`; expected `board`, `card_points` or `card_values`, among others

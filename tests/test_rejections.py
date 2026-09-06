@@ -63,9 +63,22 @@ covered:    one case per named guard class (the directory glob is the
             missing `max_length:`, an over-capacity deck plan (8-player
             deal exceeding a 52-card deck), an integer `choose` with no
             static ceiling, a wrong-typed native call argument, a struct
-            literal missing a declared field, a raw grammar/syntax error
-            (parse.py's `UnexpectedInput` wrapping, over an unclosed `zones
-            {` block), `legal_moves:` naming an unknown move type,
+            literal missing a declared field, the syntax-error class in the
+            designer's [[vocabulary]] — one case per shape a parse failure
+            takes: an unclosed block (`syntax_error`, whose sentence names the
+            block and its opening line), a balanced source whose next lexeme
+            is wrong (`syntax_colon_for_equals`, a small expectation set named
+            in full), a misspelled clause keyword
+            (`syntax_unknown_clause_keyword`, a set too large to print,
+            summarized closest-first), a character the language spells nowhere
+            (`syntax_stray_character`), input that simply stops
+            (`syntax_eof_inside_block`, whose span is the end of the file
+            because lark reports none), and one `}` too many
+            (`syntax_extra_close_brace`, which states the count and names no
+            line, since which brace is surplus is not recoverable) — the
+            properties those artifacts share being gridded in
+            tests/test_parse_diagnostics.py; `legal_moves:` naming an unknown
+            move type,
             `rule.constrains:` naming an unknown move type, a reserved-word
             collision (a zone declared `state`), a procedure body binder
             shadowing its own parameter's name (the one hygiene guard

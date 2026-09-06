@@ -140,9 +140,11 @@ residual:   (1) `trump: excuse` on tarot78 / `trump: joker` on
             layer; the strict xfail that recorded the gap in
             tests/test_ranking_guard.py is retired in the same change.
             (4) `trump: 5` / `trump: "spades"` die in the grammar's channel
-            as a bare "No terminal matches" (the clause is `trump: NAME`;
-            an INT/String token is refused before resolve) -- loud, wrong
-            voice; and the `.lark` comment on the production still says
+            as a bare syntax error naming what the slot accepts (the clause
+            is `trump: NAME`; a number or a quoted string is refused before
+            resolve) -- loud, but it can only offer the shapes the slot
+            takes, never say why a suit name is the one that belongs there;
+            and the `.lark` comment on the production still says
             "(or rank-set)". Both are `.lark` edits, Merge Lane A; record:
             issue #250, whose PR 1 is the grammar change under Hoyle's
             counsel. The grid's rank cell uses a NAME-shaped rank for
