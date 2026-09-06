@@ -174,8 +174,8 @@ def item_field_table(game: Game) -> dict[str, Type]:
 # sound subset of `action`'s shape — full move-type-aware typing (the
 # per-move-type params reachable only as `action.<param name>`, e.g. an
 # auction bid's `action.amount`) is out of scope; a field not in this
-# registry stays `TAny` (residual — see the ledger in
-# tests/test_zone_family_typing.py, which records it).
+# registry stays `TAny` (the boundary tests/test_zone_family_typing.py's
+# ledger states).
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
 # Native evaluations whose result depends on a declared `ranking:` — they
@@ -2234,7 +2234,7 @@ def _check_role_literal(index: n.Expr, expected: Type, env: TypeEnv, bag: Diagno
     family with no such instance, a board frame's per-seat sign, a per-team score)
     then fails at runtime, a typechecked game crashing. The bound is the game's
     MAXIMUM count -- a range game's `high` for players, `len(teams)` for
-    teams -- and is two-sided: the `0 <=` lower bound rejects a NEGATIVE literal
+    teams (issue #296 holds the tighter bound) -- and is two-sided: the `0 <=` lower bound rejects a NEGATIVE literal
     (an `IntLit` with a negative value; there is no separate negative-literal
     node), so `reserve[-1]` is caught too.
 

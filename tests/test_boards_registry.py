@@ -16,7 +16,7 @@ property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             regions -- refused as a ValueError naming "registry bug" in
             __post_init__, with the adequacy pins (no dead direction, disjoint
             2*width homes) enforced only where width >= 2 and height >= 4.
-domain:     BOARD_FAMILIES rows (currently: grid) x argument space (arity,
+domain:     BOARD_FAMILIES rows x argument space (arity,
             per-argument bounds, and the misuse shapes: unknown family,
             wrong arity, out-of-bounds argument) x entry-integrity
             properties: (a) cell/line -- cell uniqueness, cell count, and, per
@@ -29,64 +29,29 @@ domain:     BOARD_FAMILIES rows (currently: grid) x argument space (arity,
             neighbor-in-cells-or-None, regions subset/sized/edged, and the
             adequacy pins) over a grid sweep spanning degenerate,
             breakthrough-shaped, and non-square boards.
+            A group of board features sits outside BoardEntry, and none is a
+            gap in this registry's own domain: relations (adjacency graphs),
+            jump triples (draughts), track frames (backgammon), crownhead /
+            arbitrary-depth home regions, and frames for more than two seats
+            -- each waiting on a witness game that needs it (issue #124).
+            What is here is what breakthrough witnesses: the two-seat 180
+            frame, the seat-relative forward directions, and the
+            back-two-ranks / far-rank regions. Non-grid families (hex,
+            track, enumerated graphs) are a later rung's registry rows.
 registry:   cardlang.stdlib.boards.BOARD_FAMILIES, .board_entry, .BoardEntry
             (.lines, .directions, .is_diagonal, .neighbor, .has_step, .home,
             .far_row), and the _GRID_DIRECTION_OFFSETS table.
-covered:    the bad-args rejection grid (unknown family, arity 1, arity 3,
-            arg 0, arg 17, negative arg), each pinned to a ValueError naming
-            the violated bound; grid(3,3)'s exact 9-cell name order; lines(3)
-            on grid(3,3) against the 8 known tic-tac-toe lines (set
-            equality) plus a determinism check (repeat calls, and separate
-            instances, agree); an integrity sweep over five grids (1x1,
-            2x5, 5x2, 16x16, 3x3) crossed with every k in
-            1..max(width, height): cell uniqueness, cell count ==
-            width*height, every line k-long with distinct in-bounds cells,
-            and the line count against an independently-derived closed-form
-            formula; a full brute-force reconstruction (colinearity over
-            every k-combination of cells, not a sliding window)
-            cross-checked against lines(k) for the four small grids (1x1,
-            2x5, 5x2, 3x3); the k-boundary cases (k=0 and k=17 on grid(3,3)
-            raise; k=1 on grid(1,1) returns the single cell; k=5 on
-            grid(2,5) returns the 2 vertical-only lines); and `lines()` is
-            total over BOARD_FAMILIES — every registered family produces
-            `lines(1)` without raising, args derived per row, pinning the
-            second family-set enumeration in `BoardEntry.lines` to the registry.
-            For movement: directions() == the three forward names; is_diagonal
-            == the straight-vs-diagonal split (the oracle's straight-never-
-            captures rule); grid(8,8) and grid(3,3) neighbor tables hand-
-            computed over both seats and every direction (interior, both
-            corners, and edge steps -> None), with has_step agreeing;
-            home()/far_row() explicit rank sets on 8x8 and 3x3, and
-            far_row(actor) == the opponent's back rank (the outer rank of the
-            opponent's home); a universal-pin sweep over MOVEMENT_GRIDS (3x3,
-            6x6, 8x8, 8x3, and degenerate 1x1/5x2/2x5) cross-checking
-            neighbor() against an independent re-derivation (its own offset
-            literals) over every cell x direction x seat, plus frames-180,
-            region subset, |far_row| == width, and the top/bottom far-row
-            edges; an adequacy sweep over ADEQUATE_GRIDS (2x5, 6x6, 8x8, 8x4):
-            no dead direction, disjoint homes, |home| == 2*width; disjointness
-            pinned explicitly on the 8x8 corpus board; the grid(3,3) positive
-            case that documents the adequacy skip (constructs, homes overlap
-            on the middle rank); each born-green movement pin's reddening
-            witness as a focused negative test (see "red under (movement)");
-            and the method input guards -- unknown direction, seat other than
-            0/1, off-grid cell, and a non-grid family -- each refused loudly.
-sampled:    16x16 relies on the closed-form count only (brute force over
-            every k-combination of 256 cells is infeasible); the closed-form
-            itself is cross-checked against true brute force on the four
-            small grids, so it is not trusted un-derived at the size it
-            matters most. The movement pins are refused at construction on
-            every board the runtime instantiates, so the static sweep samples
-            grid shapes rather than re-proving the pin on every reachable board.
-residual:   relations (adjacency graphs), jump triples (draughts), track
-            frames (backgammon), crownhead / arbitrary-depth home regions, and
-            frames for more than two seats are absent from BoardEntry until a
-            witness game needs them (issue #124) -- not a gap in this
-            registry's own domain. The two-seat 180 frame, the seat-relative
-            forward directions, and the back-two-ranks / far-rank regions are
-            present because breakthrough witnesses them; non-grid families
-            (hex, track, enumerated graphs) are a later rung's registry rows,
-            not a residual of this one.
+does not prove:  that `lines(k)` is right at 16x16 by independent
+            reconstruction. Brute force over every k-combination of 256 cells
+            is infeasible, so at that size the sweep holds the generator
+            against the closed-form count alone; what makes the closed form
+            worth that weight is its own cross-check against true brute force
+            on the small grids, not a re-derivation of the alignments at 256
+            cells.
+            Nor that the movement pins hold on every board the runtime can
+            instantiate. They are refused at construction, so the static
+            sweep samples grid shapes rather than re-proving each pin on
+            every reachable board.
 
 red under (naming): transposing the file/rank order in _cell_name --
 swapping `f"{_FILES[column]}{row + 1}"` for `f"{row + 1}{_FILES[column]}"`

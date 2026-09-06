@@ -52,6 +52,18 @@ property:   a `board:` game mints the `dir` domain (the three seat-relative
 domain:     {TDir value positions} x {accept | reject}   (GRID 1)
             UNION {use-positions of the name `dir`} x {accept | reject}  (GRID 2)
             UNION {minting / collision cases} x {accept | reject}        (GRID 3)
+            Two things sit outside, and neither is a gap. `role_static_members`
+            (cardlang/domains.py) carries no `dir` branch: `dir` is not a
+            `for each` role (`_ITERATION_ROLES` excludes it), so the function
+            can never be asked for `"dir"` and a branch there would be dead
+            code; its existing `AssertionError` ("unknown role") is the live
+            Shadow Guard, and were `dir` added to `_ITERATION_ROLES` the
+            `for each` rejection cell below flips and that guard fires. And
+            the movement VERBS (`neighbor`/`has_step`/`is_diagonal`), the
+            direction OFFSETS and the per-player frames belong to the board
+            registry rather than to this domain: `BoardEntry.directions()`
+            yields the member NAMES, and the geometry those names index is
+            proven where the registry is.
 registry:   cardlang/board_domains.py (`directions_of`, `DIRECTION_DOMAIN`);
             cardlang/stdlib/boards.py (`BoardEntry.directions`); the
             `Type`-consumer surface (grep-confirmed: `types.py::unify`,
@@ -60,73 +72,18 @@ registry:   cardlang/board_domains.py (`directions_of`, `DIRECTION_DOMAIN`);
             `_check_arithmetic_operands`, `_check_membership_operands`,
             `_check_offset_by_operands`, the subscript-key and assign-key
             checks); the value-position surface (grammar + Expr/Stmt unions).
-covered:    GRID 1 -- each cell a run probe below --
-              move parameter `pick(along : dir)`     -> accept (TDir, 3 vocab)
-              let binder `let d = along`             -> accept (TDir)
-              equality dir-vs-dir `along is along2`  -> accept (join)
-              equality dir-vs-cell `at is along`     -> reject (typecheck)
-              equality dir-vs-int  `along is 3`      -> reject (typecheck)
-              ordering `along < along2`              -> reject (typecheck)
-              arithmetic `along + 1`                 -> reject (typecheck)
-              subscript `along[actor]`               -> reject (subscriptable)
-              zone-index `square[along]`             -> reject (keyed by Cell)
-              assign-key `result[along] := 1`        -> reject (keyed by Player)
-              membership `along in reserve[actor]`   -> reject (unify None)
-              offset_by  `actor offset_by along`     -> reject (wants Direction)
-                                                (the dir vs turn-order Direction
-                                                disambiguation -- TDir is not
-                                                TEnum("SeatDirection"))
-            GRID 2 -- use-position of the name `dir` (`dir` is move-param-only) --
-              move parameter `along : dir`           -> accept (the ONE slot)
-              zone index `sq[dir] : Cell<dir>`       -> reject (resolve, free)
-              bare quantifier `any dir where`        -> reject (resolve, free)
-              collection quantifier `any dir in ...` -> reject (resolve, free)
-              for each `for each dir d`              -> reject (resolve, free)
-              member literal `along is ahead`        -> reject (unknown name)
-              state type `foo : dir`                 -> reject (resolve, free)
-              state index `r[dir] : Integer`         -> reject (resolve, free)
-              function parameter `f(x : dir)`        -> reject (unknown type
-                                                'dir' -- NOT admitted like the
-                                                position `cell`; `dir` is a
-                                                separate, move-param-only source)
-              variant payload `Won(dir)`             -> reject (unknown type,
-                                                the loud twin)
-            GRID 3 -- minting / collision --
-              `dir` minted with `cell` (both present)-> accept
-              directions_of / enumerate_domain order -> the 3 members, fixed
-              action-space round-trip (3 dir ids)    -> encode/decode agree
-              scripted playout picks a direction     -> the move applies
-              `positions { dir : 1..3 }` (board game) -> reject (mint-site,
-                                                mirrors the `cell` collision)
-              `type dir = { … }` (board game)         -> reject (mint-site vs
-                                                the reserved set, `cell`'s twin)
-              boardless `foo(x : dir)`               -> reject (unsupported
-                                                param domain -- no board, no
-                                                `dir` source)
-              orthogonal to the turn-order direction -> DIRECTION_DOMAIN == "dir"
-                                                and a game with BOTH `direction:
-                                                clockwise` and a `dir` parameter
-                                                checks clean (born-green pin)
-            byte-identity -- a card game (no board) emits no `directions` IR key.
-sampled:    the action-space round-trip is proven on the three `pick` vocab ids
-            of grid(3,3); the members-in-order property on the fixed
-            seat-relative order (the registry owns it, pinned in
-            tests/test_boards_registry.py once Task 2 lands the offsets).
-residual:   * `role_static_members` (cardlang/domains.py) grows NO `dir` branch:
-              `dir` is not a `for each` role (`_ITERATION_ROLES` excludes it, so
-              `for each dir` is rejected at resolve -- proven below), so the
-              function can never be asked for `"dir"` at runtime. Its existing
-              `AssertionError` ("unknown role") is the live Shadow Guard; a `dir`
-              branch there would be dead code (a vacuously-green cell). Reddening
-              mutation: were `dir` ever added to `_ITERATION_ROLES`, the
-              `for_each_dir_is_rejected` cell below flips and the Shadow Guard would
-              fire -- the loud signal to wire the branch honestly.
-            * a member name (`ahead`) as an expression stays an unknown-name
-              diagnostic (no direction literals); witness for direction
-              constants is deferred (issue #124), the cell-literal twin.
-            * the movement VERBS (`neighbor`/`has_step`/`is_diagonal`) and the
-              per-player frame offsets are later tasks; `BoardEntry.directions()`
-              returns only the member NAMES here.
+            The members and their fixed order:
+            tests/test_boards_registry.py::test_directions_are_the_three_forward_names.
+            The consumers' fail-closed shape -- an allow-list refuses a type it
+            has never seen, which is why `TDir` needs no arm of its own:
+            tests/test_permissive_top.py::test_every_type_consumer_fails_closed_on_an_unfamiliar_type.
+does not prove:  that a `Type` consumer this module does not name behaves
+            for `dir` as the named ones do. The consumer axis is confirmed by
+            grep at authoring time, not derived in code, so a consumer added
+            to the front end joins neither GRID 1 nor this ledger by itself;
+            what holds it in the meantime is the fail-closed shape those
+            consumers share, argued from their allow-lists and pinned where
+            the registry row points.
 """
 
 from __future__ import annotations
@@ -469,9 +426,9 @@ def test_collection_quantifier_over_dir_is_rejected() -> None:
 
 def test_for_each_dir_is_rejected() -> None:
     # `for each dir d:` -- `dir` is not in `_ITERATION_ROLES`, so it rejects for
-    # free. (Reddening pin for the `role_static_members` residual: were `dir`
-    # added to `_ITERATION_ROLES`, this cell would flip and the runtime Shadow Guard
-    # would fire.)
+    # free. (Reddening pin for the `role_static_members` boundary in the ledger
+    # above: were `dir` added to `_ITERATION_ROLES`, this cell would flip and
+    # the runtime Shadow Guard would fire.)
     assert "unknown `for each` role 'dir'" in _reject(
         _pick_effect("for each dir d: done := true")
     )
@@ -479,7 +436,8 @@ def test_for_each_dir_is_rejected() -> None:
 
 def test_dir_member_name_is_an_unknown_name() -> None:
     # Naming a member (`ahead`) in an expression stays an unknown-name
-    # diagnostic -- no direction literals, the cell-literal twin.
+    # diagnostic -- no direction literals, the cell-literal twin. A witness for
+    # direction constants is deferred (issue #124).
     assert "unresolved name 'ahead'" in _reject(_pick_guard("along is ahead"))
 
 

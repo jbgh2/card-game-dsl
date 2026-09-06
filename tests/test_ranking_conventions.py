@@ -21,34 +21,28 @@ property:   every (convention, deck) pair either expands to the frozen
             equals the enumeration it replaced.
 domain:     RANKING_CONVENTIONS keys x (DECKS ∪ {unknown deck}) — plus the
             clause-form misuse space (misspelling, word flip, case flip,
-            space-for-hyphen, mixed convention+ranks).
+            space-for-hyphen, mixed convention+ranks). Two things sit
+            outside, and neither is a gap. A partial enumeration's runtime
+            KeyError (`rank_value` on a rank outside a partial `ranking:`)
+            is unreachable from a convention, which is a full permutation of
+            its deck by construction. And a duplicated `ranking:` clause —
+            convention or enumeration — is refused at parse by the
+            game-clause `once` sweep, which owns that cell.
 registry:   `cardlang.runtime.values.RANKING_CONVENTIONS` and
             `cardlang.runtime.values.DECKS` — both axes iterated from the
             registries in `test_every_deck_convention_cell_is_classified`,
             so a new deck or convention fails loudly until classified in
             _FRENCH_EXPANSIONS / _NON_FRENCH_DECKS below (the two-way pin
             idiom).
-covered:    every French cell (the decks outside `_NON_FRENCH_DECKS` x
-            RANKING_CONVENTIONS, frozen expected tuples); every non-French
-            cell (`_NON_FRENCH_DECKS` x RANKING_CONVENTIONS, guard probed
-            through real source per deck and per convention); the
-            unknown-deck degrade; registry↔grammar reconciliation in both
-            directions; the reserved-spelling pin; every corpus migration
-            equivalence (`_PRE_MIGRATION`, pre-migration literals frozen here
-            verbatim).
-sampled:    the "did you mean" hint is probed on four representative
-            misspellings (word flip, case flip, space-for-hyphen, plausible
-            non-convention), not on every string within edit distance of a
-            key — the hint is advisory text on an already-loud diagnostic.
-residual:   partial-enumeration runtime KeyError (`rank_value` on a rank
-            outside a partial `ranking:`) is the standing recorded residual
-            (the ledger in tests/test_ranking_guard.py) and is
-            unreachable from a convention, which is always a full
-            permutation of its deck by construction. (A duplicated
-            `ranking:` clause — convention or enumeration — is guarded at
-            parse by the game-clause `once` sweep,
-            tests/test_game_clause_guards.py, so it is that ledger's cell,
-            not a residual here.)
+            The partial-enumeration guard: tests/test_ranking_guard.py.
+            The duplicate-clause `once` sweep:
+            tests/test_game_clause_guards.py.
+does not prove:  that the "did you mean" hint fires for every plausible
+            misspelling. It is probed on representative ones — word flip,
+            case flip, space-for-hyphen, a plausible non-convention — never
+            on every string within edit distance of a key. The hint is
+            advisory text riding an already-loud diagnostic, so a spelling
+            that misses it is still refused.
 
 Rendered-diagnostic goldens for the guards live in `tests/rejections/`
 (ranking_unknown_convention, ranking_convention_non_french_deck,

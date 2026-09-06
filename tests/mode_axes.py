@@ -82,7 +82,8 @@ def mode_item_alternatives() -> tuple[str, ...]:
 
 def statement_alternatives() -> tuple[str, ...]:
     """Every `?statement` alternative — the sub-axis under `phase_item`'s
-    `statement`, sampled rather than crossed by the grid (see its ledger)."""
+    `statement`, sampled rather than crossed by the grid (its ledger says so in
+    `does not prove:`)."""
     return _alternatives("statement")
 
 
@@ -125,8 +126,9 @@ def mode_set_shapes() -> tuple[str, ...]:
     over the per-mode 2x2 alone passes every cell of a two-source-mode game
     while saying nothing about the two of them together. Hand-listed with its
     reason: this axis has no defining site in code to derive from, because it
-    is a property of a graph the grammar imposes no shape on. Recorded as a
-    residual in the grid's ledger rather than passed off as derived.
+    is a property of a graph the grammar imposes no shape on. The grid's
+    ledger states the hand-listing in `registry:` rather than passing it off
+    as derived.
     """
     return (
         "single_pair",  # one source, one target: hearts and spades

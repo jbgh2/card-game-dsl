@@ -1,10 +1,5 @@
 """The narrow primitive interface — completeness ledger.
 
-status:     stage 2 COMPLETE — every module in `_GAME_MODULES` is free of every
-            engine handle, so the crossed grid is green with nothing
-            excused. Stage 3 (`primitives { }`) narrows the bundles from
-            module- to primitive-granularity; residual (2) is its execution brief.
-
 property:   a game-local primitive sees VALUES, never an engine handle. Its
             implementation names no `Ctx` and no `RuntimeState`; everything
             it may read arrives as the two bundles the binder builds — its
@@ -23,15 +18,24 @@ domain:     every game-local primitive (derived from all THREE routes to a
             x every forbidden engine handle (derived: `Ctx`'s own field set
             plus the engine types, NOT the handles modules happen to use
             today) x every `EngineFacts` field (derived: the dataclass).
+            Two things sit outside, and neither is a gap. The three auction
+            outcomes (`bridge_`/`pinochle_`/`tarot_auction_outcome`) are
+            implemented INSIDE `cardlang/runtime/primitives.py`, which is
+            engine core, so they are game knowledge the module axis does not
+            reach by that axis's own definition; they are named and pinned as
+            a set instead, and co-locating them is issue #142's stage 4. And
+            the two bundles are MODULE-granular by ratified stage-2 scope: a
+            primitive receives its module's whole row rather than a
+            per-primitive `reads` clause, so what is quantified over is the
+            module's declared surface, not the primitive's (issue #142).
 registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             the safe polarity — a NEW runtime module is a game module by
             default and must pass the guard); `PRIMITIVE_IMPLEMENTATIONS`
             (`cardlang/primitives_block.py`), the declaration half of the
             name -> module derivation, and the half a DECLARED Primitive is
-            reached through; `NARROWED` (sites proven
-            handle-free) and `MIGRATED` (primitives), both now covering
-            everything the dispatch routes; `_STILL_REACHES` (the
-            per-cell work list, now EMPTY — stage 2 is complete);
+            reached through; `NARROWED` (the handle-free sites) and
+            `MIGRATED` (the primitives); `_STILL_REACHES` (the
+            per-cell work list);
             `BUILTIN_*` / `PRIMITIVE_*` in `cardlang/builtins/functions.py`
             (the name axis); the call boundary's freeze cell reads a
             Primitive's shape through `primitives_block.implementation_sig`,
@@ -41,105 +45,16 @@ registry:   `_ENGINE_CORE` (the module axis's only hand-authored half, and
             name of every kind, so the shape claim is the fixture's own
             rather than a reading of whichever kinds the live registry
             happens to carry while the corpus migrates off it.
-covered:    (a) per-implementation-SITE: the site's signature names no
-            forbidden handle — exhaustive over the derived site set (one
-            cell per `module::func`, NOT per primitive: the dispatch routes
-            one name to several implementations). Stage 2 being complete,
-            every cell asserts green; the `xfail(strict=True)` machinery
-            stays as the mechanism for the next module to arrive, and a
-            site that reacquires a handle fails rather than being excused;
-            (b) per-module x per-handle: the whole crossed grid, so a
-            module that drops `Ctx` from its signatures but keeps an
-            import, a `.chooser` reach, or a `RuntimeState` annotation
-            still fails its own cell;
-            (c) `EngineFacts`: every field populated from a NAMED engine
-            expression, each pinned against a live `RuntimeState`, with
-            the two round-state views proven distinct (collapsing them is
-            a behavior change, not a refactor); and every field pinned to
-            a real CONSUMER in a game module — value-correctness and
-            non-speculativeness are separate properties, and only the
-            second stops the bundle growing. engine_facts freezes EVERY
-            field uniformly (not a hand-picked subset), and a separate
-            guard pins that no field is the engine's live object by
-            identity — the immutability WALK cannot catch that (a
-            frozen+slots value passed by identity looks safe to it but is
-            an `object.__setattr__` leak), which is how `seating` slipped;
-            (d) `GameReads`: the bundle carries exactly the module's
-            declared row and nothing else — an undeclared name is absent,
-            not merely unfetched, and reading one fails in the declaration's
-            own typed channel rather than as a bare `KeyError`, over every
-            half `GameReads` declares rather than the halves a corpus
-            primitive happens to read; and NOTHING mutable is reachable through
-            either bundle at any depth or shape (`deep_freeze`), proven by
-            descending the whole materialized structure over a fixture that
-            crosses every mutable shape the DSL can produce — nested
-            dict/list/set/tuple, a plain `set` AND a `frozenset`, a
-            `bytearray` (a mutable builtin), and a `StructValue` whose
-            `.fields` is a live dict behind a frozen dataclass (a mutable
-            WRAPPER, not a leaf). The walker recurses dataclass fields AND
-            checks the wrapper is both frozen AND slotted, so it cannot share
-            deep_freeze's blind spots, and deep_freeze REFUSES any leaf it
-            cannot prove immutable — a non-frozen dataclass, OR a frozen but
-            non-SLOTTED one (whose `__dict__` stays writable, so
-            `obj.__dict__[f] = …` bypasses frozen), neither fixable by a
-            field-frozen `replace` copy — rather than passing a
-            possibly-mutable object through. The holes Codex found (indexed
-            state dict, round-state `played` list, StructValue fields,
-            bytearray, the non-frozen-dataclass identity fast path, and the
-            frozen-but-non-slotted `Play`) were each reproduced before the
-            fix closed them. deep_freeze never returns a dataclass by
-            identity, even frozen+slots: `object.__setattr__` bypasses
-            `frozen`, so it COPIES (a `replace`), and the back door then
-            hits the primitive's copy, not the value in engine state — the
-            three climb `Play` types are frozen+slots so they copy cleanly;
-            (d') the primitive boundary is TWO channels, both frozen: the
-            bundles above, and the positional COLLECTION arguments — a
-            collection arg from a zone reaches a primitive as the zone's
-            live `.cards` list (`elements()` returns it by reference), so
-            EVERY site handing a narrowed primitive a value that could be
-            (or contain) a mutable engine object freezes it: the generic
-            `call()` coercion (`_coerce_args`, which copies both TCollection
-            args AND scalar `TCard` args — a frozen+slots `Card` is still
-            mutable via `object.__setattr__`), the climb hand AND the
-            standing `Play` (`state["current"]`), and the one direct site
-            that reads live engine state rather than a bundle — the trick
-            `outcome_fn` (`played` + `rank_index`). Keys are frozen with
-            values, so a mutable-hashable key cannot be recovered by
-            iterating a proxy. Each channel is proven: the boundary
-            snapshot is a tuple not the live list (captured at the outcome
-            site), and a mutable key/arg is refused. The cribbage pegging
-            scorers are covered by (d) rather than here, by derivation:
-            they take the bundle like every other narrowed Primitive, so
-            the freeze they receive is `narrowing.bind`'s and the grid
-            proves it over the whole index. The auction
-            outcomes are excluded on purpose — they are residual (1),
-            still holding `ctx`, so freezing one of their args would be
-            theater. A Primitive that emits a trace event is not a shape
-            with a registry of its own: no Primitive holds a tracer, and
-            grid (b) asserts `ctx.trace` absent from every game module, so
-            the guarantee an emitter registry stated is the crossed grid's
-            over a wider domain.
-sampled:    behavioral identity rides the byte-identical goldens and the
-            playout suites, which is the whole gauge for this stage — a
-            moved golden means the refactor changed behavior.
-residual:   (1) the three auction outcomes (`bridge_`/`pinochle_`/
-            `tarot_auction_outcome`) are implemented INSIDE
-            `cardlang/runtime/primitives.py`, which is engine core, so the
-            game-module guard does not reach them; they are game knowledge
-            in the language package and stage 4 (co-location) owns their
-            move. Guard: `test_engine_core_game_knowledge_is_named`, which
-            fails if that set changes without this ledger changing.
-            Record: issue #142.
-            (2) `EngineFacts` is MODULE-granular by ratified stage-2 scope
-            (2A): a primitive receives the facts bundle whole rather than
-            the per-primitive `reads` clause of the design note's §2. The
-            narrowing that remains is stage 3's, and until it lands a
-            primitive can read a fact it does not need, and every call
-            materializes its module's whole row whether or not it reads
-            any of it. Guard: the field set is closed and every field is
-            pinned to a consumer (c), so the bundle cannot grow
-            speculatively; the per-call cost is recorded in
-            issue #142.
+            The engine-core game knowledge, named as a set:
+            `test_engine_core_game_knowledge_is_named`.
+does not prove:  that a migrated game still computes what it computed. This
+            module reads SHAPE — which handles a site names, which names a
+            bundle carries, what is reachable through one and at what depth —
+            and shape is not behaviour. The behavioural claim rides the
+            byte-identical per-seed goldens
+            (tests/test_migration_characterization.py) and each game's own
+            playout suite, where a moved golden IS the changed behaviour;
+            nothing here would notice it.
 
 red under (born-green cells):
 - `combinations.py` passes (b) on arrival: it is the Tichu combination
@@ -1530,16 +1445,16 @@ def test_every_engine_facts_field_is_deeply_immutable() -> None:
     assert not offenders, "mutable containers in EngineFacts:\n" + "\n".join(offenders)
 
 
-# --- residual (1): the game knowledge that stays in engine core -------------
+# --- the game knowledge that stays in engine core ---------------------------
 
 _ENGINE_CORE_GAME_KNOWLEDGE: frozenset[str] = PRIMITIVE_AUCTION_OUTCOMES
-"""The residual: the Primitive namespace whose implementations live INSIDE
+"""The Primitive namespace whose implementations live INSIDE
 `cardlang/runtime/primitives.py`. Derived from the registry rather than
-re-typed, so a fourth auction outcome joins the residual by being registered."""
+re-typed, so a fourth auction outcome joins the set by being registered."""
 
 
 def _games_with_an_auction_outcome() -> frozenset[str]:
-    """The corpus game files whose `round auction` names one of the residual
+    """The corpus game files whose `round auction` names one of these
     Primitives — the games engine core therefore reads state on behalf of."""
     found: set[str] = set()
     for path in sorted(GAMES_DIR.glob("*.cardlang")):
@@ -1554,13 +1469,13 @@ def _games_with_an_auction_outcome() -> frozenset[str]:
 
 
 def test_engine_core_game_knowledge_is_named() -> None:
-    """The residual, pinned so it cannot grow quietly. These primitives are
+    """The set, pinned so it cannot grow quietly. These primitives are
     implemented inside primitives.py — engine core — so the game-module
-    guard does not reach them; stage 4 (co-location) owns their move.
+    guard does not reach them; co-locating them is issue #142's stage 4.
 
     Both sides derive, and from DIFFERENT registries: the rows engine core
-    actually holds, against the games whose own text names a residual
-    Primitive. Comparing rows with rows would be the vacuous shape — it would
+    actually holds, against the games whose own text names one of these
+    Primitives. Comparing rows with rows would be the vacuous shape — it would
     hold whatever the table said. A new per-game function in primitives.py
     fails here, and so does a row engine core keeps for a game that has
     stopped asking it for anything."""
@@ -1570,10 +1485,10 @@ def test_engine_core_game_knowledge_is_named() -> None:
         f"while the corpus games naming a residual Primitive are "
         f"{sorted(_games_with_an_auction_outcome())} — engine core is holding "
         f"game knowledge for a different set of games than this ledger's "
-        f"residual (1) records"
+        f"engine-core set records"
     )
     dispatched = {i.primitive for i in _implementations()}
     assert not (_ENGINE_CORE_GAME_KNOWLEDGE & dispatched), (
-        "a residual primitive is now dispatched to a game module — move it "
+        "an engine-core primitive is dispatched to a game module — move it "
         "out of this table and into the grid proper"
     )

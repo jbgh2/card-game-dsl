@@ -14,7 +14,10 @@ property:   `as <p> { … }` binds the acting player to exactly one evaluated
             Player, runs its body once, in a block scope whose `let`s do not
             escape; every grammar-accepted combination executes or is
             statically rejected.
-domain:     (player-expr ∈ Expr union) × (body ∈ Stmt* — every statement kind)
+domain:     (player-expr ∈ Expr union) × (body ∈ Stmt* — every statement kind).
+            The expr-consumer pairwise product sits outside, and that is a
+            boundary rather than a gap: the construct produces no new value
+            shape, so it adds no pair to that product.
 registry:   the Expr and Stmt unions (cardlang/ast/nodes.py). The statement
             dispatch is consumed at every layer for a new `Stmt` (the list
             `expand.py`'s Contract enumerates): the exhaustive `assert_never`
@@ -24,31 +27,14 @@ registry:   the Expr and Stmt unions (cardlang/ast/nodes.py). The statement
             `openspiel/encoding._walk` — whose guard is genericity over every
             dataclass field, so `AsBlock.body` is reached without either
             knowing `AsBlock` exists.
-covered:    - omitted player-expr / malformed → parse error [grammar]
-            - unresolved name in player position → resolve reject
-            - non-Player player-expr → typecheck reject (coercible(_, Player),
-              keeping the Integer-stands-for-player leniency of
-              `dealer : Player = 0`) [typecheck]
-            - a player-expr that is a valid TYPE but binds a non-seat VALUE at
-              runtime (a COMPUTED `as (0 + 5)` in a 2-player game -- a literal
-              `as 5` is rejected statically now; or a TAny pronoun like
-              `as active_rules`) → loud RuntimeError at `acting_as` — the
-              acting-player analogue of the phantom-key write guard, so `as` is
-              never more dangerous than the guarded loop it replaces [runtime]
-            - body `let` does not escape the block [resolve + runtime]
-            - the acting player reaches a `chosen` movement in the body via
-              `acting_as`, byte-identical to the loop idiom [runtime]
-            - a `choose`/`offer`/`round` nested in an `as` body is visible to
-              the OpenSpiel action-space encoder (generic `_walk`) [encoding]
-            - `as` lexes distinctly from `as-equally-as-possible` and from a
-              statement-leading `as…` identifier (anchored `_AS_KW`) [grammar]
-sampled:    - the remaining body statement kinds (rotate, epistemic, round,
-              produces, …) execute through the SAME `run_body`/`execute`
-              dispatch used by `if`/`Block`; AsBlock adds no per-statement-kind
-              logic, only the ctx rebind, so `move chosen` (the motivating
-              case), nested `as`, and let-scope are probed and the rest sampled.
-residual:   none — the construct produces no new value shape, so there are no
-            new expr-consumer pairwise cells.
+does not prove:  that every statement kind runs correctly inside an `as`
+            body. The kinds beyond the probed three — `move chosen` (the
+            motivating case), a nested `as`, and let-scope — reach the same
+            `run_body`/`execute` dispatch `if` and `Block` use, and `AsBlock`
+            adds no per-statement-kind logic, only the ctx rebind. So what a
+            green establishes is the rebind and the block scope around it,
+            argued to carry to the rest by shared dispatch rather than
+            observed kind by kind.
 """
 
 from __future__ import annotations

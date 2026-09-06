@@ -2,63 +2,25 @@
 executor's overfill guard (`cardlang/runtime/execute.py::_deposit`).
 
 property:   every LIBRARY_ZONE_TYPES row declares a capacity (an int or None
-            for unbounded); every runtime append to a zone routes through the
-            one capacity-checked helper, so a finite-capacity zone type
+            for unbounded); every movement statement's append to a zone
+            routes through the one capacity-checked helper, so a finite-capacity zone type
             (Cell) can never end up holding more than its declared capacity
-domain:     every LIBRARY_ZONE_TYPES row x the runtime's zone-append call
-            sites
-registry:   cardlang/stdlib/zones.py::ZONE_CAPACITY
-covered:    the registry-total pin (set(ZONE_CAPACITY) == set(
-            LIBRARY_ZONE_TYPES)) — NOT vacuous: red under: deleting the
-            `"Cell": 1,` row from ZONE_CAPACITY (verified by hand — the pin
-            failed with `AssertionError: ... Extra items in the right set:
-            'Cell'`, then reverted; see also this module's registry-total
-            test below); zone_capacity()'s KeyError-
-            loud behavior on an unknown type; the overfill probe (2 cards
-            dealt into an empty Cell — typed RuntimeError, exact message);
-            both capacity-boundary probes (1 card into an empty Cell
-            succeeds and leaves the zone AT capacity; one more card into
-            that now-full Cell overfills); FreeCell (the corpus's one Cell-
-            typed game) still typechecks clean and a random playout never
-            trips the guard (its own guard, `cells[slot] is empty`, makes
-            every to_cell move a no-op once the cell is full — direct
-            evidence here, corroborated externally by the full
-            tests/test_playout_freecell.py run recorded in the task report)
-
-            Routed call sites, all through cardlang/runtime/execute.py's one
-            `_deposit(ctx, dest, cards)` helper — the sole place any zone
-            gains cards at runtime within this module's lane:
-              - _movement, the `to each` distributed-parcel branch
-              - _movement, the single-destination branch
-              - _deal_round_robin, the unfiltered branch
-              - _deal_round_robin, the filtered branch
-              - _gather (the sourceless `move all cards to <zone>` form)
-              - _apply_pass (the `each ... simultaneously` pass, e.g. Hearts'
-                card-passing phase)
-sampled:    none
-residual:   the `Point` row (an unbounded stack, backgammon's witness — see
-            docs/design-notes/board-topology.md) is not added until board-
-            topology stage 3; issue #118 records it.
-
-            Two zone-append call sites are NOT routed through `_deposit`,
-            and are out of this task's lane (cardlang/runtime/mechanics.py):
-            `TrickForm.apply`'s `ctx.rs.zones.single(self.play_zone).add(...)`
-            and `ClimbForm.apply`'s `self.pile.add_all(...)`. resolve.py only
-            checks that `play_zone` names a KNOWN zone, never its declared
-            TYPE (cardlang/resolve.py, the `nd.play_zone not in zone_names`
-            checks) — so a future game pointing a round's play zone at a
-            Cell is reachable IN PRINCIPLE, not statically guarded. It is not
-            corpus-reachable today: every round/trick/climb form is card-
-            flavored (issue #114), and Cell is
-            used by exactly one corpus game (FreeCell), which uses no round
-            form. This is a genuine gap, not a proven-safe exclusion.
-
-            cardlang/runtime/driver.py:102's initial deck-seeding append
-            (`rs.zones.single(rs.deck_zone).add_all(...)`) is also unrouted,
-            but for a different reason: `rs.deck_zone` is selected by
-            `type_ref.name == "Deck"`, which this registry always maps to
-            unbounded capacity, so that append is audited-safe rather than a
-            gap.
+domain:     every LIBRARY_ZONE_TYPES row x the zone-append call sites
+            `_deposit` serves. One append sits deliberately outside it and is
+            not a gap: the driver's initial deck-seeding append, whose zone is
+            selected by `type_ref.name == "Deck"`, a row this registry always
+            maps to unbounded capacity, so it is audited-safe rather than
+            unchecked. The round forms' own appends -- `TrickForm.apply` and
+            `ClimbForm.apply` in cardlang/runtime/mechanics.py -- sit outside
+            too, and that one is a gap rather than a proven-safe exclusion:
+            issue #589.
+registry:   the capacity rows — cardlang/stdlib/zones.py::ZONE_CAPACITY; the
+            type axis — cardlang/stdlib/zones.py::LIBRARY_ZONE_TYPES; the one
+            capacity-checked append — cardlang/runtime/execute.py::_deposit.
+does not prove:  that a round form's own appends respect capacity. They
+            sit outside the domain, and resolve checks only that a round's
+            `play_zone` names a KNOWN zone, never its declared TYPE, so a
+            green here is silent about a Cell play zone.
 """
 
 from __future__ import annotations
@@ -86,8 +48,8 @@ HEARTS_2 = Card("2", "hearts")
 
 def test_zone_capacity_is_total_over_library_zone_types() -> None:
     """The registry-total pin. red under: deleting the `"Cell": 1,` row from
-    ZONE_CAPACITY reddens this exact assertion (verified by hand, reverted;
-    see the module docstring's `covered` entry)."""
+    ZONE_CAPACITY reddens this exact assertion, with `AssertionError: ...
+    Extra items in the right set: 'Cell'` (verified by hand, reverted)."""
     assert set(ZONE_CAPACITY) == set(LIBRARY_ZONE_TYPES)
 
 

@@ -6,24 +6,22 @@ property:   the sentence naming WHAT FIRES the completeness gate is spelled
             an agent actually reads before deciding whether the gate applies.
 domain:     every tracked file stating the trigger -- found by its tail phrase
             rather than by a hand-written file list, so a fourth copy joins the
-            pin the day it is written.
+            pin the day it is written. Two kinds of file sit outside, and
+            neither is a gap. Dated snapshots under `docs/plans/` and
+            `docs/superpowers/` record what the trigger said when they were
+            written, and rule 1 (spec, not history) keeps them frozen. And a
+            file carrying the tail phrase without the OPENING is not a copy:
+            `decisions.md` uses "a closed-domain mechanism" in the
+            class-ledger rule, a different sentence. That is why the pattern
+            anchors on "adds or extends" rather than on the tail alone -- the
+            tail names the CATEGORY, the opening names the TRIGGER, and only
+            the second is what these files must agree on.
 registry:   `_TAIL` locates the sentence; `git ls-files` bounds the walk. There
             is no list of copies anywhere in this module.
-covered:    `test_every_statement_of_the_trigger_agrees` over the derived set,
-            which also asserts it found more than one copy -- a pin over a
-            single statement compares nothing and would pass forever.
-sampled:    none.
-residual:   Dated snapshots under `docs/plans/` and `docs/superpowers/` are
-            excluded: they record what the trigger said when they were
-            written, and rule 1 (spec, not history) keeps them frozen. Also
-            out of scope: whether the trigger is RIGHT. This pin holds the
-            copies together, not the doctrine to any standard.
-            One file carries the tail phrase without stating the trigger --
-            `decisions.md` uses "a closed-domain mechanism" in the class-ledger
-            rule, a different sentence -- and is correctly not a copy. That is
-            why the pattern anchors on "adds or extends" rather than on the
-            tail alone: the tail names the CATEGORY, the opening names the
-            TRIGGER, and only the second is what these files must agree on.
+does not prove:  that the trigger is RIGHT. This pin holds the copies to each
+            other, not the doctrine to any standard: every copy could agree
+            on a sentence that fires the gate for the wrong changes and
+            nothing here would say so.
 
 Why this exists. On PR #332 two vocabulary passes hit different copies of this
 one sentence: CLAUDE.md ended up firing the gate for "a kernel table" while

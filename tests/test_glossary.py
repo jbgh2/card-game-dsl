@@ -9,38 +9,26 @@ domain:     every file under `docs/glossary/`, and every wiki link or
             `docs/glossary/<slug>.md` reference in the PROSE of any tracked `.py`
             or `.md` -- Python comments and docstrings, Markdown outside a fence.
             Code, and DSL fixtures written as Python strings, are not prose and
-            are out of the domain by construction (`_prose_text`).
+            are out of the domain by construction (`_prose_text`). This module
+            sits inside its own walk, so its comments and docstrings spell
+            no live reference. Every example spelling lives in a
+            parametrized row, which is a string literal and therefore code.
 registry:   the entry directory itself, walked -- there is no hand-listed term
             list anywhere, so a term added or removed arrives here without
             anyone updating a fixture. Field vocabularies come from
             `tools.glossary_index.LAYERS` / `.STATUSES`.
-covered:    entry parse + field closure + slug/term uniqueness + index equality
-            + reference resolution, each over the full walk; and the prose/code
-            boundary itself, as the parametrized rows of
-            `test_only_prose_positions_are_scanned_for_references`. Both
-            resolution checks assert they scanned a reference at all, so neither
-            can pass by reading nothing.
-sampled:    none.
-note:       This module is inside its own walk, so its comments and docstrings
-            never spell a live reference -- every example spelling lives in a
-            parametrized row, which is a string literal and therefore code.
-residual:   TWO ENTRIES MAY MEAN THE SAME THING and nothing here notices. The
-            names are guaranteed distinct; the meanings are not. This is not a
-            gap waiting for a check -- it was measured: lexical similarity scores
-            0.13 on a real instance (Hand Loop defined as Hand, caught in review
-            on PR #323), and "a compound must link its head" fails too, because
-            that entry did link `[[hand]]`. Semantic duplication is review
-            judgment, the same ruling #214 D4 makes for prose usage. R4, recorded
-            here rather than filed: the mechanism is the reviewer, and a check
-            that cannot fire would only look like coverage.
-            Resolution only, deliberately -- issue #214 D4. Nothing here checks
-            that prose USES a reserved word correctly, or that a docstring
-            mentioning a concept links it. Those are review judgment (and the
-            direction review's job); a linter that guessed at them would fail on
-            ordinary English. The consequence is that an unlinked mention is
-            invisible to this gate: it guarantees that references RESOLVE, never
-            that references EXIST. R4, and recorded here rather than filed --
-            #214 D4 rules it deliberate, not deferred.
+does not prove:  two things, and neither is a check waiting to be written.
+            That two entries mean different things. The names are guaranteed
+            distinct; the meanings are not, and no matcher here reads a
+            definition. Semantic duplication is review judgment -- the same
+            ruling issue #214 D4 makes for prose usage -- so the mechanism is
+            the reviewer, and a check that could not fire would only look
+            like coverage.
+            That a reference EXISTS. Resolution is the whole guarantee, also
+            by issue #214 D4: nothing here checks that prose uses a reserved
+            word correctly, or that a docstring naming a concept links it, so
+            an unlinked mention is invisible to this gate. A linter guessing
+            at either would fail on ordinary English.
 """
 
 from __future__ import annotations
