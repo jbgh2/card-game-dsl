@@ -149,9 +149,11 @@ from __future__ import annotations
 
 import ast
 import functools
+import io
 import pathlib
 import re
 import subprocess
+import tokenize
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -533,22 +535,32 @@ def _rows(doc: str) -> dict[str, str]:
     return {k: _join_rows(v) for k, v in collected.items()}
 
 
-_COMMENT_LINE = re.compile(r"^[ \t]*#( ?)(.*)$")
-
-
 def _comment_blocks(source: str) -> list[str]:
     """Every maximal run of full-line `#` comments in `source`, each with its
     `#` markers stripped -- the second shape a ledger is written in, beside a
-    docstring, and the shape `ast.get_docstring` cannot see."""
+    docstring, and the shape `ast.get_docstring` cannot see. Read from the
+    tokenizer's COMMENT tokens, never from the text: a `# property:` line
+    inside a string literal is fixture data, not a comment."""
     blocks: list[str] = []
     run: list[str] = []
-    for line in source.splitlines():
-        m = _COMMENT_LINE.match(line)
-        if m is not None:
-            run.append(m.group(2))
-        elif run:
+    last_row = 0
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, SyntaxError):  # pragma: no cover - fails elsewhere
+        return blocks
+    for tok in tokens:
+        if tok.type != tokenize.COMMENT:
+            continue
+        row, col = tok.start
+        full_line = tok.line[:col].strip() == ""
+        if full_line and (row == last_row + 1 or not run):
+            run.append(tok.string[1:].removeprefix(" "))
+        elif full_line:
             blocks.append("\n".join(run))
-            run = []
+            run = [tok.string[1:].removeprefix(" ")]
+        else:
+            continue
+        last_row = row
     if run:
         blocks.append("\n".join(run))
     return blocks
@@ -1191,3 +1203,10 @@ def test_a_comment_block_ledger_is_in_the_population() -> None:
     assert len(texts) == 1
     assert _rows(texts[0])["registry"] == "tests/test_ledger_referents.py"
     assert _ledger_texts(_COMMENT_FORM_LEDGER.replace("# domain:", "# dom:")) == []
+    # The same lines inside a string literal are fixture data, not a comment
+    # block: the walk reads COMMENT tokens, never the text.
+    as_fixture = 'FIXTURE = """\n' + _COMMENT_FORM_LEDGER + '"""\n'
+    assert _ledger_texts(as_fixture) == []
+    # A comment beside code is not a full-line comment and joins no block.
+    beside_code = _COMMENT_FORM_LEDGER.replace("# property:   p", "x = 2  # property:   p")
+    assert _ledger_texts(beside_code) == []
