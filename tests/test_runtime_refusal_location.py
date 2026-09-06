@@ -50,6 +50,21 @@ domain:     three axes, each read off its own registry.
             first two carry a location; the third names no phase because none
             is running, which the grid states as its expected outcome rather
             than leaving to inference.
+
+            The classes quantified over are the ones the ENGINE DEFINES, and
+            that is the boundary: a builtin Python exception the engine raises
+            is not a class with a position to record, which is the same line
+            tests/test_failure_taxonomy.py draws. A defaultless `next()`
+            reaching a caller as an empty-message `StopIteration` is that
+            other class, and issue #610 owns it.
+
+            A body reached through an INDEX rather than a field — a move
+            type's `effect`, a `define`'s body, a procedure spliced by
+            `cardlang/expand.py`, anything a family library supplies — carries
+            its OWN span, so the sentence a refusal names can sit far from the
+            statement that ran it, or in another file. That is the smallest
+            span that signifies, and the phase is what ties it back to where
+            the game was.
 registry:   the statement axis: `typing.get_args(cardlang.ast.nodes.Stmt)`;
             the refusal-class axis: an import walk over the `cardlang`
             package, the same derivation shape
@@ -63,10 +78,11 @@ registry:   the statement axis: `typing.get_args(cardlang.ast.nodes.Stmt)`;
 does not prove:  nothing here says the refusal MESSAGES are the right words
             for a designer — the wording of the runtime's refusals is issue
             #329, and a green here holds whatever text those raise sites
-            carry. It equally says nothing about a refusal reaching a caller
-            that is not the command line: the adapter and the harnesses catch
-            the same classes and render them themselves, and what they print
-            is their own claim.
+            carry. It equally says nothing about what a caller other than the
+            command line DOES with a located refusal: the OpenSpiel adapter
+            catches only a chooser suspending a playout, so a refusal crosses
+            the pybind boundary out of whichever method triggered it, and the
+            span it now carries is read by nobody on that path.
 """
 
 from __future__ import annotations
@@ -96,6 +112,9 @@ EMPTY_ZONE = FIXTURES / "empty_zone_choice.cardlang"
 # The same movement one line inside `each … simultaneously`, which runs it
 # without handing it back — so the executor's span is the wrapper's line.
 SIMULTANEOUS = FIXTURES / "simultaneous_empty_zone_choice.cardlang"
+# A dealt movement, so the shortage is refused where the cards are taken
+# rather than where a player chooses them.
+DEAL_DRAINED = FIXTURES / "deal_from_drained_source.cardlang"
 # A rule whose `if_impossible:` refuses every card the player holds.
 RULE_REFUSES = FIXTURES / "rule_refuses_every_card.cardlang"
 # Checks clean, then outruns its declared `max_length` on every seed.
@@ -108,7 +127,9 @@ OVERRUNS = FIXTURES / "exceeds_max_length.cardlang"
 
 # Runs no embedded sentence at all: whatever refuses under one of these
 # refuses under the statement the executor dispatched, so its own span is
-# already the smallest that signifies.
+# already the smallest that signifies. The trick and climbing rounds belong
+# here and the auction does not — their `apply` moves cards itself, while the
+# auction's runs the chosen move type's `effect`.
 _LEAF_FORMS: frozenset[str] = frozenset(
     {
         "Transfer",
@@ -120,11 +141,17 @@ _LEAF_FORMS: frozenset[str] = frozenset(
         "ContinueTo",
         "SkipToNextHand",
         "RunStmt",
+        "TrickRound",
+        "ClimbRound",
     }
 )
 
 # Hands its embedded sentences back to the executor, which stamps each in
 # turn — so the innermost stamp wins and these need nothing of their own.
+# Three of them reach that body through an INDEX rather than a field of their
+# own node — a move type's `effect`, a `define`'s body — so the sentence that
+# refuses can sit anywhere in the file, or in a library, and the phase is what
+# ties it back to where the game was.
 _REENTERING_FORMS: frozenset[str] = frozenset(
     {
         "IfStmt",
@@ -135,9 +162,7 @@ _REENTERING_FORMS: frozenset[str] = frozenset(
         "Produces",
         "RepeatUntil",
         "Turns",
-        "TrickRound",
         "AuctionRound",
-        "ClimbRound",
     }
 )
 
@@ -160,17 +185,21 @@ def test_the_statement_axis_is_the_whole_union() -> None:
 
 
 def _arm_dispatch() -> dict[str, set[str]]:
-    """Each `n.Stmt` arm of the executor's match, and the names it calls.
+    """Each `n.Stmt` arm of the executor's dispatch, and the names it calls.
 
-    Read from source rather than from the classification above, so the sets
-    are a claim about the executor and not a restatement of themselves.
+    The dispatching function is FOUND — the one whose `match` cases name the
+    statement union — rather than called by name, so renaming it or moving
+    the match behind a wrapper cannot quietly empty this derivation. Read from
+    source, so the sets above are a claim about the executor rather than a
+    restatement of themselves.
     """
     tree = ast.parse((REPO / "cardlang" / "runtime" / "execute.py").read_text())
-    funcs = {f.name: f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef)}
+    union = {t.__name__ for t in get_args(n.Stmt)}
     arms: dict[str, set[str]] = {}
-    for match in ast.walk(funcs["execute"]):
+    for match in ast.walk(tree):
         if not isinstance(match, ast.Match):
             continue
+        found: dict[str, set[str]] = {}
         for case in match.cases:
             names = [
                 token.split(".")[-1].removesuffix("()")
@@ -183,7 +212,13 @@ def _arm_dispatch() -> dict[str, set[str]]:
                 if isinstance(c, ast.Call) and isinstance(c.func, (ast.Name, ast.Attribute))
             }
             for name in names:
-                arms[name] = calls
+                found[name] = calls
+        if union <= set(found):
+            arms = found
+    assert union <= set(arms), (
+        "no `match` in cardlang/runtime/execute.py covers the `n.Stmt` union — "
+        "the statement dispatch moved, and this derivation reads nothing"
+    )
     return arms
 
 
@@ -227,6 +262,35 @@ def test_the_self_running_set_is_read_off_the_executor() -> None:
         if onward and not (onward & reentry):
             derived.add(arm)
     assert derived == _SELF_RUNNING_FORMS
+
+
+def test_no_module_runs_game_text_around_the_executor() -> None:
+    """A form can reach a body through an INDEX instead of a field — a move
+    type's `effect`, a `define`'s body — and the module that fetches it is not
+    the executor. Every such module still runs it through `run_body`, which
+    dispatches statement by statement, so the stamp reaches text the executor's
+    own walk never sees.
+
+    red under: in `cardlang/runtime/mechanics.py`, import `_dispatch` from the
+    executor and call it in place of `run_body`."""
+    entry_points = {"execute", "run_body", "REFUSALS", "phase_name", "zone_label"}
+    for path in sorted((REPO / "cardlang").rglob("*.py")):
+        if path.name == "execute.py":
+            continue
+        tree = ast.parse(path.read_text(), str(path))
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "cardlang.runtime.execute"
+            ):
+                continue
+            taken = {alias.name for alias in node.names}
+            assert taken <= entry_points, (
+                f"{path.relative_to(REPO)} imports {sorted(taken - entry_points)} "
+                f"from the statement executor. Game text runs through `execute` "
+                f"or `run_body`, which stamp the sentence a refusal escaped; "
+                f"anything else reaches a body around the stamp"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -299,8 +363,15 @@ def test_every_engine_exception_is_classified_for_location() -> None:
     whether a game sentence can raise it — and so whether it must name one.
 
     red under: drop `"ChooserAbort"` from `_SIGNALS`."""
-    classified = _REFUSALS | _SIGNALS | _ADDRESSED_ELSEWHERE | _CARRIERS
+    from cardlang.runtime.errors import Located
+
+    classified = _REFUSALS | _SIGNALS | _ADDRESSED_ELSEWHERE
     assert classified == set(engine_exception_classes())
+    # The carrier does not appear above, and that is the design: an exception
+    # by that name would put one catchable relation over two trees whose
+    # separation is the point (`cardlang/runtime/errors.py`, Contract).
+    assert _CARRIERS.isdisjoint(classified)
+    assert not issubclass(Located, BaseException)
 
 
 def test_every_refusal_can_carry_a_location() -> None:
@@ -355,6 +426,14 @@ _CASES: tuple[_Refusal, ...] = (
         phase="discard_again",
         zone="hand[0]",
         not_at="each player simultaneously:",
+    ),
+    _Refusal(
+        name="a dealt movement whose source an earlier phase drained",
+        path=DEAL_DRAINED,
+        sentence="move 1 card from hand[p] to discards",
+        occurrence=-1,
+        phase="discard_again",
+        zone="hand[0]",
     ),
     _Refusal(
         name="a rule whose `if_impossible:` refuses every card held",

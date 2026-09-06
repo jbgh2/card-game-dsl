@@ -21,7 +21,7 @@ from cardlang.domains import (
     role_of,
     role_static_members,
 )
-from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
+from cardlang.runtime.errors import Located, OwnerGuardError, ShadowGuardError
 from cardlang.runtime.values import Card, Player, Seating
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -31,8 +31,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from cardlang.stdlib.boards import BoardEntry
 
 
-class IllegalMove(Exception):
-    """Raised by the `error(...)` fallback — the attempted move is illegal."""
+class IllegalMove(Located, Exception):
+    """Raised by the `error(...)` fallback — the attempted move is refused.
+
+    Outside the `GameDescriptionError` tree, and `runtime/errors.py` holds the
+    argument for both that and what the same refusal means once it escapes a
+    playout with no player to tell.
+    """
 
 
 class _ProduceSignal(Exception):

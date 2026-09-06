@@ -30,7 +30,7 @@ from cardlang.typecheck import declared_primitive_sigs
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate, row_context
-from cardlang.runtime.execute import execute
+from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
     Chooser,
@@ -522,6 +522,14 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 _run_phase_body(phase, ctx, hands)
         else:
             _run_phase_body(phase, ctx, hands)
+    except REFUSALS as exc:
+        # The statement executor stamps the phase for anything a STATEMENT
+        # raises. This covers the rest of the subtree — a `when` guard, a
+        # `repeat until` condition, the phase's own `state { }` — where no
+        # statement is running and the phase is still where the game was.
+        # Innermost-first stamping makes a nested phase's name win.
+        exc.locate(phase=phase.name)
+        raise
     finally:
         ctx.rs.pop_frame()  # always pop, even on _ContinueTo/_SkipHand unwind
 
