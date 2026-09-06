@@ -3470,6 +3470,15 @@ the existing per-zone projections into a single coalesced event
 per observer. Under perfect recall (the default), each observer's
 candidate set updates exactly once per block, at block-exit.
 
+That is the effect. The *elicitation* is sequential, because the
+OpenSpiel tree carries no simultaneous node: the block asks one
+seat at a time in seat order — one chooser call per seat, itself
+one decision node per card the call draws — with every selection
+taken against the pre-block state and none applied until all are
+in. The ordering is not itself observable: a seat's information
+state moves at its own picks and at block-exit, never across
+another seat's.
+
 **Privacy of in-block choices is handled by source-zone
 projections, not by the block.** A `choose` step inside the
 block operates on a zone whose projection already determines
