@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import subprocess
 import sys
 from itertools import combinations
@@ -81,7 +82,9 @@ from pathlib import Path
 import pytest
 
 from cardlang.cli import COMMANDS, build_parser, main
+from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import InstallationError
 
 REPO = Path(__file__).parent.parent
@@ -446,6 +449,24 @@ def test_non_integer_seed_is_refused(capsys: pytest.CaptureFixture[str]) -> None
 # ---------------------------------------------------------------------------
 
 
+def _listing_of(rendered: str) -> tuple[str, list[str]]:
+    """The `--decisions` listing's header and its rows.
+
+    The summary indents its own lines too, so the rows are taken from the
+    block the header opens rather than by indentation — a filter that reads
+    `  returns  P0 0` as a decision would pass on output that has no listing
+    in it at all.
+    """
+    head, _, rest = rendered.partition("; --at takes")
+    header = head.rsplit("\n\n", 1)[1] + "; --at takes" + rest.split("\n", 1)[0]
+    rows = []
+    for line in rest.split("\n", 1)[1].splitlines():
+        if not line.startswith("  ") or not line.split()[0].isdigit():
+            break
+        rows.append(line)
+    return header, rows
+
+
 def test_at_alone_says_whose_view_is_missing(capsys: pytest.CaptureFixture[str]) -> None:
     """`--at` picks which decision and `--info-state` picks whose view. Neither
     answers the other's question, so the sentence is refused rather than
@@ -498,8 +519,8 @@ def test_at_on_a_game_with_no_decisions_says_there_are_none(
 def test_the_last_decision_index_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
     """The boundary the range refusal is drawn against."""
     assert main(["play", str(KUHN), "--seed", "7", "--decisions"]) == 0
-    listed = capsys.readouterr().out
-    last = max(int(line.split()[0]) for line in listed.splitlines() if line.startswith("  "))
+    _, rows = _listing_of(capsys.readouterr().out)
+    last = int(rows[-1].split()[0])
     assert main(
         ["play", str(KUHN), "--seed", "7", "--info-state", "0", "--at", str(last)]
     ) == 0
@@ -537,13 +558,10 @@ def test_at_shows_a_seat_that_is_not_the_actor(capsys: pytest.CaptureFixture[str
     """Asking what the OPPONENT knows at your decision is the question a bluff
     turns on, so the seat and the decision's actor are independent."""
     assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
-    listing = capsys.readouterr().out
-    actors = {
-        int(line.split()[0]): line.split()[1]
-        for line in listing.splitlines()
-        if line.startswith("  ")
-    }
-    index = next(i for i, who in sorted(actors.items()) if who == "P1")
+    _, rows = _listing_of(capsys.readouterr().out)
+    index = next(
+        int(row.split()[0]) for row in rows if row.split()[1] == "P1"
+    )
     assert main(
         ["play", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", str(index)]
     ) == 0
@@ -559,10 +577,10 @@ def test_at_indexes_the_moment_not_the_pick(capsys: pytest.CaptureFixture[str]) 
     are never read as one."""
     assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
     out = capsys.readouterr().out
-    summary, listing = out.split("\n\n", 1)
-    picks = int(summary.rsplit("decisions", 1)[1].split()[0])
-    header = listing.splitlines()[0]
+    picks = int(out.split("decisions", 1)[1].split()[0])
+    header, rows = _listing_of(out)
     total = int(header.split()[0])
+    assert total == len(rows), "every decision the header counts is on the list"
     assert total < picks, "Hearts' pass takes three cards in one decision"
     assert str(picks) in header, "the listing reconciles its count with the summary's"
     assert f"0..{total - 1}" in header, "the header names the range --at takes"
@@ -572,29 +590,44 @@ def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) 
     """Every decision the playout made is on the list, numbered from zero and
     naming its actor — the listing is what makes an index discoverable."""
     assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
-    rows = [
-        line for line in capsys.readouterr().out.splitlines() if line.startswith("  ")
-    ]
+    _, rows = _listing_of(capsys.readouterr().out)
     assert [int(row.split()[0]) for row in rows] == list(range(len(rows)))
     for row in rows:
         assert row.split()[1].startswith("P"), "each decision names who makes it"
         assert "chooses" in row, "each decision names what is being chosen from"
 
 
-def test_listing_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]) -> None:
-    """Reading a playout must not change it. The command supplies its own
-    Chooser to number the decisions, and a second `random.Random` would split
-    the shuffle and the uniform-random policy into separate streams — the same
-    seed, a different game, and no way to tell from the output.
+def test_numbering_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]) -> None:
+    """Reading a playout must not change it.
 
-    red under: build the Chooser from `random.Random(drawn)` rather than from
-    the generator handed to `play_game`.
+    `play` supplies its own Chooser at every invocation, to number the
+    decisions and to reach a named one. `play_game` builds the uniform-random
+    Chooser from the generator it is handed when a caller supplies none, so
+    the command must build its own from that same generator: a second
+    `random.Random` splits the shuffle and the policy into separate streams,
+    and the seed a designer reproduces from would name a different game.
+
+    The comparison is against the driver playing for itself, because the two
+    command invocations both install the Chooser — a plant that moves the
+    playout moves both of them together, and they would go on agreeing.
+
+    red under: build the Chooser from `random.Random(drawn)` in
+    `cardlang.cli._play` rather than from the generator handed to `play_game`.
     """
-    assert main(["play", str(HEARTS), "--seed", "7"]) == 0
-    plain = capsys.readouterr().out
+    game = check_source(HEARTS)
+    played = play_game(game, random.Random(7))
+
     assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
-    listed = capsys.readouterr().out
-    assert listed.startswith(plain), "the summary is the same playout's"
+    out = capsys.readouterr().out
+    reported = out.split("returns", 1)[1].split("\n")[0].strip()
+    expected = ", ".join(
+        f"P{player} {int(value)}"
+        for player, value in enumerate(returns_for(game, played))
+    )
+    assert reported == expected, (
+        "the command's playout and the driver's own have diverged"
+    )
+    assert f"across {played.hands_played} hands" in out
 
 
 def test_negative_seed_plays() -> None:

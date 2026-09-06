@@ -43,8 +43,10 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source, compile_path
+from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import GameResult, play_game
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
+from cardlang.runtime.observe import render
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player
 
@@ -104,7 +106,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         metavar="SEAT",
         help="also print that seat's derived information state at the "
-        "terminal position",
+        "terminal position, or at the decision --at names",
+    )
+    play.add_argument(
+        "--decisions",
+        action="store_true",
+        help="also list every decision the playout made, numbered the way "
+        "--at numbers them, with who makes it and what it chooses from",
+    )
+    play.add_argument(
+        "--at",
+        type=int,
+        metavar="N",
+        help="show the --info-state seat's view at decision N — the position "
+        "before that choice is made — instead of at the terminal position; "
+        "--decisions lists the numbers",
     )
     return parser
 
@@ -168,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "play":
-            return _play(path, args.seed, args.info_state)
+            return _play(path, args.seed, args.info_state, args.at, args.decisions)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -199,7 +215,9 @@ def _check(path: Path, emit_ir: bool) -> int:
     return _EXIT_OK
 
 
-def _play(path: Path, seed: int | None, seat: int | None) -> int:
+def _play(
+    path: Path, seed: int | None, seat: int | None, at: int | None, listing: bool
+) -> int:
     game = check_source(path)
     seats = game.players.low
     if seat is not None and not 0 <= seat < seats:
@@ -212,16 +230,44 @@ def _play(path: Path, seed: int | None, seat: int | None) -> int:
             file=sys.stderr,
         )
         return _EXIT_CANNOT_PROCEED
+    # Both `--at` refusals a playout cannot inform are taken here, beside the
+    # seat check and before the game runs; the range refusal needs the count
+    # only the playout produces and waits below.
+    if at is not None and seat is None:
+        print(
+            f"cardlang: --at {at} says which decision to look at; add "
+            "--info-state SEAT to say whose view to show",
+            file=sys.stderr,
+        )
+        return _EXIT_CANNOT_PROCEED
+    if at is not None and at < 0:
+        print(
+            f"cardlang: --at {at} names no decision; a playout's decisions "
+            "start at 0",
+            file=sys.stderr,
+        )
+        return _EXIT_CANNOT_PROCEED
 
     drawn = random.randrange(2**31) if seed is None else seed
     logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
     snapshot: list[str] = []
     world: list[RuntimeState] = []
+    # One entry per decision the playout makes, in order: its description
+    # where a line will be shown, None otherwise. `len` is the count `--at`
+    # indexes; rendering only what is shown keeps a plain playout clear of
+    # `observe.render`, which a listing reaches over every candidate offered
+    # rather than only the one chosen.
+    decisions: list[str | None] = []
 
     def observe(player: Player, event: tuple[Any, ...]) -> None:
         logs[player].append(event)
 
     def hold(rs: RuntimeState) -> None:
+        # `on_first_decision` is the only seam handing a caller the world at
+        # all, and it fires inside the first Chooser call — so `world[0]` is
+        # already there when `choose` first runs, and it is the LIVE world, not
+        # a capture: every reader below renders from it at the moment it reads.
+        # Issue #555 is the driver returning that world instead.
         world.append(rs)
 
     def trace(event: str, _data: Any) -> None:
@@ -231,34 +277,117 @@ def _play(path: Path, seed: int | None, seat: int | None) -> int:
         # returns, the frame is gone and the state variables render empty.
         # Moving the emit past the pop would empty them here too, silently;
         # tests/test_cli_surface.py pins the segment against that.
-        if event == "game_end" and seat is not None and world:
+        if event == "game_end" and seat is not None and at is None and world:
             snapshot.append(information_state(seat, world[0], logs[seat]))
+
+    rng = random.Random(drawn)
+    # The one generator, driving the shuffle and the uniform-random policy
+    # alike — `play_game` builds exactly this chooser from the generator it is
+    # handed when a caller supplies none, so numbering the decisions leaves
+    # the seeded playout where it was.
+    play_uniformly = random_chooser(rng)
+
+    def choose(player: Player, candidates: list[Any], count: int) -> list[Any]:
+        # The Chooser is the seam every decision passes through, and it runs
+        # while the frames still stand — the same window the terminal snapshot
+        # needs, reached at a decision rather than at the end. The view is
+        # rendered here rather than held, because `world[0]` is the live world
+        # and goes on changing; the seat's log is complete for this position
+        # and grows only forward (perfect recall), so nothing needs trimming.
+        index = len(decisions)
+        decisions.append(
+            _decision(player, count, candidates) if listing or index == at else None
+        )
+        if index == at and seat is not None:
+            snapshot.append(information_state(seat, world[0], logs[seat]))
+        return play_uniformly(player, candidates, count)
 
     result = play_game(
         game,
-        random.Random(drawn),
+        rng,
         trace,
+        chooser=choose,
         observer=observe,
         on_first_decision=hold,
     )
-    decisions = world[0].decisions_made if world else 0
-    print(_summary(game, result, decisions, drawn))
+    picks = world[0].decisions_made if world else 0
+    print(_summary(game, result, picks, drawn))
+    if listing:
+        print()
+        print(_listing(decisions, picks))
 
     if seat is None:
         return _EXIT_OK
-    if not snapshot:
-        # `on_first_decision` is the only seam handing a caller the live world,
-        # and it fires inside the first chooser call — a game that reaches its
-        # end without asking anyone to choose never fires it. Issue #555.
+    if not decisions:
+        # A game that reaches its end without asking anyone to choose has no
+        # position to project a seat's view from — no decision node, and the
+        # terminal one is the game-level frame with every hand already spent.
         print(
             f"cardlang: {path} reached its end without a decision, so the "
             "engine exposes no world to project a seat's view from",
             file=sys.stderr,
         )
         return _EXIT_CANNOT_PROCEED
-    print(f"\ninformation state, seat {seat}, at the terminal position:")
+    if at is not None and at >= len(decisions):
+        # Naming the range rather than clamping: the nearest decision is an
+        # answer to a question nobody asked, and it would read as the one
+        # asked for.
+        print(
+            f"cardlang: this playout has {len(decisions)} decisions, so --at "
+            f"takes 0..{len(decisions) - 1}; --at {at} names none of them",
+            file=sys.stderr,
+        )
+        return _EXIT_CANNOT_PROCEED
+    if at is None:
+        print(f"\ninformation state, seat {seat}, at the terminal position:")
+    else:
+        print(f"\ninformation state, seat {seat}, at decision {at} ({decisions[at]}):")
     print(snapshot[0])
     return _EXIT_OK
+
+
+# How many candidates a decision's line names before it trails off. A line is
+# for recognizing the decision, not for reading the whole pool.
+_CANDIDATES_SHOWN = 6
+
+
+def _decision(player: Player, count: int, candidates: list[Any]) -> str:
+    """One decision, as both the listing and the `--at` echo name it.
+
+    The candidates are what tell a designer WHICH decision this is — a discard
+    offers cards where a betting round offers `call, fold, raise` — so they
+    carry the line. `observe.render` is the rendering the observation log
+    already uses, so a candidate reads the same way in both places.
+    """
+    shown = [str(render(c)) for c in candidates[:_CANDIDATES_SHOWN]]
+    if len(candidates) > _CANDIDATES_SHOWN:
+        shown.append("...")
+    return f"P{player} chooses {count} of {len(candidates)}: " + ", ".join(shown)
+
+
+def _listing(decisions: list[str | None], picks: int) -> str:
+    """Every decision the playout made, numbered the way `--at` numbers them.
+
+    The header states both counts wherever they differ, because they are
+    different units and the summary shows the other one: a decision is one
+    moment a seat is asked, and a game that takes three cards at once spends
+    three picks on it. Picks are what `max_length` bounds
+    (`docs/decisions.md`, "Game length as a declared contract").
+    """
+    total = len(decisions)
+    if total == 0:
+        return "this playout makes no decisions, so --at names none"
+    head = f"{total} decisions"
+    if picks != total:
+        head += f", {picks} choices made across them"
+    head += f"; --at takes 0..{total - 1}"
+    width = len(str(total - 1))
+    rows = [
+        f"  {index:>{width}}  {line}"
+        for index, line in enumerate(decisions)
+        if line is not None
+    ]
+    return "\n".join([head, *rows])
 
 
 def _summary(game: n.Game, result: GameResult, decisions: int, seed: int) -> str:
