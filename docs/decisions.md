@@ -3475,9 +3475,9 @@ OpenSpiel tree carries no simultaneous node: the block asks one
 seat at a time in seat order — one chooser call per seat, itself
 one decision node per card the call draws — with every selection
 taken against the pre-block state and none applied until all are
-in. The asking is sealed by that ordering, not despite it: a
-seat's information state moves at its own picks and at
-block-exit, never across another seat's.
+in. The ordering is not itself observable: a seat's information
+state moves at its own picks and at block-exit, never across
+another seat's.
 
 **Privacy of in-block choices is handled by source-zone
 projections, not by the block.** A `choose` step inside the

@@ -114,9 +114,9 @@ seat's view because the engine exposes no world to project from (issue #555).
 An early skeleton often has no decision yet, and that refusal is what it looks
 like.
 
-The view is that one position and no other. A zone the hand empties on the way
-— a poker hand's hole cards, mucked at showdown — reads empty here, and what
-the seat saw of it survives in the observation log alone. A seat's view
+The view is the terminal position and no other. A zone the hand empties on the
+way — a poker hand's hole cards, mucked at showdown — reads empty here, and
+what the seat saw of it survives in the observation log alone. A seat's view
 part-way through comes from pyspiel instead, on a game loaded through the
 adapter (below): `state.information_state_string(seat)` is the same derived
 string at any decision node and for any seat, and is empty at the chance root
