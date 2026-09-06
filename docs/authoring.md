@@ -114,8 +114,8 @@ seat's view because the engine exposes no world to project from (issue #555).
 An early skeleton often has no decision yet, and that refusal is what it looks
 like.
 
-The view above is the terminal position, which is the one to ask for last. A
-zone the hand empties on the way — a poker hand's hole cards, mucked at
+The view above is the terminal position — the one `--info-state` gives on its
+own. A zone the hand empties on the way — a poker hand's hole cards, mucked at
 showdown — reads empty there, and what the seat saw of it survives in the
 observation log alone. `--at` asks for the seat's view at a decision instead,
 the position just before that choice is made, where the cards are still where
@@ -148,11 +148,13 @@ bluff turns on.
 The numbered list is your view of the playout, never a seat's: it names the
 candidates the engine offered, and at another seat's decision that is
 information no seat may hold. Only the `--info-state` line is a seat's view.
-The two numbers in it are different units and the header says so wherever they
-differ — a decision is one moment a seat is asked, and the summary's
-`decisions` counts the picks those moments spend, which is what `max_length`
-bounds ([decisions.md](decisions.md), "Game length as a declared contract").
-Hearts' three-card pass is one decision and three picks.
+
+A decision is one moment a seat is asked, which is what `--at` numbers. The
+summary's `decisions` counts something else — the picks those moments spend,
+which is what `max_length` bounds ([decisions.md](decisions.md), "Game length
+as a declared contract"). The two agree above and part company wherever a game
+chooses several cards at once: Hearts' three-card pass is one decision and
+three picks, and the listing's header names both counts whenever they differ.
 
 pyspiel derives a seat's view the same way, on a game loaded through the
 adapter (below): `state.information_state_string(seat)` answers at any
