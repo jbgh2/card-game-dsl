@@ -53,8 +53,10 @@ game Scopa {
   // that keeps the joint selection below from being offered with no satisfying
   // subset; `scopa_sums_to` is that selection's predicate, and its root call
   // names the subset codec the OpenSpiel action space encodes captures by.
-  // Both read the layout: the candidate sets are drawn from it, and the
-  // played card's capture value arrives as an argument.
+  // Only the guard reads the layout — it has to quantify over the layout's
+  // subsets. The predicate is pure over its argument, because the candidate
+  // set IS the joint selection's own; both take the played card's capture
+  // value as an argument rather than reading it.
   primitives {
     scopa_can_sum(target : Integer) : Boolean                          reads table
     scopa_sums_to(cards : Collection<Card>, target : Integer) : Boolean
