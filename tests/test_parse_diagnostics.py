@@ -19,14 +19,22 @@ property:   a parse failure reaching a designer names only things they could
             carries. Separately and by construction: every terminal in the
             grammar's own table renders to such a word, or the parser refuses to
             build.
-domain:     three crossed axes, each derived from its own registry.
+domain:     four axes. Two are crossed with each other and two stand alone,
+            because only the first two interact: the structural sentence and
+            the lexeme rendering are computed from the source text, not from
+            the failure kind.
             (a) parser failure kind — `lark.exceptions.UnexpectedInput`'s
             subclass closure, which is the whole set the caught base admits;
             (b) parse entry point — the `start` symbols `cardlang/parse.py`
             itself passes, reusing `tests/test_parse.py`'s scrape rather than
-            re-deriving them; (c) source brace balance, the three-valued
-            property that decides which structural sentence a failure earns
-            (balanced, a block left open, a surplus `}`).
+            re-deriving them; (a) x (b) is crossed. (c) source brace balance,
+            the three-valued property that decides which structural sentence a
+            failure earns (balanced, a block left open, a surplus `}`).
+            (d) the character class of the offending lexeme — word-shaped,
+            printable ASCII, and the classes that arrive by paste rather than
+            by typing (a byte-order mark, a non-breaking space, a smart quote,
+            a non-Latin letter), which are invisible or confusable in an editor
+            and so are named as well as quoted.
             The terminal axis is `_parser().terminals` entire — every terminal
             Lark compiles from `cardlang/grammar/cardlang.lark`, including the
             anonymous ones it mints for inline literals in productions.
@@ -347,6 +355,37 @@ def test_the_offending_lexeme_is_quoted_as_the_designer_wrote_it() -> None:
 def test_a_non_word_lexeme_is_quoted_as_the_single_character() -> None:
     message = _render("game G {\n  players: 2 @\n}\n").diagnostic.message
     assert "`@`" in message, message
+    assert "(" not in message.split(";")[0], (
+        f"a printable ASCII character needs no gloss: {message}"
+    )
+
+
+# Characters that reach a game file by paste rather than by typing. Each is
+# either invisible in an editor or indistinguishable from the ASCII character
+# it stands in for, so the quoted character alone shows the designer nothing.
+_PASTED_CHARACTERS = {
+    "byte-order mark": ("\ufeffgame G {\n  players: 2\n}\n", "u+feff"),
+    "non-breaking space": ("game G {\n\u00a0 players: 2\n}\n", "u+00a0"),
+    "smart quote": ("game G {\n  players: \u201c2\u201d\n}\n", "u+201c"),
+    "non-latin": ("game G {\n  players: \u0414\n}\n", "u+0414"),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(_PASTED_CHARACTERS))
+def test_an_unprintable_or_confusable_character_is_named(kind: str) -> None:
+    """The character-class axis: what a designer can SEE of what they pasted.
+
+    A quoted byte-order mark renders as nothing at all, and a quoted
+    non-breaking space renders as a space — so the message has to carry the
+    character's own name, which is what an editor's "show invisibles" and a
+    web search both key on.
+    """
+    source, codepoint = _PASTED_CHARACTERS[kind]
+    message = _render(source).diagnostic.message
+    assert codepoint in message.lower(), (
+        f"{kind}: the character is quoted but not named, so an invisible one "
+        f"reads as a blank: {message!r}"
+    )
 
 
 def test_end_of_input_is_named_rather_than_quoted() -> None:
@@ -459,8 +498,16 @@ def test_the_parser_refuses_a_terminal_it_cannot_render() -> None:
     grammar, never a designer -- so a raise is the right channel for it,
     where a raise inside a designer's syntax error would not be.
 
-    red under: this cell IS the red-under -- it plants an unrenderable
-    terminal and asserts the refusal fires and names it.
+    red under: this cell IS the red-under for the FUNCTION -- it plants an
+    unrenderable terminal and asserts the refusal fires and names it. That the
+    refusal is REACHED is a separate claim, and a function-grain plant cannot
+    make it: measured 2026-09-06 by deleting the `NAME` row from
+    `_VOCABULARY_WORDS` and checking a corpus game through
+    `cardlang.pipeline.check_dsl`, which raised `UnrenderableTerminal` naming
+    `NAME` -- so the guard sits on the path an ordinary check takes, not only
+    on a path this test can call. An unused terminal is NOT the plant to
+    reach for: lark prunes terminals no production references, so one never
+    enters `_parser().terminals` and could not reach a designer either.
     """
     with pytest.raises(parse.UnrenderableTerminal) as excinfo:
         parse._check_every_terminal_renders(

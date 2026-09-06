@@ -74,6 +74,7 @@ from __future__ import annotations
 
 import difflib
 import re
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
@@ -2294,12 +2295,37 @@ def _offending_lexeme(text: str, pos: int) -> str:
     misspelled keyword surfaces as its initial letter — as opaque to a
     designer as a terminal name. A word-shaped run is quoted entire, because
     the word is what they can find in their file.
+
+    A character outside printable ASCII is named as well as quoted. The ones
+    that reach a game file arrive by paste — a byte-order mark, a non-breaking
+    space, a smart quote — and each is either invisible in an editor or
+    indistinguishable from the ASCII character it replaces, so quoting it
+    alone shows the designer nothing to look for.
     """
     if pos >= len(text):
         return "end of file"
     rest = text[pos:]
     word = re.match(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+", rest)
-    return f"`{word.group() if word else rest[0]}`"
+    if word:
+        return f"`{word.group()}`"
+    char = rest[0]
+    if char.isascii() and char.isprintable():
+        return f"`{char}`"
+    return f"`{char}` ({_character_name(char)})"
+
+
+def _character_name(char: str) -> str:
+    """A character's own name, so an invisible one can still be searched for.
+
+    Unicode's name is the designer's handle on it — it is what an editor's
+    "show invisibles" and a web search both use — and taking it from
+    `unicodedata` rather than a table means a paste this language has not seen
+    before is still named rather than shown as a blank.
+    """
+    try:
+        return f"{unicodedata.name(char).lower()}, U+{ord(char):04X}"
+    except ValueError:
+        return f"U+{ord(char):04X}"
 
 
 def _brace_scan(text: str, upto: int) -> tuple[int, list[tuple[int, str | None]]]:
