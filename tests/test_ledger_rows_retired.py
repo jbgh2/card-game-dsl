@@ -11,9 +11,10 @@ property:        no completeness ledger in the tree heads a line with a row
                  ruling: a wrong `covered:` licenses not testing), so the
                  population that carries none stays at zero by refusal, not
                  by attrition.
-domain:          every module-level completeness ledger the referent scrape
-                 walks (`_ledger_docstrings`, the one walk both modules
-                 read), crossed with every label in `REFUSED_LABELS`. The
+domain:          every completeness ledger the referent scrape walks
+                 (`_ledger_docstrings`, the one walk both modules read: a
+                 docstring or a `#` comment block carrying the signature),
+                 crossed with every label in `REFUSED_LABELS`. The
                  label axis is derived: the labels the class template prints
                  that the completeness template does not, plus the one label
                  no template prints any more (`sampled`), hand-named because
