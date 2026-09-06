@@ -18,13 +18,12 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  value classes — the integer/non-integer and
                  in-range/out-of-range splits of the three options that take
                  one — are crossed separately, in the probes below. `--at`
-                 numbers the
-                 playout's decisions — one Chooser call, one moment a seat is
-                 asked — so every index names a position with a view of its
-                 own; the summary's `decisions` line counts the picks those
-                 calls consume, which is the unit `max_length` bounds, and a
-                 game choosing several cards at once makes the two numbers
-                 differ (Hearts' pass, pinned below). The path
+                 numbers the playout's decisions — one Chooser call, one
+                 moment a seat is asked — so every index names a position with
+                 a view of its own; the summary's `decisions` line counts the
+                 picks those calls consume, which is the unit `max_length`
+                 bounds, and a game choosing several cards at once makes the
+                 two numbers differ (Hearts' pass, pinned below). The path
                  argument's whole failure class is here — a name that is
                  nothing, a name that is a directory, a file that will not
                  decode as text — because the command line owns that argument
