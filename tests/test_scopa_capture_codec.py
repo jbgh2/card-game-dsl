@@ -189,6 +189,10 @@ def test_every_universe_member_is_a_card_of_this_games_deck() -> None:
     ties it to the cards the game is played with — the tie is here, against the
     deck the game file itself selects.
 
+    Only for THIS codec: the registry as a whole has no such check, and a game
+    pairing a joint root with a deck its codec does not cover checks clean and
+    dies on a bare KeyError at encode time (issue #603).
+
     red under: change DECK_NAME to "skat32" in cardlang/runtime/scopa.py."""
     assert DECK_NAME == _declared_deck_name(), (
         "the codec's deck and the game file's `cards:` clause disagree"
