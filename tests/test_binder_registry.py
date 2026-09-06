@@ -12,33 +12,22 @@ introduce nothing.
 property:   every binder-introducing AST node kind is listed in
             `_introduced_binders` with the exact names it binds
 domain:     every AST node kind that binds a name — which is NOT the same as
-            "every dataclass in the `Expr`/`Stmt` unions". That narrower domain
-            is what this file used to claim, and it is precisely how `ProduceArm`
-            escaped: a `produces:` arm's payload binders (`Doubled(by, level)`)
-            bind user-chosen names in the arm body, but `ProduceArm` is a member
-            of neither union — it hangs off `Produces` — so a domain read from
-            those two unions could never see it. The consequences were real and
-            game-wide: `_check_reserved_binders` sweeps whatever this registry
-            reports, so an arm binder named `actor` silently hijacked the pronoun
-            (the arm body's bare `actor` classified as that local instead), and
-            `_check_functions` / `_check_procedures` mistook a legitimately-bound
-            arm name for an unbound reference. The lesson is the skill's own: a
-            domain derived from the wrong registry measures the guard against
-            itself.
+            "every dataclass in the `Expr`/`Stmt` unions": a `produces:` arm's
+            payload binders (`Doubled(by, level)`) bind user-chosen names in
+            the arm body, and `ProduceArm` is a member of neither union — it
+            hangs off `Produces` — so a domain read from those two unions
+            cannot see it. `_check_reserved_binders` sweeps whatever this
+            registry reports, which is why the registry, not the unions, is
+            the domain.
 registry:   `cardlang.ast.nodes.Node` — the closed union of ALL node kinds (it
             holds `ProduceArm`, which `Expr`/`Stmt` do not)
-covered:    every binder-kind row below (Quantifier, Comprehension, CardQuery,
-            PlayerQuery, ForEach, EachSimultaneous, Transfer [with/without
-            filter], EpistemicOp [with/without filter], LetStmt [with/without
-            index], ProduceArm [with/without payload binders]) plus a sample of
-            non-binder kinds (NameRef, IfStmt, RepeatUntil, RotateStmt,
-            StateDecl, AssignStmt); and the game-wide consequence — that an arm
-            binder is now reserved-word swept like any other — is pinned by
-            `test_a_produce_arm_binder_may_not_be_a_reserved_word`
-sampled:    none — every node kind either introduces a binder (a row below) or
-            falls to the registry's `case _: return ()` catch-all, itself
-            exercised by the non-binder rows
-residual:   none
+does not prove:  that every node kind which binds a name has a row. The rows
+            are authored against `nodes.Node`, and the non-binder kinds below
+            are a handful of that union rather than an enumeration of it, so a
+            node kind that starts binding a name and gains no row falls to
+            `_introduced_binders`' `case _: return ()` and reports as binding
+            nothing — the same silence `ProduceArm` sat in, and the reason the
+            domain is read from `Node` rather than from `Expr`/`Stmt`.
 """
 
 from __future__ import annotations

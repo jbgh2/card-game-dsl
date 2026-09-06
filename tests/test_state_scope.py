@@ -35,6 +35,18 @@ domain:     declaration site x reference site x reference kind. Declaration and
             expected column follows from the rule rather than being hand-copied
             per cell — a cell cannot be quietly authored to match whatever the
             implementation does.
+            Callable bodies — move types, rules, functions, procedures,
+            defines — sit outside, and that is a limit on the scope rather
+            than a missing cell: they have no enclosing phase, so their
+            legality is a reachability question rather than a lexical one,
+            and corpus callable bodies legitimately read phase-scoped state,
+            which leaves no conservative rule available (issue #242).
+            `Turns.again` and `RequireDecl.name` are bare `str` names a
+            lexical walk cannot see, the shape `winner:` needs its own
+            handling for (issue #243). A `derived { }` body has that same
+            lazily-evaluated shape and is INSIDE the domain: no corpus game
+            declares one, so the conservative rule unavailable for the others
+            is free here and a derived body may read game-level state only.
 registry:   `_TREE` (the phase shapes, and `_ancestors` derived from it) and
             `_KINDS` (the reference kinds). `_KINDS` is enumerated, not derived:
             the reference positions come from the grammar productions that hold
@@ -44,36 +56,18 @@ registry:   `_TREE` (the phase shapes, and `_ancestors` derived from it) and
             (`RotateStmt.target`, a `NameRef`), and `winner:` (`Winner.target`,
             a bare `str` with no `ref_kind` at all). Every other position in the
             grammar reaches the checker as one of the first two shapes.
-covered:    `test_scope_grid` — the full cross product of `_TREE` sites x
-            `_KINDS`, expected computed by `_in_scope`; plus
-            `test_winner_target_scope` and `test_loser_selection_scope`, the
-            two game-level clauses, and `test_every_game_field_is_decided`,
-            which pins the guard's game-level skip set against `Game`'s real
-            field set so a field added later forces a decision.
-            The game-level half of the guard is DERIVED — it walks every
-            `Game` field but the skipped ones — after review found `loser:`
-            missing from a hand-enumerated list. The enumeration was the
-            defect; the pin above is what keeps the derivation honest.
-sampled:    the many expression positions that all reduce to shape 1 (a
-            `NameRef` read) are covered by one representative each, not one per
-            grammar production: the check walks the resolved AST, so a read
-            inside `if`, inside a comprehension filter and inside a round's
-            `until` are the same node reaching the same code path. A position
-            that did NOT reduce to one of the four shapes would be a residual,
-            and `_KINDS`' derivation note above is what makes that visible.
-residual:   callable bodies — move types, rules, functions, procedures, defines
-            — are OUT of this domain and stay unchecked. A `derived { }` body
-            has the same shape (lazily evaluated at member access, so no single
-            lexical phase) but is NOT residual: no corpus game declares one, so
-            the conservative rule unavailable for the others is free here and
-            a derived body may read game-level state only. Their legality depends
-            on which phase invokes them, not on where they are written, so it is
-            a reachability analysis rather than a traversal; 112 callable bodies
-            across 15 corpus games legitimately reference phase-scoped state, so
-            no conservative rule is available. Guarded by nothing here, recorded
-            as issue #242 (R2). `Turns.again` and `RequireDecl.name` are bare
-            `str` names this check cannot see for the same reason `winner:`
-            needed special handling — issue #243 (R3).
+            The game-level half of the guard walks every `Game` field but the
+            skipped ones; that skip set against `Game`'s own field set:
+            `test_every_game_field_is_decided`.
+does not prove:  that every grammar position holding a state name is
+            exercised. The many expression positions all reduce to shape 1 (a
+            `NameRef` read) and stand on one representative each: the check
+            walks the resolved AST, so a read inside `if`, inside a
+            comprehension filter and inside a round's `until` are the same
+            node reaching the same code path. What a green establishes is the
+            four AST SHAPES, not the productions above them — a position that
+            did NOT reduce to one of the four is invisible here, and `_KINDS`'
+            note above is what makes that reachable to a reader.
 
 red under: the grid was authored and run RED before the guard existed — 18 of
 its 40 cells failed (the 15 out-of-scope grid cells plus the 3 out-of-scope

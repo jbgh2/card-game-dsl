@@ -65,6 +65,13 @@ domain:     the tail's own surface, crossed: SPELLING x {bare, `[binder]`} x
             standing collision arms plus the repeat guard, each re-probed WITH
             a tail present, and again with TWO tails present, so neither the
             tail nor the nest can lift them silently.
+            Three things sit outside the containment taxonomy, and none is a
+            gap. A procedure NO statement runs has no position to judge, and
+            `_check_procedures`' never-run refusal owns it game-wide. A
+            phase's own `state { }` default cannot hold a call at all. And
+            `demands:` is a RULE clause rather than a move type's, and a rule
+            is a REFUSED container, so the offering surface has no move-type
+            `demands:` member to cross.
 registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
             production and its reject twin, read as text by the spelling
             axis); `cardlang.ast.nodes.Game`'s field set and
@@ -86,40 +93,18 @@ registry:   `cardlang/grammar/cardlang.lark` (the `primitive_read`
             fixture declares a REAL registered implementation);
             `cardlang.runtime.driver.run_phase` (the frame-liveness order the
             admitted positions rest on).
-covered:    the parametrized cells below. The untailed membership product,
-            the binder's domain identity, the reads clause as a multiset and
-            the block's own shape axes are
-            tests/test_primitives_block.py's and are cited, not re-run: this
-            module crosses the tail with them and owns nothing they own. The
-            rendered text of each new diagnostic is
-            tests/test_rejections.py's, whose corpus this change extends.
-            Two containment vectors are cited to their Owners rather than
-            covered: a procedure NO statement runs is `_check_procedures`'
-            never-run refusal (both the call and the offer rows carry its
-            message), and a phase's own `state { }` default cannot hold a call
-            at all. The plan's grid frame lists `demands:` among the move-type
-            offering surfaces; it is a RULE clause, not a move type's, and
-            rules are a REFUSED container — the `rule-applies-when` row samples
-            them — so there is no move-type `demands:` cell to write.
-sampled:    the ACCEPT half's call positions are the ones five corpus games
-            carry (seven-card-stud, holdem, pinochle, french-tarot,
-            canasta) — the shapes each cell below is built to, read off those
-            games rather than invented; which of them declare a block is a
-            query (`rg -lF 'primitives {' docs/games/`), never this ledger's
-            claim. The positions no corpus game reaches — a phase's own
-            qualifier, `before_each` and `after_each` — are carried by one
-            synthetic nested fixture whose playout records which position
-            each scoped call came from, rather than by a fixture that merely
-            resolves. Every REFUSAL cell is synthetic, because the corpus
-            correctly holds no violation, and each ships with its accept twin
-            (the same game with the offending element removed) so the arm is
-            proven discriminating rather than merely loud.
+            The untailed membership product, the binder's domain identity,
+            the reads clause as a multiset and the block's own shape axes:
+            tests/test_primitives_block.py, which owns them; this module
+            crosses the tail with them. The rendered text of each
+            diagnostic: tests/test_rejections.py.
 does not prove: a green here says nothing about whether the runtime premise
             the containment guard leans on still holds — that a game move
             type's body executes only inside the dynamic extent of an
             offering site. That premise is a fact about the runtime, not
-            about this guard, and `test_the_move_type_index_readers_are_the_
-            pinned_census` prices it: it pins the consumer sites, so a new
+            about this guard, and
+            `test_the_move_type_index_readers_are_the_pinned_census`
+            prices it: it pins the consumer sites, so a new
             execution channel reddens there rather than making this guard
             silently unsound. The asymmetry inside that premise is worth
             stating: of the offering slots, the KERNEL-namespaced ones are
@@ -148,31 +133,6 @@ does not prove: a green here says nothing about whether the runtime premise
             that a fourth level would. The class pin beside it is what makes
             a deeper fixture arrive as a class with no row rather than
             joining an existing one.
-walls:      the refusals here are not one kind, and the ledger says which is
-            which so a reader can tell an unbuilt feature from a built wall.
-            DEFERRALS, each with a tracker record naming the game shape that
-            unblocks it: a spelling two declarations answer to — the shadowed
-            pair and the phase-and-zone pair alike (issue #516); a scoped call
-            in a function, define or
-            rule body (issue #518); an offer made from inside another move
-            type's body, which the analysis refuses rather than positioning,
-            since following it means judging the OFFERING move type's own
-            containment up a chain that can cycle — a move type's own body
-            and a `define`'s alike (issue #521 — coup's move-type effects hold
-            three such offers, and it is the game that decides what the wall
-            costs). DESIGNED constraints, recorded at their
-            construct rather than filed: a library cannot declare a phase for
-            a tail to name (unconstructible off the grammar); a move type
-            nothing offers is refused rather than passing containment
-            vacuously; a strict descendant re-declaring the name is
-            refused rather than resolved by tagging frames at run time; and an
-            entry naming phases that do NOT nest is refused rather than
-            deferred, because a phase's frame is popped when the phase ends —
-            no position in the game runs both, so nothing anyone could build
-            makes such an entry callable. That last premise is a fact about
-            the runtime rather than about this guard, so it is pinned
-            (`test_a_phases_frame_does_not_outlive_the_phase`) rather than
-            argued.
 
 Born red (this branch, before any of the tail's grammar, AST, resolve or
 runtime existed): recorded at the foot of this docstring in two takes, because

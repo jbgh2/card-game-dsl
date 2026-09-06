@@ -44,93 +44,29 @@ property:   every `.cardlang` file in `tests/rejections/` is rejected by
             matches its `.expected` golden byte-for-byte.
 domain:     the file-pair registry — `tests/rejections/*.cardlang` paired
             with `tests/rejections/*.expected`, one pair per named guard
-            class the corpus currently samples.
+            class. The population it samples FROM is open rather than
+            closed: every diagnostic emission site across
+            `cardlang/resolve.py`, `cardlang/typecheck.py` and
+            `cardlang/deckcheck.py` is a guard class, and the set grows as
+            the language does — a new checker rule is a new guard, and it
+            ships its own case with it (docs/building.md). Procedure
+            hygiene sits in that population as ONE case rather than
+            several, and that is a boundary rather than a thin spot:
+            hygiene is closed BY CONSTRUCTION, with exactly one guard
+            expansion cannot replace — the binder-shadow case — and both
+            `cardlang/expand.py`'s docstring and tests/test_procedures.py's
+            own completeness ledger state it.
 registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expected`
             pins both directions of the glob (mirrors the idiom in
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
             rather than being silently skipped or silently stale.
-covered:    one case per named guard class (the directory glob is the
-            registry; the harness floor-pins a minimum corpus size), each
-            independently verified (by reading the produced diagnostic
-            while authoring it, not just observing a raise) to fail for its
-            stated reason: unknown library zone type,
-            `active_rules:` naming an undefined rule, `transition_to:` a
-            non-sibling phase, duplicate zone declaration (shadowing),
-            wrong argument type at a `run` call site, a non-Boolean `if`
-            condition, a cross-enum `is` comparison, subscripting a
-            non-collection, a per-movement `visibility =` override, a
-            missing `max_length:`, an over-capacity deck plan (8-player
-            deal exceeding a 52-card deck), an integer `choose` with no
-            static ceiling, a wrong-typed native call argument, a struct
-            literal missing a declared field, a raw grammar/syntax error
-            (parse.py's `UnexpectedInput` wrapping, over an unclosed `zones
-            {` block), `legal_moves:` naming an unknown move type,
-            `rule.constrains:` naming an unknown move type, a reserved-word
-            collision (a zone declared `state`), a procedure body binder
-            shadowing its own parameter's name (the one hygiene guard
-            expansion cannot replace by construction — cardlang/expand.py's
-            docstring), a `deal … to each` destination named as a
-            subscripted zone rather than the bare family, a game declaring
-            neither `winner:` nor `loser:`, a missing `players:`, a missing
-            `cards:` (the retired fuzz finding `missing_cards_declaration` —
-            tests/fuzz/findings.py's feed-forward rule), both missing at
-            once (the bag-plus-note rendering), a repeated single-valued
-            game clause (`players:` seeds the class; the closed domain is
-            swept by tests/test_game_clause_guards.py), a source with no
-            `game { }` block, a source with two, an unknown
-            `direction:` value, the five misuse probes of the `pieces:`
-            content clause — `cards:` and `pieces:` declared together, a
-            repeated `pieces:`, an unknown `pieces:` name (listed against
-            the piece-flavored registry rows only), a `pieces:` name that
-            is a card deck, and a `cards:` name that is a piece set (the
-            fine-grained sweep is tests/test_game_clause_guards.py's
-            content-clause section), and a call to either evicted trace
-            emitter (`coup_note_reveal` / `tichu_hand_summary`, the
-            primitive-sidecars stage-1 removals — the standard
-            unknown-function diagnostic, pinned per name because these
-            spellings exist in the wild in pre-eviction rules text), and the
-            `primitives { }` block's own designer-facing guard classes: an
-            entry spelled with an arrow return, a `reads` clause naming one
-            declaration twice, an entry naming a round-slot Primitive, an
-            entry whose signature disagrees with the implementation's, a
-            `reads` name the game declares nowhere, a `reads` name a phase
-            declares as state while the game declares it as a zone, a call
-            to a declared-only Primitive from a game that writes no block,
-            and a game binder spelled like a variable the library it `uses`
-            PROVIDES — the corpus's first case reaching a real family
-            library, so the rendered message names a library the reader can
-            go and open; and the [[phase-scoped-read]]'s own guard classes,
-            one case per new or reworded message — the per-read tail misread
-            as clause-wide, a tail naming no phase of the game, a tail naming
-            a real phase that is not the declarer, a tail on game state, a
-            tail on a zone, the transposed binder's parse twin, two phases
-            that do not nest, a strict descendant re-declaring the scoped
-            name, a call from outside the declaring phase, a call from inside
-            the phase that ENCLOSES the region, and a move type calling a
-            scoped entry offered from outside it.
-sampled:    the guard-class population itself — every diagnostic emission
-            site across `cardlang/resolve.py`, `cardlang/typecheck.py`, and
-            `cardlang/deckcheck.py` — is open and growing as the language
-            evolves (a new checker rule is a new guard), not a closed
-            registry this module cross-products against. The fixtures are
-            representative guard classes, one seed per class named above;
-            they are not exhaustive over every diagnostic call site in the
-            front end (those stay covered, per-guard, by the scattered
-            `DiagnosticError` tests this corpus does not replace).
-residual:   none named as of this writing. The four guard classes recorded
-            residual as of the previous writing (raw grammar/syntax errors,
-            `legal_moves:`/`rule.constrains:` naming an unknown move type,
-            reserved-word collisions, and the procedure-hygiene binder-shadow
-            guard) are now mirrored above; the procedure-hygiene guards beyond
-            the one binder-shadow case stay uncovered here by design, not by
-            oversight — `cardlang/expand.py`'s docstring and
-            `tests/test_procedures.py`'s own completeness ledger both state
-            hygiene is closed BY CONSTRUCTION with exactly one remaining
-            guard, which is the case mirrored here. Per the rule recorded in
-            docs/building.md, a newly written guard ships its own
-            rejection-corpus case going forward rather than growing a
-            residual list.
+does not prove:  that every diagnostic a designer can reach still reads
+            the way it was written. The cases are representative guard
+            classes, one seed per class over an open population, so a guard
+            with no case here has no golden at all; what stands for those is
+            the scattered per-module `DiagnosticError` tests, which prove
+            that a guard FIRES rather than what it PRINTS.
 """
 
 from __future__ import annotations

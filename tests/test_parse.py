@@ -224,10 +224,6 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
 #                arrives as cells rather than as a start nobody probed.
 #     registry:  cardlang/parse.py's `_PARSE_HINTS`, and `parse_to_tree`'s
 #                call sites in the same module.
-#     covered:   every (keyword, start) cell, executed: the probe puts the
-#                keyword alone on a line, which is malformed under every
-#                start, and asserts the hint appears exactly when the
-#                registry's scope admits that start.
 #     does not prove:  that a hint's SENTENCE is accurate — only that it fires
 #                where the registry says. The wording is held by
 #                `test_a_parse_hint_never_diagnoses_the_author_s_position`

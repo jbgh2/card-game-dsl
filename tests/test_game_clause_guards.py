@@ -58,7 +58,15 @@ domain:     the `?game_item` alternatives of the `game` production, times
             symmetry has a THIRD position — the type ANNOTATION slots
             (`type_name`, `type_ref`, `payload_type`, `type_arg`), all
             plain NAME — so the terminal must also stay a strict SUBSET of
-            NAME, whose own lookahead it repeats.
+            NAME, whose own lookahead it repeats. Within the `game`
+            production `loser:` is the only clause whose last slot is a bare
+            `expr` (`winner:` takes `rank_dir NAME`), which is where the
+            empty-EXPRESSION absorber is reachable at all.
+            One thing sits outside, and it is not a gap: this module owns the
+            clause STRUCTURE, so the content VOCABULARY a flavor admits —
+            `ranking:`/`trump:` declared in a piece game, and every other
+            card-content surface — is the content-agreement guards' domain
+            and the piece-game playout's, not this one's.
 registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             by `_game_item_alternatives`, so a clause added to the grammar
             fails `test_game_item_registry_pin` until it is classified
@@ -70,71 +78,27 @@ registry:   `cardlang/grammar/cardlang.lark` (`?game_item`) — scraped here
             `STRUCT_TYPE_NAME`'s negative lookaheads for the two absorption
             legs, scraped by `_card_rank_excluded` and `_struct_type_excluded`
             so both sides of each pin stay derived.
-covered:    duplication — exhaustively, every single-valued clause (all
-            alternatives except `phase`), one probe each, parse-layer guard
-            (the `pieces` probe doubles as the pieces-duplicated-beside-
-            `cards:` cell: BASE carries `cards:`, and the duplicate guard
-            deterministically fires before the mutual-exclusion guard);
-            omission — `players:`/content clause (parse guard, including the
-            both-at-once bag rendering), `max_length:` and joint
-            `winner:`/`loser:` (resolve guards, pinned by their own
-            rejection fixtures), `state`/`zones`/`trump`/`teams`/
-            `direction`/`ranking` omission is legal by design (probed by
-            the valid BASE game here, which omits four of them);
-            game-count — zero and two, parse guard;
-            content clause — both-present (parse guard), each cell of the
-            clause x name-flavor matrix at resolve: cross-flavor names
-            rejected with the right clause named, unknown names listed
-            against the clause's own flavor only (both directions probed),
-            and the pieces-only acceptance cell (PIECE_BASE compiles end to
-            end through IR, with the parse-stamped `content_flavor` and the
-            piece-only IR key pinned);
-            absorption —
-            exhaustively, every clause written after a `ranking:`
-            enumeration and asserted to parse as itself, and every clause
-            written after an EMPTY `loser:` and asserted to be refused at
-            the parse layer, plus, for STRUCT_TYPE_NAME, three static pins
-            with both sides derived: the absorbable-shape domain, the
-            subset-of-NAME invariant, and the belt-and-braces clause set
-            declared as such so it is not mistaken for the argument. The
-            LIBRARY half of the same absorber — an empty `function f() =`
-            over each `?library_item` — is executed as the 49-cell
-            truncation grid in tests/test_family_libraries.py, not
-            re-probed here. The exclusion's cost — exhaustively, `type
-            <word> = { }` refused for every word the terminal excludes.
-            `loser:` is the only game clause whose last slot is a bare
-            `expr`, checked against the grammar rather than assumed:
-            `winner:` takes `rank_dir NAME`.
-sampled:    `ranking:` omission with rank-dependent constructs in play is
-            typecheck's `has_ranking` gate (tests/test_ranking_guard.py);
-            zero-`phase` games are accepted with defined degenerate
-            semantics (no decisions; result read from initial state —
-            verified by playout while authoring this module, not pinned
-            here: the cell is "accepted", and pinning acceptance is the
-            valid-BASE probe's job); both-content-clauses co-reporting with
-            a missing `players:` rides the same bag the neither-present
-            probe pins, not a separate probe; a Suit-parameterized rule in
-            a piece game skips only the suit-membership refinement
-            (resolve's `_instantiate_rules`, `suits=None`) — the argument
-            name itself still fails name classification in a piece game's
-            namespaces, so the cell stays loud.
-residual:   the declaration/use symmetry the struct-literal exclusion
-            enforces on the NAME axis is not enforced on the ARITY axis:
-            `type_def` takes `struct_field*` while `struct_lit` requires at
-            least one field, so `type Bid = { }` is accepted and can never
-            be constructed — declarable-but-unusable, the same property, one
-            axis over. Pre-existing (it parses identically before and after
-            the terminal), but inside the domain this module claims, so it
-            is named rather than left to look guarded. Guard: the empty type
-            is inert — nothing can construct it, so no game can depend on
-            one silently doing something. Recorded in issue #125.
-            The content-clause surface adds no residual: `ranking:`/`trump:`
-            DECLARED in a piece game, and every other card-content surface,
-            are rejected naming the kind by the content-agreement guards
-            (tests/test_piece_content_guards.py), and the runtime driver runs
-            a piece game — this module owns the clause STRUCTURE, while the
-            vocabulary guards and the piece-game playout live in that flagship
-            ledger. Every other cell above is guarded or legal-by-design.
+            The LIBRARY half of the empty-EXPRESSION absorber, as the
+            truncation grid over `?library_item`:
+            tests/test_family_libraries.py. `ranking:` omission with
+            rank-dependent constructs in play, typecheck's `has_ranking`
+            gate: tests/test_ranking_guard.py. The content-agreement guards:
+            tests/test_piece_content_guards.py.
+does not prove:  three things about cells that are argued rather than
+            run here.
+            That a zero-`phase` game plays its degenerate semantics — no
+            decisions, the result read from the initial state. The cell in
+            this module is "accepted", which is the valid-BASE probe's
+            statement; nothing here runs such a game to the result.
+            That both content clauses co-report with a missing `players:` in
+            their own right. That pair rides the same diagnostic bag the
+            neither-present probe pins, so a co-reporting path that stopped
+            being shared would not be seen from here.
+            That a Suit-parameterized rule in a piece game is refused.
+            `_instantiate_rules` skips only the suit-membership refinement
+            when `suits` is None, and what keeps the cell loud is the
+            argument name failing name classification in a piece game's
+            namespaces — read off the resolve path, not executed here.
 """
 
 from __future__ import annotations
@@ -522,6 +486,11 @@ def test_a_type_may_not_be_declared_under_an_excluded_word(keyword: str) -> None
     unusable — accepted-but-ignored one step removed — so the DECLARATION is
     refused too, keeping `type_def` and `struct_lit` symmetric about which names
     a struct type may take.
+
+    The symmetry is on the NAME axis only. On the ARITY axis `type_def` takes
+    `struct_field*` while `struct_lit` requires at least one field, so
+    `type Bid = { }` declares clean and can never be constructed —
+    declarable-but-unusable, the same property one axis over (issue #125).
 
     red under: point `type_def`'s name back at plain `NAME` in cardlang.lark."""
     src = (

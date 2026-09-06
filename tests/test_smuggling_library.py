@@ -20,33 +20,25 @@ domain:   every `.cardlang` file under `experiments/green-lane/`, globbed. The
           actually imports the library, which is what stops this module going
           vacuously green if a file is renamed out of reach.
 registry: the glob, plus `cardlang.libraries.library_names()` for the library's
-          own registration.
-covered:  the full cross of member x {checks, plays} — `test_every_member_binds_
-          the_library` and `test_every_member_plays_to_termination`. The
-          contract's minimality and sufficiency are NOT re-asserted here: they
-          are `tests/test_family_libraries.py`'s
-          `test_every_library_contracts_for_exactly_what_it_reaches`, which is
-          parametrized over `library_names()` and so picked this library up on
-          arrival.
-sampled:  one seed per member for the playout. The per-seed space is the
-          family's own, not the import's, and the import is seed-independent by
-          construction (nothing spliced consults the rng).
-
-          The twelve digests below take only FOUR distinct values, and that is a
-          fact about the family rather than a weak pin: v1's delta is scoring,
-          v2's and v2b's are token bookkeeping, and none of the three is
-          observable — only v3/v4's changed hand composition reaches the
-          stream, and only the mini/full split changes its length. The pin still
-          moves under any change to what an observer sees; what the collapse
-          shows is that this family's variant lattice is almost entirely
-          non-observational, which is why the import can be info-set-neutral
-          across all of it.
-residual: the byte-identical BEFORE/AFTER trace equality that proved the
-          conversion neutral — 12 members x 12 seeds, every observation event
-          and every decision point — cannot live here: CI has no "before". It is
-          evidence in the change that introduced the library, and what remains
-          in CI is the digest pin below, which holds the property going forward
-          rather than backward. R4, and no issue: nothing a designer can reach.
+          own registration. The contract's minimality and sufficiency:
+          tests/test_family_libraries.py::test_every_library_contracts_for_exactly_what_it_reaches,
+          parametrized over `library_names()`.
+does not prove:  that the import is observation-NEUTRAL against the family's
+          un-imported form. CI carries no such BEFORE state to compare
+          against; what the digest pin below holds is today's observation
+          stream, going forward, and the comparison itself lives outside this
+          module.
+          Nor anything about the seeds a member is not run at: the playout
+          takes one seed per member, on the argument that the per-seed space
+          is the family's own rather than the import's and that nothing
+          spliced consults the rng.
+          The digests take fewer distinct values than the family has members,
+          which is a fact about the family rather than a weak pin: v1's delta
+          is scoring and v2's and v2b's are token bookkeeping, none of them
+          observable; only v3/v4's changed hand composition reaches the
+          stream, and only the mini/full split changes its length. The pin
+          moves under any change to what an observer sees. What it cannot do
+          is tell two non-observational members apart.
 """
 
 from __future__ import annotations

@@ -50,57 +50,36 @@ registry:   the terminal table itself, read from the parser at test time — a
             itself, a regex pattern samples the word runs in its own source
             plus generic identifier/integer probes, filtered to those the
             terminal matches whole.
-covered:    every terminal x every derived sample that ends on a word
-            character — `test_no_terminal_stops_mid_word`, which IS the grid.
-            The hyphen leg is derived the same way
-            (`test_hyphen_prefix_literals_also_exclude_the_hyphen`): a literal
-            that is a prefix of a longer literal at a hyphen boundary must
-            exclude `-` as well, which over this grammar is `as` (a prefix of
-            `as-equally-as-possible`) and nothing else.
-            The grid is a property of REGEXES, so it is backed by executed
-            witnesses in the parser's own channel: `test_fused_*` reject one
-            real sentence per fusion SHAPE (keyword+name, keyword+keyword,
-            keyword+integer, word-shaped-terminal+name, integer+keyword), and
-            `test_*_still_parses` keep the legitimate whole-word identifiers
-            (`is_re`, `assets`, `some_var`) parsing. Without those the grid
-            would prove a regex property and nothing about the language.
-            `test_corpus_still_parses` pins GRAMMAR ACCEPTANCE only — that
-            anchoring rejects no sentence a game writes. That anchoring also
-            changed no accepted sentence's MEANING is a different claim, and
-            it is the golden and characterization suites that carry it, not
-            this module: parsing is not meaning, and a row that says so would
-            be claiming coverage it does not run.
-sampled:    the corpus is swept by `tests/keyword_fusion_sweep.py` — every
-            whitespace run between two word characters in every
-            `docs/games/*.cardlang` deleted one at a time and re-parsed — rather
-            than here. That sweep is ~7.8k Earley parses of whole games, far too
-            slow for the suite, so it is a hand-run tool
-            (`python -m tests.keyword_fusion_sweep`, exits non-zero if any
-            deletion still parses identically) re-run when the grammar's lexical
-            layer changes, not on every commit. It is the derivation evidence
-            for this module, and it is the check that would catch a fusion this
-            module CANNOT see: the grid quantifies over the terminal table, so a
-            new production shape or a changed lexer setting is invisible to it
-            and visible to the sweep. Before this change 4761 of those 7776
-            deletions parsed to an IDENTICAL tree, over 84 keywords and 43
-            integer literals; after it, none do.
-            The audit's framing check (surface-totality-audit, Step 1) ran in
-            THIS context rather than in a fresh subagent, which the session
-            forbade — a weaker form, recorded rather than skipped. What it
-            would have guarded against is largely bought mechanically here
-            instead: the axis is Lark's whole terminal table, not a list an
-            author chose, so a domain narrowed to the implementation's shape
-            would have to be a narrowing of the parser's own registry.
-residual:   a terminal fusable only on a word no sample reaches. The regex
-            terminals divide into two shapes and neither leaves one: the
-            identifier-shaped ones (`NAME`, `QNOUN`, `CARD_RANK_NAME`,
-            `STRUCT_TYPE_NAME`) end in a greedy word-character class, so they
-            extend over ANY appended word character and cannot stop mid-word
-            on any input; the word-alternation ones (`MOVE_VERB`, `RANK_DIR`,
-            `RANK_CONV`) match a fixed finite word set, and `_samples` reads
-            that set out of the pattern source. This residual is a recorded
-            constraint of the sampling method, not deferred work, so it owns
-            its record here and files no issue (CLAUDE.md, "The tracker").
+does not prove:  three things.
+            A terminal fusable only on a word no sample reaches. `_samples`
+            derives its words from each terminal's own pattern, so the
+            derivation reaches exactly as far as the pattern is readable.
+            The identifier-shaped terminals (`NAME`, `QNOUN`, `CARD_RANK_NAME`,
+            `STRUCT_TYPE_NAME`) end in a greedy word-character class and so
+            extend over ANY appended word character rather than stopping
+            mid-word on any input, and the word-alternation ones
+            (`MOVE_VERB`, `RANK_DIR`, `RANK_CONV`) match a fixed finite word
+            set `_samples` reads out of the pattern source. A terminal shaped
+            like neither would be sampled by whatever those two rules
+            happened to yield. This is a constraint of the sampling method
+            rather than deferred work, so it owns its record here and files
+            no issue (CLAUDE.md, "The tracker").
+            A fusion this module cannot see at all. The grid quantifies over
+            the terminal table, so a new PRODUCTION shape or a changed lexer
+            setting is outside its reach. What sees those is the corpus
+            sweep, `tests/keyword_fusion_sweep.py` — every whitespace run
+            between two word characters in every `docs/games/*.cardlang`
+            deleted one at a time and re-parsed. That sweep is thousands of
+            Earley parses of whole games, far too slow for the suite, so it
+            is a hand-run tool (`python -m tests.keyword_fusion_sweep`,
+            exiting non-zero if any deletion still parses identically),
+            re-run when the grammar's lexical layer changes. Nothing in the
+            suite runs it.
+            That anchoring left every accepted sentence's MEANING alone.
+            `test_corpus_still_parses` pins grammar ACCEPTANCE only — that
+            anchoring rejects no sentence a game writes — and parsing is not
+            meaning. The claim about meaning is the golden and
+            characterization suites', not this module's.
 """
 
 from __future__ import annotations

@@ -27,14 +27,13 @@ domain:    the registry's derived views (`ITERABLE_ROLES`, `SIMULTANEOUS_ROLES`,
            runtime's member enumeration).
 registry:  `cardlang.domains.DOMAINS`, whose `id` column IS `domains.Role` —
            one definition site, so the enum and the table cannot disagree.
-covered:   all 4 rows at typecheck (`role_type`) and at runtime (`role_members`),
-           on a built game exercising all four (a 4-player team game, so
-           `team` is populated too); resolve's two set-views are pinned by
-           object identity (a set-level property, not a per-row one).
-sampled:   none — the domain is 4 rows, fully enumerated below.
-residual:  none for identity. Which FORMS each row is legal in is
-           test_domain_registry.py's ledger, including the grammar-surface
-           residual recorded there.
+           The domain x form matrix — what each row is legal in, and whether
+           iterating it binds the actor: tests/test_domain_registry.py.
+does not prove:  that a row is legal in the forms that consume it. What every
+           cell here asserts is identity — a consumer's view IS the registry's,
+           not an equal copy — which says nothing about which quantifier,
+           `for each` or parameter position accepts a given domain; that
+           matrix is tests/test_domain_registry.py's.
 """
 
 from __future__ import annotations

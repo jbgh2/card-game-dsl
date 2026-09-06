@@ -75,61 +75,33 @@ domain:     DERIVED, not the two sites the issue named. The vocabulary is
             function, conjunct text)` — never by line number, which is unique
             but rewritten by every edit above it — and a genuine collision of
             that key is refused rather than resolved.
+            One statement shape sits deliberately outside, and it is not a
+            gap here: a guard that pins by raising past an exhausted if-chain
+            (the `openspiel/replay` returns keying `decisions.md` names is one)
+            or from a `match` arm compares nothing against a literal, so it is
+            the exhaustive-dispatch shape rather than this class and reaches
+            neither the grid nor the band. Bringing it into a census is
+            issue #171.
 registry:   `_registry_constants()` derives the vocabulary from
             `cardlang/**/*.py` by AST; `_reconciliation_conjuncts()` derives
             the cells from it. `_WITNESSES` maps cell to witness.
-covered:    the grid — `test_every_conjunct_has_a_witness`, parametrized over
-            the DERIVED conjuncts, one row each. That parametrization is born
-            under #150's guard: were the walk to match nothing, collection now
-            fails rather than reporting a skip, which is the sequencing #143
-            ordered these two issues for. The classifier itself is pinned
-            against a synthetic module carrying every shape it must accept and
-            every near-miss it must reject
-            (`test_the_census_classifies_each_shape`), whose accept rows cross
-            every literal form the predicate implements — four displays and
-            five constructors, empty and over-literal-contents — so narrowing
-            the predicate reddens instead of silently shrinking the class. The band the literal-collection predicate excludes is guarded
-            as a per-module multiset
-            (`test_registry_guards_outside_the_literal_shape_are_guarded`)
-            rather than left silent. The witness key's own assumption — that
-            it names one site — is guarded by
-            `test_no_two_cells_share_a_witness_key`, since a collision is
-            silent in the worst way: the second site inherits the first's
-            witness and goes green untested. That band's own fidelity — that
-            it records whole guards, not prefixes — is guarded by
-            `test_the_walled_band_records_the_whole_guard`, since a truncated
-            entry would let an authorized guard drift past the cut in silence.
-            The witnesses themselves are the three `test_widening_*` /
-            `test_a_non_player_*` tests below.
-sampled:    none. Every derived conjunct is an executed row.
-residual:   FOUR:
-            (0) the census reads two STATEMENT shapes — `assert`, and `if`
-            whose body raises. The repo also pins by raising past an exhausted
-            if-chain (13 sites, including the `openspiel/replay` one
-            `decisions.md` names) and from a `match` arm (1 site). Those
-            compare nothing against a literal, so they are the exhaustive-
-            dispatch shape rather than this class, and they reach neither the
-            grid nor the band. Issue #171. R4.
-            (1) the INVERSE class — code implementing one row of a closed
-            domain that pins itself against nothing — is not covered. It is
-            not #149's class (there is no guard to witness), it is unbounded
-            without its own framing check, and the census cannot see it: a
-            missing guard has no syntax. So a member reaches neither the grid
-            nor the band, and only reading a consumer against the registry it
-            implements finds one. The class stays here rather than becoming an
-            issue because there is nothing to enumerate and so nothing to
-            schedule; a member found by reading is filed on its own, which is
-            what happened to the one this module used to name. R4.
-            (2) a witness proves a conjunct CAN fire; it cannot prove the
-            message names the right remedy, which is prose. Each witness
-            asserts on the message text, so a reworded message that stops
-            naming the registry reddens — the class of the reason is not
-            machine-checked. R4, this ledger owns the record.
-            (3) a reconciliation guard written with no literal collection at
-            all (`assert set(VIEW) == set(_LOCAL_COPY)`) is outside the
-            predicate and lands in the guarded band instead, where it is
-            authorized by hand rather than witnessed. R4, this ledger owns the
-            record.
+does not prove:  three things, none of them reached by widening a registry.
+            A witness proves a conjunct CAN fire; it cannot prove the guard's
+            message names the right remedy. Each witness asserts on the
+            message text, so a rewording that stops naming the registry
+            reddens — but whether the reason the message gives is the right
+            one is prose, and nothing here reads it.
+            A reconciliation guard written with no literal collection at all
+            (`assert set(VIEW) == set(_LOCAL_COPY)`) falls outside the
+            predicate and lands in `_GUARDS_OUTSIDE_THE_SHAPE`, where it is
+            authorized by hand. A green says the band records that guard
+            whole, never that it can fire.
+            And nothing here reaches the INVERSE class — a consumer
+            implementing one row of a closed domain that pins itself against
+            nothing. There is no guard to witness and a missing guard has no
+            syntax, so such a member reaches neither the grid nor the band;
+            only reading a consumer against the registry it implements finds
+            one, and each one found is filed on its own.
 """
 
 from __future__ import annotations

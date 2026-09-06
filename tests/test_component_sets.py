@@ -15,23 +15,13 @@ registry:   cardlang.runtime.values.COMPONENT_SETS,
             cardlang.runtime.values.ComponentSet.__post_init__,
             cardlang.runtime.values.build_deck,
             cardlang.runtime.values.component_set
-covered:    all rows, exhaustively parametrized below; DECKS-view equality;
-            each piece set's composition pinned item-by-item (xo_marks,
-            breakthrough_men — the flavor whose axes are per-set, so a
-            miscounted side would otherwise reach only its own game);
-            each of the guard's
-            three branches fired directly (duplicate axes, non-identifier
-            axis, piece flavor spelling "suit"/"rank"); build_deck's
-            unknown-name refusal (message pinned to name component sets and
-            list known ones) and component_set's graceful None on a miss —
-            two distinct miss behaviors, each pinned as itself
-sampled:    build_deck ordering, pinned against frozen expected values on
-            standard52 (the suits x ranks cross-product path, first suit)
-            and xo_marks (the explicit-list path, verbatim) — every other
-            component set takes one of these two paths (a `ranks` cross
-            product, or an explicit `cards` list for the non-uniform sets),
-            so both build_deck order paths are sampled
-residual:   none
+does not prove:  that every component set builds in the right ORDER. The
+            order pins are frozen expected values on two sets — standard52
+            (the suits x ranks cross-product path, first suit) and xo_marks
+            (the explicit-list path, verbatim). Every other row takes one of
+            those two paths, a `ranks` cross product or an explicit `cards`
+            list, so both paths carry a pin; a row whose order was wrong
+            while its path was right is not separately exercised.
 """
 
 from __future__ import annotations

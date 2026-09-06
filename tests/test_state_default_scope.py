@@ -37,33 +37,24 @@ domain:     TWO axes, each read off its own registry rather than off the guard.
             that preceded it was an argument about NAMES, and a `choose` needs
             an acting player rather than a name. An argument is not a sweep.
 registry:   `_BLOCKS` + `runtime/driver.run_phase`'s frame discipline for (1);
-            `n.Expr` for (2).
-covered:    all 32 scope cells (4 reader sites x 8 targets), executed and
-            played; all 19 `n.Expr` rows, executed
-            (`test_every_expression_kind_is_accounted_for_in_a_default`, whose
-            axis is pinned equal to the union itself); 3 call cells; both
-            library cells (in `test_family_libraries.py`).
-sampled:    two shapes, each a single instance standing for a family.
-            The scope axis uses one block tree, chosen to contain every
-            relation the runtime can produce — enclosing, self, later-sibling,
-            sibling-phase, nested-phase — so a deeper tree adds instances of
-            relations already covered, not new relations. The `n.Expr` axis
-            runs in one game (2 players, `standard52`, a deck and a hand), so
-            a kind whose declare-time behaviour depends on the SHAPE of the
-            game rather than on the expression — a quantifier over teams in a
-            game with no `teams`, a query over a positional zone — is
-            sampled by proxy, not swept. The team case was spot-checked and is
-            clean (an empty role domain evaluates to `false`, it does not
-            crash); the rest are unprobed, and belong to whatever guard owns
-            empty role domains rather than to this one.
-residual:   none. `AllPlayers` was this grid's one open row — `v : Integer =
-            all players` was accepted because a default was never checked
-            against its declared type — and it is now closed by the type guard
-            (`test_state_default_type.py`, decisions.md "State scoping
-            (lexical)"), which refuses it along with the other precisely-typed
-            mismatches (`StrLit`, `ListLit`). Those three appear in
-            `_EXPR_REFUSED` above, refused before declare order is reached; the
-            record that named this residual has moved to the type guard's ledger.
+            `n.Expr` for (2). A default against its DECLARED TYPE, the sibling
+            check the `StrLit` / `ListLit` / `AllPlayers` rows are refused by:
+            tests/test_state_default_type.py. The library cells, a provided
+            default reading a `requires` name: tests/test_family_libraries.py.
+does not prove:  two things, each a single instance standing for a family.
+            That a deeper block tree behaves as this one does. The scope axis
+            uses one tree, chosen to contain every relation the runtime can
+            produce — enclosing, self, later-sibling, sibling-phase,
+            nested-phase — so a deeper tree is read as adding instances of
+            relations already crossed rather than new relations, and nothing
+            here runs one.
+            That a kind's declare-time behaviour is independent of the SHAPE
+            of the game. The `n.Expr` axis runs in one game (2 players,
+            `standard52`, a deck and a hand), so a kind whose answer turns on
+            the game rather than on the expression — a quantifier over teams
+            in a game with no `teams`, a query over a positional zone — is
+            sampled by proxy here, and belongs to whatever guard owns empty
+            role domains rather than to this one.
 """
 
 from __future__ import annotations
@@ -288,8 +279,7 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
 #   - Member: the pre-existing `state.`-publishes check, long before declare order.
 #   - StrLit / ListLit / AllPlayers: the TYPE guard
 #     (`test_state_default_type.py`) — a `String` / collection default cannot fit
-#     the `Integer` these cells declare, so they never reach declare time. This
-#     is where the `AllPlayers` row that was this grid's one residual is closed.
+#     the `Integer` these cells declare, so they never reach declare time.
 _EXPR_REFUSED = {
     "Call": "cannot call",
     "Choose": "cannot `choose`",
@@ -324,8 +314,7 @@ def test_every_expression_kind_is_accounted_for_in_a_default(kind: str) -> None:
     A refusal may come from any guard a default passes through — this grid asserts
     the kind is ACCOUNTED FOR, not that this file's guard is the one that fires.
     `StrLit`, `ListLit` and `AllPlayers` on an `Integer` var are refused by the
-    type guard (`test_state_default_type.py`), which is where the `AllPlayers` row
-    that was once this grid's lone residual is now closed.
+    type guard (`test_state_default_type.py`), which owns those three rows.
 
     red under: delete any arm of `_check_state_default_scope` (the Call/Choose
     rows redden); the type-guard rows have their own red-under in their file."""

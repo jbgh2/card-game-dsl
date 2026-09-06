@@ -15,18 +15,21 @@ domain:     every registry with a signature table × that table; every
             space's codec-else-universe pair); every call-signature entry of
             both tables that state one — the Builtins' `CALL_SIGS` and the
             implementation index's `sig` column — ×
-            {name, arity, param annotations, return annotation}
+            {name, arity, param annotations, return annotation}.
+            Two registries sit outside a column of that cross, and neither is
+            a gap. The climb sets have no signature table and so no
+            reconciliation cell: a climb query is named in a `round climb`
+            slot and is never expression-typed, so there is no type to
+            declare, and dispatchability is the whole of what they carry.
+            LIBRARY_ZONE_TYPES has no dispatchability cell: zone types name
+            data rather than callables, so there is no arm to reach.
 registry:   the name sets themselves for names; for the runtime side of a
             call signature, the Builtins' `call` match AST for what each arm
             consumes (derived by parsing, never hand-listed) and the
             implementation index's own rows, whose module and attribute
-            resolve to the Python a Primitive runs
-covered:    names (set equality both ways, every tabled registry),
-            dispatchability (every callable registry, against its
-            dispatcher), arity (every call signature, over both tables),
-            annotations for every plain-forward arm, every indexed
-            implementation, and their returns
-sampled:    none
+            resolve to the Python a Primitive runs. The zone types'
+            projections: tests/test_zone_projections.py and
+            tests/test_partition_helpers.py.
 does not prove: that a designer can REACH the dispatch refusal
             `test_call_funcs_are_dispatchable` exercises. That call is at
             function grain, and resolve's declared-only arm refuses every
@@ -36,27 +39,21 @@ does not prove: that a designer can REACH the dispatch refusal
             tests/test_primitives_block.py::test_the_regime_product_lands_where_the_table_says,
             with the rendered message at
             tests/rejections/primitives_declared_only_no_block.
-residual:   inline arms (an expression instead of a helper call — team_of,
-            card_points, error) get arity-only
-            coverage: there is no annotation to introspect, and the
-            expression is its own statement of the types. `rank_value`
+            Nor that a call signature's PARAMETER types agree with the Python
+            behind every arm. An inline arm — an expression instead of a
+            helper call: `team_of`, `card_points`, `error` — has no
+            annotation to introspect, and the expression is its own statement
+            of the types, so it is reconciled on arity alone. `rank_value`
             forwards to `values.rank_strength` (the runtime Owner Guard for
-            a rank outside a partial `ranking:`), but passes `args[0].rank`
-            -- a computed position the mapping skips -- so it too gets
-            arity plus return-annotation coverage only. TAny positions
-            are deliberately loose (polymorphic suit_of argument; the typed
-            object model's deferred edges) and skipped by the mapping.
-            The climb sets have no signature table and no reconciliation
-            cell: a climb query is named in a `round climb` slot and is
-            never expression-typed, so there is no type to declare — they
-            carry dispatchability only.
-            LIBRARY_ZONE_TYPES has no dispatchability cell: zone types name
-            data, not callables, so there is no arm to reach. Their
-            projection coverage is pinned by the zone-projection and
-            partition-helper tests.
-            Nothing forces a NEW registry to acquire a dispatchability pin —
-            the registry-to-dispatcher pairing is not derivable from code,
-            so each pin below names its own registry. Deferred: issue #108.
+            a rank outside a partial `ranking:`) but passes `args[0].rank`, a
+            computed position the mapping skips, so it too is reconciled on
+            arity plus its return. TAny positions are deliberately loose (the
+            polymorphic `suit_of` argument; the typed object model's deferred
+            edges) and the mapping skips them.
+            And nothing forces a NEW registry to acquire a dispatchability
+            pin: the registry-to-dispatcher pairing is not derivable from
+            code, so each pin below names its own registry, and a callable
+            registry added with no pin beside it passes here in silence.
 
 red under (born-green guards):
 - the starred-argument refusal in `_facts_in`: no arm writes one, so the
@@ -133,6 +130,9 @@ def test_tables_reconcile_with_name_sets() -> None:
     assert BUILTIN_TRICK_WINNERS.isdisjoint(PRIMITIVE_TRICK_WINNERS)
 
 
+# Each dispatchability pin below names its own registry by hand, because the
+# registry-to-dispatcher pairing is not derivable from code; deriving it is
+# issue #108.
 def test_outcome_names_are_dispatchable() -> None:
     # Each declared outcome name must resolve to a runtime callback — guards the
     # resolve namespace from drifting out of sync with the runtime dispatchers
@@ -488,8 +488,9 @@ def test_the_dispatch_parse_actually_resolves_helpers() -> None:
     """The annotation reconciliation silently skips arms whose helper it cannot
     resolve, so a mechanical dispatch refactor (a helpers dict, attribute
     calls, keyword arguments) could decay it to checking nothing while staying
-    green. Pin the residual exactly: the only arms without an introspectable
-    helper are the three inline expressions the module ledger names
+    green. Pin the boundary exactly: the only arms without an introspectable
+    helper are the three inline expressions the module ledger's `does not
+    prove:` row names
     (`rank_value` left the list when it began forwarding to
     `values.rank_strength`; its argument positions are computed, so the
     helper resolves and only its return is reconciled)."""
