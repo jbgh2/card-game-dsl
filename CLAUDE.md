@@ -162,6 +162,7 @@ and plays a hand — of the real game.
 ```
 docs/
   principles.md          High-level goal, design principles, architectural principles
+  authoring.md           Writing a game: the designer's path from empty file to OpenSpiel
   model.md               Primitives + phase/state/move-type/rule relationship
   library.md             The Trick mechanic + standard library catalogue
   decisions.md           Settled design decisions (the load-bearing spec)
@@ -183,6 +184,7 @@ docs/
 ## Where to look for what
 
 - **"What is this language?"** → `docs/principles.md`
+- **"How do I write a game?"** → `docs/authoring.md` — the designer-facing path: the smallest complete game file, the check/play loop, reading the derived information state, and reaching OpenSpiel with a game of your own
 - **"How do phases / rules / move types fit together?"** → `docs/model.md`
 - **"What's already in the standard library?"** → `docs/library.md`
 - **"How does X work?" (knowledge, scoring, mutation, typed outcomes, etc.)** → `docs/decisions.md`
