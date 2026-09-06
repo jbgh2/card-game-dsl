@@ -319,9 +319,8 @@ def _play(
     if seat is None:
         return _EXIT_OK
     if not decisions:
-        # A game that reaches its end without asking anyone to choose has no
-        # position to project a seat's view from — no decision node, and the
-        # terminal one is the game-level frame with every hand already spent.
+        # No decision means `on_first_decision` never fired, so there is no
+        # world to project from — at a decision or at the end alike.
         print(
             f"cardlang: {path} reached its end without a decision, so the "
             "engine exposes no world to project a seat's view from",
@@ -341,7 +340,9 @@ def _play(
     if at is None:
         print(f"\ninformation state, seat {seat}, at the terminal position:")
     else:
-        print(f"\ninformation state, seat {seat}, at decision {at} ({decisions[at]}):")
+        where = decisions[at]
+        assert where is not None, "a named decision always renders its line"
+        print(f"\ninformation state, seat {seat}, at decision {at} ({where}):")
     print(snapshot[0])
     return _EXIT_OK
 
