@@ -256,8 +256,6 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("corpus", "corpus_name"): "collision",
     ("corpus", "registered_outside"): "collision",
     ("call", "diagnostic_file"): "checker",
-    ("call", "replaced_outside"): "collision",
-    ("environment", "replaced_outside"): "collision",
     ("call", "markdown_without_block"): "checker",
     ("call", "missing"): "entry_shape",
     ("call", "directory_of_games"): "entry_shape",
@@ -267,6 +265,7 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("call", "prior_call_other_path"): "collision",
     ("call", "corpus_name"): "collision",
     ("call", "registered_outside"): "collision",
+    ("call", "replaced_outside"): "collision",
     ("environment", "diagnostic_file"): "checker",
     ("environment", "markdown_without_block"): "checker",
     ("environment", "missing"): "entry_shape",
@@ -276,6 +275,7 @@ _STAGE_OF_REFUSAL: dict[tuple[str, str], str] = {
     ("environment", "prior_call_other_path"): "collision",
     ("environment", "corpus_name"): "collision",
     ("environment", "registered_outside"): "collision",
+    ("environment", "replaced_outside"): "collision",
 }
 
 # The outcome vocabulary. `inexpressible` is surface totality's third state:
