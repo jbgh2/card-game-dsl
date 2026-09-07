@@ -211,7 +211,7 @@ max_length: _MAX_LENGTH_KW ":" INT
 ranking: _RANKING_KW ":" (RANK_CONV | card_rank+)
 RANK_CONV: /ace-ten(?![A-Za-z0-9_-])/
 
-// The game's card-point table (decisions.md "Scoring composition"): a block
+// The game's card-point table (decisions.md "Scoring has no constructs of its own"): a block
 // clause beside `cards:`, rank-keyed rows in `ranking:`'s key position, values
 // static signed integer literals, one optional trailing `else:` row for the
 // everything-else value (unlisted ranks read 0 with no else row — the
@@ -399,8 +399,9 @@ legal_moves: _LEGAL_MOVES_KW ":" "[" [NAME ("," NAME)*] "]"
 
 transition_to: _TRANSITION_TO_KW ":" NAME _WHEN_KW move_event
 // A move-type event with an optional predicate on the move — the same
-// event-reference form triggered scoring components use (decisions.md,
-// "Triggered scoring components"). There are no ad-hoc event names.
+// event-reference form (decisions.md, "Sub-phase entry and exit"): a
+// move-type event with an optional `where` over the move under
+// inspection. There are no ad-hoc event names.
 move_event: NAME [_WHERE_KW expr]
 
 // ----------------------------------------------------------------------------

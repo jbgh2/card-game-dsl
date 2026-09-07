@@ -876,7 +876,7 @@ class ZoneDecl:
 class CardPointsEntry:
     """One row of the `card_points { }` table: `<rank>: <value>` — the rank in
     `ranking:`'s key position, the value a static signed integer literal
-    (decisions.md "Scoring composition"). Held as a tuple of rows rather than
+    (decisions.md "Scoring has no constructs of its own"). Held as a tuple of rows rather than
     a dict (nodes carry no mutable containers), which also lets resolve point
     a duplicate-key diagnostic at the offending row's own span."""
 
@@ -888,7 +888,7 @@ class CardPointsEntry:
 @dataclass(frozen=True, slots=True)
 class CardPointsTable:
     """The `card_points { }` clause: the game's card-point table (decisions.md
-    "Scoring composition"). `else_value` is the optional trailing `else:`
+    "Scoring has no constructs of its own"). `else_value` is the optional trailing `else:`
     row's everything-else value; with no else row, unlisted ranks read 0 —
     the `card_points(card)` Builtin's contract. The driver materializes the
     table over the deck's ranks at load (`driver.declared_card_points`), so

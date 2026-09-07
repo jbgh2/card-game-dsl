@@ -69,10 +69,10 @@ domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             fragment shape with no WRAPPER_RECIPES recipe is tagged `text`,
             so it is held to carrying a tag and never run. The shapes with no
             cheap skeleton can carry — grammar surface the checker defers
-            (roadmap.md, "Grammar surface deferred by the checker"), scoring
-            composition (issue #115), forms the grammar has no production for
-            at all, and fragments needing game-specific companion
-            declarations a generic skeleton cannot supply.
+            (roadmap.md, "Grammar surface deferred by the checker"), forms the
+            grammar has no production for at all, and fragments needing
+            game-specific companion declarations a generic skeleton cannot
+            supply.
 registry:   KNOWN_TAGS (below) is the closed tag vocabulary — cardlang,
             cardlang-fragment, cardlang-bad, cardlang-bad-fragment, text,
             ebnf. The three docs are the block source.
@@ -531,8 +531,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 56, "library.md": 14, "model.md": 5}
-    assert len(_BLOCKS) == 75
+    assert per_doc == {"decisions.md": 54, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 73
 
 
 def _block_id(block: FencedBlock) -> str:

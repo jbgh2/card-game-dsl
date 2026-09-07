@@ -140,9 +140,9 @@ game Scopa {
       for each player p: if last_capturer is p { move all cards from table to captured[p] }
     }
 
-    // A deal's five components. Each of the four categories is won outright
+    // A deal's five scoring categories. Each of the first four is won outright
     // or by nobody, and each scopa is worth a point. Nothing here reads a
-    // score, so the components settle independently and in any order.
+    // score, so the categories settle independently and in any order.
     phase scoring {
       for each player p: if takes_the_cards(p)      { match_score[p] += 1 }
       for each player p: if takes_the_coins(p)      { match_score[p] += 1 }

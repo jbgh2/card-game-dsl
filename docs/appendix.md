@@ -82,8 +82,8 @@ variable resets at, derived from how it is used.
 | `tricks_taken[team]` | Bridge | per-hand | accumulating | post-trick | Derivable from `captured[team].size / 4`. |
 | `dummy_revealed` | Bridge | per-hand | set-once (false → true) | `reveal_dummy` phase | Derivable from `dummy_hand[dummy].non_empty`. Used only by `play_source_for`. |
 | `games_won[team]` | Bridge | per-rubber | accumulating | scoring (game-won branch) | Threshold-checked: `>= 2` ends rubber. |
-| `above_line[team]` | Bridge | per-rubber | accumulating | scoring (component sum) | Never resets within rubber. |
-| `below_line_current_game[team]` | Bridge | per-rubber-with-reset | accumulating then reset | scoring (component sum + game-won reset) | Resets for *both* teams when *either* crosses 100. Coupled reset. |
+| `above_line[team]` | Bridge | per-rubber | accumulating | scoring phase (`+=` per scoring line) | Never resets within rubber. |
+| `below_line_current_game[team]` | Bridge | per-rubber-with-reset | accumulating then reset | scoring phase (`+=` per scoring line, then the game-won reset) | Resets for *both* teams when *either* crosses 100. Coupled reset. |
 | `leader` / `current_leader` | All 5 | per-trick-loop (e.g., `play` phase) | replaced | Trick outcome | Lives in the phase that loops over tricks. Not derivable. |
 | `dealer` | Spades, Pinochle, Bridge | per-hand or per-rubber | rotated | setup phase | Referenced as `dealer.left`. Rotates per hand. |
 

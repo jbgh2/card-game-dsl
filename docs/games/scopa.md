@@ -49,10 +49,10 @@ never scores a scopa.
 
 ## Scoring a deal
 
-Five components. Each of the first four is worth one point, taken outright or
+Five scoring categories. Each of the first four is worth one point, taken outright or
 by nobody — a tie awards it to neither side.
 
-| component | who scores it |
+| category | who scores it |
 | --- | --- |
 | Cards | most cards in the capture pile |
 | Coins | most diamonds |

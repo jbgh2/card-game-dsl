@@ -199,7 +199,7 @@ a pointer to the underlying specification in [decisions.md](decisions.md)
 or elsewhere.
 
 **Composition over inheritance.** A game is a tree of phases plus a
-set of mechanics, rules, and scoring components composed by name.
+set of mechanics and rules composed by name.
 There is no game-class hierarchy and no delta mechanism; variants are
 sibling games over a shared core. (See "Composition over inheritance"
 above.)
@@ -236,8 +236,7 @@ project through these visibility settings. Perfect recall by default;
 **State is lexically scoped.** A variable lives as long as the phase
 instance that lexically encloses its declaration. Refactoring a
 phase carries its state with it. Mutation within a phase body is
-sequential, with `apply_components:` as the one batched-write
-exception. (See [decisions.md](decisions.md), "State scoping (lexical)" and
+sequential; the simultaneous block is the one batched-write context. (See [decisions.md](decisions.md), "State scoping (lexical)" and
 "Mutation semantics".)
 
 **Round forms own their internal state.** The trick, auction, betting, and
@@ -253,11 +252,12 @@ phase pattern-matches on the outcome. Avoids exception-style escape
 ceremony for legitimate failure cases. (See [decisions.md](decisions.md),
 "Typed phase outcomes".)
 
-**Scoring composes from named components.** Scoring is `apply_components:
-[Component1, Component2, ...]` summing each component's `ScoreDelta`.
-Threshold-triggered bonuses (game/rubber bonuses, bag-overflow
-penalties) remain imperative post-component checks. (See
-[library.md](library.md), "Scoring components".)
+**Scoring has no constructs of its own.** A game scores with declared
+data (`card_points { }`), the general constructs everything else uses, and a
+ranking direction (`winner: highest score`). A construct whose definition
+has to mention a point value is the wrong shape; recognition over card sets
+is general and grows on witnesses, pricing never does. (See
+[decisions.md](decisions.md), "Scoring has no constructs of its own".)
 
 **Typed object model.** Cards, players, teams, zones,
 contracts, hand results, and other game objects are typed.
