@@ -665,6 +665,7 @@ if_impossible: _IF_IMPOSSIBLE_KW ":" expr
      | agg_query
      | player_query
      | card_query
+     | subset_query
      | choose_expr
      | or_expr
 
@@ -691,6 +692,30 @@ card_query: _CARDS_KW _IN_KW zone_expr _WHERE_KW expr                     -> cq_
           | _NUMBER_KW _OF_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] -> cq_count
           | _ANY_KW _CARD_KW _IN_KW zone_expr _WHERE_KW expr              -> cq_any
           | _ALL_KW _CARDS_KW _IN_KW zone_expr _WHERE_KW expr             -> cq_all
+
+// Queries over a zone's SUBSETS, binder implicitly `subset` — the domain noun's
+// singular, as `card` is the card queries'. The binder is a card collection, so
+// the predicate asks about the set as a whole (`sum of ... over cards in
+// subset`), which is the sentence no per-card form can say.
+//
+// The source phrase is spelled with `of`, never `in`: `any <noun> in <expr>
+// where` is the live collection quantifier and means "iterate the collection's
+// MEMBERS", so spelling subsets with `in` would change the iteration domain
+// with nothing on the page to mark it.
+//
+// The size clause is MANDATORY in both modes — every game that wants subsets
+// states a floor or an exact count, and a subset domain with no stated size has
+// no rulebook reading. `subset_size`'s count sits at `sum` level: `or_expr`
+// binds above it, so the floor form's `or` cannot be absorbed into an operand
+// chain, and the order aggregators' own trailing `or <default>` stays the only
+// `or` at that level.
+subset_query: _ANY_KW _SUBSET_KW subset_of _WHERE_KW expr                 -> sq_any
+            | _ALL_KW _SUBSETS_KW subset_of _WHERE_KW expr                -> sq_all
+            | _NUMBER_KW _OF_KW _SUBSETS_KW subset_of _WHERE_KW expr      -> sq_count
+
+subset_of: _OF_KW subset_size _CARDS_KW _IN_KW zone_expr
+subset_size: sum _OR_KW _MORE_KW -> subset_floor
+           | sum                 -> subset_exact
 
 
 // Boolean quantifiers, binder implicit (`player`/`team`/`suit`/`rank` is
@@ -732,6 +757,8 @@ quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
 // (parenthesize a compound default).
 agg_query: _SUM_KW _OF_KW expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr]           -> agg_sum
          | RANK_DIR expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] _OR_KW and_expr -> agg_order
+         | _SUM_KW _OF_KW expr _OVER_KW _SUBSETS_KW subset_of [_WHERE_KW expr]                -> agg_subset_sum
+         | RANK_DIR expr _OVER_KW _SUBSETS_KW subset_of [_WHERE_KW expr] _OR_KW and_expr      -> agg_subset_order
 
 if_expr: _IF_KW expr _THEN_KW expr elif_clause* _ELSE_KW expr
 elif_clause: _ELIF_KW expr _THEN_KW expr
@@ -1052,6 +1079,11 @@ _SHUFFLE_KW: "shuffle" /(?![A-Za-z0-9_])/
 _SIMULTANEOUSLY_KW: "simultaneously" /(?![A-Za-z0-9_])/
 _SKIP_KW: "skip" /(?![A-Za-z0-9_])/
 _SOME_KW: "some" /(?![A-Za-z0-9_])/
+// `subset` and `subsets` are separate whole words: the anchor keeps the
+// singular from matching the plural's prefix.
+_SUBSET_KW: "subset" /(?![A-Za-z0-9_])/
+_SUBSETS_KW: "subsets" /(?![A-Za-z0-9_])/
+_MORE_KW: "more" /(?![A-Za-z0-9_])/
 _SOURCE_KW: "source" /(?![A-Za-z0-9_])/
 _STATE_KW: "state" /(?![A-Za-z0-9_])/
 _SUIT_KW: "suit" /(?![A-Za-z0-9_])/

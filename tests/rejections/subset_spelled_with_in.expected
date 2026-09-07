@@ -1,0 +1,1 @@
+subset_spelled_with_in.cardlang:14:8: error: `any subset in ...` iterates a collection's members; subsets are spelled with `of` -- write `any subset of <n> [or more] cards in <zone> where ...`

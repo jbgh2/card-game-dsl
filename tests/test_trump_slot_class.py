@@ -895,10 +895,7 @@ def _drive_scopa(entry: str) -> Callable[[], None]:
             families=MappingProxyType({}),
             singles=MappingProxyType({"table": layout}),
         )
-        if entry == "scopa_can_sum":
-            scopa.scopa_can_sum(facts, gr, 5)
-        else:
-            scopa.scopa_sums_to(facts, gr, list(layout), 5)
+        scopa.scopa_sums_to(facts, gr, list(layout), 5)
 
     return drive
 
@@ -944,7 +941,6 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "cribbage_show_value": _drive_cribbage_show(False),
     "cribbage_crib_value": _drive_cribbage_show(True),
     "salvo_combos": _drive_salvo_combos,
-    "scopa_can_sum": _drive_scopa("scopa_can_sum"),
     "scopa_sums_to": _drive_scopa("scopa_sums_to"),
     "president_lead_options": _drive_president("president_lead_options"),
     "president_follows": _drive_president("president_follows"),

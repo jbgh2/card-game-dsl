@@ -1,0 +1,16 @@
+// `subset` is a real word in the language, but `any <noun> in <expr> where` is
+// the collection quantifier and iterates a collection's MEMBERS. Subsets are
+// spelled with `of`, and the message must say so rather than calling the word
+// unknown -- that would send the designer looking for a declaration to add.
+game SubsetSpelledWithIn {
+  players: 2
+  max_length: 100
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones { deck : Deck  table : Discard  hand[player] : Hand<player> }
+  state { score[player] : Integer = 0 }
+  winner: highest score
+  phase p {
+    if any subset in table where 1 is 1 { score[0] += 1 }
+  }
+}

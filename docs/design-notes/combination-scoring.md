@@ -20,7 +20,7 @@ counting (`number of cards in Z where ...`), and per-card aggregation
 or ADJACENCY across cards does not. Every game that needed it got a
 registered Python primitive.
 
-## The witnesses (six shipped, one blocked)
+## The witnesses (seven, six of them in the corpus)
 
 | witness | what it recognizes | where the Python lives |
 |---|---|---|
@@ -30,9 +30,9 @@ registered Python primitive.
 | Gin's melds | sets and suited runs; arrangement validity; deadwood | `gin_valid_meld` and kin |
 | Canasta's melds | rank groups with wild participation, naturalness, canasta size | seven `canasta_*` signatures |
 | Pinochle's melds | trump-parameterized marriages, the exact-card pinochle, aces around, double melds | `pinochle_meld_value` ("a hand's meld under trump") |
-| **Salvo (blocked)** | best-instance of-a-kind, longest run, largest flush, per-location bonus table, jokers excluded | — stopped here |
+| Salvo | best-instance of-a-kind, longest run, largest flush, per-location bonus table, jokers excluded | `salvo_combos`, declared in the game's own `primitives { }` block |
 
-Six independent Python islands implement overlapping recognizers; the
+Seven independent Python islands implement overlapping recognizers; the
 climbing engine's are not even reachable from scoring code in the same
 runtime. Scoring primitives carry no info-set debt — they are pure
 functions at settle — so this is an EXPRESSIVENESS hole, not a
@@ -68,6 +68,12 @@ Four pattern primitives — a closed registry:
 | `run of <n>` | n distinct consecutive ranks, one card each |
 | `flush of <n>` | n cards of one suit |
 | `set totalling <k> by <fn>` | a subset whose values under fn sum to k |
+
+The last of those four is not a fourth independent primitive: it is the
+subset binder (`subsets of <k> or more cards in <zone>`, decisions.md "The
+expression register") with a literal target and a count fold. Tier 1 defines
+it against that construct rather than growing a second enumerator, so a game
+has one way to ask about fifteens and not two.
 
 Three combinators: intersection (`run of 3, all one suit` — the suited
 run), disjoint union (`3 of a kind with 2 of a kind` — the full house),
@@ -171,18 +177,13 @@ reconcile with that work rather than beside it). Wild participation in
 combinations belongs to tier 1's wilds clause (exclusion — Salvo) with
 substitution (Canasta) restricted to of-a-kind families when it lands.
 
-## Sequencing fork (the open decision)
+## What is open
 
-Both tiers pay the surface-totality tax; they can land in either order:
+The escape tier is the one that exists: a game states its odd cases as
+declared Primitives in a `primitives { }` block, and Salvo's combos are
+writable that way today. Tier 1 is what drains the six-witness cluster back
+out of those blocks, and it is the open piece — the higher-value language
+investment, and the one that makes cribbage's show designer-authorable.
 
-- **Sidecars first** (`primitives { }` block, stage 3 of that note's
-  sequence): the smaller grammar change; unblocks Salvo and every odd
-  case at once; tier 1 then drains the six-witness cluster out of the
-  blocks at leisure.
-- **Combinations first**: the higher-value language investment; Salvo
-  and cribbage's show become designer-authorable immediately; the odd
-  cases keep their current (undisciplined) registry primitives until
-  sidecars land.
-
-Either way, no new-style registry primitive ships meanwhile; Salvo's
-round 5 stays blocked until one of the two lands.
+No new-style registry primitive ships meanwhile: a game's Python is declared
+in its own file or it does not exist.

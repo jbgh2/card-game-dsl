@@ -20,7 +20,6 @@ a second one cannot arrive unstamped.
 
 from __future__ import annotations
 
-import itertools
 from collections.abc import Callable
 from typing import Any, assert_never
 
@@ -34,7 +33,7 @@ from cardlang.domains import (
     role_names,
     role_of,
 )
-from cardlang.runtime import mechanics, observe
+from cardlang.runtime import mechanics, observe, subsets
 from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
@@ -443,29 +442,25 @@ def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> li
     return source.take_top(count)  # deal off the top
 
 
-# Joint selection enumerates subsets of the source; beyond this pool size the
-# subset count is no longer a sane decision space (2^16 candidates) — refuse
-# loudly rather than hang. Gin, the anchor, tops out at 11.
-_JOINT_ENUMERATION_BOUND = 16
-
-
 def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
     """The `where jointly <pred>` form: ONE decision whose candidates are the
     source's subsets satisfying the joint predicate (`cards` bound to each
     candidate set), sized per the amount — `some` is any non-empty size, an
     expression is exactly that size, `one`/`all` degenerate to size 1 / the
     whole source. Enumeration order is deterministic: sizes ascending,
-    `itertools.combinations` in source order — the action-space encoder and
+    `subsets.sized`'s order — sizes ascending, combinations in source order
+    — so the action-space encoder and
     the chooser see the same list."""
     pool = list(source.cards)
-    if len(pool) > _JOINT_ENUMERATION_BOUND:
-        raise OwnerGuardError(
-            f"joint selection over {len(pool)} cards exceeds the enumeration "
-            f"bound ({_JOINT_ENUMERATION_BOUND} — 2^{len(pool)} subsets), a "
-            f"fixed engine limit with no game-side setting; select over a "
-            f"smaller pool (narrow the source, or filter it before the "
-            f"`jointly` selection)"
-        )
+    # The bound is `runtime/subsets`': one home for every enumeration of a card
+    # pool's subsets, so the number and the refusal cannot drift between the
+    # two constructs that ask for one. Gin, the anchor here, tops out at 11.
+    subsets.check_pool(
+        pool,
+        "joint selection",
+        "select over a smaller pool (narrow the source, or filter it before "
+        "the `jointly` selection)",
+    )
     amount = stmt.amount
     # Subset sizes are always >= 1: a joint selection selects a non-empty
     # subset (a zero-card "choice" is not a decision), so a k <= 0 amount and
@@ -487,8 +482,7 @@ def _select_joint(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> l
     noun = content_noun(ctx.rs.content_flavor, plural=True)
     candidates: list[CardSet] = [
         CardSet(subset)
-        for size in sizes
-        for subset in itertools.combinations(pool, size)
+        for subset in subsets.sized(pool, sizes)
         if bool(evaluate(stmt.where, ctx.with_local(noun, list(subset))))
     ]
     if not candidates:

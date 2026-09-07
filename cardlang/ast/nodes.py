@@ -209,6 +209,74 @@ class Comprehension:
     span: Span | None = None
 
 
+# The subset binder's three closed value domains. Each is the axis its grid is
+# crossed from, and each is folded by an exhaustive `match` that RAISES on an
+# unknown member rather than falling through to a default -- a `case _` that
+# returns a type is how an unknown kind reaches a checker silently.
+SUBSET_KIND_ANY = "any"
+SUBSET_KIND_ALL = "all"
+SUBSET_KIND_COUNT = "count"
+SUBSET_QUERY_KINDS: frozenset[str] = frozenset(
+    {SUBSET_KIND_ANY, SUBSET_KIND_ALL, SUBSET_KIND_COUNT}
+)
+
+SUBSET_AGG_SUM = "sum"
+SUBSET_AGG_HIGHEST = "highest"
+SUBSET_AGG_LOWEST = "lowest"
+SUBSET_AGGREGATORS: frozenset[str] = frozenset(
+    {SUBSET_AGG_SUM, SUBSET_AGG_HIGHEST, SUBSET_AGG_LOWEST}
+)
+
+# `of <k> cards` names one size; `of <k> or more cards` names every size from k
+# up. There is no unbounded form: every witness states a floor, and a subset
+# domain with no stated size has no rulebook reading.
+SUBSET_SIZE_EXACT = "exact"
+SUBSET_SIZE_FLOOR = "floor"
+SUBSET_SIZE_MODES: frozenset[str] = frozenset({SUBSET_SIZE_EXACT, SUBSET_SIZE_FLOOR})
+
+# The binder the subset forms bind per candidate set -- the domain noun's
+# singular, as every query form's pronoun is (decisions.md "The expression
+# register"). Distinct from `where jointly`'s `cards`, which is a decision's
+# candidate set rather than a member of an enumerated domain.
+SUBSET_BINDER = "subset"
+
+
+@dataclass(frozen=True, slots=True)
+class SubsetQuery:
+    """A query or aggregation over a zone's SUBSETS, binder `subset` bound to
+    each candidate set (a card collection, never a single card):
+
+    - `any subset of <k> [or more] cards in <zone> where <pred>`
+    - `all subsets of <k> [or more] cards in <zone> where <pred>`
+    - `number of subsets of <k> [or more] cards in <zone> where <pred>`
+    - `sum of <body> over subsets of <k> [or more] cards in <zone> [where <pred>]`
+    - `highest|lowest <body> over subsets of ... [where <pred>] or <default>`
+
+    One node carries both registers because they differ only in the fold: the
+    enumeration, its size clause and its bound are the same question either
+    way. `kind` names the query fold (a member of `SUBSET_QUERY_KINDS`) and is
+    ``None`` for the aggregation register; `agg` names the aggregation fold (a
+    member of `SUBSET_AGGREGATORS`) and is ``None`` for the query register --
+    exactly one is set, and every consumer folds by an exhaustive `match` that
+    raises rather than defaulting.
+
+    `size_mode` is a member of `SUBSET_SIZE_MODES`: `exact` enumerates subsets
+    of exactly `count` cards, `floor` every size from `count` up. `count` is an
+    ordinary expression evaluated OUTSIDE the binder scope, like every other
+    source-slot operand."""
+
+    kind: str | None  # a member of SUBSET_QUERY_KINDS, or None for an aggregation
+    agg: str | None  # a member of SUBSET_AGGREGATORS, or None for a query
+    size_mode: str  # a member of SUBSET_SIZE_MODES
+    count: Expr
+    source: Expr
+    binder: str
+    body: Expr | None = None  # the aggregated expression; None for a query
+    where: Expr | None = None
+    default: Expr | None = None  # the order aggregators' mandatory empty answer
+    span: Span | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class CardQuery:
     """A query over a card zone, `pred` evaluated per card with `card` bound
@@ -380,6 +448,7 @@ Expr = (
     | PlayerQuery
     | CardQuery
     | DomainQuery
+    | SubsetQuery
 )
 
 
@@ -1560,6 +1629,7 @@ Node = (
     | PlayerQuery
     | CardQuery
     | DomainQuery
+    | SubsetQuery
 )
 
 

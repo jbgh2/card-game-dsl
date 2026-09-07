@@ -1,28 +1,30 @@
-"""Scopa's runtime support: subset enumeration over the layout.
+"""Scopa's runtime support: the capture's joint predicate and its codec.
 
 The whole game runs in the DSL (docs/games/scopa.cardlang) — the misdeal
 redeal, the alternating turn loop, the forced single-card capture, the scopa
-bonus and its final-play exception, the last capturer taking what remains, and
-all five scoring components, the primiera included. What is not expressible
-there is enumeration over the SUBSETS of a zone: every aggregation the language
-offers ranges over a zone's cards one at a time, so "some set of layout cards
-sums to the played card" cannot be said (issue #246).
+bonus and its final-play exception, the last capturer taking what remains, all
+five scoring components with the primiera included, and the guard that asks
+whether the layout holds a satisfying set at all, which is the subset binder.
 
-Three things carry that gap:
+Two things stay here, and both because the capture is a DECISION rather than a
+question:
 
-- `scopa_can_sum` — a satisfying set exists. The guard that keeps the joint
-  selection from being offered with nothing to select (the no-implicit-actions
-  pairing), so it quantifies over exactly what `scopa_sums_to` admits.
 - `scopa_sums_to` — the joint predicate the capture decision selects over: two
-  or more cards whose capture values sum to the played card's.
+  or more cards whose capture values sum to the played card's. `where jointly`
+  requires a predicate rooted in a CALL, because the root names the codec
+  below; and a collection type — the type of the candidate set the predicate is
+  handed — is spellable in a `primitives { }` entry and nowhere else, so the
+  arithmetic has no home in the language (issue #246).
 - `SCOPA_CAPTURE_CODEC` — the subset universe as pure card-set <-> action-index
   functions, served to the OpenSpiel action space by
-  `primitives.joint_codec_function`.
+  `primitives.joint_codec_function`. Every joint predicate needs one: a
+  candidate set's action id cannot be derived from the predicate's text.
 
 A card's capture value is A=1 through 7=7, J=8, Q=9, K=10 — the deck's own
-ordinal. The two predicates read it off `facts.rank_index`, the game's declared
-`ranking:`, which is the same order the game file's `capture_value` reads, so
-the DSL and the Python cannot state different values. The codec has no engine
+ordinal. The predicate reads it off `facts.rank_index`, the game's declared `ranking:`,
+which is the same order the game file's own `capture_value` reads — in the
+guard beside the movement as well as in the scoring — so the DSL and the Python
+cannot state different values. The codec has no engine
 facts to read, so it derives the ordinal from the `scopa40` deck registry
 instead; `tests/test_scopa_capture_codec.py` pins the two derivations equal and
 pins both against the ordinal the game file declares.
@@ -67,22 +69,6 @@ def _values(cards: Sequence[Card], rank_index: Mapping[str, int], reader: str) -
     return [capture_value(rank_index, c.rank, reader) for c in cards]
 
 
-def _some_subset_sums(values: list[int], target: int, minimum: int) -> bool:
-    """Whether some sub-multiset of `values` of at least `minimum` members sums
-    to `target`. Exact over the whole subset space: the reachable (sum, size)
-    pairs are accumulated one card at a time, which is linear in the layout and
-    bounded by the target rather than by 2**len."""
-    if target <= 0:
-        return False
-    reachable: set[tuple[int, int]] = {(0, 0)}
-    for v in values:
-        grown = {
-            (s + v, n + 1) for (s, n) in reachable if s + v <= target and n < len(values)
-        }
-        reachable |= grown
-    return any(s == target and n >= minimum for (s, n) in reachable)
-
-
 def sums_to(values: list[int], target: int) -> bool:
     """Whether these cards are a legal sum-capture of a card worth `target`:
     two or more of them, adding up to it exactly."""
@@ -90,18 +76,6 @@ def sums_to(values: list[int], target: int) -> bool:
 
 
 # --- the declared Primitives (signatures in primitives_block.PRIMITIVE_IMPLEMENTATIONS) ---
-
-
-def scopa_can_sum(facts: EngineFacts, gr: reads.GameReads, target: int) -> bool:
-    """Some set of two or more layout cards sums to `target` — the guard the
-    capture's joint selection is offered under. True exactly when
-    `scopa_sums_to` admits some subset of the layout, so the decision never
-    reaches the movement with an empty candidate set."""
-    return _some_subset_sums(
-        _values(gr.singles["table"], facts.rank_index, "scopa_can_sum"),
-        target,
-        MIN_CAPTURE_SET,
-    )
 
 
 def scopa_sums_to(facts: EngineFacts, gr: reads.GameReads, cards: list[Card], target: int) -> bool:

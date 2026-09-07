@@ -688,6 +688,28 @@ def _expr(e: n.Expr) -> IRDict:
             if e.start is not None:
                 pq["start"] = _expr(e.start)
             return pq
+        case n.SubsetQuery():
+            sq: IRDict = {
+                "kind": "subset_query",
+                "size_mode": e.size_mode,
+                "count": _expr(e.count),
+                "source": _expr(e.source),
+                "binder": e.binder,
+            }
+            # Exactly one fold is present, so exactly one of these keys is
+            # emitted — the same minimal-key discipline the sibling queries
+            # keep for their optional slots.
+            if e.kind is not None:
+                sq["query"] = e.kind
+            if e.agg is not None:
+                sq["agg"] = e.agg
+            if e.body is not None:
+                sq["body"] = _expr(e.body)
+            if e.where is not None:
+                sq["where"] = _expr(e.where)
+            if e.default is not None:
+                sq["default"] = _expr(e.default)
+            return sq
         case n.CardQuery():
             cq: IRDict = {
                 "kind": "card_query",
