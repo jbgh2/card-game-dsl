@@ -372,6 +372,7 @@ ROUNDS: dict[str, Rounds] = {
 # see betting turns and nothing else.
 NO_DECISION_OUTSIDE: frozenset[str] = frozenset(
     {
+        "five-card-stud.cardlang",
         "holdem-heads-up.cardlang",
         "holdem.cardlang",
         "kuhn-poker.cardlang",

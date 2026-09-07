@@ -52,6 +52,7 @@ PROSE_ONLY_TWINS: frozenset[str] = frozenset(
         "doppelkopf",
         "five-hundred",
         "freecell",
+        "five-card-stud",
         "french-tarot",
         "getaway",
         "gin-rummy",

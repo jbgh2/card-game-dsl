@@ -488,6 +488,7 @@ CONSUMERS: tuple[str, ...] = tuple(
 # round begins, by a seat that takes no turn to place it. Authored per member:
 # a new game joining the family arrives as a name this table does not hold.
 POSTS_BEFORE_THE_ROUND: dict[str, bool] = {
+    "five-card-stud": True,  # the bring-in
     "holdem": True,  # the blinds
     "holdem-heads-up": True,  # the blinds
     "kuhn-poker": False,  # antes, and an ante is not a bet
