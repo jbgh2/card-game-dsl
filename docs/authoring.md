@@ -93,7 +93,7 @@ $ cardlang check high-card.cardlang
 Then play one uniform-random self-play, asking for a seat's view at the end:
 
 ```console
-$ cardlang play high-card.cardlang --seed 3 --info-state 1
+$ cardlang demo high-card.cardlang --seed 3 --info-state 1
 HighCard — 2 seats, uniform-random self-play
   returns      P0 0, P1 1
   best return  P1
@@ -123,7 +123,7 @@ the hand left them. `--decisions` numbers the decisions so you know which one
 to name:
 
 ```console
-$ cardlang play high-card.cardlang --seed 3 --decisions
+$ cardlang demo high-card.cardlang --seed 3 --decisions
 HighCard — 2 seats, uniform-random self-play
   returns      P0 0, P1 1
   best return  P1
@@ -134,7 +134,7 @@ HighCard — 2 seats, uniform-random self-play
   0  P0 chooses 1 of 2: 2♦, 4♥
   1  P1 chooses 1 of 2: 5♣, 8♦
 
-$ cardlang play high-card.cardlang --seed 3 --info-state 1 --at 0
+$ cardlang demo high-card.cardlang --seed 3 --info-state 1 --at 0
 ...
 information state, seat 1, at decision 0 (P0 chooses 1 of 2: 2♦, 4♥):
 P1|deck=#48;hand[0]=#2;hand[1]=[5♣,8♦];shown[0]=[];shown[1]=[]|state:score={0:0,1:0}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'))

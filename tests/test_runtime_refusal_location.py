@@ -756,7 +756,7 @@ def _line_of(path: Path, sentence: str, occurrence: int) -> int:
 
 
 def _play(path: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, str]:
-    code = main(["play", str(path)])
+    code = main(["demo", str(path)])
     return code, capsys.readouterr().err
 
 

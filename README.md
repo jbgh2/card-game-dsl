@@ -38,12 +38,12 @@ Check a description, then play a hand of it:
 
 ```
 cardlang check my-game.cardlang  # parse + static checks; silent on success
-cardlang play my-game.cardlang --seed 7 --info-state 1
-cardlang play my-game.cardlang --seed 7 --decisions   # every decision, numbered
-cardlang play my-game.cardlang --seed 7 --info-state 1 --at 5   # that seat's view before decision 5
+cardlang demo my-game.cardlang --seed 7 --info-state 1
+cardlang demo my-game.cardlang --seed 7 --decisions   # every decision, numbered
+cardlang demo my-game.cardlang --seed 7 --info-state 1 --at 5   # that seat's view before decision 5
 ```
 
-Both take any path. `play` is one uniform-random self-play: the outcome, the
+Both take any path. `demo` is one uniform-random self-play: the outcome, the
 decision count, and the seed that reproduces the run, plus that seat's derived
 information state at the end of the game. `cardlang` is on PATH after the
 editable install below, and `python -m cardlang` runs the same front end
