@@ -33,20 +33,19 @@ Now illegal:  a bare or unrecognized-tag fenced block in these three docs —
               `test_every_block_is_classified` fails loud, naming the doc
               file and line, before any tag-specific check runs. Also now
               illegal: a `cardlang-bad`/`cardlang-bad-fragment` block
-              "passing" its rejection check only because the pipeline
-              crashed instead of cleanly rejecting — `_run_pipeline` turns
-              the one known crash path (lark's `VisitError` wrapping the
-              `StopIteration` that `cardlang.parse._Builder.start` raises on
-              game-less input) into a named `pytest.fail`, not a bare
-              traceback a reader has to reverse-engineer.
+              "passing" its rejection check only because it is not a whole
+              game — `_run_pipeline` turns the pipeline's refusal of a
+              game-less source into a named `pytest.fail` that says how to
+              retag the block, so that refusal can never stand in for the
+              mistake the block means to demonstrate.
 Verified by:  this module's own parametrized tests over the live docs, plus
               `test_self_*` synthetic-fixture tests that prove each of the
-              five code paths (classified/unclassified,
+              code paths (classified/unclassified,
               cardlang-pass/cardlang-bad-reject/fragment-pass/
-              bad-fragment-reject) independently of what the corpus of real
-              doc blocks happens to contain — including a test that a
-              *benign* fragment mistagged `cardlang-bad-fragment` is NOT
-              reported as a valid rejection.
+              bad-fragment-reject/fragment-checked-raw) independently of what
+              the corpus of real doc blocks happens to contain — including a
+              test that a *benign* fragment mistagged `cardlang-bad-fragment`
+              is NOT reported as a valid rejection.
 
 Completeness ledger
 --------------------
@@ -96,7 +95,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from lark.exceptions import VisitError
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.extract import FencedBlock, extract_blocks
@@ -480,6 +478,11 @@ def _block_id(block: FencedBlock) -> str:
 # recipe, so the registry does not depend on the block's line number.
 _FRAGMENT_TAGS = frozenset({"cardlang-fragment", "cardlang-bad-fragment"})
 
+# The wording of the pipeline's refusal of a source with no `game { }` block
+# (`cardlang.parse._Builder.start`); `test_self_fragment_checked_raw_fails_loud`
+# reddens if it moves.
+_GAME_LESS_SOURCE = "declares no `game { }` block"
+
 
 def _tag(block: FencedBlock) -> str:
     parts = block.info.split(maxsplit=1)
@@ -495,17 +498,17 @@ def _run_pipeline(text: str, location: str) -> DiagnosticError | None:
     """Run `check_dsl`, returning the DiagnosticError if one was raised, or
     None on success.
 
-    One specific non-DiagnosticError crash is intercepted and converted to a
-    named `pytest.fail`: lark's `VisitError` wrapping the `StopIteration`
-    that `cardlang.parse._Builder.start` raises when `text` has no enclosing
+    One specific rejection is intercepted and converted to a named
+    `pytest.fail`: the pipeline's refusal of a source with no enclosing
     `game { ... }` block (i.e. `text` is fragment-shaped but was checked
-    raw). Left alone, that crash would still fail the test, but as an opaque
-    traceback a reader has to reverse-engineer — and for a `cardlang-bad`
-    block specifically, a *different* uncaught exception there would read as
-    "rejected, as the tag claims" for the wrong reason (not a whole game,
-    rather than the mistake the doc means to demonstrate). Converting it to
-    `pytest.fail` keeps that path loud without being either kind of
-    vacuous-green.
+    raw). Left alone, that refusal is a DiagnosticError like any other, so
+    for a `cardlang-bad` block it would read as "rejected, as the tag
+    claims" for the wrong reason (not a whole game, rather than the mistake
+    the doc means to demonstrate). Converting it to `pytest.fail` keeps that
+    path loud instead of vacuous-green. Only a definitions-only fragment
+    reaches that refusal: a statement-shaped one fails at parse as a syntax
+    error, which is not distinguished here from the mistake a `cardlang-bad`
+    block means to show.
 
     Any *other* exception is NOT swallowed — it propagates and fails the
     test with a Python traceback pointing at `location`, rather than being
@@ -513,19 +516,15 @@ def _run_pipeline(text: str, location: str) -> DiagnosticError | None:
     try:
         check_dsl(text, location)
     except DiagnosticError as exc:
-        return exc
-    except VisitError as exc:
-        if isinstance(exc.orig_exc, StopIteration):
+        if _GAME_LESS_SOURCE in exc.diagnostic.message:
             pytest.fail(
-                f"{location}: the pipeline crashed (lark VisitError wrapping "
-                "StopIteration) instead of raising DiagnosticError — this "
-                "snippet has no enclosing `game {...}` block "
-                "(cardlang.parse._Builder.start found none among the parsed "
-                "top-level items). It is fragment-shaped and must be tagged "
+                f"{location}: the pipeline refused this snippet for having no "
+                "enclosing `game {...}` block, not for the mistake it means to "
+                "demonstrate. It is fragment-shaped and must be tagged "
                 "`cardlang-fragment` / `cardlang-bad-fragment` and checked "
                 "via WRAPPER_RECIPES, not raw as `cardlang` / `cardlang-bad`."
             )
-        raise
+        return exc
     return None
 
 
@@ -788,6 +787,21 @@ def test_self_cardlang_bad_block_is_rejected() -> None:
     assert "is not an operator" in err.diagnostic.message
 
 
+def test_self_fragment_checked_raw_fails_loud() -> None:
+    """A definitions-only snippet checked raw is refused by the pipeline for
+    having no `game { }` block — a DiagnosticError that would satisfy a
+    `cardlang-bad` block's rejection check for the wrong reason. The check
+    must fail loud instead, naming the retag. The fixture parses, so the
+    only thing the pipeline can refuse is its shape.
+
+    red under: return the refusal from `_run_pipeline` instead of failing —
+    the raises-clause below is then unsatisfied. Verified by doing so."""
+    md = f"```cardlang-bad\n{_SELF_DEFINITIONS_ONLY}```\n"
+    [block] = extract_blocks(md, "synthetic.md")
+    with pytest.raises(pytest.fail.Exception, match="fragment-shaped"):
+        _run_pipeline(block.text, "synthetic.md")
+
+
 def test_self_cardlang_fragment_block_passes_when_wrapped() -> None:
     md = "```cardlang-fragment\nmove all cards to deck\n```\n"
     [block] = extract_blocks(md, "synthetic.md")
@@ -806,6 +820,9 @@ def _self_frag_wrapper(frag: str) -> str:
 
 _SELF_BAD_FRAGMENT_SMOKE = "move all cards to deck\n"  # benign filler: passes
 _SELF_BAD_FRAGMENT_BAD = "move all cards to nonexistent_zone\n"  # unresolved zone
+# A definitions-only fragment: parses as `top_item+`, so the pipeline's only
+# refusal available to it is the missing `game { }` block.
+_SELF_DEFINITIONS_ONLY = "rule nothing {\n  demands: actions where true\n}\n"
 
 
 def test_self_cardlang_bad_fragment_block_is_rejected_when_wrapped() -> None:
