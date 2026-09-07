@@ -129,3 +129,68 @@ def test_the_size_clause_cannot_be_dropped_silently() -> None:
         check_dsl(_game("    score[0] := number of subsets in table where 1 is 1"),
                   "misuse.cardlang")
     assert "expected `of`" in str(exc.value), str(exc.value)
+
+
+# --- the union source: the wrong spellings and the wrong members ------------
+# Each of these is a sentence a designer would plausibly write for "these two
+# zones together". The comma has the language's own precedent (`reads a, b`),
+# `+` reads as addition, and `and` is the boolean operator three words later --
+# each must meet a rejection that NAMES `together with`, never a bare token
+# error, on the `trick_order_comma_reject` precedent. The rest are members
+# that are not zones, and a union written where the language does not offer
+# one (a card query), which stays a syntax error and must not silently parse
+# as something else.
+# Designed red: each of these meets the parser's message today and the guard's
+# message once the production and its reject-with-replacement twins exist.
+_UNION_PROBES: list[tuple[str, str, str]] = [
+    ("comma", "    score[0] := number of subsets of 2 cards in table, hand[0] where 1 is 1",
+     "together with"),
+    ("plus", "    score[0] := number of subsets of 2 cards in table + hand[0] where 1 is 1",
+     "together with"),
+    ("and", "    score[0] := number of subsets of 2 cards in table and hand[0] where 1 is 1",
+     "together with"),
+    ("a state variable as a member",
+     "    score[0] := number of subsets of 2 cards in table together with score where 1 is 1",
+     "not a zone"),
+]
+
+# Born green, and staying green: sentences that are syntax errors today and
+# must REMAIN syntax errors after the union lands -- never a silent parse to
+# some other meaning. Each names the edit that would redden it.
+#   dangling / bare `with` / a number or player collection as a member:
+#       red under: widen `subset_source`'s member from `zone_expr` to `expr`.
+#   the union in a card query:
+#       red under: add `zone_expr (_TOGETHER_KW _WITH_KW zone_expr)*` to `cq_count`.
+_UNION_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
+    ("dangling", "    score[0] := number of subsets of 2 cards in table together with where 1 is 1"),
+    ("bare with", "    score[0] := number of subsets of 2 cards in table with hand[0] where 1 is 1"),
+    ("a number as a member",
+     "    score[0] := number of subsets of 2 cards in table together with 5 where 1 is 1"),
+    ("a player collection as a member",
+     "    score[0] := number of subsets of 2 cards in table together with all players "
+     "where 1 is 1"),
+    ("the union in a card query",
+     "    score[0] := number of cards in table together with hand[0]"),
+]
+
+
+@pytest.mark.parametrize("label,body,carries", _UNION_PROBES, ids=[p[0] for p in _UNION_PROBES])
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="`together with` is not a production yet, so the message a "
+                          "designer meets is the parser's, not the guard's")
+def test_a_wrong_union_is_refused_loudly(label: str, body: str, carries: str) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game(body), "misuse.cardlang")
+    message = str(exc.value)
+    assert carries in message, message
+    assert "misuse.cardlang:" in message, message
+
+
+@pytest.mark.parametrize("label,body", _UNION_STAYS_A_SYNTAX_ERROR,
+                         ids=[p[0] for p in _UNION_STAYS_A_SYNTAX_ERROR])
+def test_a_malformed_union_stays_a_syntax_error(label: str, body: str) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game(body), "misuse.cardlang")
+    message = str(exc.value)
+    assert "syntax error" in message, message
+    assert "misuse.cardlang:" in message, message

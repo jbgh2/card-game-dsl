@@ -13,7 +13,18 @@ domain:     the three closed value domains the construct declares. Fully
             produce (a zone name, a zone-family subscript, a `let`-bound
             collection), since `NameRef` and `Subscript` are the only two the
             production admits and a computed collection reaches one only
-            through a name.
+            through a name -- in ONE OR MORE members joined by `together
+            with`. A multi-member source is a phrase on the node, never a
+            value: it has no type, cannot be bound, and can reach no other
+            slot, which is what keeps every zone-demanding position untouched.
+            Its members are crossed over arity {1, 2, 3} and composition
+            {zone, subscript, let, and their unions}; the union's semantics
+            are pinned as cells -- a card in two members counts once per
+            member (concatenation, the runtime's own multiset), the same
+            spelling twice is refused by name, and the enumeration bound
+            applies to the union's total. Order across a union is stated and
+            not pinned: every fold the construct has is commutative, so it is
+            unobservable through this construct.
             Swept at both values but NOT crossed with the above, each for a
             stated reason: the filter axis, which exists only in the
             aggregation register (the query forms' `where` is mandatory) and
@@ -121,6 +132,57 @@ _SOURCES = {
     "subscript": ("hand[0]", ""),
     "let": ("held", "    let held = cards in table where 1 is 1\n"),
 }
+
+# The union members. `table` holds the four 7s and `hand[0]` the four 6s, so
+# every two-member union below is eight cards and the three-member one adds
+# the empty `hand[1]`, which contributes nothing -- an arity-3 cell whose
+# expected values are the arity-2 ones is exactly what proves an empty member
+# is inert rather than an error. The two orders of the same pair pin that no
+# fold can see the order. The `let` member is the four table cards again, so
+# `held together with table` is the OVERLAP cell: eight cards, every one
+# present twice, and concatenation counts each twice.
+_UNION_SOURCES = {
+    "zone+subscript": ("table together with hand[0]", "", 8),
+    "subscript+zone": ("hand[0] together with table", "", 8),
+    "let+subscript": ("held together with hand[0]", "    let held = cards in table where 1 is 1\n", 8),
+    "three": ("table together with hand[0] together with hand[1]", "", 8),
+    "overlap": ("held together with table", "    let held = cards in table where 1 is 1\n", 8),
+}
+
+
+def _choose(n: int, k: int) -> int:
+    from math import comb
+    return comb(n, k)
+
+
+# The authored arithmetic for a pool of N cards, size 2 in both modes, checked
+# against the two hand-computed pools before any union cell trusts it.
+def _expected(size: int) -> dict[tuple[str, str], int | bool]:
+    return {
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT): _choose(size, 2),
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR): 2 ** size - 1 - size,
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT): 2 * _choose(size, 2),
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR): size * 2 ** (size - 1) - size,
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_EXACT): 2,
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_FLOOR): size,
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_EXACT): 2,
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_FLOOR): 2,
+    }
+
+
+def test_the_union_arithmetic_agrees_with_the_hand_computed_cells() -> None:
+    """The formula is only as good as the two pools it was checked against:
+    the four-card values every single-source cell below carries by hand, and
+    the eight-card values computed by hand for the union cells."""
+    four = _expected(4)
+    assert four[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT)] == 6
+    assert four[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR)] == 11
+    assert four[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR)] == 28
+    eight = _expected(8)
+    assert eight[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT)] == 28
+    assert eight[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR)] == 247
+    assert eight[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT)] == 56
+    assert eight[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR)] == 1016
 
 # Expected values over a four-card source.
 #   exact 2 -> C(4,2) = 6 subsets, every one of size 2
@@ -393,3 +455,95 @@ def test_a_zone_may_be_named_for_the_binder_and_the_binder_still_wins() -> None:
     )
     result = play_game(check_dsl(src, "grid.cardlang"), rng=random.Random(0))
     assert int(result.scores[0]) == 6, "the zone answered, not the binder"
+
+
+# --- Grid F: the union source -----------------------------------------------
+_UNION_QUERY_CELLS = [
+    (kind, mode, src)
+    for src in _UNION_SOURCES
+    for kind in sorted(n.SUBSET_QUERY_KINDS)
+    for mode in sorted(n.SUBSET_SIZE_MODES)
+]
+_UNION_AGG_CELLS = [
+    (agg, mode, src)
+    for src in _UNION_SOURCES
+    for agg in sorted(n.SUBSET_AGGREGATORS)
+    for mode in sorted(n.SUBSET_SIZE_MODES)
+]
+
+
+@pytest.mark.parametrize("kind,mode,source", _UNION_QUERY_CELLS)
+@pytest.mark.xfail(strict=True, raises=DiagnosticError,
+                   reason="`together with` is not a production yet")
+def test_query_register_over_a_union(kind: str, mode: str, source: str) -> None:
+    name, extra, size = _UNION_SOURCES[source]
+    if kind == n.SUBSET_KIND_COUNT:
+        sentence = _query_sentence(kind, mode, name, _TAUTOLOGY)
+        assert probe_value(sentence, extra=extra) == _expected(size)[(kind, mode)]
+    else:
+        sentence = _query_sentence(kind, mode, name, _IS_A_PAIR)
+        # every exact-2 subset is a pair; a floor-2 domain also holds larger ones
+        expected = True if kind == n.SUBSET_KIND_ANY else mode == n.SUBSET_SIZE_EXACT
+        assert probe_bool(sentence, extra=extra) is expected
+
+
+@pytest.mark.parametrize("agg,mode,source", _UNION_AGG_CELLS)
+@pytest.mark.xfail(strict=True, raises=DiagnosticError,
+                   reason="`together with` is not a production yet")
+def test_aggregation_register_over_a_union(agg: str, mode: str, source: str) -> None:
+    name, extra, size = _UNION_SOURCES[source]
+    assert probe_value(_agg_sentence(agg, mode, name, None), extra=extra) == _expected(size)[(agg, mode)]
+
+
+def test_the_union_axes_are_the_whole_registries() -> None:
+    assert {k for k, _, _ in _UNION_QUERY_CELLS} == n.SUBSET_QUERY_KINDS
+    assert {a for a, _, _ in _UNION_AGG_CELLS} == n.SUBSET_AGGREGATORS
+    assert {m for _, m, _ in _UNION_QUERY_CELLS} == n.SUBSET_SIZE_MODES
+    assert {s for _, _, s in _UNION_QUERY_CELLS} == set(_UNION_SOURCES)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="the self-union guard does not exist yet; the parser's "
+                          "message is not the guard's")
+def test_the_same_zone_twice_is_refused_by_name() -> None:
+    """`table together with table` names one zone twice. Refused at resolve, in
+    the designer's words, naming the zone -- not folded into a domain where
+    every card appears twice and nothing says so."""
+    try:
+        probe_value("number of subsets of 2 cards in table together with table where 1 is 1")
+    except Exception as exc:
+        assert "table" in str(exc) and "twice" in str(exc), str(exc)
+    else:
+        raise AssertionError("a zone named twice was accepted")
+
+
+@pytest.mark.xfail(strict=True, raises=DiagnosticError,
+                   reason="`together with` is not a production yet")
+def test_the_bound_applies_to_the_unions_total() -> None:
+    """Twelve cards on the table and four in hand is sixteen -- the bound
+    exactly -- and the whole non-empty powerset is walked; one more rank on
+    the table makes twenty, and the union is refused as a whole."""
+    assert probe_value(
+        "number of subsets of 1 or more cards in table together with hand[0] where 1 is 1",
+        table_ranks=("7", "5", "4"),
+    ) == 2 ** ENUMERATION_BOUND - 1
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 1 or more cards in table together with hand[0] where 1 is 1",
+            table_ranks=("7", "5", "4", "3"),
+        )
+    assert "20 cards" in str(exc.value), str(exc.value)
+
+
+@pytest.mark.xfail(strict=True, raises=DiagnosticError,
+                   reason="`together with` is not a production yet")
+def test_the_bound_refusal_names_the_whole_union() -> None:
+    """The refusal is located at the union the designer wrote, not at its
+    first member and not at nothing."""
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 1 or more cards in table together with hand[0] where 1 is 1",
+            table_ranks=("7", "5", "4", "3"),
+        )
+    assert exc.value.zone == "table together with hand[0]", exc.value.zone
+
