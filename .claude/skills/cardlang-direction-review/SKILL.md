@@ -45,6 +45,14 @@ Each check names its query so the answer is derived, not vibed:
    R4, a ledger nobody read back — is a candidate for narrowing. Cite the
    instance; propose the narrowing as a doctrine amendment, not a silent
    lapse.
+6. **Surface nobody uses.** `python -m tools.dead_surface` prints every
+   construct the grammar defines that no corpus game, library or stdlib
+   rule uses, and every general construct whose only consumers score
+   (decisions.md, "Scoring has no constructs of its own"). Each row is a
+   retire-or-keep decision under the orphaned-surface ruling, decided here
+   and recorded in the verdict — never a gate, since surface may land ahead
+   of its first game. The report is derived on demand and is never checked
+   in.
 
 ## Output contract
 

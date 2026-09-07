@@ -1,0 +1,198 @@
+"""The zero-consumer report (`tools/dead_surface.py`, issue #653) can fail.
+
+Completeness ledger (decisions.md "Closed-domain completeness")
+-----------------------------------------------------------------
+property:   the report names every construct the grammar defines that no live
+            file uses, and nothing else: a rule or keyword leaves the dead
+            list exactly when a corpus, library or stdlib file produces or
+            writes it, and an experiment or test consumer is named beside the
+            row without reviving it. The scoring column names a construct
+            exactly when every live occurrence sits in a scoring sentence.
+domain:     synthetic sources built here, parsed by the real grammar, so no
+            cell depends on what the corpus happens to use today -- the one
+            corpus-facing pin is that the real tree renders. The rule axis is
+            the grammar scrape's (aliases, un-aliased non-inlined rules, no
+            reject twins) and the keyword axis is every `_X_KW` terminal,
+            each pinned against the parser's own terminal table. Scoring is
+            an assignment to the winner variable or to a variable that flows
+            into it, and a function every call of which sits in one, both
+            transitively; a game with no `winner: highest/lowest x` has no
+            scoring sentence, which is stated, not a gap.
+registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
+            `tools.dead_surface.keyword_axis`, pinned against
+            `cardlang.parse._parser().terminals`; consumer tiers:
+            `tools.dead_surface.TIERS`.
+does not prove:  that a dead row SHOULD be retired -- the report is an input to
+            the direction review, which owns that decision, and register
+            symmetry keeps some rows alive on purpose. Nor that a `?`-level
+            rule with an un-aliased multi-child alternative is on the axis:
+            precedence levels are excluded wholesale, so such a construct
+            would go unreported rather than misreported.
+"""
+
+from __future__ import annotations
+
+import pathlib
+import re
+
+from cardlang.parse import _parser
+from tools import dead_surface as ds
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+GRAMMAR = (ROOT / "cardlang" / "grammar" / "cardlang.lark").read_text()
+
+
+def game(body: str, *, state: str = "", functions: str = "", winner: str = "winner: highest score") -> str:
+    return (
+        "game G {\n"
+        "  players: 2\n  max_length: 100\n  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
+        "  zones { deck : Deck  hand[player] : Hand<player> }\n"
+        f"  state {{ score[player] : Integer = 0  {state} }}\n"
+        f"  {winner}\n"
+        f"  phase p {{\n{body}\n  }}\n"
+        "}\n"
+        f"{functions}"
+    )
+
+
+def src(name: str, text: str, tier: str = "corpus") -> ds.Source:
+    return ds.Source(name, text, "start", tier)
+
+
+COUNT = "number of subsets of 2 cards in hand[0] where 1 is 1"
+
+
+def test_a_live_consumer_takes_a_rule_off_the_dead_list() -> None:
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game(f"    score[0] := {COUNT}"))])
+    dead = rep.dead_rules()
+    assert "sq_count" not in dead and "subset_exact" not in dead
+    assert "sq_all" in dead  # nothing synthetic writes `all subsets`
+
+
+def test_a_planted_production_nothing_produces_is_reported() -> None:
+    """Born green; red under: dropping aliases from `rule_axis`."""
+    planted = GRAMMAR + "\nplanted_rule: NAME -> planted_dead_form\n"
+    rep = ds.report(planted, [src("a.cardlang", game("    score[0] := 1"))])
+    assert "planted_dead_form" in rep.dead_rules()
+
+
+def test_a_reject_twin_is_not_surface() -> None:
+    """Red under: dropping the `_reject` exclusion from `rule_axis`."""
+    assert "subset_comma_reject" not in ds.rule_axis(GRAMMAR)
+    assert "collection_type_reject" not in ds.rule_axis(GRAMMAR)
+
+
+def test_a_precedence_level_is_not_a_row_but_its_aliases_are() -> None:
+    axis = ds.rule_axis(GRAMMAR)
+    assert "sum" not in axis and "expr" not in axis
+    assert "add" in axis and "sq_any" in axis
+
+
+def test_an_experiment_or_fixture_consumer_is_named_but_does_not_revive() -> None:
+    rep = ds.report(GRAMMAR, [src("tests/fixtures/x.cardlang", game(f"    score[0] := {COUNT}"), "other")])
+    assert "sq_count" in rep.dead_rules()
+    assert rep.rule_consumers["sq_count"] == {"other": ("tests/fixtures/x.cardlang",)}
+    assert "- sq_count  (only in: tests/fixtures/x.cardlang)" in rep.render()
+
+
+def test_the_scoring_column_names_a_construct_used_only_to_score() -> None:
+    only_scoring = src("a.cardlang", game(f"    score[0] := {COUNT}"))
+    rep = ds.report(GRAMMAR, [only_scoring])
+    assert rep.all_scoring["sq_count"] == ("a.cardlang",)
+    in_a_guard = src("b.cardlang", game(f"    if ({COUNT}) > 0 {{ score[0] := 1 }}"))
+    rep = ds.report(GRAMMAR, [only_scoring, in_a_guard])
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_scoring_flows_through_a_feeder_variable_and_a_function() -> None:
+    text = game(
+        "    hand_points := f()\n    score[0] += hand_points",
+        state="hand_points : Integer = 0",
+        functions=f"function f() = {COUNT}\n",
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" in rep.all_scoring
+    leaked = game(
+        "    hand_points := f()\n    score[0] += hand_points\n    if f() > 0 { score[1] := 1 }",
+        state="hand_points : Integer = 0",
+        functions=f"function f() = {COUNT}\n",
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", leaked)])
+    # the guard's call is not a scoring sentence, so the function is not one either
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_a_game_with_no_ranked_winner_has_no_scoring_sentence() -> None:
+    text = game(f"    score[0] := {COUNT}", winner="winner: the player where score[player] > 0")
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_a_keyword_in_a_comment_or_a_string_is_not_written() -> None:
+    """Red under: dropping the comment or the string stripping in `_read`."""
+    text = game('    // override\n    if any card in hand[0] where card.rank is "override" { score[0] := 1 }')
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "OVERRIDE" in rep.dead_keywords()
+    written = game("    score[0] := 1 divided by 2 rounded down")
+    rep = ds.report(GRAMMAR, [src("a.cardlang", written)])
+    assert "DOWN" not in rep.dead_keywords()
+
+
+def test_the_keyword_axis_is_every_keyword_terminal() -> None:
+    """Derived twice: the grammar scrape against the parser's terminal table."""
+    scraped = set(ds.keyword_axis(GRAMMAR))
+    terminals = {t.name[1:-3] for t in _parser().terminals if t.name.endswith("_KW")}
+    assert scraped == terminals
+
+
+# The denominator, derived a second time here rather than read off `TIERS`, so
+# a tier dropped from the tool is a tier this pin still expects.
+_EXPECTED_TIERS = {
+    "docs/games/*.cardlang": ("corpus", "start"),
+    "docs/libraries/*.cardlang": ("shared", "library"),
+    "cardlang/stdlib/*.cardlang": ("shared", "stdlib_rules"),
+    "experiments/**/*.cardlang": ("other", "start"),
+    "tests/**/*.cardlang": ("other", "start"),
+}
+
+
+def test_the_default_denominator_is_every_tier() -> None:
+    """Red under: dropping a tier from `TIERS`, or mis-kinding a directory."""
+    by_name = {s.name: s for s in ds.default_sources()}
+    for pattern, (tier, start) in _EXPECTED_TIERS.items():
+        paths = list(ROOT.glob(pattern))
+        assert paths, pattern
+        for path in paths:
+            source = by_name[path.relative_to(ROOT).as_posix()]
+            assert (source.tier, source.start) == (tier, start), path
+
+
+def test_a_source_that_does_not_parse_is_counted_not_fatal() -> None:
+    rep = ds.report(GRAMMAR, [src("broken.cardlang", "game G { players: }")])
+    assert rep.unparsed == ("broken.cardlang",) and rep.parsed == ()
+
+
+def test_the_report_is_sorted_in_every_section() -> None:
+    """Born green; red under: dropping a `sorted` in `dead_rules`,
+    `dead_keywords` or `render`."""
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game("    score[0] := 1"))])
+    assert rep.dead_rules() == sorted(rep.dead_rules())
+    words = [rep.keywords[k] for k in rep.dead_keywords()]
+    assert words == sorted(words)
+    sections = rep.render().split("\n## ")[1:]
+    assert len(sections) == 3
+    for section in sections:
+        keys = [re.split(r"\s{2,}|`$", line[2:].lstrip("`"))[0] for line in section.splitlines() if line.startswith("- ")]
+        assert keys == sorted(keys), section.splitlines()[0]
+
+
+def test_the_real_tree_renders() -> None:
+    """The one corpus-facing pin: the tool runs over the real grammar and
+    globs and prints its three sections. No row is asserted -- rows are the
+    review's to read, and they move with the corpus."""
+    text = ds.report(ds.GRAMMAR.read_text(), ds.default_sources()).render()
+    assert text.startswith("# Dead surface -- derived, never maintained")
+    assert "## Rules and aliases no corpus, library or stdlib file produces" in text
+    assert "## Keywords no corpus, library or stdlib file writes" in text
+    assert "## Constructs whose every live consumer is a scoring sentence" in text
