@@ -372,14 +372,21 @@ in tests/test_trump_slot_class.py.
   predicates the terminator is built from rather than the terminator itself —
   so every street writes those two arms out, and the corpus's poker streets
   all write them exactly as above. What a street varies is the bet size
-  `open_street` takes, the seat the ring starts from, and whether `raise` is on
-  the offering (Kuhn Poker's is not).
+  `open_street` takes, the seat the ring starts from, whether `raise` is on
+  the offering (Kuhn Poker's is not), whether a contender count guards the
+  street at all, and whether a forced post sits between `open_street` and the
+  `round` (Stud's bring-in).
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that
   opens behind an all-in, where `open_street`'s cleared `acted` would otherwise
   leave that seat `pending` with nobody to act against. A variant in which no
   seat can be all-in never reaches that second arm and writes it all the same.
+  Of those variations the guard is the one with a cost in information: Leduc's
+  second street runs only while more than one player is unfolded, and that is
+  what keeps a folded hand's card unknowable even in hindsight. An unguarded
+  street deals the board after a fold, and the board is what a live opponent
+  reasons back from.
   The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
   (committed-total levels, ties split with the odd chip to the first winner in
