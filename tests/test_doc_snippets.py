@@ -55,7 +55,13 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             fragment is PROVEN, by execution, to pass or reject the
             front-end pipeline as its tag claims — not merely assumed from
             its tag, and not merely "rejected" as an artifact of not being
-            a whole game or of the pipeline crashing.
+            a whole game or of the pipeline crashing. Second property, over
+            a narrower domain: where a block's prose claims PROVENANCE — this
+            is game X's own text, and the corpus writes it this way — that
+            claim is held against the corpus too. Compiling and being the
+            text the doc says it is are different properties, and the
+            execution half proves only the first: a freely rewritten street
+            compiles.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             docs/decisions.md, docs/library.md, docs/model.md. Every one of
             them is classified; the EXECUTED half stops where the wrapping
@@ -86,11 +92,17 @@ does not prove:  that the live docs exercise every tag. Where no block in the
             against a block the spec actually publishes — the classification,
             pass, reject and mistagged-benign paths each have one, so the
             guard has teeth on the day a tag is first used, and until then a
-            green says nothing about the docs on that tag.
+            green says nothing about the docs on that tag. Nor does the
+            provenance half generalize: it is NOT derived from the block
+            domain, because no machine reading tells which blocks claim a
+            source. Each pin is hand-written for the sentence it holds, so a
+            NEW provenance claim in the docs is unguarded until someone writes
+            its pin — a green here says nothing about that sentence.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -762,6 +774,82 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
         "counterexample no longer demonstrates the mistake, or it should be "
         "retagged."
     )
+
+
+# ---------------------------------------------------------------------------
+# Provenance: a block whose prose names a source file is held to that source.
+# Checking is a different property from being the text the doc says it is, and
+# the pass above proves only the first.
+# ---------------------------------------------------------------------------
+
+GAMES_DIR = DOCS_DIR / "games"
+
+
+def _block_by_label(label: str) -> FencedBlock:
+    matches = [b for b in _FRAGMENT_BLOCKS if _label(b) == label]
+    assert len(matches) == 1, (
+        f"expected exactly one `cardlang-fragment {label}` block in the three "
+        f"docs, found {len(matches)} — a provenance pin names its block by "
+        "label, so a renamed or duplicated label leaves the claim unguarded."
+    )
+    return matches[0]
+
+
+def _squash(text: str) -> str:
+    """Collapse every run of whitespace, so indentation depth stops mattering."""
+    return " ".join(text.split())
+
+
+def test_the_betting_street_block_is_leducs_own_text() -> None:
+    """library.md calls the block `verbatim from games/leduc-poker.cardlang`.
+
+    `test_fragment_blocks_pass_when_wrapped` proves the block COMPILES, which a
+    freely rewritten street would too. Nothing else reaches the provenance, and
+    the gloss is what the reader trusts when they copy it.
+
+    red under: any token of the block, or of Leduc's `phase first_street`.
+    """
+    block = _block_by_label("betting_street")
+    leduc = (GAMES_DIR / "leduc-poker.cardlang").read_text()
+    assert block.text.strip("\n") in leduc, (
+        "the `betting_street` block is no longer a byte-exact substring of "
+        "docs/games/leduc-poker.cardlang, which library.md's gloss says it is "
+        "— restore the block from the game file, or move the gloss to whatever "
+        "the block now quotes."
+    )
+
+
+def test_every_poker_street_writes_the_documented_terminator() -> None:
+    """library.md says the corpus's poker streets all write the block's `until`.
+
+    Membership is derived — the games under `docs/games/` whose text carries
+    `uses poker_betting` — so a poker game added tomorrow is held to the same
+    sentence without anyone remembering to add it. A street's terminator counts
+    as written when it matches the block's modulo indentation: Hold'em and Stud
+    nest deeper, and the doc's claim is about the words.
+
+    red under: trimming an arm off any poker street's `until`, or editing the
+    block's terminator in library.md.
+    """
+    want = _squash(_block_by_label("betting_street").text)
+    terminator = want[want.index("until ") :]
+    users = sorted(
+        p for p in GAMES_DIR.glob("*.cardlang") if "uses poker_betting" in p.read_text()
+    )
+    assert users, (
+        "no game under docs/games/ carries `uses poker_betting` — this pin "
+        "reads as green while checking nothing; the library or the games moved."
+    )
+    for path in users:
+        text = path.read_text()
+        offerings = len(re.findall(r"\bround offering\b", text))
+        written = _squash(text).count(terminator)
+        assert written == offerings, (
+            f"{path.name}: {offerings} `round offering` statements but "
+            f"{written} carry the terminator library.md prints — either the "
+            "street diverged, or library.md's 'all write them exactly as "
+            "above' no longer holds and the sentence needs opening up."
+        )
 
 
 # ---------------------------------------------------------------------------
