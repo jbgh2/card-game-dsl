@@ -16,8 +16,8 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
               :class:`Span`. A failure instead reaches the game author in the
-              DSL's own [[vocabulary]]: the lexeme they wrote, quoted; what the
-              grammar accepts there rendered through ``_vocabulary_word``,
+              words the DSL itself uses: the lexeme they wrote, quoted; what the
+              grammar accepts there rendered through ``_designer_word``,
               which is derived from the terminal table so it cannot drift from
               the grammar; and the block they left open. No semantic claims —
               names carry no
@@ -32,7 +32,7 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               which shapes those admit is resolve's.
 Now illegal:  ill-formed syntax; it cannot reach any later pass. Also naming a
               grammar terminal to a designer: a terminal with no word in
-              ``_VOCABULARY_WORDS`` and no spelling recoverable from its own
+              ``_WORD_OVERRIDES`` and no spelling recoverable from its own
               pattern makes ``_parser()`` refuse to build, so no message can
               fall back to a terminal name. A
               ``Collection<`` spelling, bare or `?`-suffixed, on any
@@ -2135,7 +2135,7 @@ class UnrenderableTerminal(Exception):
 #: itself (`_render_terminal`), so a keyword added to the grammar needs no row
 #: here; only a terminal that matches a CLASS of text does, because a class has
 #: a name the regex does not carry.
-_VOCABULARY_WORDS: dict[str, str] = {
+_WORD_OVERRIDES: dict[str, str] = {
     "NAME": "a name",
     "QNOUN": "a name",
     "CARD_POINTS_KEY": "a name",
@@ -2170,7 +2170,7 @@ def _render_terminal(terminal: object) -> str | None:
     """The designer's word for one terminal, derived from its own pattern.
 
     Three rules cover the grammar's whole table bar the classes named in
-    `_VOCABULARY_WORDS`: a plain string literal quotes itself; a regex that
+    `_WORD_OVERRIDES`: a plain string literal quotes itself; a regex that
     spells one literal (every `_<WORD>_KW`, plus `RANK_CONV`) quotes that
     literal; and a regex that is an alternation of literals (`COMP_OP`,
     `TRANSFER_VERB`, …) lists them in the order the grammar writes them.
@@ -2178,7 +2178,7 @@ def _render_terminal(terminal: object) -> str | None:
     the grammar (design-notes/architect-principles.md, P9).
     """
     name = getattr(terminal, "name", "")
-    override = _VOCABULARY_WORDS.get(name)
+    override = _WORD_OVERRIDES.get(name)
     if override is not None:
         return override
     pattern = terminal.pattern  # type: ignore[attr-defined]
@@ -2218,7 +2218,7 @@ def _check_every_terminal_renders(terminals: Iterable[object]) -> None:
         raise UnrenderableTerminal(
             f"grammar terminal(s) {', '.join(unrenderable)} have no word a "
             "designer could have typed, so a syntax error naming one would "
-            "leak a grammar name — add a row to `_VOCABULARY_WORDS` in "
+            "leak a grammar name — add a row to `_WORD_OVERRIDES` in "
             "cardlang/parse.py giving each the name it has in docs/"
         )
 
@@ -2230,7 +2230,7 @@ def _terminal_words() -> dict[str, str]:
     return {t.name: _render_terminal(t) or "" for t in _parser().terminals}
 
 
-def _vocabulary_word(name: str) -> str:
+def _designer_word(name: str) -> str:
     """The designer's word for a terminal name; empty for a name the grammar
     does not define, which a rendered expectation drops rather than shows."""
     return _terminal_words().get(name, "")
@@ -2258,7 +2258,7 @@ def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
     names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
     words = {
         word
-        for word in (_vocabulary_word(str(getattr(t, "name", t))) for t in names)
+        for word in (_designer_word(str(getattr(t, "name", t))) for t in names)
         if word
     }
 
@@ -2478,7 +2478,7 @@ def parse_to_tree(
     """Parse DSL ``text`` to a raw Lark tree, raising a span-located diagnostic
     on a syntax error. The grammar-acceptance entry point.
 
-    The diagnostic is written in the designer's [[vocabulary]] throughout: the
+    The diagnostic is written in the designer's own words throughout: the
     lexeme they typed, the grammar's expectations as words from `docs/`, and
     the block they left open. Lark's own sentence is not carried, here or as a
     note — it addresses the engine maintainer, who has the chained exception

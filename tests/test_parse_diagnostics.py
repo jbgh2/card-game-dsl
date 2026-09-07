@@ -56,8 +56,8 @@ registry:   failure kinds: `lark.exceptions.UnexpectedInput.__subclasses__()`,
             `cardlang/parse.py`'s `parse_to_tree` call sites, and pinned there
             by `tests/test_parse.py::test_the_hint_start_axis_is_every_entry_point`.
             Terminals: `cardlang.parse._parser().terminals`. The rendering
-            rules and the override table: `cardlang.parse._VOCABULARY_WORDS`
-            and `cardlang.parse._vocabulary_word`. Message text for whole
+            rules and the override table: `cardlang.parse._WORD_OVERRIDES`
+            and `cardlang.parse._designer_word`. Message text for whole
             designer-visible diagnostics is pinned as artifacts in
             `tests/rejections/` (`tests/test_rejections.py`), which is where the
             `syntax_*` cases of this domain live; this module pins the
@@ -483,7 +483,7 @@ def test_every_terminal_has_a_designer_word(name: str) -> None:
     designer, so the domain is the table entire rather than the terminals the
     renderer happens to have met.
     """
-    word = parse._vocabulary_word(name)
+    word = parse._designer_word(name)
     assert word, f"terminal {name} renders to nothing a designer could type"
     assert name not in word, (
         f"terminal {name} renders to its own grammar name: {word!r}"
@@ -509,7 +509,7 @@ def test_the_parser_refuses_a_terminal_it_cannot_render() -> None:
     unrenderable terminal and asserts the refusal fires and names it. That the
     refusal is REACHED is a separate claim, and a function-grain plant cannot
     make it: measured 2026-09-06 by deleting the `NAME` row from
-    `_VOCABULARY_WORDS` and checking a corpus game through
+    `_WORD_OVERRIDES` and checking a corpus game through
     `cardlang.pipeline.check_dsl`, which raised `UnrenderableTerminal` naming
     `NAME` -- so the guard sits on the path an ordinary check takes, not only
     on a path this test can call. An unused terminal is NOT the plant to

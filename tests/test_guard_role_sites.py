@@ -150,7 +150,7 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     ("cardlang/parse.py", "UnrenderableTerminal"): (
         1,
         ("`_check_every_terminal_renders`, where the parser is built. An Owner "
-        "Guard in the triage's sense — parse.py owns `_VOCABULARY_WORDS` and "
+        "Guard in the triage's sense — parse.py owns `_WORD_OVERRIDES` and "
         "the renderer over the grammar's terminals — whose Owner is the engine "
         "maintainer who edited cardlang.lark. That is exactly why it does not "
         "wear OwnerGuardError: the role type says the GAME AUTHOR must act, and "
