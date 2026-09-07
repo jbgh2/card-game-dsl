@@ -61,11 +61,13 @@ _PARSE_LEVEL_CASES = frozenset(
         # each case's own header naming the arm it holds. Every arm is the
         # grammar refusing the text, so none of them leaves a tree.
         "syntax_error",
+        "syntax_brace_on_the_next_line",
         "syntax_colon_for_equals",
         "syntax_eof_inside_block",
         "syntax_extra_close_brace",
         "syntax_stray_character",
         "syntax_unknown_clause_keyword",
+        "syntax_unterminated_string",
         # The game-skeleton guards in parse.py's `game()`/`start()` builders
         # (missing/duplicated single-valued clauses, content-clause mutual
         # exclusion, game-count errors) — rejected before any tree exists to

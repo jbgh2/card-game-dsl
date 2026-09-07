@@ -1,0 +1,20 @@
+// Guard: parse.py's failure rendering, the block-naming arm. The `{` sits on
+// the line below the keyword that opens the block, which is legal — whitespace
+// is ignored — and leaves the block's own line holding no keyword at all. The
+// block is still named for the construct that opens it, because the name is
+// read from the lexemes before the brace rather than from the brace's line.
+game SyntaxBraceOnTheNextLine {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones
+  {
+    deck : Deck
+    hand[player] : Hand<player>
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

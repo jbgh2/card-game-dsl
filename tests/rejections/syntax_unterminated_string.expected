@@ -1,0 +1,1 @@
+syntax_unterminated_string.cardlang:17:22: error: syntax error: unexpected `"`; the quoted string opened on line 17 is never closed
