@@ -7,22 +7,28 @@ whose playout dies bisects their own file to find the line a span already
 knows. The two halves of one [[failure-channel]] address the same [[author]]
 and only one of them says where.
 
-The location is stamped as the refusal unwinds, innermost first, and the
-statement executor is where the class is owned: every statement a game runs
-passes through it holding its own span, and the [[context]] it is handed
-holds the phase. What that alone cannot see is a statement form that runs an
-embedded sentence ITSELF instead of handing it back — there the executor's
-span is the wrapper's line and the refusal happened on the line inside it.
-That gap is this module's primary axis, and it is derived from the `n.Stmt`
-union rather than read off the executor, because reading it off the executor
-would measure the stamp against itself.
+The location is stamped as the refusal unwinds, innermost first, and two
+passes own the class between them. The statement executor owns the sentences:
+every statement a game runs passes through it holding its own span, and the
+[[context]] it is handed holds the phase. The driver owns what no statement
+encloses — a phase's qualifier, a `state { }` default, the `loser:` selection,
+a `trick_order { }` row — and carries its own `Contract` saying so.
+
+A gap sits inside each half, and each is an axis below. A statement form that
+runs an embedded sentence ITSELF instead of handing it back leaves the
+executor's span on the wrapper's line while the refusal happened on the line
+inside it; that axis is derived from the `n.Stmt` union rather than read off
+the executor, because reading it off the executor would measure the stamp
+against itself. A position the driver evaluates and nothing stamps reaches a
+designer with no line at all.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 ---------------------------------------------------------------
 property:   a refusal a game sentence can raise renders, to the designer, at
             the smallest span that signifies it — the sentence that refused,
             never the form enclosing it — and names the phase it was running
-            in, and the source zone when a movement is what refused. Every
+            in when one was running, and the source zone when a movement is
+            what refused. Every
             cell asserts the RENDERED text a caller prints, not that an
             attribute was set: the attribute is reachable from Python and the
             designer is not.
@@ -62,6 +68,12 @@ domain:     three axes, each read off its own registry.
             every phase. A refusal outside every phase carries its expression
             and names no phase, because none is running, and the grid asserts
             that absence rather than leaving it to inference.
+
+            The axis reads ONE module, and `_EVALUATING_MODULES` is what makes
+            that a scope: every module that hands game text to the evaluator
+            says what stamps a refusal escaping it, and the others are all
+            reached from a statement the executor dispatched — a coarser span
+            than the expression, never an absent one.
 
             The classes quantified over are the ones the ENGINE DEFINES, and
             that is the boundary: a builtin Python exception the engine raises
@@ -511,6 +523,50 @@ def test_the_driver_evaluates_no_game_text_around_the_stamp() -> None:
         f"`{STAMP}`. A refusal from there reaches the designer with no line at "
         f"all — the executor stamps the sentences it dispatches, and never sees "
         f"an expression the driver reads itself"
+    )
+
+
+# Every module that hands game text to the evaluator, and what stamps a
+# refusal from it. The driver is one of a closed few, and the axis above is
+# scoped to it because the others are all reached from a statement the
+# executor dispatched — coarser than the expression, never absent.
+_EVALUATING_MODULES: dict[str, str] = {
+    "runtime/evaluate.py": "the evaluator's own recursion into subexpressions",
+    "runtime/execute.py": "statements, each stamped by the `execute` that dispatched it",
+    "runtime/driver.py": f"the phase tree, each expression stamped by `{STAMP}`",
+    "runtime/mechanics.py": (
+        "a round form's own clauses — leader, participants, trump, a move "
+        "type's `when` — run from inside the round statement, which carries "
+        "the span the executor stamped"
+    ),
+    "runtime/rules.py": (
+        "a rule's card sets, consulted at a round's card decision, likewise "
+        "inside that round statement"
+    ),
+}
+
+
+def test_the_engine_evaluates_game_text_only_where_something_stamps() -> None:
+    """The axis above reads one module, and this is what makes that a scope
+    rather than a blind spot: a module joining the set must say what stamps a
+    refusal escaping it, and a module that leaves the set stops claiming to.
+
+    red under: add `evaluate(stmt.when, ctx)` to
+    `cardlang/runtime/active_rules.py` — modes are phase configuration, read
+    outside every statement, so that module is where an unstamped position
+    would most plausibly arrive."""
+    found = {
+        str(path.relative_to(REPO / "cardlang"))
+        for path in sorted((REPO / "cardlang").rglob("*.py"))
+        if any(
+            isinstance(node, ast.Call) and ast.unparse(node.func) == "evaluate"
+            for node in ast.walk(ast.parse(path.read_text(), str(path)))
+        )
+    }
+    assert found == set(_EVALUATING_MODULES), (
+        f"modules evaluating game text with no stamping story: "
+        f"{sorted(found - set(_EVALUATING_MODULES))}; recorded but no longer "
+        f"evaluating: {sorted(set(_EVALUATING_MODULES) - found)}"
     )
 
 
