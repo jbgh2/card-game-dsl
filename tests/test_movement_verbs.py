@@ -20,7 +20,7 @@ property:   each of the five verbs is (a) legal and correctly evaluated in a
             resolve in a boardless game naming the missing `board:` (the
             `lines` twin, BOARD_ONLY), and (c) enforced for arity and argument
             type at its call site; `neighbor` is total-with-Shadow Guard (an
-            off-board step raises a typed RuntimeError, never returns None);
+            off-board step is a typed refusal, never a None return);
             and the two NEW value shapes the verbs introduce -- `home`/
             `far_row`'s `Collection<Cell>` and `neighbor`'s `TCell` return --
             are either given correct meaning or loudly guarded at every existing
@@ -335,8 +335,8 @@ def test_verb_evaluates_to_expected_value(
 
 def test_neighbor_offboard_shadow_guard_raises() -> None:
     """`neighbor` is total-with-Shadow-Guard: an off-board step (unreachable in a
-    game because every call site is `has_step`-gated) raises a typed
-    RuntimeError here, never returns None or a bare crash."""
+    game because every call site is `has_step`-gated) is refused here in the
+    runtime's typed failure channel, never returns None or a bare crash."""
     ctx = _board_ctx("grid", (8, 8))
     with pytest.raises(OwnerGuardError, match=r"stepped off the board"):
         call("neighbor", ["a1", "ahead_left", 0], ctx)
@@ -396,7 +396,7 @@ def test_verb_runtime_boardless_backstop_raises(verb: str) -> None:
 def test_frame_verb_runtime_seat_backstop(verb: str) -> None:
     """The runtime companion to the static player-literal guard
     (tests/test_player_literal_range.py): a COMPUTED out-of-range seat reaching
-    a frame verb is a typed, game-facing RuntimeError naming the seat count, not
+    a frame verb is a typed, game-facing refusal naming the seat count, not
     the frame's internal `_player_sign` registry-bug ValueError. On a 2-seat
     board ctx, seat 5 is out of range."""
     ctx = _board_ctx("grid", (8, 8))  # Seating(2)

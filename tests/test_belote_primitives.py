@@ -44,7 +44,7 @@ does not prove:  three things.
             window's aim against the first trump royal played) and the proof
             module's pinned lines (tests/openspiel_ready/test_belote.py).
             That the premature-call guard fires. `belote_royal_player`
-            outside any round is a loud typed RuntimeError by construction
+            outside any round is a loud typed refusal by construction
             (the `_round_state` guard in cardlang/runtime/belote.py), and
             nothing here builds the state that reaches it — the guard is
             argued from the code, not observed.

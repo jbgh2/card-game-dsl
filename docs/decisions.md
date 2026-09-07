@@ -1329,8 +1329,8 @@ units, because no single check covers every non-termination shape:
   actually sized against (250-seed measured random-playout lengths).
   Every chooser pick, of any kind, increments a single per-game counter
   (`RuntimeState.decisions_made`, wrapped around the chooser once in
-  `play_game`); exceeding `max_length` raises a `RuntimeError` naming the
-  count reached and the declared bound. This is the only one of the three
+  `play_game`); exceeding `max_length` stops the run with a refusal naming
+  the count reached and the declared bound. This is the only one of the three
   that a structurally-terminating loop making unboundedly many decisions
   per iteration cannot evade — a loop that completes in very few
   iterations, each making many picks, would sail past either loop guard
@@ -1338,8 +1338,8 @@ units, because no single check covers every non-termination shape:
   bound.
 - **The runtime's two loop guards.** Both loop forms — the phase-level
   `repeat until` (`docs/model.md`) and the statement-level `repeat
-  until` — separately count their own *iterations* and raise the same
-  kind of `RuntimeError` once that count exceeds `max_length`. Counting
+  until` — separately count their own *iterations* and refuse the same
+  way once that count exceeds `max_length`. Counting
   iterations (typically hands, not individual actions) against the same
   number the decision counter uses makes these two guards deliberately
   far more generous than their own natural unit — they exist to catch the

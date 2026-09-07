@@ -132,7 +132,7 @@ def test_one_more_card_into_an_already_full_cell_overfills() -> None:
     )
     # The destination is never touched -- the guard runs before the append.
     # (Selection already removed the card from the source by this point; that
-    # is harmless, since this RuntimeError is fatal and uncaught anywhere in
+    # is harmless, since this refusal is fatal and uncaught anywhere in
     # the runtime -- no continuation could observe a card "in transit".)
     assert ctx.rs.zones.instance("slot", 0).cards == [HEARTS_A]
 
@@ -147,7 +147,7 @@ def test_freecell_corpus_game_still_typechecks_clean() -> None:
 def test_freecell_playout_never_trips_the_capacity_guard() -> None:
     """FreeCell's `to_cell` move type guards on `cells[slot] is empty`, so an
     honest playout should never reach `_deposit`'s overfill branch -- a
-    RuntimeError here would mean either the guard or the guard is wrong.
+    refusal there would mean either FreeCell's guard or `_deposit`'s is wrong.
     Complements the full tests/test_playout_freecell.py run (its own
     per-decision `len(cell) <= 1` invariant checks), recorded as external
     evidence in the task report."""

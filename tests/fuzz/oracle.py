@@ -157,15 +157,16 @@ class _CappedSortedChooser:
     docstring, "The chooser") that raises `PlayoutCutoff` after `cap` calls
     and enforces the runtime chooser's own precondition: `k` must not exceed
     the candidate pool. `cardlang/runtime/chooser.py`'s `random_chooser`
-    raises `ValueError("cannot choose {n} of {len} candidates")` on exactly
-    this condition (and `rng.sample` would refuse anyway), so a substitute
+    refuses exactly this condition — a count larger than the pool it is
+    asked to draw from is an authoring error, and the refusal addresses the
+    game author (`rng.sample` would refuse it anyway) — so a substitute
     chooser that quietly truncated to a short prefix would make the playout
-    PROCEED where the real runtime errors — masking exactly the
+    PROCEED where the real runtime refuses, masking exactly the
     accepted-then-crashes-at-playout findings T3 exists to catch (an
     empty pool at `k >= 1` is the special case, subsumed here). The check is
-    the same condition in the harness's own channel (`AssertionError`,
-    naming the violated invariant), which `run_playout` reports as a
-    `"crash"` finding just like the runtime's `ValueError` would be."""
+    the same condition in the harness's own failure channel
+    (`AssertionError`, naming the violated invariant), which `run_playout`
+    reports as a `"crash"` finding, as it would the runtime's refusal."""
 
     cap: int
     calls: int = field(default=0, init=False)
