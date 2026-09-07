@@ -10,6 +10,23 @@ ordered ladder domain · **(e)** other named gap · **(f)** legitimately engine-
 Read alongside `docs/plans/` specs; this note is the evidence base that re-shapes the
 primitive-elimination roadmap (see "How this changes the plan" at the end).
 
+**This is a dated measurement, and the tree has moved under it.** Its figures are the
+record of what was true on 2026-08-01 and are left standing as that record; what a
+reader must not do is take them for the present. Three of the modules it inventories —
+`doko.py`, `schnapsen.py`, `coup.py` — no longer exist, every line count differs from
+the tree, and two of its Tier-0 items have landed: the per-game card-point table is
+`card_points { }` (`grep -l 'card_points {' docs/games/*.cardlang` names the games that
+declare one), and ceiling division is in the language as `divided by ... rounded up`. Its sharpest single finding has also expired —
+`five_hundred_trick_winner`, "the sharpest breach", is gone, and
+`PRIMITIVE_TRICK_WINNERS` is empty, so no game-local trick-winner Python remains.
+Re-derive any figure before citing it: the module census is
+`ls cardlang/runtime/`, and the registry is `primitives_block.PRIMITIVE_IMPLEMENTATIONS`.
+
+One structural caveat about the figures themselves, independent of their age: this note
+counts MODULES, so its "0 / 15" headline is a claim about how many runtime files are
+primitive-free. A claim about how many GAMES are is a different denominator over a
+different population, and the two cannot be diffed.
+
 ## Headline findings
 
 Most game-specific Python is concentrated in a few modules, and most `call()`
