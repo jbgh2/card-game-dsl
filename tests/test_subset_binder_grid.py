@@ -545,8 +545,9 @@ def test_a_computed_index_lists_a_zone_once() -> None:
 def test_two_members_that_are_one_zone_at_play_time_are_refused() -> None:
     """`[hand[p], hand[q]]` with p = q. Resolve refuses the same SPELLING
     twice; a computed index is decided here, by identity, so the pool never
-    holds one zone's cards twice. The refusal names both members and the zone
-    they turned out to be, and is located at the whole list."""
+    holds one zone's cards twice. The refusal names both members as written
+    -- evaluating nothing, since an index may hold a chooser draw -- and is
+    located at the whole list."""
     with pytest.raises(OwnerGuardError) as exc:
         probe_value(
             "number of subsets of 2 cards in [hand[p], hand[q]] where 1 is 1",
@@ -554,7 +555,7 @@ def test_two_members_that_are_one_zone_at_play_time_are_refused() -> None:
                    "    let q = the player where player is 0\n"),
         )
     message = str(exc.value)
-    assert "`hand[q]`" in message and "`hand[p]`" in message and "hand[0]" in message, message
+    assert "`hand[q]`" in message and "`hand[p]`" in message, message
     assert exc.value.zone == "[hand[p], hand[q]]", exc.value.zone
 
 
