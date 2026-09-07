@@ -16,9 +16,12 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             each pinned against the parser's own terminal table. Scoring is
             an assignment to the winner variable or to a variable that flows
             into it, and a function every call of which sits in one, both
-            transitively, with `let` bindings read as assignments to their
-            name; a game with no `winner: highest/lowest x` has no scoring
-            sentence, which is stated, not a gap.
+            transitively, with `let` bindings read as assignments to a name
+            bound for the rest of its block and parameters bound within their
+            function -- state and zone names match by spelling, so two phases
+            declaring one state name share it; a game with no `winner:
+            highest/lowest x` has no scoring sentence, which is stated, not a
+            gap.
 registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
@@ -136,6 +139,34 @@ def test_scoring_flows_through_a_let_binding() -> None:
     # the binding scores, and its consumers elsewhere do not unmake that: the
     # construct sits in the binding, which is a scoring sentence
     assert "sq_count" in rep.all_scoring
+
+
+def test_a_same_named_let_in_another_block_is_its_own_binding() -> None:
+    """Two phases each bind `points`; only one feeds the score. Red under:
+    binding a `let` by its spelling instead of its position."""
+    body = (
+        f"    let points = {COUNT}\n    score[0] += points\n"
+        "  }\n  phase q {\n"
+        "    let points = any card in hand[0] where 1 is 1\n    move all cards to deck"
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", game(body))])
+    assert "sq_count" in rep.all_scoring
+    assert "cq_any" not in rep.all_scoring
+
+
+def test_strings_and_comments_are_read_as_the_grammar_defines_them() -> None:
+    """A `//` inside a string opens no comment, and a string may span lines.
+    Red under: masking with a comment-first, single-line regex."""
+    after_a_marker = game(
+        '    if any card in hand[0] where card.rank is "x//y" { score[0] := 1 divided by 2 rounded down }'
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", after_a_marker)])
+    assert "DOWN" not in rep.dead_keywords()
+    inside_a_multiline_string = game(
+        '    if any card in hand[0] where card.rank is "a\nrounded down\n" { score[0] := 1 }'
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", inside_a_multiline_string)])
+    assert "DOWN" in rep.dead_keywords()
 
 
 def test_a_game_with_no_ranked_winner_has_no_scoring_sentence() -> None:

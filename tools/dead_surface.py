@@ -26,7 +26,9 @@ Three sections, each derived:
   scoring sentence is an assignment, or a `let` binding, whose target is the
   game's winner variable (`winner: highest x`) or a name whose value flows
   into it through an assignment or a binding, transitively; a function every
-  call of which sits in a scoring sentence counts as one, transitively.
+  call of which sits in a scoring sentence counts as one, transitively. Names
+  resolve lexically: a `let` binds for the rest of its block, a parameter
+  within its function, and a state or zone name by spelling.
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
@@ -50,6 +52,7 @@ from lark import Token, Tree
 
 from cardlang.diagnostics import DiagnosticError
 from cardlang.parse import parse_to_tree
+from tests.keyword_fusion_sweep import code_mask
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GRAMMAR = ROOT / "cardlang" / "grammar" / "cardlang.lark"
@@ -126,8 +129,12 @@ def keyword_axis(grammar: str) -> dict[str, str]:
 
 # --- reading consumers ---------------------------------------------------------
 
-_COMMENT = re.compile(r"//.*")
-_STRING = re.compile(r'"[^"\n]*"')
+Identity = tuple[str, str]  # ("state", name) | ("let", start offset) | ("param", "fn:name")
+
+# A statement that gives a name a value: an assignment's target, or a `let`'s
+# bound name. Both are read the same way -- the target is the first child, the
+# value the last -- so the dataflow closure and the walk treat them alike.
+_BINDING_STATEMENTS: frozenset[str] = frozenset({"assign_stmt", "let_stmt"})
 
 
 @dataclasses.dataclass
@@ -138,87 +145,108 @@ class _Read:
     written: frozenset[str]  # keyword terminal names written as whole words
 
 
-def _name_tokens(tree: Tree[Token] | Token) -> list[str]:
+def _name_tokens(tree: Tree[Token] | Token | None) -> list[str]:
+    if tree is None:
+        return []
     if isinstance(tree, Token):
         return [str(tree)] if tree.type == "NAME" else []
-    return [t for c in tree.children if c is not None for t in _name_tokens(c)]
+    return [t for c in tree.children for t in _name_tokens(c)]
 
 
-def _target_root(target: Tree[Token] | Token) -> str | None:
+def _target_root(target: Tree[Token] | Token | None) -> str | None:
     names = _name_tokens(target)
     return names[0] if names else None
 
 
-# A statement that gives a name a value: an assignment's target, or a `let`'s
-# bound name. Both are read the same way -- the target is the first child, the
-# value the last -- so the dataflow closure and the walk treat them alike.
-_BINDING_STATEMENTS: frozenset[str] = frozenset({"assign_stmt", "let_stmt"})
-
-
-def _scoring_targets(tree: Tree[Token]) -> frozenset[str]:
-    """The winner variable and every name whose value flows into it through
-    an assignment or a `let` binding, transitively."""
-    winner: str | None = None
+def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
+    """One parsed source's contribution. Names resolve lexically as the walk
+    goes: a `let` binds its name for the rest of its parent's children,
+    innermost binding first; a function's parameters bind within its body;
+    every other name is a state or zone name, matched by spelling. A scoring
+    sentence is a binding statement whose target's identity flows into the
+    winner variable's, transitively, or a function every call of which sits
+    in one, transitively."""
+    winner: Identity | None = None
     for sub in tree.iter_subtrees():
         if str(sub.data) == "winner":
             names = _name_tokens(sub)
-            winner = names[-1] if names else None
-    if winner is None:
-        return frozenset()
-    assignments = [s for s in tree.iter_subtrees() if str(s.data) in _BINDING_STATEMENTS]
-    targets = {winner}
-    while True:
-        grown = set(targets)
-        for stmt in assignments:
-            if _target_root(stmt.children[0]) in targets:
-                grown.update(_name_tokens(stmt.children[-1]))
-        if grown == targets:
-            return frozenset(targets)
-        targets = grown
+            if names:
+                winner = ("state", names[-1])
+    sites: list[tuple[str, Identity | None, str | None]] = []  # rule, binding written, function
+    calls: list[tuple[str, Identity | None, str | None]] = []  # callee, same context
+    flows: list[tuple[Identity, frozenset[Identity]]] = []  # target <- what its value reads
+    frames: list[dict[str, Identity]] = []
 
+    def resolve(name: str) -> Identity:
+        for frame in reversed(frames):
+            if name in frame:
+                return frame[name]
+        return ("state", name)
 
-def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
-    targets = _scoring_targets(tree)
-    occurrences: list[tuple[str, bool, str | None]] = []  # rule, in a scoring rhs, enclosing function
-    calls: list[tuple[str, bool, str | None]] = []  # function called, same context
-
-    def walk(node: Tree[Token] | Token | None, scoring: bool, function: str | None) -> None:
+    def walk(node: Tree[Token] | Token | None, binding: Identity | None, function: str | None) -> None:
         if node is None or isinstance(node, Token):
             return
         rule = str(node.data)
+        frames.append({})
         if rule == "function_def":
             names = _name_tokens(node.children[0])
             function = names[0] if names else function
+            if len(node.children) > 2:
+                for param in _name_tokens(node.children[1]):
+                    frames[-1][param] = ("param", f"{function}:{param}")
         if rule == "call":
             names = _name_tokens(node.children[0])
             if names:
-                calls.append((names[0], scoring, function))
-        occurrences.append((rule, scoring, function))
-        if rule in _BINDING_STATEMENTS and _target_root(node.children[0]) in targets:
+                calls.append((names[0], binding, function))
+        sites.append((rule, binding, function))
+        if rule in _BINDING_STATEMENTS:
+            target_name = _target_root(node.children[0])
+            value = node.children[-1]
+            target: Identity | None = None
+            if target_name is not None:
+                target = ("let", str(node.meta.start_pos)) if rule == "let_stmt" else resolve(target_name)
+                flows.append((target, frozenset(resolve(n) for n in _name_tokens(value))))
             for child in node.children[:-1]:
-                walk(child, scoring, function)
-            walk(node.children[-1], True, function)
+                walk(child, binding, function)
+            walk(value, target, function)
+            frames.pop()
+            if rule == "let_stmt" and target_name is not None and target is not None:
+                frames[-1][target_name] = target
             return
         for child in node.children:
-            walk(child, scoring, function)
+            walk(child, binding, function)
+        frames.pop()
 
-    walk(tree, False, None)
+    walk(tree, None, None)
+    scoring: set[Identity] = set() if winner is None else {winner}
+    while winner is not None:
+        grown = set(scoring)
+        for target, read in flows:
+            if target in scoring:
+                grown |= read
+        if grown == scoring:
+            break
+        scoring = grown
     scoring_functions: set[str] = set()
     while True:
         called = {f for f, _, _ in calls}
-        grown = {
+        grown_functions = {
             f
             for f in called
-            if all(s or (enclosing in scoring_functions) for g, s, enclosing in calls if g == f)
+            if all(b in scoring or enclosing in scoring_functions for g, b, enclosing in calls if g == f)
         }
-        if grown == scoring_functions:
+        if grown_functions == scoring_functions:
             break
-        scoring_functions = grown
+        scoring_functions = grown_functions
     produced: dict[str, bool] = {}
-    for rule, scoring, function in occurrences:
-        is_scoring = scoring or (function in scoring_functions)
+    for rule, binding, function in sites:
+        is_scoring = binding in scoring or function in scoring_functions
         produced[rule] = produced.get(rule, True) and is_scoring
-    code = _STRING.sub('""', _COMMENT.sub("", text))
+    # A keyword is written where it stands as a whole word in CODE -- outside
+    # comments and strings as the grammar defines them, which is what the
+    # fusion sweep's scanner reads; masked characters become spaces so word
+    # boundaries and offsets survive.
+    code = "".join(ch if keep else " " for ch, keep in zip(text, code_mask(text)))
     written = frozenset(
         name
         for name, word in keywords.items()
