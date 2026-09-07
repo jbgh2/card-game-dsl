@@ -88,7 +88,7 @@ def _first_hand(seed: int) -> list[int]:
     a hand happens to take, which folding changes.
     """
     depths: list[int] = []
-    previous = 53  # larger than any deck this game holds, so depth 0 always enters
+    previous = float("inf")  # so the first depth is never read as a refill
     for depth in range(60):
         _, pause = _advance(TestReadiness.spec.path, seed, depth)
         if not isinstance(pause, DecisionNode):
