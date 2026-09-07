@@ -585,7 +585,22 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
         "a subset query",
         "narrow the zone it ranges over, or ask about a smaller one",
     )
-    k = int(evaluate(e.count, ctx))
+    # The dynamic half of the size guard, and a guard this arm would rather not
+    # need (decisions.md "Prefer the guard you cannot need"). The statically
+    # typed class is `typecheck._check_subset_query`'s, and no route from a game
+    # file to a non-Integer size is known: the one that would reach it, a
+    # move-type parameter's `action.<field>`, is closed a layer up because
+    # bounded-Integer parameter domains are statically refused. It stands
+    # because the alternative is `int(True) == 1` — the size silently becoming
+    # one and the query enumerating singletons — which is the failure the
+    # permissive top exists to make possible. `bool` is tested ahead of `int`
+    # for the reason `_choose_operand` states: it subclasses `int`, so a bare
+    # int check would pass it.
+    k = evaluate(e.count, ctx)
+    if isinstance(k, bool) or not isinstance(k, int):
+        raise OwnerGuardError(
+            f"a subset size counts cards — expected an Integer, got {k!r}"
+        )
     if k < 1:
         raise OwnerGuardError(
             f"a subset ranges over at least one card — this one asks for {k}; "
