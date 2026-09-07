@@ -137,6 +137,14 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # a play-time refusal, and catching one as a game-description failure would
     # cross two channels.
     "DiagnosticError": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: the engine maintainer who edited the grammar --------------
+    # A sibling, never a child. The raise is an Owner Guard in the triage's
+    # sense — `cardlang/parse.py` owns the terminal vocabulary and the
+    # renderer over it — but its Owner is the engine maintainer, so admitting
+    # it to the role-bearing tree would let a harness catching
+    # `GameDescriptionError` report a gap in the grammar as the designer's
+    # game being illegal.
+    "UnrenderableTerminal": {"in_game_description_tree": False, "is_runtime_error": False},
 }
 
 

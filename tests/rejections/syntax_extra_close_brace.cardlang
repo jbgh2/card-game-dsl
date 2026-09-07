@@ -1,0 +1,21 @@
+// Guard: parse.py's failure rendering, the surplus-`}` arm. One `}` too many
+// closes the game early, so every clause after it sits where only a whole
+// definition may stand. Which `}` is surplus is not recoverable — matching is
+// last-opened-first-closed, and every candidate matches equally — so the
+// diagnostic states the count and leaves the expected set standing, rather
+// than pinning the blame on a line it cannot know.
+game SyntaxExtraCloseBrace {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  } }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

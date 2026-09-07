@@ -1,0 +1,1 @@
+syntax_unknown_clause_keyword.cardlang:7:3: error: syntax error: unexpected `maxlength`; expected `max_length`, `ranking` or `card_points`, among others

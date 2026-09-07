@@ -101,7 +101,7 @@ HighCard — 2 seats, uniform-random self-play
   seed         3
 
 information state, seat 1, at the terminal position:
-P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
+P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', '8♦');('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
 ```
 
 Omitting `--seed` draws one and reports it, so any run repeats. `cardlang
@@ -114,13 +114,55 @@ seat's view because the engine exposes no world to project from (issue #555).
 An early skeleton often has no decision yet, and that refusal is what it looks
 like.
 
-The view is the terminal position and no other. A zone the hand empties on the
-way — a poker hand's hole cards, mucked at showdown — reads empty here, and
-what the seat saw of it survives in the observation log alone. A seat's view
-part-way through comes from pyspiel instead, on a game loaded through the
-adapter (below): `state.information_state_string(seat)` is the same derived
-string at any decision node and for any seat, and is empty at the chance root
-and at the terminal node.
+The view above is the terminal position — the one `--info-state` gives on its
+own. A zone the hand empties on the way — a poker hand's hole cards, mucked at
+showdown — reads empty there, and what the seat saw of it survives in the
+observation log alone. `--at` asks for the seat's view at a decision instead,
+the position just before that choice is made, where the cards are still where
+the hand left them. `--decisions` numbers the decisions so you know which one
+to name:
+
+```console
+$ cardlang play high-card.cardlang --seed 3 --decisions
+HighCard — 2 seats, uniform-random self-play
+  returns      P0 0, P1 1
+  best return  P1
+  decisions    2
+  seed         3
+
+2 decisions; --at takes 0..1
+  0  P0 chooses 1 of 2: 2♦, 4♥
+  1  P1 chooses 1 of 2: 5♣, 8♦
+
+$ cardlang play high-card.cardlang --seed 3 --info-state 1 --at 0
+...
+information state, seat 1, at decision 0 (P0 chooses 1 of 2: 2♦, 4♥):
+P1|deck=#48;hand[0]=#2;hand[1]=[5♣,8♦];shown[0]=[];shown[1]=[]|state:score={0:0,1:0}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'))
+```
+
+Seat 1 holds both its cards there and the opponent's are a count, because
+nobody has committed yet. The seat `--info-state` names need not be the one
+deciding — asking what the opponent knows at *your* decision is the question a
+bluff turns on.
+
+The numbered list is your view of the playout, never a seat's: it names the
+candidates the engine offered, and at another seat's decision that is
+information no seat may hold. Only the `--info-state` line is a seat's view.
+
+A decision is one choice made — one card, one bid, one bet — which is what
+`--at` numbers, what the summary's `decisions` line counts, and what
+`max_length` bounds
+([decisions.md](decisions.md), "Game length as a declared contract"). Asking
+for several cards at once does not make one decision of them: Hearts'
+three-card pass is three, each offering what the ones before it left, and
+`--at` reaches every one.
+
+pyspiel derives a seat's view the same way, on a game loaded through the
+adapter (below): `state.information_state_string(seat)` answers at any
+decision node and for any seat, and is empty at the chance root and at the
+terminal node. Decision N there is decision N here, and the two render the
+same zones and the same log of it; the adapter's state-variable segment names
+only the game-level ones, which is issue #612.
 
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the
@@ -264,13 +306,26 @@ fault, whether a compile stage or the playout says so, and `2` when the
 invocation cannot be carried out at all — an unreadable path, a seat the game
 does not seat, a broken checkout.
 
-One class is the exception, and it is the one a first file is likeliest to hit:
-a **syntax** error is still reported in the parser generator's vocabulary,
-describing a terminal that fails to match in a parser context, and pointing at
-where the grammar gave up rather than where the file went wrong. A missing `}`
-is the usual cause; look above the reported line for an unclosed block. This
-is a known defect, tracked as issue #551 — every diagnostic past the parser
-speaks the language's own terms.
+A **syntax** error — the class a first file is likeliest to hit, since it
+arrives before any other stage runs — speaks the same terms. It quotes what you
+wrote and names what the language accepts in its place:
+
+```console
+$ cardlang check bad.cardlang
+bad.cardlang:12:9: error: syntax error: unexpected `{`; the `zones {` block opened on line 9 is never closed
+```
+
+Where the braces balance, the message names the alternatives instead:
+
+```console
+$ cardlang check bad.cardlang
+bad.cardlang:29:26: error: syntax error: unexpected `in`; expected `where`
+```
+
+Where they are too many to read, it names the closest few and says "among
+others". A missing `}` is the usual cause of the first kind, and the line it
+names is the block's opening line, not the line further down where the grammar
+finally ran out of ways to read the file.
 
 ## Reaching OpenSpiel with your own game
 

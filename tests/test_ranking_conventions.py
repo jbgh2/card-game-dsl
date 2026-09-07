@@ -22,8 +22,8 @@ property:   every (convention, deck) pair either expands to the frozen
 domain:     RANKING_CONVENTIONS keys x (DECKS ∪ {unknown deck}) — plus the
             clause-form misuse space (misspelling, word flip, case flip,
             space-for-hyphen, mixed convention+ranks). Two things sit
-            outside, and neither is a gap. A partial enumeration's runtime
-            KeyError (`rank_value` on a rank outside a partial `ranking:`)
+            outside, and neither is a gap. A partial enumeration's play-time
+            refusal (a strength read of a rank outside a partial `ranking:`)
             is unreachable from a convention, which is a full permutation of
             its deck by construction. And a duplicated `ranking:` clause —
             convention or enumeration — is refused at parse by the

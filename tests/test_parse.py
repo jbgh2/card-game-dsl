@@ -223,7 +223,11 @@ def test_a_shared_ast_cannot_be_mutated() -> None:
 #                `parse_to_tree`'s own default, so an entry point added there
 #                arrives as cells rather than as a start nobody probed.
 #     registry:  cardlang/parse.py's `_PARSE_HINTS`, and `parse_to_tree`'s
-#                call sites in the same module.
+#                call sites in the same module. The keyword a row is looked
+#                up by is read from the source's lexemes (`parse._scan`) at
+#                two positions — the one at the failure and the one its line
+#                begins with — so a spelling inside a string or a comment is
+#                not a key.
 #     does not prove:  that a hint's SENTENCE is accurate — only that it fires
 #                where the registry says. The wording is held by
 #                `test_a_parse_hint_never_diagnoses_the_author_s_position`
@@ -336,3 +340,41 @@ def test_every_parse_hint_scope_is_a_real_entry_point() -> None:
             f"the {keyword!r} hint is scoped to {scope!r}, which is not a "
             f"parse entry point — the hint would never fire"
         )
+
+
+#: Where a hint keyword can be SPELT on the failing line without being one.
+#: Both are text the grammar throws away, so only a lookup that reads lexemes
+#: can tell them from the clause they resemble.
+_KEYWORD_WITHOUT_A_CLAUSE = {
+    "inside a quoted string": (
+        "game G {\n  players: 2\n"
+        '  state { s : String = "transition_to" } @\n}\n'
+    ),
+    "inside a comment": (
+        "game G {\n  players: 2\n  zones { deck : Deck } @  // transition_to\n}\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("where", sorted(_KEYWORD_WITHOUT_A_CLAUSE))
+def test_a_hint_keyword_that_is_not_a_clause_fires_nothing(where: str) -> None:
+    """A hint is a diagnosis, so it fires on a clause the designer wrote and
+    on nothing that merely looks like one.
+
+    Born green, and pinning a property the lexeme lookup makes STRUCTURAL
+    rather than one it repairs: the two probes the lookup runs are the lexeme
+    at the failure and the one its line begins with, and neither position can
+    land inside a string or a comment. What the cell refuses is a wider
+    lookup.
+
+    red under: search `text` for any `_PARSE_HINTS` key instead of probing the
+    two positions -- both cells then fire on a spelling the parser never saw.
+    Verified 2026-09-06.
+    """
+    with pytest.raises(DiagnosticError) as excinfo:
+        parse.parse_to_tree(_KEYWORD_WITHOUT_A_CLAUSE[where], "probe.cardlang")
+    message = excinfo.value.diagnostic.message
+    assert "transition_to" not in message, (
+        f"a `transition_to` {where} is not a clause, and its hint fired: "
+        f"{message}"
+    )

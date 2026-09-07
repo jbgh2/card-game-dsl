@@ -46,7 +46,7 @@ line terminate in affordable steps — the OpenSpiel readiness harness
 (`tests/openspiel_ready/harness.py`, `GameSpec.adapter_terminal_steps`)
 already documents this for roughly a third of the corpus under ITS greedy
 policy (legal[0]), and this harness's own sorted policy was measured hitting
-the SAME wall (Coup, Tichu: `play_game`'s own `max_length` `RuntimeError`
+the SAME wall (Coup, Tichu: `play_game`'s own declared-`max_length` refusal
 after several hundred to tens of thousands of decisions). So playouts are run
 under a decision CAP (`STEP_CAP`, env-tunable via
 `CARDLANG_METAMORPHIC_STEPS` for a deeper local run — the plan's "env-var

@@ -318,9 +318,12 @@ BOARD_FAMILIES: dict[str, BoardFamily] = {
 
 
 def board_entry(family: str, args: tuple[int, ...]) -> BoardEntry:
-    """Instantiate a board by family name and arguments. Raises ValueError
-    naming the violated bound on any misuse; resolve turns these into
-    diagnostics at the `board:` clause."""
+    """Instantiate a board by family name and arguments. Refuses any misuse
+    — an unknown family, a wrong arity, an out-of-bounds argument — with an
+    `OwnerGuardError` naming the violated bound: the `board:` arguments are
+    the game author's to fix, and resolve converts exactly that type into a
+    diagnostic at the clause. `BoardEntry.__post_init__`'s registry
+    invariants stay outside it, addressed to the registry's maintainer."""
     declared = BOARD_FAMILIES.get(family)
     if declared is None:
         raise OwnerGuardError(

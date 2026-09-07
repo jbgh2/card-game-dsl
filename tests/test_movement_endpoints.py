@@ -32,8 +32,8 @@ does not prove:  that a `local` root reaching one of these positions is
             typing's ordinary rule rather than a blind spot, since lets are
             typed, so `let h = 3` is rejected at check time (the type half of
             the rule, `_check_transfer`) while `let h = hand[0]` passes on its
-            merits. What stands for the `TAny` path is the executor's typed
-            RuntimeError, the Shadow Guard pinned directly at
+            merits. What stands for the `TAny` path is the executor's own
+            typed refusal of a non-zone source, pinned directly at
             tests/test_fail_loud.py.
 """
 

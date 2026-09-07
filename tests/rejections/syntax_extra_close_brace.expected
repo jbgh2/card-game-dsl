@@ -1,0 +1,1 @@
+syntax_extra_close_brace.cardlang:16:3: error: syntax error: unexpected `state`; this file has more `}` than `{`; expected `game`, `type` or `move_type`, among others
