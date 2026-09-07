@@ -18,6 +18,10 @@ domain:     the three closed value domains the construct declares, crossed:
             value the binder produces against every operation that consumes a
             card collection, because a new value shape's defects live in its
             products with the constructs that already exist.
+            The bound is stated over the pool rather than over the enumerated
+            count, which is a designed constraint rather than a gap: it refuses
+            a small domain drawn from a large zone, and a cell pins that as
+            deliberate.
             Two boundaries, stated positively. The construct is card-flavored:
             a piece game meets `CardQuery`/`Comprehension`'s own refusal, which
             this inherits rather than restates. And the size clause is
@@ -51,14 +55,16 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
-from cardlang.runtime.errors import OwnerGuardError
-from cardlang.runtime.subsets import ENUMERATION_BOUND
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.subsets import ENUMERATION_BOUND
 
-# --- the fixture: a four-card table of known content ------------------------
-# The deal is filtered, so the table holds exactly the four 7s and hand[0] the
-# four 6s. Every expected value below is arithmetic over those two facts.
+# --- the fixture: a table of known content ---------------------------------
+# The deals are filtered, so both zones hold exactly what they are asked for:
+# one card per suit per named rank on the table, and — where the ranks do not
+# overlap it — the four 6s in hand[0]. Every expected value below is arithmetic
+# over that. The default is one rank, so a four-card table.
 _TABLE_SIZE = 4
 
 
@@ -69,8 +75,7 @@ def game(body: str, *, table_ranks: tuple[str, ...] = ("7",), extra: str = "") -
         "  max_length: 1000\n"
         "  cards: standard52\n"
         "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n"
-        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player>\n"
-        "          spare : Discard }\n"
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player> }\n"
         "  state { score[player] : Integer = 0 }\n"
         "  winner: highest score\n"
         "  phase p {\n"
@@ -297,3 +302,24 @@ def test_a_pool_past_the_bound_is_refused_loudly() -> None:
     message = str(exc.value)
     assert "exceeds the enumeration bound" in message, message
     assert str(ENUMERATION_BOUND) in message, message
+
+
+def test_the_bound_is_the_pool_even_where_the_domain_would_be_small() -> None:
+    """A designed constraint, recorded where a reader meets it: the bound is on
+    the SOURCE POOL, so `subsets of 2 cards in <a 17-card zone>` is refused even
+    though it names only 136 subsets. The alternative — bounding the enumerated
+    count — would admit it, and was weighed and not taken: a pool is a zone the
+    designer can see on the page, an enumerated count is arithmetic they never
+    wrote, and one number a designer can hold beats two.
+
+    This cell exists because the constraint is invisible from the accepting
+    side. Nothing here argues it is right; it pins that it is deliberate, so a
+    future reader meets a decision rather than a bug.
+
+    red under: bound the enumerated candidate count instead of the pool."""
+    with pytest.raises(OwnerGuardError, match="exceeds the enumeration bound"):
+        probe_value(
+            "number of subsets of 2 cards in table where 1 is 1",
+            table_ranks=("7", "6", "5", "4"),
+            extra='    move 1 card from deck where card.rank is A to table\n',
+        )

@@ -35,12 +35,20 @@ def check_pool(pool: Sequence[Card], what: str, remedy: str) -> None:
 
     `what` names the construct in the designer's words and `remedy` says what
     to do about it, because the two callers are reached from different
-    sentences and a shared message would name neither."""
+    sentences and a shared message would name neither.
+
+    The bound is on the POOL, and the message says so rather than quoting a
+    subset count. Both callers can be asked for a bounded slice of the powerset
+    — an exact size here, an exact amount there — and for those the pool's
+    2^n is not what would be walked, so a message quoting it would be false
+    about the very sentence it refuses. What is true of every caller, and is
+    the whole reason the limit is a pool size, is that one number is the one a
+    designer can hold: the zone is on the page, the arithmetic is not."""
     if len(pool) > ENUMERATION_BOUND:
         raise OwnerGuardError(
             f"{what} over {len(pool)} cards exceeds the enumeration bound "
-            f"({ENUMERATION_BOUND} — 2^{len(pool)} subsets), a fixed engine "
-            f"limit with no game-side setting; {remedy}"
+            f"({ENUMERATION_BOUND} cards), a fixed engine limit with no "
+            f"game-side setting; {remedy}"
         )
 
 

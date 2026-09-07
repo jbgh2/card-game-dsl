@@ -6,21 +6,25 @@ bonus and its final-play exception, the last capturer taking what remains, all
 five scoring components with the primiera included, and the guard that asks
 whether the layout holds a satisfying set at all, which is the subset binder.
 
-Two things stay here, and one wall each:
+Two things stay here, and both because the capture is a DECISION rather than a
+question:
 
 - `scopa_sums_to` — the joint predicate the capture decision selects over: two
   or more cards whose capture values sum to the played card's. `where jointly`
   requires a predicate rooted in a CALL, because the root names the codec
-  below; and a collection type is spellable in a `primitives { }` entry and
-  nowhere else, so the arithmetic has no home in the language (issue #246).
+  below; and a collection type — the type of the candidate set the predicate is
+  handed — is spellable in a `primitives { }` entry and nowhere else, so the
+  arithmetic has no home in the language (issue #246).
 - `SCOPA_CAPTURE_CODEC` — the subset universe as pure card-set <-> action-index
   functions, served to the OpenSpiel action space by
-  `primitives.joint_codec_function`.
+  `primitives.joint_codec_function`. Every joint predicate needs one: a
+  candidate set's action id cannot be derived from the predicate's text.
 
 A card's capture value is A=1 through 7=7, J=8, Q=9, K=10 — the deck's own
-ordinal. The two predicates read it off `facts.rank_index`, the game's declared
-`ranking:`, which is the same order the game file's `capture_value` reads, so
-the DSL and the Python cannot state different values. The codec has no engine
+ordinal. The predicate reads it off `facts.rank_index`, the game's declared `ranking:`,
+which is the same order the game file's own `capture_value` reads — in the
+guard beside the movement as well as in the scoring — so the DSL and the Python
+cannot state different values. The codec has no engine
 facts to read, so it derives the ordinal from the `scopa40` deck registry
 instead; `tests/test_scopa_capture_codec.py` pins the two derivations equal and
 pins both against the ordinal the game file declares.
