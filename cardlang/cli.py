@@ -111,16 +111,17 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--decisions",
         action="store_true",
-        help="also list every decision the playout made, numbered the way "
-        "--at numbers them, with who makes it and what it chooses from",
+        help="also list the playout's decisions, numbered the way --at numbers "
+        "them — one entry per choice, so a call taking several cards is several "
+        "— with who makes each and what it is chosen from",
     )
     play.add_argument(
         "--at",
         type=int,
         metavar="N",
         help="show the --info-state seat's view at decision N — the position "
-        "before that choice is made — instead of at the terminal position; "
-        "--decisions lists the numbers",
+        "just before that one choice is made — instead of at the terminal "
+        "position; --decisions lists the numbers",
     )
     return parser
 

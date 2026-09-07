@@ -70,21 +70,22 @@ does not prove:  A green here says nothing about whether a playout's REPORTED
                  and the corpus measurement is issue #553. The cross-route
                  cells below are bounded twice over, and neither bound is
                  something the numbering could lift. They reach no further
-                 than the FIRST DEAL — the seat-by-seat walk covers all of it,
-                 the rendered view is compared at named decisions inside it —
-                 because `play` draws its uniform-random policy from the
-                 generator that also drives the shuffle while the adapter's
-                 Chooser draws nothing, so a game that deals again deals it
-                 differently on each route (issue #621) and nothing here says
-                 the two agree at a decision in a later hand. And the view is
-                 compared over two of its three segments, because the adapter
-                 reads a world already unwound past every phase frame and its
-                 `state:` segment drops every phase-local variable (issue
-                 #612); the strict xfail beside the comparison is what reddens
-                 the day that is fixed. A green here equally says nothing
-                 about which `chose` events either route ought to emit — that
-                 the two emit the same ones is pinned, what they should hold
-                 is issue #592.
+                 than the FIRST DEAL — a seat's view is compared at every
+                 decision of it, and what the command PRINTS at named
+                 decisions inside it — because `play` draws its uniform-random
+                 policy from the generator that also drives the shuffle while
+                 the adapter's Chooser draws nothing, so a game that deals
+                 again deals it differently on each route (issue #621) and
+                 nothing here says the two agree at a decision in a later
+                 hand. And the view is compared over two of its three
+                 segments, because the adapter reads a world already unwound
+                 past every phase frame and its `state:` segment drops every
+                 phase-local variable (issue #612); the strict xfail beside
+                 the comparison is what reddens the day that is fixed. A
+                 green here equally says nothing about which `chose` events
+                 either route OUGHT to emit — that the two emit the same ones
+                 across that deal is pinned, what they should hold is issue
+                 #592.
 """
 
 from __future__ import annotations
@@ -100,17 +101,24 @@ from typing import Any
 
 import pytest
 
-from cardlang.cli import COMMANDS, build_parser, main
+from cardlang.cli import _CANDIDATES_SHOWN, COMMANDS, build_parser, main
 from cardlang.openspiel.encoding import ActionSpace
+from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import InstallationError
+from cardlang.runtime.observe import render
+from cardlang.runtime.state import RuntimeState
 
 REPO = Path(__file__).parent.parent
 HEARTS = REPO / "docs" / "games" / "hearts.cardlang"
 KUHN = REPO / "docs" / "games" / "kuhn-poker.cardlang"
+# A game that takes up to a whole hand in one call, so the reduced pool of
+# a decomposed call walks down across the listing's candidate cap — the one
+# corpus shape where both sides of that partition come from one call.
+CHEAT = REPO / "docs" / "games" / "cheat.cardlang"
 # A game whose zones empty on the way to the end: the hole cards are the
 # seat's own by identity while the hand is live and are mucked at the finish,
 # so it is where a mid-hand view differs from the terminal one.
@@ -624,22 +632,49 @@ def test_the_listing_numbers_one_entry_per_card_taken(
     )
 
 
+def _pool_of(row: str) -> int:
+    """How many candidates a listing row says it was choosing from."""
+    return int(row.split(" of ")[1].split(":")[0])
+
+
 def test_a_long_candidate_pool_trails_off(capsys: pytest.CaptureFixture[str]) -> None:
     """A line names enough candidates to recognize the decision, not the whole
     pool — and says so, because the ellipsis is the only sign a designer gets
-    that the pool runs on. Hearts' pass offers a full hand.
+    that the pool runs on.
+
+    Swept on two games because a decomposed call shrinks its own pool, so the
+    cap can fall INSIDE one call the designer made: Hearts offers a full hand
+    at each of its three pass decisions and short pools late in a trick, while
+    Cheat takes up to a whole hand a card at a time, walking its rows down
+    across the cap. Both sides of the partition then come from one call, which
+    is the case per-call numbering never produced.
 
     red under: drop the `shown.append("...")` arm from `cardlang.cli._decision`.
     """
-    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
-    _, rows = _listing_of(capsys.readouterr().out)
-    long_pools = [row for row in rows if int(row.split(" of ")[1].split(":")[0]) > 6]
-    assert long_pools, "the pin needs a decision offering more than a line names"
-    for row in long_pools:
-        assert row.endswith("..."), "a pool a line cannot hold must trail off"
-    assert not any(row.endswith("...") for row in rows if row not in long_pools), (
-        "a pool a line holds whole must not claim it was cut"
-    )
+    for game, must_cross in ((HEARTS, False), (CHEAT, True)):
+        assert main(["play", str(game), "--seed", "7", "--decisions"]) == 0
+        _, rows = _listing_of(capsys.readouterr().out)
+        cut = [row for row in rows if _pool_of(row) > _CANDIDATES_SHOWN]
+        whole = [row for row in rows if _pool_of(row) <= _CANDIDATES_SHOWN]
+        assert cut, "the pin needs a decision offering more than a line names"
+        assert whole, "and one a line holds whole"
+        for row in cut:
+            assert row.endswith("..."), "a pool a line cannot hold must trail off"
+        for row in whole:
+            assert not row.endswith("..."), (
+                "a pool a line holds whole must not claim it was cut"
+            )
+        if not must_cross:
+            continue
+        # One call's own rows: the same seat, the pool one shorter each time.
+        crossings = [
+            index
+            for index in range(1, len(rows))
+            if rows[index - 1].split()[1] == rows[index].split()[1]
+            and _pool_of(rows[index]) == _pool_of(rows[index - 1]) - 1
+            and _pool_of(rows[index - 1]) > _CANDIDATES_SHOWN >= _pool_of(rows[index])
+        ]
+        assert crossings, "one call's rows must walk down across the cap"
 
 
 def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) -> None:
@@ -698,15 +733,19 @@ def test_negative_seed_plays() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
-    """The action line a seeded `play` walks, as the adapter numbers it, and
-    how many of those actions the two routes share.
+def _tree_walk(
+    path: Path, seed: int, seat: int
+) -> tuple[tuple[int, ...], int, list[str]]:
+    """The action line a seeded `play` walks as the adapter numbers it, how
+    many of those actions the two routes share, and `seat`'s view at each.
 
-    One action id per candidate taken, in the order they were taken: a Chooser
-    call for `n` cards branches the tree `n` times (docs/authoring.md,
-    "`move chosen N cards` is N sequential single-card decisions"). That is the
-    contract written out here rather than read off the command, so the
-    numbering below is compared against something the command does not produce.
+    One action id per candidate taken, in the order they were taken, with the
+    actor's own log carrying each taken candidate before the next is asked
+    for: a Chooser call for `n` cards branches the tree `n` times and the seat
+    remembers what it has already committed (docs/authoring.md, "`move chosen
+    N cards` is N sequential single-card decisions"). That contract is written
+    out here rather than read off the command, so the numbering and the views
+    below are compared against something the command does not produce.
 
     The shared prefix is the first deal, and the bound comes from the driver's
     own `hand_end` rather than from a count of this game's cards. Past it the
@@ -718,8 +757,16 @@ def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
     space = ActionSpace.for_game(game)
     rng = random.Random(seed)
     play_uniformly = random_chooser(rng)
+    logs: dict[int, list[tuple[Any, ...]]] = {
+        p: [] for p in range(game.players.low)
+    }
+    world: list[RuntimeState] = []
     line: list[int] = []
+    views: list[str] = []
     shared: list[int] = []
+
+    def observe(player: int, event: tuple[Any, ...]) -> None:
+        logs[player].append(event)
 
     def watch(event: str, _data: Any) -> None:
         if event == "hand_end" and not shared:
@@ -727,11 +774,21 @@ def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
         taken = play_uniformly(player, candidates, count)
-        line.extend(space.encode(choice) for choice in taken)
+        for choice in taken:
+            views.append(information_state(seat, world[0], logs[seat]))
+            line.append(space.encode(choice))
+            observe(player, ("chose", render(choice)))
         return taken
 
-    play_game(game, rng, watch, chooser=choose)
-    return tuple(line), shared[0] if shared else len(line)
+    play_game(
+        game,
+        rng,
+        watch,
+        chooser=choose,
+        observer=observe,
+        on_first_decision=world.append,
+    )
+    return tuple(line), (shared[0] if shared else len(line)), views
 
 
 def _segments(rendered: str) -> tuple[str, str, str]:
@@ -779,7 +836,7 @@ def test_the_listing_numbers_the_decisions_the_tree_has(
 
     from cardlang.openspiel.game import register_game_file
 
-    line, shared = _tree_line(HEARTS, 7)
+    line, shared, _ = _tree_walk(HEARTS, 7, 0)
     assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
     _, rows = _listing_of(capsys.readouterr().out)
     assert len(rows) == len(line), "one entry per decision the tree branches on"
@@ -792,32 +849,63 @@ def test_the_listing_numbers_the_decisions_the_tree_has(
         state.apply_action(line[index])
 
 
-def test_at_renders_the_view_the_adapter_renders_at_the_same_decision(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The pin the numbering exists for. `--at N` and the adapter's Nth
-    decision node are the same position, so a seat's view of it is the same
-    string — taken here at the second and third cards of Hearts' three-card
-    pass, the positions a per-call numbering cannot name at all.
+def test_the_view_at_every_decision_agrees_with_the_adapter() -> None:
+    """The pin the numbering exists for, at every decision of the first deal:
+    decision N on one route and decision N on the other are the same position,
+    so a seat sees the same zones and remembers the same log at each. The
+    positions inside Hearts' three-card pass — the ones a per-call numbering
+    cannot name at all — are in the walk with the rest.
 
     The `state:` segment is left out: the adapter reads a world already unwound
     past every phase frame, so its state segment drops every phase-local
     variable (issue #612). The cell below holds that segment against the day it
     is fixed.
 
-    red under: number Chooser calls in `cardlang.cli._play`; `--at 1` then
-    renders the next seat's ask, whose log holds one finished selection where
-    the tree's node 1 holds one card. A mutation inside
-    `sequential_decisions` is invisible here by construction — it moves both
-    routes together, which is what sharing it buys — and the absolute record
-    is pinned below instead.
+    red under: number Chooser calls in `cardlang.cli._play`; node 1 is then the
+    next seat's ask, whose log holds one finished selection where the tree's
+    holds one card. A mutation inside `sequential_decisions` is invisible here
+    by construction — it moves both routes together, which is what sharing it
+    buys — and the absolute record is pinned two cells below.
     """
     pytest.importorskip("pyspiel")
-    line, _ = _tree_line(HEARTS, 7)
+    import pyspiel
+
+    from cardlang.openspiel.game import register_game_file
+
+    line, shared, views = _tree_walk(HEARTS, 7, 0)
+    assert shared > 1, "a one-node walk says nothing about numbering"
+    assert any("('chose'" in _segments(views[k])[2] for k in range(shared)), (
+        "the walk must reach a position the seat's own earlier choice defines"
+    )
+    state = pyspiel.load_game(register_game_file(HEARTS)).new_initial_state()
+    state.apply_action(7)
+    for index in range(shared):
+        mine = _segments(views[index])
+        theirs = _segments(str(state.information_state_string(0)))
+        assert mine[0] == theirs[0], f"the zones differ at decision {index}"
+        assert mine[2] == theirs[2], f"the logs differ at decision {index}"
+        state.apply_action(line[index])
+
+
+def test_at_prints_the_view_the_walk_holds_at_that_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """What the command PRINTS is the view the walk above compares — otherwise
+    the agreement would be a property of the engine and not of the answer a
+    designer gets. Taken at the second and third cards of Hearts' pass, and
+    against the adapter directly as well, so neither reading rests on the
+    other.
+    """
+    pytest.importorskip("pyspiel")
+    line, _, views = _tree_walk(HEARTS, 7, 0)
     for index in (1, 2):
         argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
         assert main([*argv, str(index)]) == 0
-        mine = _segments(_seats_view(capsys.readouterr().out, 0))
+        printed = _seats_view(capsys.readouterr().out, 0)
+        assert printed == views[index], (
+            f"what --at {index} prints is not the view at that decision"
+        )
+        mine = _segments(printed)
         theirs = _segments(_adapter_view(HEARTS, 7, line[:index], 0))
         assert mine[0] == theirs[0], f"the zones differ at decision {index}"
         assert mine[2] == theirs[2], f"the logs differ at decision {index}"
@@ -841,7 +929,7 @@ def test_the_state_segment_agrees_across_the_two_routes(
     it does not name.
     """
     pytest.importorskip("pyspiel")
-    line, _ = _tree_line(HEARTS, 7)
+    line, _, _ = _tree_walk(HEARTS, 7, 0)
     argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
     if main(argv) != 0:
         raise RuntimeError("the invocation this cell compares was refused")
