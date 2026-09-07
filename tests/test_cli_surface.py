@@ -39,8 +39,9 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  is that each is rendered rather than left to a traceback, and
                  that the options do not displace it — the same power set,
                  crossed a second time with a game that refuses at play time,
-                 which is the invocation a designer meets and neither the
-                 clean-game cells nor the located rendering runs. That cross
+                 which is the invocation a designer meets and which neither
+                 the clean-game cells nor the refusal's own content covers.
+                 That cross
                  reads one authored column, not a second of its own: an
                  invocation the command refuses is refused before the game runs
                  at all, and one it carries out reaches the refusal with no
@@ -338,7 +339,7 @@ def test_a_refusing_game_under_every_option_combination(
     """The combination cross against a game that refuses at play time.
 
     The cells above run a game that plays clean, and the located rendering
-    runs `play` with no options at all — so the invocation a designer actually
+    measures the refusal's own content — so the invocation a designer actually
     meets, a dying playout under the options they were debugging with, is the
     one neither measures. Two claims, and the expected column is the same
     authored one rather than a second that could disagree with it:
