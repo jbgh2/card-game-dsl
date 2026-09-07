@@ -10,8 +10,8 @@ text is preserved under [research/](research/); summaries follow.
 
 ### Game description languages for card games
 
-Surveyed: GDL, GDL-II, Regular Boardgames, Ludii, Zillions, CardStock,
-OpenSpiel, RLCard, PokerKit, Forge, CARDSTOCK.
+Surveyed: GDL, GDL-II, Regular Boardgames, Ludii, Zillions,
+CARDSTOCK/RECYCLE, OpenSpiel, RLCard, PokerKit, Forge.
 
 Key conclusion: no off-the-shelf DSL cleanly covers the 52-card family.
 Ludii's ludemic class-grammar is the closest architectural inspiration;
