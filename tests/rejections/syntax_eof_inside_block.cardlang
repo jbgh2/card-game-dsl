@@ -1,0 +1,19 @@
+// Guard: parse.py's failure rendering, the end-of-input arm. The `game {`
+// block is never closed and the file simply stops, so the parser runs out of
+// input rather than meeting a character it cannot place. End of input is not a
+// position in the file, so the diagnostic reports the file's end and names the
+// block that is still open there.
+game SyntaxEofInsideBlock {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score

@@ -1,0 +1,23 @@
+// Guard: parse.py's failure rendering, the unclosed-string arm. A `"` with no
+// partner is a lexeme the grammar cannot finish, not a block left open, and
+// saying so is the whole fix. Every `{` after it belongs to a text value as
+// far as any scan can tell, so the diagnostic claims nothing about the file's
+// brace structure and names the string instead.
+game SyntaxUnterminatedString {
+  players: 2
+  max_length: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+    label : String = "the opening deal
+  }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

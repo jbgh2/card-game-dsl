@@ -1,0 +1,1 @@
+syntax_colon_for_equals.cardlang:15:35: error: syntax error: unexpected `:`; expected `<`, `=` or `?`

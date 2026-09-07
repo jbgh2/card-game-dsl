@@ -15,7 +15,16 @@ Contract (decisions.md "Closed-domain completeness", write-time triage)
 -----------------------------------------------------------------------
 Assumes:      raw DSL text (Markdown extraction already applied).
 Establishes:  a syntactically valid frozen AST; every node carries a
-              :class:`Span`. No semantic claims — names carry no
+              :class:`Span`. A failure instead reaches the game author in the
+              words the DSL itself uses: the lexeme they wrote, quoted; what the
+              grammar accepts there rendered through ``_designer_word``,
+              which is derived from the terminal table so it cannot drift from
+              the grammar; and the block they left open, read from the source's
+              own lexemes (``_scan``) rather than from its characters, so a
+              brace inside a comment or a text value is not structure and a
+              block is named for the keyword that opens it wherever its `{`
+              sits. No semantic claims —
+              names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
               family is the ONE carrier of a VALUE type's `<...>` spelling:
@@ -25,7 +34,11 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               and a library's ``require_decl`` carry the OTHER reading of
               `<...>` — an index domain, derived through ``type_args`` — and
               which shapes those admit is resolve's.
-Now illegal:  ill-formed syntax; it cannot reach any later pass. A
+Now illegal:  ill-formed syntax; it cannot reach any later pass. Also naming a
+              grammar terminal to a designer: a terminal with no word in
+              ``_WORD_OVERRIDES`` and no spelling recoverable from its own
+              pattern makes ``_parser()`` refuse to build, so no message can
+              fall back to a terminal name. A
               ``Collection<`` spelling, bare or `?`-suffixed, on any
               :class:`~cardlang.ast.nodes.Parameter` outside a
               :class:`~cardlang.ast.nodes.PrimitiveDecl`, or in any
@@ -63,14 +76,17 @@ Verified by:  the grammar-ambiguity check (tests/test_grammar_ambiguity.py)
 
 from __future__ import annotations
 
+import difflib
 import re
+import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
-from typing import cast
+from typing import Literal, cast
 
 from lark import Lark, Token, Tree
-from lark.exceptions import UnexpectedInput, VisitError
+from lark.exceptions import UnexpectedCharacters, UnexpectedInput, VisitError
 from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
@@ -282,11 +298,15 @@ class _MoveEffect:
     body: tuple[object, ...]
 
 
+@cache
+def _grammar_text() -> str:
+    return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
-    return Lark(
-        grammar,
+    parser = Lark(
+        _grammar_text(),
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
@@ -294,6 +314,33 @@ def _parser() -> Lark:
         # (rule definitions with no enclosing game); `library` is a family
         # library (decisions.md "Family libraries").
         start=["start", "stdlib_rules", "library"],
+    )
+    # Every parse crosses this, so a terminal the grammar gains without a
+    # designer's word for it cannot wait for a syntax error to be noticed.
+    _check_every_terminal_renders(parser.terminals)
+    return parser
+
+
+@cache
+def _lexer() -> Lark:
+    """The same grammar as a standalone lexer, for reading a FAILED parse.
+
+    A syntax error leaves no tree, so the structure a diagnostic describes —
+    which braces are open, which words head a block, where a string ends — has
+    to be read from the text. Reading it as TOKENS rather than as characters is
+    what keeps a `{` inside a comment or a string from counting as structure.
+
+    Context-free, and so wrong about token KINDS: this grammar disambiguates
+    `NAME`/`QNOUN`/`CARD_RANK_NAME`/`STRUCT_TYPE_NAME` by position and a basic
+    lexer cannot (tests/test_keyword_anchoring.py). What it settles is what a
+    scan needs and no more — each lexeme's offset and text, and the braces and
+    string literals, which no other terminal can match.
+    """
+    return Lark(
+        _grammar_text(),
+        parser=None,
+        lexer="basic",
+        propagate_positions=True,
     )
 
 
@@ -2104,8 +2151,477 @@ def _as_stmt(value: object) -> n.Stmt:
     return value  # type: ignore[return-value]
 
 
+class UnrenderableTerminal(Exception):
+    """A grammar terminal with no word a designer could have typed.
+
+    The Author is the engine maintainer who edited `cardlang.lark`, never a
+    designer, so this is loud in the maintainer's channel rather than folded
+    into a diagnostic. It is raised where the parser is BUILT, so every parse
+    crosses it — a check reached only from an error path can go unrun.
+    """
+
+
+#: Terminals whose pattern spells no word a designer would recognize, mapped to
+#: what they are called in `docs/`. Everything else renders from the pattern
+#: itself (`_render_terminal`), so a keyword added to the grammar needs no row
+#: here; only a terminal that matches a CLASS of text does, because a class has
+#: a name the regex does not carry.
+_WORD_OVERRIDES: dict[str, str] = {
+    "NAME": "a name",
+    "QNOUN": "a name",
+    "CARD_POINTS_KEY": "a name",
+    "TRICK_ORDER_KEY": "a name",
+    "STRUCT_TYPE_NAME": "a type name",
+    "CARD_RANK_NAME": "a rank name",
+    "INT": "a whole number",
+    "STRING": "a quoted string",
+    "LINE_COMMENT": "a `//` comment",
+    "WS": "a space or line break",
+    # The braces carry a word as well as the character: a designer chasing an
+    # unclosed block is looking for the end of something, not for a glyph.
+    "LBRACE": "an opening `{`",
+    "RBRACE": "a closing `}`",
+}
+
+# A trailing `(?!...)` is the keyword-anchoring guard (tests/test_keyword_anchoring.py),
+# not part of the spelling.
+_TRAILING_ANCHOR = re.compile(r"\(\?\![^)]*\)$")
+# A regex source that matches exactly one literal string: ordinary characters
+# and backslash escapes, and none of the metacharacters that would make it a
+# class, a repetition or a group.
+_ONE_LITERAL = re.compile(r"(?:[^\\\[\]().*+?{}|^$]|\\.)+")
+
+
+def _literal(source: str) -> str | None:
+    """The single string `source` matches, or None if it matches more than one."""
+    return re.sub(r"\\(.)", r"\1", source) if _ONE_LITERAL.fullmatch(source) else None
+
+
+def _render_terminal(terminal: object) -> str | None:
+    """The designer's word for one terminal, derived from its own pattern.
+
+    Three rules cover the grammar's whole table bar the classes named in
+    `_WORD_OVERRIDES`: a plain string literal quotes itself; a regex that
+    spells one literal (every `_<WORD>_KW`, plus `RANK_CONV`) quotes that
+    literal; and a regex that is an alternation of literals (`COMP_OP`,
+    `TRANSFER_VERB`, …) lists them in the order the grammar writes them.
+    Deriving rather than listing is what keeps the words from drifting from
+    the grammar (design-notes/architect-principles.md, P9).
+    """
+    name = getattr(terminal, "name", "")
+    override = _WORD_OVERRIDES.get(name)
+    if override is not None:
+        return override
+    pattern = terminal.pattern  # type: ignore[attr-defined]
+    source = pattern.value
+    if type(pattern).__name__ == "PatternStr":
+        return f"`{source}`"
+    body = _TRAILING_ANCHOR.sub("", source)
+    single = _literal(body)
+    if single is not None:
+        return f"`{single}`"
+    if body.startswith("(?:") and body.endswith(")"):
+        parts = [_literal(part) for part in body[3:-1].split("|")]
+        if parts and all(part is not None for part in parts):
+            return _join(f"`{part}`" for part in parts if part is not None)
+    return None
+
+
+def _join(words: Iterable[str]) -> str:
+    """`a`, `b` or `c` — the language's own list voice, not a Python repr."""
+    items = list(words)
+    if len(items) == 1:
+        return items[0]
+    return f"{', '.join(items[:-1])} or {items[-1]}"
+
+
+def _check_every_terminal_renders(terminals: Iterable[object]) -> None:
+    """Refuse a grammar whose terminals cannot all be spoken to a designer.
+
+    The runtime half of the closed-domain pin (decisions.md "Closed-domain
+    completeness"); the static half is
+    tests/test_parse_diagnostics.py::test_every_terminal_has_a_designer_word.
+    """
+    unrenderable = sorted(
+        str(getattr(t, "name", t)) for t in terminals if _render_terminal(t) is None
+    )
+    if unrenderable:
+        raise UnrenderableTerminal(
+            f"grammar terminal(s) {', '.join(unrenderable)} have no word a "
+            "designer could have typed, so a syntax error naming one would "
+            "leak a grammar name — add a row to `_WORD_OVERRIDES` in "
+            "cardlang/parse.py giving each the name it has in docs/"
+        )
+
+
+@lru_cache(maxsize=1)
+def _terminal_words() -> dict[str, str]:
+    """Every terminal's designer word, keyed by terminal name. Total by
+    construction: `_parser()` refuses to build a grammar with a gap in it."""
+    return {t.name: _render_terminal(t) or "" for t in _parser().terminals}
+
+
+def _designer_word(name: str) -> str:
+    """The designer's word for a terminal name; empty for a name the grammar
+    does not define, which a rendered expectation drops rather than shows."""
+    return _terminal_words().get(name, "")
+
+
+def _spelling(word: str) -> str:
+    """The literal inside a rendered word, for comparing against what was typed.
+
+    Ranking on the whole rendering would score its English — "a closing `}`"
+    resembles a misspelled keyword through the article, not through the brace.
+    """
+    quoted = re.search(r"`([^`]*)`", word)
+    return quoted.group(1) if quoted else ""
+
+
+@cache
+def _brace_terminals() -> tuple[str, str]:
+    """The terminal names for `{` and `}`, read from the compiled table.
+
+    They are the one pair a context-free scan can trust: no other terminal of
+    this grammar matches either character.
+    """
+    named = {
+        str(getattr(t.pattern, "value", "")): t.name
+        for t in _parser().terminals
+        if getattr(t.pattern, "value", None) in ("{", "}")
+    }
+    return named["{"], named["}"]
+
+
+@cache
+def _block_opener_words() -> frozenset[str]:
+    """Every word a block can begin with, derived from the grammar's own rules.
+
+    A block-opening production leads with its keyword and carries `{`, so the
+    set is the first symbol of each such rule spoken through
+    ``_designer_word``. Deriving rather than listing is what lets a block
+    construct added to the grammar name itself: a listed set would leave the
+    new one nameless and nothing would say so. A first symbol that spells a
+    CLASS of text rather than one word — the struct type of a `Trick { }`
+    literal, the name of a `produces` arm — renders to prose with no literal
+    in it and so is not a word a header can be recognised by.
+    """
+    lbrace, _ = _brace_terminals()
+    words: set[str] = set()
+    for rule in _parser().rules:
+        names = [symbol.name for symbol in rule.expansion]
+        if lbrace not in names:
+            continue
+        word = _spelling(_designer_word(str(names[0])))
+        if word and word.replace("_", "").isalnum():
+            words.add(word)
+    return frozenset(words)
+
+
+def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
+    """What the grammar accepts at the failure point, in the designer's words.
+
+    Ranked by resemblance to what was actually typed, so a misspelled clause
+    keyword meets its own spelling first. Where nothing resembles it — a stray
+    keystroke resembles no word — a spelled alternative outranks a punctuation
+    one, because a designer at a clause position is reaching for a word. Ties
+    break on the word itself, so the order is stable and a golden can pin it.
+    """
+    names = getattr(exc, "allowed", None) or getattr(exc, "expected", None) or ()
+    words = {
+        word
+        for word in (_designer_word(str(getattr(t, "name", t))) for t in names)
+        if word
+    }
+
+    def rank(word: str) -> tuple[float, bool, str]:
+        spelling = _spelling(word)
+        return (
+            -difflib.SequenceMatcher(None, typed, spelling).ratio(),
+            not spelling[:1].isalpha(),
+            word,
+        )
+
+    return tuple(sorted(words, key=rank))
+
+
+#: How many alternatives a designer is asked to read before the clause
+#: summarizes instead. Past this the set is the grammar's shape, not advice.
+_MAX_EXPECTED_SHOWN = 3
+
+
+def _expected_clause(exc: UnexpectedInput, typed: str) -> str:
+    words = _expected_words(exc, typed)
+    if not words:
+        return ""
+    if len(words) <= _MAX_EXPECTED_SHOWN:
+        return f"; expected {_join(words)}"
+    shown = _join(words[:_MAX_EXPECTED_SHOWN])
+    return f"; expected {shown}, among others"
+
+
+#: A run of word characters. No lexeme of this grammar can end inside one —
+#: the identifier-shaped terminals run to the end of the run and every other
+#: word-shaped terminal refuses a word character after it
+#: (tests/test_keyword_anchoring.py) — so the run is one word both to the
+#: lexer and to the designer, and quoting less of it would show them a
+#: fragment their file does not contain.
+_WORD_RUN = re.compile(r"[A-Za-z0-9_]+")
+
+
+def _offending_lexeme(text: str, pos: int) -> str:
+    """What the designer wrote at the failure point, quoted whole.
+
+    The dynamic lexer reports the first CHARACTER it cannot place, so a
+    misspelled keyword surfaces as its initial letter — as opaque to a
+    designer as a terminal name — and `2foo` surfaces as the digit, which
+    hides the suffix that is the whole mistake. A word run is quoted entire,
+    because the word is what they can find in their file.
+
+    A character outside printable ASCII is named as well as quoted. The ones
+    that reach a game file arrive by paste — a byte-order mark, a non-breaking
+    space, a smart quote — and each is either invisible in an editor or
+    indistinguishable from the ASCII character it replaces, so quoting it
+    alone shows the designer nothing to look for.
+    """
+    if pos >= len(text):
+        return "end of file"
+    rest = text[pos:]
+    word = _WORD_RUN.match(rest)
+    if word:
+        return f"`{word.group()}`"
+    char = rest[0]
+    if char.isascii() and char.isprintable():
+        return f"`{char}`"
+    return f"`{char}` ({_character_name(char)})"
+
+
+def _character_name(char: str) -> str:
+    """A character's own name, so an invisible one can still be searched for.
+
+    Unicode's name is the designer's handle on it — it is what an editor's
+    "show invisibles" and a web search both use — and taking it from
+    `unicodedata` rather than a table means a paste this language has not seen
+    before is still named rather than shown as a blank.
+    """
+    try:
+        return f"{unicodedata.name(char).lower()}, U+{ord(char):04X}"
+    except ValueError:
+        return f"U+{ord(char):04X}"
+
+
+#: How many characters no terminal admits a scan steps over before it gives
+#: up. Each one costs a re-scan of the whole text, and past a handful the file
+#: has a problem the failure's own sentence already names. A designed
+#: constraint: the scan says it is incomplete and the diagnostic then claims
+#: nothing about the file's structure, which is the honest answer.
+_RESYNC_LIMIT = 8
+
+
+@dataclass(frozen=True, slots=True)
+class _Scan:
+    """A source that does not parse, read as lexemes rather than as characters.
+
+    `stops_at_string` is the offset of a `"` with no closing `"`: the STRING
+    terminal is the only one that can begin there, so its own end is what the
+    file is missing. A scan cannot step over it the way it steps over a
+    character no terminal admits — everything after it is the string's body,
+    and counting braces inside a text value would invent structure the
+    designer did not write.
+
+    `complete` is false wherever the scan stopped short, and every sentence
+    about the file's structure is withheld when it is.
+    """
+
+    tokens: tuple[Token, ...]
+    stops_at_string: int | None
+    complete: bool
+
+
+def _line_of(text: str, pos: int) -> int:
+    """The 1-based line an offset falls on, in the DSL text's own numbering."""
+    return text.count("\n", 0, pos) + 1
+
+
+def _lex_as_far_as_possible(source: str) -> tuple[list[Token], int | None]:
+    """Every lexeme of `source` up to the first character no terminal admits,
+    with that character's offset."""
+    tokens: list[Token] = []
+    stream = _lexer().lex(source)
+    while True:
+        try:
+            tokens.append(next(stream))
+        except StopIteration:
+            return tokens, None
+        except UnexpectedCharacters as exc:
+            return tokens, int(exc.pos_in_stream or 0)
+
+
+@lru_cache(maxsize=8)
+def _scan(text: str) -> _Scan:
+    """`text` as lexemes, stepping over the characters no terminal admits.
+
+    A character the lexer cannot place is BLANKED rather than sliced out, so
+    every offset, line and column the rest of the scan reports is still the
+    one in the designer's file. Slicing would leave two derivations of every
+    position, which is the thing reading tokens exists to remove.
+    """
+    source = text
+    tokens: list[Token] = []
+    for _ in range(_RESYNC_LIMIT + 1):
+        tokens, stopped = _lex_as_far_as_possible(source)
+        if stopped is None:
+            return _Scan(tuple(tokens), None, True)
+        if source[stopped : stopped + 1] == '"':
+            return _Scan(tuple(tokens), stopped, False)
+        source = f"{source[:stopped]} {source[stopped + 1 :]}"
+    return _Scan(tuple(tokens), None, False)
+
+
+def _opener_word(header: list[Token]) -> str | None:
+    """What a block is called, read from the lexemes between it and the brace
+    that encloses it.
+
+    Its own keyword where the header spells one: the first word of the line
+    the header ends on when that word opens a block, so a `phase p repeat
+    until X {` is the phase's; else the nearest opening keyword before the
+    `{`, which is what names an `if` written after a `for each` on one line,
+    or a condition carried over two lines. A header that spells no block
+    keyword at all keeps its own first word, which is what a designer reads
+    on a `produces` arm's line.
+    """
+    if not header:
+        return None
+    openers = _block_opener_words()
+    head = next(token for token in header if token.line == header[-1].line)
+    if head.value in openers:
+        return str(head.value)
+    for token in reversed(header):
+        if token.value in openers:
+            return str(token.value)
+    return str(head.value)
+
+
+@dataclass(frozen=True, slots=True)
+class _Block:
+    """An opening brace: the line it sits on, and what its block is called."""
+
+    line: int
+    word: str | None
+
+
+def _open_blocks(scan: _Scan, pos: int) -> tuple[tuple[_Block, ...], int, int]:
+    """The blocks open at `pos`, the shallowest depth reached from `pos` on,
+    and the depth at the end of the scan.
+
+    The shallowest depth is what says whether a block open AT the failure is
+    ever closed: matching is last-opened-first-closed, so the blocks that
+    survive are exactly the ones below every level the file returns to.
+    """
+    lbrace, rbrace = _brace_terminals()
+    stack: list[_Block] = []
+    headers: list[list[Token]] = [[]]
+    closed: list[Token] = []
+    depth = 0
+    at_failure: tuple[_Block, ...] | None = None
+    low: int | None = None
+    for token in scan.tokens:
+        if at_failure is None and (token.start_pos or 0) >= pos:
+            at_failure, low = tuple(stack), depth
+        if token.type == lbrace:
+            stack.append(_Block(token.line or 1, _opener_word(headers[-1] or closed)))
+            depth += 1
+            closed = []
+            headers.append([])
+        elif token.type == rbrace:
+            depth -= 1
+            if stack:
+                stack.pop()
+            if len(headers) > 1:
+                headers.pop()
+            # A group that has closed leaves its own header standing, so a
+            # phase body written under its outcome set is still the phase's.
+            closed = headers[-1]
+            headers[-1] = []
+        else:
+            headers[-1].append(token)
+            closed = []
+        if low is not None:
+            low = min(low, depth)
+    if at_failure is None or low is None:
+        # The failure is past every lexeme: the blocks open there are the ones
+        # the file ends inside, and none of them is ever closed.
+        return tuple(stack), depth, depth
+    return at_failure, low, depth
+
+
+_StructuralVerdict = Literal[
+    "balanced",
+    "block_open_at_failure",
+    "block_open_elsewhere",
+    "surplus_close",
+    "string_open_at_failure",
+    "unscannable",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class _Structure:
+    """What a failure's surroundings say about it, and whether that replaces
+    the parser's own expectation."""
+
+    verdict: _StructuralVerdict
+    clause: str
+    names_a_site: bool
+
+
+def _structure(text: str, pos: int, line_offset: int) -> _Structure:
+    """What a failure's surroundings earn the right to say about it.
+
+    A block left open names a site only when the failure is INSIDE one: the
+    innermost block open at the failure point that the file never closes,
+    which is the one the designer was writing in. The innermost surviving to
+    end of text is the wrong choice — matching is last-opened-first-closed, so
+    a single missing `}` leaves the OUTERMOST block open, further from the
+    mistake than the failure line itself. A block left open somewhere the
+    failure is not says so and no more; naming it would send a designer to
+    close a brace that has nothing to do with what they are reading.
+
+    A surplus `}` names no line either. Which brace is surplus is not
+    recoverable: every candidate matches equally well, so the count is all
+    that can be said honestly.
+    """
+    scan = _scan(text)
+    if scan.stops_at_string is not None:
+        if scan.stops_at_string <= pos:
+            line = _line_of(text, scan.stops_at_string) + line_offset
+            return _Structure(
+                "string_open_at_failure",
+                f"; the quoted string opened on line {line} is never closed",
+                True,
+            )
+        return _Structure("unscannable", "", False)
+    if not scan.complete:
+        return _Structure("unscannable", "", False)
+    open_here, low, depth = _open_blocks(scan, pos)
+    if depth < 0:
+        return _Structure("surplus_close", "; this file has more `}` than `{`", False)
+    if low > 0 and open_here:
+        block = open_here[-1]
+        named = f"the `{block.word} {{` block" if block.word else "the block"
+        return _Structure(
+            "block_open_at_failure",
+            f"; {named} opened on line {block.line + line_offset} is never closed",
+            True,
+        )
+    if depth > 0:
+        return _Structure(
+            "block_open_elsewhere", "; a block in this file is never closed", False
+        )
+    return _Structure("balanced", "", False)
+
+
 # A clause that is legal SOMEWHERE but not where it was written can only be
-# reported by the parser as "no terminal matches", which names neither the
+# reported by the parser as a character it cannot place, which names neither the
 # mistake nor the fix. Keyed by the first word of the offending line, since
 # that is what the designer has their cursor on.
 #
@@ -2145,20 +2661,19 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
 }
 
 
-def _parse_hint(text: str, line: int, column: int, start: str) -> str:
+def _parse_hint(text: str, pos: int, line: int, start: str) -> str:
     """Two probes, because Lark points at either end of the offending clause.
 
     A clause on its own line fails at the clause keyword itself; one written
-    inline after `{` fails a few characters in. So try the identifier AT the
-    reported column first, then fall back to the line's leading word.
+    inline after `{` fails a few characters in. So try the lexeme AT the
+    failure first, then fall back to the one the line begins with. Both are
+    read as lexemes, so a clause keyword spelt inside a text value or a
+    comment is not one and fires nothing.
 
     `start` is the entry point the text was parsed under, and a hint scoped to
     another one is withheld rather than qualified: a sentence a reader cannot
     act on is worse than no sentence.
     """
-    lines = text.splitlines()
-    if not 1 <= line <= len(lines):
-        return ""
 
     def hint_for(keyword: str) -> str | None:
         row = _PARSE_HINTS.get(keyword)
@@ -2167,32 +2682,56 @@ def _parse_hint(text: str, line: int, column: int, start: str) -> str:
         scope, hint = row
         return hint if scope is None or scope == start else ""
 
-    source = lines[line - 1]
-    at_column = re.match(r"[A-Za-z_][A-Za-z0-9_]*", source[max(0, column - 1) :])
-    if at_column:
-        found = hint_for(at_column.group())
+    tokens = _scan(text).tokens
+    at_failure = next(
+        (t for t in tokens if (t.start_pos or 0) >= pos and t.line == line), None
+    )
+    if at_failure is not None:
+        found = hint_for(str(at_failure.value))
         if found is not None:
             return found
-    head = source.strip().split(":")[0].split()
-    return (hint_for(head[0]) or "") if head else ""
+    head = next((t for t in tokens if t.line == line), None)
+    return (hint_for(str(head.value)) or "") if head is not None else ""
 
 
 def parse_to_tree(
     text: str, source_name: str, line_offset: int = 0, start: str = "start"
 ) -> Tree[Token]:
     """Parse DSL ``text`` to a raw Lark tree, raising a span-located diagnostic
-    on a syntax error. The grammar-acceptance entry point."""
+    on a syntax error. The grammar-acceptance entry point.
+
+    The diagnostic is written in the designer's own words throughout: the
+    lexeme they typed, the grammar's expectations as words from `docs/`, and
+    the block they left open. Lark's own sentence is not carried, here or as a
+    note — it addresses the engine maintainer, who has the chained exception
+    and the grammar, and putting maintainer currency in a game author's channel
+    is what `docs/glossary/author.md` forbids.
+    """
     try:
         tree = _parser().parse(text, start=start)
     except UnexpectedInput as exc:
-        line = getattr(exc, "line", 1) + line_offset
-        column = getattr(exc, "column", 1)
-        span = Span(source_name, 0, 0, line, column)
-        message = f"syntax error: {exc!s}".splitlines()[0]
-        hint = _parse_hint(text, getattr(exc, "line", 1), column, start)
-        raise DiagnosticError(
-            Diagnostic(Severity.ERROR, f"{message}{hint}", span)
-        ) from exc
+        # End of input is not a position: lark reports line and column as -1
+        # there, so the end of the text is the honest span.
+        reported: int | None = getattr(exc, "pos_in_stream", None)
+        at_end = reported is None or reported < 0
+        pos: int = len(text) if at_end else int(reported or 0)
+        raw_line: int = (
+            _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
+        )
+        column: int = (
+            pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
+        )
+        span = Span(source_name, pos, pos, raw_line + line_offset, column)
+        lexeme = _offending_lexeme(text, pos)
+        structure = _structure(text, pos, line_offset)
+        structural, names_a_site = structure.clause, structure.names_a_site
+        # A clause naming the block to close IS the instruction; the parser's
+        # own expectation, computed under a bracket context the missing `}`
+        # already broke, would invite exactly the wrong edit beside it.
+        expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
+        hint = _parse_hint(text, pos, raw_line, start)
+        message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
+        raise DiagnosticError(Diagnostic(Severity.ERROR, message, span)) from exc
     assert isinstance(tree, Tree)
     return tree
 

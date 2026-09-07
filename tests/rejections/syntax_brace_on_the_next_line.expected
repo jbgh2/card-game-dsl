@@ -1,0 +1,1 @@
+syntax_brace_on_the_next_line.cardlang:15:9: error: syntax error: unexpected `{`; the `zones {` block opened on line 12 is never closed

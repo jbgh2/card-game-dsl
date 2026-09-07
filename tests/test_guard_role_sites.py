@@ -146,6 +146,18 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         ("Span.__post_init__ (end precedes start). A malformed span is a "
         "compile-pass bug; no game description can express one."),
     ),
+    # --- engine maintainer: the grammar's designer-facing vocabulary ---------
+    ("cardlang/parse.py", "UnrenderableTerminal"): (
+        1,
+        ("`_check_every_terminal_renders`, where the parser is built. An Owner "
+        "Guard in the triage's sense — parse.py owns `_WORD_OVERRIDES` and "
+        "the renderer over the grammar's terminals — whose Owner is the engine "
+        "maintainer who edited cardlang.lark. That is exactly why it does not "
+        "wear OwnerGuardError: the role type says the GAME AUTHOR must act, and "
+        "no game description can reach this. A permanent row, not a ratchet "
+        "step — there is nothing to convert it to. Where the class sits: "
+        "tests/test_failure_taxonomy.py; who must act: the class's own docstring."),
+    ),
     # --- primitive-module maintainer -----------------------------------------
     ("cardlang/runtime/reads.py", "TypeError"): (
         3,

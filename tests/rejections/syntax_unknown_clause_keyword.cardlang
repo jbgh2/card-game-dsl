@@ -1,0 +1,19 @@
+// Guard: parse.py's failure rendering, the large-expected-set arm. A game
+// clause spelled without its underscore is a word the language does not use
+// here, and every game clause is legal at that point — too many to print. The
+// diagnostic names the closest spellings rather than the whole set.
+game SyntaxUnknownClauseKeyword {
+  players: 2
+  maxlength: 1000
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+  zones {
+    deck : Deck
+    hand[player] : Hand<player>
+  }
+  state { score[player] : Integer = 0 }
+  phase play {
+    deal 3 cards from deck to each hand
+  }
+  winner: highest score
+}

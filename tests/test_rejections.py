@@ -45,7 +45,7 @@ property:   every `.cardlang` file in `tests/rejections/` is rejected by
 domain:     the file-pair registry — `tests/rejections/*.cardlang` paired
             with `tests/rejections/*.expected`, one pair per named guard
             class. The population it samples FROM is open rather than
-            closed: every diagnostic emission site across
+            closed: every diagnostic emission site across `cardlang/parse.py`,
             `cardlang/resolve.py`, `cardlang/typecheck.py` and
             `cardlang/deckcheck.py` is a guard class, and the set grows as
             the language does — a new checker rule is a new guard, and it
@@ -60,7 +60,9 @@ registry:   the directory itself. `test_every_cardlang_case_has_a_matching_expec
             pins both directions of the glob (mirrors the idiom in
             `tests/openspiel_ready/test_coverage.py`): an orphan `.cardlang`
             with no golden, or a golden with no source, fails the harness
-            rather than being silently skipped or silently stale.
+            rather than being silently skipped or silently stale. The
+            properties the `syntax_*` cases share —
+            tests/test_parse_diagnostics.py.
 does not prove:  that every diagnostic a designer can reach still reads
             the way it was written. The cases are representative guard
             classes, one seed per class over an open population, so a guard

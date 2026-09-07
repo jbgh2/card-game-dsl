@@ -1,0 +1,1 @@
+syntax_eof_inside_block.cardlang:20:1: error: syntax error: unexpected end of file; the `game {` block opened on line 6 is never closed

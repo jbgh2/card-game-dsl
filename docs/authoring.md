@@ -264,13 +264,26 @@ fault, whether a compile stage or the playout says so, and `2` when the
 invocation cannot be carried out at all — an unreadable path, a seat the game
 does not seat, a broken checkout.
 
-One class is the exception, and it is the one a first file is likeliest to hit:
-a **syntax** error is still reported in the parser generator's vocabulary,
-describing a terminal that fails to match in a parser context, and pointing at
-where the grammar gave up rather than where the file went wrong. A missing `}`
-is the usual cause; look above the reported line for an unclosed block. This
-is a known defect, tracked as issue #551 — every diagnostic past the parser
-speaks the language's own terms.
+A **syntax** error — the class a first file is likeliest to hit, since it
+arrives before any other stage runs — speaks the same terms. It quotes what you
+wrote and names what the language accepts in its place:
+
+```console
+$ cardlang check bad.cardlang
+bad.cardlang:12:9: error: syntax error: unexpected `{`; the `zones {` block opened on line 9 is never closed
+```
+
+Where the braces balance, the message names the alternatives instead:
+
+```console
+$ cardlang check bad.cardlang
+bad.cardlang:29:26: error: syntax error: unexpected `in`; expected `where`
+```
+
+Where they are too many to read, it names the closest few and says "among
+others". A missing `}` is the usual cause of the first kind, and the line it
+names is the block's opening line, not the line further down where the grammar
+finally ran out of ways to read the file.
 
 ## Reaching OpenSpiel with your own game
 
