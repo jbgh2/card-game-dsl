@@ -162,8 +162,10 @@ def _declared_exception_class_names() -> frozenset[str]:
 
     Heuristic, stated so it can be judged: a class is exception-shaped if any
     base's spelling ends in `Error` or `Exception`. That covers every class in
-    this package (`GameDescriptionError(Exception)`, `OwnerGuardError(
-    GameDescriptionError)`, `IllegalMove(Exception)`, the signals). A class
+    this package (`GameDescriptionError(Located, Exception)`, `OwnerGuardError(
+    GameDescriptionError)`, `IllegalMove(Located, Exception)`, the signals) —
+    including the two that name a carrier first, since ANY base satisfies it.
+    A class
     subclassing an exception under some other name would be missed here — but
     `test_every_engine_exception_is_placed` derives from the IMPORTED set, so
     such a class still fails that test the moment it exists on any install that

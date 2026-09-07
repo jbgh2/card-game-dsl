@@ -1,0 +1,43 @@
+// A game that passes every compile stage and then asks a player to choose a
+// card from a zone that is already empty: the second discard runs against a
+// hand the first one emptied, and the chooser refuses as a
+// `GameDescriptionError`.
+//
+// The witness for a runtime refusal raised under a PLAIN statement, where the
+// statement the executor dispatched is the sentence that refused. Its sibling
+// `simultaneous_empty_zone_choice.cardlang` is the same refusal raised under a
+// wrapper form, where those two sentences differ. Both reach the refusal on
+// every seed, so neither test rides one game's random line.
+game EmptyZoneChoice {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discards     : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  phase discard {
+    for each player p:
+      move chosen 1 card from hand[p] to discards
+  }
+
+  phase discard_again {
+    for each player p:
+      move chosen 1 card from hand[p] to discards
+  }
+
+  winner: highest coins
+}

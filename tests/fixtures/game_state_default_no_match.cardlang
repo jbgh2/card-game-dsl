@@ -1,0 +1,29 @@
+// The same unmatched query as `phase_state_default_no_match.cardlang`, in the
+// GAME's own `state { }` instead of a phase's: the driver declares it before
+// the first phase begins, so the refusal escapes with no phase running and
+// names the declaration alone.
+game GameStateDefaultNoMatch {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discards     : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+    // No card has been dealt yet, so the query matches no seat at all.
+    singleton     : Player? = the player where (number of cards in hand[player]) is 1
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  winner: highest coins
+}

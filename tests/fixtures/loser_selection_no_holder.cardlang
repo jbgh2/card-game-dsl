@@ -1,0 +1,29 @@
+// A `loser:` selection that asks which seat holds a card no seat was dealt.
+// The driver reads the result after the last phase has run, so the refusal
+// escapes with no phase running and the selection's own line is what names it.
+game LoserSelectionNoHolder {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    waste        : Discard
+  }
+
+  phase setup {
+    // One card each, off the top of an unshuffled deck: the ace of spades
+    // stays in the deck, so no hand holds it when the result is read.
+    deal 1 card from deck to each hand
+  }
+
+  phase play {
+    for each player p:
+      move 1 card from hand[p] to waste
+  }
+
+  loser: player_holding(A of spades)
+}

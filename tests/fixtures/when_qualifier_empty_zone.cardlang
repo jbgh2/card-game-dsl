@@ -1,0 +1,36 @@
+// A game that passes every compile stage and then asks an empty zone for its
+// suit from a phase's `when` guard — game text no statement encloses, so the
+// statement executor never sees it and the guard's own span is what names it.
+//
+// The witness for a refusal raised in a phase QUALIFIER's `when` arm. Its
+// sibling `repeat_until_qualifier_empty_zone.cardlang` is the same refusal in
+// the loop arm. Both reach it on every seed.
+game WhenQualifierEmptyZone {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    indicator    : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  // `indicator` is empty here — nothing has moved a card into it.
+  phase guarded when suit_of(indicator) is hearts {
+    for each player p:
+      move 1 card from hand[p] to indicator
+  }
+
+  winner: highest coins
+}

@@ -4,6 +4,18 @@
 introduce a [[binder]] for the rest of its body (a `let`), so `execute` returns
 the (possibly extended) [[context]] the caller threads into subsequent
 statements.
+
+Contract
+--------
+Assumes: the statement resolved and typechecked, and the [[context]] names the
+phase it runs in. Establishes: a refusal escaping a statement carries that
+statement — the smallest span that signifies it — and the phase (`runtime/
+errors.py`, `Located`). Illegal after this: a `Stmt` arm that runs an embedded
+sentence WITHOUT handing it back here and without stamping it; the executor
+sees only what it dispatched, so such an arm reports its own line for a
+refusal one line inside it. `each … simultaneously` is the arm that does this,
+and `tests/test_runtime_refusal_location.py` derives the set from the union so
+a second one cannot arrive unstamped.
 """
 
 from __future__ import annotations
@@ -23,10 +35,11 @@ from cardlang.domains import (
     role_of,
 )
 from cardlang.runtime import mechanics, observe
-from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.errors import GameDescriptionError, OwnerGuardError
 from cardlang.runtime.evaluate import evaluate
 from cardlang.runtime.state import (
     Ctx,
+    IllegalMove,
     Zone,
     _ContinueTo,
     _ProduceSignal,
@@ -37,7 +50,56 @@ from cardlang.runtime.values import Card, CardSet, Player, content_noun
 from cardlang.stdlib.zones import zone_capacity
 
 
+# The refusal classes a game sentence can raise, named rather than caught by a
+# base that would also take the engine's own failures and the control-flow
+# signals. `tests/test_runtime_refusal_location.py` derives the set from every
+# exception class the engine defines, so a new one arrives as an uncovered cell.
+REFUSALS = (GameDescriptionError, IllegalMove)
+
+
 def execute(stmt: n.Stmt, ctx: Ctx) -> Ctx:
+    """Run one statement, naming it on any refusal that escapes it."""
+    try:
+        return _dispatch(stmt, ctx)
+    except REFUSALS as exc:
+        exc.locate(span=stmt.span, phase=phase_name(ctx))
+        raise
+
+
+def phase_name(ctx: Ctx) -> str | None:
+    """The phase a refusal escaped, or None outside every phase — during
+    setup, and while the result is read after the last one."""
+    return None if ctx.current_phase is None else ctx.current_phase.name
+
+
+def zone_label(ctx: Ctx, zone: Zone) -> str:
+    """A zone as a designer writes it, at the instance it resolved to:
+    `discards`, or `hand[1]` for the seat whose hand it is. Read off the
+    store's Address rather than off the reference on the line, so a message
+    says WHICH instance was short instead of repeating `hand[p]` back.
+
+    Loud on a zone the store does not hold, which is what a caller BUILDING a
+    message wants. A caller decorating a refusal already in flight wants the
+    opposite and uses `_stamped_zone`."""
+    name, key = ctx.rs.zones.locate(zone)
+    return name if key is None else f"{name}[{key}]"
+
+
+def _stamped_zone(ctx: Ctx, zone: Zone) -> str | None:
+    """The same label, or None when the store cannot address the zone.
+
+    A location is metadata on a refusal that is already being raised, so it
+    must never be able to REPLACE it: a lookup failure here would unwind a
+    designer-readable refusal into a bare engine traceback — the very thing a
+    span is being added to prevent. Best-effort by design, not a Shadow Guard
+    for `locate`, whose loudness every other caller keeps."""
+    try:
+        return zone_label(ctx, zone)
+    except KeyError:
+        return None
+
+
+def _dispatch(stmt: n.Stmt, ctx: Ctx) -> Ctx:
     match stmt:
         case n.Transfer():
             _movement(stmt, ctx)
@@ -152,8 +214,8 @@ def _deposit(
     Address. The round forms append through `Zone.add`/`add_all` directly
     (their own capacity story predates this choke point) and pass the same
     two facts there."""
-    name, key = ctx.rs.zones.locate(dest)
-    label = name if key is None else f"{name}[{key}]"
+    name, _ = ctx.rs.zones.locate(dest)
+    label = zone_label(ctx, dest)
     ztype = ctx.rs.zones.zone_type[name]
     cap = zone_capacity(ztype)
     held = len(dest.cards)
@@ -190,7 +252,7 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
                 # A chosen to-each selection is decided by its receiving
-                # player (the chooser draw in `_select` is theirs); a dealt
+                # player (the chooser draw in `_select_from` is theirs); a dealt
                 # or random one has no per-card decider — the bound acting
                 # seat, if any, is the movement's actor.
                 actor = player if stmt.selection_mode == "chosen" else ctx.current_player
@@ -329,6 +391,19 @@ def _check_count(count: int, mode: str | None) -> int:
 
 
 def _select(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
+    """Take the movement's cards from its source, naming that source on any
+    refusal. Every way a movement can come up short — the chooser's, the
+    dealt count's, the filtered pool's, the joint enumeration's — refuses
+    inside here, and the message says how many were wanted and how many there
+    were without saying of WHAT."""
+    try:
+        return _select_from(source, stmt, ctx, player)
+    except REFUSALS as exc:
+        exc.locate(zone=_stamped_zone(ctx, source))
+        raise
+
+
+def _select_from(source: Zone, stmt: n.Transfer, ctx: Ctx, player: Player) -> list[Card]:
     # The joint form is its own branch above the per-card filter: the
     # selection unit is a SUBSET, not a card (decisions.md "Joint-predicate
     # selection"). The `where` filter is a fully separate branch (not folded
@@ -440,7 +515,7 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.where is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
+    assert stmt.where is not None  # Shadow Guard of _select_from's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount
@@ -501,8 +576,7 @@ def _reveal(stmt: n.EpistemicOp, zone: Zone, ctx: Ctx) -> None:
         matches = [c for c in zone.cards if pred(c)]
     else:
         matches = list(zone.cards)
-    name, key = ctx.rs.zones.locate(zone)
-    label = name if key is None else f"{name}[{key}]"
+    label = zone_label(ctx, zone)
     if not matches:
         raise OwnerGuardError(
             f"reveal one card from {label}: no card matches — a "
@@ -790,13 +864,20 @@ def _each_simultaneous(stmt: n.EachSimultaneous, ctx: Ctx) -> None:
         f"extend the executor before widening the registry"
     )
     # Snapshot every player's chosen cards against pre-block hands, then apply.
+    # The body never reaches `execute`, so this loop is where its span is
+    # known: without the stamp a refusal inside it would be reported at the
+    # `each … simultaneously` line, where the game asks for nothing.
     selections: dict[Player, list[Card]] = {}
-    for player in ctx.rs.seating.players:
-        body_ctx = ctx.with_local(stmt.role, player).acting_as(player)
-        selections[player] = _pass_selection(stmt.body, body_ctx)
-    for player in ctx.rs.seating.players:
-        body_ctx = ctx.with_local(stmt.role, player).acting_as(player)
-        _apply_pass(stmt.body, body_ctx, selections)
+    try:
+        for player in ctx.rs.seating.players:
+            body_ctx = ctx.with_local(stmt.role, player).acting_as(player)
+            selections[player] = _pass_selection(stmt.body, body_ctx)
+        for player in ctx.rs.seating.players:
+            body_ctx = ctx.with_local(stmt.role, player).acting_as(player)
+            _apply_pass(stmt.body, body_ctx, selections)
+    except REFUSALS as exc:
+        exc.locate(span=stmt.body.span, phase=phase_name(ctx))
+        raise
 
 
 def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
@@ -822,7 +903,11 @@ def _pass_selection(body: n.Stmt, ctx: Ctx) -> list[Card]:
         )
     count = int(evaluate(body.amount, ctx))
     actor = ctx.require_actor("a simultaneous-pass selection")
-    chosen = ctx.chooser(actor, list(source.cards), count)
+    try:
+        chosen = ctx.chooser(actor, list(source.cards), count)
+    except REFUSALS as exc:
+        exc.locate(zone=_stamped_zone(ctx, source))
+        raise
     observe.choice(ctx, actor, chosen)
     return chosen
 

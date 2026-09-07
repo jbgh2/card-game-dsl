@@ -18,15 +18,22 @@ the [[author]] who can act on it (`cardlang/runtime/errors.py`, Contract): a
 installed this checkout. It never discriminates the `GameDescriptionError`
 subtypes; which ROLE of guard fired is the suite's question, not a caller's.
 
+`IllegalMove` is rendered beside them and means something else, which the
+message says: the game's own `error(...)` refused, no player was offered the
+move, and the game author is who can act — so the file is where to look
+without the file being called illegal. Both carry the sentence they escaped
+and print it the way a compile diagnostic prints one.
+
 An exception outside those channels keeps its traceback. For the engine's own
 assertions that is right — they address the engine maintainer, and the
-traceback is what that reader needs. `IllegalMove` reaches here classified as
-neither, and issue #554 records it.
+traceback is what that reader needs.
 
-Exit codes: 0 on success; 1 when the game file is at fault, whether a compile
-stage or the runtime says so; 2 when the invocation cannot be carried out —
-an unreadable path, a seat the game does not seat, a broken checkout, an
-argparse usage error.
+Exit codes: 0 on success; 1 when the game file is where to look, whether a
+compile stage or the runtime says so — which covers both a file that is at
+fault and one whose own rule refused with nobody to tell; 2 when the
+invocation cannot be carried out — an unreadable path, a seat the game does
+not seat, a broken checkout, an argparse usage error. The two are split by
+who must act, not by how badly it went.
 """
 
 from __future__ import annotations
@@ -39,15 +46,15 @@ from pathlib import Path
 from typing import Any
 
 from cardlang.ast import nodes as n
-from cardlang.diagnostics import DiagnosticError
+from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source, compile_path
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
-from cardlang.runtime.errors import GameDescriptionError, InstallationError
+from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
 from cardlang.runtime.observe import render
-from cardlang.runtime.state import RuntimeState
+from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
 # The command names, and the one place they are written. `main`'s dispatch
@@ -194,10 +201,27 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_GAME_AT_FAULT
     except GameDescriptionError as exc:
         print(f"cardlang: playing {path} failed", file=sys.stderr)
-        print(f"  {exc}", file=sys.stderr)
+        _print_refusal(exc)
         print(
             "  the static checks passed — this is a rule only a playout "
             "reaches, and the line played was uniform-random",
+            file=sys.stderr,
+        )
+        return _EXIT_GAME_AT_FAULT
+    except IllegalMove as exc:
+        print(f"cardlang: playing {path} failed", file=sys.stderr)
+        _print_refusal(exc)
+        # `error(...)` is writable in any expression the engine evaluates, so
+        # the message names the position it most often guards without claiming
+        # the refusal came from there.
+        print(
+            "  this is your game's own `error(...)` refusing, and a playout "
+            "has no player to tell",
+            file=sys.stderr,
+        )
+        print(
+            "  from a rule's `if_impossible:` it means no card satisfied that "
+            "rule: widen its `demands:`, or give it a card set to fall back on",
             file=sys.stderr,
         )
         return _EXIT_GAME_AT_FAULT
@@ -206,6 +230,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {exc}", file=sys.stderr)
         print("  reinstall the package, or restore what the message names", file=sys.stderr)
         return _EXIT_CANNOT_PROCEED
+
+
+def _print_refusal(exc: Located) -> None:
+    """A refusal, at the sentence that refused.
+
+    Rendered through the checker's own `Diagnostic`, so the two halves of the
+    [[failure-channel]] print one shape and cannot drift into two spellings of
+    a file position. A refusal that reached no stamping site prints without a
+    locator — the engine's own guards, which refuse a world rather than a
+    sentence — and an invented span would point the reader at a line where
+    nothing happened.
+    """
+    if exc.span is None:
+        print(f"  {exc}", file=sys.stderr)
+    else:
+        print(Diagnostic(Severity.ERROR, str(exc), exc.span).format(), file=sys.stderr)
+    where = [w for w in (
+        None if exc.phase is None else f"in phase {exc.phase}",
+        None if exc.zone is None else f"moving from {exc.zone}",
+    ) if w is not None]
+    if where:
+        print(f"  {', '.join(where)}", file=sys.stderr)
 
 
 def _check(path: Path, emit_ir: bool) -> int:

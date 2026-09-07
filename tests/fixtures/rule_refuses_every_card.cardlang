@@ -1,0 +1,60 @@
+// A game whose own rule refuses every card a player holds: the setup takes
+// the spades out of play, and `MustLeadASpade` outlives them. The rule's
+// `if_impossible: error(...)` fires, and the `IllegalMove` it raises leaves
+// the playout with no player to tell — nobody offered the move it refuses,
+// because the refusal happens while the candidates are still being counted.
+//
+// The witness for that escape. `error(...)` is reachable from any expression
+// the engine evaluates, and this is the position a designer writes it in: an
+// `if_impossible:` clause on a rule whose demand a later state cannot satisfy.
+// The refusal lands on every seed — no hand can hold a spade — so the test
+// does not ride one random line.
+game RuleRefusesEveryCard {
+  players: 2
+  direction: clockwise
+  max_length: 100
+
+  cards: standard52
+  ranking: aces high
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    removed      : Discard
+    trick_pile   : TrickPile
+    waste        : Discard
+  }
+
+  state {
+    tricks_won[player] : Integer = 0
+    leader             : Player? = none
+  }
+
+  phase setup {
+    shuffle deck
+    move all cards from deck where card.suit is spades to removed
+    deal 2 cards from deck to each hand
+    leader := 0
+  }
+
+  phase play {
+    active_rules: [MustLeadASpade]
+    legal_moves:  [play_to_trick]
+
+    round play_to_trick from leader over all players
+          source hand into trick_pile winner highest_of_led_suit
+    tricks_won[winner] += 1
+    move all cards from trick_pile to waste
+  }
+
+  winner: highest tricks_won
+}
+
+// The demand names a suit the setup removed, so no hand can satisfy it and the
+// fallback is reached on the very first lead.
+rule MustLeadASpade {
+  constrains: play_to_trick
+  applies_when: state.led_suit is none      // i.e., leading
+  demands: cards in hand where card.suit is spades
+  if_impossible: error("the lead must be a spade")
+}
