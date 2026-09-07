@@ -22,6 +22,7 @@ from typing import Any
 
 from cardlang.pipeline import check_source
 from cardlang.runtime.driver import play_game
+from cardlang.runtime.stud import _best_showing
 
 STUD = Path(__file__).parent.parent / "docs" / "games" / "five-card-stud.cardlang"
 
@@ -147,3 +148,75 @@ def test_the_posters_choice_is_what_the_seats_behind_it_face() -> None:
     # The seat behind faces the same option list either way; what differs is
     # what its `raise` costs, which the bookkeeping above already fixes.
     assert stood[1][1] == completed[1][1] == {"call", "fold", "raise"}
+
+
+def test_a_street_is_anchored_on_the_best_board_even_when_it_cannot_act() -> None:
+    """An ALL-IN seat keeps taking exposed cards, so it can hold the best board
+    while having no chips to bet with. The rules anchor the street on the best
+    board wherever it sits; the action then falls to the first seat clockwise
+    from it that can act. Selecting the best board among only the seats that CAN
+    act would name a different seat, and so a different ring order.
+
+    Only a played session reaches this: a seat goes all-in and survives to a
+    later street solely through the chips and the deal, so no hand-built state
+    would put the game in the configuration the claim is about. The sweep is
+    wide because the cell is incidental rather than aimed at — the assertion
+    reports how many openings it actually found, so a line that stopped reaching
+    them fails as loudly as a wrong order would. Measured 2026-09-06: 49 such
+    openings across these seeds, and the floor below is set to notice a collapse
+    rather than drift.
+    """
+    game = check_source(STUD)
+    openings = 0
+
+    for seed in range(60):
+        held: dict[str, Any] = {}
+        pick = random.Random(seed + 99)
+
+        def capture(rs: Any) -> None:
+            held["rs"] = rs
+
+        def chooser(player: int, candidates: list[Any], count: int) -> list[Any]:
+            nonlocal openings
+            rs = held["rs"]
+
+            def read(name: str) -> Any:
+                for frame in reversed(rs.frames):
+                    if name in frame:
+                        return frame[name]
+                raise AssertionError(f"{name} is in no live frame")
+
+            folded, stack = read("folded"), read("stack")
+            seats = list(range(3))
+            boards = {q: list(rs.zones.instance("upcards", q).cards) for q in seats}
+            showing = [q for q in seats if not folded[q] and boards[q]]
+            able = [q for q in showing if stack[q] > 0]
+            # A street's FIRST decision, read off the betting bookkeeping rather
+            # than off the cards: `open_street` zeroes every `bet_by` and clears
+            # every `acted`, and nothing else leaves both in that state — a
+            # re-open clears `acted`, but only after a wager moved a `bet_by`.
+            # Reading the cards instead would misfire, because a fold takes a
+            # board out of `upcards` mid-street. The FIRST street never matches,
+            # which is right: its bring-in posts before the round, and it is
+            # anchored on the poster rather than on a board.
+            acted, bet_by = read("acted"), read("bet_by")
+            if not any(acted.values()) and not any(bet_by.values()):
+                if able and set(showing) != set(able):
+                    openings += 1
+                    anchor = _best_showing(showing, boards)
+                    want = next(
+                        q for q in (anchor, (anchor + 1) % 3, (anchor + 2) % 3) if q in able
+                    )
+                    assert player == want, (
+                        f"seed {seed}: boards showing {showing}, of which {able} can "
+                        f"act; the best board is seat {anchor}, so the street opens "
+                        f"on seat {want} — the game asked seat {player}"
+                    )
+            return [pick.choice(candidates)]
+
+        play_game(game, random.Random(seed), chooser=chooser, on_first_decision=capture)
+
+    assert openings > 25, (
+        f"only {openings} street openings had an all-in seat still showing cards, "
+        f"so this line barely reaches the configuration the claim is about"
+    )

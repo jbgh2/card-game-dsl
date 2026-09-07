@@ -120,18 +120,30 @@ def bring_in_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
 
 
 def best_showing_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:
-    """The seat that opens a street: the best hand showing among the players still
-    live (holding chips and not folded). A folder's up cards are in the muck, so
-    they are out of the comparison by having left the zone as well as by the
-    `folded` read."""
-    stack = gr.state["stack"]
+    """The seat that opens a street: the best hand showing among the players with
+    a hand still in front of them.
+
+    "Still in front of them" is read off the cards, not off the chips. An ALL-IN
+    seat has no chips and keeps taking exposed cards, so it can hold the best
+    board while being unable to act — and the rules anchor the street on the best
+    board wherever it sits, with the action then falling to the first seat
+    clockwise from it that can act. Filtering the all-in seat out here would
+    instead anchor on the best of the REMAINING boards, which is a different seat
+    and a different ring order. The round's own `pending` participant filter is
+    what walks past an opener that cannot act, so returning it is safe.
+
+    A folder's up cards are in the muck and a seat that never entered the hand
+    was dealt none, so both leave an empty zone: holding cards face up is exactly
+    the membership this selector needs, and it is also what keeps the comparison
+    total (`_showing_key` reads a highest card, which an empty board has not
+    got)."""
     folded = gr.state["folded"]
     players = list(facts.seating.players)
     up = gr.families["upcards"]
-    live = [p for p in players if stack[p] > 0 and not folded[p]]
-    if not live:  # unreachable in a real hand (a street runs only with >= 2 live)
+    showing = [p for p in players if not folded[p] and len(up[p]) > 0]
+    if not showing:  # unreachable in a real hand (a street runs only with >= 2 live)
         return players[0]
-    return _best_showing(live, {p: list(up[p]) for p in live})
+    return _best_showing(showing, {p: list(up[p]) for p in showing})
 
 
 def first_to_act_seat(facts: EngineFacts, gr: reads.GameReads) -> Player:

@@ -106,7 +106,7 @@ game G {
   ranking: A K Q J 10 9 8 7 6 5 4 3 2
   primitives {
     bring_in_seat() : Player reads stack, upcards
-    best_showing_seat() : Player reads stack, folded, upcards
+    best_showing_seat() : Player reads folded, upcards
     first_to_act_seat() : Player reads stack, folded, upcards
   }
   zones { deck : Deck  upcards[player] : PublicHand<player> }

@@ -21,9 +21,10 @@ Each hand:
      or fold. Only once someone completes may anyone raise.
    - If the poster completes to 10, everyone behind may raise straight away.
 3. Deal a third card face up. **Second betting round.** It is at the small bet
-   **unless any player shows a pair or better**, in which case the whole street
-   is at the big bet — and the big bet is then open to *everyone*, including
-   players holding no pair.
+   unless any player shows **a pair or better**, and then the big bet becomes
+   available too — to *everyone*, including players holding no pair. Both sizes
+   are legal on such a street; see the departures below for the one the file
+   cannot offer.
 4. Deal a fourth card face up. **Third betting round**, at the big bet.
 5. Deal a fifth card face up. **Fourth betting round**, at the big bet.
 6. **Showdown** — the best five-card poker hand among the remaining players wins
@@ -50,8 +51,9 @@ made in three places the page names:
   every round;
 - the last two rounds are big bets only ("the normal rule in casino hosted
   games, but not in home poker games");
-- a street runs at one size, so a big bet may not be answered with a small
-  raise — the page offers the looser home rule as an alternative.
+- once a big bet is placed, the raises answering it are big too ("only big
+  raises are allowed in that round") — the page offers the looser home rule, a
+  small raise answering a big bet, as the alternative.
 
 The fifth card is dealt **face up**, which is the page's base text. Dealing it
 face down is one of the page's Variations and is a different game; so are
@@ -61,14 +63,26 @@ There is **no burn card** and **no dealer button**: the page has neither, and
 nothing in the game reads a button, since every street's opener is chosen from
 the up cards and the deck is shuffled whole each hand.
 
-The **one rule the file cannot state** is the heads-up raise cap. Pagat caps a
-round at one bet and three raises "if there were more than two active players at
-the start of the betting round" — so heads-up the round is uncapped, and
-`raise_cap` is an Integer with no way to say "no cap". The file writes a bound
-no street can reach and derives it in a comment. The betting is identical; what
-is missing is the ability to say what the rule says.
-[Issue #635](https://github.com/jbgh2/card-game-dsl/issues/635) is that gap, and
-this game is its witness.
+Two rules the file **cannot state**, and it is the witness for both.
+
+The **heads-up raise cap**. Pagat caps a round at one bet and three raises "if
+there were more than two active players at the start of the betting round" — so
+heads-up the round is uncapped, and `raise_cap` is an Integer with no way to say
+"no cap". The file writes a bound no street can reach and derives it in a
+comment. The betting is identical; what is missing is the ability to say what
+the rule says.
+[Issue #635](https://github.com/jbgh2/card-game-dsl/issues/635) is that gap.
+
+The **small bet on an open-pair street**. When a pair shows, Pagat *allows* the
+big bet rather than requiring it, so a seat may still open for the small one —
+which is why the page goes on to say what happens "after a player places a big
+bet". A street in this language opens at one size, so the conditional makes the
+big bet the street's only size, and the seat that would bet small into an open
+pair cannot. [Issue #648](https://github.com/jbgh2/card-game-dsl/issues/648) is
+that gap. It is the same shortfall
+[#546](https://github.com/jbgh2/card-game-dsl/issues/546) records against
+Seven-Card Stud, seen from the other side: that file never offers the big bet,
+this one never offers the small.
 
 Pagat describes a cash game with no overall winner. To give the runtime a
 terminal, the executable plays a session until one player holds **all** the
@@ -120,11 +134,11 @@ Two things the game writes rather than the library. `raise_cap` is set **per
 street** from the count of seats that can act, because Pagat's cap has a
 heads-up arm; and the second street's size is an expression,
 `if (number of players where shows_pair(player)) > 0 then 20 else 10`, passed
-straight to `open_street`. That expression is the open-pair conditional
-[issue #546](https://github.com/jbgh2/card-game-dsl/issues/546) records as
-missing from Seven-Card Stud; here it is the street's own size, which is what
-makes the big bet available to every seat rather than to the seat showing the
-pair.
+straight to `open_street`. Sizing the STREET rather than one seat's move is what
+makes the big bet reach every seat rather than only the seat showing the pair,
+which is the half of the rule
+[#546](https://github.com/jbgh2/card-game-dsl/issues/546) is about; the other
+half, that the small bet stays available beside it, is #648.
 
 The `until` predicate closes a street when no live player still owes or has yet
 to act, or when one lone contender remains already matched.

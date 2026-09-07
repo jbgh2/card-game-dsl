@@ -46,13 +46,23 @@ rather than past the last verb, and
 `test_the_bound_reaches_the_terminal_state_it_is_bought_for` asserts it lands
 there — without that assertion the extra steps would be a cost carrying a claim
 that cannot fail.
+
+What none of the harness proofs reach is the SHOWDOWN, because every one of them
+pauses at the spec's depth, inside the betting. That is the one place a hidden
+hole card becomes public, so it is the one place the visibility declaration has
+to be read off the events rather than from the zone types:
+`test_showdown_reveals_contenders_holes_and_leaks_no_folded_one` drives a hand
+past it and inspects both directions — a contender's card landing in the clear
+for every observer, and a folder's mucking count-only.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
-from cardlang.openspiel.replay import DecisionNode
+from cardlang.openspiel.replay import DecisionNode, load, run
 
 from .harness import GAMES_DIR, GameSpec, ReadinessProofs, _advance, bounded_walk, manifest
 
@@ -150,3 +160,93 @@ def test_the_bound_reaches_the_terminal_state_it_is_bought_for() -> None:
         f"is true only because the last step happened to land there and the "
         f"bound carries no margin"
     )
+
+
+def _is_reveal_event(e: tuple[Any, ...]) -> bool:
+    """A showdown reveal (the `hole[p] -> upcards[p]` movement in the game's
+    showdown block) as any NON-owner sees it: `hole[p]` is a `Hand`, so the
+    source collapses to a count, while `upcards[p]` is a `PublicHand` and stays
+    identity for every observer. One card moves, which is the whole of a
+    Five-Card Stud hole."""
+    return bool(
+        e[0] == "move"
+        and isinstance(e[1], str) and e[1].startswith("hole[")
+        and isinstance(e[2], int)
+        and isinstance(e[3], str) and e[3].startswith("upcards[")
+        and isinstance(e[4], tuple) and len(e[4]) == 1
+    )
+
+
+def test_showdown_reveals_contenders_holes_and_leaks_no_folded_one() -> None:
+    """The showdown is the one place a hidden hole card becomes public, and the
+    proofs above never reach it: they pause at depth 11, still inside the
+    betting. This drives a hand past the showdown and reads the emitted events.
+
+    The policy is `legal[0]` — check or call, the betting vocabulary's low ids —
+    which alone reaches a fully contested showdown, since nobody folds under it
+    (call and fold share a guard and call's id sorts lower). `fold` is taken the
+    first time it is offered, once, so the hand also carries a folded entrant
+    whose hole card must NOT leak; with three seats that still leaves two
+    contenders, so the showdown is contested either way.
+    """
+    path = str(GAMES_DIR / TestReadiness.spec.filename)
+    game, space = load(path)
+    seed = 3
+
+    history: list[int] = []
+    r = run(path, seed, ())
+    assert isinstance(r, DecisionNode)
+    folded_player: int | None = None
+    reveal: dict[int, tuple[Any, ...]] = {}
+    for _ in range(40):
+        names = [space.to_string(a) for a in r.legal]
+        if folded_player is None and "fold" in names:
+            folded_player = r.player
+            aid = r.legal[names.index("fold")]
+        else:
+            aid = r.legal[0]
+        history.append(aid)
+        nxt = run(path, seed, tuple(history))
+        assert isinstance(nxt, DecisionNode), "the hand ended before a showdown reveal"
+        r = nxt
+        for log in r.obs_logs.values():
+            for e in log:
+                if _is_reveal_event(e):
+                    reveal[int(e[3][len("upcards["):-1])] = e
+        if reveal:
+            break
+    else:
+        pytest.fail("no contested showdown reveal within 40 steps")
+    assert folded_player is not None, "the drive never saw a legal fold to take"
+
+    contenders = set(reveal)
+    assert len(contenders) > 1, "need a CONTESTED showdown (more than one contender)"
+    assert contenders == set(range(game.players.low)) - {folded_player}
+
+    # Every contender's reveal is visible to the folded entrant, who is not one:
+    # source count-only over the single hole card, destination identity.
+    folded_log = r.obs_logs[folded_player]
+    for p in contenders:
+        matches = [
+            e
+            for e in folded_log
+            if _is_reveal_event(e) and e[1] == f"hole[{p}]" and e[3] == f"upcards[{p}]"
+        ]
+        assert matches, f"P{folded_player} never observed contender {p}'s reveal"
+        assert matches[0][2] == 1
+        assert len(matches[0][4]) == 1 and isinstance(matches[0][4][0], str)
+
+    # The converse: the folded entrant's own hole card is never revealed. Its
+    # hole -> muck movement must stay count-only in every OTHER player's log.
+    saw_fold_muck = False
+    for q, log in r.obs_logs.items():
+        if q == folded_player:
+            continue
+        for e in log:
+            if e[0] == "move" and e[1] == f"hole[{folded_player}]" and e[3] == "muck":
+                saw_fold_muck = True
+                assert isinstance(e[2], int), (
+                    f"P{q} saw the folded entrant's hole card leak into the muck"
+                )
+                assert e[4] is None
+    assert saw_fold_muck, "the folded entrant's hole card was never observed mucking"

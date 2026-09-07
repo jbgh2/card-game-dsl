@@ -28,15 +28,17 @@
 //   Round 2 (three cards): "big bets ($10) are allowed if any player has a pair
 //     (or better) showing." The page adds "In this case anyone can place a big
 //     bet or raise, even if they do not themselves have a pair", which is why
-//     the condition sizes the STREET rather than one seat's move.
+//     the condition sizes the STREET rather than one seat's move. See the
+//     second deviation below for the half of that sentence the file cannot say.
 //   Rounds 3 and 4 (four and five cards): big bet. "Some play that in the last
 //     two betting rounds, after players are dealt their fourth and fifth cards,
 //     only big bets are allowed. This is the normal rule in casino hosted
 //     games, but not in home poker games."
-// A street opens at one size and every wager on it is that size, which is the
-// casino reading of the page's note that "if the rule is played that each raise
+// Once a big bet is placed, the raises answering it are big too, which is the
+// casino arm of the page's note that "if the rule is played that each raise
 // must be at least as large as the last bet or raise, then after a player
-// places a big bet, only big raises are allowed in that round".
+// places a big bet, only big raises are allowed in that round" — the home rule
+// it offers instead lets a small raise answer a big bet.
 //
 // WHO OPENS. Round 1 is opened by the compulsory bring-in: "Some play that the
 // first betting round starts with a compulsory (bring-in) bet by the player
@@ -55,13 +57,26 @@
 // less than a small bet does not count as a bet for this purpose - after it is
 // completed there can be three raises."
 //
-// DEVIATION, and the only one: the heads-up arm of that rule is UNCAPPED, and
-// the language has no way to say so (issue #635, which this game is the witness
-// for). `raise_cap` is an Integer, so "no cap" is written as a bound the street
-// cannot reach — see the first street's comment for the derivation. The betting
-// behaves identically, but a reader of the file meets a magic number where the
-// rule says "unlimited", and a variant with deeper stacks would need the number
-// recomputed. Every other rule above is in the file as itself.
+// DEVIATIONS. Two, and both are rules the language cannot yet state. Every
+// other rule above is in the file as itself.
+//
+// FIRST: the heads-up arm of the raise cap is UNCAPPED, and there is no way to
+// say so (issue #635, which this game is the witness for). `raise_cap` is an
+// Integer, so "no cap" is written as a bound the street cannot reach — see the
+// first street's comment for the derivation. The betting behaves identically,
+// but a reader meets a magic number where the rule says "unlimited", and a
+// variant with deeper stacks would need the number recomputed.
+//
+// SECOND: on the open-pair street the big bet is ALLOWED, not compulsory —
+// "anyone can place a big bet or raise" — so both sizes are legal there and a
+// seat may still open for the small bet. A street opens at ONE size
+// (`open_street` sets `limit`, which the library owns and the game may not
+// write), so the conditional below makes the big bet the street's only size
+// where the rules make it the street's second one. A seat that would bet 10
+// into an open pair cannot. That is issue #648, which this game also witnesses,
+// and it is the same shortfall #546 records against Seven-Card Stud from the
+// other side: that file never offers the big bet, this one never offers the
+// small.
 //
 // NO BURN CARD. Pagat's five-card-stud page does not burn between streets, so
 // this file does not.
@@ -95,7 +110,7 @@ game FiveCardStud {
     bring_in_seat() : Player
         reads stack, upcards
     best_showing_seat() : Player
-        reads stack, folded in play, upcards
+        reads folded in play, upcards
     pot_share(p : Player) : Integer
         reads committed in play, folded in play, in_hand in play, hole, upcards
   }
@@ -185,7 +200,9 @@ game FiveCardStud {
 
       // SECOND BETTING ROUND — third card face up. Small bet, or the big bet if
       // any player shows a pair or better. A folder's up cards are already in
-      // the muck, so `shows_pair` cannot see them.
+      // the muck, so `shows_pair` cannot see them. The rules leave BOTH sizes
+      // legal when a pair shows and a street carries one; the header's second
+      // deviation and issue #648 hold what that costs.
       if (number of players where in_hand[player] and not folded[player]) > 1 {
         for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
         if (number of players where can_act(player)) >= 2 {
