@@ -130,11 +130,18 @@ def test_the_draw_count_is_public_and_the_discards_are_not() -> None:
     assert f"discards[{owner}]=[" in information_state(owner, r.rs, r.obs_logs[owner])
 
 
-def test_a_standing_pat_seat_is_indistinguishable_from_one_that_drew_nothing() -> None:
-    """The converse of the count being public: zero is a count too. A seat
-    that stands pat moves no card, so the opponent's log carries no exchange
-    event at all for it and its `discards` render empty rather than hidden —
-    which is what makes "he stood pat" readable at the table.
+def test_standing_pat_emits_nothing_and_still_projects_per_observer() -> None:
+    """The converse of the count being public: zero is a count too, and an
+    EMPTY pile is still projected rather than rendered alike for everyone.
+
+    A seat that stands pat moves no card, so no observer's log carries an
+    exchange event for it — that is what makes "he stood pat" readable at the
+    table, from the absence rather than from an announcement. The empty pile
+    it leaves behind still renders by the `HiddenPile<player>` projection and
+    not around it: its owner sees the empty list, a non-owner a count of zero.
+    Asserting each observer's spelling EXACTLY is the point — a disjunction
+    over the two would pass for either observer under either projection and
+    could not fail if the projection collapsed.
     """
     r = _drive(3, ["check", "check", "stand", "stand"])
     for observer in (0, 1):
@@ -143,4 +150,10 @@ def test_a_standing_pat_seat_is_indistinguishable_from_one_that_drew_nothing() -
             e for e in log if e[0] == "move" and str(e[3]).startswith("discards[")
         ], f"P{observer} observed an exchange on a line where nobody tossed"
         state = information_state(observer, r.rs, log)
-        assert "discards[0]=[]" in state or "discards[0]=#0" in state, state
+        for owner in (0, 1):
+            want = f"discards[{owner}]=[]" if owner == observer else f"discards[{owner}]=#0"
+            assert want in state, (
+                f"P{observer} must see `{want}` for an empty pile — the "
+                f"projection is observer-specific even with nothing in it: "
+                f"{state.split('|state:')[0]}"
+            )
