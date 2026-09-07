@@ -3,11 +3,15 @@
     cardlang docs/games/hearts.cardlang            # check only; silent on success
     cardlang docs/games/hearts.cardlang --emit-ir  # check, then print the IR JSON
     cardlang check docs/games/hearts.cardlang      # the same check, named
-    cardlang play docs/games/hearts.cardlang       # one uniform-random self-play
+    cardlang demo docs/games/hearts.cardlang       # one uniform-random self-play
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
 what `--emit-ir` means.
+
+`play` is reserved for the session where a person takes a seat, and is refused
+until that exists — a spelling this command line retires keeps its place in the
+first-token vocabulary so the refusal can name what replaces it.
 
 This module owns one defect class — the values a caller supplies, which no
 earlier layer sees: the path argument, and the seat `--info-state` names.
@@ -35,6 +39,7 @@ import argparse
 import json
 import random
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -50,11 +55,71 @@ from cardlang.runtime.observe import render
 from cardlang.runtime.state import RuntimeState
 from cardlang.runtime.values import Player
 
-# The command names, and the one place they are written. `main`'s dispatch
-# reads it, the parser is built from it, and the surface grid derives its
-# command axis from it (tests/test_cli_surface.py), so a command that exists
-# cannot be one the grid does not cross.
-COMMANDS: tuple[str, ...] = ("check", "play")
+def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--emit-ir",
+        action="store_true",
+        help="print the validated IR as JSON on success",
+    )
+
+
+def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--seed",
+        type=int,
+        metavar="N",
+        help="seed the playout — the shuffle and the uniform-random policy "
+        "alike; with none given a seed is drawn and reported, so any run repeats",
+    )
+    parser.add_argument(
+        "--info-state",
+        type=int,
+        metavar="SEAT",
+        help="also print that seat's derived information state at the "
+        "terminal position, or at the decision --at names",
+    )
+    parser.add_argument(
+        "--decisions",
+        action="store_true",
+        help="also list the playout's decisions, numbered the way --at numbers "
+        "them — one entry per choice, so a call taking several cards is several "
+        "— with who makes each and what it is chosen from",
+    )
+    parser.add_argument(
+        "--at",
+        type=int,
+        metavar="N",
+        help="show the --info-state seat's view at decision N — the position "
+        "just before that one choice is made — instead of at the terminal "
+        "position; --decisions lists the numbers",
+    )
+
+
+# The commands, and the one place they are written: `build_parser` registers a
+# subparser per row and `COMMANDS` is derived from the same rows, so the
+# dispatch, the parser and the surface grid's command axis cannot disagree
+# about which commands exist. Every row gets the `file` positional from the
+# loop rather than from its own adder, which is what lets `main` read
+# `args.file` before it knows which command ran.
+_COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]] = {
+    "check": (
+        "parse and statically check a game file; silent on success",
+        _add_check_arguments,
+    ),
+    "demo": (
+        "check a game file, then play one uniform-random self-play",
+        _add_demo_arguments,
+    ),
+}
+
+COMMANDS: tuple[str, ...] = tuple(_COMMAND_TABLE)
+
+# Command spellings the command line no longer carries, and what replaces
+# each. A retired spelling stays in the first-token vocabulary rather than
+# leaving it: dropped, `_normalize` would read the spelling as a file name and
+# argparse would report the caller's real path as a stray argument, naming
+# neither the rename nor the file they meant.
+RETIRED_COMMANDS: dict[str, str] = {"play": "demo"}
 
 _EXIT_OK = 0
 _EXIT_GAME_AT_FAULT = 1
@@ -76,53 +141,12 @@ def build_parser() -> argparse.ArgumentParser:
     # command omitted — names what is valid without the message saying so.
     commands = parser.add_subparsers(dest="command", required=True)
 
-    check = commands.add_parser(
-        "check", help="parse and statically check a game file; silent on success"
-    )
-    check.add_argument(
-        "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
-    )
-    check.add_argument(
-        "--emit-ir",
-        action="store_true",
-        help="print the validated IR as JSON on success",
-    )
-
-    play = commands.add_parser(
-        "play", help="check a game file, then play one uniform-random self-play"
-    )
-    play.add_argument(
-        "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
-    )
-    play.add_argument(
-        "--seed",
-        type=int,
-        metavar="N",
-        help="seed the playout — the shuffle and the uniform-random policy "
-        "alike; with none given a seed is drawn and reported, so any run repeats",
-    )
-    play.add_argument(
-        "--info-state",
-        type=int,
-        metavar="SEAT",
-        help="also print that seat's derived information state at the "
-        "terminal position, or at the decision --at names",
-    )
-    play.add_argument(
-        "--decisions",
-        action="store_true",
-        help="also list the playout's decisions, numbered the way --at numbers "
-        "them — one entry per choice, so a call taking several cards is several "
-        "— with who makes each and what it is chosen from",
-    )
-    play.add_argument(
-        "--at",
-        type=int,
-        metavar="N",
-        help="show the --info-state seat's view at decision N — the position "
-        "just before that one choice is made — instead of at the terminal "
-        "position; --decisions lists the numbers",
-    )
+    for name, (help_text, add_arguments) in _COMMAND_TABLE.items():
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument(
+            "file", help="game file (.cardlang raw DSL, or .md with a fenced DSL block)"
+        )
+        add_arguments(command)
     return parser
 
 
@@ -135,6 +159,23 @@ def _normalize(argv: list[str]) -> list[str]:
     if not argv or argv[0] in COMMANDS or argv[0] in ("-h", "--help"):
         return argv
     return ["check", *argv]
+
+
+def _retired_refusal(spelling: str) -> str:
+    """What a caller who typed a retired spelling is told.
+
+    It answers in the caller's own words — what they typed, what it is for
+    now, and the command that does the thing they asked for — because the
+    person who types the old spelling is a designer following a habit or a
+    page written before the rename, not someone reading this source.
+    """
+    replacement = RETIRED_COMMANDS[spelling]
+    return (
+        f"cardlang: `{spelling}` is reserved for taking a seat and playing a "
+        f"hand yourself, which is not built yet\n"
+        f"  the self-play you are after is `{replacement}`:\n"
+        f"      cardlang {replacement} <file>"
+    )
 
 
 def _unreadable(path: Path) -> str | None:
@@ -167,6 +208,13 @@ def _unreadable(path: Path) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] in RETIRED_COMMANDS:
+        # Answered before the parser sees it. `_normalize` rewrites any first
+        # token that is not a command into `check <token>`, which would read
+        # the retired spelling as a file name and report the caller's real
+        # path as a stray argument.
+        print(_retired_refusal(raw[0]), file=sys.stderr)
+        return _EXIT_CANNOT_PROCEED
     args = build_parser().parse_args(_normalize(raw))
     implicit = bool(raw) and raw[0] not in COMMANDS and raw[0] not in ("-h", "--help")
 
@@ -184,8 +232,8 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_CANNOT_PROCEED
 
     try:
-        if args.command == "play":
-            return _play(path, args.seed, args.info_state, args.at, args.decisions)
+        if args.command == "demo":
+            return _demo(path, args.seed, args.info_state, args.at, args.decisions)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -216,7 +264,7 @@ def _check(path: Path, emit_ir: bool) -> int:
     return _EXIT_OK
 
 
-def _play(
+def _demo(
     path: Path, seed: int | None, seat: int | None, at: int | None, listing: bool
 ) -> int:
     game = check_source(path)
