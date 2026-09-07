@@ -354,7 +354,8 @@ in tests/test_trump_slot_class.py.
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
   A whole street, verbatim from
-  [games/leduc-poker.cardlang](games/leduc-poker.cardlang):
+  [games/leduc-poker.cardlang](games/leduc-poker.cardlang), whose streets open
+  from a plain state variable rather than a selector:
 
   ```cardlang-fragment betting_street
   phase first_street {
@@ -375,9 +376,8 @@ in tests/test_trump_slot_class.py.
   Both arms are the ring's: the street closes when no seat is `pending` — the
   settled field, everyone who can act having acted and owing nothing — or when
   the seats able to act are down to one that owes nothing, the street that
-  opens behind an all-in, where
-  `open_street`'s cleared `acted` would otherwise leave that seat `pending` with
-  nobody to act against. A variant in which no seat can be all-in never reaches
+  opens behind an all-in, where `open_street`'s cleared `acted` would otherwise
+  leave that seat `pending` with nobody to act against. A variant in which no seat can be all-in never reaches
   that second arm and writes it all the same.
   The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
