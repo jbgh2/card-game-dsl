@@ -15,11 +15,13 @@
 // sub-round's card provenance (who played each `play_pile` card) is carried
 // by two Integer state vars (`seq_bits`/`seq_len`, public information: every
 // player watched the count) and decoded by the `peg_origin_of` Primitive
-// primitive at each close, which routes the pile into `played[dealer]` /
-// `played[nondealer]`. The combination scorers (fifteens/pairs/runs/flush/
-// nob) and the pegging-count scorers are Primitives, unit-tested
-// against known hands (tests/test_playout_cribbage.py,
-// tests/test_cribbage_primitives.py).
+// at each close, which routes the pile into `played[dealer]` /
+// `played[nondealer]`. The show is the language's own: fifteens, pairs and
+// runs are subset queries over the hand listed with the starter, the flush
+// and his nob card queries — the functions after the game block, checked
+// against known hands (tests/test_playout_cribbage.py). The pegging-count
+// scorers are Primitives, unit-tested against known counts
+// (tests/test_cribbage_primitives.py).
 //
 // The finding this file carries is the MISSING pegging move: the sub-round's
 // `repeat until` has no statement that plays a card, so the loop cannot
@@ -46,8 +48,6 @@ game Cribbage {
     peg_run_points() : Integer                  reads play_pile
     peg_origin_of(c : Card) : Player
         reads play_pile, seq_bits in play, seq_len in play, dealer in hand_sequence
-    cribbage_show_value(p : Player) : Integer   reads played[p], starter
-    cribbage_crib_value() : Integer             reads crib, starter
   }
 
   zones {
@@ -154,11 +154,11 @@ game Cribbage {
       // The show: non-dealer's hand, dealer's hand, then the crib (to the
       // dealer), stopping the instant a player crosses 121.
       let nondealer = the player where player is not dealer
-      score[nondealer] += cribbage_show_value(nondealer)
+      score[nondealer] += show_value(nondealer)
       if game_over() { skip to next hand }
-      score[dealer] += cribbage_show_value(dealer)
+      score[dealer] += show_value(dealer)
       if game_over() { skip to next hand }
-      score[dealer] += cribbage_crib_value()
+      score[dealer] += crib_value()
     }
   }
 
@@ -170,3 +170,67 @@ game Cribbage {
 // gate: once a scoring event crosses 121, no later one in the same hand may
 // score, and no further chooser draw may occur).
 function game_over() = any player where score[player] >= 121
+
+// The show, in the language: fifteens, pairs and runs are subset queries over
+// the hand listed with the starter, the flush and his nob card queries. The
+// five are written twice -- for a hand, `played[p]`, and for the crib --
+// because a function cannot take a zone (issue #656); the crib differs only
+// in its flush, which needs all five cards.
+function fifteens(p : Player) =
+    2 * (number of subsets of 2 or more cards in [played[p], starter]
+         where (sum of card_points(card) over cards in subset) is 15)
+function pairs(p : Player) =
+    2 * (number of subsets of 2 cards in [played[p], starter]
+         where (highest rank_value(card) over cards in subset or 0)
+            is (lowest rank_value(card) over cards in subset or 0))
+// A run of k: k cards of k distinct ranks spanning k - 1 steps of the declared
+// order (`ranking: aces low`: A-2-3 runs, Q-K-A does not). The longest run
+// scores, once per way of making it, so a double run of three is two threes.
+function runs_of(k : Integer, p : Player) =
+    number of subsets of k cards in [played[p], starter]
+    where (not (any subset of 2 cards in subset
+                where (highest rank_value(card) over cards in subset or 0)
+                   is (lowest rank_value(card) over cards in subset or 0)))
+      and ((highest rank_value(card) over cards in subset or 0)
+           - (lowest rank_value(card) over cards in subset or 0)) is k - 1
+function run_points(p : Player) =
+    if runs_of(5, p) > 0 then 5 * runs_of(5, p)
+    elif runs_of(4, p) > 0 then 4 * runs_of(4, p)
+    elif runs_of(3, p) > 0 then 3 * runs_of(3, p)
+    else 0
+function hand_flush(p : Player) =
+    if any suit where (number of cards in played[p] where card.suit is suit) is 4
+                  and suit_of(starter) is suit then 5
+    elif any suit where (number of cards in played[p] where card.suit is suit) is 4 then 4
+    else 0
+function nobs(p : Player) =
+    if any card in played[p] where card.rank is J and card.suit is suit_of(starter) then 1 else 0
+function show_value(p : Player) =
+    fifteens(p) + pairs(p) + run_points(p) + hand_flush(p) + nobs(p)
+
+function crib_fifteens() =
+    2 * (number of subsets of 2 or more cards in [crib, starter]
+         where (sum of card_points(card) over cards in subset) is 15)
+function crib_pairs() =
+    2 * (number of subsets of 2 cards in [crib, starter]
+         where (highest rank_value(card) over cards in subset or 0)
+            is (lowest rank_value(card) over cards in subset or 0))
+function crib_runs_of(k : Integer) =
+    number of subsets of k cards in [crib, starter]
+    where (not (any subset of 2 cards in subset
+                where (highest rank_value(card) over cards in subset or 0)
+                   is (lowest rank_value(card) over cards in subset or 0)))
+      and ((highest rank_value(card) over cards in subset or 0)
+           - (lowest rank_value(card) over cards in subset or 0)) is k - 1
+function crib_run_points() =
+    if crib_runs_of(5) > 0 then 5 * crib_runs_of(5)
+    elif crib_runs_of(4) > 0 then 4 * crib_runs_of(4)
+    elif crib_runs_of(3) > 0 then 3 * crib_runs_of(3)
+    else 0
+function crib_flush() =
+    if any suit where (number of cards in crib where card.suit is suit) is 4
+                  and suit_of(starter) is suit then 5 else 0
+function crib_nobs() =
+    if any card in crib where card.rank is J and card.suit is suit_of(starter) then 1 else 0
+function crib_value() =
+    crib_fifteens() + crib_pairs() + crib_run_points() + crib_flush() + crib_nobs()

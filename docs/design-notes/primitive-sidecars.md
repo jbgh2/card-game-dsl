@@ -13,7 +13,7 @@ The standing policy after `instantiate` was deleted is clear: Python is
 allowed for **pure value computation** — scorers, trick winners, legality
 tables, bid ladders — and never for mechanics, movement, or decisions. Every
 game-local primitive in the corpus conforms in spirit: `pot_share`,
-`pinochle_meld_value`, `skat_next_bid`, `cribbage_show_value` are all reads.
+`pinochle_meld_value`, `skat_next_bid`, `peg_run_points` are all reads.
 
 The implementation of that policy drifted from its intent in three ways.
 One remains open; the migration has closed the other two, and each is

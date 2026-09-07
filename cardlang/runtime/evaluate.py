@@ -15,7 +15,7 @@ from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.state import Ctx, Move, StructValue, elements
+from cardlang.runtime.state import Ctx, Move, StructValue, Zone, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -567,6 +567,41 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
 
 
+def _refuse_a_zone_listed_twice(e: n.SubsetQuery, values: list[Any], ctx: Ctx) -> None:
+    """Two members that are one zone at play time -- `[hand[p], hand[q]]`
+    with p = q. Resolve refuses the same SPELLING twice (`_check_subset_source`);
+    a computed index cannot be told apart until now, so this is that guard's
+    play-time half, by identity: the pool would hold one zone's cards twice
+    and answer nothing the sentence meant. Named for the designer as the two
+    members and the zone they turned out to be."""
+    seen: dict[int, int] = {}
+    for i, value in enumerate(values):
+        if not isinstance(value, Zone):
+            continue
+        if id(value) in seen:
+            first = _member_label(e.source[seen[id(value)]]) or "a member"
+            again = _member_label(e.source[i]) or "a member"
+            resolved = _resolved_label(e.source[i], ctx)
+            exc = OwnerGuardError(
+                f"`{again}` and `{first}` are the same zone at this point of play"
+                f"{f' ({resolved})' if resolved else ''} — a subset source lists "
+                f"each zone once"
+            )
+            exc.locate(zone=_source_label(e.source), span=e.span)
+            raise exc
+        seen[id(value)] = i
+
+
+def _resolved_label(member: n.Expr, ctx: Ctx) -> str | None:
+    """`hand[q]` as `hand[0]`: the member's index evaluated, for a refusal
+    that names which zone two spellings turned out to be."""
+    match member:
+        case n.Subscript(obj=n.NameRef() as base, index=idx):
+            return f"{base.name}[{evaluate(idx, ctx)}]"
+        case _:
+            return None
+
+
 def _source_label(source: tuple[n.Expr, ...]) -> str | None:
     """How a query's source is spelled in the game file, for a refusal's
     location: one member bare, several as the designer listed them. Only the
@@ -587,6 +622,8 @@ def _member_label(source: n.Expr) -> str | None:
             return source.name
         case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
             return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base, index=n.NameRef() as idx):
+            return f"{base.name}[{idx.name}]"
         case n.Subscript(obj=n.NameRef() as base):
             return f"{base.name}[...]"
         case _:
@@ -608,7 +645,9 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     # The pool is every member's contents, concatenated in written order: a
     # card two members both hold is present once per member, which is the
     # multiset reading the runtime already keeps for duplicate copies.
-    pool = [card for member in e.source for card in elements(evaluate(member, ctx))]
+    values = [evaluate(member, ctx) for member in e.source]
+    _refuse_a_zone_listed_twice(e, values, ctx)
+    pool = [card for value in values for card in elements(value)]
     try:
         subsets.check_pool(
             pool,

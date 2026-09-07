@@ -1,6 +1,6 @@
 ---
 term: Subset
-definition: A set of cards drawn from one zone, enumerated as a domain rather than named. The binder of the subset forms (`any subset of 2 or more cards in table where …`) and the candidate of a joint selection are both Subsets; the two differ in what enumerates them, not in what they are.
+definition: A set of cards drawn from a Subset Source — one zone, or two or more listed in brackets — enumerated as a domain rather than named. The binder of the subset forms (`any subset of 2 or more cards in table where …`) and the candidate of a joint selection are both Subsets; the two differ in what enumerates them, not in what they are.
 layer: kernel
 status: canonical
 reserved: true
@@ -10,7 +10,7 @@ retired_spellings: []
 findings: []
 ---
 
-**Reserved word.** Approved compounds: Subset binder (the pronoun the subset forms bind), Subset query (either register of the construct), subset codec (the action-space encoding of a joint selection's candidates).
+**Reserved word.** Approved compounds: Subset binder (the pronoun the subset forms bind), Subset query (either register of the construct), Subset Source (the zone, or bracketed zones, a subset query ranges over), subset codec (the action-space encoding of a joint selection's candidates).
 
 **Surface.** `subset` and `subsets` are keywords, and `subset` is the binder the
 subset forms bind per candidate set — the domain noun's singular, as `card` is
@@ -26,7 +26,13 @@ inside an expression. The values are the same shape — a card collection that i
 not a zone — so neither may stand where a zone is demanded; what differs is
 that one is chosen by a player and the other is folded over.
 
-**Bounded.** Every enumeration of a zone's Subsets goes through
+**Several zones.** A Subset Source lists two or more zones in brackets,
+`[played[p], starter]`, and a subset is drawn from any of them: the members'
+contents are pooled as written, a card counted once per member that holds it.
+The list is a phrase of the subset forms, never a value, and no other source
+slot takes it.
+
+**Bounded.** Every enumeration of a Subset Source's Subsets goes through
 `runtime/subsets.py`, which refuses a pool past its bound rather than walking
 it. The bound is a fixed engine limit, shared by both constructs that
 enumerate, so the number and the refusal cannot drift apart.

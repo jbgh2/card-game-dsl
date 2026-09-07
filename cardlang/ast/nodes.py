@@ -270,7 +270,7 @@ class SubsetQuery:
     `[played[p], starter]`. The pool is their contents concatenated in written
     order -- a card held by two
     members counts once per member, which is the runtime's own multiset
-    reading. The union is a phrase on this node and never a value: it has no
+    reading. The list is a phrase on this node and never a value: it has no
     type, cannot be bound, and reaches no other slot."""
 
     kind: str | None  # a member of SUBSET_QUERY_KINDS, or None for an aggregation

@@ -689,10 +689,17 @@ player_query: _PLAYERS_KW _WHERE_KW expr                          -> players_whe
 // Queries over a card zone, the card mirror of the player queries: the
 // predicate is evaluated per card with `card` bound to the candidate. The
 // bare count form (`number of cards in <zone>`) is the zone-size idiom.
-card_query: _CARDS_KW _IN_KW zone_expr _WHERE_KW expr                     -> cq_set
-          | _NUMBER_KW _OF_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] -> cq_count
-          | _ANY_KW _CARD_KW _IN_KW zone_expr _WHERE_KW expr              -> cq_any
-          | _ALL_KW _CARDS_KW _IN_KW zone_expr _WHERE_KW expr             -> cq_all
+card_query: _CARDS_KW _IN_KW card_source _WHERE_KW expr                     -> cq_set
+          | _NUMBER_KW _OF_KW _CARDS_KW _IN_KW card_source [_WHERE_KW expr] -> cq_count
+          | _ANY_KW _CARD_KW _IN_KW card_source _WHERE_KW expr              -> cq_any
+          | _ALL_KW _CARDS_KW _IN_KW card_source _WHERE_KW expr             -> cq_all
+// A per-card query or fold ranges over ONE zone; the bracket list is the
+// Subset Source's alone (`subset_source`). A list here is refused naming that
+// boundary rather than dying at a token the file taught two lines earlier.
+// The list closes itself, so no operator chain can compete for it at any of
+// the six sites, the open-ended `sum` fold included.
+?card_source: zone_expr
+            | "[" zone_expr ("," zone_expr)* "]" -> card_source_list_reject
 
 // Queries over a zone's SUBSETS, binder implicitly `subset` — the domain noun's
 // singular, as `card` is the card queries'. The binder is a card collection, so
@@ -717,7 +724,7 @@ subset_query: _ANY_KW _SUBSET_KW subset_of_guarded _WHERE_KW expr               
 // The source is one zone, or several listed in brackets -- the language's one
 // shape for "these, listed" (`teams:`, `offering [...]`, `one of [...]`, and
 // `x in [a, b]`, whose reading "in one of these" this shares). The list is a
-// phrase on the node, never a value: the language has no union value
+// phrase on the node, never a value: the language has no value that joins zones
 // anywhere, so it cannot be bound or passed, and it exists at this slot
 // alone, which leaves every position that demands a zone with identity
 // (movement endpoints, `shuffle`, `reveal`) untouched. It lives here and not
@@ -725,8 +732,11 @@ subset_query: _ANY_KW _SUBSET_KW subset_of_guarded _WHERE_KW expr               
 // cannot be built from subsets of each, whereas a count or a quantifier over
 // two zones is a count or a quantifier over each.
 subset_of: _OF_KW subset_size _CARDS_KW _IN_KW subset_source
+// One zone in brackets is a second spelling of the bare zone (principles.md
+// "One spelling per concept"), refused naming the bare one.
 subset_source: zone_expr
-             | "[" zone_expr ("," zone_expr)* "]"
+             | "[" zone_expr ("," zone_expr)+ "]"
+             | "[" zone_expr "]"                  -> subset_source_single_reject
 // Reject-with-replacement twins for the bare joiners a designer reaches for
 // first. They ride ONLY where a mandatory clause follows the source (the
 // three query forms' `where`, the ordering fold's `or`): there the sentence
@@ -784,8 +794,8 @@ quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
 // empty (or emptied-by-`where`) zone can never crash the aggregation; the
 // default sits below `or_expr` so the `or` unambiguously ends the predicate
 // (parenthesize a compound default).
-agg_query: _SUM_KW _OF_KW expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr]           -> agg_sum
-         | RANK_DIR expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] _OR_KW and_expr -> agg_order
+agg_query: _SUM_KW _OF_KW expr _OVER_KW _CARDS_KW _IN_KW card_source [_WHERE_KW expr]           -> agg_sum
+         | RANK_DIR expr _OVER_KW _CARDS_KW _IN_KW card_source [_WHERE_KW expr] _OR_KW and_expr -> agg_order
          | _SUM_KW _OF_KW expr _OVER_KW _SUBSETS_KW subset_of [_WHERE_KW expr]                -> agg_subset_sum
          | RANK_DIR expr _OVER_KW _SUBSETS_KW subset_of_guarded [_WHERE_KW expr] _OR_KW and_expr      -> agg_subset_order
 

@@ -194,9 +194,8 @@ ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 # member; verified against bodies, not docstrings):
 #   call forms, gated below: rank_value (builtins.py), the
 #     highest_trump_or_led_suit call form (builtins.py, the Arrival Record
-#     winner), peg_run_points / cribbage_show_value / cribbage_crib_value
-#     (cribbage.py show/run scoring orders), salvo_combos (salvo.py's run
-#     family walks the declared scale for adjacency).
+#     winner), peg_run_points (cribbage.py's pegging run order), salvo_combos
+#     (salvo.py's run family walks the declared scale for adjacency).
 #   winner callbacks, gated via RANKING_GATED_WINNERS at the trick round's
 #     `winner` slot: highest_of_led_suit, highest_trump_or_led_suit
 #     (winners.py). NON-member: highest_by_trick_order, whose strengths are
@@ -220,8 +219,6 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
         "rank_value",
         "highest_trump_or_led_suit",
         "peg_run_points",
-        "cribbage_show_value",
-        "cribbage_crib_value",
         "salvo_combos",
         "scopa_sums_to",
     }
@@ -2074,9 +2071,9 @@ def _check_card_source(
     subscript-typing case in tests/test_zone_family_typing.py covers exactly
     this failure mode). A non-collection source and a collection of the wrong
     element type both fail the same way: `join` against `TCard` finds nothing
-    in common. `lists_zones` is the subset slot, whose source may list several
-    zones in its own brackets: a `let`-bound list of zones reaching it earns
-    the in-place spelling as its fix."""
+    in common. A `let`-bound list of zones earns a fix naming the slot's
+    shape: `lists_zones` is the subset slot, whose source lists zones in its
+    own brackets; every other slot ranges over one zone."""
     src_t = infer(source, env)
     bare_src = _bare(src_t)
     if isinstance(bare_src, TAny):
@@ -2101,14 +2098,14 @@ def _check_card_source(
         return
     if join(ebare, TCard()) is None:
         hint = ""
-        if (
-            lists_zones
-            and isinstance(ebare, TCollection)
-            and join(_bare(ebare.element), TCard()) is not None
-        ):
+        if isinstance(ebare, TCollection) and join(_bare(ebare.element), TCard()) is not None:
+            # A list of zones: the one shape with a plain intent in every slot.
             hint = (
                 " — zones are listed in the subset source itself, "
                 "`in [table, hand[p]]`, not bound as a list first"
+                if lists_zones
+                else " — a card query ranges over one zone; over two zones, "
+                "write one query per zone"
             )
         bag.error(
             f"'cards in ...' expects a zone or collection of cards, got "

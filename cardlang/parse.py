@@ -1593,6 +1593,28 @@ class _Builder(Transformer[Token, n.Game]):
     def subset_and_reject(self, meta: Meta, c: list[object]) -> None:
         self._subset_source_reject(meta, "table and hand[p]")
 
+    def subset_source_single_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "one zone is written bare — `... cards in table where ...`; "
+                "brackets list two or more zones",
+                self._span(meta),
+            )
+        )
+
+    def card_source_list_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a card query or fold ranges over one zone; only a subset query "
+                "lists several (`any subset of 2 cards in [table, hand[p]] where "
+                "...`) — ask each zone on its own and combine the answers: add "
+                "the counts or sums, `or` the anys, `and` the alls",
+                self._span(meta),
+            )
+        )
+
     def _subset_query(
         self, kind: str, meta: Meta, of: object, where: object
     ) -> n.SubsetQuery:

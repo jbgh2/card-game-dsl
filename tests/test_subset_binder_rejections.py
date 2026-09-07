@@ -131,7 +131,7 @@ def test_the_size_clause_cannot_be_dropped_silently() -> None:
     assert "expected `of`" in str(exc.value), str(exc.value)
 
 
-# --- the union source: the wrong spellings and the wrong members ------------
+# --- the listed source: the wrong spellings and the wrong members ------------
 # Each of these is a sentence a designer would plausibly write for "these two
 # zones together" without the brackets. The bare comma has the language's own
 # precedent (`reads a, b`), `+` reads as addition, and `and` is the boolean
@@ -144,7 +144,7 @@ def test_the_size_clause_cannot_be_dropped_silently() -> None:
 # applied per member, and a second wording would be a Shadow Guard. The rest
 # are lists written where the language does not offer one, which stay syntax
 # errors and must not silently parse as something else.
-_UNION_PROBES: list[tuple[str, str, str]] = [
+_LISTED_SOURCE_PROBES: list[tuple[str, str, str]] = [
     ("comma", "    score[0] := number of subsets of 2 cards in table, hand[0] where 1 is 1",
      "[table, hand[p]]"),
     ("plus", "    score[0] := number of subsets of 2 cards in table + hand[0] where 1 is 1",
@@ -161,10 +161,36 @@ _UNION_PROBES: list[tuple[str, str, str]] = [
      "    let both = [table, hand[0]]\n"
      "    score[0] := number of subsets of 2 cards in both where 1 is 1",
      "listed in the subset source itself"),
+    ("one zone in brackets",
+     "    score[0] := number of subsets of 2 cards in [table] where 1 is 1",
+     "written bare"),
+    # The list at every per-card source slot: the six productions that take
+    # `card_source`, each refused naming the one-zone boundary.
+    ("the list at a card query, set form",
+     "    let held = cards in [table, hand[0]] where 1 is 1\n    score[0] := 1",
+     "ranges over one zone"),
+    ("the list at a card query, count form",
+     "    score[0] := number of cards in [table, hand[0]]",
+     "ranges over one zone"),
+    ("the list at a card query, any form",
+     "    if any card in [table, hand[0]] where 1 is 1 { score[0] := 1 }",
+     "ranges over one zone"),
+    ("the list at a card query, all form",
+     "    if all cards in [table, hand[0]] where 1 is 1 { score[0] := 1 }",
+     "ranges over one zone"),
+    ("the list at the sum fold over cards",
+     "    score[0] := sum of 1 over cards in [table, hand[0]]",
+     "ranges over one zone"),
+    ("the list at the ordering fold over cards",
+     "    score[0] := highest 1 over cards in [table, hand[0]] or 0",
+     "ranges over one zone"),
+    ("the list bound by let, at a card query",
+     "    let both = [table, hand[0]]\n    score[0] := number of cards in both",
+     "one query per zone"),
 ]
 
 # Born green, and staying green: sentences that are syntax errors today and
-# must REMAIN syntax errors after the union lands -- never a silent parse to
+# must REMAIN syntax errors after the list lands -- never a silent parse to
 # some other meaning. Each names the edit that would redden it.
 #   a number or player collection as a member:
 #       red under: widen `subset_source`'s member from `zone_expr` to `expr`.
@@ -174,15 +200,13 @@ _UNION_PROBES: list[tuple[str, str, str]] = [
 #       red under: make the trailing member optional, `("," [zone_expr])*`.
 #   an unclosed list:
 #       red under: make the closing bracket optional, `["]"]`.
-#   the list in a card query:
-#       red under: give `cq_count`'s source the `subset_source` production.
 #   a nested list:
 #       red under: widen the list's member from `zone_expr` to `subset_source`.
 #   a misjoin behind the `sum` fold's open end:
 #       red under: give `agg_subset_sum` the guarded `subset_of_guarded` --
 #       the edit `test_a_plus_behind_the_sum_fold_gets_no_wrong_fix` below
 #       exists to refuse.
-_UNION_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
+_LISTED_SOURCE_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
     ("empty brackets", "    score[0] := number of subsets of 2 cards in [] where 1 is 1"),
     ("a trailing comma", "    score[0] := number of subsets of 2 cards in [table,] where 1 is 1"),
     ("an unclosed list", "    score[0] := number of subsets of 2 cards in [table, hand[0] where 1 is 1"),
@@ -190,8 +214,6 @@ _UNION_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
      "    score[0] := number of subsets of 2 cards in [table, 5] where 1 is 1"),
     ("a player collection as a member",
      "    score[0] := number of subsets of 2 cards in [table, all players] where 1 is 1"),
-    ("the list in a card query",
-     "    score[0] := number of cards in [table, hand[0]]"),
     ("a nested list",
      "    score[0] := number of subsets of 2 cards in [[table], hand[0]] where 1 is 1"),
     ("a misjoin behind the sum fold",
@@ -199,8 +221,8 @@ _UNION_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
 ]
 
 
-@pytest.mark.parametrize("label,body,carries", _UNION_PROBES, ids=[p[0] for p in _UNION_PROBES])
-def test_a_wrong_union_is_refused_loudly(label: str, body: str, carries: str) -> None:
+@pytest.mark.parametrize("label,body,carries", _LISTED_SOURCE_PROBES, ids=[p[0] for p in _LISTED_SOURCE_PROBES])
+def test_a_wrong_listed_source_is_refused_loudly(label: str, body: str, carries: str) -> None:
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game(body), "misuse.cardlang")
     message = str(exc.value)
@@ -208,9 +230,9 @@ def test_a_wrong_union_is_refused_loudly(label: str, body: str, carries: str) ->
     assert "misuse.cardlang:" in message, message
 
 
-@pytest.mark.parametrize("label,body", _UNION_STAYS_A_SYNTAX_ERROR,
-                         ids=[p[0] for p in _UNION_STAYS_A_SYNTAX_ERROR])
-def test_a_malformed_union_stays_a_syntax_error(label: str, body: str) -> None:
+@pytest.mark.parametrize("label,body", _LISTED_SOURCE_STAYS_A_SYNTAX_ERROR,
+                         ids=[p[0] for p in _LISTED_SOURCE_STAYS_A_SYNTAX_ERROR])
+def test_a_malformed_listed_source_stays_a_syntax_error(label: str, body: str) -> None:
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game(body), "misuse.cardlang")
     message = str(exc.value)
