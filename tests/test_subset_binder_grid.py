@@ -35,9 +35,11 @@ registry:   the axes are `cardlang.ast.nodes.SUBSET_QUERY_KINDS`,
             tests/test_state_default_scope.py, which derive their populations
             from the `Expr` union.
 does not prove:  that the enumeration is fast enough for a pool at the bound.
-            The bound is a non-termination backstop, not a performance budget:
-            a 16-card pool admits 65,535 subsets, each a full `evaluate()`, and
-            nothing here measures that. What is measured is that 17 refuses.
+            The bound is a non-termination backstop, not a performance budget.
+            A pool at the bound is walked here, so it is known to terminate --
+            65,535 subsets, each a full `evaluate()` -- but no cell asserts a
+            time, and none should: what a playout can afford is a property of
+            the game, not of this construct.
 """
 
 from __future__ import annotations
@@ -49,6 +51,8 @@ import pytest
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import DiagnosticError
+from cardlang.runtime.errors import OwnerGuardError
+from cardlang.runtime.subsets import ENUMERATION_BOUND
 from cardlang.pipeline import check_dsl
 from cardlang.runtime.driver import play_game
 
@@ -58,7 +62,7 @@ from cardlang.runtime.driver import play_game
 _TABLE_SIZE = 4
 
 
-def game(body: str, *, table_rank: str = "7", extra: str = "") -> str:
+def game(body: str, *, table_ranks: tuple[str, ...] = ("7",), extra: str = "") -> str:
     return (
         "game G {\n"
         "  players: 2\n"
@@ -71,7 +75,10 @@ def game(body: str, *, table_rank: str = "7", extra: str = "") -> str:
         "  winner: highest score\n"
         "  phase p {\n"
         "    move all cards to deck\n"
-        f'    move all cards from deck where card.rank is "{table_rank}" to table\n'
+        "    move all cards from deck where ("
+        + " or ".join(f'card.rank is "{r}"' if r.isdigit() else f"card.rank is {r}"
+                      for r in table_ranks)
+        + ") to table\n"
         '    move all cards from deck where card.rank is "6" to hand[0]\n'
         f"{extra}"
         f"{body}\n"
@@ -258,9 +265,35 @@ def test_a_count_below_one_is_refused_in_the_designers_words(
 
 
 # --- Grid E: the enumeration bound ------------------------------------------
-# The pool bound is the engine's, shared with the joint-selection movement:
-# at the bound the enumeration runs, one card past it the refusal is loud.
-@pytest.mark.parametrize("rank,pool,accepted", [("7", 4, True)])
-def test_a_pool_within_the_bound_enumerates(rank: str, pool: int, accepted: bool) -> None:
-    assert probe_value("number of subsets of 1 or more cards in table where 1 is 1",
-                       table_rank=rank) == 2 ** pool - 1
+# The pool bound is the engine's, shared with the joint-selection movement: at
+# the bound the enumeration runs, past it the refusal is loud. Both directions
+# are measured, because a bound with only its accepting side tested is a bound
+# that could have been anything.
+def test_a_pool_within_the_bound_enumerates() -> None:
+    """Four ranks is sixteen cards — the bound exactly — and its whole
+    non-empty powerset is walked."""
+    assert probe_value(
+        "number of subsets of 1 or more cards in table where 1 is 1",
+        table_ranks=("7", "6", "5", "4"),
+    ) == 2 ** ENUMERATION_BOUND - 1
+
+
+def test_a_pool_past_the_bound_is_refused_loudly() -> None:
+    """One card past the bound the construct refuses rather than walking
+    2^17 subsets. The refusal is the engine's own, from the home the joint
+    movement enumerates through, so the two constructs cannot answer this
+    differently.
+
+    red under: raise `ENUMERATION_BOUND`, or drop the `check_pool` call from
+    the evaluator's subset arm."""
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 1 or more cards in table where 1 is 1",
+            # Sixteen cards of four ranks, plus one more card: the smallest
+            # pool the bound refuses.
+            table_ranks=("7", "6", "5", "4"),
+            extra='    move 1 card from deck where card.rank is A to table\n',
+        )
+    message = str(exc.value)
+    assert "exceeds the enumeration bound" in message, message
+    assert str(ENUMERATION_BOUND) in message, message
