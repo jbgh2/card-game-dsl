@@ -5,9 +5,9 @@
 // where Stud and Hold'em add cards, this one lets a player exchange them.
 //
 // EXACT VARIANT. Two players — Pagat's stated minimum, and the count at which
-// the corpus already holds its other one-hand poker games. Ante 1 each, no
-// blinds (Pagat: "before the deal each player puts an agreed ante into the
-// pot"). Five cards each, dealt one at a time. A betting round; then each
+// a hand's exchange is decided by one opponent's draw rather than averaged
+// over a table. Ante 1 each, no blinds (Pagat: "before the deal each player
+// puts an agreed ante into the pot"). Five cards each, dealt one at a time. A betting round; then each
 // player in turn discards from zero to three cards face down and is dealt that
 // many replacements; then a second betting round; then the showdown, best
 // five-card poker hand taking the pot. One hand, then the game ends; the score
@@ -20,8 +20,9 @@
 // - FIXED LIMIT 2 before the draw, 4 after. The page names no bet sizing at
 //   all, so the doubling at the draw is this variant's, chosen to match the
 //   doubling at the turn in the corpus's fixed-limit Hold'em.
-// - FOUR AGGRESSIVE ACTIONS per street (a bet and three raises), the cap Stud
-//   and both Hold'em variants carry; `raise_cap` is where the family keeps it.
+// - FOUR AGGRESSIVE ACTIONS per street (a bet and three raises) — the same cap
+//   Seven-Card Stud declares. `raise_cap` is where the family keeps it, so the
+//   number is this game's and the mechanism is the library's.
 // - DISCARD ZERO TO THREE, the page's base rule. Its optional extension —
 //   "some allow a player to discard and draw four cards if the fifth card is
 //   an ace" — is a house rule this variant does not adopt, so `toss`'s guard
@@ -78,10 +79,10 @@
 // and is not written.
 //
 // Betting proceeds as in standard fixed-limit poker: check/bet/call/raise and
-// the can_act/owes/pending ring predicates come from the family library shared
-// with Kuhn, Leduc, Seven-Card Stud and both Hold'em variants
-// (docs/libraries/poker_betting.cardlang). `fold` is this game's own — the
-// folded hand mucks unseen, as in every other poker game here.
+// the can_act/owes/pending ring predicates come from the family library
+// (docs/libraries/poker_betting.cardlang), whose membership is a game's own
+// `uses` line and is listed nowhere. `fold` is this game's own — the folded
+// hand mucks unseen, as it does wherever the family's `fold` is written.
 //
 // Chips are plain integers (the Stud/Leduc convention). `net[player]` is the
 // terminal score — the hand's chip delta against the starting stack.
