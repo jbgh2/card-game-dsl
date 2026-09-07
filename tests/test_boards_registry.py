@@ -3,11 +3,12 @@ regions, integrity-pinned.
 
 property:   every BOARD_FAMILIES row builds a BoardEntry whose cells are
             unique, nonempty, and within the 256-member position-domain cap;
-            board_entry() raises ValueError naming the violated bound for
-            every unknown-family, wrong-arity, or out-of-bounds misuse;
-            lines(k) returns exactly the k-in-a-row alignments (rows,
-            columns, both diagonal directions), deduplicated, for every k in
-            1..max(width, height), and raises ValueError outside that range;
+            board_entry() refuses every unknown-family, wrong-arity, or
+            out-of-bounds misuse in the game author's failure channel
+            (OwnerGuardError) naming the violated bound; lines(k) returns
+            exactly the k-in-a-row alignments (rows, columns, both diagonal
+            directions), deduplicated, for every k in 1..max(width, height),
+            and refuses k outside that range the same way;
             and the grid family's movement data is self-consistent -- the
             direction offsets cover exactly directions(), player 1's frame is
             the 180-degree rotation of player 0's, neighbor() lands on a board

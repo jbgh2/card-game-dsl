@@ -42,8 +42,8 @@ property:  `is empty`/`is not empty` reject a concrete non-collection
            independent truth value — dead code that reads as a live
            condition). The runtime `_is_check` never bare-asserts a shape:
            emptiness folds `len()` over any sized value, and a genuinely
-           non-collection value at that call site raises a typed
-           `RuntimeError`, not an `AssertionError`.
+           non-collection value at that call site is refused in the runtime's
+           typed failure channel, not by an `AssertionError`.
 domain:    `IsCheck.kind`'s closed 4-value domain (`none`/`not_none`/
            `empty`/`not_empty` — `cardlang/ast/nodes.py`) crossed with the
            operand-type registry (`cardlang/types.py`'s `Type` union) at
@@ -297,8 +297,8 @@ def test_runtime_is_empty_over_a_card_query_set_result() -> None:
 
 def test_runtime_is_empty_over_a_non_collection_is_a_typed_runtime_error() -> None:
     # Simulates a checker gap (or a future caller of `evaluate` that skips
-    # typecheck): a non-collection value must fail with a typed
-    # `RuntimeError`, never a bare `assert`.
+    # typecheck): a non-collection value must be refused in the runtime's
+    # typed failure channel, never by a bare `assert`.
     ctx = _ctx()
     empty_check = n.IsCheck(operand=n.IntLit(3), kind="empty")
     with pytest.raises(OwnerGuardError, match="is empty"):

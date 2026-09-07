@@ -774,8 +774,9 @@ def test_lines_out_of_range_literal_is_a_static_resolve_error() -> None:
 
 def test_lines_out_of_range_at_runtime_is_a_typed_error() -> None:
     """The resolve guard covers a LITERAL out-of-range k; a k only knowable at
-    runtime reaches the `_lines` Shadow Guard, which must raise a typed
-    RuntimeError, never let the underlying ValueError escape the boundary."""
+    runtime reaches the registry's own bound, which refuses it in the game
+    author's failure channel -- `_lines` converts nothing, and no
+    registry-internal error escapes the boundary."""
     game = check_dsl(_board_probe_src("done"), "probe.cardlang")
     ctx = _board_ctx(game, {})
     with pytest.raises(OwnerGuardError, match=r"lines\(k\) requires k in 1\.\.3"):
