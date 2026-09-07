@@ -100,7 +100,15 @@ game FiveCardDraw {
 
   // The one borrowing from outside the DSL, and it is the family's own, not a
   // game-local one: `pot_share` is the poker showdown query Seven-Card Stud
-  // declares too. Every read is WHOLE, none narrowed to the argument — the
+  // declares too. Declaring the shared name rather than minting a second
+  // binding of the same query is deliberate — a name per variant is the debt
+  // issue #232 exists to remove, and nothing pins a declared Primitive to one
+  // game: each block is checked against its own declarations. The settlement
+  // arithmetic has one home either way (`cardlang/runtime/poker.py`), and what
+  // a game contributes is which cards a contender shows, which for this game
+  // is exactly what the reads below name.
+  //
+  // Every read is WHOLE, none narrowed to the argument — the
   // settlement ranks every entrant's holding against every other's and layers
   // the pot by commitment, so it needs all the hands and all the commitments;
   // `p` picks which share of that settlement comes back, not which cards go
