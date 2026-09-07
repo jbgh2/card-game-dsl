@@ -225,10 +225,10 @@ ARMS: list[Arm] = [
   effect { done := true }
 }""",
     ),
-    # --- execute._select / _select_filtered / _select_joint -----------------
+    # --- execute._select_from / _select_filtered / _select_joint ------------
     Arm(
         "select_chosen",
-        "execute._select",
+        "execute._select_from",
         True,
         """    for each player p:
       move chosen 1 card from hand[p] to pile[p]""",
@@ -329,7 +329,7 @@ SITE_POLARITIES: dict[str, frozenset[bool]] = {
     # trick offers cards, climb offers combinations, and an auction offers
     # cards only through a Card-parameterized member — one site, both answers.
     "mechanics.run_decision_round": frozenset({True, False}),
-    "execute._select": frozenset({True}),
+    "execute._select_from": frozenset({True}),
     "execute._select_filtered": frozenset({True}),
     # candidates are card SUBSETS, which the combo block numbers.
     "execute._select_joint": frozenset({False}),

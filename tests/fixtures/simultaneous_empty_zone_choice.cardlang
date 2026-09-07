@@ -1,0 +1,43 @@
+// The same refusal as `empty_zone_choice.cardlang`, raised one line inside a
+// wrapper form: `each … simultaneously` runs its embedded movement itself
+// rather than handing it back to the statement executor, so the sentence the
+// executor dispatched and the sentence that refused are DIFFERENT LINES here.
+// That gap is what this file measures — a refusal reported at the wrapper
+// line sends the reader to `each player simultaneously:`, which is not where
+// the game asked for a card it did not have.
+//
+// The two `move chosen` lines below are deliberately the only movements in the
+// file, so the line a refusal names is unambiguous.
+game SimultaneousEmptyZoneChoice {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discards     : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  phase discard {
+    each player simultaneously:
+      move chosen 1 card from hand[player] to discards
+  }
+
+  phase discard_again {
+    each player simultaneously:
+      move chosen 1 card from hand[player] to discards
+  }
+
+  winner: highest coins
+}

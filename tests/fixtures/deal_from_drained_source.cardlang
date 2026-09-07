@@ -1,0 +1,41 @@
+// A dealt movement whose source the previous phase drained. The checker sizes
+// a deal against the deck it names, so a shortage it can see is a compile
+// diagnostic; this one only a playout can see, because the zone is emptied by
+// an earlier phase rather than declared too small.
+//
+// The refusal is raised where the cards are taken rather than where a player
+// chooses them, so this reaches the movement's own shortage guard rather than
+// the chooser's — the same statement, a different sentence refusing inside it.
+game DealFromDrainedSource {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discards     : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  phase discard {
+    for each player p:
+      move all cards from hand[p] to discards
+  }
+
+  phase discard_again {
+    for each player p:
+      move 1 card from hand[p] to discards
+  }
+
+  winner: highest coins
+}

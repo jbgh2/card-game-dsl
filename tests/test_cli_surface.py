@@ -5,11 +5,13 @@ property:        Every option the parser declares is accepted by exactly the
                  commands that declare it and refused by the rest, each
                  refusal loud in argparse's usage channel; every COMBINATION
                  of the `demo` command's options is either carried out or
-                 refused in the command's own words; every value class a
-                 caller can supply to `--seed`, `--info-state` or `--at` is
-                 either carried out or refused with a message naming what is
-                 valid; and the two invocation forms — the console script and
-                 `python -m cardlang` — reach the same front end.
+                 refused in the command's own words, and a game that refuses
+                 at play time reaches the caller as that refusal under every
+                 one of them; every value class a caller can supply to
+                 `--seed`, `--info-state` or `--at` is either carried out or
+                 refused with a message naming what is valid; and the two
+                 invocation forms — the console script and `python -m cardlang`
+                 — reach the same front end.
 domain:          The commands and options are whatever `cardlang.cli`'s
                  parser declares, derived from the parser itself, and the
                  combination cross is the power set of the `demo` command's
@@ -28,10 +30,22 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  nothing, a name that is a directory, a file that will not
                  decode as text — because the command line owns that argument
                  and no earlier layer sees it. The failures it RENDERS are the
-                 two the runtime types as catchable, `GameDescriptionError`
-                 and `InstallationError`; an `IllegalMove` escaping a playout
-                 is typed as neither and keeps its traceback while issue #554
-                 settles what it means to a caller. `--decisions` renders
+                 three the runtime types as catchable: `GameDescriptionError`,
+                 `InstallationError`, and an `IllegalMove` escaping a playout,
+                 which is the game's own refusal with no player to tell and is
+                 rendered as that rather than as a fault. What each of those
+                 says, and where it says it happened, is
+                 tests/test_runtime_refusal_location.py's claim; this module's
+                 is that each is rendered rather than left to a traceback, and
+                 that the options do not displace it — the same power set,
+                 crossed a second time with a game that refuses at play time,
+                 which is the invocation a designer meets and which neither
+                 the clean-game cells nor the refusal's own content covers.
+                 That cross
+                 reads one authored column, not a second of its own: an
+                 invocation the command refuses is refused before the game runs
+                 at all, and one it carries out reaches the refusal with no
+                 option's own output standing in for it. `--decisions` renders
                  every candidate offered rather than only the one chosen, so
                  it reaches `runtime.observe.render` over a wider set than a
                  plain playout does; a shape outside that function's declared
@@ -93,7 +107,10 @@ does not prove:  Only the exact long spelling of each option. The parser is
                  green here equally says nothing about which `chose` events
                  either route OUGHT to emit — that the two emit the same ones
                  across that deal is pinned, what they should hold is issue
-                 #592.
+                 #592. And the combination cross against a refusing game pins
+                 what a dying playout prints, not what it ought to: the
+                 decisions made before the refusal are built and then
+                 discarded, and whether they print is issue #623.
 """
 
 from __future__ import annotations
@@ -142,6 +159,14 @@ HOLDEM = REPO / "docs" / "games" / "holdem-heads-up.cardlang"
 # runtime half of the failure rendering, reached without tying the test to one
 # corpus game's random line.
 OVERRUNS = REPO / "tests" / "fixtures" / "exceeds_max_length.cardlang"
+# Checks clean, then refuses at a `move chosen` against a hand an earlier phase
+# emptied — on every seed, and only after each seat has already made a
+# decision, so an option that reports decisions has something it could report.
+REFUSES = REPO / "tests" / "fixtures" / "empty_zone_choice.cardlang"
+# What that game's refusal says, so a cell can assert the caller did NOT read
+# it. Its wording is tests/test_runtime_refusal_location.py's claim and issue
+# #329's question; what is asserted here is only which of two refusals arrived.
+REFUSAL_MESSAGE = "cannot choose 1 of 0 candidates"
 # A Markdown game file, its DSL in one fenced block: the shape `demo` must
 # route to the extractor. The corpus rulebooks link to their `.cardlang` rather
 # than embedding one (docs/maintaining.md, "The rulebook twin"), so a fixture
@@ -420,6 +445,51 @@ def test_play_option_combination_cell(
     err = capsys.readouterr().err
     assert "--at" in err, "the refusal must name the option that needs a companion"
     assert "--info-state" in err, "the refusal must name what to add"
+
+
+@pytest.mark.parametrize("subset", sorted(_COMBINATION_EXPECTED))
+def test_a_refusing_game_under_every_option_combination(
+    subset: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The combination cross against a game that refuses at play time.
+
+    The cells above run a game that plays clean, and the located rendering
+    measures the refusal's own content — so the invocation a designer actually
+    meets, a dying playout under the options they were debugging with, is the
+    one neither measures. Two claims, and the expected column is the same
+    authored one rather than a second that could disagree with it:
+
+    an invocation the command refuses is refused BEFORE the game runs, so the
+    game's own refusal is not what the caller reads; and where the invocation
+    is carried out, the refusal reaches the caller and no option's own output
+    stands in for it. Stdout is where every option prints — the summary, the
+    listing, the information state — so its emptiness is the whole claim in
+    one assertion.
+
+    What the refusal SAYS, and that it names the line that refused, is
+    tests/test_runtime_refusal_location.py's; this module's is that the
+    options do not displace it.
+
+    A listing of the decisions made before the refusal would print here and
+    does not: issue #623.
+    """
+    argv = ["demo", str(REFUSES)]
+    for option in subset:
+        argv += [option, *_SAMPLE_VALUE[option]]
+    code = main(argv)
+    out, err = capsys.readouterr()
+    assert out == "", "a refused playout prints no part of a completed one"
+    if _COMBINATION_EXPECTED[subset] == "accepted":
+        assert code == 1, "the game is where to look, which is the exit code's arm"
+        assert "playing" in err, "the message must say which layer refused"
+        assert "Traceback" not in err, err
+        return
+    assert code == 2
+    assert "--info-state" in err, "the refusal must name what to add"
+    assert REFUSAL_MESSAGE not in err, (
+        "the invocation is refused before the game runs, so the game's own "
+        "refusal cannot be what the caller reads"
+    )
 
 
 # ---------------------------------------------------------------------------

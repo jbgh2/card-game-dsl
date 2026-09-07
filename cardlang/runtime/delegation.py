@@ -48,7 +48,7 @@ HELPER_NAMES: frozenset[str] = frozenset({CHOOSER_HELPER, SOURCE_HELPER})
 # silently in either direction.
 DECISION_POINTS: dict[str, str] = {
     "mechanics.run_decision_round": "routable",
-    "execute._select": "actor_only",
+    "execute._select_from": "actor_only",
     "execute._select_filtered": "actor_only",
     "execute._select_joint": "actor_only",
     "execute._offer": "actor_only",  # designed but witness-gated — issue #458
