@@ -415,7 +415,7 @@ alternative in
 
 - **Cribbage** — *done.* The whole hand landed on the kernel: the
   discards and every pegging play are filtered card movements, and the 121-point
-  cutoff is reproduced a component at a time by ordinary statement control flow
+  cutoff is reproduced a scoring rule at a time by ordinary statement control flow
   (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
   pegging's per-play scoring plus forced-play flow, so it uses none; the current
   sub-round's card provenance is carried in two `Integer` state variables and

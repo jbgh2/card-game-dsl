@@ -979,7 +979,7 @@ def test_bigtwo_migration_preserves_per_seed_results() -> None:
 # movements reproduce the two discard draws and the per-play pegging draw
 # exactly, and ordinary statement control flow (`repeat until`, `if`/`else`,
 # `skip to next hand`) reproduces the 121-cutoff gating. Cribbage's score
-# trajectory (not just the eventual winner) can cross 121 at any component of
+# trajectory (not just the eventual winner) can cross 121 at any scoring rule of
 # any play, so — like Stud — we pin the full per-hand score vector rather than
 # just `scores`/`winner`: a chooser-draw divergence surfaces at the hand it
 # first perturbs. Anchored on the driver's own `hand_end` trace (driver.py,

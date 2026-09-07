@@ -182,6 +182,6 @@ game Cribbage {
 
 // True the instant either player has reached the 121-point target — read at
 // every scoring point inside `phase play` (mirroring the monolith's `add()`
-// gate: once a component crosses 121, no later component in the same hand may
+// gate: once a scoring rule crosses 121, no later rule in the same hand may
 // score, and no further chooser draw may occur).
 function game_over() = any player where score[player] >= 121
