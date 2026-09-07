@@ -849,8 +849,12 @@ and which one is the game's own choice:
 - A game that writes a `primitives { }` block declares each primitive's
   reads there, beside its typed signature (decisions.md's design note,
   `design-notes/primitive-sidecars.md` §2). The declaration and the zone
-  then live in one file, so renaming either moves both; the block's presence
-  also means the game names its own primitives and no other game's.
+  then live in one file, so renaming either moves both. The block's presence
+  also scopes what the game may CALL to what it DECLARES, plus the Builtins
+  (see [Primitives Block](glossary/primitives-block.md)). Declaring is what
+  admits a name, not which game the name came from: any game may declare
+  `pot_share` and call it, and a game that declares no `pot_share` cannot call
+  one — the refusal says so and names declaring it as the remedy.
 - The slots a block cannot name — a `round`'s climb queries and auction
   outcomes — are coupled to the `PRIMITIVE_READS` registry
   (`cardlang/runtime/reads.py`), which declares the same names on their
