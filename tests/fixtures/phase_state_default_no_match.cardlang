@@ -1,0 +1,41 @@
+// A phase's own `state { }` default asks for THE player holding one card, at
+// a point where both seats do. The driver declares a phase's state on entry,
+// before any of the phase's statements run, so the refusal escapes with the
+// phase running and no sentence dispatched.
+//
+// A default may not call a function (resolve refuses that outright, so the
+// game's world is whole when the block is declared), which is why the refusal
+// here comes from a query rather than from the empty-zone read the qualifier
+// fixtures use.
+game PhaseStateDefaultNoMatch {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    discards     : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  phase guarded {
+    // Both seats hold one card here, so the query matches two.
+    state {
+      singleton : Player? = the player where (number of cards in hand[player]) is 1
+    }
+    for each player p:
+      move 1 card from hand[p] to discards
+  }
+
+  winner: highest coins
+}

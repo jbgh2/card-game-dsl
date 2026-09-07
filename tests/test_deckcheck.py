@@ -185,8 +185,8 @@ def test_if_branches_bound_by_max_not_sum() -> None:
 def test_for_each_over_a_value_domain_multiplies_iterations() -> None:
     # The module docstring's own cautionary example: `for each suit` runs its
     # body once per SUIT (4), not once — 4 x 15 = 60 > 52. A "players, or
-    # once" rule would count this as one iteration and let it through to a
-    # mid-deal ValueError.
+    # once" rule would count this as one iteration and let it through to the
+    # executor's mid-deal refusal of an exhausted deck.
     body = "for each suit s: move 15 cards from deck to hand[0]"
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(_game("4", body), "suits.cardlang")
@@ -231,9 +231,9 @@ define d -> {{ A | B }} {{ produce A }}"""
 
 
 def test_deal_inside_a_produces_arm_is_counted() -> None:
-    # 4 * 14 = 56 > 52, written inside an arm body. Before `_stmt_usage` was
-    # exhaustive, `Produces` fell to its silent default and this overflow sailed
-    # through to a runtime ValueError on an exhausted deck.
+    # 4 * 14 = 56 > 52, written inside an arm body. Were `_stmt_usage` not
+    # exhaustive, `Produces` would fall to a silent default and this overflow
+    # would sail through to the executor's refusal of an exhausted deck at play.
     src = _produces_game("deal 14 cards from deck to each hand", "n[0] := 1")
     with pytest.raises(DiagnosticError) as exc:
         check_dsl(src, "arm-over.cardlang")

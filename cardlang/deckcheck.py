@@ -4,7 +4,8 @@ A conservative compile-time pass: for each per-hand window it bounds the worst-c
 deck *usage* — the most cards drawn from the deck between refills — and errors if
 that exceeds the deck's capacity. So a too-large player count (an 8-player
 Seven-Card Stud needing 60 cards from a 52-card deck, a 5-player Bridge needing 65)
-is a compile error, not a runtime `ValueError` on an exhausted deck.
+is a compile error, not a play-time refusal from the movement executor, which
+requires a source holding at least the count it is asked to deal.
 
 It tracks usage as a running count that **resets when the deck is refilled** — a
 [[transfer]] whose destination is the deck (`move all cards to deck`) puts cards back,

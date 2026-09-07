@@ -5,6 +5,18 @@
 guard / `repeat until` loop); `run_body` runs the items — modes are
 configuration, read by `active_rules.compute_active_rules` rather than
 executed — and threads `let` bindings.
+
+Contract
+--------
+Assumes: a checked game. Establishes: a refusal escaping game text names the
+text it escaped — the statement executor stamps the sentences it dispatches,
+and `_evaluate_stamped` below stamps the expressions the phase tree owns and
+the driver evaluates itself, which the executor never sees; `run_phase` adds
+the phase around both, so a position outside every phase carries its
+expression and names no phase, because none is running. Illegal after this:
+handing game text to `evaluate` from this module without that helper —
+`tests/test_runtime_refusal_location.py` derives the driver's evaluation sites
+from the module, so a new one arrives unstamped only by going around it.
 """
 
 from __future__ import annotations
@@ -30,7 +42,7 @@ from cardlang.typecheck import declared_primitive_sigs
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
 from cardlang.runtime.evaluate import evaluate, row_context
-from cardlang.runtime.execute import execute
+from cardlang.runtime.execute import REFUSALS, execute
 from cardlang.runtime.execute import run_body as run_stmts
 from cardlang.runtime.state import (
     Chooser,
@@ -54,6 +66,28 @@ from cardlang.runtime.values import (
     rank_strength,
 )
 from cardlang.stdlib.boards import board_entry
+
+
+def _evaluate_stamped(expr: n.Expr, ctx: Ctx) -> Any:
+    """Evaluate one expression the phase tree owns, naming it on any refusal.
+
+    A phase's `when` guard and `repeat until` condition, a `state { }`
+    default, the `loser:` selection and a `trick_order { }` row body are game
+    text no statement encloses, so the executor — which stamps what it
+    dispatches — never sees them, and a refusal from one would reach a
+    designer with no line at all. Each carries its own span, and this is where
+    it lands.
+
+    Stamped around the EXPRESSION rather than the block holding it, so a
+    refusal from a statement in a guarded phase's body cannot come out naming
+    the guard. Innermost-first: a row body read during a round names the row,
+    and the round's own span, stamped later as the same refusal keeps
+    unwinding, does not displace it."""
+    try:
+        return evaluate(expr, ctx)
+    except REFUSALS as exc:
+        exc.locate(span=expr.span)
+        raise
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,7 +245,7 @@ def declared_trick_order(game: n.Game) -> TrickOrderTable | None:
 
     def row_callable(body: n.Expr) -> Callable[[Card, Ctx], Any]:
         def read(card: Card, ctx: Ctx) -> Any:
-            return evaluate(body, row_context(ctx, card))
+            return _evaluate_stamped(body, row_context(ctx, card))
 
         return read
 
@@ -389,11 +423,15 @@ def play_game(
     else:
         # winner is None here, so resolve's winner-or-loser Owner Guard leaves a loser
         assert game.loser is not None
-        selected = evaluate(game.loser.selection, ctx)
+        selected = _evaluate_stamped(game.loser.selection, ctx)
         if not isinstance(selected, int):
             # `loser:` takes any expression and the checker leaves its type
             # open, so the player-ness of the result is checked here — a
-            # game-description error, refused by its Owner Guard.
+            # game-description error, refused by its Owner Guard. The message
+            # names the clause and carries no span, unlike the evaluation
+            # above: a raise site says its class outright, because the Author
+            # census (tests/test_guard_role_sites.py) reads that class off the
+            # `raise` itself.
             raise OwnerGuardError(
                 f"`loser:` selected {selected!r} ({type(selected).__name__}), "
                 f"not a player"
@@ -487,7 +525,7 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
             # pending across this loop is preserved.
             loop_outcomes = _subtree_outcome_names(phase)
             guard = 0
-            while not evaluate(q.expr, ctx):
+            while not _evaluate_stamped(q.expr, ctx):
                 # A `repeat until` whose condition never holds (e.g. a win
                 # threshold unreachable under random play) would otherwise hang
                 # forever — fail loudly so non-termination surfaces as a test
@@ -518,10 +556,19 @@ def run_phase(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
                 if ctx.rs.score_var is not None:  # loser games keep no per-hand score
                     ctx.trace("hand_end", dict(ctx.rs.get(ctx.rs.score_var)))
         elif q is not None and q.kind == "when":
-            if evaluate(q.expr, ctx):
+            if _evaluate_stamped(q.expr, ctx):
                 _run_phase_body(phase, ctx, hands)
         else:
             _run_phase_body(phase, ctx, hands)
+    except REFUSALS as exc:
+        # The PHASE only, for the rest of the subtree — a `when` guard, a
+        # `repeat until` condition, the phase's own `state { }` — where no
+        # statement is running and the phase is still where the game was. The
+        # sentence those positions refused at is their own expression, stamped
+        # by `_evaluate_stamped` before the refusal reaches here.
+        # Innermost-first stamping makes a nested phase's name win.
+        exc.locate(phase=phase.name)
+        raise
     finally:
         ctx.rs.pop_frame()  # always pop, even on _ContinueTo/_SkipHand unwind
 
@@ -589,7 +636,7 @@ def run_body(phase: n.Phase, ctx: Ctx, hands: _HandCounter) -> None:
 def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
     for decl in block.decls:
         if decl.index is None:
-            ctx.rs.declare(decl.name, False, evaluate(decl.default, ctx))
+            ctx.rs.declare(decl.name, False, _evaluate_stamped(decl.default, ctx))
         else:
             # The indexed var's key set is the index domain's runtime member
             # set — the same table cell `for each <role>` iterates. The old
@@ -599,5 +646,7 @@ def _declare_state(block: n.StateBlock, ctx: Ctx) -> None:
             keys = role_members(
                 require_role(decl.index, "state-variable index role"), ctx
             )
-            value: dict[int, Any] = {k: evaluate(decl.default, ctx) for k in keys}
+            value: dict[int, Any] = {
+                k: _evaluate_stamped(decl.default, ctx) for k in keys
+            }
             ctx.rs.declare(decl.name, True, value)

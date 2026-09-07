@@ -3,23 +3,55 @@ value classes a caller can supply.
 
 property:        Every option the parser declares is accepted by exactly the
                  commands that declare it and refused by the rest, each
-                 refusal loud in argparse's usage channel; every value class
-                 a caller can supply to `--seed` or `--info-state` is either
-                 carried out or refused with a message naming what is valid;
-                 and the two invocation forms — the console script and
-                 `python -m cardlang` — reach the same front end.
+                 refusal loud in argparse's usage channel; every COMBINATION
+                 of the `play` command's options is either carried out or
+                 refused in the command's own words, and a game that refuses
+                 at play time reaches the caller as that refusal under every
+                 one of them; every value class a caller can supply to
+                 `--seed`, `--info-state` or `--at` is either carried out or
+                 refused with a message naming what is valid; and the two
+                 invocation forms — the console script and `python -m cardlang`
+                 — reach the same front end.
 domain:          The commands and options are whatever `cardlang.cli`'s
-                 parser declares, derived from the parser itself; the value
-                 classes are the integer/non-integer and in-range/out-of-range
-                 splits of the two options that take a value. The path
+                 parser declares, derived from the parser itself, and the
+                 combination cross is the power set of the `play` command's
+                 own options, derived the same way. That cross varies an
+                 option's PRESENCE and holds one representative value; the
+                 value classes — the integer/non-integer and
+                 in-range/out-of-range splits of the three options that take
+                 one — are crossed separately, in the probes below. `--at`
+                 numbers decision nodes, one per candidate a Chooser call
+                 takes, which is the unit the game tree branches on, the unit
+                 the adapter replays and the unit `max_length` bounds — so the
+                 listing, the summary's `decisions` line and the adapter's
+                 tree count the same things, and a game choosing several cards
+                 at once (Hearts' pass) is where that is worth pinning. The path
                  argument's whole failure class is here — a name that is
                  nothing, a name that is a directory, a file that will not
                  decode as text — because the command line owns that argument
                  and no earlier layer sees it. The failures it RENDERS are the
-                 two the runtime types as catchable, `GameDescriptionError`
-                 and `InstallationError`; an `IllegalMove` escaping a playout
-                 is typed as neither and keeps its traceback while issue #554
-                 settles what it means to a caller. Which file shapes exist is
+                 three the runtime types as catchable: `GameDescriptionError`,
+                 `InstallationError`, and an `IllegalMove` escaping a playout,
+                 which is the game's own refusal with no player to tell and is
+                 rendered as that rather than as a fault. What each of those
+                 says, and where it says it happened, is
+                 tests/test_runtime_refusal_location.py's claim; this module's
+                 is that each is rendered rather than left to a traceback, and
+                 that the options do not displace it — the same power set,
+                 crossed a second time with a game that refuses at play time,
+                 which is the invocation a designer meets and which neither
+                 the clean-game cells nor the refusal's own content covers.
+                 That cross
+                 reads one authored column, not a second of its own: an
+                 invocation the command refuses is refused before the game runs
+                 at all, and one it carries out reaches the refusal with no
+                 option's own output standing in for it. `--decisions` renders
+                 every candidate offered rather than only the one chosen, so
+                 it reaches `runtime.observe.render` over a wider set than a
+                 plain playout does; a shape outside that function's declared
+                 renderings raises there, in the engine maintainer's channel,
+                 which is why the rendering happens only for a line that will
+                 be shown. Which file shapes exist is
                  `pipeline.check_source`'s question, answered in the pipeline
                  suite: `.cardlang` is raw DSL and every other suffix routes
                  to the Markdown extractor. What the checker decides about a
@@ -27,12 +59,21 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  are exercised here only far enough to tell an accepted
                  invocation from a refused one.
 registry:        commands and options: `cardlang.cli.build_parser` via
-                 `_command_options` below; seat bound: `game.players.low`, the
-                 same value `cardlang.runtime.driver.play_game` seats;
+                 `_command_options` below; the combination cross:
+                 `_play_option_subsets` below, over the same parser; seat
+                 bound: `game.players.low`, the same value
+                 `cardlang.runtime.driver.play_game` seats; the decomposition
+                 of one Chooser call into the tree's decision nodes, the one
+                 definition both routes read:
+                 `cardlang.runtime.chooser.sequential_decisions`; the decision
+                 value rendering `--decisions` shares with the observation
+                 log: `cardlang.runtime.observe.render`;
                  diagnostic rendering shared with the checker:
                  tests/test_rejections.py; the runtime failure hierarchy this
                  module renders: tests/test_failure_taxonomy.py; the file-shape
-                 dispatch: tests/test_pipeline_cardlang.py.
+                 dispatch: tests/test_pipeline_cardlang.py; the append-only
+                 observation log a mid-hand view is projected from:
+                 tests/openspiel_ready/harness.py.
 does not prove:  A green here says nothing about whether a playout's REPORTED
                  outcome is the right one — the returns and the decision count
                  are read back from the driver's and the adapter's own
@@ -40,30 +81,77 @@ does not prove:  A green here says nothing about whether a playout's REPORTED
                  not this module's. It equally says nothing about which games
                  a uniform-random line can finish: `play` renders that refusal
                  the same way whether the game or the policy is the reason,
-                 and the corpus measurement is issue #553.
+                 and the corpus measurement is issue #553. The cross-route
+                 cells below are bounded twice over, and neither bound is
+                 something the numbering could lift. They reach no further
+                 than the FIRST DEAL — a seat's view is compared at every
+                 decision of it, and what the command PRINTS at named
+                 decisions inside it — because `play` draws its uniform-random
+                 policy from the generator that also drives the shuffle while
+                 the adapter's Chooser draws nothing, so a game that deals
+                 again deals it differently on each route (issue #621) and
+                 nothing here says the two agree at a decision in a later
+                 hand. And the view is compared over two of its three
+                 segments, because the adapter reads a world already unwound
+                 past every phase frame and its `state:` segment drops every
+                 phase-local variable (issue #612); the strict xfail beside
+                 the comparison is what reddens the day that is fixed. A
+                 green here equally says nothing about which `chose` events
+                 either route OUGHT to emit — that the two emit the same ones
+                 across that deal is pinned, what they should hold is issue
+                 #592. And the combination cross against a refusing game pins
+                 what a dying playout prints, not what it ought to: the
+                 decisions made before the refusal are built and then
+                 discarded, and whether they print is issue #623.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import random
 import subprocess
 import sys
+from itertools import combinations
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from cardlang.cli import COMMANDS, build_parser, main
+from cardlang.cli import _CANDIDATES_SHOWN, COMMANDS, build_parser, main
+from cardlang.openspiel.encoding import ActionSpace
+from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source
+from cardlang.runtime.chooser import random_chooser
+from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import InstallationError
+from cardlang.runtime.observe import render
+from cardlang.runtime.state import RuntimeState
 
 REPO = Path(__file__).parent.parent
 HEARTS = REPO / "docs" / "games" / "hearts.cardlang"
 KUHN = REPO / "docs" / "games" / "kuhn-poker.cardlang"
+# A game that takes up to a whole hand in one call, so the reduced pool of
+# a decomposed call walks down across the listing's candidate cap — the one
+# corpus shape where both sides of that partition come from one call.
+CHEAT = REPO / "docs" / "games" / "cheat.cardlang"
+# A game whose zones empty on the way to the end: the hole cards are the
+# seat's own by identity while the hand is live and are mucked at the finish,
+# so it is where a mid-hand view differs from the terminal one.
+HOLDEM = REPO / "docs" / "games" / "holdem-heads-up.cardlang"
 # Checks clean, then exceeds its declared `max_length` on every seed — the
 # runtime half of the failure rendering, reached without tying the test to one
 # corpus game's random line.
 OVERRUNS = REPO / "tests" / "fixtures" / "exceeds_max_length.cardlang"
+# Checks clean, then refuses at a `move chosen` against a hand an earlier phase
+# emptied — on every seed, and only after each seat has already made a
+# decision, so an option that reports decisions has something it could report.
+REFUSES = REPO / "tests" / "fixtures" / "empty_zone_choice.cardlang"
+# What that game's refusal says, so a cell can assert the caller did NOT read
+# it. Its wording is tests/test_runtime_refusal_location.py's claim and issue
+# #329's question; what is asserted here is only which of two refusals arrived.
+REFUSAL_MESSAGE = "cannot choose 1 of 0 candidates"
 # A Markdown game file, its DSL in one fenced block: the shape `play` must
 # route to the extractor. The corpus rulebooks link to their `.cardlang` rather
 # than embedding one (docs/maintaining.md, "The rulebook twin"), so a fixture
@@ -100,13 +188,41 @@ def _option_universe() -> tuple[str, ...]:
     return tuple(sorted({o for opts in _command_options().values() for o in opts}))
 
 
+def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
+    """Every subset of the `play` command's own options, derived from the
+    parser rather than listed beside it.
+
+    The per-option cells above measure one option at a time, and an option
+    that is accepted and then quietly does nothing passes every one of them.
+    The presence/absence cross is where that shows: `--at` names WHICH
+    decision to look at and carries no meaning without a `--info-state` to
+    say whose view, so the combination is the unit the decision lives in.
+    """
+    options = sorted(_command_options()["play"])
+    return tuple(
+        tuple(subset)
+        for size in range(len(options) + 1)
+        for subset in combinations(options, size)
+    )
+
+
 # A representative legal value per option, so a cell tests the option's
-# acceptance and not an unrelated value refusal.
+# acceptance and not an unrelated value refusal. Kuhn asks twice, so `--at 0`
+# names a decision it reaches on every seed.
 _SAMPLE_VALUE: dict[str, list[str]] = {
     "--emit-ir": [],
     "--seed": ["7"],
     "--info-state": ["0"],
+    "--at": ["0"],
+    "--decisions": [],
 }
+
+# What an option needs beside it to be carried out at all, so a per-option
+# cell measures the COMMAND's answer and not a companion's absence. `--at`
+# without `--info-state` is refused by design, and `_at_alone` below is the
+# probe that names it; supplying the companion here keeps the two questions
+# apart.
+_COMPANION: dict[str, list[str]] = {"--at": ["--info-state", "0"]}
 
 # The authored expected column. Written as decisions, never derived from the
 # parser: a grid whose expectations come from the same object it measures
@@ -117,9 +233,35 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--emit-ir"): "accepted",
     ("check", "--seed"): "refused",
     ("check", "--info-state"): "refused",
+    ("check", "--at"): "refused",
+    ("check", "--decisions"): "refused",
     ("play", "--emit-ir"): "refused",
     ("play", "--seed"): "accepted",
     ("play", "--info-state"): "accepted",
+    ("play", "--at"): "accepted",
+    ("play", "--decisions"): "accepted",
+}
+
+# The authored expected column for the combination cross. `--at` is refused
+# exactly when no `--info-state` says whose view to render; every other
+# combination is carried out.
+_COMBINATION_EXPECTED: dict[tuple[str, ...], str] = {
+    (): "accepted",
+    ("--at",): "refused",
+    ("--decisions",): "accepted",
+    ("--info-state",): "accepted",
+    ("--seed",): "accepted",
+    ("--at", "--decisions"): "refused",
+    ("--at", "--info-state"): "accepted",
+    ("--at", "--seed"): "refused",
+    ("--decisions", "--info-state"): "accepted",
+    ("--decisions", "--seed"): "accepted",
+    ("--info-state", "--seed"): "accepted",
+    ("--at", "--decisions", "--info-state"): "accepted",
+    ("--at", "--decisions", "--seed"): "refused",
+    ("--at", "--info-state", "--seed"): "accepted",
+    ("--decisions", "--info-state", "--seed"): "accepted",
+    ("--at", "--decisions", "--info-state", "--seed"): "accepted",
 }
 
 
@@ -140,9 +282,25 @@ def test_every_cell_is_authored() -> None:
     )
 
 
+def test_every_combination_is_authored() -> None:
+    """The derived subsets of `play`'s options and the authored column name
+    the same cells, so an option added to `play` arrives as a doubled cross
+    to decide rather than as combinations nobody looked at."""
+    assert set(_play_option_subsets()) == set(_COMBINATION_EXPECTED), (
+        "the `play` command's options and the authored combination "
+        "expectations have drifted; decide what each new combination means"
+    )
+
+
 @pytest.mark.parametrize(("command", "option"), sorted(_EXPECTED))
 def test_command_option_cell(command: str, option: str, capsys: pytest.CaptureFixture[str]) -> None:
-    argv = [command, str(KUHN), option, *_SAMPLE_VALUE[option]]
+    argv = [
+        command,
+        str(KUHN),
+        option,
+        *_SAMPLE_VALUE[option],
+        *_COMPANION.get(option, []),
+    ]
     if _EXPECTED[(command, option)] == "accepted":
         assert main(argv) == 0
         return
@@ -152,6 +310,71 @@ def test_command_option_cell(command: str, option: str, capsys: pytest.CaptureFi
     err = capsys.readouterr().err
     assert option in err, f"the refusal must name {option}"
     assert "usage:" in err, "the refusal must show what the command accepts"
+
+
+@pytest.mark.parametrize("subset", sorted(_COMBINATION_EXPECTED))
+def test_play_option_combination_cell(
+    subset: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Each combination of `play`'s options is carried out or refused, and a
+    refusal reaches the caller in the command's own words rather than
+    argparse's — the parser accepts every one of these sentences, so what
+    decides them is `_play`."""
+    argv = ["play", str(KUHN)]
+    for option in subset:
+        argv += [option, *_SAMPLE_VALUE[option]]
+    if _COMBINATION_EXPECTED[subset] == "accepted":
+        assert main(argv) == 0
+        return
+    assert main(argv) == 2
+    err = capsys.readouterr().err
+    assert "--at" in err, "the refusal must name the option that needs a companion"
+    assert "--info-state" in err, "the refusal must name what to add"
+
+
+@pytest.mark.parametrize("subset", sorted(_COMBINATION_EXPECTED))
+def test_a_refusing_game_under_every_option_combination(
+    subset: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The combination cross against a game that refuses at play time.
+
+    The cells above run a game that plays clean, and the located rendering
+    measures the refusal's own content — so the invocation a designer actually
+    meets, a dying playout under the options they were debugging with, is the
+    one neither measures. Two claims, and the expected column is the same
+    authored one rather than a second that could disagree with it:
+
+    an invocation the command refuses is refused BEFORE the game runs, so the
+    game's own refusal is not what the caller reads; and where the invocation
+    is carried out, the refusal reaches the caller and no option's own output
+    stands in for it. Stdout is where every option prints — the summary, the
+    listing, the information state — so its emptiness is the whole claim in
+    one assertion.
+
+    What the refusal SAYS, and that it names the line that refused, is
+    tests/test_runtime_refusal_location.py's; this module's is that the
+    options do not displace it.
+
+    A listing of the decisions made before the refusal would print here and
+    does not: issue #623.
+    """
+    argv = ["play", str(REFUSES)]
+    for option in subset:
+        argv += [option, *_SAMPLE_VALUE[option]]
+    code = main(argv)
+    out, err = capsys.readouterr()
+    assert out == "", "a refused playout prints no part of a completed one"
+    if _COMBINATION_EXPECTED[subset] == "accepted":
+        assert code == 1, "the game is where to look, which is the exit code's arm"
+        assert "playing" in err, "the message must say which layer refused"
+        assert "Traceback" not in err, err
+        return
+    assert code == 2
+    assert "--info-state" in err, "the refusal must name what to add"
+    assert REFUSAL_MESSAGE not in err, (
+        "the invocation is refused before the game runs, so the game's own "
+        "refusal cannot be what the caller reads"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -318,9 +541,497 @@ def test_non_integer_seed_is_refused(capsys: pytest.CaptureFixture[str]) -> None
     assert "--seed" in capsys.readouterr().err
 
 
+# ---------------------------------------------------------------------------
+# `--at`: the value classes of a decision index, and the two flags' pairing.
+# The first two refusals need no playout to decide and are taken beside the
+# seat check; the third needs the count only the playout produces.
+# ---------------------------------------------------------------------------
+
+
+def _listing_of(rendered: str) -> tuple[str, list[str]]:
+    """The `--decisions` listing's header and its rows.
+
+    The summary indents its own lines too, so the rows are taken from the
+    block the header opens rather than by indentation — a filter that reads
+    `  returns  P0 0` as a decision would pass on output that has no listing
+    in it at all.
+    """
+    head, _, rest = rendered.partition("; --at takes")
+    header = head.rsplit("\n\n", 1)[1] + "; --at takes" + rest.split("\n", 1)[0]
+    rows = []
+    for line in rest.split("\n", 1)[1].splitlines():
+        if not line.startswith("  ") or not line.split()[0].isdigit():
+            break
+        rows.append(line)
+    return header, rows
+
+
+def test_at_alone_says_whose_view_is_missing(capsys: pytest.CaptureFixture[str]) -> None:
+    """`--at` picks which decision and `--info-state` picks whose view. Neither
+    answers the other's question, so the sentence is refused rather than
+    carried out against a seat nobody named."""
+    assert main(["play", str(KUHN), "--at", "0"]) == 2
+    err = capsys.readouterr().err
+    assert "--at" in err
+    assert "--info-state" in err, "the refusal must name what to add"
+
+
+def test_a_negative_decision_index_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    """A negative index is not a decision. `--seed -3` is legal, so a caller
+    has every reason to think a leading minus is fine here too; and Python
+    would read this one as counting from the end."""
+    assert main(["play", str(KUHN), "--info-state", "0", "--at", "-1"]) == 2
+    err = capsys.readouterr().err
+    assert "--at -1" in err
+    assert "start at 0" in err, "the refusal must name where a playout's decisions start"
+
+
+def test_non_integer_at_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["play", str(KUHN), "--info-state", "0", "--at", "last"])
+    assert exit_info.value.code == 2
+    assert "--at" in capsys.readouterr().err
+
+
+def test_a_decision_index_past_the_last_names_the_range(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The count is the playout's, so this refusal comes after the summary —
+    and it names the range rather than clamping to the last decision, which
+    would answer a question nobody asked."""
+    assert main(["play", str(KUHN), "--seed", "7", "--info-state", "0", "--at", "99"]) == 2
+    err = capsys.readouterr().err
+    assert "--at 99" in err
+    assert "0.." in err, "the refusal must name the decisions this playout has"
+
+
+def test_at_on_a_game_with_no_decisions_says_there_are_none(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The skeleton deals and scores without asking anyone to choose, so there
+    is no decision for `--at` to name — a different answer from an index past
+    the last, and the designer of an early skeleton meets this one first.
+
+    Both indices take that answer. The range refusal would spell an empty
+    playout `0..-1`, so the order of the two is what keeps that off the
+    screen, and only the higher index would reach it.
+    """
+    for index in ("0", "5"):
+        argv = ["play", str(MARKDOWN), "--seed", "5", "--info-state", "0", "--at", index]
+        assert main(argv) == 2
+        err = capsys.readouterr().err
+        assert "without a decision" in err
+        assert "0..-1" not in err, "an empty playout has no range to name"
+
+
+def test_the_last_decision_index_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
+    """The boundary the range refusal is drawn against."""
+    assert main(["play", str(KUHN), "--seed", "7", "--decisions"]) == 0
+    _, rows = _listing_of(capsys.readouterr().out)
+    last = int(rows[-1].split()[0])
+    assert main(
+        ["play", str(KUHN), "--seed", "7", "--info-state", "0", "--at", str(last)]
+    ) == 0
+    assert f"at decision {last}" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# `--at`: what the view at a named decision actually shows.
+# ---------------------------------------------------------------------------
+
+
+def test_at_reaches_a_card_the_terminal_position_has_mucked(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The whole point of naming a decision: a hole card is the seat's own, by
+    identity, while the hand is live, and gone from every zone once the hand
+    mucks it. The terminal view can only ever show the second, which is why a
+    seat's view part-way through is a question the command line has to be able
+    to answer.
+    """
+    assert main(["play", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", "0"]) == 0
+    mid_hand = capsys.readouterr().out
+    assert main(["play", str(HOLDEM), "--seed", "7", "--info-state", "0"]) == 0
+    terminal = capsys.readouterr().out
+
+    def hole(rendered: str) -> str:
+        state = rendered.rsplit("P0|", 1)[1]
+        return next(z for z in state.split("|")[0].split(";") if z.startswith("hole[0]="))
+
+    assert hole(mid_hand) != "hole[0]=[]", "the seat's own cards are its view mid-hand"
+    assert hole(terminal) == "hole[0]=[]", "the terminal position has mucked them"
+
+
+def test_at_shows_a_seat_that_is_not_the_actor(capsys: pytest.CaptureFixture[str]) -> None:
+    """Asking what the OPPONENT knows at your decision is the question a bluff
+    turns on, so the seat and the decision's actor are independent."""
+    assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
+    _, rows = _listing_of(capsys.readouterr().out)
+    index = next(
+        int(row.split()[0]) for row in rows if row.split()[1] == "P1"
+    )
+    assert main(
+        ["play", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", str(index)]
+    ) == 0
+    out = capsys.readouterr().out
+    assert "P0|" in out, "the view is the seat's, not the actor's"
+    assert f"at decision {index}" in out
+
+
+def test_the_listing_numbers_one_entry_per_card_taken(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One unit, everywhere. Hearts' pass takes three cards and the game tree
+    branches three times for it, so the listing carries three entries a
+    designer can name and the summary's `decisions` line counts the same
+    three. Two units would leave the number on the screen disagreeing with the
+    numbers `--at` accepts.
+
+    red under: number Chooser calls in `cardlang.cli._play` — one `decisions`
+    entry per call rather than one per card `sequential_decisions` walks.
+    """
+    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    out = capsys.readouterr().out
+    counted = int(out.split("decisions", 1)[1].split()[0])
+    header, rows = _listing_of(out)
+    assert len(rows) == counted, "every decision the summary counts is on the list"
+    assert header.split()[0] == str(counted), "the header counts that same unit"
+    assert f"0..{counted - 1}" in header, "the header names the range --at takes"
+    assert {row.split()[1] for row in rows[:3]} == {"P0"}, (
+        "Hearts opens on one seat taking three cards, which is three decisions"
+    )
+
+
+def _pool_of(row: str) -> int:
+    """How many candidates a listing row says it was choosing from."""
+    return int(row.split(" of ")[1].split(":")[0])
+
+
+def test_a_long_candidate_pool_trails_off(capsys: pytest.CaptureFixture[str]) -> None:
+    """A line names enough candidates to recognize the decision, not the whole
+    pool — and says so, because the ellipsis is the only sign a designer gets
+    that the pool runs on.
+
+    Swept on two games because a decomposed call shrinks its own pool, so the
+    cap can fall INSIDE one call the designer made: Hearts offers a full hand
+    at each of its three pass decisions and short pools late in a trick, while
+    Cheat takes up to a whole hand a card at a time, walking its rows down
+    across the cap. Both sides of the partition then come from one call, which
+    is the case per-call numbering never produced.
+
+    red under: drop the `shown.append("...")` arm from `cardlang.cli._decision`.
+    """
+    for game, must_cross in ((HEARTS, False), (CHEAT, True)):
+        assert main(["play", str(game), "--seed", "7", "--decisions"]) == 0
+        _, rows = _listing_of(capsys.readouterr().out)
+        cut = [row for row in rows if _pool_of(row) > _CANDIDATES_SHOWN]
+        whole = [row for row in rows if _pool_of(row) <= _CANDIDATES_SHOWN]
+        assert cut, "the pin needs a decision offering more than a line names"
+        assert whole, "and one a line holds whole"
+        for row in cut:
+            assert row.endswith("..."), "a pool a line cannot hold must trail off"
+        for row in whole:
+            assert not row.endswith("..."), (
+                "a pool a line holds whole must not claim it was cut"
+            )
+        if not must_cross:
+            continue
+        # One call's own rows: the same seat, the pool one shorter each time.
+        crossings = [
+            index
+            for index in range(1, len(rows))
+            if rows[index - 1].split()[1] == rows[index].split()[1]
+            and _pool_of(rows[index]) == _pool_of(rows[index - 1]) - 1
+            and _pool_of(rows[index - 1]) > _CANDIDATES_SHOWN >= _pool_of(rows[index])
+        ]
+        assert crossings, "one call's rows must walk down across the cap"
+
+
+def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) -> None:
+    """Every decision the playout made is on the list, numbered from zero and
+    naming its actor — the listing is what makes an index discoverable."""
+    assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
+    _, rows = _listing_of(capsys.readouterr().out)
+    assert [int(row.split()[0]) for row in rows] == list(range(len(rows)))
+    for row in rows:
+        assert row.split()[1].startswith("P"), "each decision names who makes it"
+        assert "chooses" in row, "each decision names what is being chosen from"
+
+
+def test_numbering_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]) -> None:
+    """Reading a playout must not change it.
+
+    `play` supplies its own Chooser at every invocation, to number the
+    decisions and to reach a named one. `play_game` builds the uniform-random
+    Chooser from the generator it is handed when a caller supplies none, so
+    the command must build its own from that same generator: a second
+    `random.Random` splits the shuffle and the policy into separate streams,
+    and the seed a designer reproduces from would name a different game.
+
+    The comparison is against the driver playing for itself, because the two
+    command invocations both install the Chooser — a plant that moves the
+    playout moves both of them together, and they would go on agreeing.
+
+    red under: build the Chooser from `random.Random(drawn)` in
+    `cardlang.cli._play` rather than from the generator handed to `play_game`.
+    """
+    game = check_source(HEARTS)
+    played = play_game(game, random.Random(7))
+
+    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    out = capsys.readouterr().out
+    reported = out.split("returns", 1)[1].split("\n")[0].strip()
+    expected = ", ".join(
+        f"P{player} {int(value)}"
+        for player, value in enumerate(returns_for(game, played))
+    )
+    assert reported == expected, (
+        "the command's playout and the driver's own have diverged"
+    )
+    assert f"across {played.hands_played} hands" in out
+
+
 def test_negative_seed_plays() -> None:
     """A seed is an arbitrary integer; nothing about it is a count."""
     assert main(["play", str(KUHN), "--seed", "-3"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# The command line and the adapter number the same decisions, and render the
+# same view of one. Both routes are driven here; a cell that ran only one
+# would pin the command against itself.
+# ---------------------------------------------------------------------------
+
+
+def _tree_walk(
+    path: Path, seed: int, seat: int
+) -> tuple[tuple[int, ...], int, list[str]]:
+    """The action line a seeded `play` walks as the adapter numbers it, how
+    many of those actions the two routes share, and `seat`'s view at each.
+
+    One action id per candidate taken, in the order they were taken, with the
+    actor's own log carrying each taken candidate before the next is asked
+    for: a Chooser call for `n` cards branches the tree `n` times and the seat
+    remembers what it has already committed (docs/authoring.md, "`move chosen
+    N cards` is N sequential single-card decisions"). That contract is written
+    out here rather than read off the command, so the numbering and the views
+    below are compared against something the command does not produce.
+
+    The shared prefix is the first deal, and the bound comes from the driver's
+    own `hand_end` rather than from a count of this game's cards. Past it the
+    routes deal differently for a reason numbering cannot reach: `play` draws
+    its uniform-random policy from the generator that also drives the shuffle,
+    while the adapter's Chooser draws nothing (issue #621).
+    """
+    game = check_source(path)
+    space = ActionSpace.for_game(game)
+    rng = random.Random(seed)
+    play_uniformly = random_chooser(rng)
+    logs: dict[int, list[tuple[Any, ...]]] = {
+        p: [] for p in range(game.players.low)
+    }
+    world: list[RuntimeState] = []
+    line: list[int] = []
+    views: list[str] = []
+    shared: list[int] = []
+
+    def observe(player: int, event: tuple[Any, ...]) -> None:
+        logs[player].append(event)
+
+    def watch(event: str, _data: Any) -> None:
+        if event == "hand_end" and not shared:
+            shared.append(len(line))
+
+    def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        taken = play_uniformly(player, candidates, count)
+        for choice in taken:
+            views.append(information_state(seat, world[0], logs[seat]))
+            line.append(space.encode(choice))
+            observe(player, ("chose", render(choice)))
+        return taken
+
+    play_game(
+        game,
+        rng,
+        watch,
+        chooser=choose,
+        observer=observe,
+        on_first_decision=world.append,
+    )
+    return tuple(line), (shared[0] if shared else len(line)), views
+
+
+def _segments(rendered: str) -> tuple[str, str, str]:
+    """An information state's three segments: zones, state variables, log."""
+    zones, _, rest = rendered.partition("|state:")
+    state, _, log = rest.partition("|obs:")
+    return zones, state, log
+
+
+def _seats_view(rendered: str, seat: int) -> str:
+    """The information state `play` printed, out of everything else it said."""
+    return next(
+        line for line in rendered.splitlines() if line.startswith(f"P{seat}|")
+    )
+
+
+def _adapter_view(path: Path, seed: int, line: tuple[int, ...], seat: int) -> str:
+    """`pyspiel`'s answer for `seat` at the decision node `line` reaches."""
+    import pyspiel
+
+    from cardlang.openspiel.game import register_game_file
+
+    state = pyspiel.load_game(register_game_file(path)).new_initial_state()
+    state.apply_action(seed)  # the root chance node's outcome IS the seed
+    for action in line:
+        state.apply_action(action)
+    return str(state.information_state_string(seat))
+
+
+def test_the_listing_numbers_the_decisions_the_tree_has(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A designer reads `--decisions`, then asks the adapter about decision N.
+    It has to be the same N: one listing entry per decision node, in the tree's
+    own order, naming the tree's own seat.
+
+    Walked over the first deal, the prefix the two routes share.
+
+    red under: number Chooser calls in `cardlang.cli._play`; the listing then
+    reports Hearts' pass as four entries where the tree branches twelve times,
+    and entry 1 names the second seat where the tree's is still the first.
+    """
+    pytest.importorskip("pyspiel")
+    import pyspiel
+
+    from cardlang.openspiel.game import register_game_file
+
+    line, shared, _ = _tree_walk(HEARTS, 7, 0)
+    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    _, rows = _listing_of(capsys.readouterr().out)
+    assert len(rows) == len(line), "one entry per decision the tree branches on"
+    state = pyspiel.load_game(register_game_file(HEARTS)).new_initial_state()
+    state.apply_action(7)
+    for index in range(shared):
+        assert rows[index].split()[1] == f"P{state.current_player()}", (
+            f"decision {index} belongs to another seat on the two routes"
+        )
+        state.apply_action(line[index])
+
+
+def test_the_view_at_every_decision_agrees_with_the_adapter() -> None:
+    """The pin the numbering exists for, at every decision of the first deal:
+    decision N on one route and decision N on the other are the same position,
+    so a seat sees the same zones and remembers the same log at each. The
+    positions inside Hearts' three-card pass — the ones a per-call numbering
+    cannot name at all — are in the walk with the rest.
+
+    The `state:` segment is left out: the adapter reads a world already unwound
+    past every phase frame, so its state segment drops every phase-local
+    variable (issue #612). The cell below holds that segment against the day it
+    is fixed.
+
+    red under: number Chooser calls in `cardlang.cli._play`; node 1 is then the
+    next seat's ask, whose log holds one finished selection where the tree's
+    holds one card. A mutation inside `sequential_decisions` is invisible here
+    by construction — it moves both routes together, which is what sharing it
+    buys — and the absolute record is pinned two cells below.
+    """
+    pytest.importorskip("pyspiel")
+    import pyspiel
+
+    from cardlang.openspiel.game import register_game_file
+
+    line, shared, views = _tree_walk(HEARTS, 7, 0)
+    assert shared > 1, "a one-node walk says nothing about numbering"
+    assert any("('chose'" in _segments(views[k])[2] for k in range(shared)), (
+        "the walk must reach a position the seat's own earlier choice defines"
+    )
+    state = pyspiel.load_game(register_game_file(HEARTS)).new_initial_state()
+    state.apply_action(7)
+    for index in range(shared):
+        mine = _segments(views[index])
+        theirs = _segments(str(state.information_state_string(0)))
+        assert mine[0] == theirs[0], f"the zones differ at decision {index}"
+        assert mine[2] == theirs[2], f"the logs differ at decision {index}"
+        state.apply_action(line[index])
+
+
+def test_at_prints_the_view_the_walk_holds_at_that_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """What the command PRINTS is the view the walk above compares — otherwise
+    the agreement would be a property of the engine and not of the answer a
+    designer gets. Taken at the second and third cards of Hearts' pass, and
+    against the adapter directly as well, so neither reading rests on the
+    other.
+    """
+    pytest.importorskip("pyspiel")
+    line, _, views = _tree_walk(HEARTS, 7, 0)
+    for index in (1, 2):
+        argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
+        assert main([*argv, str(index)]) == 0
+        printed = _seats_view(capsys.readouterr().out, 0)
+        assert printed == views[index], (
+            f"what --at {index} prints is not the view at that decision"
+        )
+        mine = _segments(printed)
+        theirs = _segments(_adapter_view(HEARTS, 7, line[:index], 0))
+        assert mine[0] == theirs[0], f"the zones differ at decision {index}"
+        assert mine[2] == theirs[2], f"the logs differ at decision {index}"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="issue #612: the adapter reads a world unwound past every phase "
+    "frame, so its state segment names only the game-level variables",
+)
+def test_the_state_segment_agrees_across_the_two_routes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The third segment, which the comparison above leaves out. Strict, so the
+    day issue #612 lands this reddens and the carve-out in the ledger comes out
+    with it.
+
+    Only the segment comparison is an assertion; a run that fails for any other
+    reason raises what the mark does not catch, so this cannot xfail on a wall
+    it does not name.
+    """
+    pytest.importorskip("pyspiel")
+    line, _, _ = _tree_walk(HEARTS, 7, 0)
+    argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
+    if main(argv) != 0:
+        raise RuntimeError("the invocation this cell compares was refused")
+    mine = _segments(_seats_view(capsys.readouterr().out, 0))
+    theirs = _segments(_adapter_view(HEARTS, 7, line[:1], 0))
+    assert mine[1] == theirs[1], "the state variables differ"
+
+
+def test_a_decision_records_the_cards_the_same_call_already_took(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """What tells the second card of Hearts' pass from the first is the card
+    already committed, so the seat's view at each carries exactly the cards it
+    has taken so far — one each time, as the card it is, not as the finished
+    selection. Without that the three positions would render alike and collapse
+    into one information set, which is the perfect-recall violation the adapter
+    emits per card to avoid.
+
+    red under: emit before `decide` in
+    `cardlang.runtime.chooser.sequential_decisions`; each decision then carries
+    the card it is about to take.
+    """
+    for index in range(3):  # P0's three-card pass, card by card
+        argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
+        assert main([*argv, str(index)]) == 0
+        log = _segments(_seats_view(capsys.readouterr().out, 0))[2]
+        assert log.count("('chose'") == index, (
+            f"decision {index} follows {index} cards this seat has taken"
+        )
+        assert "('chose', ('" not in log, (
+            "a card taken is recorded as that card, not as a finished selection"
+        )
 
 
 # ---------------------------------------------------------------------------

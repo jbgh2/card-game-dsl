@@ -38,10 +38,11 @@ becomes a permanent regression case — `test_rejections.py`'s own module
 docstring is the authority on that pair's format. A playout-class finding
 whose fix is a NEW static guard (rather than an accepted runtime behavior)
 follows the same path; a playout-class finding whose fix only improves the
-runtime's own error message stays a `RuntimeError`/`AssertionError` outside
-`DiagnosticError`'s channel and does not migrate to `tests/rejections/` —
-it just gets deleted from this ledger once the message is re-pinned wherever
-that runtime path already has its own test.
+runtime's own error message stays a play-time failure — the runtime's typed
+refusal, or the harness's own assert — outside `DiagnosticError`'s failure
+channel and does not migrate to `tests/rejections/` — it just gets deleted
+from this ledger once the message is re-pinned wherever that runtime path
+already has its own test.
 """
 
 from __future__ import annotations
@@ -91,7 +92,7 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
             "at discovery time). The setup flip `draw 1 card from "
             "tableau_down[4] to tableau_up[4]` then draws from an empty "
             "hidden stack and dies on the movement executor's "
-            "exhausted-source ValueError before any decision. Checker-green "
+            "exhausted-source refusal before any decision. Checker-green "
             "because the deck-capacity gate's declared domain is DECK usage "
             "only (deckcheck.py) — an intermediate zone's balance is "
             "invisible to it; the general static net for non-deck source "

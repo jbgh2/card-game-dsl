@@ -179,14 +179,15 @@ def item_field_table(game: Game) -> dict[str, Type]:
 ACTION_FIELDS: dict[str, Type] = {"card": TCard(), "actor": TPlayer()}
 
 # Native evaluations whose result depends on a declared `ranking:` — they
-# index `rs.rank_index`, which is EMPTY when the game declares none (only
-# `rs.ranks` falls back to deck order), so an ungated member is the
-# accepted-then-crashes-bare class: a clean check, then a raw KeyError at
-# playout. resolve.py already gates a bare `Rank` move-parameter domain on
-# the same `has_ranking` condition (`_check_move_params`); these are the
-# analogous compile-time gates for the three positions a member can be
-# named from. Registries, not `if`s, so the next ranking-dependent function
-# joins a set instead of a new branch.
+# read `rs.rank_index`, which is EMPTY when the game declares none (only
+# `rs.ranks` falls back to deck order), so an ungated member would check
+# clean and be refused only at playout, by `values.rank_strength`'s
+# no-`ranking:` arm — the Shadow Guard behind these gates, whose firing is
+# an engine gap. resolve.py already gates a bare `Rank` move-parameter
+# domain on the same `has_ranking` condition (`_check_move_params`); these
+# are the analogous compile-time gates for the three positions a member can
+# be named from. Registries, not `if`s, so the next ranking-dependent
+# function joins a set instead of a new branch.
 #
 # The member census (the #256 review round's class sweep — every call form
 # and value callback whose evaluation reads rank_index, disposition per

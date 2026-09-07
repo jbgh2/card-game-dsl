@@ -175,10 +175,11 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     # --- deliberate signals, caught by type ----------------------------------
     ("cardlang/runtime/state.py", "KeyError"): (
         2,
-        ("_frame_of's miss is a SIGNAL: runtime/reads.py:409 catches KeyError "
-        "by type and converts it to PrimitiveReadError, so retyping it breaks "
-        "that conversion silently. ZoneStore.locate's is unreachable by "
-        "construction (Zone is instantiated only inside ZoneStore.__init__)."),
+        ("_frame_of's miss is a SIGNAL: the `state` accessor in runtime/reads.py "
+        "catches KeyError by type and converts it to PrimitiveReadError, so "
+        "retyping it breaks that conversion silently. ZoneStore.locate's is "
+        "unreachable by construction (Zone is instantiated only inside "
+        "ZoneStore.__init__)."),
     ),
     ("cardlang/libraries.py", "KeyError"): (
         1,
