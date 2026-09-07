@@ -23,10 +23,10 @@ Three sections, each derived:
   whole token in each file with comments and string literals stripped.
 - General constructs whose every live consumer is a scoring sentence -- the
   check decisions.md "Scoring has no constructs of its own" asks for. A
-  scoring sentence is an assignment whose target is the game's winner
-  variable (`winner: highest x`) or a variable whose value flows into it
-  through an assignment, transitively; a function every call of which sits in
-  a scoring sentence counts as one, transitively.
+  scoring sentence is an assignment, or a `let` binding, whose target is the
+  game's winner variable (`winner: highest x`) or a name whose value flows
+  into it through an assignment or a binding, transitively; a function every
+  call of which sits in a scoring sentence counts as one, transitively.
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
@@ -149,9 +149,15 @@ def _target_root(target: Tree[Token] | Token) -> str | None:
     return names[0] if names else None
 
 
+# A statement that gives a name a value: an assignment's target, or a `let`'s
+# bound name. Both are read the same way -- the target is the first child, the
+# value the last -- so the dataflow closure and the walk treat them alike.
+_BINDING_STATEMENTS: frozenset[str] = frozenset({"assign_stmt", "let_stmt"})
+
+
 def _scoring_targets(tree: Tree[Token]) -> frozenset[str]:
-    """The winner variable and every variable whose value flows into it
-    through an assignment, transitively."""
+    """The winner variable and every name whose value flows into it through
+    an assignment or a `let` binding, transitively."""
     winner: str | None = None
     for sub in tree.iter_subtrees():
         if str(sub.data) == "winner":
@@ -159,7 +165,7 @@ def _scoring_targets(tree: Tree[Token]) -> frozenset[str]:
             winner = names[-1] if names else None
     if winner is None:
         return frozenset()
-    assignments = [s for s in tree.iter_subtrees() if str(s.data) == "assign_stmt"]
+    assignments = [s for s in tree.iter_subtrees() if str(s.data) in _BINDING_STATEMENTS]
     targets = {winner}
     while True:
         grown = set(targets)
@@ -176,8 +182,8 @@ def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
     occurrences: list[tuple[str, bool, str | None]] = []  # rule, in a scoring rhs, enclosing function
     calls: list[tuple[str, bool, str | None]] = []  # function called, same context
 
-    def walk(node: Tree[Token] | Token, scoring: bool, function: str | None) -> None:
-        if isinstance(node, Token):
+    def walk(node: Tree[Token] | Token | None, scoring: bool, function: str | None) -> None:
+        if node is None or isinstance(node, Token):
             return
         rule = str(node.data)
         if rule == "function_def":
@@ -188,14 +194,13 @@ def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
             if names:
                 calls.append((names[0], scoring, function))
         occurrences.append((rule, scoring, function))
-        if rule == "assign_stmt" and _target_root(node.children[0]) in targets:
+        if rule in _BINDING_STATEMENTS and _target_root(node.children[0]) in targets:
             for child in node.children[:-1]:
                 walk(child, scoring, function)
             walk(node.children[-1], True, function)
             return
         for child in node.children:
-            if child is not None:
-                walk(child, scoring, function)
+            walk(child, scoring, function)
 
     walk(tree, False, None)
     scoring_functions: set[str] = set()

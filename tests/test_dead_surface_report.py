@@ -16,8 +16,9 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             each pinned against the parser's own terminal table. Scoring is
             an assignment to the winner variable or to a variable that flows
             into it, and a function every call of which sits in one, both
-            transitively; a game with no `winner: highest/lowest x` has no
-            scoring sentence, which is stated, not a gap.
+            transitively, with `let` bindings read as assignments to their
+            name; a game with no `winner: highest/lowest x` has no scoring
+            sentence, which is stated, not a gap.
 registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
@@ -121,6 +122,20 @@ def test_scoring_flows_through_a_feeder_variable_and_a_function() -> None:
     rep = ds.report(GRAMMAR, [src("a.cardlang", leaked)])
     # the guard's call is not a scoring sentence, so the function is not one either
     assert "sq_count" not in rep.all_scoring
+
+
+def test_scoring_flows_through_a_let_binding() -> None:
+    """Hearts' and French Tarot's shape: a phase-local `let` chain feeding the
+    winner variable. Red under: dropping `let_stmt` from
+    `_BINDING_STATEMENTS`."""
+    text = game(f"    let base = {COUNT}\n    let doubled = base * 2\n    score[0] += doubled")
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" in rep.all_scoring
+    leaked = game(f"    let base = {COUNT}\n    score[0] += base\n    if base > 0 {{ move all cards to deck }}")
+    rep = ds.report(GRAMMAR, [src("a.cardlang", leaked)])
+    # the binding scores, and its consumers elsewhere do not unmake that: the
+    # construct sits in the binding, which is a scoring sentence
+    assert "sq_count" in rep.all_scoring
 
 
 def test_a_game_with_no_ranked_winner_has_no_scoring_sentence() -> None:
