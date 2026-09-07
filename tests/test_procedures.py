@@ -20,121 +20,52 @@ procedures", "Surface totality", "Closed-domain completeness").
                 Plus the capture class (three members) and the call/declaration
                 cells.
 
+                One class of body statement sits outside the accepted set, and
+                it is a boundary rather than a hole: a statement whose VALIDITY
+                depends on WHERE it sits. The checker sees a body once, at its
+                declaration, and the spliced copies are never re-checked
+                (expansion runs after typecheck, which is what makes the
+                parameter types enforceable), so a positional construct in a
+                body would be checked in a place it does not end up. The class
+                is closed by enumerating the position-dependent CHECKS rather
+                than by intuition — `_check_outcome_scope`,
+                `_check_single_outcome_consumer`, `_check_misplaced_produce`,
+                and outcome binding — which is what puts `round`, a `produces:`
+                over a phase outcome, `produce`/`continue to`/`skip to next
+                hand`, and `actor`/`action` in it together. The other
+                position-sensitive passes, deck-capacity and the OpenSpiel
+                action space, both run AFTER expansion and see the real tree,
+                so neither joins the class. The parameter domains are the same
+                shape of boundary: the accepted set grows one forcing game at a
+                time, and every domain outside it is a loud unsupported-domain
+                refusal (issue #134, cited at the guard in `resolve.py`).
+
     registry:   A. `cardlang.typecheck.KNOWN_TYPE_NAMES` vs
                    `cardlang.resolve._PROCEDURE_PARAM_DOMAINS`
                 B. `typing.get_args(cardlang.ast.nodes.Stmt)`
                 C. `cardlang/grammar/cardlang.lark` — the `statement*` sites and
                    the two `":" statement` single-statement slots
+                A `run` argument typed through a `let`:
+                tests/test_let_typing.py.
+                Expansion fidelity end to end, byte-identical across the
+                inline->procedure rewrite of Coup's pasted blocks:
+                tests/golden/coup_scores.json, via
+                tests/test_migration_characterization.py.
 
-    covered:    A — exhaustive, derived from KNOWN_TYPE_NAMES x {plain, optional}
-                    by `test_every_declarable_type_name_as_a_parameter`: 18 cells,
-                    of which `Player`, `Rank`, `Rank?` and `Integer` are accepted
-                    and the other 14 (plus an unknown name) are rejected at
-                    resolve. That sweep READS the registry to decide each cell, so
-                    the registry itself is commanded separately by
-                    `test_the_supported_domains_are_exactly_player_rank_and_integer`
-                    — a member may not join by editing one line. A new entry in
-                    KNOWN_TYPE_NAMES fails this test until it is classified.
-                B — exhaustive, pinned by `test_stmt_union_is_fully_classified`:
-                    11 accepted, 5 rejected, 16 total, and every accepted kind is
-                    actually exercised in a body. A new `Stmt` member fails that test
-                    until it is classified. `Produces` is accepted with a SPLIT: over
-                    a `define` (safe — invoked fresh at each site) but not over a
-                    phase outcome (see residual).
-                C — the sequence contexts are exercised by
-                    `test_run_expands_in_every_statement_sequence_context`
-                    (phase body, if/else, repeat until) and
-                    `test_run_expands_in_a_move_type_effect`; the two
-                    single-statement slots by
-                    `test_any_procedure_fits_a_for_each_slot` and
-                    `test_each_simultaneously_body_shapes`, probed at body
-                    length 1 (splices) and, in
-                    `test_a_run_in_a_single_statement_slot_still_runs_the_
-                    whole_body`, >1 (guarded). Whether those are ALL of the
-                    grammar's `statement*` sites is not reconciled against the
-                    grammar — see residual.
-                Hygiene — closed BY CONSTRUCTION, not by guards, and the former
-                    defects are pinned as behaviours, one test each:
-                    `test_one_written_decision_stays_one_decision`,
-                    `test_an_unused_parameter_still_evaluates_its_argument`,
-                    `test_an_argument_is_not_re_read_after_the_body_mutates_it`,
-                    `test_an_argument_naming_the_actor_survives_an_actor_
-                    rebinding_body`, and
-                    `test_a_body_binding_does_not_leak_into_the_caller` — an
-                    argument is evaluated once in the caller's context, and the
-                    body runs in a block.
-                    The single remaining guard — a body binder shadowing a PARAMETER
-                    name, which classification cannot disambiguate — is tested.
-                Downstream — `game.procedures` empty after the pipeline; no
-                    `RunStmt` in the IR; a body's `offer` is not double-counted in
-                    the OpenSpiel action space.
-
-    sampled:    Expansion fidelity is pinned by example rather than exhaustively:
-                Coup's per-seed golden (`tests/golden/coup_scores.json`, via
-                test_migration_characterization) is byte-identical across the
-                inline->procedure rewrite of 22 pasted blocks. That is a stronger
-                witness than a synthetic matrix — it holds the reveal sequence,
-                the coins, the alive vector and the winner fixed over 40 seeds —
-                but it is one game, so it is sampled, not covered.
-
-    residual:   Axis C is the one axis of the three with no defining site in
-                code: A crosses `KNOWN_TYPE_NAMES` and B pins the `Stmt` union,
-                so a new member of either fails until it is classified, but the
-                grammar's `statement*` sites are not scraped and a new one
-                would join unprobed while this ledger still read exhaustive.
-                Guard: none beyond the named tests above, which is why the row
-                says what runs rather than claiming the set. R3, issue #393.
-
-                Every cell below is REJECTED (never silently accepted), and each
-                has a tracker record under issue #134:
-                  - `Zone` parameters. The design note guessed the corpus would
-                    need them; it does not (a Player parameter already carries its
-                    zone: `influence[victim]`). Guard: unsupported-domain error.
-                  - Every other domain (Suit, Card, Boolean, String, Team,
-                    Direction, and the optional form of each bar `Rank?`). Same
-                    guard. `Rank?` rather than `Rank` is what the corpus forces:
-                    there is no flow narrowing, so a bare `Rank` parameter would
-                    reject `block_claim` at the very sites that must pass it.
-                    `Integer` LEFT this list when poker_betting's `open_street`
-                    forced it — the set grows one forcing game at a time, which
-                    is the deferral working rather than a hole closing.
-                  - a `round` in a body. It binds its own `outcome`, which the
-                    body's pronoun guard cannot yet tell from the caller's.
-                  - a `produces:` over a PHASE OUTCOME in a body. Its consumer must be
-                    an earlier-executed sibling of the producing phase, and must be the
-                    only one — both are facts about where the statement sits, which a
-                    splice moves. Same class as the `round` cell: a construct whose
-                    validity is positional. (A `produces:` over a `define` is fine.)
-                  - a procedure running another procedure (no call graph in v1).
-                  - `produce` / `continue to` / `skip to next hand` in a body
-                    (non-local control flow out of a spliced block).
-                  - `actor` / `action` in a body: rejected unconditionally, even
-                    where a `for each player` in the body would bind one, because
-                    it would silently mean the loop's player.
-                  These are ONE class, not separate accidents: a procedure body
-                  may not hold a statement whose VALIDITY depends on where it
-                  sits, because the checker sees the body once, at its
-                  declaration, and the spliced copies are never re-checked
-                  (expansion runs after typecheck, which is what makes the
-                  parameter types enforceable). The class is closed by
-                  enumerating the position-dependent CHECKS —
-                  `_check_outcome_scope`, `_check_single_outcome_consumer`,
-                  `_check_misplaced_produce`, and outcome binding — rather than
-                  by intuition. The other position-sensitive passes,
-                  deck-capacity and the OpenSpiel action space, both run AFTER
-                  expansion and see the real tree, so neither joins the class.
-                  Not on the list, and impossible by construction rather than
-                  guarded: argument capture, actor capture, and a body binding
-                  leaking into the caller — arguments are evaluated once, by
-                  value, in the caller's context, and the body runs in a block
-                  (decisions.md "Named procedures").
-
-                  (The former residual here — a `let`-laundered argument type,
-                  `let z = hearts` then `run bump(z)` passing a `Player`
-                  parameter — is CLOSED: lets are typed at declaration and the
-                  `run`-site check fires through them, pinned by
-                  `test_a_run_argument_is_typed_through_a_let` below and the
-                  ledger in tests/test_let_typing.py.)
+    does not prove:  two things.
+                That axis C is exhaustive. It is the one axis of the three
+                with no defining site in code: A crosses `KNOWN_TYPE_NAMES` and
+                B pins the `Stmt` union, so a new member of either fails until
+                someone classifies it, while the grammar's `statement*` sites
+                are authored here rather than scraped — a site added to the
+                grammar joins unprobed, and a green says only that the sites
+                named below expand.
+                And that expansion is faithful in general. Byte-identity holds
+                the reveal sequence, the coins, the alive vector and the winner
+                fixed across every seed of one game's golden, which is a
+                stronger witness than a synthetic matrix and is still one game:
+                a splice that changed behaviour only in a shape Coup does not
+                write would pass.
 """
 
 from __future__ import annotations
@@ -564,7 +495,10 @@ procedure pick(who : Player) {
 
 def test_run_expands_in_every_statement_sequence_context() -> None:
     """Each of these is a `statement*` site in the grammar. A `run` in any of them
-    splices its whole body."""
+    splices its whole body.
+
+    The site list is authored, not scraped from the grammar, so a `statement*`
+    site added later joins unprobed — R3, issue #393."""
     for body in (
         "    run bump(0)",  # phase body
         "    if score[0] is 0 { run bump(0) } else { run bump(1) }",  # if / else

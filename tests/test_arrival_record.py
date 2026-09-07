@@ -19,62 +19,52 @@ domain:     every Zone-content mutation path in the engine crossed with
 registry:   `Zone` (cardlang/runtime/state.py) owns the record and its
             maintenance; the movement sites pass provenance; the corpus is
             docs/games/*.cardlang (the same glob the playout suites walk).
-covered:    (a) the invariant walk: per game x manifest-head seed, every
-            zone's record-vs-cards multiset equality at every decision
-            node, plus actor/src well-formedness (actor is a seat or None;
-            src is a Zone Address or None). The walk cannot discriminate
-            seat 0 from a DEFAULTED 0 — that property is carried by
-            construction (`require_actor` binds the chooser's seat on
-            every chosen path, and non-chosen paths record
-            `ctx.current_player`, which IS None when unbound) and
-            discriminated observably on consumed zones by the provenance
-            soundness rows (a wrong or defaulted actor disagrees with
-            every observer's derivation — the executed reddening's exact
-            shape);
-            (b) value-purity: the record contains Card values equal to the
-            zone's cards — no id(), no copy index (the copy-swap pins in
-            tests/openspiel_ready/ carry the executed reddening for this);
-            (c) arrival-order truth for the trick piles: the playout oracle
-            of every trick game whose winner the record once fed (schnapsen,
-            skat, 500) recomputes each trick from the movements INTO the
-            pile, in order, deriving them from observation events alone —
-            the same pairs the record holds, obtained without asking the
-            engine. The openspiel_ready provenance rows are that claim
-            again, per observer.
-sampled:    one seed per game here (the playout suites and goldens carry
-            the multi-seed load); the full openspiel_ready manifest
-            exercises the same walk indirectly through its replays.
-residual:   `arrival_zones` for zone FAMILIES — no consumer in this change
-            reads a family's record; the query surface over recorded facts
-            is issue #253's set of decisions, so the family cell records
-            there (issue #253), and the bind-time guard refuses the cell
-            loudly meanwhile. Cribbage's `peg_origin_of` re-derivation is
-            issue #253 e5's named consumer, not this grid's. The
-            actor-vs-source-owner divergence has no corpus witness (bridge
-            omits the dummy; decisions.md "Delegated play" holds the
+            The per-observer provenance rows:
+            tests/openspiel_ready/harness.py's
+            `test_provenance_is_derivable_from_every_observers_stream`; the
+            stock wash: its `test_wash_hidden_stock_order_is_not_provenance`.
+            Value purity across replays:
+            `test_record_is_invariant_under_replacing_copies`
+            (tests/openspiel_ready/test_arrival_purity.py). The multi-seed
+            load: the per-seed goldens
+            (tests/test_migration_characterization.py) and the coverage
+            manifest (`manifest` in tests/openspiel_ready/harness.py).
+does not prove:  five things the walk's green leaves open, each with
+            where it stands instead.
+            (1) That a recorded actor of seat 0 is the CHOOSER rather than a
+            defaulted 0. The walk asserts well-formedness (actor is a seat
+            or None; src is a Zone Address or None) and cannot tell the two
+            apart. What carries that is construction — `require_actor` binds
+            the chooser's seat on every chosen path, and non-chosen paths
+            record `ctx.current_player`, which IS None when unbound — and,
+            observably on consumed zones,
+            `test_provenance_is_derivable_from_every_observers_stream`,
+            where a wrong or defaulted actor disagrees with every observer's
+            derivation.
+            (2) Anything about seeds past the first. This module walks one
+            seed per game; the multi-seed load is carried by the per-seed
+            goldens and by the coverage manifest, whose replays exercise the
+            same walk indirectly (both named in `registry:`).
+            (3) That attribution is right when the deciding actor and the
+            source zone's OWNER diverge. No corpus game separates them
+            (bridge omits the dummy; decisions.md "Delegated play" holds the
             unwired design), so the walk asserts the two-fact record, never
-            their coincidence. The wash pin's legal-action half under
-            STOCK permutation holds by composition (the swap proof's
-            legal-action agreement x the pin's info-state invariance), not
-            by direct execution — the replay hook fires after the first
-            decider's candidates are computed, so a pause's legal set
-            cannot be recomputed post-mutation; the composition is stated
-            in the pin's own docstring and its `legal_by_composition`
-            coverage field. The face-down-gather mixing kind is covered
-            where a manifest pause sits past a hand boundary (the pauses
-            are hand-1 depths for most games); the shuffle kind is covered
-            at every pause by construction — both recorded per game in the
-            wash pin's coverage row, honest rather than claimed. The
-            `highest_trump_or_led_suit` call form carries NO
-            completed-trick count guard — unlike the retired per-game
-            winners, whose `recorded_plays(expected)` count came from each
-            game's own trick structure, a generic pile winner has no
-            expected count to assert, so a designer hand-rolling a trick
-            and calling it mid-trick gets a plausible winner-so-far,
-            silently. Deliberately not built this round (no corpus witness
-            names the right guard shape — an expected-count argument is a
-            surface decision); the work is issue #350, and THIS LEDGER
-            ROW owns the record of the gap until it lands.
+            their coincidence.
+            (4) The legal-action half of
+            `test_wash_hidden_stock_order_is_not_provenance` under STOCK
+            permutation. It holds by composition — the swap proof's
+            legal-action agreement x that pin's info-state invariance —
+            rather than by
+            direct execution, because the replay hook fires after the first
+            decider's candidates are computed, so a pause's legal set cannot
+            be recomputed post-mutation. The composition is stated in the
+            pin's own docstring and in its `legal_by_composition` coverage
+            field.
+            (5) That the face-down-gather mixing kind is exercised for every
+            game. It runs where a manifest pause sits past a hand boundary,
+            and the pauses are hand-1 depths for most games; the shuffle
+            kind runs at every pause by construction. Which kind each game
+            got is recorded per game by that same pin.
 
 misuse probes: tests/rejections/arrival_winner_old_arity.{cardlang,expected}
             (the pre-#256 leader-argument spelling, over the surviving
@@ -286,7 +276,8 @@ def test_arrival_zone_of_concealed_type_is_refused_at_bind() -> None:
 def test_arrival_zone_must_be_a_declared_single_zone() -> None:
     """arrival_zones is bounded by the row's own declared single zones — an
     out-of-row name is the ordinary undeclared-read refusal, and a zone
-    FAMILY is the recorded residual (issue #253 owns the query surface)."""
+    FAMILY is refused loudly here — the query surface over a family's
+    recorded facts is issue #253's set of decisions."""
     from cardlang.runtime import reads
 
     rs = _rs_for("five-hundred.cardlang")

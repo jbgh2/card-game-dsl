@@ -39,8 +39,10 @@ naming sections that no longer existed
 Completeness ledger (decisions.md "Closed-domain completeness"):
 
 property:  every mention of roadmap.md outside roadmap.md itself either quotes
-           a section title that file still carries, or is a listed whole-file
-           pointer whose reason is recorded here.
+           a section title that file still carries -- matched after normalizing
+           whitespace, dash spelling and a trailing period, and then exactly,
+           since a partial quote is what makes a stale reference look live --
+           or is a listed whole-file pointer whose reason is recorded here.
 domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
            under ``docs/`` and ``.claude/skills/``, every ``.cardlang`` in the
            repo (corpus games, fixtures and rejection cases carry
@@ -48,6 +50,24 @@ domain:    every ``.py`` under ``cardlang/`` and ``tests/``, every ``.md``
            and ``CLAUDE.md`` — times every line mentioning ``roadmap.md``.
            Files are enumerated by glob, so a new module, doc or game is
            in-domain the day it exists.
+           What `EXCLUDED_DIRS` holds out of the walk is a boundary rather
+           than a gap: ``docs/superpowers/plans/`` and ``docs/research/`` are
+           dated records of what was true when written -- the
+           DATE-don't-DELETE carve-out of decisions.md "Closed-domain
+           completeness" -- so rewriting them would falsify the record rather
+           than repair it, and this module's own prose discusses the citation
+           shapes it refuses.
+           Python DIAGNOSTIC text is carved out as a DERIVED class
+           (`_diagnostic_lines`): the
+           argument of a diagnostic-bag call (`DIAGNOSTIC_METHODS`) or
+           anything inside a `raise`. A designer who hits a guard offline can
+           open a repo doc and cannot open a tracker issue, so those messages
+           keep naming roadmap.md; deriving the class keeps a new diagnostic
+           exempt the day it is written while a new comment is not, where a
+           hand-list would be the partial enumeration this repo treats as the
+           defect. The exemption waives the REQUIREMENT to name a section,
+           never the CHECK on a section that is named — an exempt line quoting
+           a dead heading still fails.
 registry:  for the general half, `_cited_docs()` -- every ``docs/*.md`` that some
            line cites WITH a quoted title, derived from the same walk, so a doc
            joins the domain the day someone quotes one of its sections and no
@@ -57,36 +77,13 @@ registry:  for the general half, `_cited_docs()` -- every ``docs/*.md`` that som
            sections and ``**bold**`` item lead-ins, at any nesting depth), so
            renaming a section reddens every reference to the old name and no
            expected-title list can drift from the file.
-covered:   both reference shapes (title-quoting and bare) in both comment
-           media (Python docstring/comment, Markdown prose and link
-           text), and both dash spellings (``--`` and em dash) — each pinned by
-           a synthetic-source probe below, so the classifier cannot rot
-           vacuously green.
-sampled:   the title match is normalized (whitespace, dash spelling, trailing
-           period) and then exact. A reference quoting a *sub*-phrase of a live
-           heading fails; that is deliberate, since a partial quote is what
-           makes a stale reference look live.
-residual:  ``docs/superpowers/plans/`` and ``docs/research/`` are outside the
-           domain — both are dated records of what was true when written
-           (decisions.md "Closed-domain completeness", the DATE-don't-DELETE
-           carve-out), and rewriting their references would falsify the record
-           rather than repair it.
-           Python DIAGNOSTIC text is carved out as a DERIVED class
-           (`_diagnostic_lines`): the argument of a diagnostic-bag call
-           (`DIAGNOSTIC_METHODS`) or anything inside a `raise`. A designer who
-           hits a guard offline can open a repo doc and cannot open a tracker
-           issue, so those messages keep naming roadmap.md. Deriving the class
-           keeps a new diagnostic exempt the day it is written while a new
-           comment is not; a hand-list would be the partial enumeration this
-           repo treats as the defect.
-
-           The exemption waives the REQUIREMENT to name a section, never the
-           CHECK on a section that is named — an exempt line quoting a dead
-           heading still fails. Both halves were wrong in the first version and
-           were caught by review, not by this module: the carve-out read "every
-           non-docstring string literal", which swept in assertion messages,
-           and it skipped exempt lines entirely, which hid a dangling
-           `registry.py` pointer inside the declared domain (Codex, PR #151).
+does not prove:  that a citation of any OTHER doc resolves. Outside
+           roadmap.md only the titles that ARE quoted are checked, and most
+           citations are bare: a line reading `see decisions.md` names a file
+           this module never opens. Requiring a title everywhere is a
+           different and far larger rule, and roadmap.md alone is held to it
+           because that file's sections were redistributed to the tracker,
+           where a bare pointer is untrackable.
 """
 
 from __future__ import annotations

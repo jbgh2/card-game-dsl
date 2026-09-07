@@ -413,6 +413,7 @@ class AuctionForm:
         # It sits on the form rather than at module import, unlike its siblings,
         # because the row it pins is this form's — `next_actor`'s traversal — and
         # a tree with no auction round has no such row to be wrong about.
+        # The other modes' traversals are issue #425.
         assert n.ROUND_ORDER_MODES == {n.ROUND_ORDER_RING}, (
             f"the auction form implements the ring row only, and the order axis "
             f"now holds {sorted(n.ROUND_ORDER_MODES)} — a mode added to "

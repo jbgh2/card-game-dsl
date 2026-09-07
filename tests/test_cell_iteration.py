@@ -30,43 +30,29 @@ property:   `for each <role>` ranges over exactly the closed iteration roles
             never silently iterated or crashed on.
 domain:     {for-each role} x {closed role, named-member position (cell),
             integer position (column), unknown/boardless}
-            UNION {membership element x collection element type}
+            UNION {membership element x collection element type}.
+            Two forms sit outside, and neither is a gap. A collection-valued
+            `for each cell c in <expr>` is grammatically inexpressible: the
+            bare role form plus a membership guard is what the setup witness
+            needs, and the restricted form waits on a game that needs it.
+            And a `c.foo` on the binder belongs to the Member arm, which owns
+            the fieldless-type class at the layer every operand reaches.
 registry:   cardlang/domains.py::ITERABLE_ROLES (the closed roles);
             game.positions partitioned by `members_named` (named-member vs
-            integer) -- the axis the lift turns on.
-covered:    each cell proven by a run probe below --
-              for each cell (board game)        -> accept, binder is a Cell,
-                                                   body runs once per cell
-              for each cell + `in <region>`     -> accept, places one piece per
-                                                   region cell (runtime proof)
-              for each column (integer position)-> reject (resolve; the message
-                                                   is unchanged, so
-                                                   tests/rejections/
-                                                   positions_for_each is the
-                                                   standing fixture twin)
-              for each cell (boardless game)    -> reject (resolve)
-              for each player (unchanged)       -> accept (regression control)
-              cell in Collection<Cell>          -> accept (already generic via
-                                                   `unify`; proven, not wired)
-              cell in Collection<Card>          -> reject (typecheck)
-sampled:    none -- every row above is an executed probe.
-red under:  the five ACCEPT rows are born red -- reverting any of the three
+            integer) -- the axis the lift turns on. The integer-domain
+            refusal's standing fixture twin:
+            tests/rejections/positions_for_each.cardlang. The fieldless-type
+            class over the binder: tests/test_typecheck_errors.py, e.g.
+            `test_rejects_dot_form_on_a_cell_binder`.
+red under:  the five ACCEPT cells are born red -- reverting any of the three
             seams (resolve guard, `_scoped_env` ForEach arm, `_for_each`
             position arm) fails them, verified by stashing all three. The three
-            GUARD/control rows are born green and carry their own mutations:
+            GUARD/control cells are born green and carry their own mutations:
             `for each column` reddens if integer domains join
-            `iterable_positions`; the boardless row reddens if the lift stops
+            `iterable_positions`; the boardless cell reddens if the lift stops
             gating on the game's OWN domains (a global `cell` admission); and
             `for each player` reddens if the position arm shadows the closed
             role path (drop the `in ctx.rs.position_domains` guard).
-residual:   `for each <integer position>` stays guarded (no witness; the guard
-            and its roadmap line are the record). A collection-valued
-            `for each cell c in <expr>` form is grammatically inexpressible
-            (the bare role form plus a membership guard covers the setup
-            witness); implement when a game needs the restricted form.
-            A `c.foo` on the binder is guarded by the Member arm, swept as the
-            fieldless-type class in tests/test_typecheck_errors.py -- not
-            re-guarded here.
 """
 
 from __future__ import annotations
@@ -209,8 +195,8 @@ def test_for_each_player_still_accepted() -> None:
 
 
 def test_for_each_over_an_integer_position_domain_is_rejected() -> None:
-    # The residual that does NOT lift: an integer `positions {}` domain has no
-    # iteration witness. The message lists only the closed roles, because a
+    # The case that does NOT lift (issue #111): an integer `positions {}`
+    # domain has no iteration witness. The message lists only the closed roles, because a
     # game with no named-member domain contributes none -- which is why
     # tests/rejections/positions_for_each keeps its expected text verbatim.
     src = """

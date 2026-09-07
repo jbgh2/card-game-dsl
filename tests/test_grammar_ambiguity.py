@@ -9,26 +9,19 @@ Completeness ledger (docs/decisions.md "Surface totality" /
                 ``ambiguity="explicit"`` yields 0 ``_ambig`` nodes per game.
     domain:     every file in docs/games/*.cardlang.
     registry:   the glob itself — ``sorted(Path("docs/games").glob("*.cardlang"))``,
-                so a new corpus game is covered automatically, with no list to
+                so a new corpus game joins the sweep with no list to
                 keep in sync (the same pattern as the corpus-count pin
                 described in kernel-migration.md).
-    covered:    every corpus game, each parsed independently and asserted
-                at 0 ambiguity sites; a failure names the file and the count.
-    sampled:    the `is`/`not`/`number` reserved-word narrowing that produced
-                this budget is additionally probed off-corpus in
-                tests/test_reserved_words.py (rejection + acceptance pins for
-                the prefix-split class, including `sum is not_ready` — a
-                latent ambiguity this corpus does not itself exercise, found
-                and closed while verifying this fix).
-    residual:   ambiguity in productions or identifier shapes no corpus game
-                exercises is unmeasured by construction — a corpus pin proves
-                the corpus, not the grammar's full input space. The
-                identifier-split class the `is`/`not`/`number` fix closed is
-                no longer part of that residual: every keyword in the grammar
-                now carries whole-word anchoring, pinned over Lark's terminal
-                table by tests/test_keyword_anchoring.py, so a keyword cannot
-                match as a prefix of a longer word whether or not a corpus
-                game happens to spell one.
+                The prefix-split class, off-corpus:
+                tests/test_reserved_words.py. Whole-word anchoring over
+                Lark's terminal table: `test_no_terminal_stops_mid_word`.
+    does not prove:  that the grammar is unambiguous. Ambiguity in a
+                production or an identifier shape no corpus game exercises is
+                unmeasured by construction — a corpus pin proves the corpus,
+                not the grammar's full input space. The identifier-split
+                shape is the one shape credited out of that gap, and its own
+                pin is what credits it — a keyword cannot match as a prefix
+                of a longer word whether or not a corpus game spells one.
 """
 
 from __future__ import annotations

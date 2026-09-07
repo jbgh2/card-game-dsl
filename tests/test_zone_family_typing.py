@@ -19,69 +19,36 @@ property:  a zone-family subscript (`hand[p]`, `captured[t]`) types as the
            type consistently — no operation silently degrades to `TAny` or a
            spurious rejection because of the family/singleton distinction.
 domain:    every `ZoneDecl` (index role) x every operation that can consume
-           a `Subscript` expression.
+           a `Subscript` expression. One reading sits deliberately outside,
+           and it is not a gap: the index check routes through
+           `typecheck._check_operand`, where `types.coercible` lets a literal
+           Integer stand for a Player/Team identity, so `hand[0]` is ACCEPTED
+           rather than held to a stricter "index must be exactly Player-typed"
+           rule — gops.md's asymmetric two-hand setup has no symbolic
+           alternative and relies on the coercion.
 registry:  `ZoneDecl.index` over `game.zones` (resolve.py's `_KNOWN_ROLES =
-           {"player", "team"}` is the closed index-role domain).
-covered:   both index roles (`player`, `team`) x both accept/reject index-
-           type shapes (Player/Team-typed accept via exact match or the
-           existing Integer->Player/Team coercion in `types.assignable`;
-           every other type — String, Card, a foreign enum — rejects) x
-           singleton-zone subscript (rejected, "not indexed") x the
-           consuming operations reachable in the corpus (aggregation
-           source, membership right-hand side, dot-access) x the predicate
-           contexts `_check_expr` is invoked from that carry a zone-family
-           subscript in the corpus (movement source/dest/filter, `reveal
-           … from`, `let`/aggregation bodies) — each exercised below with an
-           executed probe, not by "same code path" assumption.
-sampled:   the predicate-context axis of the call gate is sampled at one
-           representative member (`rank_value`) x the two contexts actually
-           reachable in the corpus (a `let` aggregation body, a movement
-           filter) — not every predicate position enumerated in
-           `typecheck()`'s "remaining expression positions" block is
-           separately probed, since the gate lives inside `_check_expr`'s
-           Call handling and every one of those positions is that same
-           recursion's entry point (structural coverage, not per-site
-           duplication). The MEMBER axis is not sampled: every member of
-           all three ranking-gated registries (`RANKING_GATED_FUNCS`,
-           `RANKING_GATED_WINNERS`, `RANKING_GATED_CLIMB_QUERIES` — the
-           #256 review round's class sweep; census with the registries in
-           cardlang/typecheck.py) has its own no-ranking REJECT cell
-           pinning that member's own diagnostic text — per member and per
-           POSITION (`highest_trump_or_led_suit` has both a call-form and a
-           winner-slot cell; each climb member is isolated with a
-           non-member engine in the other slot, because the diagnostic
-           channel renders the first error and a both-members cell would
-           survive either member's removal) — plus a with-ranking accept
-           cell per game shape and
-           the load-bearing non-member cells. Born red 2026-08-15 before
-           the gates existed: 7 failed (DID NOT RAISE), 32 passed. The
-           per-member completion's own proof is executed mutation, not
-           inspection: removing `highest_of_led_suit` from
-           RANKING_GATED_WINNERS leaves every other cell green and reds
-           `test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking`
-           alone (executed 2026-08-19: plant, red, revert, re-green). The
-           finding that forced the per-member axis was the same mutation on
-           `belote_trick_winner`, which left all 39 module tests green;
-           that winner retired with issue #250 PR 4, and its cells with
-           it.
-residual:  (a) `action`'s move-type-specific fields (`action.amount`,
-           `action.card_count` — named in the grammar comment at
-           cardlang/grammar/cardlang.lark:320, used in
-           tests/test_construct_combination_validity.py) stay `TAny` —
-           full move-type-aware typing of `action` is out of scope, and
-           this ledger is its record. (b) The zone-family index check uses
-           `assignable`, which (by an existing, pre-dating-this-change rule
-           in `types.assignable`) lets a literal Integer stand for a
-           Player/Team identity — so `hand[0]` is ACCEPTED, not rejected.
-           This is a deliberate deviation from a stricter "index must be
-           exactly Player-typed" reading: gops.md's setup phase
-           (`move ... to hand[0]` / `hand[1]`, `reveal one card from
-           bid[0]`, `captured[0] +=`-style routing) has no symbolic
-           alternative for its asymmetric two-hand deal and relies on this
-           coercion — a stricter rule would make that corpus file
-           inexpressible. Flagged here for a human to overrule if a
-           stricter rule (and a gops.md rewrite) is actually wanted. This
-           ledger is the record of that deferred re-audit.
+           {"player", "team"}` is the closed index-role domain); the
+           ranking-gated call registries `RANKING_GATED_FUNCS`,
+           `RANKING_GATED_WINNERS` and `RANKING_GATED_CLIMB_QUERIES`, in
+           cardlang/typecheck.py.
+does not prove:  that every predicate POSITION gates a ranking-reading call.
+           The call gate's context axis runs one representative member
+           (`rank_value`) x the two contexts the corpus reaches — a `let`
+           aggregation body and a movement filter — and the positions
+           enumerated in `typecheck()`'s "remaining expression positions"
+           block are not separately probed. The argument that they need not
+           be is structural — the gate lives inside `_check_expr`'s Call
+           handling, and every one of those positions is that same
+           recursion's entry point — so it is argued, never executed per
+           site.
+
+Born red 2026-08-15, before the ranking gates existed: 7 failed (DID NOT
+RAISE), 32 passed.
+
+red under: remove `highest_of_led_suit` from `RANKING_GATED_WINNERS` — every
+    other cell stays green and
+    `test_rejects_a_ranking_reading_trick_winner_with_no_declared_ranking`
+    reddens alone (executed 2026-08-19: plant, red, revert, re-green).
 """
 
 from __future__ import annotations
@@ -213,11 +180,11 @@ def test_rejects_subscripting_a_non_family_zone() -> None:
 
 
 def test_accepts_an_integer_literal_zone_family_index() -> None:
-    # Documented residual: `types.assignable` lets an Integer stand for a
-    # Player identity (pre-existing, not introduced by this change) and
-    # gops.md's asymmetric two-hand setup relies on it (`hand[0]`/`hand[1]`,
-    # `bid[0]`/`bid[1]`, `captured[0]`/`captured[1]`) — see the module
-    # docstring's residual (b).
+    # Designed, not deferred: `types.coercible` lets an Integer stand for a
+    # Player identity, and gops.md's asymmetric two-hand setup relies on it
+    # (`hand[0]`/`hand[1]`, `bid[0]`/`bid[1]`, `captured[0]`/`captured[1]`).
+    # A stricter "index must be exactly Player-typed" rule would make that
+    # corpus file inexpressible — the boundary the ledger's `domain:` states.
     _accepts(_game("let probe = number of cards in hand[0]"))
 
 

@@ -47,29 +47,26 @@ domain:    ``ast.Assert`` nodes and ``ast.Raise`` nodes whose exception is
            attachment shapes Python's comment grammar allows (message string /
            statement-span trailing comment / contiguous block above the
            statement / block above the enclosing ``if`` header).
+           Two things sit outside, and neither is a gap. The compile-pass
+           modules (cardlang/parse.py … ir.py, cardlang/openspiel/) keep the
+           assert as their failure channel for internal invariants, guarded
+           per-pass by the ``Contract`` blocks in their module docstrings and
+           by the assert_never dispatch pins, so a blanket scrape would
+           mis-rank their sites; mechanizing them is a different gate. And ``assert_never`` sites are outside by construction
+           — mypy owns their unreachability and they are not assert
+           statements.
 registry:  the source scrape itself — modules enumerated by globbing the two
            packages' directories (a new module is in-domain the day it
            exists), sites enumerated by ``ast.walk`` (a string containing the
            word "assert" is not a site; a multi-line or f-string message is).
-covered:   all modules of both packages; all site shapes (bare assert, assert
-           with message, raise AssertionError call / bare name); all four
-           attachment shapes — each pinned by a synthetic-source probe below,
-           so the classifier itself cannot rot vacuously green.
-sampled:   the guarantor vocabulary is a closed word list (this module's
-           ``GUARANTOR_WORDS``); a future pass must be added to it when it
-           becomes a guard owner. Substring matching means an unrelated comment
-           containing e.g. "parse" would satisfy the classifier — accepted:
-           the gate enforces that triage is *stated*, review enforces that it
-           is *true*.
-residual:  compile-pass modules (cardlang/parse.py … ir.py, openspiel/) are
-           outside the domain — their failure channel for internal
-           invariants is the assert, guarded per-pass by the ``Contract``
-           blocks in their module docstrings and the assert_never dispatch
-           pins, so a blanket scrape would mis-rank their sites. Extending the
-           gate there needs its own convention (which comment tags mark a pass
-           invariant) before it can be mechanical; this ledger is its record.
-           ``assert_never`` sites are excluded by construction (mypy owns
-           them; pinned by a probe below).
+           The guarantor vocabulary: ``GUARANTOR_WORDS``, this module's own
+           closed word list, which a pass joins when it becomes a guard
+           owner.
+does not prove:  that a site's triage is TRUE. The classifier reads for a
+           guarantor word as a substring, so an unrelated comment containing
+           e.g. "parse" satisfies it, and a site naming a guard that does not
+           guard it reads as triaged — the gate enforces that triage is
+           *stated*, review enforces that it is *true*.
 """
 
 from __future__ import annotations

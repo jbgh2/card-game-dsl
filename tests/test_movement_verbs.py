@@ -35,107 +35,43 @@ registry:   the verb set -- cardlang.builtins.functions.CALL_FUNCS +
             BOARD_ONLY_CALL_FUNCS; the signatures -- cardlang.stdlib.
             signatures.CALL_SIGS; the runtime -- cardlang.runtime.evaluate.native_call
             (the five arms + _board_of/_neighbor/... helpers) over cardlang.
-            stdlib.boards.BoardEntry (geometry exhaustively pinned by Task 2's
-            tests/test_boards_registry.py); the resolve guard -- cardlang.
+            stdlib.boards.BoardEntry (geometry: tests/test_boards_registry.py); the resolve guard -- cardlang.
             resolve._check_board_call; the typecheck call guards -- cardlang.
             typecheck (infer's Call arm -> sig.ret; _check_expr's Call arm ->
             arity + per-arg coercible); the pairwise consumers -- cardlang.
             typecheck (_domain_query_binder_type, _check_transfer/_is_zone_type,
             _check_card_source, _check_is_check, _check_membership_operands) and
             the movement-source grammar.
-covered:    the grid below, each a running row --
-            classification: test_the_five_verbs_are_board_only (the five in
-            BOARD_ONLY ∩ CALL_FUNCS); the TOTAL partition (every
-            CALL_FUNCS member classified generic/deck-only/board-only,
-            none unclassified) is pinned ONCE at tests/test_signatures.py::
-            test_deck_only_classification_partitions_call_funcs and tests/
-            test_piece_content_guards.py -- cited, not re-copied (CLAUDE.md
-            rule 4);
-            positive typecheck in situ: test_witness_game_typechecks -- the
-            witness `step(from : cell, along : dir)` calls all five in a real
-            guard/effect, including the intended-use `square[neighbor(from,
-            along, actor)]` movement destination (the TCell return into a
-            cell-keyed zone subscript, decisions.md "Boards and cells") and
-            `home`/`far_row` bare lets (Collection<Cell> accepted);
-            positive evaluate: test_verb_evaluates_to_expected_value -- 16
-            cells over both player frames and edge cells, values hand-computed
-            from BoardEntry's offsets;
-            neighbor total-with-Shadow Guard: test_neighbor_offboard_
-            shadow_guard_raises;
-            boardless reject (resolve): test_verb_in_boardless_game_is_rejected
-            (all five) + message goldens tests/rejections/{neighbor,has_step,
-            is_diagonal,home,far_row}_boardless;
-            boardless Shadow Guard (runtime): test_verb_runtime_boardless_
-            backstop_raises (all five, ShadowGuardError naming the leaked
-            resolve._check_board_call);
-            frame verb x player count: the per-player frame is two-seat, so a
-            frame verb (the player-taking board verbs, DERIVED into
-            _FRAME_CALL_FUNCS -- pinned by test_frame_call_funcs_is_the_player_
-            taking_board_verbs) is rejected in a non-two-player game
-            (test_frame_verb_in_a_non_two_player_game_is_rejected: 3, 4, and a
-            RANGE) and accepted at exactly two
-            (test_frame_verb_in_a_two_player_game_is_accepted); the guard is
-            VERB-level not board-level (test_non_two_player_grid_without_a_
-            frame_verb_is_accepted) and player-free board verbs are untouched
-            (test_player_free_board_verb_in_a_non_two_player_game_is_accepted);
-            arity + arg-type: test_wrong_arity_is_rejected,
-            test_is_diagonal_cell_for_dir_is_rejected (TCell for TDir),
-            test_home_cell_for_player_is_rejected (TCell for TPlayer),
-            test_along_dir_for_player_is_rejected (TDir for TPlayer) + goldens
-            tests/rejections/{neighbor_wrong_arity,is_diagonal_cell_for_dir,
-            home_cell_for_player};
-            pairwise (the new Collection<Cell> is not silently swallowed):
-            test_any_cell_in_a_region_is_rejected_not_silently_iterated (the
-            cell quantifier demands a single TLine, typecheck) and
-            test_a_region_is_not_a_movement_source (a call expression is
-            grammatically inexpressible as a movement source).
-sampled:    the geometry values -- representative cells per verb (a1/d4/h8 +
-            edges), not all 64 cells x 3 dirs x 2 frames: BoardEntry geometry
-            is exhaustively integrity-pinned in Task 2's tests/
-            test_boards_registry.py; this module samples the Builtin WRAPPING
-            (dispatch + coercion + Shadow Guard) over it;
-            the arg-type matrix -- sampled across is_diagonal/home/neighbor
-            (Cell->Dir, Cell->Player, Dir->Player, arity); has_step's three
-            slots are neighbor's types and are not separately misused (the
-            per-arg `assignable` loop is total, one representative per
-            type-pair suffices);
-            the Collection<Cell> REJECT fan-out beyond the two headline cells
+            The TOTAL classification partition (every CALL_FUNCS member
+            generic, deck-only or board-only, none unclassified):
+            tests/test_signatures.py::test_deck_only_classification_partitions_call_funcs
+            and tests/test_piece_content_guards.py.
+            A `.field` read on a Cell or Dir receiver, refused as
+            object-member access on a non-object:
+            tests/test_typecheck_errors.py (the dot-form arm) and
+            `test_a_field_read_on_a_position_binder_is_refused` below.
+            `for each cell` iteration over a region, and the integer-position
+            domain that did not lift with it:
+            tests/test_cell_iteration.py::test_for_each_over_an_integer_position_domain_is_rejected.
+does not prove:  two things, each about what a green over the five verbs
+            leaves untouched.
+            (1) That the geometry is right at every cell. The value cells are
+            representative cells per verb (a1/d4/h8 plus edges), not all 64
+            cells x 3 directions x 2 frames; BoardEntry's geometry is pinned
+            exhaustively at tests/test_boards_registry.py, and what this
+            module samples over it is the Builtin WRAPPING -- dispatch,
+            coercion, Shadow Guard.
+            (2) That every wrong argument at every slot is rejected. The
+            arg-type matrix is sampled across is_diagonal/home/neighbor
+            (Cell->Dir, Cell->Player, Dir->Player, arity); `has_step`'s three
+            slots are `neighbor`'s types and are not separately misused,
+            because the per-arg `assignable` loop is total and one
+            representative per type-pair reaches it. Likewise the
+            `Collection<Cell>` REJECT fan-out beyond the two headline cells
             (`any line in <region>`, `over cards in <region>`, `turns over`/
-            `as` <region>, equality, epistemic-target) -- each rejected by an
-            existing total guard (framing-check-mapped); the two likeliest
-            author mistakes are pinned, the rest sampled;
-            the ACCEPT surface consumed today -- `home(p) is empty`/`is not
-            empty` and membership `c in home(p)` both typecheck AND evaluate
-            correctly end to end (runtime `in` is `left in elements(right)`,
-            `elements` yields the cell tuple); the value cells pin the produced
-            tuple, `for each cell` iteration lifted at rung 2 and is covered by
-            tests/test_cell_iteration.py, and membership's own dedicated
-            coverage is Task 4.
-residual:   FIELD ACCESS on a position/board type is a SILENT permissive
-            fall-through: `.field` on a TCell/TDir/TLine receiver (a `cell`/
-            `dir` binder, or `neighbor`'s TCell return) infers TAny with NO
-            diagnostic -- the typecheck Member arm (cardlang/typecheck.py::
-            _check_expr) has no arm for these types. PRE-EXISTING (rung-1 cell
-            binders, Task-1 dir binders); the rung-2 verbs' TCell return newly
-            reaches it. NOT guarded here -- the fix is class-wide (the
-            no-Member-arm Type members swept as one), out of the five-verb
-            scope. Recorded in issue #111 (the field-access bullet) and
-            spawned as a follow-up.
-            Positional subscript index-type unchecked -- `home(p)[<anything>]`
-            typechecks (home/far_row produce key=None positional collections;
-            the Subscript key-check runs only when key is not None) --
-            pre-existing for ALL positional collections, benign; same roadmap
-            bullet class.
-            Cell/region CONSUMPTION beyond membership + is-empty -- `for each
-            cell` iteration over a region LIFTED at rung 2, admitted through
-            _ITERATION_ROLES; its grid is tests/test_cell_iteration.py, and
-            what did NOT lift with it is the integer-position domain
-            (test_for_each_over_an_integer_position_domain_is_rejected).
-            Membership `c in home(p)` already works (sampled above).
-            State persistence of a cell/region -- `state { x : cell }` /
-            `{ x : dir }` is REJECTED at resolve (the StateDecl type-name guard;
-            cell/dir are not KNOWN_TYPE_NAMES), so there is no silent-TAny
-            state-storage sink; closed by reject, stated so it is recorded.
+            `as` a region, equality, epistemic target): each is refused by an
+            existing total guard, and what is pinned here is the two likeliest
+            author mistakes.
 
 red under (the born-green classification pin): test_the_five_verbs_are_board_
 only is a membership assertion over two frozensets, born green once the verbs
@@ -685,3 +621,22 @@ def test_a_region_is_not_a_movement_source() -> None:
         _board_game(body="    move one piece from home(actor) to square[from]\n")
     )
     assert "syntax error" in msg
+
+
+@pytest.mark.parametrize("guard", ["from.foo is empty", "along.foo is empty"])
+def test_a_field_read_on_a_position_binder_is_refused(guard: str) -> None:
+    msg = _reject(_board_game(guard=guard))
+    assert "the dot form is object-member access only" in msg
+
+
+@pytest.mark.parametrize("index", ['"zz"', "99"])
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason="issue #588: a positional collection's index is never checked",
+)
+def test_a_region_subscript_is_index_checked(index: str) -> None:
+    # `home`/`far_row` produce key=None positional collections, and the
+    # Subscript key check runs only when a key type is present, so any index
+    # at all is accepted here today.
+    _reject(_board_game(guard=f"square[home(actor)[{index}]] is empty"))

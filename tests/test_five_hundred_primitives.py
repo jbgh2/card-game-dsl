@@ -20,23 +20,15 @@ property:   every bid ordinal maps to its Pagat value/target or refuses, and
             the deck is the 43-card pack
 domain:     bid ordinals {10..250 by tens, 105, 235} + non-ordinals x the
             three ladder readers; the five strains including the
-            never-biddable "joker" pseudo-strain
+            never-biddable "joker" pseudo-strain.
 registry:   cardlang/runtime/five_hundred.py (_STRAIN_ORD, _MISERE_ORD,
             _OPEN_MISERE_ORD, _SUIT_BID_ORDS); the deck in
             cardlang/runtime/values.py (five_hundred43)
-covered:    the full 27-rung ladder value/order table (exhaustive below); each
-            strain's opening rung and cheapest raise; the exhausted-ladder 0;
-            the never-biddable "joker" pseudo-strain; the off-ladder refusals
-            (bid_value / bid_level)
-sampled:    full-game reachability of each contract family via the playout
-            suite (tests/test_playout_five_hundred.py) and the driven
-            open-misere line (tests/openspiel_ready/test_five_hundred.py)
-residual:   the lead-time joker nomination Pagat allows when leading an
-            un-nominated joker (modelled as "not before the holder's last
-            card" -- now the game file's own `lead_ok` function, loud as an
-            empty candidate set never arises and the restriction is documented
-            in five-hundred.md "Chosen ruleset (modelling notes)"; recorded in
-            issue #106)
+does not prove:  that a contract family is reachable in a played game. The
+            ladder here is proven against known values with no game around it;
+            full-game reachability of each family runs at
+            tests/test_playout_five_hundred.py, and the driven open-misere
+            line at tests/openspiel_ready/test_five_hundred.py.
 """
 
 from __future__ import annotations

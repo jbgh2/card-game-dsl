@@ -40,74 +40,60 @@ domain:     {the card-content surface positions -- enumerated below} x
                 audited subset of `CALL_FUNCS`), vs a generic member
                 (top_of);
               - axis values -- the piece set's `deck_suits`/`deck_ranks`.
+            Three things sit outside that cross, and none is a silent gap.
+              (a) Card-content vocabulary reachable ONLY through the
+                trick-taking and rule-obligation machinery -- a per-round
+                `round ... trump`, the `climb`/`combinations`/`follows`
+                forms, `demands:`/`exempts:`/`actions where` card predicates,
+                an outcome-function name, a suit argument to a rule template
+                -- is not flavor-guarded: that machinery is card-oriented and
+                out of rung-1 scope (the topology ladder defers the rule
+                system to a later rung), and a piece game reaching it
+                degrades loudly through the existing card-zone /
+                name-resolution / deck-only-call guards rather than silently
+                taking card meaning.
+              (b) A card-content TYPE annotation (`Suit`/`Rank`/`Card`) at a
+                declaration site is accepted AT the annotation in BOTH
+                flavors, because the name is a known type; loudness comes
+                from two places instead. A state var carries an initializer,
+                and the merged default-type pass (typecheck.py
+                `_check_state_default_type`) rejects a piece value under a
+                card-typed var -- `foo : Suit = x` in a piece game fails
+                "declared Suit ... default has type side". The
+                initializer-less slots (struct field, function parameter,
+                variant case) accept the annotation and fail at every USE in
+                a piece game, since no card value resolves in a piece
+                namespace. Position-domain names at the function-parameter
+                and variant-payload slots ADMIT and resolve to their member
+                type, the merge's payload-admit policy. A struct DERIVED
+                field reading an item field (`some_card.side`) is a sub-case:
+                `struct_registry` types it against the default `CARD_FIELDS`,
+                its inference env carrying no game flavor, and a piece game
+                reaches it only through a card-content struct field, itself
+                loud. The declaration-site and rule-system guard naming the
+                kind is issue #114.
+              (c) Piece TWINS of the card-query and aggregation forms are
+                grammatically inexpressible -- there is no `pieces in ...`
+                or `over pieces in ...` production, deliberately not added --
+                so those forms have no piece-flavor accept cell; a piece game
+                counts and aggregates through the same generic collection
+                surfaces a card game shares.
 registry:   cardlang.domains.DOMAINS / CARD_AXIS_ROLES / PARAM_DOMAIN_ORDER;
             cardlang.builtins.functions.CALL_FUNCS / DECK_ONLY_CALL_FUNCS;
             cardlang.runtime.values.COMPONENT_SETS (the piece set xo_marks) and
             content_kind_clause (the one diagnostic prefix every guard opens
             with, asserted here so the guards cannot drift from the grid).
-covered:    the parametrizations below, each over its registry --
-            test_move_param_domain_flavor (PARAM_DOMAIN_ORDER + Card x flavor),
-            test_quantifier_role_flavor / test_for_each_role_flavor (DOMAINS
-            roles x flavor), test_deck_only_call_rejected_in_piece_game
-            (DECK_ONLY_CALL_FUNCS), plus the hand-listed grammar-anchored
-            surfaces (test_item_noun_*, test_field_*, test_card_query_*,
-            test_aggregation_*, test_ranking_*, test_trump_*, test_card_literal_*,
-            test_reveal_*), the axis-value positives (test_axis_value_*), the
-            deck-only totality pins (subset + total partition), and the
-            end-to-end positive (test_minimal_piece_game_runs_one_playout):
-            a driver playout whose GameResult pins the EXACT scores {0: 5,
-            1: 0} -- 5 is the count of pieces the `piece.side is x` filter
-            selected through the axis map, so the flavor binder, the
-            side->suit translation, and piece-set resolution/construction
-            (build_deck seeding the box) are observed, not assumed (red
-            under the side->rank map swap, which scores {0: 0, 1: 0}).
-sampled:    the field guard is a type-layer guard (`_check_expr`'s `Member` arm),
-            so it fires in every predicate context where an item is bound, not
-            only the movement filter that seeds most cells here -- sampled by
-            the pronoun-rooted chain `action.card.<axis>` in a move guard
-            (test_pronoun_rooted_field_access, a `Member` on a `TCard` receiver
-            that types differently from a binder root) and by a field access in
-            a quantifier body (probed while authoring); the axis VALUES feed the
-            existing membership operation as a deck suit does
-            (test_axis_value_membership_in_piece_game), the one pairwise cell
-            (new value shape x existing operation) pinned as a positive; the
-            card-query positive in a card game is the corpus (GOPS et al.), one
-            representative pinned here.
-residual:   card-content vocabulary reachable ONLY through the trick-taking and
-            rule-obligation machinery -- a per-round `round ... trump`, the
-            `climb`/`combinations`/`follows` forms, `demands:`/`exempts:`/
-            `actions where` card predicates, an outcome-function name, and a
-            suit argument to a rule template -- is NOT flavor-guarded here: that
-            machinery is card-oriented and out of rung-1 scope (the topology
-            ladder defers the rule system to a later rung), and a piece game
-            reaching it degrades loudly through the existing card-zone /
-            name-resolution / deck-only-call guards rather than silently taking
-            card meaning. Likewise a card-content TYPE annotation (`Suit`/
-            `Rank`/`Card`) at a declaration site is accepted AT the annotation
-            in BOTH flavors (the name is a known type); loudness then comes
-            from two places, not a silent gap. A state var carries an
-            initializer, and the merged default-type pass
-            (typecheck.py `_check_state_default_type`) rejects a piece value
-            under a card-typed var -- `foo : Suit = x` in a piece game fails
-            "declared Suit ... default has type side". The initializer-less
-            slots (struct field, function parameter, variant case) accept the
-            annotation and fail at every USE in a piece game (no card value
-            resolves in a piece namespace). Position-domain names at the
-            function-parameter and variant-payload slots ADMIT and resolve to
-            their member type (the merge's payload-admit policy,
-            tests/test_type_name_positions.py; the board `cell` -> TCell
-            extension is pinned in tests/test_board_clause.py). A struct
-            DERIVED field reading an item field (`some_card.side`) is a sub-case
-            -- `struct_registry` types it against the default `CARD_FIELDS`
-            (its inference env carries no game flavor), reached in a piece game
-            only through a card-content struct field, itself a loud residual. A
-            declaration-site / rule-system guard naming the kind is deferred and
-            recorded in issue #114. Piece TWINS of the
-            card-query and aggregation forms are grammatically inexpressible (no
-            `pieces in ...` / `over pieces in ...` productions -- deliberately
-            not added), so those forms have no piece-flavor accept cell; the
-            piece game counts/aggregates through the same generic collection
-            surfaces a card game shares, unaffected here.
+            The payload-admit policy at the declaring slots:
+            tests/test_type_name_positions.py. The board `cell` -> TCell
+            extension: tests/test_board_clause.py.
+does not prove:  that the field guard fires in every predicate context an
+            item can be bound in. It is a type-layer guard (`_check_expr`'s
+            `Member` arm), one arm serving every such context, and the cells
+            here reach it through the movement filter and through a
+            pronoun-rooted chain (`action.card.<axis>` in a move guard, a
+            `Member` on a `TCard` receiver that types differently from a
+            binder root). Every other context rides on that arm being shared,
+            which is an argument rather than a row.
 """
 
 from __future__ import annotations
@@ -362,8 +348,7 @@ def test_aggregation_accepted_in_card_game() -> None:
 
 # --- ranking: / trump: clauses ---------------------------------------------
 # Both the enumeration and the convention form of `ranking:`, and `trump:`,
-# read the deck's suits/ranks; rejected in a piece game (this closes the T2
-# accepted-unvalidated residual, which swallowed BOTH forms silently).
+# read the deck's suits/ranks; rejected in a piece game, in BOTH forms.
 
 
 def test_ranking_enumeration_rejected_in_piece_game() -> None:
@@ -553,9 +538,9 @@ def test_reveal_accepted_in_card_game() -> None:
     _accept(card_game(body="    reveal one card from deck\n"))
 
 
-# --- pronoun-rooted field chain (sampled) ----------------------------------
+# --- pronoun-rooted field chain --------------------------------------------
 # `action.card.<axis>` is a `Member` on a `TCard`, the same guard as a bare
-# binder's field access -- sampled to prove the pronoun path is covered too.
+# binder's field access -- probed so the pronoun path reaches that arm too.
 
 
 def test_pronoun_rooted_field_access() -> None:

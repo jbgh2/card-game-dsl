@@ -866,8 +866,8 @@ def test_tichu_ws5_pins_per_seed_results() -> None:
 # own `hand_end` trace) plus the hand's double-victory flag and card-point total,
 # derived at the harness from observation events (tests/playout_trace.py; the
 # values were produced independently of that derivation, so byte-identity here
-# is its standing witness — the dated differential is
-# tests/test_trace_emitter_eviction.py's `sampled:` row) — so a divergence
+# is its standing witness — the dated differentials are recorded in
+# tests/test_trace_emitter_eviction.py) — so a divergence
 # surfaces at the hand it first perturbs. The monolith iterated no sets
 # (measured: ZERO divergent seeds across
 # PYTHONHASHSEED {0,1,2,3,7} x 50 seeds), so this golden pinned pre-migration
@@ -1135,7 +1135,7 @@ def test_skat_migration_preserves_per_hand_scores() -> None:
 # observation stream and `TerminalState` off the terminal world), and they were
 # produced independently of them, so byte-identity here is those derivations'
 # standing witness: the dated differentials that establish the independence are
-# tests/test_trace_emitter_eviction.py's `sampled:` row.
+# recorded in tests/test_trace_emitter_eviction.py.
 # Regenerate by running _COUP_CAPTURE exactly as _capture_coup does.
 _COUP_CAPTURE = """
 import json, random, sys

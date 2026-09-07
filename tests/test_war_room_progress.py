@@ -48,45 +48,30 @@ domain:     the derivation's inputs, crossed -- the lock holder
             215 carry two, and 8 carry none -- `Skill`, `TaskStop`,
             `ToolSearch` -- which is why `name` is the fourth rung and not a
             flourish.
+            The work a `currently:` line names is the newest tool call in
+            the round's own transcript, sidechain (subagent) calls counted
+            like the main thread's: a round whose subagent is mid-search is
+            doing the subagent's work.
+            One thing sits outside, and it is not a gap: every cell is
+            Darwin-only. `war-room.sh` is BSD-only by charter (`stat -f`,
+            `date -j`, `date -r`) and runs on the operator's Mac under
+            launchd, so the merge gate's self-hosted macOS pool executes the
+            whole module while the weekly Linux canary skips it visibly,
+            with the reason on the mark.
 registry:   `_reasons_the_script_can_emit()` scrapes the reason vocabulary
             from `war-room.sh` itself; `test_every_reason_the_script_can_emit_has_a_cell`
             fails by name when a reason is added without a cell, and when a
             cell names a reason the script cannot emit. The grid is the
             crossing; neither list is maintained by hand.
-covered:    `test_the_progress_line_is_what_the_round_is_doing` -- 19 cells,
-            each a real `war-room.sh --derive` run against a synthetic lock
-            and transcript root. `test_a_run_log_line_is_never_silently_cut`
-            -- 6 cells over the Runs table's last-line rendering. The two
-            misuse probes (`test_an_unknown_derivation_is_refused`,
-            `test_a_derivation_missing_its_arguments_is_refused`) prove the
-            seam's own refusals. `test_the_page_still_inserts_what_it_derives`
-            pins the two call sites, because a derivation the page stopped
-            inserting would leave every cell above green and the banner
-            silent; that pin was born green, so
-            `test_the_insertion_pin_reddens_when_the_call_is_dropped` runs
-            its reddening mutation rather than asserting it. Every cell was
-            authored red and run red before the implementation existed.
-sampled:    none. Every cell listed is an executed row.
-residual:   THREE, each with its guard or its owner:
-            (1) the selection heuristic is "newest session under the fleet
-            clone's transcript root, if it postdates the lock". An operator
-            running `claude` interactively in the fleet clone DURING a round
-            writes to the same root and would be shown as the round's work.
-            The freshness check bounds it to the round's own window and no
-            further; closing it needs the wrapper to record the engine's
-            session id, which is a change to `run-role.sh`, not to the page.
-            R4 -- it takes the operator working in the clone while a
-            scheduled round holds the lock. This ledger owns the record.
-            (2) sidechain (subagent) tool calls are counted and shown like
-            the main thread's, because they are equally "what the round is
-            doing". A round whose subagent is mid-search reports the
-            subagent's call. Deliberate, not a gap; this ledger owns it.
-            (3) the whole module skips off Darwin: `war-room.sh` is BSD-only
-            by charter (`stat -f`, `date -j`, `date -r`) and runs on the
-            operator's Mac under launchd. The merge gate is the self-hosted
-            macOS pool and executes every cell; the weekly Linux canary
-            skips them, visibly, with the reason below. R4 -- reaching it
-            means running the fleet's generator on Linux, which nothing does.
+does not prove:  that the line names THIS round's work rather than
+            another session's. The selection is "newest session under the
+            fleet clone's transcript root, if it postdates the lock", so an
+            operator running `claude` interactively in the fleet clone while
+            a scheduled round holds the lock is shown as the round's work.
+            The freshness check bounds that to the round's own window and no
+            further; what would close it is the wrapper recording the
+            engine's session id, which is run-role.sh's to write and not the
+            page's to derive.
 """
 
 from __future__ import annotations

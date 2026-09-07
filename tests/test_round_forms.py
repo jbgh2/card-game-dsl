@@ -9,19 +9,25 @@ property:   Each grammar form of `round` builds its OWN AST node, and that node
             reachable from another form's node.
 domain:     round form x optional-clause setting, at three layers (the AST node
             the parse builder mints, the field set that node carries, the IR the
-            emitter writes).
+            emitter writes). One direction of the order-mode reconciliation
+            sits outside, and it bounds what this module covers rather than
+            leaving a hole in the grid: an `AuctionRound` carrying a mode the
+            form cannot walk is resolve's to refuse and is unreachable from
+            source text, so the check that would close it belongs with the
+            traversal that would make it reachable -- issue #425 carries it
+            for whoever writes that traversal.
 registry:   form    -- `round_axes.round_productions` (grammar productions
                        opening with the `round` keyword) reconciled against
                        `round_axes.round_nodes` (those productions' parse-builder
                        return annotations). The reconciliation IS the derivation:
-                       before this change the two disagreed -- three productions,
-                       one node -- and no artifact crossed them, so the
-                       disagreement was a fact you had to already know rather
-                       than a failure. Pinned by
+                       nothing else crosses the productions against the nodes,
+                       so a production whose builder returns another form's node
+                       fails here rather than being a fact you have to already
+                       know. The crossing:
                        `test_every_round_production_builds_its_own_node`.
             clause  -- `round_axes.clause_settings`, the full cross of each
                        production's `[...]` groups, with `order`'s values from
-                       `n.ROUND_ORDER_MODES` rather than binary. Pinned by
+                       `n.ROUND_ORDER_MODES` rather than binary. The crossing:
                        `test_clause_axis_is_the_grammar_and_the_order_registry`.
             movetype -- `round_axes.move_type_forms`, the round nodes carrying
                        a `move_type` field, crossed against
@@ -32,82 +38,46 @@ registry:   form    -- `round_axes.round_productions` (grammar productions
                        `CLIMB_DECISION_MOVE_TYPE`) -- so only the pairing of
                        node to constant is authored, and a form with the field
                        and no pairing raises rather than dropping out.
-covered:    `test_round_cell_builds_its_own_node`,
-            `test_no_field_is_null_across_a_whole_form`, and
-            `test_no_ir_key_is_null_across_a_whole_form` -- each the full
-            cross. The null-across-a-whole-form pair is the issue's
-            acceptance criterion made executable: it reads the cells of one
-            form as a GROUP, which is what lets it distinguish a field that is
-            optional within a form (`trump`) from one the form can never use
-            (`combos_fn` on a trick) without either being hand-listed.
-            `test_only_the_runnable_move_type_is_accepted` crosses the move-type
-            axis whole, both directions -- and it is the row that earned its
-            keep: the climbing form had no such guard, so `round climb
-            submit_bid` was accepted and played out identically to
-            `play_combination` (big-two, same seed, same scores). The trick
-            form's guard, which does fire, is that cell's control.
-sampled:    Execution. `test_round_cell_executes` runs every cell EXCEPT those
-            setting an `outcome` clause: an auction with one raises its tagged
-            result for an enclosing `produces:` arm to catch, so a minimal game
-            exercising it would have to be a different game rather than this one
-            with a clause added, and the cell would stop being a cell. Their
-            front-end coverage is total; it is their runtime that is sampled,
-            by the corpus (bridge, french-tarot, pinochle). Written as the
-            excluded setting, not the included list, so the exclusion cannot
-            quietly widen -- see `_RAISES_TAGGED_OUTCOME`.
-residual:   THREE, all R4, all ledger-owned.
+            The `ROUND_ORDER_MODES` widening guard on `AuctionForm`:
+            tests/test_registry_guard_witnesses.py::test_widening_round_order_modes_fails_the_auction_form.
+            The `state.` fields each form publishes:
+            cardlang/stdlib/round_state.py.
+does not prove:  four things.
 
-            (0) The `order` clause admits ONE value, and it is the default:
-            `order ring` and no clause at all reach the same traversal —
-            nothing below resolve reads `order_mode` at all. So the grid's
-            `order` rows cross a clause that cannot change a game's
-            behaviour, and what they prove is narrower than it looks: that
-            the clause parses, resolves, emits and runs, not that it selects
-            anything. The clause is kept deliberately, as the docking point a
-            second traversal arrives at (decisions.md, "The auction form of
-            `round`", under Order).
+            (1) That the `order` clause SELECTS anything. It admits one value
+            and that value is the default: `order ring` and no clause at all
+            reach the same traversal, and nothing below resolve reads
+            `order_mode`. The grid's `order` rows prove the clause parses,
+            resolves, emits and runs -- not that it chooses a traversal. The
+            clause is kept as the docking point a second traversal arrives at
+            (decisions.md, "The auction form of `round`", under Order).
 
-            What guards the docking point is a REGISTRY reconciliation in
-            `mechanics.AuctionForm.__init__`, witnessed in
-            tests/test_registry_guard_witnesses.py: widening
-            `ROUND_ORDER_MODES` fails by name, so a second traversal cannot
-            arrive and inherit ring's body. It does not guard the other
-            direction — an `AuctionRound` carrying a mode the form cannot
-            walk, which resolve owns and no runtime check shadows. That path
-            is unreachable from source text (resolve refuses the mode, and
-            nothing below parse rebuilds the node), and the check that would
-            close it belongs with the traversal that makes it reachable;
-            issue #425 carries it for whoever writes that traversal. R4
-            throughout — only an engine maintainer meets any of it — so this
-            ledger owns the record.
+            (2) That a cell setting an `outcome` clause EXECUTES. Such a cell
+            raises its tagged result for an enclosing `produces:` arm to
+            catch, which this minimal game deliberately does not have, so
+            `test_round_cell_executes` excludes them -- written as the
+            excluded setting (`_RAISES_TAGGED_OUTCOME`) rather than the
+            included list, so the exclusion cannot quietly widen. Their front
+            end is crossed here; their runtime rests on the corpus games that
+            write one -- tests/openspiel_ready/test_bridge.py,
+            tests/openspiel_ready/test_french_tarot.py,
+            tests/openspiel_ready/test_pinochle.py, and those games' per-seed
+            goldens in tests/test_migration_characterization.py.
 
-            (1) The two AUTHORED mappings in `round_axes`
-            (`_CLAUSE_VALUE_REGISTRIES`, `_RUNNABLE_MOVE_TYPE`) are naming
-            correspondences no artifact states: which registry bounds a
-            clause's values, and which node pairs with which move-type
-            constant. Their DOMAINS are derived, so a new member cannot
-            silently vanish -- a form missing from the second RAISES, but a
-            clause missing from the first is merely treated as binary and its
-            values go uncrossed. That asymmetry is the whole residual: the
-            first mapping is the softer, and the one to widen if a clause with
-            a closed value set is ever added. Reachable only by an engine
-            maintainer, and loud where they are already looking.
+            (3) That a clause with a closed value set is crossed over that
+            set. The two AUTHORED mappings in `round_axes` are naming
+            correspondences no artifact states -- which registry bounds a
+            clause's values (`_CLAUSE_VALUE_REGISTRIES`), and which node pairs
+            with which move-type constant (`_RUNNABLE_MOVE_TYPE`) -- and they
+            degrade differently: a form missing from the second RAISES, while
+            a clause missing from the first is merely treated as binary and
+            its values go uncrossed.
 
-            (2) `stdlib/round_state.py` enumerates the three forms as data --
-            which `state.` fields each publishes -- and its own pin is
-            asymmetric: the surface-rejection half covers all three, but
-            nothing observes what `AuctionForm` writes, because it deliberately
-            publishes nothing. Noted here rather than filed: the gap is a check
-            over an empty set, and this is where a reader of the round domain
-            will look for it. It becomes real work only if the auction form
-            ever starts publishing.
-
-            Not residual, deliberately: the cells no corpus game writes
-            (`trump`+`early` together, and every explicit `order ring`). They
-            are grid rows like any other -- the derivation surfaced them, and
-            covering them cost a template substitution each. That is the whole
-            argument for deriving a clause axis instead of listing the
-            combinations the corpus happens to use.
+            (4) Anything about what `AuctionForm` publishes to `state.`.
+            stdlib/round_state.py enumerates the forms as data, and its own
+            pin is asymmetric: the surface-rejection half spans every form,
+            but the auction form publishes nothing, so the half that would
+            observe its writes runs over an empty set.
 """
 
 from __future__ import annotations
@@ -508,8 +478,8 @@ def test_round_cell_executes(
     The execution half of the reach property: a form whose runtime arm stopped
     matching would raise here rather than quietly select a neighbour's. Cells
     with an `outcome` clause are excluded for the reason in the ledger's
-    `sampled` row -- they raise their result for a `produces:` arm this minimal
-    game deliberately does not have.
+    `does not prove:` row -- they raise their result for a `produces:` arm this
+    minimal game deliberately does not have.
 
     red under: in `mechanics.build_form`, return the trick form's bundle for
     every node.

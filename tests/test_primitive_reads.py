@@ -3,7 +3,7 @@
 property:   every zone/state name a game-local Python primitive reads is
             DECLARED — in `PRIMITIVE_READS` (cardlang/runtime/reads.py) or in
             the `primitives { }` block of a game declaring that module's
-            Primitive, the two sites the coexistence window holds open — one
+            Primitive, the two sites the engine holds open — one
             per COUPLING: a game may hold a block and a surviving
             walled-namespace row at once (tichu's shape), never both sites
             for the same call-namespace coupling — agrees exactly with both the
@@ -19,51 +19,36 @@ domain:     name-keyed `RuntimeState`/`ZoneStore` access (`get`/`set`/
             (default-scanned glob; exemptions explicit and pinned
             non-stale) × every registry row's game file, and × every
             declaring game's block.
+
+            Two vocabularies sit outside, and neither is a gap. Kernel
+            round-state keys (`state["played"]`, `st.get("current")` in
+            tarot.py/tichu.py) are the round machinery's own words, not
+            game-declared names: no game author can rename them, so there is
+            no coupling to declare (reads.py's docstring says so). And the
+            exempted engine-core modules read names off the AST rather than
+            off a game's declarations, where resolve's guards own the class;
+            each row of `_EXEMPT_RAW_ACCESS` states that rationale and fails
+            if its file stops tripping the scan.
 registry:   `PRIMITIVE_READS` (rows), `PRIMITIVE_IMPLEMENTATIONS` (which
             module a declared Primitive's reads belong to),
             `cardlang/runtime/*.py` (module axis), the declarations of
             `tests.test_primitives_block.game_sources` (validation side, and
             the one home for that domain), classified through
             `primitives_block.classify_read`.
-covered:    (a) registry↔game-file: every row's every name against the
-            parsed game's state/zone declarations, per kind, with
-            kind-mismatch detection — exhaustive over rows;
-            (b) registry↔module-source: AST scan of every runtime module,
-            exact per-kind set equality of accessor-call literals against
-            the module's rows, `row()` lookups against the module's
-            declared (module, game) keys, raw name-keyed access forbidden
-            outside the pinned exemption list, `from …reads import …`
-            forbidden (it would blind the scan), non-literal name
-            arguments refused loud;
-            (c) runtime refusal: the accessor behavior matrix —
-            undeclared name / declared-and-present / declared-but-missing
-            — exercised through every accessor and asserted on each arm's
-            OWN words, so no arm can answer for another (`instance` has no
-            guard of its own: it reaches the undeclared refusal through
-            `family`, which it delegates to); the unknown row is `row()`'s
-            cell, the one place a row is looked up at all; plus the
-            magic-hand Shadow Guard;
-            (d) misuse probes for each defect the pins exist to catch
-            (game-side rename, stale row, undeclared read, raw-access
-            bypass per forbidden pattern, non-literal name, kind
-            confusion, unknown row).
-sampled:    end-to-end playout identity through the accessors rides the
-            existing goldens and the metamorphic pairing suite (seed/step
-            CI budget as before). Attribution of a name to the right row
-            WITHIN a multi-row module is pinned per game file
-            by (a) and per call site by the runtime refusal under the
-            playout suite — the module-level scan (b) checks the union,
-            not per-function attribution. The multi-row modules are the
-            registry's own: a module whose rows serve more than one game
-            file.
-residual:   kernel round-state keys (`state["played"]`, `st.get("current")`
-            in tarot.py/tichu.py) are the round machinery's own vocabulary,
-            not game-declared names — a game author cannot rename them, so
-            they are outside this property's domain (reads.py's docstring
-            says so); the exempted engine-core modules read names off the
-            AST, where resolve's guards own the class (each exemption row
-            names that rationale and fails if the file stops tripping the
-            scan).
+            Playout identity through the accessors: the per-seed goldens
+            (tests/test_migration_characterization.py) and the rename
+            metamorphic pairing (tests/metamorphic/rename.py), which derives
+            its coupled-name exclusions from this registry.
+            That every authored row is a walled binder's:
+            tests/test_primitives_block.py::test_every_authored_row_is_one_a_walled_binder_binds.
+does not prove:  which FUNCTION inside a module reads which name. The
+            module-source scan compares the UNION of a module's
+            accessor-call literals against the union of its rows, so within a
+            multi-row module — one whose rows serve more than one game file —
+            a name attributed to the wrong row passes it. What narrows that
+            is per game file the registry/game-file reconciliation, and per
+            call site the runtime refusal reached under the playout suite;
+            neither is a static per-function attribution, and none exists.
 """
 
 from __future__ import annotations

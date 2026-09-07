@@ -29,49 +29,41 @@ domain:    `harness.REGISTERED_GAMES` — the adapter's own registry, so a newly
            rather than listed here. The bound-mode axis is total by
            construction: `conformance_steps` is `int | None`, and both values
            are handled below.
+           Two kinds of game sit outside the verb claim, and neither is a
+           gap. An
+           UNBOUNDED game (`conformance_steps=None`) raises no verb cell:
+           there is no bound to justify, and the full `random_sim_test` plays
+           one random line to TerminalNode with pyspiel choosing the actions
+           internally, so the walk is not observable from here. And a game
+           that decides no content item declares no `<card>` verb at all, so
+           it raises no cell rather than a permanently unreachable one — the
+           card block is reserved only where some decision can offer a
+           candidate it numbers.
 registry:  `cardlang.openspiel.encoding.ActionSpace` — `verbs()` is computed
            from the same four blocks `decode` partitions, so a game that gains
-           a move type gains its verb cell without an edit here.
-covered:   the grid IS the coverage — one parametrized cell per (game, verb)
-           pair, plus one per game for the pin's own well-formedness and for
-           the bound mode. `harness.verb_status` is total over the 2x2 of
-           (applied, recorded-unreached), and every cell of
-           `harness.verb_status` is probed below. Every unreached cell of
-           `harness.verb_status` carries its reason IN the spec, checked
-           non-empty, so no cell can be dark.
-sampled:   the claim is made on ONE line — the walk's pinned `Random(7)`. A
+           a move type gains its verb cell without an edit here. The card
+           block's reservation rule: `encoding._decides_a_content_item`,
+           gridded at tests/test_card_block_derivation.py. The margin between
+           a game's last new verb and its bound: `last_new_verb`, on the
+           coverage record.
+does not prove:  three things.
+           The claim is made on ONE line — the walk's pinned `Random(7)`. A
            verb reachable on other lines but not this one reads as unreached
            here, which is why an unreached entry states where the mechanic IS
            exercised rather than asserting it is unreachable. Sampling one line
-           is what makes the check deterministic and free; the per-game margin
-           between the last new verb and the bound is the guard against a game
-           change shifting the line (`last_new_verb` in the coverage record).
-residual:  (a) UNBOUNDED games (`conformance_steps=None`) get no verb claim.
-           There is no bound to justify — the full `random_sim_test` plays one
-           random line to TerminalNode, and pyspiel chooses its actions internally,
-           so the walk is not observable from here. What IS asserted for them
-           is that they record no unreached verbs, so the two modes stay
-           disjoint and a claim can never sit unchecked.
-           (b) Verb granularity stops where the ENCODING stops: the card,
-           integer and combination blocks carry a parameter value, not a move
-           name (`encoding.CARD_VERB` and friends), so `<combo>` is one cell
-           for Big Two rather than one per combination kind. Recovering the
-           finer classification needs an enumerable kind set on the combo
-           codec seam, which only the table-backed engines have. This ledger
-           owns the record: it is a property of the action encoding, not
-           deferred work — a game's combination kinds are exercised by its
-           playout suite, and the adapter surface a conformance walk tests is
-           per-block.
-           (c) A game that decides no content item declares no `<card>` verb
-           at all, so it raises no cell here rather than a permanently
-           unreachable one: the card block is reserved only where some
-           decision can offer a candidate it numbers
-           (`encoding._decides_a_content_item`, gridded at
-           tests/test_card_block_derivation.py). What this module can still
-           not see is a verb whose block is present and whose mechanic the
-           bound does not reach — that is what the `unreached` entries are
-           for, and within a BOUNDED game no verb is exempt from needing one.
-           Unbounded games raise no cell at all, per (a).
+           is what makes the check deterministic and free.
+           Verb granularity stops where the ENCODING stops: the card, integer
+           and combination blocks carry a parameter value, not a move name
+           (`encoding.CARD_VERB` and friends), so `<combo>` is one cell for Big
+           Two rather than one per combination kind. It is a property of the
+           action encoding rather than deferred work — recovering the finer
+           classification needs an enumerable kind set on the combo codec
+           seam, which only the table-backed engines have — and a green here
+           says nothing about which combination kinds a walk reached.
+           And a verb whose block is present while the bound does not reach
+           its mechanic is invisible from here. That is what the `unreached`
+           entries are for, and within a BOUNDED game no verb is exempt from
+           needing one.
 
 The bound each game carries is not derived here: coverage says how LOW a bound
 may go, never how high, and depth beyond the coverage frontier is still real

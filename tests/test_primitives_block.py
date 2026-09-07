@@ -167,22 +167,14 @@ registry:   `cardlang/builtins/functions.py` (the six Primitive namespaces
             through it (`openspiel/replay.py`); the implementation's own
             signature comes from `primitives_block.implementation_sig`, the one
             site that reads the Python side's statement of it; the validation
-            ORDER against minted names is pinned by
+            ORDER against minted names:
             `test_the_only_minted_position_domain_source_is_the_board`, which
-            derives the minting sites from resolve's source.
-covered:    the parametrized cells below. The clause's duplication and
-            absorption cells are tests/test_game_clause_guards.py's, whose
-            axes derive from `?game_item` and so cover this clause without
-            an edit; the keyword's anchoring cell is
-            tests/test_keyword_anchoring.py's, whose axis is Lark's own
-            terminal table.
-sampled:    the syntactic-position axis is sampled at the two positions a
-            declared Primitive's VALUE can differ by — an expression
-            statement and a `when:` guard — rather than crossed over every
-            call position, because a declared name resolves through one
-            namespace lookup that is position-independent by construction
-            (`primitives_block.call_namespace`); the bare-name slots are the
-            walled namespaces, covered as their own cells.
+            derives the minting sites from resolve's source;
+            the clause's duplication and absorption —
+            tests/test_game_clause_guards.py, whose axes derive from
+            `?game_item` and so reach this clause without an edit; the
+            keyword's anchoring — tests/test_keyword_anchoring.py, whose axis
+            is Lark's own terminal table.
 does not prove: a green here says nothing about whether a declared read is
             SUFFICIENT for its implementation — that a Primitive declaring
             `reads hand[p]` does not also need `trump_suit` is proven by the
@@ -200,6 +192,14 @@ does not prove: a green here says nothing about whether a declared read is
             answering with the wrong row reshapes the exemption without
             reddening anything in this module, and the climb machinery's own
             tests are what hold that fault.
+            And a green says nothing about a call position other than the two
+            the syntactic-position axis takes: an expression statement and a
+            `when:` guard, the two positions a declared Primitive's VALUE can
+            differ by. The axis is not crossed over every call position,
+            because a declared name resolves through one namespace lookup that
+            is position-independent by construction
+            (`primitives_block.call_namespace`) — so what a green establishes
+            is that lookup, never the positions it was not asked at.
 
 Born red (the bare run on this branch, before any of the block's grammar,
 resolve, typecheck or runtime existed): `58 failed, 51 passed`. Every

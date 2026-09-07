@@ -34,51 +34,35 @@ registry:  `harness.REGISTERED_GAMES` for the game axis, resolved to each
            `GameSpec.all_provenance_zones` for the domain gate, itself derived
            from `ARRIVAL_RECORD_CALLS` + `PRIMITIVE_READS`;
            `cardlang.openspiel.encoding.ActionSpace` for what a move name may
-           be, consulted through `encode` rather than re-listed here.
-covered:   the grid IS the coverage -- one cell per game in
-           `harness.REGISTERED_GAMES` for the opening's legality, one per game
-           for the needed/declared square, one per game for the domain gate;
-           plus `harness.opening_status`'s own 2x2, and a refusal probe per
-           entry in `_PROBED_ARMS` over a synthetic spec, each asserting its
-           needle from that table, with their control. That last is a
-           completeness claim over a closed set, so it is CHECKED against the
-           code rather than asserted in prose: `_PROBED_ARMS` is reconciled
-           with the refusal messages `_refusal_messages` reads off
-           `harness.opening_actions`, in both directions
-           (`test_every_refusal_arm_of_opening_actions_has_a_probe`) -- no
-           scraped message is needle-free, and no `_PROBED_ARMS` needle goes
-           unused. Those emptiness facts are what the cell establishes.
-           Reading them as one probe per refusal ARM of the function is the
-           step they do not license -- residual (f).
-sampled:   the needed/declared square is measured at ONE seed (the manifest
-           head). Whether an opening is needed is a property of the greedy
+           be, consulted through `encode` rather than re-listed here;
+           the refusal-arm axis -- `_PROBED_ARMS`, reconciled against the
+           messages `_refusal_messages` scrapes off `harness.opening_actions`;
+           the manifest breadth the legality arm runs under --
+           tests/openspiel_ready/test_coverage.py::test_every_swap_proof_runs_the_seed_manifest.
+does not prove:  seven things, each about what a green over the registered
+           games leaves open.
+           The needed/declared square is measured at ONE seed, the manifest
+           head. Whether an opening is needed is a property of the greedy
            line's SHAPE -- which action id sorts first at each turn -- and the
-           deal moves neither the action ids nor the sort. Measured rather
-           than argued: over the whole manifest French Tarot's first decider
+           deal moves neither the action ids nor the sort; measured rather
+           than argued, over the whole manifest French Tarot's first decider
            is P2 with the same five legal ids and the same `legal[0]=78` on
-           every seed (2026-08-19). The LEGALITY arm is not sampled at all:
-           the provenance proof is the only caller of `opening_actions` in the
-           harness (checked, not asserted -- the same scrape as the scoping
-           cell) and runs once per manifest seed under the shared
-           `ReadinessProofs` parametrization, so a seat or a guard that moved
-           with the deal reddens there. The manifest's BREADTH is that shared
-           decorator's, pinned for the swap proof by
-           `test_coverage.py::test_every_swap_proof_runs_the_seed_manifest`
-           and not re-pinned here.
-residual:  (a) An opening of length >= 2, and the `provenance_depth` offset it
-           crosses with, are implemented and only degenerately executed: no
-           spec declares either shape beside the other, and `replay.run` is
-           uncached, so each extra opening move is a full re-simulation per
-           seed. The probes below drive both multi-move arms on a synthetic
-           spec, which is where the cost is one game rather than the manifest.
-           R4, this ledger owns the record.
+           every seed (2026-08-19). A game whose sort DID move with the deal
+           would pass here on the head seed alone.
+           (a) An opening of length >= 2, and the `provenance_depth` offset it
+           crosses with, are implemented and only degenerately executed on a
+           REGISTERED game: no spec declares either shape beside the other.
+           The probes below drive both multi-move arms on a synthetic spec,
+           which is where the cost is one game rather than the manifest --
+           `replay.run` is uncached, so each extra opening move is a full
+           re-simulation per seed.
            (b) A LEGAL BUT WRONG opening -- a different move that also reaches
            the zone -- passes every cell here, because every claim this module
-           can make about it is true. Guarded by disclosure instead: the
-           coverage record carries the MOVES (`harness.render_opening`), so
-           which line was certified is citable rather than inferred from a
-           count. That the record still carries them is ASSUMED, not checked:
-           the caller scrape in
+           makes about it is true. What stands in place of a check is
+           DISCLOSURE: the coverage record carries the MOVES
+           (`harness.render_opening`), so which line was certified is citable
+           rather than inferred from a count. That the record still carries
+           them is ASSUMED, not checked: the caller scrape in
            `test_only_the_provenance_walk_is_given_an_opening` establishes
            that the provenance proof is the only function in `harness.py`
            calling `render_opening`, so a call that moves or vanishes reddens
@@ -86,28 +70,25 @@ residual:  (a) An opening of length >= 2, and the `provenance_depth` offset it
            from inside that proof does not. Measured, not argued: dropping the
            `opening=` key while leaving the call in the proof's body left this
            module, `test_coverage.py` and `test_partition_record_modes.py`
-           green (2026-08-20). R4; this ledger owns the declined case, issue
-           #390 owns the guard's narrowness.
+           green (2026-08-20).
            (c) The opening-prefixed line is walked by the DSL replay only; the
            adapter-agreement proof walks the plain greedy line, so for a game
            whose greedy line never plays a card the DSL/pyspiel agreement is
            proven over the all-pass line alone. That is the adapter proof's
-           own scope rather than this field's, and it is unchanged by the
-           field's existence. R4, this ledger owns the record.
-           (d) Parameter shapes the field's `tuple[str, str | None]` type
-           cannot express (a Card-, Player- or position-valued move parameter,
-           or an arity >= 2 move) are refused by strict mypy at the spec site
-           rather than by a designed diagnostic. Deliberate: the field drives
-           an OPENING, and the moves that open a game are the nullary and
-           string-parameterized ones. A recorded constraint, not work -- this
-           ledger owns it, per CLAUDE.md's carve-out.
+           own scope rather than this field's.
+           (d) A parameter shape the field's `tuple[str, str | None]` type
+           cannot express -- a Card-, Player- or position-valued move
+           parameter, or an arity >= 2 move -- is refused by strict mypy at
+           the spec site rather than by a designed diagnostic, so no cell here
+           speaks about it. Deliberate: the field drives an OPENING, and the
+           moves that open a game are the nullary and string-parameterized
+           ones.
            (e) The provenance record has two shapes -- a vacuous cell carries
            `{seed, zones, vacuous}`, a real one adds `{opening, depth, nodes,
            entries_compared}` -- and `test_partition_record_modes.py` pins the
            record's executor-invariance, not its key sets, so a key dropped
-           from one branch reddens nothing. Pre-dates this field and is a
-           property of `partition.record`'s free-form `**detail`; R4, this
-           ledger owns the record.
+           from one branch reddens nothing. It is a property of
+           `partition.record`'s free-form `**detail`.
            (f) The reconciliation matches a needle to an arm by SUBSTRING and
            guards the site count with `>=`, so a refusal arm added to
            `harness.opening_actions` whose message contains a needle another
@@ -117,10 +98,7 @@ residual:  (a) An opening of length >= 2, and the `provenance_depth` offset it
            left `test_every_refusal_arm_of_opening_actions_has_a_probe` green,
            the needle `is not legal at P` covering two arms at once, at four
            scraped sites against three needles (2026-08-20). A needle added to
-           `_PROBED_ARMS` without a probe hides the same way. The scraped arms,
-           the `_PROBED_ARMS` needles and the probes did pair off one-to-one
-           when that was measured; nothing here holds them paired. R4, issue
-           #391.
+           `_PROBED_ARMS` without a probe hides the same way.
 
 Born red: the classifier's square was authored against a stub returning
 `"covered"` for every cell and run before `opening_status` existed --
@@ -412,21 +390,21 @@ def test_only_the_provenance_walk_is_given_an_opening() -> None:
         f"the provenance proof may ask for an opening"
     )
 
-    # Residual (b)'s guard, which is DISCLOSURE: a legal-but-wrong opening
-    # passes every cell here, and what makes it reviewable is that the citable
-    # record names the moves. That guard is one call site, so a change back to
-    # a count would silently un-guard the residual — the ledger would still say
-    # "guarded by disclosure" while nothing disclosed anything. What it pins is
+    # The guard for `does not prove:` (b), which is DISCLOSURE: a legal-but-
+    # wrong opening passes every cell here, and what makes it reviewable is
+    # that the citable record names the moves. That guard is one call site, so
+    # a change back to a count would silently un-guard it — the ledger would
+    # still say "guarded by disclosure" while nothing disclosed anything. What it pins is
     # WHOSE call site it is, not where the rendered value goes: the message
     # below says "feeds the provenance record", but a rendered opening that
     # stops reaching `record(..., opening=...)` from inside the proof passes
-    # here — ledger residual (b), issue #390.
+    # here — the ledger's `does not prove:` (b), issue #390.
     assert sorted(_callers(src, "render_opening")) == [
         "test_provenance_is_derivable_from_every_observers_stream"
     ], (
-        "`render_opening` no longer feeds the provenance record — residual (b) "
-        "is guarded by disclosure alone, so the record must keep naming the "
-        "moves it certified"
+        "`render_opening` no longer feeds the provenance record — a "
+        "legal-but-wrong opening is guarded by disclosure alone, so the record "
+        "must keep naming the moves it certified"
     )
 
 
@@ -439,10 +417,11 @@ def test_only_the_provenance_walk_is_given_an_opening() -> None:
 #
 # ONE source for both halves of that claim: each probe asserts its needle from
 # this table, and `test_every_refusal_arm_of_opening_actions_has_a_probe`
-# reconciles the table against the refusal sites SCRAPED from the function. The
-# ledger used to say "every arm has a probe" in prose. The reconciliation
-# reddens on an arm worded unlike every needle in this table; an arm worded LIKE
-# one still passes, which is ledger residual (f) and issue #391.
+# reconciles the table against the refusal sites SCRAPED from the function --
+# a completeness claim over a closed set belongs in code, not in prose. The
+# reconciliation reddens on an arm worded unlike every needle in this table; an
+# arm worded LIKE one still passes, which is the ledger's `does not prove:` (f)
+# and issue #391.
 _PROBED_ARMS: dict[str, str] = {
     "does not encode": "a move name the action space cannot encode",
     "is not legal at P": "a move illegal at its own turn",
@@ -482,13 +461,14 @@ def _refusal_messages(fn: Any) -> list[str]:
 
 
 def test_every_refusal_arm_of_opening_actions_has_a_probe() -> None:
-    """The `covered:` row's reconciliation, DERIVED — the refusal messages
+    """The refusal-arm reconciliation, DERIVED — the refusal messages
     scraped from `opening_actions`, the needles read from `_PROBED_ARMS`, and
     the two sets reconciled in both directions: no scraped message is
     needle-free, no `_PROBED_ARMS` needle unused. Both directions match by
     SUBSTRING, so what this establishes is coverage over those two sets and not
     a pairing of probes to refusal ARMS — an arm worded like a needle another
-    arm already answers passes (ledger residual (f), issue #391).
+    arm already answers passes (the ledger's `does not prove:` (f), issue
+    #391).
 
     Prose could say this and did. A completeness claim over a closed set that
     no code enumerates is the defect this whole module answers, and the ledger
@@ -546,7 +526,8 @@ def _probe(*moves: tuple[str, str | None]) -> list[int]:
 def test_a_well_formed_opening_has_no_complaints() -> None:
     """The control: without it, an `opening_actions` that refused everything
     would pass all three probes below. Two moves, so the multi-move arm the
-    corpus does not reach is executed here (ledger residual (a))."""
+    corpus does not reach is executed here (the ledger's `does not prove:`
+    (a))."""
     assert len(_probe(("bid_petite", None), ("pass", None))) == 2
 
 

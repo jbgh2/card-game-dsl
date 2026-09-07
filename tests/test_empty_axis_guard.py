@@ -61,69 +61,37 @@ domain:     the birth sites of a pytest parameter set — DERIVED from pytest's
             {unauthorized, authorized} and with the argname arities each site
             admits (a fixture yields one value, so arity is 1 there by
             construction).
+            Two stages sit outside that domain, and both are named. A
+            nonempty axis every row of which skips at RUN time (a
+            `pytest.skip()` from inside the test body) evaporates the same
+            guarantee one stage after collection, where a collection-time
+            guard cannot reach; issue #162 carries it. And a module that
+            skips ITSELF at collection takes every test in it away — today
+            that is `pytest.importorskip("pyspiel")` alone — which is guarded
+            in its own module rather than rebuilt here.
 registry:   `_birth_sites()` derives the site axis from `_pytest/**/*.py` by
             AST — a pytest release that grows a fourth site reddens it by name.
             `_authorized_empty_axes()` derives the authorization table from
             `tests/**/*.py` by AST. `pyproject.toml`'s
             `empty_parameter_set_mark` is the guard itself.
-covered:    the grid — `test_the_wall_holds_at_every_birth_site`, ten cells
-            (`_GRID`), each a generated module run under a real sub-pytest
-            against this repo's own ini file, asserting the collection error or
-            the authorized placeholder by name. Plus, one per claim this ledger
-            makes: the site axis pin
-            (`test_the_birth_sites_are_the_ones_pytest_has`), whose scrape is
-            proven to fire against a synthetic tree
-            (`test_the_birth_site_scrape_can_see_a_call`); the guard's
-            installation (`test_the_wall_is_installed`); the authorization
-            table (`test_every_authorized_empty_axis_is_pinned`) and the
-            attribution guard that makes it total
-            (`test_every_helper_call_is_attributed_to_a_test`), whose scrapes
-            are likewise proven to fire
-            (`test_the_authorization_scrape_can_see_a_call`); the door's two
-            refusals — staleness
-            (`test_an_authorization_that_is_no_longer_empty_is_loud`) and a
-            placeholder reason (`test_a_blank_reason_is_not_a_reason`) — each
-            proven to stop the BUILD at the decorator site where it really
-            fires, not merely to raise when called
-            (`test_a_refused_authorization_stops_collection`, two cells); the
-            arity backstop pytest owns (`test_an_argcount_mismatch_is_loud`);
-            and the core-install config
-            (`test_the_suite_collects_clean_without_pyspiel`), which is the only
-            gate that ever collects this suite without the `openspiel` extra —
-            CI always installs it. Every pin above that was born green carries
-            its reddening mutation in its own docstring, run and reverted.
-sampled:    none. Every cell of the crossed domain is an executed row.
-residual:   FIVE, each with its guard or its owner:
-            (1) an axis that NARROWS without reaching zero (a glob matching 3
-            of 60 modules) is the same defect and no count-based check sees it.
-            Deliberately not machinery: issue #143's scope note for #150 rules
-            it a recorded residual, and this ledger owns that record. R4 —
-            narrowing a derived axis means editing the machinery that derives
-            it; no game and no designer sentence can reach it.
-            (2) a nonempty axis every row of which skips at RUN time
-            (`tests/test_family_libraries.py`, `tests/fuzz/test_fuzz.py` call
-            `pytest.skip()` from inside the test body) evaporates the same
-            guarantee one stage later, where a collection-time guard cannot
-            reach. No guard; recorded as issue #162 — R4, and filed anyway
-            because the guarantee it guards (a check that claims coverage
-            actually runs) is rigor-critical.
-            (3) a module that skips itself at COLLECTION takes every test in it
-            away. Today that is only `pytest.importorskip("pyspiel")`, guarded
-            by `tests/test_optional_pyspiel.py::test_every_test_module_imports_without_pyspiel`
-            plus CI installing the extra — a guard that exists, in another
-            module, so it is named rather than rebuilt. R4 — reaching it
-            takes a test author adding an `importorskip`, or an install
-            without the extra.
-            (4) a `reason` is prose. It is required to be nonempty and to sit
-            at the call site, but nothing checks that it stays true; the
-            staleness pin covers the case that actually bites (the axis becomes
-            nonempty). R4, this ledger owns the record.
-            (5) the guard is ini configuration, so `-o
-            empty_parameter_set_mark=skip` on a command line disables it for
-            that run, and a hand-written `pytest.param(..., marks=skip)`
-            bypasses the door without touching the pin. Both are deliberate
-            acts by an author already editing the mechanism, reachable by
-            nobody else. R4, this ledger owns the record.
+            The self-skipping module:
+            tests/test_optional_pyspiel.py::test_every_test_module_imports_without_pyspiel.
+does not prove:  three things, none of them reachable from a game file.
+            (1) That a derived axis has not NARROWED. A glob matching a
+            fraction of the modules it should match is the same defect one
+            step short of zero, and no count-based check sees it; issue
+            #143's scope note for issue #150 rules machinery for it out of
+            scope, so what stands against it is this sentence.
+            (2) That a `reason` is TRUE. It is required to be nonempty and to
+            sit at the call site, and the staleness refusal covers the case
+            that bites — the axis becoming nonempty — but the prose itself is
+            read by nobody.
+            (3) That the guard is on for a run that does not configure it. It
+            is ini configuration, so `-o empty_parameter_set_mark=skip` on a
+            command line disables it for that run, and a hand-written
+            `pytest.param(..., marks=skip)` bypasses the door without
+            touching the pin. Both are deliberate acts by an author already
+            editing the mechanism.
 """
 
 from __future__ import annotations

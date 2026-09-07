@@ -24,25 +24,21 @@ property:   (1) `Node` contains exactly the dataclasses defined in
 domain:     (1) every dataclass whose `__module__` is `cardlang.ast.nodes`;
             (2) the four routes to mutating one — ordinary `setattr`,
             `object.__setattr__`, `__dict__`/`vars()` writes, and reaching
-            THROUGH a field into a mutable object it points at
+            THROUGH a field into a mutable object it points at.
+            `Span` sits outside the `__module__` filter, and it is admitted
+            rather than absent: every node carries one, so it is reachable
+            from every shared tree, and it is held to the same immutability
+            here.
 registry:   the module itself (introspected), which is the one source that
-            cannot be out of date
-covered:    the full membership equation, both directions; and all four
-            routes — `frozen=True` refuses ordinary `setattr` (for ANY name on
-            a direct instance, not only declared fields); `slots=True` refuses
-            `object.__setattr__` of a new name and `__dict__` writes; a scrape
-            over `cardlang/` refuses `object.__setattr__` of a declared field,
-            the one route the language cannot close since it is the call
-            frozen's own `__init__` uses; and a field-type check refuses
-            mutable containers, which no `setattr` guard can see. `Span` is
-            pinned separately: every node carries one, so it is reachable from
-            every shared tree, but it lives outside this module's `__module__`
-            filter.
-sampled:    none
-residual:   two. The `object.__setattr__` scrape covers `cardlang/` only — a
-            test or downstream consumer could still mutate a shared tree. And
-            the field-type check is a denylist of mutable BUILTINS, so a
-            custom mutable type held by a field would pass it.
+            cannot be out of date. `Span`'s own pin:
+            `test_the_span_type_is_frozen_and_slotted_too`.
+does not prove:  that a shared tree cannot be mutated from anywhere. The
+            `object.__setattr__` scrape reads `cardlang/` only — that call is
+            the one route the language cannot close, since it is what frozen's
+            own `__init__` uses — so a test or a downstream consumer writing a
+            declared field through it is outside what a green here sees. And
+            the field-type check is a denylist of mutable BUILTINS, so a field
+            holding a custom mutable type passes it.
 """
 
 from __future__ import annotations
@@ -190,7 +186,7 @@ def test_every_node_kind_has_slots() -> None:
 
 # Mutable builtins, spelled as they appear in an annotation. A denylist, not an
 # allowlist: the allowlist would have to name every node type and drift with the
-# union. The residual that costs is in the module ledger.
+# union. What the denylist misses is in the module ledger's `does not prove:`.
 _MUTABLE_CONTAINERS = ("list[", "dict[", "set[", "bytearray")
 
 

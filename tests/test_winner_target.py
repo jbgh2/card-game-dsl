@@ -32,7 +32,10 @@ property:   a `winner:` target names a game-level state variable that is
 domain:     {index} x {declared type}. {index} = every `domains.Role`
             member plus the unindexed case. {declared type} = every
             `typecheck.KNOWN_TYPE_NAMES` member plus a game-declared struct
-            name, each in its plain and optional form.
+            name, each in its plain and optional form. The rank DIRECTION
+            sits outside, and is not a gap: both members are already pinned
+            exhaustively against the grammar terminal, and neither interacts
+            with the declaration this property is about.
 registry:   `tests/winner_axes.py` derives both axes in code — the index
             axis from the `Role` enum (`domains.Role`, THE definition site
             for role ids), the type axis from `typecheck.KNOWN_TYPE_NAMES`
@@ -44,73 +47,40 @@ registry:   `tests/winner_axes.py` derives both axes in code — the index
             `test_default_table_covers_every_declared_type`, so a new
             declared type reddens the pin instead of silently dropping its
             rows from the parametrization.
-covered:    the grid below — `winner_axes.cells()` x {accepted, rejected},
-            `test_winner_target_cell`, 95 rows. Each rejecting row also
-            asserts WHICH BRANCH answers, through a phrase only that branch
-            emits (`REFUSAL_PHRASES`): the pre-existing state-declaration
-            guard for a non-indexable role, and one of the new guard's three
-            branches — unindexed, optional, unrankable type — otherwise. The
-            three branches share a "`winner:`" prefix, so a phrase at layer
-            granularity would let a cell refused by the wrong branch read as
-            covered. Plus three misuse probes,
-            which vary the GAME the grid holds constant rather than the
-            declaration: a target naming a zone, a target declared inside a
-            phase (both refused by the name guards, with
-            `_check_winner_target` silent), and a `team`-indexed target in a
-            game declaring no `teams:`.
+            The rank-direction set, against the grammar terminal:
+            `test_rank_dir_set_is_pinned`.
+            An index naming a declared position domain, refused at the
+            state declaration —
+            tests/rejections/positions_state_indexed_by_position.cardlang
+does not prove:  three things.
+            (1) That the `[ ]` slot refuses a name outside `Role`.
+            `state_decl`'s grammar admits ANY name there, a declared
+            position domain (`probe[column]`) included, and the index axis
+            here is derived from `Role`, so no row of this grid holds that
+            cell. It belongs to the state DECLARATION guard's class and is
+            executed there, in the rejection corpus.
+            (2) That a struct is unrankable whatever it holds. The
+            struct-type cell runs one struct shape (`Pair`), not a sub-axis
+            of field shapes. The argument that the field list cannot vary
+            the property is an argument; nothing here varies it.
+            (3) That a game whose target is never written ranks
+            meaningfully. Every seat then holds the declared default and the
+            winner is whichever seat sorts first — which is what a game
+            legitimately ending all-square looks like too, so there is no
+            wrong answer for a check to name and none is guarded.
 
-            42 of the 95 rows are born green — the 38 answered by the
-            pre-existing declaration guard and the 4 accepted ones — so
-            each names the mutation that reddens it, per class rather than
-            per row. red under: replace `_validate_refs`' `if nd.index is
-            not None and role_of(nd.index) not in ZONE_INDEX_ROLES:` with
-            `if False:` — the 38 `reject:declaration` rows redden, executed.
-            red under: `_RANKABLE_TYPES = frozenset()` — 18 rows redden,
-            executed: the 4 `accept` rows, plus the 14 `reject:type` rows,
-            whose asserted phrase names that set. The admissible types are
-            one registry, so no mutation reaches the accepted rows alone
-            and the wider blast radius is the witness, not a defect in it.
-sampled:    the struct-type cell runs ONE struct shape (`Pair`), not a
-            sub-axis of field shapes: a struct is unrankable whatever it
-            holds, so the field list cannot vary the property under guard.
-            The rank-direction axis is not crossed here — both members are
-            already pinned exhaustively against the grammar terminal by
-            `test_rank_dir_set_is_pinned`, and neither interacts with the
-            declaration.
-residual:   cells on this surface that this ledger does NOT close, each
-            with its guard and its record:
-            - the index axis is derived from `Role`, but `state_decl`'s
-              grammar admits ANY name in the `[ ]` slot, including a
-              declared position domain (`probe[column]`). That is the state
-              DECLARATION guard's class, not this one's, and it is executed
-              at tests/rejections/positions_state_indexed_by_position.cardlang
-              — so the cell is guarded and proven, just not by a row of this
-              grid. R4, this ledger owns the record.
-            - the accepted `team` row ranks a team-keyed score, and the
-              result path then reports a team index through a field typed as
-              a player (issue #154); guard: none — the checker accepts the
-              declaration, which is correct, and the defect is downstream in
-              `GameResult`/`returns_for`.
-            - a game declaring BOTH `winner:` and `loser:` accepts and then
-              silently discards the loser clause (issue #247); guard: none
-              today, which is what that issue is.
-            - a `loser:` selection that is gradually typed (`TAny`) and
-              evaluates to an out-of-range seat, or to a `bool` (which
-              passes `isinstance(_, int)`), reaches `returns_for` and
-              produces returns that do not sum to zero (issue #297);
-              guard: the driver's typed raise, which the value passes.
-            - a range `players:` declaration bounds seat literals by `high`
-              while the game is played at `low` (issue #296); guard: the
-              runtime `OwnerGuardError` on the phantom key.
-            - ties in the target's values make `GameResult.winner` the
-              first maximal key in insertion order, and `returns_for`
-              disagrees by paying tied seats equally (issue #298); guard:
-              none.
-            - a target that is never written ranks every seat at its
-              declared default, so the winner is whichever seat sorts
-              first. NOT guarded and NOT filed: it is indistinguishable
-              from a game that legitimately ends all-square, so there is no
-              defect to state (R4, this ledger owns the record).
+red under (born-green cells): the rows answered by the pre-existing
+declaration guard and the accepted rows are green on arrival, so each
+class names the mutation that reddens it rather than a row naming its
+own.
+- replace `_validate_refs`' `if nd.index is not None and role_of(nd.index)
+  not in ZONE_INDEX_ROLES:` with `if False:` — every `reject:declaration`
+  row reddens. Executed.
+- `_RANKABLE_TYPES = frozenset()` — the accepted rows and every
+  `reject:type` row redden, the latter through the phrase that names that
+  set. The admissible types are ONE registry, so no mutation reaches the
+  accepted rows alone; the wider blast radius is the witness, not a defect
+  in it. Executed.
 """
 
 from __future__ import annotations

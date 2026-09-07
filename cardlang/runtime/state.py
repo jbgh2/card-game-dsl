@@ -305,8 +305,8 @@ class ZoneStore:
         # KEYS, by contrast, are author-reachable: a zone-family subscript's
         # index is checked with `types.coercible`, which admits a bare
         # Integer literal, so `hand[9]` in a 4-player game type-checks and
-        # arrives here (the ledger in tests/test_zone_family_typing.py
-        # records the deferred re-audit). That deferral is what makes this an
+        # arrives here (a boundary tests/test_zone_family_typing.py's ledger
+        # states in its `domain:`). That boundary is what makes this an
         # Owner Guard rather than a Shadow Guard, and why the key branch owes
         # a typed error. A board-minted family keys by a cell name (str), so
         # the key is `int | str`.

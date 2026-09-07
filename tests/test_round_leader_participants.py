@@ -8,6 +8,13 @@ property:   Every kernel construct that starts an acting sequence builds it
             at/after the leader in game turn order. A genuinely empty
             participant set is an error, and so is a leader who is not a seat.
 domain:     acting path x leader/participants relationship x game direction.
+            Two neighbouring properties sit outside, each a different
+            property with its own owner rather than a gap in this one:
+            participants-CONTENT validity (a non-seat member, duplicates, a
+            `Zone`-valued `over`), and the evaluation-TIMING axis -- trick
+            and climb read `participants` once at construction while auction
+            re-reads it every step and `turns` every pick, so a set that
+            shrinks mid-round is seen by two members and not the other two.
 registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           `participants` (`n.Round` and `n.Turns`), with
                           `n.Round` split into its three forms by
@@ -18,67 +25,25 @@ registry:   acting path -- the AST constructs carrying BOTH `leader` and
                           member of this class though it is NOT a `round`
                           form and does not go through `build_form` — the
                           class is the leader/participants shape, not the
-                          `round` keyword. Pinned by
+                          `round` keyword. Its pin:
                           `test_acting_path_axis_is_derived_from_the_registries`.
-            direction  -- `values.GAME_DIRECTIONS`. Pinned by
+            direction  -- `values.GAME_DIRECTIONS`. Its pin:
                           `test_direction_axis_is_the_seating_registry`.
             relationship -- the space of two independent runtime values:
                           leader in the set, leader outside a non-empty set,
-                          set empty, leader not a seat at all. Pinned by
+                          set empty, leader not a seat at all. Its pin:
                           `test_relationship_axis_is_total`.
-covered:    `test_leader_participants_grid`, the full
-            ACTING_PATHS x RELATIONSHIPS x DIRECTIONS cross.
-sampled:    none.
-residual:   The `participants_empty` column is CAPTURED per path, not
-            unified: the paths fail different ways (trick: no
-            actor, then the outcome function meets zero plays; auction-ring:
-            the termination/participants-disagreement error, whose message is
-            pinned in tests/test_ring_order.py; climb: the empty-ring
-            error). The grid pins that each path is LOUD, which is the
-            property that matters; it does not pin one shared message.
-
-            One of those four is loud in the WRONG CURRENCY, and the grid
-            found it: the trick path reaches `highest_of_led_suit` with zero
-            plays and dies on a raw `ValueError: max() arg is an empty
-            sequence` from `stdlib.py`, not a typed error naming the empty
-            participant set. That is a real defect of the channel class
-            (decisions.md: a runtime failure is a typed error with the fix in
-            its message, never a bare Python exception) -- R3, reachable by a
-            designer whose `over` predicate empties. Filed as issue #167; not
-            fixed here because it belongs to the outcome-function boundary,
-            not to leader/participant ring construction, and this change is
-            already three issues wide (planning Gate 3.5). The grid's expected
-            column admits `ValueError` for exactly that cell so the row states
-            today's truth rather than the truth we want.
-
-            The two `leader_out_of_range` columns are both green, guarded at
-            DIFFERENT layers, and the split is the point. The LITERAL spelling
-            (`from 9`) is rejected at typecheck by the player-literal range
-            guard, identically for all five paths. The COMPUTED spelling
-            (`from 4 + 5`) escapes that guard entirely — `_check_operand`'s
-            range check recognizes a direct `IntLit`, and an `Integer` is
-            assignable to `Player` — and is guarded at runtime instead, inside
-            `Seating.turn_order_from`.
-
-            That runtime guard is this change's, and it closes issue #168. It
-            is placed at the ONE site every `from <leader>` clause converges
-            on rather than at the four forms that build rings, because the
-            defect was never climb-specific: `turn_order_from` was pure
-            modular arithmetic, so `from 4 + 5` in a 4-player game silently
-            led from seat 1 in the trick and both auction paths too, and would
-            have in climb as soon as #24 removed the participants test that
-            had been catching it by accident. `turns` was the only member
-            already guarded (execute.py:596-601), which is what made the
-            asymmetry visible. The same test also closes the non-int case
-            (`none`-valued `Player?`, an unrefined pronoun) that previously
-            died on a bare `TypeError`.
-
-            NOT cells, and deliberately so — a different property with its own
-            owner: participants-content validity (a non-seat member, duplicates,
-            a `Zone`-valued `over`), and the evaluation-TIMING axis (trick and
-            climb read `participants` once at construction; auction re-reads it
-            every step and `turns` every pick, so a set that shrinks mid-round
-            is seen by two members and not the other two).
+            the auction ring's termination/participants-disagreement
+            message -- tests/test_ring_order.py.
+does not prove:  that the acting paths fail an empty participant set
+            the same way. The `participants_empty` column is CAPTURED per
+            path, not unified: the trick path finds no actor and its outcome
+            function then meets zero plays, the auction ring raises its
+            termination/participants-disagreement error, and climb raises
+            the empty-ring error. What the grid holds is that each path is
+            LOUD, which is the property that matters; no cell pins one
+            shared message, and the expected column admits the currency each
+            path fails in today.
 
 Framing check: RAN. A fresh-context subagent derived this domain from the
 definition sources alone (grammar, AST unions, the whole `cardlang/` package),
@@ -88,14 +53,15 @@ author's changed the grid twice, and both changes are load-bearing:
     the author's `round`-rooted derivation had missed entirely, and the ONLY
     member that already guards its leader. The path axis grew from 4 to 5.
   - it found that an out-of-range leader is silently normalized, disproving
-    an author-written residual line that had claimed the case was guarded
+    an author-written ledger line that had claimed the case was guarded
     elsewhere and therefore "not a cell". That line was wrong; the corrected
-    capture is above. It also showed that removing the climb form's refusal
-    would DELETE that form's only out-of-range catch (it fell out of the
+    capture is at the grid's two `leader_out_of_range` cells. It also showed
+    that removing the climb form's refusal would DELETE that form's only
+    out-of-range catch (it fell out of the
     `ring[0] != leader` test), which is why ClimbForm now carries an explicit
     seat check rather than inheriting one.
 Its remaining reports (participants-content, evaluation timing) are the
-recorded not-cells above.
+boundary `domain:` states above.
 
 red under: the four born-green `leader_out` paths claim the sibling
 constructs already advance past a shed-out leader. Each has its OWN
@@ -410,7 +376,7 @@ def test_leader_participants_grid(
 
     if relationship == "participants_empty":
         # Captured, not unified: each path fails in its own way (see the
-        # module docstring's residual row). The property pinned here is that
+        # module docstring's `does not prove:` row). The property pinned here is that
         # NO path silently proceeds with an empty acting set. `ValueError` is
         # STILL the trick path's wrong-Author failure, admitted deliberately
         # and recorded as issue #167 — remove it from this tuple when that
