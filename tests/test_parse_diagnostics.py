@@ -661,23 +661,42 @@ def test_end_of_input_is_named_rather_than_quoted() -> None:
     assert diagnostic.span.line == text.count("\n") + 1, diagnostic.format()
 
 
-def test_a_line_number_in_the_sentence_is_the_file_s_own() -> None:
+#: Every sentence that names a line, with the line it names at the top of a
+#: file. Both are computed from the token scan, which is memoized on the TEXT
+#: alone -- so a line number that came out of the cache unshifted would name a
+#: line in the Markdown prose above the block.
+_LINE_NAMING_SENTENCES = {
+    "an unclosed block": (
+        "game G {\n  players: 2\n  zones {\n    deck : Deck\n"
+        "  state { s : Integer = 0 }\n}\n",
+        3,
+    ),
+    "an unclosed quoted string": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n"
+        '  state { s : String = "oops }\n}\n',
+        4,
+    ),
+}
+
+
+@pytest.mark.parametrize("sentence", sorted(_LINE_NAMING_SENTENCES))
+def test_a_line_number_in_the_sentence_is_the_file_s_own(sentence: str) -> None:
     """The probe indexes the DSL text; the sentence is read against the file
     the text came from. A Markdown game file's fenced block starts partway down
     it, so a line number that skipped `line_offset` would name a line in the
     prose above the block.
 
+    Both renderings of the same text run in one process, so a scan cached on
+    the text alone cannot carry the first call's offset into the second.
+
     No corpus snippet fails to parse, so `tests/test_doc_snippets.py` cannot
     reach this: the cell needs its own witness.
     """
-    source = (
-        "game G {\n  players: 2\n  zones {\n    deck : Deck\n"
-        "  state { s : Integer = 0 }\n}\n"
-    )
+    source, line = _LINE_NAMING_SENTENCES[sentence]
     at_top = _render(source).diagnostic
     offset = _render(source, line_offset=20).diagnostic
-    assert "opened on line 3" in at_top.message, at_top.message
-    assert "opened on line 23" in offset.message, offset.message
+    assert f"opened on line {line}" in at_top.message, at_top.message
+    assert f"opened on line {line + 20}" in offset.message, offset.message
     assert offset.span is not None and at_top.span is not None
     assert offset.span.line == at_top.span.line + 20
 

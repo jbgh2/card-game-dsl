@@ -2523,7 +2523,7 @@ def _open_blocks(scan: _Scan, pos: int) -> tuple[tuple[_Block, ...], int, int]:
     closed: list[Token] = []
     depth = 0
     at_failure: tuple[_Block, ...] | None = None
-    low = 0
+    low: int | None = None
     for token in scan.tokens:
         if at_failure is None and (token.start_pos or 0) >= pos:
             at_failure, low = tuple(stack), depth
@@ -2545,9 +2545,11 @@ def _open_blocks(scan: _Scan, pos: int) -> tuple[tuple[_Block, ...], int, int]:
         else:
             headers[-1].append(token)
             closed = []
-        if at_failure is not None:
+        if low is not None:
             low = min(low, depth)
-    if at_failure is None:
+    if at_failure is None or low is None:
+        # The failure is past every lexeme: the blocks open there are the ones
+        # the file ends inside, and none of them is ever closed.
         return tuple(stack), depth, depth
     return at_failure, low, depth
 
