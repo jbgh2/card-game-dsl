@@ -702,7 +702,7 @@ def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
     """The action line a seeded `play` walks, as the adapter numbers it, and
     how many of those actions the two routes share.
 
-    One action id per card taken, in the order the cards were taken: a Chooser
+    One action id per candidate taken, in the order they were taken: a Chooser
     call for `n` cards branches the tree `n` times (docs/authoring.md,
     "`move chosen N cards` is N sequential single-card decisions"). That is the
     contract written out here rather than read off the command, so the
@@ -727,7 +727,7 @@ def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
 
     def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
         taken = play_uniformly(player, candidates, count)
-        line.extend(space.encode(card) for card in taken)
+        line.extend(space.encode(choice) for choice in taken)
         return taken
 
     play_game(game, rng, watch, chooser=choose)
@@ -802,8 +802,8 @@ def test_at_renders_the_view_the_adapter_renders_at_the_same_decision(
 
     The `state:` segment is left out: the adapter reads a world already unwound
     past every phase frame, so its state segment drops every phase-local
-    variable (issue #612). The cell below holds the whole string against the
-    day that is fixed.
+    variable (issue #612). The cell below holds that segment against the day it
+    is fixed.
 
     red under: number Chooser calls in `cardlang.cli._play`; `--at 1` then
     renders the next seat's ask, whose log holds one finished selection where
@@ -829,19 +829,25 @@ def test_at_renders_the_view_the_adapter_renders_at_the_same_decision(
     reason="issue #612: the adapter reads a world unwound past every phase "
     "frame, so its state segment names only the game-level variables",
 )
-def test_the_whole_view_agrees_across_the_two_routes(
+def test_the_state_segment_agrees_across_the_two_routes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """What the cell above would assert if the adapter's world still stood.
-    Strict, so the day issue #612 lands this reddens and the carve-out in the
-    ledger comes out with it."""
+    """The third segment, which the comparison above leaves out. Strict, so the
+    day issue #612 lands this reddens and the carve-out in the ledger comes out
+    with it.
+
+    Only the segment comparison is an assertion; a run that fails for any other
+    reason raises what the mark does not catch, so this cannot xfail on a wall
+    it does not name.
+    """
     pytest.importorskip("pyspiel")
     line, _ = _tree_line(HEARTS, 7)
     argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
-    assert main(argv) == 0
-    assert _seats_view(capsys.readouterr().out, 0) == _adapter_view(
-        HEARTS, 7, line[:1], 0
-    )
+    if main(argv) != 0:
+        raise RuntimeError("the invocation this cell compares was refused")
+    mine = _segments(_seats_view(capsys.readouterr().out, 0))
+    theirs = _segments(_adapter_view(HEARTS, 7, line[:1], 0))
+    assert mine[1] == theirs[1], "the state variables differ"
 
 
 def test_a_decision_records_the_cards_the_same_call_already_took(
@@ -858,12 +864,12 @@ def test_a_decision_records_the_cards_the_same_call_already_took(
     `cardlang.runtime.chooser.sequential_decisions`; each decision then carries
     the card it is about to take.
     """
-    for index, expected in enumerate([0, 1, 2]):
+    for index in range(3):  # P0's three-card pass, card by card
         argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
         assert main([*argv, str(index)]) == 0
         log = _segments(_seats_view(capsys.readouterr().out, 0))[2]
-        assert log.count("('chose'") == expected, (
-            f"decision {index} follows {expected} cards this seat has taken"
+        assert log.count("('chose'") == index, (
+            f"decision {index} follows {index} cards this seat has taken"
         )
         assert "('chose', ('" not in log, (
             "a card taken is recorded as that card, not as a finished selection"
