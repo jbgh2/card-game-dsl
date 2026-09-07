@@ -4,7 +4,7 @@ value classes a caller can supply.
 property:        Every option the parser declares is accepted by exactly the
                  commands that declare it and refused by the rest, each
                  refusal loud in argparse's usage channel; every COMBINATION
-                 of the `play` command's options is either carried out or
+                 of the `demo` command's options is either carried out or
                  refused in the command's own words, and a game that refuses
                  at play time reaches the caller as that refusal under every
                  one of them; every value class a caller can supply to
@@ -14,7 +14,7 @@ property:        Every option the parser declares is accepted by exactly the
                  — reach the same front end.
 domain:          The commands and options are whatever `cardlang.cli`'s
                  parser declares, derived from the parser itself, and the
-                 combination cross is the power set of the `play` command's
+                 combination cross is the power set of the `demo` command's
                  own options, derived the same way. That cross varies an
                  option's PRESENCE and holds one representative value; the
                  value classes — the integer/non-integer and
@@ -59,7 +59,10 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  are exercised here only far enough to tell an accepted
                  invocation from a refused one.
 registry:        commands and options: `cardlang.cli.build_parser` via
-                 `_command_options` below; the combination cross:
+                 `_command_options` below, both derived from
+                 `cardlang.cli._COMMAND_TABLE`, which the parser is built from
+                 and `COMMANDS` is derived from; retired spellings:
+                 `cardlang.cli.RETIRED_COMMANDS`; the combination cross:
                  `_play_option_subsets` below, over the same parser; seat
                  bound: `game.players.low`, the same value
                  `cardlang.runtime.driver.play_game` seats; the decomposition
@@ -74,19 +77,24 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  dispatch: tests/test_pipeline_cardlang.py; the append-only
                  observation log a mid-hand view is projected from:
                  tests/openspiel_ready/harness.py.
-does not prove:  A green here says nothing about whether a playout's REPORTED
+does not prove:  Only the exact long spelling of each option. The parser is
+                 built without `allow_abbrev=False`, so every unambiguous
+                 prefix (`--info`, `--se`) reaches the same destination and no
+                 cell here crosses one; that axis is open and unmeasured
+                 (issue #624).
+                 A green here says nothing about whether a playout's REPORTED
                  outcome is the right one — the returns and the decision count
                  are read back from the driver's and the adapter's own
                  derivations, and their correctness is those suites' claim,
                  not this module's. It equally says nothing about which games
-                 a uniform-random line can finish: `play` renders that refusal
+                 a uniform-random line can finish: `demo` renders that refusal
                  the same way whether the game or the policy is the reason,
                  and the corpus measurement is issue #553. The cross-route
                  cells below are bounded twice over, and neither bound is
                  something the numbering could lift. They reach no further
                  than the FIRST DEAL — a seat's view is compared at every
                  decision of it, and what the command PRINTS at named
-                 decisions inside it — because `play` draws its uniform-random
+                 decisions inside it — because `demo` draws its uniform-random
                  policy from the generator that also drives the shuffle while
                  the adapter's Chooser draws nothing, so a game that deals
                  again deals it differently on each route (issue #621) and
@@ -118,7 +126,14 @@ from typing import Any
 
 import pytest
 
-from cardlang.cli import _CANDIDATES_SHOWN, COMMANDS, build_parser, main
+from cardlang.cli import (
+    _CANDIDATES_SHOWN,
+    _COMMAND_TABLE,
+    COMMANDS,
+    RETIRED_COMMANDS,
+    build_parser,
+    main,
+)
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import returns_for
@@ -152,7 +167,7 @@ REFUSES = REPO / "tests" / "fixtures" / "empty_zone_choice.cardlang"
 # it. Its wording is tests/test_runtime_refusal_location.py's claim and issue
 # #329's question; what is asserted here is only which of two refusals arrived.
 REFUSAL_MESSAGE = "cannot choose 1 of 0 candidates"
-# A Markdown game file, its DSL in one fenced block: the shape `play` must
+# A Markdown game file, its DSL in one fenced block: the shape `demo` must
 # route to the extractor. The corpus rulebooks link to their `.cardlang` rather
 # than embedding one (docs/maintaining.md, "The rulebook twin"), so a fixture
 # is what carries the shape.
@@ -189,7 +204,7 @@ def _option_universe() -> tuple[str, ...]:
 
 
 def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
-    """Every subset of the `play` command's own options, derived from the
+    """Every subset of the `demo` command's own options, derived from the
     parser rather than listed beside it.
 
     The per-option cells above measure one option at a time, and an option
@@ -198,7 +213,7 @@ def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
     decision to look at and carries no meaning without a `--info-state` to
     say whose view, so the combination is the unit the decision lives in.
     """
-    options = sorted(_command_options()["play"])
+    options = sorted(_command_options()["demo"])
     return tuple(
         tuple(subset)
         for size in range(len(options) + 1)
@@ -235,11 +250,11 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--info-state"): "refused",
     ("check", "--at"): "refused",
     ("check", "--decisions"): "refused",
-    ("play", "--emit-ir"): "refused",
-    ("play", "--seed"): "accepted",
-    ("play", "--info-state"): "accepted",
-    ("play", "--at"): "accepted",
-    ("play", "--decisions"): "accepted",
+    ("demo", "--emit-ir"): "refused",
+    ("demo", "--seed"): "accepted",
+    ("demo", "--info-state"): "accepted",
+    ("demo", "--at"): "accepted",
+    ("demo", "--decisions"): "accepted",
 }
 
 # The authored expected column for the combination cross. `--at` is refused
@@ -283,13 +298,113 @@ def test_every_cell_is_authored() -> None:
 
 
 def test_every_combination_is_authored() -> None:
-    """The derived subsets of `play`'s options and the authored column name
-    the same cells, so an option added to `play` arrives as a doubled cross
+    """The derived subsets of `demo`'s options and the authored column name
+    the same cells, so an option added to `demo` arrives as a doubled cross
     to decide rather than as combinations nobody looked at."""
     assert set(_play_option_subsets()) == set(_COMBINATION_EXPECTED), (
-        "the `play` command's options and the authored combination "
+        "the `demo` command's options and the authored combination "
         "expectations have drifted; decide what each new combination means"
     )
+
+
+# The authored expected column for the retired-spelling registry: each
+# spelling the command line no longer carries, and the command that replaces
+# it. Authored, never derived from `cli.RETIRED_COMMANDS`: a table checked
+# against itself reports that the registry agrees with itself.
+_RETIRED_EXPECTED: dict[str, str] = {"play": "demo"}
+
+
+def test_every_retired_spelling_is_authored() -> None:
+    """The registry the refusal is built from and the authored column name the
+    same spellings, so a spelling retired later arrives as a cell to decide."""
+    assert dict(RETIRED_COMMANDS) == _RETIRED_EXPECTED, (
+        "`cli.RETIRED_COMMANDS` and the authored expectations have drifted; "
+        "decide what each newly retired spelling says rather than letting it ride"
+    )
+
+
+def test_a_retired_spelling_is_no_longer_a_command() -> None:
+    """A retired spelling is not carried in parallel with its replacement.
+
+    The registry says what a spelling MEANT, not what it still does, so a
+    spelling in both places would be the rename half-done -- two commands
+    doing one job, and the grid above crossing options against both.
+    """
+    assert not set(RETIRED_COMMANDS) & set(COMMANDS)
+
+
+@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
+def test_a_retired_spelling_is_refused_and_names_its_replacement(
+    spelling: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The old sentence a designer's fingers still type is answered, not
+    misread.
+
+    Without the registry this is not a usage error at all: `_normalize`
+    rewrites any first token that is not a command into `check <token>`, so
+    the retired spelling is read as the FILENAME and the real path becomes a
+    stray argument -- argparse then reports "unrecognized arguments", naming
+    neither the rename nor the file the caller meant.
+    """
+    assert main([spelling, str(HEARTS)]) == 2
+    err = capsys.readouterr().err
+    assert spelling in err, "the refusal does not name the spelling that was typed"
+    assert _RETIRED_EXPECTED[spelling] in err, (
+        "the refusal does not name the command that replaces it"
+    )
+    assert "unrecognized arguments" not in err, (
+        "the retired spelling fell through to the implicit-check path and was "
+        "read as a file name"
+    )
+
+
+@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
+def test_a_retired_spelling_alone_is_refused_the_same_way(
+    spelling: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no path beside it the answer is the same one: the caller named a
+    command, and what is wrong with it is that it is retired -- not that a
+    file called `play` is missing."""
+    assert main([spelling]) == 2
+    err = capsys.readouterr().err
+    assert _RETIRED_EXPECTED[spelling] in err
+    assert "no such file" not in err
+
+
+@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
+def test_a_file_named_for_a_retired_spelling_needs_the_explicit_command(
+    spelling: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A path whose name is a retired spelling is reachable, and only the
+    explicit form reaches it.
+
+    The first token of an implicit invocation is read as a command whenever it
+    could be one, and retiring a spelling keeps it in that set rather than
+    handing it back to the filesystem -- so this collision behaves as it does
+    for a live command, and the refusal is what says so.
+    """
+    # Markdown content, because a name with no `.cardlang` suffix routes to the
+    # extractor — the file-shape dispatch, which this cell is not about.
+    game = tmp_path / spelling
+    game.write_text(MARKDOWN.read_text())
+    assert main([spelling]) == 2
+    capsys.readouterr()
+    assert main(["check", str(game)]) == 0
+
+
+def test_the_parser_and_the_dispatch_cannot_disagree_about_the_commands() -> None:
+    """One table defines the commands: the parser is built from it and the
+    dispatch tuple is derived from it.
+
+    The equality below is a construction check rather than a drift check --
+    both sides read `_COMMAND_TABLE`, so what it catches is a subparser
+    registered around the table rather than through it.
+
+    red under: add `commands.add_parser("extra")` to `build_parser` beside the
+    loop over `_COMMAND_TABLE`.
+    """
+    assert set(_command_options()) == set(COMMANDS)
+    assert set(_COMMAND_TABLE) == set(COMMANDS)
 
 
 @pytest.mark.parametrize(("command", "option"), sorted(_EXPECTED))
@@ -316,11 +431,11 @@ def test_command_option_cell(command: str, option: str, capsys: pytest.CaptureFi
 def test_play_option_combination_cell(
     subset: tuple[str, ...], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Each combination of `play`'s options is carried out or refused, and a
+    """Each combination of `demo`'s options is carried out or refused, and a
     refusal reaches the caller in the command's own words rather than
     argparse's — the parser accepts every one of these sentences, so what
-    decides them is `_play`."""
-    argv = ["play", str(KUHN)]
+    decides them is `_demo`."""
+    argv = ["demo", str(KUHN)]
     for option in subset:
         argv += [option, *_SAMPLE_VALUE[option]]
     if _COMBINATION_EXPECTED[subset] == "accepted":
@@ -358,7 +473,7 @@ def test_a_refusing_game_under_every_option_combination(
     A listing of the decisions made before the refusal would print here and
     does not: issue #623.
     """
-    argv = ["play", str(REFUSES)]
+    argv = ["demo", str(REFUSES)]
     for option in subset:
         argv += [option, *_SAMPLE_VALUE[option]]
     code = main(argv)
@@ -412,7 +527,7 @@ def test_unknown_first_token_names_the_commands(capsys: pytest.CaptureFixture[st
 
 def test_missing_file_under_an_explicit_command(capsys: pytest.CaptureFixture[str]) -> None:
     """No command hint, because the caller already named the command."""
-    assert main(["play", "/no/such/file.cardlang"]) == 2
+    assert main(["demo", "/no/such/file.cardlang"]) == 2
     err = capsys.readouterr().err
     assert "no such file" in err
     assert "if you meant a command" not in err
@@ -483,10 +598,10 @@ def test_a_command_in_the_wrong_slot_is_refused(capsys: pytest.CaptureFixture[st
     the refusal has to reach the caller rather than the file being checked and
     the command quietly dropped."""
     with pytest.raises(SystemExit) as exit_info:
-        main([str(HEARTS), "play"])
+        main([str(HEARTS), "demo"])
     assert exit_info.value.code == 2
     err = capsys.readouterr().err
-    assert "play" in err
+    assert "demo" in err
     for command in COMMANDS:
         assert command in err, "the usage line must name where a command goes"
 
@@ -521,7 +636,7 @@ def test_seat_outside_the_table_is_refused(seat: str, capsys: pytest.CaptureFixt
     with the range named — nothing downstream of here would notice: a bad seat
     projects zones through the wrong observer and renders a plausible string.
     """
-    assert main(["play", str(KUHN), "--info-state", seat]) == 2
+    assert main(["demo", str(KUHN), "--info-state", seat]) == 2
     err = capsys.readouterr().err
     assert "seat" in err
     assert "0..1" in err, "the refusal must name the seats this game seats"
@@ -529,14 +644,14 @@ def test_seat_outside_the_table_is_refused(seat: str, capsys: pytest.CaptureFixt
 
 def test_non_integer_seat_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["play", str(KUHN), "--info-state", "north"])
+        main(["demo", str(KUHN), "--info-state", "north"])
     assert exit_info.value.code == 2
     assert "--info-state" in capsys.readouterr().err
 
 
 def test_non_integer_seed_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["play", str(KUHN), "--seed", "lucky"])
+        main(["demo", str(KUHN), "--seed", "lucky"])
     assert exit_info.value.code == 2
     assert "--seed" in capsys.readouterr().err
 
@@ -570,7 +685,7 @@ def test_at_alone_says_whose_view_is_missing(capsys: pytest.CaptureFixture[str])
     """`--at` picks which decision and `--info-state` picks whose view. Neither
     answers the other's question, so the sentence is refused rather than
     carried out against a seat nobody named."""
-    assert main(["play", str(KUHN), "--at", "0"]) == 2
+    assert main(["demo", str(KUHN), "--at", "0"]) == 2
     err = capsys.readouterr().err
     assert "--at" in err
     assert "--info-state" in err, "the refusal must name what to add"
@@ -580,7 +695,7 @@ def test_a_negative_decision_index_is_refused(capsys: pytest.CaptureFixture[str]
     """A negative index is not a decision. `--seed -3` is legal, so a caller
     has every reason to think a leading minus is fine here too; and Python
     would read this one as counting from the end."""
-    assert main(["play", str(KUHN), "--info-state", "0", "--at", "-1"]) == 2
+    assert main(["demo", str(KUHN), "--info-state", "0", "--at", "-1"]) == 2
     err = capsys.readouterr().err
     assert "--at -1" in err
     assert "start at 0" in err, "the refusal must name where a playout's decisions start"
@@ -588,7 +703,7 @@ def test_a_negative_decision_index_is_refused(capsys: pytest.CaptureFixture[str]
 
 def test_non_integer_at_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["play", str(KUHN), "--info-state", "0", "--at", "last"])
+        main(["demo", str(KUHN), "--info-state", "0", "--at", "last"])
     assert exit_info.value.code == 2
     assert "--at" in capsys.readouterr().err
 
@@ -599,7 +714,7 @@ def test_a_decision_index_past_the_last_names_the_range(
     """The count is the playout's, so this refusal comes after the summary —
     and it names the range rather than clamping to the last decision, which
     would answer a question nobody asked."""
-    assert main(["play", str(KUHN), "--seed", "7", "--info-state", "0", "--at", "99"]) == 2
+    assert main(["demo", str(KUHN), "--seed", "7", "--info-state", "0", "--at", "99"]) == 2
     err = capsys.readouterr().err
     assert "--at 99" in err
     assert "0.." in err, "the refusal must name the decisions this playout has"
@@ -617,7 +732,7 @@ def test_at_on_a_game_with_no_decisions_says_there_are_none(
     screen, and only the higher index would reach it.
     """
     for index in ("0", "5"):
-        argv = ["play", str(MARKDOWN), "--seed", "5", "--info-state", "0", "--at", index]
+        argv = ["demo", str(MARKDOWN), "--seed", "5", "--info-state", "0", "--at", index]
         assert main(argv) == 2
         err = capsys.readouterr().err
         assert "without a decision" in err
@@ -626,11 +741,11 @@ def test_at_on_a_game_with_no_decisions_says_there_are_none(
 
 def test_the_last_decision_index_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
     """The boundary the range refusal is drawn against."""
-    assert main(["play", str(KUHN), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(KUHN), "--seed", "7", "--decisions"]) == 0
     _, rows = _listing_of(capsys.readouterr().out)
     last = int(rows[-1].split()[0])
     assert main(
-        ["play", str(KUHN), "--seed", "7", "--info-state", "0", "--at", str(last)]
+        ["demo", str(KUHN), "--seed", "7", "--info-state", "0", "--at", str(last)]
     ) == 0
     assert f"at decision {last}" in capsys.readouterr().out
 
@@ -649,9 +764,9 @@ def test_at_reaches_a_card_the_terminal_position_has_mucked(
     seat's view part-way through is a question the command line has to be able
     to answer.
     """
-    assert main(["play", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", "0"]) == 0
+    assert main(["demo", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", "0"]) == 0
     mid_hand = capsys.readouterr().out
-    assert main(["play", str(HOLDEM), "--seed", "7", "--info-state", "0"]) == 0
+    assert main(["demo", str(HOLDEM), "--seed", "7", "--info-state", "0"]) == 0
     terminal = capsys.readouterr().out
 
     def hole(rendered: str) -> str:
@@ -665,13 +780,13 @@ def test_at_reaches_a_card_the_terminal_position_has_mucked(
 def test_at_shows_a_seat_that_is_not_the_actor(capsys: pytest.CaptureFixture[str]) -> None:
     """Asking what the OPPONENT knows at your decision is the question a bluff
     turns on, so the seat and the decision's actor are independent."""
-    assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
     _, rows = _listing_of(capsys.readouterr().out)
     index = next(
         int(row.split()[0]) for row in rows if row.split()[1] == "P1"
     )
     assert main(
-        ["play", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", str(index)]
+        ["demo", str(HOLDEM), "--seed", "7", "--info-state", "0", "--at", str(index)]
     ) == 0
     out = capsys.readouterr().out
     assert "P0|" in out, "the view is the seat's, not the actor's"
@@ -687,10 +802,10 @@ def test_the_listing_numbers_one_entry_per_card_taken(
     three. Two units would leave the number on the screen disagreeing with the
     numbers `--at` accepts.
 
-    red under: number Chooser calls in `cardlang.cli._play` — one `decisions`
+    red under: number Chooser calls in `cardlang.cli._demo` — one `decisions`
     entry per call rather than one per card `sequential_decisions` walks.
     """
-    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7", "--decisions"]) == 0
     out = capsys.readouterr().out
     counted = int(out.split("decisions", 1)[1].split()[0])
     header, rows = _listing_of(out)
@@ -722,7 +837,7 @@ def test_a_long_candidate_pool_trails_off(capsys: pytest.CaptureFixture[str]) ->
     red under: drop the `shown.append("...")` arm from `cardlang.cli._decision`.
     """
     for game, must_cross in ((HEARTS, False), (CHEAT, True)):
-        assert main(["play", str(game), "--seed", "7", "--decisions"]) == 0
+        assert main(["demo", str(game), "--seed", "7", "--decisions"]) == 0
         _, rows = _listing_of(capsys.readouterr().out)
         cut = [row for row in rows if _pool_of(row) > _CANDIDATES_SHOWN]
         whole = [row for row in rows if _pool_of(row) <= _CANDIDATES_SHOWN]
@@ -750,7 +865,7 @@ def test_a_long_candidate_pool_trails_off(capsys: pytest.CaptureFixture[str]) ->
 def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) -> None:
     """Every decision the playout made is on the list, numbered from zero and
     naming its actor — the listing is what makes an index discoverable."""
-    assert main(["play", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(HOLDEM), "--seed", "7", "--decisions"]) == 0
     _, rows = _listing_of(capsys.readouterr().out)
     assert [int(row.split()[0]) for row in rows] == list(range(len(rows)))
     for row in rows:
@@ -761,7 +876,7 @@ def test_the_listing_numbers_every_decision(capsys: pytest.CaptureFixture[str]) 
 def test_numbering_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]) -> None:
     """Reading a playout must not change it.
 
-    `play` supplies its own Chooser at every invocation, to number the
+    `demo` supplies its own Chooser at every invocation, to number the
     decisions and to reach a named one. `play_game` builds the uniform-random
     Chooser from the generator it is handed when a caller supplies none, so
     the command must build its own from that same generator: a second
@@ -773,12 +888,12 @@ def test_numbering_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]
     playout moves both of them together, and they would go on agreeing.
 
     red under: build the Chooser from `random.Random(drawn)` in
-    `cardlang.cli._play` rather than from the generator handed to `play_game`.
+    `cardlang.cli._demo` rather than from the generator handed to `play_game`.
     """
     game = check_source(HEARTS)
     played = play_game(game, random.Random(7))
 
-    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7", "--decisions"]) == 0
     out = capsys.readouterr().out
     reported = out.split("returns", 1)[1].split("\n")[0].strip()
     expected = ", ".join(
@@ -793,7 +908,7 @@ def test_numbering_a_playout_does_not_move_it(capsys: pytest.CaptureFixture[str]
 
 def test_negative_seed_plays() -> None:
     """A seed is an arbitrary integer; nothing about it is a count."""
-    assert main(["play", str(KUHN), "--seed", "-3"]) == 0
+    assert main(["demo", str(KUHN), "--seed", "-3"]) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -806,7 +921,7 @@ def test_negative_seed_plays() -> None:
 def _tree_walk(
     path: Path, seed: int, seat: int
 ) -> tuple[tuple[int, ...], int, list[str]]:
-    """The action line a seeded `play` walks as the adapter numbers it, how
+    """The action line a seeded `demo` walks as the adapter numbers it, how
     many of those actions the two routes share, and `seat`'s view at each.
 
     One action id per candidate taken, in the order they were taken, with the
@@ -819,7 +934,7 @@ def _tree_walk(
 
     The shared prefix is the first deal, and the bound comes from the driver's
     own `hand_end` rather than from a count of this game's cards. Past it the
-    routes deal differently for a reason numbering cannot reach: `play` draws
+    routes deal differently for a reason numbering cannot reach: `demo` draws
     its uniform-random policy from the generator that also drives the shuffle,
     while the adapter's Chooser draws nothing (issue #621).
     """
@@ -869,7 +984,7 @@ def _segments(rendered: str) -> tuple[str, str, str]:
 
 
 def _seats_view(rendered: str, seat: int) -> str:
-    """The information state `play` printed, out of everything else it said."""
+    """The information state `demo` printed, out of everything else it said."""
     return next(
         line for line in rendered.splitlines() if line.startswith(f"P{seat}|")
     )
@@ -897,7 +1012,7 @@ def test_the_listing_numbers_the_decisions_the_tree_has(
 
     Walked over the first deal, the prefix the two routes share.
 
-    red under: number Chooser calls in `cardlang.cli._play`; the listing then
+    red under: number Chooser calls in `cardlang.cli._demo`; the listing then
     reports Hearts' pass as four entries where the tree branches twelve times,
     and entry 1 names the second seat where the tree's is still the first.
     """
@@ -907,7 +1022,7 @@ def test_the_listing_numbers_the_decisions_the_tree_has(
     from cardlang.openspiel.game import register_game_file
 
     line, shared, _ = _tree_walk(HEARTS, 7, 0)
-    assert main(["play", str(HEARTS), "--seed", "7", "--decisions"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7", "--decisions"]) == 0
     _, rows = _listing_of(capsys.readouterr().out)
     assert len(rows) == len(line), "one entry per decision the tree branches on"
     state = pyspiel.load_game(register_game_file(HEARTS)).new_initial_state()
@@ -931,7 +1046,7 @@ def test_the_view_at_every_decision_agrees_with_the_adapter() -> None:
     variable (issue #612). The cell below holds that segment against the day it
     is fixed.
 
-    red under: number Chooser calls in `cardlang.cli._play`; node 1 is then the
+    red under: number Chooser calls in `cardlang.cli._demo`; node 1 is then the
     next seat's ask, whose log holds one finished selection where the tree's
     holds one card. A mutation inside `sequential_decisions` is invisible here
     by construction — it moves both routes together, which is what sharing it
@@ -969,7 +1084,7 @@ def test_at_prints_the_view_the_walk_holds_at_that_decision(
     pytest.importorskip("pyspiel")
     line, _, views = _tree_walk(HEARTS, 7, 0)
     for index in (1, 2):
-        argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
+        argv = ["demo", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
         assert main([*argv, str(index)]) == 0
         printed = _seats_view(capsys.readouterr().out, 0)
         assert printed == views[index], (
@@ -1000,7 +1115,7 @@ def test_the_state_segment_agrees_across_the_two_routes(
     """
     pytest.importorskip("pyspiel")
     line, _, _ = _tree_walk(HEARTS, 7, 0)
-    argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
+    argv = ["demo", str(HEARTS), "--seed", "7", "--info-state", "0", "--at", "1"]
     if main(argv) != 0:
         raise RuntimeError("the invocation this cell compares was refused")
     mine = _segments(_seats_view(capsys.readouterr().out, 0))
@@ -1023,7 +1138,7 @@ def test_a_decision_records_the_cards_the_same_call_already_took(
     the card it is about to take.
     """
     for index in range(3):  # P0's three-card pass, card by card
-        argv = ["play", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
+        argv = ["demo", str(HEARTS), "--seed", "7", "--info-state", "0", "--at"]
         assert main([*argv, str(index)]) == 0
         log = _segments(_seats_view(capsys.readouterr().out, 0))[2]
         assert log.count("('chose'") == index, (
@@ -1040,7 +1155,7 @@ def test_a_decision_records_the_cards_the_same_call_already_took(
 
 
 def test_play_reaches_a_terminal_position(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["play", str(HEARTS), "--seed", "7"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7"]) == 0
     out = capsys.readouterr().out
     assert "returns" in out
     assert "decisions" in out
@@ -1048,10 +1163,10 @@ def test_play_reaches_a_terminal_position(capsys: pytest.CaptureFixture[str]) ->
 
 
 def test_play_reads_the_markdown_shape_too(capsys: pytest.CaptureFixture[str]) -> None:
-    """A Markdown game file carries its DSL in a fenced block, and `play`
+    """A Markdown game file carries its DSL in a fenced block, and `demo`
     dispatches on the suffix through the same `check_source` the checker does,
     so the file a designer is reading is the file they can run."""
-    assert main(["play", str(MARKDOWN), "--seed", "5"]) == 0
+    assert main(["demo", str(MARKDOWN), "--seed", "5"]) == 0
     assert "returns" in capsys.readouterr().out
 
 
@@ -1059,24 +1174,24 @@ def test_the_same_seed_replays_the_same_game(capsys: pytest.CaptureFixture[str])
     """Determinism as a property, not a captured string: pinning the exact
     output would redden whenever Hearts or the interpreter moves, in a change
     that touched neither."""
-    assert main(["play", str(HEARTS), "--seed", "7"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7"]) == 0
     first = capsys.readouterr().out
-    assert main(["play", str(HEARTS), "--seed", "7"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7"]) == 0
     assert capsys.readouterr().out == first
 
 
 def test_an_unseeded_run_reports_the_seed_it_drew(capsys: pytest.CaptureFixture[str]) -> None:
     """The reported seed reproduces the run, which is the whole reason an
     omitted `--seed` still prints one."""
-    assert main(["play", str(HEARTS)]) == 0
+    assert main(["demo", str(HEARTS)]) == 0
     drawn = capsys.readouterr().out
     seed = drawn.rsplit("seed", 1)[1].strip()
-    assert main(["play", str(HEARTS), "--seed", seed]) == 0
+    assert main(["demo", str(HEARTS), "--seed", seed]) == 0
     assert capsys.readouterr().out == drawn
 
 
 def test_info_state_names_the_seat(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["play", str(HEARTS), "--seed", "7", "--info-state", "1"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7", "--info-state", "1"]) == 0
     out = capsys.readouterr().out
     assert "P1|" in out
 
@@ -1096,7 +1211,7 @@ def test_info_state_carries_the_state_variables() -> None:
 
     buffer = io.StringIO()
     with redirect_stdout(buffer):
-        assert main(["play", str(HEARTS), "--seed", "7", "--info-state", "1"]) == 0
+        assert main(["demo", str(HEARTS), "--seed", "7", "--info-state", "1"]) == 0
     rendered = buffer.getvalue()
     segment = rendered.rsplit("|state:", 1)[1].split("|obs:")[0]
     assert segment, "the terminal information state lost its state variables"
@@ -1110,7 +1225,7 @@ def test_info_state_carries_the_state_variables() -> None:
 def test_a_static_failure_renders_as_check_renders_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """`play` checks before it plays, so a compile diagnostic must reach the
+    """`demo` checks before it plays, so a compile diagnostic must reach the
     caller in the checker's own words — one rendering, not two."""
     bad = tmp_path / "bad.cardlang"
     bad.write_text(
@@ -1124,7 +1239,7 @@ def test_a_static_failure_renders_as_check_renders_it(
     )
     assert main(["check", str(bad)]) == 1
     from_check = capsys.readouterr().err
-    assert main(["play", str(bad)]) == 1
+    assert main(["demo", str(bad)]) == 1
     assert capsys.readouterr().err == from_check
 
 
@@ -1134,7 +1249,7 @@ def test_a_runtime_failure_renders_without_a_traceback(
     """A game that is legal to the checker and illegal at play time is the
     game author's to fix, so it arrives as a message naming the layer and what
     they can do — never as a traceback, which addresses nobody who can act."""
-    assert main(["play", str(OVERRUNS)]) == 1
+    assert main(["demo", str(OVERRUNS)]) == 1
     err = capsys.readouterr().err
     assert "Traceback" not in err
     assert "max_length" in err
@@ -1167,9 +1282,9 @@ def test_python_m_cardlang_checks() -> None:
 def test_python_m_cardlang_plays_the_same_game_as_the_console_script(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert main(["play", str(HEARTS), "--seed", "7"]) == 0
+    assert main(["demo", str(HEARTS), "--seed", "7"]) == 0
     in_process = capsys.readouterr().out
-    done = _module_form(["play", str(HEARTS), "--seed", "7"])
+    done = _module_form(["demo", str(HEARTS), "--seed", "7"])
     assert done.returncode == 0, done.stderr
     assert done.stdout == in_process
 

@@ -38,10 +38,10 @@ Check a description:
 cardlang docs/games/hearts.cardlang  # parse + static checks; silent on success
 ```
 
-Play a hand of it:
+Watch a hand of it play itself:
 
 ```
-cardlang play docs/games/hearts.cardlang --seed 7 --info-state 1
+cardlang demo docs/games/hearts.cardlang --seed 7 --info-state 1
 ```
 
 One uniform-random self-play: the outcome, the decision count, and the seed
