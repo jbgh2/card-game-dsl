@@ -365,3 +365,31 @@ def test_the_bound_refusal_names_the_zone_it_is_about() -> None:
     with pytest.raises(OwnerGuardError) as exc:
         play_game(check_dsl(src, "grid.cardlang"), rng=random.Random(0))
     assert exc.value.zone == "table", exc.value.zone
+
+
+def test_a_zone_may_be_named_for_the_binder_and_the_binder_still_wins() -> None:
+    """`subset` is not reserved against a game's own names — no more than `card`
+    or `player` are, both of which a game may also use — so a zone called
+    `subset` is legal and the binder shadows it inside the query by the ordinary
+    lexical rule.
+
+    The cell exists because the alternative is silent: if the zone won, the
+    predicate would read the zone's whole contents for every candidate and the
+    query would answer about something the sentence never mentions. The two
+    readings are told apart by the count — the zone below holds four cards, so
+    `is 2` is false for every candidate under the zone reading (0) and true for
+    every candidate under the binder reading (6).
+
+    red under: remove `n.SubsetQuery` from `_BINDER_SCOPE_FIELDS`, which stops
+    the binder entering scope and lets the zone answer."""
+    src = game(
+        "    move all cards from deck where card.rank is A to subset\n"
+        "    score[0] := number of subsets of 2 cards in table "
+        "where (number of cards in subset) is 2",
+    ).replace(
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player> }",
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player>\n"
+        "          subset : Discard }",
+    )
+    result = play_game(check_dsl(src, "grid.cardlang"), rng=random.Random(0))
+    assert int(result.scores[0]) == 6, "the zone answered, not the binder"

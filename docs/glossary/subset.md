@@ -14,7 +14,11 @@ findings: []
 
 **Surface.** `subset` and `subsets` are keywords, and `subset` is the binder the
 subset forms bind per candidate set — the domain noun's singular, as `card` is
-the card queries'. A game may not take either spelling for a name.
+the card queries'. Reserved here is a rule about PROSE, not about the parser: a
+game may name a zone or a state variable `subset`, exactly as it may name one
+`card` or `player`, and inside a subset query the binder shadows it by the
+ordinary lexical rule. What the reservation binds is our own writing — never the
+bare word where the sense is not obvious.
 
 **Not the joint selection's `cards`.** `where jointly` binds `cards` to the
 candidate set of a DECISION; a Subset binder ranges over an enumerated domain
