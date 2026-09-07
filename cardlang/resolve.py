@@ -472,6 +472,7 @@ _BINDER_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Comprehension, "binder"),
         (n.Quantifier, "binder"),
         (n.DomainQuery, "binder"),
+        (n.SubsetQuery, "binder"),
         (n.ForEach, "binder"),
         (n.Turns, "binder"),
         (n.ProduceArm, "binders"),
@@ -595,6 +596,9 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.CardQuery, "kind"),
         (n.PlayerQuery, "kind"),
         (n.DomainQuery, "kind"),
+        (n.SubsetQuery, "kind"),
+        (n.SubsetQuery, "agg"),
+        (n.SubsetQuery, "size_mode"),
         (n.Quantifier, "kind"),
         (n.PhaseQualifier, "kind"),
         (n.Demands, "kind"),
@@ -2454,7 +2458,10 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
     binders stay `card` because those forms are card-only (rejected in a piece
     game), so the noun they bind is fixed."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns() | n.DomainQuery():
+        case (
+            n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns()
+            | n.DomainQuery() | n.SubsetQuery()
+        ):
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -6874,6 +6881,12 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose
     # source field is likewise absent here).
     n.DomainQuery: ("where",),
+    # A SubsetQuery's binder scopes to the fields that are folded over the
+    # candidate set — its filter and, in the aggregation register, its body.
+    # `count`, `source` and the order aggregators' `default` are absent for the
+    # same reason every source/default field is: they are evaluated outside the
+    # element scope, so `subset` in one of them means an OUTER binder or nothing.
+    n.SubsetQuery: ("where", "body"),
     n.Transfer: ("where",),
     n.EpistemicOp: ("where",),
     n.ForEach: ("body",),
@@ -7726,6 +7739,19 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         target_ok = nd.binder in declared
         noun_kind = "position domain"
     else:
+        if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
+            # `subset` names a real domain in the language, just not this
+            # form's: `in` iterates a collection's MEMBERS, and subsets are
+            # spelled with `of`. Calling the word unknown would be false, and
+            # would send a designer looking for a declaration to add.
+            bag.error(
+                f"`{phrase} {nd.spelled} in ...` iterates a collection's "
+                f"members; subsets are spelled with `of` -- write "
+                f"`{phrase} {nd.spelled} of <n> [or more] cards in <zone> "
+                f"where ...`",
+                nd.span,
+            )
+            return
         universe = "the `in` forms iterate a `line` or a `cell` collection"
         target_ok = nd.binder in _COLLECTION_NOUNS
         noun_kind = "collection noun"

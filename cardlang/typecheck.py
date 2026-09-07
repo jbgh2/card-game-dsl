@@ -222,7 +222,6 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
         "cribbage_show_value",
         "cribbage_crib_value",
         "salvo_combos",
-        "scopa_can_sum",
         "scopa_sums_to",
     }
 )
@@ -782,6 +781,19 @@ def infer(e: n.Expr, env: TypeEnv) -> Type:
         case n.DomainQuery():
             # `number of <domain>s where …` counts; `any`/`all` are Boolean.
             return TInteger() if e.kind == "count" else TBoolean()
+        case n.SubsetQuery():
+            if e.agg is not None:
+                # The aggregation register mirrors `Comprehension`: `sum` is an
+                # Integer, the order aggregators take their type from the body
+                # and the default, which `_check_agg_body` reconciles.
+                return TInteger() if e.agg == n.SUBSET_AGG_SUM else TAny()
+            match e.kind:
+                case n.SUBSET_KIND_COUNT:
+                    return TInteger()
+                case n.SUBSET_KIND_ANY | n.SUBSET_KIND_ALL:
+                    return TBoolean()
+                case _:
+                    raise AssertionError(f"unknown subset-query kind '{e.kind}'")
         case n.IfExpr():
             return _ifexpr_type(e, env)
         case n.StructLit():
@@ -1486,6 +1498,12 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
             return [e.source, e.where] if e.where is not None else [e.source]
         case n.DomainQuery():
             return [e.source, e.where] if e.source is not None else [e.where]
+        case n.SubsetQuery():
+            kids = [e.count, e.source]
+            for slot in (e.body, e.where, e.default):
+                if slot is not None:
+                    kids.append(slot)
+            return kids
         case n.IfExpr():
             out = [e.cond, e.then]
             for cond, branch in e.elifs:
@@ -2084,7 +2102,62 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
         )
 
 
-def _check_agg_body(e: n.Comprehension, scoped: TypeEnv, bag: DiagnosticBag) -> None:
+def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> None:
+    """The subset register's type rules, both folds.
+
+    The binder is a card COLLECTION, not a card — that is the whole point of
+    the construct — so it enters scope as `TCollection(TCard())` with the
+    default facets. `zone=False` is load-bearing rather than incidental: a
+    candidate set is not a zone, so the binder is refused at the two positions
+    that demand one (a movement endpoint and an epistemic target) by the same
+    facet check that refuses any other computed collection.
+
+    The count and the source are checked in the ENCLOSING scope: they are
+    source-slot operands, so `subset` in one of them means an outer binder or
+    nothing (resolve's `_BINDER_SCOPE_FIELDS` makes the same split lexically).
+    """
+    if env.flavor == "piece":
+        # The source phrase spells `cards`, like every other card query, so a
+        # piece game meets the same refusal rather than a different one.
+        bag.error(
+            f"{content_kind_clause(env.flavor, env.deck)} -- a subset query "
+            f"reads a zone as cards; a piece set has no such form",
+            e.span,
+        )
+        return
+    _check_expr(e.count, env, bag)
+    _check_operand(
+        e.count, infer(e.count, env), TInteger(), env, bag,
+        "a subset size counts cards — expected an Integer, got "
+        f"{_type_name(infer(e.count, env))}",
+        e.count.span,
+    )
+    _check_expr(e.source, env, bag)
+    _check_card_source(e.source, env, bag)
+    scoped = env.with_local(e.binder, TCollection(TCard()))
+    if e.where is not None:
+        _check_expr(e.where, scoped, bag)
+        _check_bool(e.where, scoped, bag, _subset_predicate_label(e))
+    if e.agg is not None:
+        assert e.body is not None
+        _check_expr(e.body, scoped, bag)
+        _check_agg_body(e, scoped, bag)
+        if e.default is not None:
+            _check_expr(e.default, env, bag)
+            _check_agg_default(e, env, scoped, bag)
+
+
+def _subset_predicate_label(e: n.SubsetQuery) -> str:
+    """What the diagnostic calls the predicate, in the register the author
+    wrote it in."""
+    if e.agg is not None:
+        return "subset aggregation `where` filter"
+    return "subset-query predicate"
+
+
+def _check_agg_body(
+    e: n.Comprehension | n.SubsetQuery, scoped: TypeEnv, bag: DiagnosticBag
+) -> None:
     """`sum`/`max`/`min` all fold Integers, and an enum-typed body (most
     plausibly a bare `card.rank`/`card.suit` where the author meant its
     strength) is the plausible-mistake case, so it gets the rank_value hint
@@ -2095,7 +2168,12 @@ def _check_agg_body(e: n.Comprehension, scoped: TypeEnv, bag: DiagnosticBag) -> 
     fold Python's `max()`/`min()`, which silently compare the enum values
     *lexicographically as strings* — no crash, just the wrong card, forever.
     Every other concrete non-Integer body is equally nonsensical and gets
-    the generic message. TAny/TInteger pass (gradual)."""
+    the generic message. TAny/TInteger pass (gradual).
+
+    Both aggregation registers fold the same way — over a zone's cards, or
+    over its subsets — so this guard is theirs jointly rather than one copy
+    each."""
+    assert e.body is not None  # the aggregation registers always carry a body
     bare = _bare(infer(e.body, scoped))
     if isinstance(bare, (TAny, TInteger)):
         return
@@ -2120,7 +2198,8 @@ def _check_agg_body(e: n.Comprehension, scoped: TypeEnv, bag: DiagnosticBag) -> 
 
 
 def _check_agg_default(
-    e: n.Comprehension, env: TypeEnv, scoped: TypeEnv, bag: DiagnosticBag
+    e: n.Comprehension | n.SubsetQuery, env: TypeEnv, scoped: TypeEnv,
+    bag: DiagnosticBag
 ) -> None:
     """The order aggregators' mandatory `or <default>` clause shares its
     leading `or` with a compound `where` predicate — `where A or B` reads as
@@ -2132,7 +2211,7 @@ def _check_agg_default(
     ordinary type mismatch, handled by the generic check below). Otherwise, a
     concrete body/default type mismatch `join` can't reconcile is rejected
     generically."""
-    assert e.default is not None
+    assert e.default is not None and e.body is not None
     dbare = _bare(infer(e.default, env))
     if isinstance(dbare, TBoolean) and e.where is not None:
         bag.error(
@@ -2602,6 +2681,9 @@ def _check_expr(e: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
         _check_expr(e.where, scoped, bag)
         phrase = n.DOMAIN_QUERY_KIND_PHRASE[e.kind]
         _check_bool(e.where, scoped, bag, f"`{phrase} {e.spelled}` predicate")
+        return
+    if isinstance(e, n.SubsetQuery):
+        _check_subset_query(e, env, bag)
         return
     if isinstance(e, n.Comprehension):
         if env.flavor == "piece":

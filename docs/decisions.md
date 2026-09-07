@@ -2134,14 +2134,44 @@ below), binding `card` per candidate over a named zone:
   emptied zone yields the declared value instead of a crash; the default
   sits below `or`-precedence (parenthesize a compound default).
 
+**Subset queries and aggregations** range over a zone's SUBSETS rather than its
+cards, binding `subset` to each candidate set — the domain noun's singular, as
+`card` is the card queries'. The binder is a card collection, so the predicate
+asks about the set as a whole, which is the sentence no per-card form can say:
+
+- `any subset of <k> [or more] cards in <zone> where <pred>`, and the `all
+  subsets …` / `number of subsets …` folds;
+- `sum of <expr> over subsets of <k> [or more] cards in <zone> [where <pred>]`,
+  and the `highest`/`lowest` forms with the same mandatory `or <default>`.
+
+The source phrase is spelled with `of`, never `in`: `any <noun> in <expr>
+where` already means "iterate the collection's members", so spelling subsets
+with `in` would change the iteration domain with nothing on the page to mark
+it. The size clause is mandatory in both modes — `of <k> cards` names one size
+and `of <k> or more cards` every size from `k` up — because every game that
+wants subsets states a floor or an exact count, and a subset domain with no
+stated size has no rulebook reading. A size the source cannot supply yields no
+subsets, and the fold's own empty answer applies; a size below one is refused,
+since the empty set is not a subset the language enumerates. Enumeration is
+deterministic (sizes ascending, combinations in source order) and bounded: a
+source pool past sixteen cards is a loud runtime refusal, the same fixed engine
+limit joint selection enumerates under ("Joint-predicate selection" above), from
+the same home.
+
 **Quantifiers bind their role noun implicitly**: `any player where <pred>`,
 `all players where <pred>`, and the `team`/`suit`/`rank` forms (`any suit
 where …` ranges over the deck's suits; `any rank where …` over the declared
-`ranking:`, else the deck's ranks). The iteration-role set is closed
-(player/team/suit/rank); card quantification is the card-query form above.
+`ranking:`, else the deck's ranks). The quantifier's own role set is closed at
+those four; card and subset quantification are the query forms above.
 `for each <role> <binder>:` keeps its explicit binder — it is a statement
 loop, not a predicate, and its binder is genuinely chosen (`for each player
 p:`).
+
+The iteration-role set is closed, and its members are the four role nouns
+(player/team/suit/rank), the content noun `card` — quantified through the
+card-query form, not a quantifier — and `subset`. Every one of them is a
+language-fixed noun: a game chooses the binder of a `for each`, a positional
+domain query and a rule template, and never the binder of a query form.
 
 **Membership is `in`**: `Q of spades in captured[p]` (zone membership),
 `card.suit in [hearts, spades]` (a `[…]` list literal, never empty). The

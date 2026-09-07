@@ -269,6 +269,7 @@ _EXPR_CELLS: dict[str, tuple[str, str, str]] = {
     "CardQuery": ("Integer", "number of cards in deck", ""),
     "AllPlayers": ("Integer", "all players", ""),
     "DomainQuery": ("Boolean", "any column where first > 0", ""),
+    "SubsetQuery": ("Integer", "number of subsets of 2 cards in hand[0] where 1 is 1", ""),
 }
 
 # Every kind that must be REFUSED, and by whose guard — the grid's property is

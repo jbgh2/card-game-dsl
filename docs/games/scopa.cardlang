@@ -18,12 +18,14 @@
 // clause is the only place it can be said once. A game declares at most one
 // Card Points table, so the two facts cannot both take it.
 //
-// What this game borrows from Python is subset enumeration over the layout,
-// and only that. `scopa_can_sum` asks whether ANY set of layout cards sums to
-// the played card, and `scopa_sums_to` is the joint predicate the capture
-// decision selects over. The language aggregates over the cards of a zone one
-// at a time; no binder ranges over its subsets, so neither sentence can be
-// written (issue #246). Everything else is in the language, the primiera
+// What this game borrows from Python is one sentence: `scopa_sums_to`, the
+// joint predicate the capture decision selects over. It stays there because
+// `where jointly` requires a predicate rooted in a call — the root names the
+// subset codec the action space encodes captures by — and because a collection
+// type is spellable in a `primitives { }` entry and nowhere else, so the
+// arithmetic has no home in the language yet (issue #246). The guard beside
+// it IS in the language: `any subset of 2 or more cards in table where ...`.
+// Everything else is in the language too, the primiera
 // included: `highest card_points(card) over cards in captured[p] where
 // card.suit is s or 0` is the best card of a suit under the scale, and the
 // four-suit sum is a `for each suit` loop.
@@ -47,18 +49,16 @@ game Scopa {
   ranking: K Q J 7 6 5 4 3 2 A
   card_points { 7: 21  6: 18  A: 16  5: 15  4: 14  3: 13  2: 12  else: 10 }
 
-  // Subset enumeration over the layout, which the language cannot express:
-  // every aggregation ranges over the cards of a zone one at a time, and no
-  // binder ranges over its subsets (issue #246). `scopa_can_sum` is the guard
-  // that keeps the joint selection below from being offered with no satisfying
-  // subset; `scopa_sums_to` is that selection's predicate, and its root call
-  // names the subset codec the OpenSpiel action space encodes captures by.
-  // Only the guard reads the layout — it has to quantify over the layout's
-  // subsets. The predicate is pure over its argument, because the candidate
-  // set IS the joint selection's own; both take the played card's capture
-  // value as an argument rather than reading it.
+  // The capture's guard is the subset binder, in the language: "some two or
+  // more cards on the table total the card played". What stays Python is the
+  // joint selection's PREDICATE — `where jointly` requires its predicate to
+  // root in a call, because that root names the subset codec the OpenSpiel
+  // action space encodes captures by (decisions.md "Joint-predicate
+  // selection"), and a collection type is spellable in this block and nowhere
+  // else. The predicate is pure over its argument: the candidate set IS the
+  // joint selection's own, and the played card's capture value arrives as an
+  // argument rather than being read.
   primitives {
-    scopa_can_sum(target : Integer) : Boolean                          reads table
     scopa_sums_to(cards : Collection<Card>, target : Integer) : Boolean
   }
 
@@ -121,7 +121,9 @@ game Scopa {
                  where capture_value(card) is played_value to captured[active]
             run take_the_played_card()
           } else {
-            if scopa_can_sum(played_value) {
+            if any subset of 2 or more cards in table
+                 where (sum of capture_value(card) over cards in subset)
+                       is played_value {
               move chosen some cards from table
                    where jointly scopa_sums_to(cards, played_value) to captured[active]
               run take_the_played_card()

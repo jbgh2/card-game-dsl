@@ -85,15 +85,20 @@ deal is played.
 
 ## What the DSL cannot say
 
-The capture rule is subset enumeration over the layout, and the language has
-no binder that ranges over a zone's subsets — every aggregation it offers
-walks a zone's cards one at a time
-([issue #246](https://github.com/jbgh2/card-game-dsl/issues/246)). Two
-sentences therefore live in `cardlang/runtime/scopa.py` as declared
-Primitives: whether *some* set of layout cards sums to the played card, and
-whether *this* set does. Everything else is in the language — the forced
-single-card capture is a plain guarded movement, and the primiera is a
-`for each suit` sum of `highest card_points(card) over cards in ... or 0`.
+One sentence lives in `cardlang/runtime/scopa.py` as a declared Primitive:
+whether *these* cards are a legal sum-capture. It stays there for two reasons
+that are both about the capture being a DECISION rather than a question. A
+`where jointly` predicate must root in a call, because that root names the
+subset codec below; and a collection type — the type of the candidate set the
+predicate is handed — is spellable in a `primitives { }` entry and nowhere
+else ([issue #246](https://github.com/jbgh2/card-game-dsl/issues/246)).
+
+The question beside it *is* in the language: whether *some* set of layout
+cards sums to the played card is `any subset of 2 or more cards in table where
+(sum of capture_value(card) over cards in subset) is played_value`. So is
+everything else — the forced single-card capture is a plain guarded movement,
+and the primiera is a `for each suit` sum of `highest card_points(card) over
+cards in ... or 0`.
 
 The capture decision reaches OpenSpiel through a subset codec
 ([decisions.md](../decisions.md), "Joint-predicate selection"), which numbers

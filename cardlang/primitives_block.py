@@ -375,10 +375,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED,
         Sig((TPlayer(), TInteger()), TInteger()),
     ),
-    "scopa_can_sum": Implementation(
-        "cardlang.runtime.scopa", "scopa_can_sum", InvocationContract.BUNDLED,
-        Sig((TInteger(),), TBoolean()),
-    ),
     "scopa_sums_to": Implementation(
         "cardlang.runtime.scopa", "scopa_sums_to", InvocationContract.BUNDLED,
         Sig((TCollection(TCard()), TInteger()), TBoolean()),

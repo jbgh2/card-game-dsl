@@ -347,7 +347,6 @@ NARROWED: frozenset[str] = frozenset(
         "gin.py::gin_valid_meld",
         "holdem.py::holdem_pot_share",
         "scopa.py::SCOPA_CAPTURE_CODEC",
-        "scopa.py::scopa_can_sum",
         "scopa.py::scopa_sums_to",
         "holdem_heads_up.py::holdem_heads_up_pot_share",
         "pinochle.py::pinochle_meld_value",
