@@ -198,6 +198,7 @@ BUILTIN_CALL_FUNCS: frozenset[str] = frozenset(
 PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
     {
         "bring_in_seat",  # Stud: the lowest-door seat that posts the bring-in
+        "best_showing_seat",  # Stud: the best-hand-showing seat that opens a street
         "first_to_act_seat",  # Stud: the highest-upcards seat that acts first on a street
         "pot_share",  # Stud: the chips a player collects at showdown (side-pot layering)
         "holdem_pot_share",  # Hold'em: the chips a player collects at showdown (side-pot layering)
@@ -410,6 +411,7 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "belote_decl_slot",
         "belote_decl_trump",
         "belote_royal_player",
+        "best_showing_seat",
         "bring_in_seat",
         "canasta_can_start",
         "canasta_can_take_pile",

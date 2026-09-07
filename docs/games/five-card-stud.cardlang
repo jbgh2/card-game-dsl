@@ -1,0 +1,269 @@
+// Five-Card Stud — the formal casino form, fixed limit, three-handed.
+//
+// Rules source: Pagat, https://www.pagat.com/poker/variants/5stud.html, fetched
+// live 2026-09-06. Each player antes; one card down and one up; four betting
+// rounds; the third, fourth and fifth cards are all dealt face up. Showdown is
+// the best five-card poker hand among the players still in, or the last player
+// standing takes the pot. Pagat's page supports up to ten players; three is
+// this file's table.
+//
+// THE VARIANT. Pagat's base text is the traditional home game, and marks the
+// casino rules as departures from it. This file is the casino form throughout,
+// which is one choice made once — the three places the page names it are
+// consistent with each other and are quoted at the rules they govern below:
+// the compulsory bring-in opens the first round, the last two rounds are big
+// bets only, and every wager on a street is that street's size.
+//
+// The .cardlang runtime needs a terminal, so as in the corpus's Seven-Card Stud
+// this plays a session until one player holds all the chips and declares that
+// player the winner. Pagat's page describes a cash game with no overall winner.
+//
+// CHIP UNIT. One unit = $0.50, which makes Pagat's whole $0.50/$2/$5/$10 ladder
+// exact in the Integer chips the language gives: ante 1, bring-in 4, small bet
+// 10, big bet 20. Nothing is rounded.
+//
+// LIMIT LADDER.
+//   Round 1 (two cards): small bet. "In the first betting round no big bets are
+//     allowed."
+//   Round 2 (three cards): "big bets ($10) are allowed if any player has a pair
+//     (or better) showing." The page adds "In this case anyone can place a big
+//     bet or raise, even if they do not themselves have a pair", which is why
+//     the condition sizes the STREET rather than one seat's move.
+//   Rounds 3 and 4 (four and five cards): big bet. "Some play that in the last
+//     two betting rounds, after players are dealt their fourth and fifth cards,
+//     only big bets are allowed. This is the normal rule in casino hosted
+//     games, but not in home poker games."
+// A street opens at one size and every wager on it is that size, which is the
+// casino reading of the page's note that "if the rule is played that each raise
+// must be at least as large as the last bet or raise, then after a player
+// places a big bet, only big raises are allowed in that round".
+//
+// WHO OPENS. Round 1 is opened by the compulsory bring-in: "Some play that the
+// first betting round starts with a compulsory (bring-in) bet by the player
+// showing the lowest card. This is now the normal rule in formal games hosted
+// by American casinos." Rounds 2 to 4 are opened by the best hand showing —
+// "pairs, triplets, two pairs and quads count in their normal poker order - so
+// for example with three cards showing 3-3-3 is higher than 7-7-8, which is
+// higher than A-K-Q. Incomplete straights and flushes do not count" — with ties
+// broken on the suit of the highest card. That order is `best_showing_seat`.
+//
+// RAISE CAP. "Only one bet and a maximum of three raises are allowed in any
+// betting round, if there were more than two active players at the start of the
+// betting round." The trailing clause is a real rule, so `raise_cap` is set per
+// street from the count of seats that can act rather than declared once. The
+// bring-in is short of a full bet and so spends none of the cap: "A bring-in of
+// less than a small bet does not count as a bet for this purpose - after it is
+// completed there can be three raises."
+//
+// DEVIATION, and the only one: the heads-up arm of that rule is UNCAPPED, and
+// the language has no way to say so (issue #635, which this game is the witness
+// for). `raise_cap` is an Integer, so "no cap" is written as a bound the street
+// cannot reach — see the first street's comment for the derivation. The betting
+// behaves identically, but a reader of the file meets a magic number where the
+// rule says "unlimited", and a variant with deeper stacks would need the number
+// recomputed. Every other rule above is in the file as itself.
+//
+// NO BURN CARD. Pagat's five-card-stud page does not burn between streets, so
+// this file does not.
+//
+// NO DEALER BUTTON. Nothing in Five-Card Stud reads one: every street's opener
+// is chosen from the up cards, and the deck is shuffled whole each hand, so a
+// rotating deal order would change no distribution and no decision.
+//
+// The fifth card is dealt FACE UP, which is the page's base text; dealing it
+// face down is one of the page's Variations and is not this file's game.
+
+game FiveCardStud {
+
+  // check / bet / call / raise and the ring predicates come from the family
+  // library the corpus's poker games share (docs/libraries/poker_betting.cardlang).
+  // `fold` is this game's own, at the foot of the file: where a folder's cards
+  // go is a fact about these zones, not about betting.
+  uses poker_betting
+
+  players: 3
+  direction: clockwise
+  max_length: 30000
+
+  cards: standard52
+  ranking: aces high
+
+  // The two seat selectors and the side-pot settlement, declared with what each
+  // reads. `committed`, `folded` and `in_hand` are declared by `phase play`, so
+  // a read of one names that phase; `stack` is game-level and carries no tail.
+  primitives {
+    bring_in_seat() : Player
+        reads stack, upcards
+    best_showing_seat() : Player
+        reads stack, folded in play, upcards
+    pot_share(p : Player) : Integer
+        reads committed in play, folded in play, in_hand in play, hole, upcards
+  }
+
+  zones {
+    deck            : Deck
+    hole[player]    : Hand<player>           // the one face-down card
+    upcards[player] : PublicHand<player>     // the four face-up cards
+    muck            : Muck                   // folded and spent cards
+  }
+
+  state {
+    stack[player] : Integer = 200            // $100 at one unit = $0.50
+  }
+
+  phase hand_sequence repeat until (number of players where stack[player] > 0) <= 1 {
+
+    before_each {
+      move all cards to deck
+      shuffle deck
+    }
+
+    phase play {
+      state {
+        in_hand[player]   : Boolean = false   // entered the hand holding chips
+        committed[player] : Integer = 0       // chips put in this hand (side pots)
+        folded[player]    : Boolean = false
+        bet_by[player]    : Integer = 0       // chips put in on the current street
+        bet_to_match      : Integer = 0       // the street's standing bet
+        level             : Integer = 0       // the last FULL wager this street
+        raises            : Integer = 0       // aggressions so far this street
+        raise_cap         : Integer = 4       // set per street, below
+      }
+
+      // The entrants: everyone holding a chip. Ante and deal follow this set.
+      for each player p: in_hand[p] := stack[p] > 0
+      for each player p: if in_hand[p] {
+        stack[p] := stack[p] - 1
+        committed[p] := committed[p] + 1
+      }
+
+      // One down, one up.
+      for each player p: if in_hand[p] {
+        deal 1 card from deck to hole[p]
+        deal 1 card from deck to upcards[p]
+      }
+
+      // FIRST BETTING ROUND — bring-in by the lowest card showing, small bet.
+      // Skipped only when fewer than two entrants can act (everyone all-in on
+      // the ante), in which case the hand runs straight to the showdown.
+      if (number of players where stack[player] > 0) >= 2 {
+        run open_street(10)
+        // Uncapped heads-up. The language takes an Integer, so "no cap" is a
+        // number no street can reach. A counted aggression lifts `level` by at
+        // least half the street's limit (`raise`'s half-bet arm), the smallest
+        // limit here is 10, and no seat can put more than the table's 600 chips
+        // into one street: at most 600/5 counted aggressions, so 120 stands in
+        // for "unlimited". Deeper stacks would need it recomputed (issue #635).
+        raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
+        let bringer = bring_in_seat()
+        // A forced post, not a decision: the lowest card puts in 4 (all-in if
+        // it holds less) and that stands as the opening bet. It is short of a
+        // full bet, so `level` stays 0 and the next wager COMPLETES to 10
+        // rather than raising to 14.
+        bet_by[bringer] := if 4 < stack[bringer] then 4 else stack[bringer]
+        stack[bringer] := stack[bringer] - bet_by[bringer]
+        committed[bringer] := committed[bringer] + bet_by[bringer]
+        bet_to_match := 4
+        // The ring opens ON the poster, because the poster holds the round's
+        // first decision: "The player who opens the betting has the option to
+        // place a full small bet ($5) instead of just the compulsory minimum
+        // $2." The post is made, so the poster owes nothing and `check` is the
+        // move that stands on the minimum; `raise` is the option, and it
+        // completes to the street's size rather than adding one to the post.
+        // Which of the two the poster takes is what the seats behind it then
+        // face: "If the opener just places the minimum bring-in, subsequent
+        // players have the option to complete the bet to a small bet ($5), to
+        // call the bring-in ($2) or to fold. Only if someone completes the bet
+        // are later players allowed to raise. If the opener chooses to begin
+        // with a full bet ($5), subsequent players can raise."
+        round offering [check, bet, call, fold, raise] from bringer
+              over players where pending(player)
+              until (number of players where pending(player)) is 0
+                 or ((number of players where can_act(player)) <= 1
+                     and (number of players where can_act(player) and owes(player)) is 0)
+      }
+
+      // SECOND BETTING ROUND — third card face up. Small bet, or the big bet if
+      // any player shows a pair or better. A folder's up cards are already in
+      // the muck, so `shows_pair` cannot see them.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where can_act(player)) >= 2 {
+          run open_street(if (number of players where shows_pair(player)) > 0 then 20 else 10)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
+                over players where pending(player)
+                until (number of players where pending(player)) is 0
+                   or ((number of players where can_act(player)) <= 1
+                       and (number of players where can_act(player) and owes(player)) is 0)
+        }
+      }
+
+      // THIRD BETTING ROUND — fourth card face up, big bet.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where can_act(player)) >= 2 {
+          run open_street(20)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
+                over players where pending(player)
+                until (number of players where pending(player)) is 0
+                   or ((number of players where can_act(player)) <= 1
+                       and (number of players where can_act(player) and owes(player)) is 0)
+        }
+      }
+
+      // FOURTH BETTING ROUND — fifth card face up, big bet.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] { deal 1 card from deck to upcards[p] }
+        if (number of players where can_act(player)) >= 2 {
+          run open_street(20)
+          raise_cap := if (number of players where can_act(player)) > 2 then 4 else 120
+          round offering [check, bet, call, fold, raise] from best_showing_seat()
+                over players where pending(player)
+                until (number of players where pending(player)) is 0
+                   or ((number of players where can_act(player)) <= 1
+                       and (number of players where can_act(player) and owes(player)) is 0)
+        }
+      }
+
+      // SHOWDOWN. A contested hand turns the hole card up before the pot is
+      // judged; a lone contender collects without showing. Each entrant then
+      // takes its side-pot share and the hands leave play to the muck.
+      if (number of players where in_hand[player] and not folded[player]) > 1 {
+        for each player p: if in_hand[p] and not folded[p] {
+          move all cards from hole[p] to upcards[p]
+        }
+      }
+      for each player p: if in_hand[p] {
+        stack[p] := stack[p] + pot_share(p)
+      }
+      for each player p: if in_hand[p] {
+        move all cards from hole[p] to muck
+        move all cards from upcards[p] to muck
+      }
+    }
+  }
+
+  winner: highest stack
+}
+
+// Five-Card Stud's own betting move. The folder's up cards go straight to the
+// muck, so opponents stop seeing them and their information sets carry that;
+// the hole card stays face down until the end-of-hand cleanup. Offered
+// alongside the four imported moves in one vocabulary list, and the `when:`
+// guards filter to the exact option list per decision.
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from upcards[actor] to muck
+  }
+}
+
+// Does this seat show a pair or better among its face-up cards? Two face-up
+// cards of a rank is a pair showing; three is trips, which is "or better" and
+// the same test. Factored as a function so the rank binder does not nest
+// inside the player binder.
+function up_rank_count(p : Player, r : Rank) = number of cards in upcards[p] where card.rank is r
+function shows_pair(p : Player) = any rank where up_rank_count(p, rank) >= 2
