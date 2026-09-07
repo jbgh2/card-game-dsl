@@ -78,6 +78,15 @@
 // other side: that file never offers the big bet, this one never offers the
 // small.
 //
+// THE ANTE-ALL-IN LOW CARD, which the page does not reach. A seat left with
+// nothing by the ante is still dealt cards and can show the lowest door.
+// `bring_in_seat` compares only the seats holding chips, so the street is then
+// anchored on the lowest FUNDED door and posted by that seat. Pagat is silent
+// on a player who cannot post, and someone must put the money in — but the
+// anchor and the payment are different things, and every LATER street in this
+// file anchors on the best board whether or not that seat can act. Issue #650
+// holds the inconsistency and what a fix has to settle.
+//
 // NO BURN CARD. Pagat's five-card-stud page does not burn between streets, so
 // this file does not.
 //
