@@ -1500,7 +1500,7 @@ def _child_exprs(e: n.Expr) -> list[n.Expr]:
         case n.DomainQuery():
             return [e.source, e.where] if e.source is not None else [e.where]
         case n.SubsetQuery():
-            kids = [e.count, e.source]
+            kids = [e.count, *e.source]
             for slot in (e.body, e.where, e.default):
                 if slot is not None:
                     kids.append(slot)
@@ -2064,7 +2064,9 @@ def _check_offset_by_operands(e: n.BinOp, env: TypeEnv, bag: DiagnosticBag) -> N
         )
 
 
-def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None:
+def _check_card_source(
+    source: n.Expr, env: TypeEnv, bag: DiagnosticBag, *, lists_zones: bool = False
+) -> None:
     """Both `cards in <source>` (CardQuery) and `over cards in <source>` (an
     aggregation) expect a zone or a collection of cards — the shared source
     Owner Guard, since a wrong source degrades every downstream Card Owner Guard
@@ -2072,7 +2074,9 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     subscript-typing case in tests/test_zone_family_typing.py covers exactly
     this failure mode). A non-collection source and a collection of the wrong
     element type both fail the same way: `join` against `TCard` finds nothing
-    in common."""
+    in common. `lists_zones` is the subset slot, whose source may list several
+    zones in its own brackets: a `let`-bound list of zones reaching it earns
+    the in-place spelling as its fix."""
     src_t = infer(source, env)
     bare_src = _bare(src_t)
     if isinstance(bare_src, TAny):
@@ -2096,9 +2100,19 @@ def _check_card_source(source: n.Expr, env: TypeEnv, bag: DiagnosticBag) -> None
     if isinstance(ebare, TAny):
         return
     if join(ebare, TCard()) is None:
+        hint = ""
+        if (
+            lists_zones
+            and isinstance(ebare, TCollection)
+            and join(_bare(ebare.element), TCard()) is not None
+        ):
+            hint = (
+                " — zones are listed in the subset source itself, "
+                "`in [table, hand[p]]`, not bound as a list first"
+            )
         bag.error(
             f"'cards in ...' expects a zone or collection of cards, got "
-            f"{_type_name(src_t)}",
+            f"{_type_name(src_t)}{hint}",
             source.span,
         )
 
@@ -2108,10 +2122,16 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
 
     The binder is a card COLLECTION, not a card — that is the whole point of
     the construct — so it enters scope as `TCollection(TCard())` with the
-    default facets. `zone=False` is load-bearing rather than incidental: a
-    candidate set is not a zone, so the binder is refused at the two positions
-    that demand one (a movement endpoint and an epistemic target) by the same
-    facet check that refuses any other computed collection.
+    default facets. `zone=False` is the honest facet for a candidate set that
+    is not a zone; the binder scopes only to expression fields, so it can
+    reach no statement position that would consult the facet.
+
+    A source with several members is checked member by member against the
+    same card-source guard a single member meets (`_check_card_source`, the
+    Owner Guard for every source slot), so a member that is not a zone or a
+    card collection earns the message a lone source earns. The same zone
+    spelled twice is a name fact, not a type fact, and is resolve's
+    (`_check_subset_source`).
 
     The count and the source are checked in the ENCLOSING scope: they are
     source-slot operands, so `subset` in one of them means an outer binder or
@@ -2133,8 +2153,9 @@ def _check_subset_query(e: n.SubsetQuery, env: TypeEnv, bag: DiagnosticBag) -> N
         f"{_type_name(infer(e.count, env))}",
         e.count.span,
     )
-    _check_expr(e.source, env, bag)
-    _check_card_source(e.source, env, bag)
+    for member in e.source:
+        _check_expr(member, env, bag)
+        _check_card_source(member, env, bag, lists_zones=True)
     scoped = env.with_local(e.binder, TCollection(TCard()))
     if e.where is not None:
         _check_expr(e.where, scoped, bag)

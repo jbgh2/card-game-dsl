@@ -8,7 +8,7 @@ exactly what the deep-resolution pass exists to make possible.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, assert_never
+from typing import Any, assert_never, cast
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
@@ -567,11 +567,21 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
 
 
-def _source_label(source: n.Expr) -> str | None:
-    """How a query's source zone is spelled in the game file, for a refusal's
-    location. Only the two shapes `zone_expr` admits are rendered; anything
-    else answers None rather than inventing a label, because a location is
-    metadata on a refusal already being raised and must never replace it."""
+def _source_label(source: tuple[n.Expr, ...]) -> str | None:
+    """How a query's source is spelled in the game file, for a refusal's
+    location: one member bare, several as the designer listed them. Only the
+    two shapes `zone_expr` admits are rendered; a member of any other shape
+    makes the whole label None rather than inventing one, because a location
+    is metadata on a refusal already being raised and must never replace it."""
+    labels = [_member_label(m) for m in source]
+    if any(label is None for label in labels):
+        return None
+    if len(labels) == 1:
+        return labels[0]
+    return "[" + ", ".join(cast(list[str], labels)) + "]"
+
+
+def _member_label(source: n.Expr) -> str | None:
     match source:
         case n.NameRef():
             return source.name
@@ -595,12 +605,15 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     predicates are side-effect-free, so stopping at the first answer is
     semantics-preserving, and it is what keeps the common case cheap when the
     domain is large."""
-    pool = list(elements(evaluate(e.source, ctx)))
+    # The pool is every member's contents, concatenated in written order: a
+    # card two members both hold is present once per member, which is the
+    # multiset reading the runtime already keeps for duplicate copies.
+    pool = [card for member in e.source for card in elements(evaluate(member, ctx))]
     try:
         subsets.check_pool(
             pool,
             "a subset query",
-            "narrow the zone it ranges over, or ask about a smaller one",
+            "narrow the source it ranges over, or ask about a smaller one",
         )
     except OwnerGuardError as exc:
         # Locate the refusal at the zone this query RANGED OVER, before any

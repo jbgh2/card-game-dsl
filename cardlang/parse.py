@@ -268,7 +268,7 @@ class _SubsetOf:
 
     size_mode: str  # a member of n.SUBSET_SIZE_MODES
     count: object  # Expr
-    source: object  # Expr
+    source: tuple[object, ...]  # one or more Exprs, each a zone reference
 
 
 @dataclass(frozen=True, slots=True)
@@ -1562,9 +1562,36 @@ class _Builder(Transformer[Token, n.Game]):
     def subset_floor(self, meta: Meta, c: list[object]) -> tuple[str, object]:
         return (n.SUBSET_SIZE_FLOOR, _as_expr(c[0]))
 
+    def subset_source(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
+        return tuple(_as_expr(m) for m in c)
+
     def subset_of(self, meta: Meta, c: list[object]) -> _SubsetOf:
         mode, count = cast(tuple[str, object], c[0])
-        return _SubsetOf(size_mode=mode, count=count, source=_as_expr(c[1]))
+        return _SubsetOf(size_mode=mode, count=count, source=cast(tuple[object, ...], c[1]))
+
+    def _subset_source_reject(self, meta: Meta, written: str) -> None:
+        """Several zones joined bare, with a comma or an operator. The
+        spelling is real, so the message names the list the language uses
+        rather than dying at the token (the `collection_type_reject`
+        precedent)."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a subset source that names several zones lists them in "
+                f"brackets — write `... cards in [table, hand[p]] where ...`, "
+                f"not `{written}`",
+                self._span(meta),
+            )
+        )
+
+    def subset_comma_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table, hand[p]")
+
+    def subset_plus_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table + hand[p]")
+
+    def subset_and_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table and hand[p]")
 
     def _subset_query(
         self, kind: str, meta: Meta, of: object, where: object
@@ -1575,7 +1602,7 @@ class _Builder(Transformer[Token, n.Game]):
             agg=None,
             size_mode=phrase.size_mode,
             count=cast(n.Expr, phrase.count),
-            source=cast(n.Expr, phrase.source),
+            source=cast(tuple[n.Expr, ...], phrase.source),
             binder=n.SUBSET_BINDER,
             where=_as_expr(where),
             span=self._span(meta),
@@ -1598,7 +1625,7 @@ class _Builder(Transformer[Token, n.Game]):
             agg=n.SUBSET_AGG_SUM,
             size_mode=phrase.size_mode,
             count=cast(n.Expr, phrase.count),
-            source=cast(n.Expr, phrase.source),
+            source=cast(tuple[n.Expr, ...], phrase.source),
             binder=n.SUBSET_BINDER,
             body=_as_expr(c[0]),
             where=_as_expr(c[2]) if len(c) > 2 and c[2] is not None else None,
@@ -1621,7 +1648,7 @@ class _Builder(Transformer[Token, n.Game]):
             agg=direction,
             size_mode=phrase.size_mode,
             count=cast(n.Expr, phrase.count),
-            source=cast(n.Expr, phrase.source),
+            source=cast(tuple[n.Expr, ...], phrase.source),
             binder=n.SUBSET_BINDER,
             body=_as_expr(c[1]),
             where=_as_expr(c[3]) if c[3] is not None else None,

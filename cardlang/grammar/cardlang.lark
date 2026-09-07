@@ -709,11 +709,39 @@ card_query: _CARDS_KW _IN_KW zone_expr _WHERE_KW expr                     -> cq_
 // binds above it, so the floor form's `or` cannot be absorbed into an operand
 // chain, and the order aggregators' own trailing `or <default>` stays the only
 // `or` at that level.
-subset_query: _ANY_KW _SUBSET_KW subset_of _WHERE_KW expr                 -> sq_any
-            | _ALL_KW _SUBSETS_KW subset_of _WHERE_KW expr                -> sq_all
-            | _NUMBER_KW _OF_KW _SUBSETS_KW subset_of _WHERE_KW expr      -> sq_count
+subset_query: _ANY_KW _SUBSET_KW subset_of_guarded _WHERE_KW expr                 -> sq_any
+            | _ALL_KW _SUBSETS_KW subset_of_guarded _WHERE_KW expr                -> sq_all
+            | _NUMBER_KW _OF_KW _SUBSETS_KW subset_of_guarded _WHERE_KW expr      -> sq_count
 
-subset_of: _OF_KW subset_size _CARDS_KW _IN_KW zone_expr
+// The source is one zone, or several listed in brackets -- the language's one
+// shape for "these, listed" (`teams:`, `offering [...]`, `one of [...]`, and
+// `x in [a, b]`, whose reading "in one of these" this shares). The list is a
+// phrase on the node, never a value: the language has no union value
+// anywhere, so it cannot be bound or passed, and it exists at this slot
+// alone, which leaves every position that demands a zone with identity
+// (movement endpoints, `shuffle`, `reveal`) untouched. It lives here and not
+// in the per-card query slots because a subset that straddles two zones
+// cannot be built from subsets of each, whereas a count or a quantifier over
+// two zones is a count or a quantifier over each.
+subset_of: _OF_KW subset_size _CARDS_KW _IN_KW subset_source
+subset_source: zone_expr
+             | "[" zone_expr ("," zone_expr)* "]"
+// Reject-with-replacement twins for the bare joiners a designer reaches for
+// first. They ride ONLY where a mandatory clause follows the source (the
+// three query forms' `where`, the ordering fold's `or`): there the sentence
+// can only have been a source, and the twin is its sole derivation. Behind
+// the `sum` fold's open end they are withheld, for two measured reasons: the
+// comma twin has a second derivation wherever a list or call comma can
+// follow a fold (`1 in [sum of 1 over subsets of 2 cards in a, b]`), which
+// the parser resolves silently; and `+`/`and` there are far more often a
+// fold missing its parentheses (a fold is an `expr`, never an operand) than
+// a source missing its brackets, so a twin would name the wrong fix. The
+// `sum` fold takes the bare `subset_of` and its misjoins stay the parser's
+// own refusal.
+?subset_of_guarded: subset_of
+                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "," zone_expr     -> subset_comma_reject
+                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr "+" zone_expr     -> subset_plus_reject
+                  | _OF_KW subset_size _CARDS_KW _IN_KW zone_expr _AND_KW zone_expr -> subset_and_reject
 subset_size: sum _OR_KW _MORE_KW -> subset_floor
            | sum                 -> subset_exact
 
@@ -758,7 +786,7 @@ quantifier: _ANY_KW _PLAYER_KW _WHERE_KW expr        -> q_any_player
 agg_query: _SUM_KW _OF_KW expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr]           -> agg_sum
          | RANK_DIR expr _OVER_KW _CARDS_KW _IN_KW zone_expr [_WHERE_KW expr] _OR_KW and_expr -> agg_order
          | _SUM_KW _OF_KW expr _OVER_KW _SUBSETS_KW subset_of [_WHERE_KW expr]                -> agg_subset_sum
-         | RANK_DIR expr _OVER_KW _SUBSETS_KW subset_of [_WHERE_KW expr] _OR_KW and_expr      -> agg_subset_order
+         | RANK_DIR expr _OVER_KW _SUBSETS_KW subset_of_guarded [_WHERE_KW expr] _OR_KW and_expr      -> agg_subset_order
 
 if_expr: _IF_KW expr _THEN_KW expr elif_clause* _ELSE_KW expr
 elif_clause: _ELIF_KW expr _THEN_KW expr
