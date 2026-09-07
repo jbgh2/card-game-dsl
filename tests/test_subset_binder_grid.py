@@ -20,11 +20,18 @@ domain:     the three closed value domains the construct declares. Fully
             Its members are crossed over arity {1, 2, 3} and composition
             {zone, subscript, let, and their lists}; the list's semantics
             are pinned as cells -- a card in two members counts once per
-            member (concatenation, the runtime's own multiset), the same
-            spelling twice is refused by name, and the enumeration bound
-            applies to the list's total. Order across a list is stated and
-            not pinned: every fold the construct has is commutative, so it is
-            unobservable through this construct.
+            member (concatenation, the runtime's own multiset), the same zone
+            twice is refused -- by spelling at check time, by identity at play
+            time, where a computed index is first decidable -- one zone in
+            brackets is refused as a second spelling of the bare zone, and
+            the enumeration bound applies to the list's total. Order across a
+            list is stated and not pinned: every fold the construct has is
+            commutative, so it is unobservable through this construct. The
+            list is the Subset Source's alone: at the six per-card source
+            slots it is refused naming the one-zone boundary, and the bare
+            joiners' reject twins ride only behind a mandatory clause, for the
+            reasons the grammar states beside them -- both pinned in the
+            rejections module, this grid's sibling.
             Swept at both values but NOT crossed with the above, each for a
             stated reason: the filter axis, which exists only in the
             aggregation register (the query forms' `where` is mandatory) and
