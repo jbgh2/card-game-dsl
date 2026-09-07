@@ -3178,7 +3178,7 @@ whose rank "1" is worth 9 in the atouts and 1 in the plain
 suits); Belote's trump-dependent pricing is a per-game function
 with no table at all. A declarative rank-keyed `counters: { ... }`
 block on the CARD definition was considered and stays rejected —
-it re-attaches a scoring fact to the component, and only cleanly
+it re-attaches a scoring fact to the card itself, and only cleanly
 handles the pure-rank shape; the game-level clause carries that
 shape, and inline conditionals scale to the rest. Lift to a
 per-game helper function when the composition is large enough to
