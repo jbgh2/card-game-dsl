@@ -98,6 +98,12 @@ SYNTHETIC: dict[tuple[str, str], tuple[str, str]] = {
     ("DomainQuery", "where"): ("", "    if any suit where {W} { score[0] += 1 }"),
     ("Quantifier", "body"): ("", "    if any card in deck where {W} { score[0] += 1 }"),
     ("CardQuery", "where"): ("", "    move all cards from deck where {W} to pile"),
+    # The subset predicate: a wrong value here is folded by `any`/`all`/`count`,
+    # so a non-Boolean is read for its truthiness and the query answers
+    # something rather than refusing — the TOTAL shape.
+    ("SubsetQuery", "where"): (
+        "", "    if any subset of 2 cards in pile where {W} { score[0] += 1 }"
+    ),
     ("PlayerQuery", "where"): ("", "    if any player where {W} { score[0] += 1 }"),
     ("Turns", "until"): ("", "    turns t from 0 over all players until {W} { score[t] += 1 }"),
     ("EpistemicOp", "where"): ("", "    reveal one card from deck where {W}"),

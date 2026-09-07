@@ -624,6 +624,11 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # collection, and its own grid owns the witness
     # (tests/test_trick_order.py, the `bad-key-*` cells).
     "parse.py": [
+        # Twice: the two order-aggregator builders, over a zone's cards and
+        # over its subsets. Each reconciles its own RANK_DIR token against the
+        # registry at the site that reads it, rather than one of them trusting
+        # the other to have checked.
+        "direction not in RANK_DIRECTIONS",
         "direction not in RANK_DIRECTIONS",
         "key not in TRICK_ORDER_ROW_KEYS",
     ],
@@ -681,7 +686,15 @@ _GUARDS_OUTSIDE_THE_SHAPE: dict[str, list[str]] = {
     # test_an_empty_block_refuses_a_primitive_call
     # (tests/test_primitives_block.py).
     "runtime/evaluate.py": ["result is builtins.NOT_A_BUILTIN"],
-    "runtime/execute.py": ["len(pool) > _JOINT_ENUMERATION_BOUND"],
+    # The subset-enumeration bound, in the one home both enumerating
+    # constructs call: the joint movement and the subset binder. It bounds a
+    # POOL against a fixed engine limit rather than reconciling rows, so there
+    # is nothing to widen; what makes it non-vacuous is that both sides of the
+    # bound are exercised — the accepting side at the bound exactly, the
+    # refusing side one card past it
+    # (tests/test_subset_binder_grid.py), and the movement's own at
+    # tests/test_jointly_selection.py.
+    "runtime/subsets.py": ["len(pool) > ENUMERATION_BOUND"],
     "runtime/reads.py": ["len(_BY_KEY) == len(PRIMITIVE_READS)"],
     # Salvo's location argument, bounded by the registry's own LENGTH: the
     # Integer a call writes indexes `LOCATIONS`, so a location added to the
