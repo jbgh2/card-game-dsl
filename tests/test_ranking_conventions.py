@@ -282,6 +282,7 @@ def test_plain_unknown_rank_gets_no_convention_hint() -> None:
 # stable on today's seeds still fails loudly.
 _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "bridge": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
+    "five-card-stud": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
     "getaway": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
     "go-fish": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
     "hearts": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
