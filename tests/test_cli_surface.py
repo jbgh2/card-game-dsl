@@ -18,12 +18,12 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  value classes — the integer/non-integer and
                  in-range/out-of-range splits of the three options that take
                  one — are crossed separately, in the probes below. `--at`
-                 numbers decision nodes, one per candidate a Chooser call takes,
-                 which is the unit the game tree branches on, the unit the
-                 adapter replays and the unit `max_length` bounds — so the
-                 listing, the summary's `decisions` line and the adapter's tree
-                 count the same things, and a game choosing several cards at
-                 once (Hearts' pass) is where that is worth pinning. The path
+                 numbers decision nodes, one per candidate a Chooser call
+                 takes, which is the unit the game tree branches on, the unit
+                 the adapter replays and the unit `max_length` bounds — so the
+                 listing, the summary's `decisions` line and the adapter's
+                 tree count the same things, and a game choosing several cards
+                 at once (Hearts' pass) is where that is worth pinning. The path
                  argument's whole failure class is here — a name that is
                  nothing, a name that is a directory, a file that will not
                  decode as text — because the command line owns that argument
@@ -69,21 +69,22 @@ does not prove:  A green here says nothing about whether a playout's REPORTED
                  the same way whether the game or the policy is the reason,
                  and the corpus measurement is issue #553. The cross-route
                  cells below are bounded twice over, and neither bound is
-                 something the numbering could lift. They reach no further than
-                 the FIRST DEAL — the seat-by-seat walk covers all of it, the
-                 rendered view is compared at named decisions inside it —
+                 something the numbering could lift. They reach no further
+                 than the FIRST DEAL — the seat-by-seat walk covers all of it,
+                 the rendered view is compared at named decisions inside it —
                  because `play` draws its uniform-random policy from the
                  generator that also drives the shuffle while the adapter's
                  Chooser draws nothing, so a game that deals again deals it
-                 differently on each route and nothing here says the two agree
-                 at a decision in a later hand. And the view is compared over
-                 two of its three segments, because the adapter reads a world
-                 already unwound past every phase frame and its `state:`
-                 segment drops every phase-local variable (issue #612); the
-                 strict xfail beside the comparison is what reddens the day
-                 that is fixed. A green here equally says nothing about which
-                 `chose` events either route ought to emit — that the two emit
-                 the same ones is pinned, what they should hold is issue #592.
+                 differently on each route (issue #621) and nothing here says
+                 the two agree at a decision in a later hand. And the view is
+                 compared over two of its three segments, because the adapter
+                 reads a world already unwound past every phase frame and its
+                 `state:` segment drops every phase-local variable (issue
+                 #612); the strict xfail beside the comparison is what reddens
+                 the day that is fixed. A green here equally says nothing
+                 about which `chose` events either route ought to emit — that
+                 the two emit the same ones is pinned, what they should hold
+                 is issue #592.
 """
 
 from __future__ import annotations
@@ -711,7 +712,7 @@ def _tree_line(path: Path, seed: int) -> tuple[tuple[int, ...], int]:
     own `hand_end` rather than from a count of this game's cards. Past it the
     routes deal differently for a reason numbering cannot reach: `play` draws
     its uniform-random policy from the generator that also drives the shuffle,
-    while the adapter's Chooser draws nothing.
+    while the adapter's Chooser draws nothing (issue #621).
     """
     game = check_source(path)
     space = ActionSpace.for_game(game)
