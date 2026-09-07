@@ -380,6 +380,56 @@ game Skeleton {{
 """
 
 
+def _wrap_betting_street(frag: str) -> str:
+    # library.md "Mechanics", the betting bullet: one poker street, quoted from
+    # docs/games/leduc-poker.cardlang. The skeleton supplies what a street
+    # legitimately leaves to its host — `uses poker_betting` (which brings
+    # check/bet/call/raise, the ring predicates and `open_street`), the eight
+    # names that library's `requires` block demands, the `first_actor` the ring
+    # starts from, and a game-local `fold`, which the library deliberately omits
+    # because folding touches cards. It shares no vocabulary with the other
+    # recipes' skeleton, so it builds its own.
+    return f"""
+game Skeleton {{
+  uses poker_betting
+  players: 2
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones {{
+    deck         : Deck
+    hand[player] : Hand<player>
+    muck         : Muck
+  }}
+  state {{
+    stack[player]     : Integer = 40
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 2
+    first_actor       : Player  = 0
+  }}
+  phase deal {{
+    shuffle deck
+    for each player p: deal 1 card from deck to hand[p]
+  }}
+{frag}
+  winner: highest stack
+}}
+
+move_type fold {{
+  when: bet_to_match > bet_by[actor]
+  effect {{
+    folded[actor] := true
+    move all cards from hand[actor] to muck
+  }}
+}}
+"""
+
+
 # recipe label -> wrapper. The label is the second word of a fragment block's
 # fence info string (```cardlang-fragment <label>) — a stable name that rides
 # with the block through edits, so a prose change above it never touches this
@@ -424,6 +474,7 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "winner_loser": _wrap_winner_loser,
     "passing_phase": _wrap_passing_phase,
     "library_zones": _wrap_library_zones_block,
+    "betting_street": _wrap_betting_street,
 }
 
 
@@ -465,8 +516,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 56, "library.md": 13, "model.md": 5}
-    assert len(_BLOCKS) == 74
+    assert per_doc == {"decisions.md": 56, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 75
 
 
 def _block_id(block: FencedBlock) -> str:

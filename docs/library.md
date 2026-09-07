@@ -330,7 +330,7 @@ in tests/test_trump_slot_class.py.
   comparison (Bridge, Pinochle, Tarot, Skat) found the four share only the
   kernel form itself — the accumulator variables, ring topology (continuous /
   shrinking / two-seat-twice), bid vocabulary, and outcome mechanism (named
-  function vs inline survivor, and Skat uses the outcome-less betting form)
+  function vs inline survivor, and Skat omits the `outcome` clause altogether)
   all genuinely diverge — so the shared thing IS this `round` form, and a
   promoted `auction` configuration would abstract over instances that agree
   on nothing it could parameterize. Spades and Oh Hell use *inline per-player
@@ -339,9 +339,9 @@ in tests/test_trump_slot_class.py.
   use the auction form. Schnapsen configures the same form differently again: a
   single-participant ring whose free actions loop the leader until a card is led
   (see "Mechanics" below).
-- **Betting runs on the betting form of the kernel `round`** (see
-  [decisions.md](decisions.md) "The auction form of `round`") — the same
-  continuous-ring form as an auction, on the **default ring** (a bet or raise
+- **Betting runs on the auction form of the kernel `round`** (see
+  [decisions.md](decisions.md) "The auction form of `round`") — the one form
+  serves both, configured here on the **default ring** (a bet or raise
   re-opens the seats it passed, and the pointer reaches the seats behind the
   aggressor first — poker's continuation order) and with the
   `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
@@ -353,12 +353,29 @@ in tests/test_trump_slot_class.py.
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
-  Each street's `round` carries an `until` terminator. `until` is a clause of
-  the form, and what the family library shares is the predicates the terminator
-  is built from rather than the terminator itself. Both arms are the ring's: the
-  street closes when no seat is `pending` — the settled field, everyone who can
-  act having acted and owing nothing — or when the seats able to act are down to
-  one that owes nothing, the street that opens behind an all-in, where
+  A whole street, verbatim from
+  [games/leduc-poker.cardlang](games/leduc-poker.cardlang):
+
+  ```cardlang-fragment betting_street
+  phase first_street {
+    run open_street(2)
+    round offering [check, bet, call, fold, raise] from first_actor
+          over players where pending(player)
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+  ```
+
+  `until` is a clause of the form, and what the family library shares is the
+  predicates the terminator is built from rather than the terminator itself —
+  so every street writes those two arms out, and writes them exactly as above.
+  What a street varies is the bet size `open_street` takes, the seat the ring
+  starts from, and whether `raise` is on the offering (Kuhn Poker's is not).
+  Both arms are the ring's: the street closes when no seat is `pending` — the
+  settled field, everyone who can act having acted and owing nothing — or when
+  the seats able to act are down to one that owes nothing, the street that
+  opens behind an all-in, where
   `open_street`'s cleared `acted` would otherwise leave that seat `pending` with
   nobody to act against. A variant in which no seat can be all-in never reaches
   that second arm and writes it all the same.
