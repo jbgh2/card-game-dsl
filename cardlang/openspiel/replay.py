@@ -27,8 +27,8 @@ from cardlang.domains import Role, role_of
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.pipeline import check_source
 from cardlang.runtime.chance import RefusingRandom, is_chance_free
+from cardlang.runtime.chooser import sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
-from cardlang.runtime.observe import render
 from cardlang.runtime.state import ChooserAbort, RuntimeState
 
 
@@ -82,15 +82,17 @@ class TerminalNode:
 
 class ReplayChooser:
     """Returns recorded actions in order; aborts at the first un-recorded one.
-    A chooser call requesting ``k`` picks decomposes into ``k`` sequential
-    actions, so multi-card selections stay in the same global action space.
+    A chooser call requesting ``k`` cards decomposes into ``k`` sequential
+    actions — `chooser.sequential_decisions`, the decomposition every route
+    that walks a call one card at a time reads — so multi-card selections stay
+    in the same global action space.
 
-    Each consumed pick is emitted to the actor as a ``("chose", ...)`` event at
+    Each consumed card is emitted to the actor as a ``("chose", ...)`` event at
     the moment of the draw. The runtime's own aggregate `chose` (fired when the
-    whole call returns) cannot cover a pause *inside* a multi-pick call — the
-    picks already made would be invisible, collapsing distinct decision nodes
+    whole call returns) cannot cover a pause *inside* a multi-card call — the
+    cards already taken would be invisible, collapsing distinct decision nodes
     into one information state (a perfect-recall violation). Per-draw emission
-    keeps every replayed pick in the actor's log, and the log append-only
+    keeps every replayed card in the actor's log, and the log append-only
     across ``(seed, history)`` extensions; the runtime aggregate that follows a
     completed call is kept (it is the canonical event native playouts emit)."""
 
@@ -106,19 +108,15 @@ class ReplayChooser:
         self.cursor = 0
 
     def __call__(self, player: int, candidates: list[Any], k: int) -> list[Any]:
-        pool = list(candidates)
-        picked: list[Any] = []
-        for _ in range(k):
+        def decide(actor: int, pool: list[Any]) -> Any:
             if self.cursor >= len(self.history):
                 legal = sorted({self.space.encode(c) for c in pool})
-                raise ChooserAbort(player, legal)
+                raise ChooserAbort(actor, legal)
             aid = self.history[self.cursor]
             self.cursor += 1
-            choice = self.space.match(aid, pool)  # must be among the candidates
-            pool.remove(choice)
-            picked.append(choice)
-            self.emit(player, ("chose", render(choice)))
-        return picked
+            return self.space.match(aid, pool)  # must be among the candidates
+
+        return sequential_decisions(player, candidates, k, decide, self.emit)
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
