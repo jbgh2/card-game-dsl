@@ -6,18 +6,25 @@ property:   every sentence the subset productions accept has the value the
             surface plainly says, and every sentence they do not accept meets a
             diagnostic in the layer that owns it -- never a silent parse to a
             different meaning, and never an unbounded enumeration.
-domain:     the three closed value domains the construct declares, crossed:
-            `SUBSET_QUERY_KINDS` x `SUBSET_SIZE_MODES` for the query register,
-            `SUBSET_AGGREGATORS` x `SUBSET_SIZE_MODES` for the aggregation
-            register, each over the source shapes `zone_expr` can actually
+domain:     the three closed value domains the construct declares. Fully
+            crossed: `SUBSET_QUERY_KINDS` x `SUBSET_SIZE_MODES` x source shape,
+            and `SUBSET_AGGREGATORS` x `SUBSET_SIZE_MODES` x source shape --
+            the source shapes being the three a `zone_expr` can actually
             produce (a zone name, a zone-family subscript, a `let`-bound
-            collection -- `NameRef` and `Subscript` are the only two shapes the
-            production admits), the filter axis where the grammar leaves it
-            free, the count operand at its boundaries, and the source pool at
-            the enumeration bound. Crossed separately, and deliberately: the
-            value the binder produces against every operation that consumes a
-            card collection, because a new value shape's defects live in its
-            products with the constructs that already exist.
+            collection), since `NameRef` and `Subscript` are the only two the
+            production admits and a computed collection reaches one only
+            through a name.
+            Swept at both values but NOT crossed with the above, each for a
+            stated reason: the filter axis, which exists only in the
+            aggregation register (the query forms' `where` is mandatory) and
+            is swept across all three aggregators; the count operand at its
+            boundaries, which is a property of the size clause and not of the
+            fold above it; and the source pool either side of the enumeration
+            bound, which is a property of the pool alone.
+            Crossed separately, and deliberately: the value the binder
+            produces against every operation that consumes a card collection,
+            because a new value shape's defects live in its products with the
+            constructs that already exist.
             The bound is stated over the pool rather than over the enumerated
             count, which is a designed constraint rather than a gap: it refuses
             a small domain drawn from a large zone, and a cell pins that as
@@ -131,14 +138,16 @@ _TAUTOLOGY = "1 is 1"
 _IS_A_PAIR = "(number of cards in subset) is 2"
 
 _QUERY_CELLS: list[tuple[str, str, str, str, int | bool]] = [
-    (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT, src, _TAUTOLOGY, 6) for src in _SOURCES
-] + [
-    (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR, src, _TAUTOLOGY, 11) for src in _SOURCES
-] + [
-    (n.SUBSET_KIND_ANY, n.SUBSET_SIZE_EXACT, "zone", _IS_A_PAIR, True),
-    (n.SUBSET_KIND_ALL, n.SUBSET_SIZE_EXACT, "zone", _IS_A_PAIR, True),
-    (n.SUBSET_KIND_ANY, n.SUBSET_SIZE_FLOOR, "zone", _IS_A_PAIR, True),
-    (n.SUBSET_KIND_ALL, n.SUBSET_SIZE_FLOOR, "zone", _IS_A_PAIR, False),
+    (kind, mode, src, pred, expected)
+    for src in _SOURCES
+    for kind, mode, pred, expected in (
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT, _TAUTOLOGY, 6),
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR, _TAUTOLOGY, 11),
+        (n.SUBSET_KIND_ANY, n.SUBSET_SIZE_EXACT, _IS_A_PAIR, True),
+        (n.SUBSET_KIND_ALL, n.SUBSET_SIZE_EXACT, _IS_A_PAIR, True),
+        (n.SUBSET_KIND_ANY, n.SUBSET_SIZE_FLOOR, _IS_A_PAIR, True),
+        (n.SUBSET_KIND_ALL, n.SUBSET_SIZE_FLOOR, _IS_A_PAIR, False),
+    )
 ]
 
 
@@ -171,19 +180,24 @@ def test_the_query_axis_is_the_whole_registry() -> None:
     """The grid's kind axis is the registry, not a list kept beside it."""
     assert {kind for kind, _, _, _, _ in _QUERY_CELLS} == n.SUBSET_QUERY_KINDS
     assert {mode for _, mode, _, _, _ in _QUERY_CELLS} == n.SUBSET_SIZE_MODES
+    assert {src for _, _, src, _, _ in _QUERY_CELLS} == set(_SOURCES)
 
 
 # --- Grid B: the aggregation register x size mode ---------------------------
 # Body is `number of cards in subset` again, so the folds are over subset SIZES:
 #   exact 2 -> six subsets of size 2      => sum 12, highest 2, lowest 2
 #   floor 2 -> sizes 2 (x6), 3 (x4), 4 (x1) => sum 12+12+4 = 28, highest 4, lowest 2
-_AGG_CELLS: list[tuple[str, str, int]] = [
-    (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT, 12),
-    (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR, 28),
-    (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_EXACT, 2),
-    (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_FLOOR, 4),
-    (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_EXACT, 2),
-    (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_FLOOR, 2),
+_AGG_CELLS: list[tuple[str, str, str, int]] = [
+    (agg, mode, src, expected)
+    for src in _SOURCES
+    for agg, mode, expected in (
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT, 12),
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR, 28),
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_EXACT, 2),
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_FLOOR, 4),
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_EXACT, 2),
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_FLOOR, 2),
+    )
 ]
 
 
@@ -196,14 +210,16 @@ def _agg_sentence(agg: str, mode: str, source: str, where: str | None) -> str:
     return f"{agg} ({body}) over subsets of {size} in {source}{filt} or 0"
 
 
-@pytest.mark.parametrize("agg,mode,expected", _AGG_CELLS)
-def test_aggregation_register(agg: str, mode: str, expected: int) -> None:
-    assert probe_value(_agg_sentence(agg, mode, "table", None)) == expected
+@pytest.mark.parametrize("agg,mode,source,expected", _AGG_CELLS)
+def test_aggregation_register(agg: str, mode: str, source: str, expected: int) -> None:
+    name, extra = _SOURCES[source]
+    assert probe_value(_agg_sentence(agg, mode, name, None), extra=extra) == expected
 
 
 def test_the_aggregation_axis_is_the_whole_registry() -> None:
-    assert {agg for agg, _, _ in _AGG_CELLS} == n.SUBSET_AGGREGATORS
-    assert {mode for _, mode, _ in _AGG_CELLS} == n.SUBSET_SIZE_MODES
+    assert {agg for agg, _, _, _ in _AGG_CELLS} == n.SUBSET_AGGREGATORS
+    assert {mode for _, mode, _, _ in _AGG_CELLS} == n.SUBSET_SIZE_MODES
+    assert {src for _, _, src, _ in _AGG_CELLS} == set(_SOURCES)
 
 
 # --- Grid C: the filter axis, free only where the grammar leaves it free ----
