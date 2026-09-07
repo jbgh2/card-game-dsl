@@ -252,7 +252,7 @@ def _movement(stmt: n.Transfer, ctx: Ctx) -> None:
             for player in ctx.rs.seating.players:
                 cards = _select(source, stmt, ctx, player)
                 # A chosen to-each selection is decided by its receiving
-                # player (the chooser draw in `_select` is theirs); a dealt
+                # player (the chooser draw in `_select_from` is theirs); a dealt
                 # or random one has no per-card decider — the bound acting
                 # seat, if any, is the movement's actor.
                 actor = player if stmt.selection_mode == "chosen" else ctx.current_player
@@ -515,7 +515,7 @@ def _select_filtered(
     like the unfiltered form does from the whole source; the default (dealt)
     form takes the pool's first `count` — first match in source order, not
     top-of-source, since the pool has already skipped non-matching cards."""
-    assert stmt.where is not None  # Shadow Guard of _select's dispatch: only the filtered branch lands here
+    assert stmt.where is not None  # Shadow Guard of _select_from's dispatch: only the filtered branch lands here
     pred = _card_pred(stmt.where, ctx)
     pool = [c for c in source.cards if pred(c)]
     amount = stmt.amount

@@ -1,0 +1,46 @@
+// A `trick_order { }` row that asks for the strength of a rank the game's
+// `ranking:` does not rank. A row body is game text the driver evaluates
+// itself, from inside a trick round rather than from a statement, so the
+// enclosing round is the only sentence the executor can name and the row's
+// own line is the smaller one.
+//
+// `ranking:` may rank a subset of the deck (it narrows the Rank move-parameter
+// domain), and which cards reach a strength read is a fact of what was dealt —
+// so a partial order plus a full deck is a game that checks clean and refuses
+// at the first trick.
+game TrickOrderRowUnranked {
+  players: 2
+  direction: clockwise
+  max_length: 40
+  cards: standard52
+  ranking: A K Q                   // the other ten ranks are unranked
+
+  trick_order {
+    trump:         card.suit is spades
+    card_strength: rank_value(card)
+  }
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    trick_pile   : TrickPile
+    waste        : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 5 cards from deck to each hand
+  }
+
+  phase play {
+    legal_moves: [play_to_trick]
+    round play_to_trick from 0 over all players source hand into trick_pile
+          winner highest_by_trick_order
+    move all cards from trick_pile to waste
+  }
+
+  winner: highest coins
+}

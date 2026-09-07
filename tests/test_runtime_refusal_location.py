@@ -44,12 +44,24 @@ domain:     three axes, each read off its own registry.
             classes the stamp catches is what makes a new exception class
             arrive as an uncovered cell instead of silently outside.
 
-            (3) The DRIVER-POSITION axis: where a refusal escapes from,
-            partitioned from the driver itself — under a statement, in a
-            phase's qualifier or state block, and outside any phase. The
-            first two carry a location; the third names no phase because none
-            is running, which the grid states as its expected outcome rather
-            than leaving to inference.
+            (3) The DRIVER-POSITION axis: the game text the DRIVER evaluates
+            itself. A phase's `when` guard and `repeat until` condition, a
+            `state { }` default, the `loser:` selection and a `trick_order { }`
+            row body are expressions no statement encloses, so the executor's
+            stamp never reaches them. The axis is derived as the driver's own
+            calls to the evaluator, each keyed by the function it sits in and
+            the expression it reads, and every one of them goes through the
+            module's single stamping helper — so a position added around that
+            helper is what the derivation names. The two positions a designer
+            can write more than one way — a qualifier's two arms, a `state { }`
+            block at either scope — are held to their own registries: the
+            parser's qualifier kinds, and the driver's callers of the state
+            declarer.
+
+            Crossed with WHERE the position runs: inside a phase, or outside
+            every phase. A refusal outside every phase carries its expression
+            and names no phase, because none is running, and the grid asserts
+            that absence rather than leaving it to inference.
 
             The classes quantified over are the ones the ENGINE DEFINES, and
             that is the boundary: a builtin Python exception the engine raises
@@ -69,8 +81,11 @@ registry:   the statement axis: `typing.get_args(cardlang.ast.nodes.Stmt)`;
             the refusal-class axis: an import walk over the `cardlang`
             package, the same derivation shape
             tests/test_failure_taxonomy.py uses for the taxonomy's own
-            domain; the driver positions: `cardlang.runtime.driver.play_game`
-            and `run_phase`; where each class sits in the failure tree:
+            domain; the driver positions: the evaluator calls in
+            `cardlang/runtime/driver.py`, scraped below, with the qualifier
+            kinds read off `cardlang/parse.py` (the only minter of one) and
+            the state-declaration scopes off the driver's own callers of
+            `_declare_state`; where each class sits in the failure tree:
             tests/test_failure_taxonomy.py; the recorded Author at every
             raise site: tests/test_guard_role_sites.py. Neither of those two
             enumerations is re-copied here.
@@ -108,6 +123,10 @@ from cardlang.runtime.values import Seating
 
 REPO = Path(__file__).parent.parent
 FIXTURES = REPO / "tests" / "fixtures"
+DRIVER = REPO / "cardlang" / "runtime" / "driver.py"
+PARSE = REPO / "cardlang" / "parse.py"
+# The driver's one stamping site for the expressions it evaluates itself.
+STAMP = "_evaluate_stamped"
 
 # A hand emptied before the statement that asks it for a card. The refusal
 # rises through the executor holding the movement's own span.
@@ -122,6 +141,19 @@ DEAL_DRAINED = FIXTURES / "deal_from_drained_source.cardlang"
 RULE_REFUSES = FIXTURES / "rule_refuses_every_card.cardlang"
 # Checks clean, then outruns its declared `max_length` on every seed.
 OVERRUNS = FIXTURES / "exceeds_max_length.cardlang"
+# The two arms of a phase qualifier, each reading an empty zone's suit.
+WHEN_GUARD = FIXTURES / "when_qualifier_empty_zone.cardlang"
+REPEAT_CONDITION = FIXTURES / "repeat_until_qualifier_empty_zone.cardlang"
+# A `state { }` default whose query matches no seat, at either scope: a
+# phase's own block runs inside the phase, the game's before the first one.
+PHASE_STATE = FIXTURES / "phase_state_default_no_match.cardlang"
+GAME_STATE = FIXTURES / "game_state_default_no_match.cardlang"
+# The `loser:` selection, read after the last phase has run.
+LOSER_SELECTION = FIXTURES / "loser_selection_no_holder.cardlang"
+# A `trick_order { }` row asking for an unranked rank's strength, reached from
+# inside a round — so a location taken where the executor dispatched names the
+# round rather than the row.
+TRICK_ORDER_ROW = FIXTURES / "trick_order_row_unranked.cardlang"
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +426,142 @@ def test_every_refusal_can_carry_a_location() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Axis 3 — the driver's own evaluation positions, derived from the driver.
+# ---------------------------------------------------------------------------
+
+
+def _enclosing_functions(tree: ast.Module) -> list[tuple[int, int, str]]:
+    """Every function's line span and name, innermost last for a given line."""
+    return [
+        (f.lineno, max(getattr(f, "end_lineno", f.lineno) or f.lineno, f.lineno), f.name)
+        for f in ast.walk(tree)
+        if isinstance(f, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def _calls_to(tree: ast.Module, callee: str) -> list[tuple[str, ast.Call]]:
+    """Each call to `callee` in this module, with the function it sits in."""
+    spans = _enclosing_functions(tree)
+    found: list[tuple[str, ast.Call]] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and ast.unparse(node.func) == callee):
+            continue
+        enclosing = [name for lo, hi, name in spans if lo <= node.lineno <= hi]
+        found.append((enclosing[-1] if enclosing else "<module>", node))
+    return found
+
+
+def _driver_evaluation_sites() -> set[str]:
+    """Every game expression the driver evaluates itself, as
+    "enclosing_function:expression". Read off the calls to the stamping helper
+    rather than listed, so a position added to the driver arrives here."""
+    tree = ast.parse(DRIVER.read_text())
+    return {f"{where}:{ast.unparse(call.args[0])}" for where, call in _calls_to(tree, STAMP)}
+
+
+# Which fixture reaches each position. The value is a SET because two of them
+# can be written more than one way, and each way is a case of its own; the two
+# cells below hold those splits to their own registries.
+_DRIVER_WITNESSES: dict[str, frozenset[str]] = {
+    "run_phase:q.expr": frozenset({WHEN_GUARD.stem, REPEAT_CONDITION.stem}),
+    "_declare_state:decl.default": frozenset({PHASE_STATE.stem, GAME_STATE.stem}),
+    "play_game:game.loser.selection": frozenset({LOSER_SELECTION.stem}),
+    "read:body": frozenset({TRICK_ORDER_ROW.stem}),
+}
+
+# The qualifier's arms, and the state declarer's two callers — the sub-axes
+# one derived position each hides, keyed to the registry that mints them.
+_QUALIFIER_WITNESSES: dict[str, str] = {
+    "when": WHEN_GUARD.stem,
+    "repeat_until": REPEAT_CONDITION.stem,
+}
+_STATE_SCOPE_WITNESSES: dict[str, str] = {
+    "play_game": GAME_STATE.stem,
+    "run_phase": PHASE_STATE.stem,
+}
+
+
+def test_the_driver_evaluates_no_game_text_around_the_stamp() -> None:
+    """The driver hands game text to the evaluator through ONE function, which
+    stamps the expression. That is what makes the axis below a derivation
+    rather than a list: a position added anywhere in the module is either
+    stamped or is the call this cell names.
+
+    red under: in `cardlang/runtime/driver.py`, restore `run_phase`'s `when`
+    arm to `evaluate(q.expr, ctx)`."""
+    tree = ast.parse(DRIVER.read_text())
+    bound = {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "cardlang.runtime.evaluate"
+        for alias in node.names
+        if alias.name == "evaluate"
+    }
+    assert bound == {"evaluate"}, (
+        f"the driver binds the evaluator as {sorted(bound)}; this scrape reads "
+        f"the name `evaluate`, and an alias would empty it"
+    )
+    outside = sorted(
+        f"line {call.lineno}"
+        for where, call in _calls_to(tree, "evaluate")
+        if where != STAMP
+    )
+    assert not outside, (
+        f"cardlang/runtime/driver.py evaluates game text at {outside} without "
+        f"`{STAMP}`. A refusal from there reaches the designer with no line at "
+        f"all — the executor stamps the sentences it dispatches, and never sees "
+        f"an expression the driver reads itself"
+    )
+
+
+def test_every_driver_evaluation_position_has_a_witness() -> None:
+    """A position the driver evaluates and no fixture reaches is a stamp
+    nobody has watched render. Both directions: a new position arrives with no
+    witness, and a witness naming a position the driver no longer has fails
+    rather than passing on the rest.
+
+    red under: drop the `read:body` row — the derivation still finds the
+    trick-order row and this cell names it."""
+    assert set(_DRIVER_WITNESSES) == _driver_evaluation_sites()
+    named = {stem for stems in _DRIVER_WITNESSES.values() for stem in stems}
+    assert named <= {case.path.stem for case in _CASES}, (
+        f"witnesses named for a driver position but absent from the case list: "
+        f"{sorted(named - {c.path.stem for c in _CASES})}"
+    )
+
+
+def test_both_phase_qualifier_arms_have_a_witness() -> None:
+    """The `run_phase:q.expr` position is two arms of the driver's own `if`,
+    and a designer writes them as two different phase headers. The kinds come
+    from the parser, the only place one is minted, so an arm added to the
+    language arrives here unwitnessed.
+
+    red under: drop the `"when"` row."""
+    tree = ast.parse(PARSE.read_text())
+    minted = {
+        call.args[0].value
+        for _, call in _calls_to(tree, "n.PhaseQualifier")
+        if call.args and isinstance(call.args[0], ast.Constant)
+    }
+    assert minted, "no `n.PhaseQualifier` is built in cardlang/parse.py"
+    assert set(_QUALIFIER_WITNESSES) == minted
+    assert set(_QUALIFIER_WITNESSES.values()) <= {case.path.stem for case in _CASES}
+
+
+def test_both_state_declaration_scopes_have_a_witness() -> None:
+    """`_declare_state` runs a `state { }` block at either scope, and the two
+    differ in what a refusal from them can name: a phase's block names the
+    phase, the game's names none. The callers are read off the driver, so a
+    third scope arrives here rather than riding the other two.
+
+    red under: drop the `play_game` row."""
+    tree = ast.parse(DRIVER.read_text())
+    callers = {where for where, _ in _calls_to(tree, "_declare_state")}
+    assert set(_STATE_SCOPE_WITNESSES) == callers
+    assert set(_STATE_SCOPE_WITNESSES.values()) <= {case.path.stem for case in _CASES}
+
+
+# ---------------------------------------------------------------------------
 # The rendering — what a designer reads when their playout dies.
 # ---------------------------------------------------------------------------
 
@@ -409,7 +577,9 @@ class _Refusal:
     # sentence cannot leave a stale number pinned here.
     sentence: str
     occurrence: int
-    phase: str
+    # The phase the game was in, or None where the refusal escapes outside
+    # every phase — a game-level `state { }` default, the `loser:` selection.
+    phase: str | None
     zone: str | None
     # A line the refusal must NOT be reported at: the form enclosing the
     # sentence, where one encloses it on another line.
@@ -457,6 +627,55 @@ _CASES: tuple[_Refusal, ...] = (
         occurrence=0,
         phase="play",
         zone=None,
+    ),
+    _Refusal(
+        name="a phase's `when` guard reading an empty zone's suit",
+        path=WHEN_GUARD,
+        sentence="phase guarded when suit_of(indicator) is hearts {",
+        occurrence=0,
+        phase="guarded",
+        zone=None,
+    ),
+    _Refusal(
+        name="the same read in a phase's `repeat until` condition",
+        path=REPEAT_CONDITION,
+        sentence="phase looped repeat until suit_of(indicator) is hearts {",
+        occurrence=0,
+        phase="looped",
+        zone=None,
+    ),
+    _Refusal(
+        name="a phase's own `state { }` default, matching two seats",
+        path=PHASE_STATE,
+        sentence="singleton : Player? = the player where",
+        occurrence=0,
+        phase="guarded",
+        zone=None,
+    ),
+    _Refusal(
+        name="the game's `state { }` default, declared before any phase",
+        path=GAME_STATE,
+        sentence="singleton     : Player? = the player where",
+        occurrence=0,
+        phase=None,
+        zone=None,
+    ),
+    _Refusal(
+        name="a `loser:` selection asking who holds an undealt card",
+        path=LOSER_SELECTION,
+        sentence="loser: player_holding(A of spades)",
+        occurrence=0,
+        phase=None,
+        zone=None,
+    ),
+    _Refusal(
+        name="a `trick_order { }` row asking an unranked rank's strength",
+        path=TRICK_ORDER_ROW,
+        sentence="card_strength: rank_value(card)",
+        occurrence=0,
+        phase="play",
+        zone=None,
+        not_at="round play_to_trick from 0 over all players source hand",
     ),
 )
 
@@ -512,7 +731,11 @@ def test_the_enclosing_form_is_not_reported_instead(
     assert f"{case.path}:{wrapper}:" not in err, err
 
 
-@pytest.mark.parametrize("case", _CASES, ids=[c.path.stem for c in _CASES])
+@pytest.mark.parametrize(
+    "case",
+    [c for c in _CASES if c.phase is not None],
+    ids=[c.path.stem for c in _CASES if c.phase is not None],
+)
 def test_the_refusal_names_the_phase(
     case: _Refusal, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -520,6 +743,25 @@ def test_the_refusal_names_the_phase(
     text a library supplies, run in phases named somewhere else entirely."""
     _, err = _play(case.path, capsys)
     assert f"phase {case.phase}" in err, err
+
+
+@pytest.mark.parametrize(
+    "case",
+    [c for c in _CASES if c.phase is None],
+    ids=[c.path.stem for c in _CASES if c.phase is None],
+)
+def test_a_refusal_outside_every_phase_names_no_phase(
+    case: _Refusal, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The position axis's third arm, asserted rather than inferred. A game's
+    `state { }` is declared before the first phase and the `loser:` selection
+    is read after the last, so there is no phase to name — and naming one
+    would send the reader to a phase that was not running.
+
+    red under: in `cardlang/runtime/driver.py`, stamp
+    `phase=game.phases[0].name` beside the `loser:` evaluation."""
+    _, err = _play(case.path, capsys)
+    assert "in phase" not in err, err
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,33 @@
+// The same empty-zone suit read as `when_qualifier_empty_zone.cardlang`, in a
+// phase's `repeat until` condition instead of its `when` guard: the driver
+// evaluates the condition before the first iteration, so the refusal escapes
+// with no statement running and the condition's own span is what names it.
+game RepeatUntilQualifierEmptyZone {
+  players: 2
+  direction: clockwise
+  max_length: 20
+  cards: standard52
+  ranking: A K Q J 10 9 8 7 6 5 4 3 2
+
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+    indicator    : Discard
+  }
+
+  state {
+    coins[player] : Integer = 0
+  }
+
+  phase setup {
+    deal 1 card from deck to each hand
+  }
+
+  // `indicator` is empty here — nothing has moved a card into it.
+  phase looped repeat until suit_of(indicator) is hearts {
+    for each player p:
+      move 1 card from hand[p] to indicator
+  }
+
+  winner: highest coins
+}

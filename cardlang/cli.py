@@ -220,10 +220,10 @@ def _print_refusal(exc: Located) -> None:
 
     Rendered through the checker's own `Diagnostic`, so the two halves of the
     [[failure-channel]] print one shape and cannot drift into two spellings of
-    a file position. A refusal that reached no stamping site — during setup,
-    or while the result is read after the last phase — prints without a
-    locator; an invented span would point the reader at a line where nothing
-    happened.
+    a file position. A refusal that reached no stamping site prints without a
+    locator — the engine's own guards, which refuse a world rather than a
+    sentence — and an invented span would point the reader at a line where
+    nothing happened.
     """
     if exc.span is None:
         print(f"  {exc}", file=sys.stderr)
