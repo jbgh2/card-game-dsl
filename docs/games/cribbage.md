@@ -24,7 +24,7 @@ Each hand:
 The whole hand — discard, cut, pegging, and the show — runs in the DSL. Both
 players' discards and every pegging play are filtered card movements (`move
 chosen … where …`); ordinary statement control flow (`repeat until`, `if`/`else`,
-`skip to next hand`) reproduces the 121-point cutoff one scoring component at a
+`skip to next hand`) reproduces the 121-point cutoff one scoring rule at a
 time. Pegging needs no `round` form of its own — no existing round fits its
 per-play scoring plus forced-play flow — so the current sub-round's card
 provenance (who played each `play_pile` card) is carried by two `Integer` state

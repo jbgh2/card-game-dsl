@@ -535,10 +535,10 @@ These land inside the workstreams above and are shared on the third use:
 3. **Stud** — betting + pot.
 4. **Tichu** — done: climbing + the combination model (Big Two first, then
    Tichu's special-card flows on the climb form's terminal state).
-5. **Cribbage + Schnapsen** — done, without the scoring-component subsystem
-   (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
-   statements plus game-local Primitives; the subsystem itself remains
-   unbuilt, corpus-first future work).
+5. **Cribbage + Schnapsen** — done (Pinochle's, Cribbage's, and Schnapsen's
+   scoring all landed as ordinary statements plus game-local Primitives,
+   which is the designed end state — [decisions.md](decisions.md), "Scoring
+   has no constructs of its own").
 6. **Coup** — done at real interactive scope: challenge / block / claim /
    target are player decisions (Workstream 5; Tichu's call windows remain).
 

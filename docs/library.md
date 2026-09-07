@@ -425,7 +425,7 @@ in tests/test_trump_slot_class.py.
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'
   discards and every pegging play are filtered card transfers (`move chosen …
   where …`); `repeat until` / `if`/`else` / `skip to next hand` reproduce the
-  121-point cutoff one scoring component at a time. The current sub-round's card
+  121-point cutoff one scoring rule at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
   count) and decoded by the `peg_origin_of` Primitive query. The per-card

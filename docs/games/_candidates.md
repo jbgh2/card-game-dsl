@@ -109,9 +109,11 @@ sequences, sets, capot, pique, repique.
 **Why interesting.** Among the most heavily structured-scored games
 in existence. Each phase contributes scoring events that can change
 the *order and value* of subsequent ones (pique, repique). A stress
-test for the scoring-component composition story in
-[decisions.md](../decisions.md) and for the triggered-scoring
-machinery committed there.
+test for the ruling that scoring has no constructs of its own
+([decisions.md](../decisions.md), "Scoring has no constructs of its own"):
+scoring events that reorder and revalue later ones are the shape a
+component subsystem would have been built for, and ordinary sequential
+statements must carry them instead.
 
 **Construct.** Witness for issue #254 — declarations compared between
 the two players, category by category (coverage by construct, above).

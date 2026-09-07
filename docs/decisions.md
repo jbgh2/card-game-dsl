@@ -262,9 +262,9 @@ surface deferred by the checker"): when enforcement widens, the guards
 retire and the forms return with an implementation behind them.
 
 **The move under inspection is bound as `action`.** A predicate over a
-player's move — the `when <move-type> where …` triggers of sub-phase
-transitions (see "Sub-phase entry and exit") and triggered scoring
-components — binds that move as `action`, and its
+player's move — the `when <move-type> where …` trigger of a sub-phase
+transition (see "Sub-phase entry and exit") — binds that move as
+`action`, and its
 fields expose the move's data: `action.card` (the card played),
 `action.cards`, `action.card_count`, `action.actor`, `action.amount`. The
 subject is always reached through `action`; there are no bare field names,

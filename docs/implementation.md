@@ -126,8 +126,8 @@ or underspecified, the grammar can't be written or a game won't parse.
 ### B. Semantic model and symbol resolution
 
 Resolve names across every block: zones, move types, rules,
-user-defined types, state variables, players and teams, scoring
-components, and native functions. Build scopes following lexical phase
+user-defined types, state variables, players and teams, and native
+functions. Build scopes following lexical phase
 nesting (see [decisions.md](decisions.md), "State scoping (lexical)"), including
 the round forms' own state frames that rules read by lexical scope
 (e.g. the trick `round`'s `state.led_suit`).
