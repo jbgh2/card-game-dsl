@@ -384,11 +384,14 @@ def _wrap_betting_street(frag: str) -> str:
     # library.md "Mechanics", the betting bullet: one poker street, quoted from
     # docs/games/leduc-poker.cardlang. The skeleton supplies what a street
     # legitimately leaves to its host — `uses poker_betting` (which brings
-    # check/bet/call/raise, the ring predicates and `open_street`), the eight
-    # names that library's `requires` block demands, the `first_actor` the ring
+    # check/bet/call/raise, the ring predicates and `open_street`), the names
+    # that library's `requires` block demands, the `first_actor` the ring
     # starts from, and a game-local `fold`, which the library deliberately omits
-    # because folding touches cards. It shares no vocabulary with the other
-    # recipes' skeleton, so it builds its own.
+    # because folding touches cards. The betting state sits in a GAME-level
+    # `state { }` because Leduc's does, which is also what puts the pot picture
+    # in a seat's OpenSpiel view (authoring.md, "The loop: check, play, read
+    # the information state"). It shares no vocabulary with the other recipes'
+    # skeleton, so it builds its own.
     return f"""
 game Skeleton {{
   uses poker_betting
