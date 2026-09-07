@@ -5,15 +5,17 @@ Stud. `discards` is hidden too and holds nothing to perturb at the depth
 below — the greedy line stands pat, which is also why the exchange gets the
 dedicated test at the foot of this module.
 
-`swap_axis="any"`: the line this proof replays contains no card-naming
-action. That is a claim about the LINE, not about the action space — `toss`
-is a `move chosen one card`, so a tossed card's own action id names it, and a
-swapped world would not replay a recorded toss. The greedy `legal[0]` line
-never tosses: at the exchange it is offered `[stand, toss]` and `stand` sorts
-first, so the whole line is `check, check, stand, stand, check, check` on
-every manifest seed. Two-card-suit filtering would starve a five-card hole
-pool as it does the siblings', which is the other half of why the axis is
-`any` rather than the default.
+`swap_axis="any"`: nothing on the line this proof replays observes a card or
+a rank publicly, so a swap needs to stay within no narrower class than "some
+other card the observer cannot see". That is a claim about the LINE, not
+about the action space — `toss` is a `move chosen one card`, so a tossed
+card's own action id names it, and a swapped world would not replay a
+recorded toss. The greedy `legal[0]` line never tosses: at the exchange it is
+offered `[stand, toss]` and `stand` sorts first, so the whole line is
+`check, check, stand, stand, check, check` on every manifest seed. The
+default `"suit"` would not starve a five-card hole against a 42-card stock
+the way it would the siblings' two-card holes; it would simply prove a
+narrower statement than the game supports.
 
 `depth=4`. The 2-player swap branch pauses on the FIRST decider, so the depth
 must land on a P0 decision; P0 decides at 0, 2 and 4 on the greedy line. 4 is
