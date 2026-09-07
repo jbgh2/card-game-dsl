@@ -3251,16 +3251,24 @@ for each team t:
   }
 ```
 
-```text
-// Oh Hell (TricksAndExactBonus):
-if result.tricks_won[p] is result.bid[p]:         // exact
-  delta[p] += 10
-```
+Oh Hell, in `docs/games/oh-hell.cardlang` — one point a trick, ten more for
+hitting the bid exactly:
 
 ```text
-// Pinochle (inline):
-if bidder_team_total >= current_bid:              // total-points threshold
-  score[bidder_team] += bidder_team_total
+for each player p:
+  if tricks_won[p] is bid[p] { score[p] += tricks_won[p] + 10 }
+  else { score[p] += tricks_won[p] }
+```
+
+Pinochle, in `docs/games/pinochle.cardlang` — the bidding team must reach
+its bid or is set back by it:
+
+```text
+if team_score_in_hand(t) >= current_bid {
+  score[t] += team_score_in_hand(t)
+} else {
+  score[t] -= current_bid
+}
 ```
 
 The shared *bidding mechanic* possibilities — an ascending-bid `auction`
