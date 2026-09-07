@@ -91,13 +91,16 @@ def showdown_hands(
     hole: Mapping[Player, Sequence[Card]],
     upcards: Mapping[Player, Sequence[Card]],
 ) -> dict[Player, list[Card]]:
-    """Each entrant's showdown holding: their seven private-and-upcard cards.
+    """Each entrant's showdown holding: their private and upcard cards
+    together, however many of each the declaring game deals.
 
-    This is the whole of what Stud contributes to the settlement — the layering
-    itself is family-wide (`poker.side_pot_payouts`). The one game fact here is
-    that the DSL's reveal move only changes WHICH of `hole`/`upcards` holds a
-    contender's cards, not the concatenated seven, so both are concatenated and
-    the result is insensitive to that move."""
+    Assembling the holding is the whole of what a game contributes to the
+    settlement — the layering itself is family-wide
+    (`poker.side_pot_payouts`). The one game fact here is that a DSL reveal
+    move only changes WHICH of `hole`/`upcards` holds a contender's cards, not
+    the concatenation, so both are concatenated and the result is insensitive
+    to that move. Any game whose contenders show exactly the union of those
+    two zones assembles its holding this way; the count is not read."""
     return {p: list(hole[p]) + list(upcards[p]) for p in in_hand}
 
 

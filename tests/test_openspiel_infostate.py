@@ -80,3 +80,54 @@ def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
 
     with pytest.raises(AssertionError, match="no declared rendering"):
         _render(Alien())
+
+
+def test_a_derived_view_does_not_follow_the_world_it_came_from() -> None:
+    """A view describes one position, and keeps describing it.
+
+    An indexed state variable is a live `{player: value}` dict on the frame, so
+    a view that held it would report the CURRENT score at whatever later moment
+    it was read — quietly, and only for the callers who keep a view rather than
+    rendering it at once.
+
+    red under: return the frames' own values from `infostate.derive` instead of
+    snapshotting them.
+    """
+    from cardlang.openspiel.infostate import derive
+
+    rs = _rs()
+    view = derive(0, rs, [])
+    # COPIED, or the comparison below aliases what it is measuring: an
+    # unsnapshotted view hands back the frame's own dict, and a reference to it
+    # would move with the mutation and read equal to itself.
+    before = dict(dict(view.state)["score"])
+
+    # IN PLACE, which is how an indexed assignment reaches a state variable.
+    # Rebinding the name with `set` would swap the object and leave a
+    # reference-holding view reading the old one — passing this cell while the
+    # defect it names stands.
+    rs.get("score")[0] = 999
+
+    assert dict(view.state)["score"] == before
+    assert dict(derive(0, rs, []).state)["score"] == {0: 999, 1: 20}
+
+
+def test_a_view_cannot_be_written_through_into_the_world() -> None:
+    """Holding a seat's view is not a licence to edit the game.
+
+    `frozen=True` on the dataclass guards the FIELD, never what the field
+    points at, so a live dict inside it would be a writable door into engine
+    state for anything handed a view — a renderer, a policy, an LLM seat's
+    prompt builder.
+
+    red under: the same edit as above; the snapshot is what closes both.
+    """
+    import pytest
+
+    from cardlang.openspiel.infostate import derive
+
+    rs = _rs()
+    scores = dict(derive(0, rs, []).state)["score"]
+    with pytest.raises(TypeError):
+        scores[0] = -1
+    assert rs.get("score") == {0: 10, 1: 20}
