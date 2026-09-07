@@ -204,8 +204,11 @@ game FiveCardDraw {
       // before a card is exchanged — which is where the table opens it: from
       // the moment the first round closes no bet stands, nobody owes and
       // nobody has acted on the round to come. Opening it after the exchange
-      // instead would leave the closed round's standing bet and aggression
-      // count reading as a live street all through the draw.
+      // instead, where every other poker game in the corpus has its
+      // `open_street`, would leave the closed round's standing bet and
+      // aggression count reading as a live street all through the draw. The
+      // library opens streets and closes none, so that placement is the
+      // family's to settle rather than this game's: issue #639.
       run open_street(4)
       turns d from first_actor
             over players where not folded[player] and not drawn[player]
