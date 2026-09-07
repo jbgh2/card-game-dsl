@@ -418,7 +418,7 @@ cards each ≤ 8. With Hold'em now in the corpus the community board
 and the side-pot layering are both already carried, so what Omaha
 newly forces is exactly the per-pot SPLIT — a per-game shape that
 fits the "each game declares its own scoring structure" decision in
-decisions.md "Scoring composition". The use-exactly-two constraint
+decisions.md "Scoring has no constructs of its own". The use-exactly-two constraint
 is a second pressure: Hold'em's evaluator takes the best five of
 seven unconstrained, which Omaha cannot.
 

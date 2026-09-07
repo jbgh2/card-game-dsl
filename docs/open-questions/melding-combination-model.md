@@ -47,6 +47,6 @@ a Rummy scorer would not.
 
 Related: [decisions.md](../decisions.md) "Joint formation legality" (how meld
 *legality* is already modelled, and why Canasta stages per card rather than
-selecting subsets); [decisions.md](../decisions.md) "Scoring composition" (the
-`scoring_component` design this would compose with, itself unbuilt — issue
-\#115); [games/_candidates.md](../games/_candidates.md) (the game pipeline).
+selecting subsets); [decisions.md](../decisions.md) "Scoring has no constructs of its own" (a
+meld catalogue is recognition and may grow as a general construct; its
+pricing never does); [games/_candidates.md](../games/_candidates.md) (the game pipeline).

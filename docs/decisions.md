@@ -149,9 +149,8 @@ the exit condition.
 
 **Event-triggered sibling transition.** `transition_to: Y when <event>`
 inside sibling X switches control to sibling Y when the event fires.
-The `<event>` is the same reference form triggered scoring components
-use — a move-type event with an optional `where <predicate>` (see
-"Triggered scoring components"); there are no ad-hoc event names.
+The `<event>` is a move-type event with an optional `where <predicate>`
+over the move under inspection; there are no ad-hoc event names.
 Hearts breaks hearts with `transition_to: hearts_broken when
 play_to_trick where action.card.suit is hearts`; Spades breaks spades with
 `transition_to: spades_broken when play_to_trick where action.card.suit is
@@ -1461,32 +1460,15 @@ writes of every preceding statement in the enclosing phase, plus
 mutations triggered by intervening moves. No transactional isolation,
 no copy-on-write, no implicit ordering tricks.
 
-**Batched mutation for scoring components.** The one site where
-mutation is *not* purely sequential is `apply_components:`. Each
-component produces a `ScoreDelta` against the *pre-batch* state. The
-deltas are summed, and the sum is applied once. This means:
-
-- The order of components in the `apply_components:` list does not
-  affect the result. (Component A and component B both reading
-  `is_vulnerable(p)` see the same value, because neither has applied
-  yet.)
-- Threshold checks that should fire *after* the batch (Bridge's
-  GameBonus reading `below_line_current_game >= 100`) are expressed
-  as triggered components with `triggered_by: after apply_components`
-  (see "Triggered scoring components" below). They see post-batch
-  state.
-
-This is the only batched-write site in the language. It has
-fundamentally different read semantics from in-phase imperative
-writes and is worth documenting as a distinct mutation mode.
-
-A phase may contain *multiple* `apply_components:` batches in
-sequence. Each batch is internally unordered (deltas summed against
-pre-batch state, applied at once), but later batches see the
-accumulated effect of earlier batches and any intervening imperative
-statements. Batching encodes "these scores are independent of each
-other"; sequencing encodes "these scores depend on what came
-before, potentially including game termination."
+**Scoring writes are ordinary sequential writes.** A scoring phase is
+statements like any other: a contract's arithmetic, then a threshold test on
+what it wrote, then the bonus the test earns. Bridge's game bonus is an `if`
+on `below_current[dteam] >= 100` in sequence after the contract score, its
+coupled reset is one assignment per team, and its rubber bonus is a nested
+`if` on `games_won` — all in `docs/games/bridge.cardlang`. There is no
+batched scoring mode ("Scoring has no constructs of its own"); the language's
+one batched-write context is the simultaneous block ("Simultaneous moves and
+atomic effect"), whose reads see pre-block state for a reason of its own.
 
 **Event-driven sub-phase transitions are not a third mutation mode.**
 Hearts' `transition_to: hearts_broken when play_to_trick where
@@ -1501,13 +1483,12 @@ each team and player`. Generalized form: `var := initial for each
 index`. The single-cell write `score := 0` and the indexed form
 `score[t] := 0 for each team t` desugar to the same loop.
 
-**Coupled resets and modulus accumulation are explicit.** Bridge's
-"below-line resets for both sides when either side wins a game" is
-written as a multi-write `ScoreDelta` inside the GameBonus triggered
-component (see "Triggered scoring components" below). Spades'
-bags-modulus reset is the same shape inside BagOverflow. There's no
-language-level "coupled variables" or "wrapping accumulator"
-construct; an explicit multi-write delta reads correctly.
+**Coupled resets and modulus accumulation are explicit statements.**
+Bridge's "below-line resets for both sides when either side wins a game" is
+two assignments, one per team, inside the game-bonus branch. Spades'
+bags-modulus reset is a `repeat until (all teams where bags[team] < 10)`
+around a per-team `if`. There is no language-level "coupled variables" or
+"wrapping accumulator" construct; the explicit statements read correctly.
 
 **Phase-outcome destructuring** (Bridge's `bidding produces:
 contract_made(c, d): contract := c; declarer := d; ...`) is just
@@ -3087,45 +3068,56 @@ own post-trick spelling).
 `is not empty` is the negation of `is empty` (a zone predicate), paired
 for elimination games that select the player who *still* holds cards.
 
-## Scoring composition
+## Scoring has no constructs of its own
 
-> **Status: designed, not yet built.** No game runs this subsystem — the runtime
-> has no `apply_components:` construct, and `ScoreDelta`/`triggered_by:` are not
-> implemented. It is the intended shape for composed scoring; the corpus scores
-> through game-local statements and Primitives today (Bridge and Spades
-> inline; Pinochle's `pinochle_meld_value`, Tarot's `tarot_per_opp`, Cribbage's
-> pegging/show primitives). The components named here and in the sibling sections
-> are the proposed decomposition, promoted corpus-first when the subsystem lands.
+Scoring is arithmetic on state, and the language already does arithmetic on
+state. A game scores with exactly three things, none of them a scoring
+construct:
 
-Scoring composes from named components. The scoring phase of a game
-declares which components apply:
+- **Declared data** — a table keyed by something the deck or the game already
+  names. The rank-keyed `card_points { }` clause is the one the language has
+  (below).
+- **General constructs** — the comprehensions, queries, conditionals and
+  arithmetic every other part of a game uses. A scoring sentence is a legality
+  sentence with a different variable on the left: Scopa's "can this card
+  capture?" and cribbage's "how many fifteens?" are the same subset query.
+- **A ranking direction** — `winner: highest <var>` / `lowest <var>`, or
+  `loser:` for elimination ("Game result: `winner:` and `loser:`"). The
+  variable is whatever play accumulated; the word says which end wins.
 
-```text
-phase scoring {
-  let result = HandResult(contract, declarer_side, ...)
-  apply_components: [
-    ContractTrickScore,
-    OvertrickScore,
-    UndertrickPenalty,
-    SlamBonus
-  ]
-}
-```
+**The test, at the moment of temptation: a construct whose definition has to
+mention a point value is the wrong shape.** Recognition over card sets is
+general and earns grammar on witnesses; pricing never does. A construct that
+is general by definition but finds only scoring consumers is filed as general
+and watched — the dead-surface report (issue #653) is the instrument that
+shows whether it ever finds another, and a member of a closed register may
+ship ahead of its first game when its sibling has one (a language with
+`highest` and not `lowest` has a hole a designer meets).
 
-Each component takes the hand result and returns a `ScoreDelta` — a
-structured value carrying per-team (or per-player)
-contributions. The scoring phase sums the deltas across all
-components and applies the result atomically.
+What the language cannot yet say about a hand stays a declared Primitive in
+the game file (`primitives { }`; "Family libraries"), where the declaration is
+the inventory of what is not expressible. That is the escape hatch by design:
+a typed function at function granularity, which is the granularity that
+works. A shared engine module behind several games' declared Primitives —
+poker's hand ranking and side pots, one module, three games — is that hatch's
+healthiest shape and a designed end state rather than debt, until the general
+constructs it needs (a composite ordered value, a selection returning the
+player) earn witnesses of their own.
 
-This composes by summation: the order of components in the list
-does not affect the result (per "Mutation semantics" above, batched
-mutation). Each component reads pre-batch state; all components
-contribute to a single applied write.
+The rule generalizes two rulings already below it: the `card_points { }`
+clause deliberately carries no more than the rank-keyed table, and structured
+score is a per-game declaration, not a language-level concept. It is derived,
+not imported: measured 2026-09-07, 21 of the corpus's 32 games score with no
+Python and nothing beyond the three things above, and of the four
+game-description languages with corpora that were read, none has a scoring
+language. The rejected alternative — a subsystem of batched `ScoreDelta`s and
+event-triggered components — and the measurement behind this ruling are in
+[design-notes/scoring-components.md](design-notes/scoring-components.md).
 
-**Structured-score shapes are per-game, not generalized.** Bridge's
-`ScoreDelta { above_line, below_line }` has two channels per
-team because the game-win threshold cares specifically about
-below-the-line accumulation. Stud has a different shape: a list of
+**Structured-score shapes are per-game, not generalized.** Bridge
+declares two score variables per team — `total_score` and
+`below_current` — because the game-win threshold cares specifically
+about below-the-line accumulation. Stud has a different shape: a list of
 pots with per-pot eligibility, length data-dependent on all-in
 history. The games whose score is a single integer per player
 — Cribbage, Skat, Oh Hell, Pinochle (final team score) — don't have
@@ -3140,9 +3132,9 @@ the corpus to express simpler games through a heavier abstraction,
 and the third structured-score game (Skat) declined to produce a
 third shape — it kept a scalar score. The honest read: structured
 score is a per-game declaration, not a language-level concept. Each
-game's `ScoreDelta` carries whatever fields the game's scoring
-mechanics need (one integer, two channels, a list of pots, etc.);
-no shared `ScoreStructure` type.
+game declares whatever score variables its mechanics need (one
+integer, two channels, a list of pots settled in a Primitive); there
+is no shared score-structure type.
 
 **Per-card points: a rank-keyed table is the `card_points { }`
 clause; everything richer stays an inline expression or a
@@ -3192,71 +3184,6 @@ shape, and inline conditionals scale to the rest. Lift to a
 per-game helper function when the composition is large enough to
 repay the indirection (Canasta's twelve-pile meld sum,
 `canasta_meld_points`, is an example).
-
-## Triggered scoring components
-
-> Part of the `scoring_component` subsystem — designed, not yet built (see
-> "Scoring composition" above).
-
-Some scoring fires in response to a specific event rather than as
-part of an `apply_components:` batch. Bridge's GameBonus fires when
-a team's below-the-line score crosses 100; RubberBonus fires
-when `games_won` reaches 2; Spades' bag-overflow fires when
-`bags >= 10`. These
-share one shape, distinct from the batched per-hand composition:
-fire on an event, evaluate a predicate, contribute a `ScoreDelta`.
-
-A scoring component declares the trigger with a `triggered_by:`
-clause analogous to a rule's `applies_when:`:
-
-```text
-scoring_component <name> {
-  triggered_by: <event> [where <predicate>]
-  ScoreDelta { ... }
-}
-```
-
-The event is either:
-
-- A **move-type name** (`play_card`, `cut_starter`, `submit_bid`).
-  The component fires when that move type is executed; the
-  predicate is evaluated against post-move state and the move's
-  carried data.
-- A **synthesized phase event** (`end_of_round`,
-  `transition_to: <target>` reached). These are emitted by mechanics
-  or sub-phase transitions and named at their emission site.
-- The synthetic boundary `after apply_components`. The component
-  fires immediately after the enclosing scoring batch settles and
-  reads post-batch state. This is how Bridge's GameBonus, RubberBonus,
-  and Spades' bag overflow fire: a `ScoreDelta` accumulated by the
-  batch may push a counter past a threshold, and the triggered
-  bonus reacts to the resulting state.
-
-The `where` clause is a boolean predicate on game state at the
-moment the event fires. Common idioms:
-
-- Threshold crossing: `below_line_current_game[winner] crosses 100`.
-  Reads as "the value just changed *to* something ≥ 100 from
-  something < 100." A value already above the threshold doesn't
-  re-fire on every event; the predicate is true only on the
-  transition.
-- State equality: `running_total is 31 after the play`.
-- Derived properties: `play_pile.suffix_same_rank_count >= 2`.
-
-Triggered components are independent of `apply_components:`. They
-are declared in the same `scoring_component` namespace and use the
-same `ScoreDelta` machinery. A game's scoring is the union of its
-batched components and its triggered components; both contribute
-to the same accumulated score.
-
-When a triggered component would cause a game-ending threshold
-(Cribbage's 121, or any termination predicate), the `repeat until`
-clause on the enclosing loop fires immediately upon the
-triggered-component delta being applied. See "Loop termination
-semantics" above.
-
-**Corpus usage.** The corpus's triggered components are Bridge's
-GameBonus and RubberBonus and Spades' BagOverflow. All fit the shape above.
 
 ## `choose` as expression
 
@@ -3311,13 +3238,17 @@ threshold vs total-points. A `bid_meaning:` parameter on Auction
 would only cover Pinochle's case, since Spades/Oh Hell/Bridge don't
 use the Auction mechanic.
 
-Bid interpretation is therefore a per-game scoring concern. Each
-game's `scoring_component`s declare what counts as making the bid:
+Bid interpretation is therefore a per-game scoring concern, written as the
+scoring phase's own statements — Spades, in `docs/games/spades.cardlang`:
 
 ```text
-// Spades (ContractScoring):
-if result.tricks_won[t] >= non_nil_bid:           // threshold
-  delta_score[t] += 10 * non_nil_bid
+for each team t:
+  if team_tricks[t] >= team_bid[t] {
+    score[t] += contract_score(t) + overtricks(t)
+    bags[t]  += overtricks(t)
+  } else {
+    score[t] -= contract_score(t)
+  }
 ```
 
 ```text
@@ -3474,9 +3405,8 @@ of letting it through to a crash.
 **Read semantics: pre-block state.** Every operation inside the
 block reads state as it was at block entry. No operation
 observes another's effects, including its own writes. This is
-the same model as `apply_components:` in
-[mutation semantics](#mutation-semantics) — a batched-write
-context whose reads see pre-batch state. The order of statements
+the language's one batched-write context ("Mutation semantics"): reads
+see pre-block state, and nothing else in the language reads that way. The order of statements
 in the body is irrelevant; swapping lines yields the same
 result.
 

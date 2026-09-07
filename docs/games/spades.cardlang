@@ -3,10 +3,9 @@
 // Companion to spades.md. The machine-checkable form: team trick-taking
 // with a fixed trump suit (spades), a per-player integer bid (nil = 0), and
 // contract + nil + bag-overflow scoring to 500. Where spades.md sketches
-// constructs the grammar had not yet grown (scoring_component blocks, a
-// first-trick spade ban that is redundant with "no leading spades until
-// broken"), this file uses the constructs that actually execute and folds the
-// scoring into the `scoring` phase the way hearts.cardlang does.
+// a first-trick spade ban that is redundant with "no leading spades until
+// broken", this file omits it, and it scores in the `scoring` phase as
+// ordinary statements the way hearts.cardlang does.
 //
 // Chosen ruleset (one of several Spades variants; kept internally consistent so
 // the per-hand score reconciles):

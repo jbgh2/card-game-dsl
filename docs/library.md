@@ -433,8 +433,8 @@ in tests/test_trump_slot_class.py.
   Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
   `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
   pegging-count and show scorers, in the same game-local shape as Stud's
-  `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
-  shared `scoring_component` subsystem lands corpus-first.
+  `pot_share` and Pinochle's `pinochle_meld_value` — the designed shape for
+  what the language cannot yet say about a hand.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
   close the talon) is the **auction form over a single-participant ring** —
@@ -502,46 +502,18 @@ in tests/test_trump_slot_class.py.
   (`challenge_stands` / `block_stands`) are public phase state.
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
-## Scoring components
+## Scoring
 
-> **Status: proposed, not yet built.** No game runs a `scoring_component` /
-> `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
-> decompositions below are the intended design; the corpus scores through
-> game-local statements and Primitives (see the Mechanics section above and
-> `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
-> when the subsystem is built.
-
-Composition by summation of `ScoreDelta` outputs; triggered components fire on
-specific events via `triggered_by:` clauses (see decisions.md
-"Triggered scoring components"). Proposed decompositions for Bridge and Spades
-follow.
-
-**Bridge:**
-
-- `ContractTrickScore` — below-the-line points for tricks bid and made.
-- `OvertrickScore` — above-the-line points for tricks beyond the contract.
-- `UndertrickPenalty` — above-the-line points to defenders when contract fails.
-- `SlamBonus` — above-the-line bonus for level-6/7 contracts made.
-- `GameBonus`, `RubberBonus` — triggered after `apply_components` on
-  the below-line-crosses-100 and games_won-reaches-2 thresholds.
-
-**Spades:**
-
-- `NilScoring` — per-player ±100 for Nil bidders.
-- `ContractScoring` — per-team scoring on contract success/failure;
-  also accumulates bags on overtricks.
-- `BagOverflow` — triggered after `apply_components` on the
-  bags-crosses-10 threshold.
-
-All currently game-specific. Generalization candidates will emerge with
-more scoring-heavy games (Bridge variants, Pinochle's full meld
-scoring). Skat added another scoring shape (game_value computed from
-base × multiplier with matadors, hand, schneider, schwarz inputs)
-but kept the per-game-helper pattern — the multiplier arithmetic is plain
-statements in the game file over the `skat_matadors` primitive rather
-than a generalized abstraction, with the overbid rule's
-smallest-covering-multiple written as rounded division
-(`divided by … rounded up`) in the game text.
+There is no scoring construct and no scoring library
+([decisions.md](decisions.md), "Scoring has no constructs of its own"). A
+game scores with its `card_points { }` clause, the general constructs, and
+`winner:`; what the language cannot yet say about a hand is a game-local
+Primitive declared in the game file (see "Native functions" below), which is
+the shape Stud's `pot_share`, Pinochle's `pinochle_meld_value` and Cribbage's
+show scorers all take. Skat is the pattern at its plainest: the game value's
+multiplier arithmetic is plain statements in the game file over the
+`skat_matadors` primitive, with the overbid rule's smallest-covering-multiple
+written as rounded division (`divided by … rounded up`) in the game text.
 
 ## Phase types
 
@@ -893,7 +865,7 @@ and which one is the game's own choice:
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
   the highest card of a suit played so far in the trick.
 - `card_points(card: Card) → Integer` — the card's points under the game's
-  own `card_points { }` clause (decisions.md "Scoring composition"): listed
+  own `card_points { }` clause (decisions.md "Scoring has no constructs of its own"): listed
   ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.
   General-purpose for any point-counting game; calling it in a game that
   declares no clause is a resolve error (the table has one source). Used by
@@ -963,8 +935,8 @@ and which one is the game's own choice:
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are the game-local primitives below, reading `cardlang/runtime/cribbage.py` —
-game-local (like Stud's `pot_share`) until the shared `scoring_component`
-subsystem lands corpus-first (the per-card pegging value is the game's own
+game-local like Stud's `pot_share`, which is the designed shape for what the
+language cannot yet say (the per-card pegging value is the game's own
 `card_points { }` clause, distinct from its *ranking*, which orders cards for
 comparisons):
 

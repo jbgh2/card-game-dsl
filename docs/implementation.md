@@ -142,8 +142,8 @@ Check against the typed object model ([decisions.md](decisions.md),
 parameters, the visibility-projection enum on each zone, rule clause
 types (`applies_when` is a state predicate; `demands` returns a set of
 candidate moves; `if_impossible` is a fallback), the `round`'s
-`winner` and `early`-predicate function signatures, scoring components producing
-`ScoreDelta`, and exhaustiveness of pattern matches on typed phase
+`winner` and `early`-predicate function signatures, and exhaustiveness of
+pattern matches on typed phase
 outcomes ([decisions.md](decisions.md), "Typed phase outcomes").
 
 Handle the `<>` "type-shaping" value arguments explicitly: in

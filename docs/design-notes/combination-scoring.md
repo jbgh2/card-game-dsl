@@ -1,6 +1,12 @@
 # Combination structure over cards — the language's largest recurring hole
 
-Status: exploratory analysis (proposal, not settled spec). Provenance: the
+Status: exploratory analysis, superseded in part. [decisions.md](../decisions.md)
+"Scoring has no constructs of its own" rejects tier 1 as written: its pattern
+rows carry point values, which fuses recognizing a pattern with pricing it.
+What survives of the proposal is the recognition half — the pattern
+primitives as general constructs over card sets, growing on witnesses — with
+pricing left to `card_points { }` and the arithmetic beside it. The subset
+binder is the first of those and is in the language. Provenance: the
 Salvo experiment (`experiments/salvo/`) reached its combos-and-jokers round
 and stopped, by design review, rather than add another per-game Primitive
 primitive. This note characterizes what the language cannot currently say,

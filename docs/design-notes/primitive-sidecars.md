@@ -369,8 +369,7 @@ REPORT verdicts close the round.
 
 The declaration block doubles as a per-game inventory of exactly what is
 not yet expressible in the DSL — which is what these primitives are, and
-why the tracker's generalization work (issues #115 and #140 — the
-`scoring_component` subsystem, the shared combination model, in-DSL outcome
-expressions) should keep burning them down. Sidecars being well-designed
+why the tracker's generalization work (issue #140 — the shared combination
+model, in-DSL outcome expressions) should keep burning them down. Sidecars being well-designed
 must not make them so comfortable that the burn-down stops: a shrinking
 `primitives { }` block is the visible score.
