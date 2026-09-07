@@ -343,6 +343,13 @@ _PRE_MIGRATION: dict[str, tuple[str, str, tuple[str, ...]]] = {
     # that reordered this expansion would not change what beats what — it would
     # silently desync the declared order from the compared one.
     "holdem-heads-up": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
+    # Five-Card Draw is convention-BORN on the same row for the same reason as
+    # the two Hold'em rows: its showdown settles through the shared `pot_share`
+    # Primitive, whose evaluator ranks against its OWN fixed ace-high scale
+    # rather than the game's `ranking:`. A template edit that reordered this
+    # expansion would not change what beats what — it would silently desync the
+    # declared order from the compared one.
+    "five-card-draw": ("aces high", "standard52", ("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")),
 }
 
 

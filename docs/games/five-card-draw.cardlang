@@ -1,0 +1,302 @@
+// Five-Card Draw — heads-up fixed limit (2 players, ONE hand) — formalized DSL
+// (parser/checker/runtime target).
+//
+// Companion to five-card-draw.md. The corpus's first DRAW-family poker game:
+// where Stud and Hold'em add cards, this one lets a player exchange them.
+//
+// EXACT VARIANT. Two players — Pagat's stated minimum, and the count at which
+// the corpus already holds its other one-hand poker games. Ante 1 each, no
+// blinds (Pagat: "before the deal each player puts an agreed ante into the
+// pot"). Five cards each, dealt one at a time. A betting round; then each
+// player in turn discards from zero to three cards face down and is dealt that
+// many replacements; then a second betting round; then the showdown, best
+// five-card poker hand taking the pot. One hand, then the game ends; the score
+// is the hand's chip delta.
+//
+// Source: Pagat, https://www.pagat.com/poker/variants/5draw.html.
+//
+// THREE PARAMETERS THIS VARIANT SETS, because Pagat leaves each open:
+//
+// - FIXED LIMIT 2 before the draw, 4 after. The page names no bet sizing at
+//   all, so the doubling at the draw is this variant's, chosen to match the
+//   doubling at the turn in the corpus's fixed-limit Hold'em.
+// - FOUR AGGRESSIVE ACTIONS per street (a bet and three raises), the cap Stud
+//   and both Hold'em variants carry; `raise_cap` is where the family keeps it.
+// - DISCARD ZERO TO THREE, the page's base rule. Its optional extension —
+//   "some allow a player to discard and draw four cards if the fifth card is
+//   an ace" — is a house rule this variant does not adopt, so `toss`'s guard
+//   is a flat three and no seat's holding widens it.
+//
+// ONE DEVIATION from the source, named here rather than left for a reader to
+// discover: THE SECOND ROUND OPENS WITH THE SAME SEAT AS THE FIRST. Pagat
+// opens the post-draw round "with the player who opened the betting on the
+// first round" — the seat that made the first round's opening AGGRESSION, not
+// its first-to-act. That seat is not derivable from anything this game can
+// read: `bet_by` is cleared by `open_street`, and equal `committed` totals do
+// not say who bet first. The family library (docs/libraries/
+// poker_betting.cardlang) owns `bet` and `raise` and writes no opener, so a
+// game cannot observe the aggression without changing the library, and `uses`
+// imports without inheriting — there is no override. Both rounds therefore
+// open with the seat to the dealer's left, which is also what a checked-around
+// first round yields under Pagat's own rule. A language gap, not a tidy-up:
+// issue #544, whose witness this game is.
+//
+// Pagat's SHOWDOWN ORDER wants the same unrecorded fact — players show "in
+// clockwise order, beginning with the last player who took aggressive action
+// (bet or raised) in the second betting round". It is not a second deviation:
+// every contender shows, and no decision stands between the two reveals, so
+// the order changes no seat's information at any decision and the showdown
+// below reveals both hands at once, as Stud's and Hold'em's do.
+//
+// THE DISCARD IS A SEQUENCE OF ONE-CARD DECISIONS, which is the documented
+// form of `move chosen N cards` here and not a departure from the game. The
+// one-decision spelling (`move chosen some cards from hole[actor] where
+// jointly ...`) needs a registered per-predicate subset codec, which is engine
+// Python; the announce-then-stage decomposition is what decisions.md,
+// "Joint-predicate selection" prescribes in its place. `toss` discards one
+// chosen card and `stand` ends the exchange, and the `turns` form's `again`
+// axis keeps the same player deciding until they stand — so a player completes
+// their whole exchange before the next seat begins and learns nothing between
+// their own tosses. The reachable exchanges and the information each seat
+// holds are those of the one-motion push at the table; only the shape of the
+// game tree differs.
+//
+// THE DRAW COUNT IS PUBLIC AND THE DISCARDS ARE NOT — the whole strategic
+// content of the exchange. `discards[player] : HiddenPile<player>` is that
+// sentence as a zone type: identity to the owner, count_only to everyone else.
+// A seat that draws three tells the table it drew three and nothing more, and
+// nobody had to write an observation rule to make it so.
+//
+// NO PLAYER IS EVER ALL-IN, and that is arithmetic, not luck: four aggressions
+// at 2 cap the first round's `bet_to_match` at 8, four at 4 cap the second at
+// 16, so a hand cannot take more than 24 chips plus the 1-chip ante off a
+// 100-chip stack. `can_act`'s `stack[p] > 0` therefore never gates, no side pot
+// can form, and the ante is never a partial post.
+//
+// THE DECK NEVER RUNS SHORT: 10 cards dealt and at most 6 drawn, out of 52, so
+// the reshuffle rule for a depleted stock (Pagat) has no reachable case here
+// and is not written.
+//
+// Betting proceeds as in standard fixed-limit poker: check/bet/call/raise and
+// the can_act/owes/pending ring predicates come from the family library shared
+// with Kuhn, Leduc, Seven-Card Stud and both Hold'em variants
+// (docs/libraries/poker_betting.cardlang). `fold` is this game's own — the
+// folded hand mucks unseen, as in every other poker game here.
+//
+// Chips are plain integers (the Stud/Leduc convention). `net[player]` is the
+// terminal score — the hand's chip delta against the starting stack.
+
+game FiveCardDraw {
+
+  uses poker_betting
+
+  players: 2
+  direction: clockwise
+  max_length: 200
+
+  cards: standard52
+  ranking: aces high
+
+  // The one borrowing from outside the DSL, and it is the family's own, not a
+  // game-local one: `pot_share` is the poker showdown query Seven-Card Stud
+  // declares too. Every read is WHOLE, none narrowed to the argument — the
+  // settlement ranks every entrant's holding against every other's and layers
+  // the pot by commitment, so it needs all the hands and all the commitments;
+  // `p` picks which share of that settlement comes back, not which cards go
+  // into it. It reads the contenders' cards from `hole` and `upcards`
+  // together, which is why the showdown reveal below moves them between those
+  // two zones rather than to a third.
+  primitives {
+    pot_share(p : Player) : Integer
+        reads committed, folded, in_hand, hole, upcards
+  }
+
+  zones {
+    deck             : Deck
+    hole[player]     : Hand<player>        // the five private cards
+    upcards[player]  : PublicHand<player>  // the showdown reveal
+    discards[player] : HiddenPile<player>  // the exchange: count public, faces not
+    muck             : Muck                // folded / spent cards
+  }
+
+  state {
+    // Ample by the 25-chip bound argued in the header: no seat can be short.
+    stack[player]     : Integer = 100
+    net[player]       : Integer = 0        // terminal score: chips won or lost
+
+    // The showdown primitive's declared reads (the block above). Both seats
+    // always enter — there is exactly one hand — so `in_hand` is constant.
+    in_hand[player]   : Boolean = true
+
+    // The library's contract (poker_betting `requires`). `acted` and `limit`
+    // are absent because the library provides them; the bet sizes are named at
+    // the streets that use them.
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 4        // four aggressions per street, both streets
+
+    // Seat 1 deals, so seat 0 is "the player nearest the dealer's left" and
+    // opens the deal, the exchange and both betting rounds. Public — which
+    // seat holds the button is visible to everyone at the table.
+    first_actor       : Player = 0
+
+    // The exchange. `tossed` is how many cards a seat has pushed forward this
+    // hand and is what `stand` deals back; `drawn` retires a seat from the
+    // exchange loop; `more` is the `turns` form's go-again flag, set by `toss`
+    // so the same seat keeps deciding until it stands.
+    tossed[player]    : Integer = 0
+    drawn[player]     : Boolean = false
+    more              : Boolean = false
+  }
+
+  phase deal {
+    shuffle deck
+
+    // Antes: forced, equal, and posted after the street is opened, since
+    // opening clears `bet_by`. An ante is not a bet — it buys no right to be
+    // called — so it moves `committed` and the stack and leaves `bet_to_match`
+    // and `level` at zero, which is what makes the first round open with a
+    // check available to both seats.
+    //
+    // The two statements are hand-written because the family library brings no
+    // procedure for a forced bet, only for opening a street — so every poker
+    // game in the corpus writes its own ante, blind or bring-in, and the two
+    // shapes a designer would copy differ in whether the post IS the street's
+    // bet. This game is that duplication's named witness: issue #548.
+    run open_street(2)
+    for each player p: stack[p] := stack[p] - 1
+    for each player p: committed[p] := committed[p] + 1
+
+    // Five passes of one card, not one pass of five: the cards go round the
+    // table one at a time. Each pass starts at seat 0, which here is exactly
+    // where the rules start it — the dealer is seat 1, so seat 0 is the seat
+    // to the dealer's left.
+    for each player p: deal 1 card from deck to hole[p]
+    for each player p: deal 1 card from deck to hole[p]
+    for each player p: deal 1 card from deck to hole[p]
+    for each player p: deal 1 card from deck to hole[p]
+    for each player p: deal 1 card from deck to hole[p]
+  }
+
+  // The first betting round, opened by the seat to the dealer's left. No forced
+  // bet stands, so both seats may check it round.
+  phase first_betting {
+    round offering [check, bet, call, fold, raise] from first_actor
+          over players where pending(player)
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+
+  // The exchange. One seat at a time, in turn order from the dealer's left: it
+  // tosses up to three cards face down and then stands, taking that many
+  // replacements. `again more` is what keeps the seat deciding — a `toss` sets
+  // the flag and the form re-offers the same player, so no seat sees another's
+  // exchange partway through its own. A hand that ended in a fold skips this
+  // entirely.
+  phase draw {
+    if (number of players where not folded[player]) > 1 {
+      // The first street is closed and the second opens at the doubled limit
+      // before a card is exchanged — which is where the table opens it: from
+      // the moment the first round closes no bet stands, nobody owes and
+      // nobody has acted on the round to come. Opening it after the exchange
+      // instead would leave the closed round's standing bet and aggression
+      // count reading as a live street all through the draw.
+      run open_street(4)
+      turns d from first_actor
+            over players where not folded[player] and not drawn[player]
+            until (number of players where not folded[player]
+                                       and not drawn[player]) is 0
+            again more {
+        offer to d one of [toss, stand]
+      }
+    }
+  }
+
+  // The second betting round, on the street the draw opened, at the doubled
+  // limit. Pagat begins it with the first round's opening aggressor; this game
+  // begins it with the same seat as the first round — the header's one
+  // deviation, issue #544.
+  phase second_betting {
+    if (number of players where not folded[player]) > 1 {
+      round offering [check, bet, call, fold, raise] from first_actor
+            over players where pending(player)
+            until (number of players where pending(player)) is 0
+               or ((number of players where can_act(player)) <= 1
+                   and (number of players where can_act(player) and owes(player)) is 0)
+    }
+  }
+
+  // Showdown — RNG-free, decision-free. A contested hand reveals both players'
+  // five cards into a public hand (the movement event carries both identities —
+  // the derived reveal); a hand that ended in a fold reveals nothing, which is
+  // what keeps a folded holding unknowable even in hindsight. The reveal moves
+  // `hole` into `upcards` because `pot_share` reads the two together, so the
+  // contenders' cards are the same five before and after it.
+  phase showdown {
+    if (number of players where not folded[player]) > 1 {
+      for each player p: if not folded[p] {
+        move all cards from hole[p] to upcards[p]
+      }
+    }
+    for each player p: stack[p] := stack[p] + pot_share(p)
+    for each player p: move all cards from hole[p] to muck
+    for each player p: move all cards from upcards[p] to muck
+    // The exchanged cards are spent when the hand is; they were never seen and
+    // the Muck keeps them that way.
+    for each player p: move all cards from discards[p] to muck
+    for each player p: net[p] := stack[p] - 100
+  }
+
+  winner: highest net
+}
+
+// This game's own betting move. check/bet/call/raise and the can_act/owes/
+// pending ring predicates come from `uses poker_betting` above; `fold` stays
+// here because it touches this game's zones. The folded hand goes to the Muck —
+// trivial to every observer, the owner included — so a fold reveals nothing,
+// matching the rule that a folded hand is never shown. All five are offered
+// together in `offering [check, bet, call, fold, raise]` order; the `when:`
+// guards filter to the exact option list per decision: free-to-act ->
+// [check(, bet)], facing a bet -> [call, fold(, raise)].
+
+move_type fold {
+  when: bet_to_match > bet_by[actor]
+  effect {
+    folded[actor] := true
+    move all cards from hole[actor] to muck
+  }
+}
+
+// The exchange vocabulary. `toss` pushes one card forward, face down, and
+// keeps the turn; `stand` ends the exchange and takes the replacements. Three
+// is the ceiling Pagat states ("a player can discard from zero to three
+// cards"), and it is the `when:` guard rather than a count the seat announces,
+// so a seat holding three tossed cards is offered only `stand` and the
+// decision point always has a legal move.
+
+move_type toss {
+  when: tossed[actor] < 3
+  effect {
+    move chosen one card from hole[actor] to discards[actor]
+    tossed[actor] := tossed[actor] + 1
+    more := true
+  }
+}
+
+// Standing with nothing tossed is standing pat; standing with three tossed is
+// drawing three. The same decision either way — the seat is done exchanging —
+// and the replacements arrive at that moment, as the dealer deals them once the
+// discard is complete.
+move_type stand {
+  effect {
+    drawn[actor] := true
+    if tossed[actor] > 0 {
+      deal tossed[actor] cards from deck to hole[actor]
+    }
+  }
+}
