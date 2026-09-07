@@ -162,7 +162,11 @@ adapter (below): `state.information_state_string(seat)` answers at any
 decision node and for any seat, and is empty at the chance root and at the
 terminal node. Decision N there is decision N here, and the two render the
 same zones and the same log of it; the adapter's state-variable segment names
-only the game-level ones, which is issue #612.
+only the game-level ones, which is issue #612. A betting game feels that as the
+pot picture: the chips committed, the standing bet and who has folded are
+declared inside the phase that plays a hand, so a seat's OpenSpiel information
+state carries none of them and an agent has only the observation log to
+reconstruct them from.
 
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the
