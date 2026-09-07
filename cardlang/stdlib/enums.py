@@ -32,6 +32,7 @@ _DECK_SIZE: dict[str, int] = {
     "standard52": 52,
     "standard54": 54,
     "schnapsen20": 20,
+    "scopa40": 40,
     "pinochle48": 48,
     "doppelkopf48": 48,
     "skat32": 32,

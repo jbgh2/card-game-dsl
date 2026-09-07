@@ -79,6 +79,7 @@ _DECK_GAME: dict[str, str] = {
     "standard52": "docs/games/hearts.cardlang",
     "standard54": "experiments/salvo/salvo.cardlang",
     "schnapsen20": "docs/games/schnapsen.cardlang",
+    "scopa40": "docs/games/scopa.cardlang",
     "pinochle48": "docs/games/pinochle.cardlang",
     "doppelkopf48": "docs/games/doppelkopf.cardlang",
     "skat32": "docs/games/skat.cardlang",
@@ -104,6 +105,13 @@ _FRENCH_EXPANSIONS: dict[tuple[str, str], tuple[str, ...]] = {
     ("schnapsen20", "aces low"): ("K", "Q", "J", "10", "A"),
     ("schnapsen20", "ace-ten"): ("A", "10", "K", "Q", "J"),
     ("schnapsen20", "twos high"): ("A", "K", "Q", "J", "10"),
+    # scopa40 holds no 10, so "aces high" and "ace-ten" COLLAPSE — the same
+    # phenomenon the poker toys show below, from a missing rank rather than
+    # from three. Frozen individually for the same reason.
+    ("scopa40", "aces high"): ("A", "K", "Q", "J", "7", "6", "5", "4", "3", "2"),
+    ("scopa40", "aces low"): ("K", "Q", "J", "7", "6", "5", "4", "3", "2", "A"),
+    ("scopa40", "ace-ten"): ("A", "K", "Q", "J", "7", "6", "5", "4", "3", "2"),
+    ("scopa40", "twos high"): ("2", "A", "K", "Q", "J", "7", "6", "5", "4", "3"),
     ("pinochle48", "aces high"): ("A", "K", "Q", "J", "10", "9"),
     ("pinochle48", "aces low"): ("K", "Q", "J", "10", "9", "A"),
     ("pinochle48", "ace-ten"): ("A", "10", "K", "Q", "J", "9"),

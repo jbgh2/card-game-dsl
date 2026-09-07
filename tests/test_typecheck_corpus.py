@@ -67,6 +67,7 @@ PROSE_ONLY_TWINS: frozenset[str] = frozenset(
         "pinochle",
         "president",
         "schnapsen",
+        "scopa",
         "seven-card-stud",
         "skat",
         "spades",

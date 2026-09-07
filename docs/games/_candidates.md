@@ -68,7 +68,7 @@ regression.
 
 | Construct | Needs | Top candidates |
 |---|---|---|
-| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family for each of its three parts — enumerating subsets of a zone, comparing by a composite key, returning the element rather than the maximum | **[scopa](#scopa)** (a played card captures a table card of the same rank or a set of table cards that add up to it, the single-card capture forced when one exists — subset enumeration under a precedence requirement; its primiera is grouped aggregation — the best card per suit under a scalar point scale, then summed — which [combination-scoring.md](../design-notes/combination-scoring.md) classifies as aggregation rather than a composite key, so Scopa witnesses the enumeration part only), [cassino](#cassino) (the same capture plus builds, a separate stateful question), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545). Composite ranking and element-returning argmax have no candidate here: the design note defers composite ranking until a second ranking witness, and issue #251's body names Big Two's climb comparison, in the corpus, for that role |
+| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family for each of its three parts — enumerating subsets of a zone, comparing by a composite key, returning the element rather than the maximum | **[cassino](#cassino)** (Scopa's capture plus builds — a build sits on the table claimed by a player and must be captured whole, which is a stateful question the construct does not own), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545). In the corpus: [Scopa](scopa.cardlang) is the third mechanic family for the ENUMERATION part, and for that part only — its capture is a set of table cards summing to the played card, with the single-card capture forced when one exists, and it carries two declared Primitives because no binder ranges over a zone's subsets. Its primiera is grouped aggregation — the best card per suit under a scalar point scale, then summed — which [combination-scoring.md](../design-notes/combination-scoring.md) classifies as aggregation rather than a composite key, and it writes in the language. Composite ranking and element-returning argmax still have no third witness: the design note defers composite ranking until a second ranking witness, and issue #251's body names Big Two's climb comparison, in the corpus, for that role |
 | issue #251 — play patterns with a derived action space (the climb queries) | a vocabulary the three corpus engines lack, and a play space too large to enumerate | **[dou-dizhu](#dou-dizhu)** (sequences of triplets with attached singles or pairs, quads with attachments, bombs and the rocket). In-family: it corroborates and stresses; the second mechanic family is the classify half of issue #246, so that construct is this one's other witness |
 | issue #252 — ordered ladders (bid ladders with successor and per-rung fields) | an ordered ladder outside the auction family | **[contract-rummy](#contract-rummy)** (seven deals, each a required contract of groups and sequences — a ladder whose rungs carry group quotas), [koenigrufen](#koenigrufen) (fourteen ranked contracts with base scores and an outbid keyed to seat priority — corroborates within the family). In the corpus: [Oh Hell](oh-hell.cardlang)'s deal schedule is a ladder written as arithmetic, the same flattening the issue names in Five Hundred's ordinals |
 | issue #254 — groups (meld shapes, quotas, partitions, catalogues) | a tradition beyond rummy melds, Pinochle's catalogue and Belote's declarations | **[piquet](#piquet)** (point, sequence and set declarations compared between the two players — only the better combination in each category scores, and its holder then scores every other combination held in that category — group declarations compared with no meld reaching the table), [spider](#spider) (a complete king-to-ace same-suit run as the removal criterion — a group in the solitaire family), [contract-rummy](#contract-rummy) (group-count quotas per deal). In the corpus: [Schnapsen](schnapsen.cardlang)'s marriage is a fixed two-card group written as a `move_type` with a suit parameter — the floor, where a fixed shape needs no group construct |
@@ -238,37 +238,6 @@ Eights first; UNO is a delta with extra card effects.
 
 ## Capture & fishing
 
-### scopa
-
-2 or 4 players (teams), 40-card Italian deck. Capture-by-sum:
-a played card captures a single table card of equal rank, or a set
-of table cards whose ranks sum to it.
-
-**Why interesting.** A fishing mechanic — capture rather than
-trick-take. Cards on the table form an evolving public zone; the
-played card's destination depends on which capture combination is
-selected. Tests the settled access discipline ([decisions.md](../decisions.md)
-"Typed object model") on multi-card target selection and the move
-type's relation to a shared zone.
-
-**Construct.** Witness for issue #246's subset enumeration — captures
-that add up to the played card, the single-card capture forced when one
-exists — and for that part only: the primiera is grouped aggregation
-(the best card per suit under a scalar point scale, then summed),
-classified as aggregation rather than a composite key in
-[combination-scoring.md](../design-notes/combination-scoring.md)
-(coverage by construct, above).
-
-**Notes.** Correction to flag: in **base** Scopa, when a single-card
-rank match exists you are *forced* to take the single card — the
-sum-capture is only the fallback, and free choice between rank-match and
-sum (and the "sum to 15" rule) belong to variants (Cirulla / Scopa a
-Quindici). So the "player chooses among multiple captures" framing is
-variant-specific. **Pagat** for capture rules and four-way scoring
-(cards, denari, settebello, primiera):
-<https://www.pagat.com/fishing/scopa.html>. Scopone is the 4-player
-team variant.
-
 ### cassino
 
 2–4 players, standard 52, English fishing variant with capture-by-sum
@@ -279,11 +248,12 @@ must be captured as a single unit).
 build of 8 sits on the table claimed by a specific player; another
 player can capture it, add to it (extending the build), or pass.
 Strong test of stateful intermediate zones and per-player claims on
-shared content. Distinct from Scopa's simpler capture-only model.
+shared content. Distinct from the capture-only model
+[Scopa](scopa.cardlang) already holds in the corpus.
 
-**Construct.** Witness for issue #246 alongside Scopa; the builds are a
-separate, stateful question the construct does not own (coverage by
-construct, above).
+**Construct.** Corroborates issue #246's enumeration part, which Scopa
+witnesses in the corpus; the builds are a separate, stateful question
+the construct does not own (coverage by construct, above).
 
 **Notes.** Royal Cassino lets face cards capture by named value;
 Diamond Cassino adds bonus scoring. Standard Cassino suffices.

@@ -241,6 +241,8 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
         "salvo_combos",  # Salvo: an army's combo bonus at one location
+        "scopa_can_sum",  # Scopa: some set of two or more layout cards sums to the played card
+        "scopa_sums_to",  # Scopa: joint sum-capture validity (two or more cards, exact sum)
     }
 )
 
@@ -445,6 +447,8 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "pot_share",
         "rank_value",
         "salvo_combos",
+        "scopa_can_sum",
+        "scopa_sums_to",
         "skat_matadors",
         "strain_index",
         "suit_of",
