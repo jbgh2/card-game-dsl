@@ -130,6 +130,14 @@ checks.
 - *Consumers to keep whole*: `openspiel/game.py::information_state_string`,
   `cli.py`, and `tests/openspiel_ready/partition.py::_default_info`.
 
+**The bundle has three consumers, not two.** The OpenSpiel string and the frame
+RENDER it; every Seat Policy also READS it, because a policy handed the raw
+decision node could condition on a hand its seat cannot see (Stage 4). That
+makes this stage the epic's linchpin rather than a tidiness pass, and it sets
+the bundle's sufficiency bar: it carries what a competent policy needs — the
+deciding seat's own cards, the declared ranking, the trump — or Stage 5 cannot
+be written against it.
+
 ### Stage 1 — #614, `play` becomes `demo`
 
 Independent of every other stage and takeable now. Lands after PR #608, which
@@ -170,6 +178,20 @@ Ships behind the flag PR #608 opens, before any session exists.
 
 ### Stage 3 — #616, the session
 
+**The Seat Policy TYPE lands here, not in Stage 4.** The human is one
+implementation of it, so the session cannot be written without it; only the
+Opponent Spec grammar and its registry wait. A session that filled seats with a
+hard-coded uniform draw would invent a second seat-filling shape and Stage 4
+would rewrite it — which is how the two diverge.
+
+**The honest intermediate state, stated so nobody reads Stage 3 as the end.**
+Between this stage and Stage 5 the only registered policy is `random`. `play` is
+therefore not yet complete against ruling 1 — a designer takes a seat, but the
+opponent they can choose is one. That is incremental delivery, not a
+contradiction: the epic's acceptance criterion is a hand played against a policy
+that is NOT a uniform draw, and only Stage 5 satisfies it. The command says so
+at the table rather than implying a choice it cannot offer.
+
 - *Proves it*: `uv run cardlang play <corpus game>` reaches an interactive
   hand with pyspiel absent. Grid over the flag surface and the session's key
   vocabulary; misuse probes for a seat the game does not seat, a pick outside
@@ -178,16 +200,35 @@ Ships behind the flag PR #608 opens, before any session exists.
   read before any paginated menu exists. Climbing games can offer legal sets
   a numbered menu cannot carry, and the mitigation is sized from the measured
   maxima rather than guessed (the plan's risk 10).
-- *Free from the replay core*: undo is history truncation; `--save`/`--resume`
-  serialize a seed and a list of integers.
+- *Free from the replay core*: undo is history truncation.
+- *NOT free, and the probe above depends on it*: a saved session is a seed and
+  a list of integers, which carry no trace of the game they were played in.
+  Resumed against a different file whose early action ids happen to be legal,
+  `replay.run` — which takes the path separately — replays them without
+  complaint, so the misuse probe cannot tell that case from a valid resume.
+  The session file carries a stable game identity, validated before replay.
+  See "One identity rule, two artifacts" below.
 
 ### Stage 4 — #617, the Seat Policy interface and the Opponent Spec registry
 
-A second seam above `Chooser`, `(DecisionNode) -> action id`, with
-`ReplayChooser` as the adapter that already exists and already owns the
-multi-pick decomposition. `Chooser` is not lifted: the interpreter needs
-candidate values, and the action space is a compile-time artifact it does not
-own.
+A second seam above `Chooser`, with `ReplayChooser` as the adapter that already
+exists and already owns the multi-pick decomposition. `Chooser` is not lifted:
+the interpreter needs candidate values, and the action space is a compile-time
+artifact it does not own.
+
+**The policy's input is the Seat View, never the raw node.** A `DecisionNode`
+carries the live world and EVERY seat's observation log, so a policy typed on it
+could condition its choice on a hand the deciding seat cannot see — its strategy
+would not be constant within an information set, and the shared interface would
+guarantee nothing. That is the same defect #281 records at the rules level, and
+it is the same argument that keeps the world away from the renderer: leak-freeness
+is a type, not a discipline. So a Seat Policy is
+`(Seat View, legal action ids) -> action id`, and converting the node is the
+session adapter's job.
+
+One declared exception: a perfect-information reference opponent is a legitimate
+measuring instrument (PIMC benchmarks against one). It is a separately typed
+thing that says so in its name, never the default interface widened to admit it.
 
 - *Proves it*: the grid derives from the registry itself; per-seat assignment
   crosses seat validity. Misuse probe: an unknown kind is a loud error
@@ -219,6 +260,16 @@ Doing it in two steps would ship a policy no other tier can join.
 - *Correction in the same change*: the policy's own docstring asserts it
   reads name-keyed state, which is what sent it to `tests/`. The claim is
   imprecise and currently load-bearing for a placement decision.
+
+## One identity rule, two artifacts
+
+Two files in this epic get replayed against a game they claim to belong to and
+carry no proof of it: the saved session (Stage 3) and the generated opponent
+file (Stage 4). Both fail the same way — silently, against a game whose early
+action ids happen to line up — and both are refusals rather than fallbacks. They
+take one rule and one implementation: a stable game identity written at save
+time and validated before use, refusing loudly on mismatch. Specifying it twice
+is how the two drift apart.
 
 ## What the operator must decide
 
