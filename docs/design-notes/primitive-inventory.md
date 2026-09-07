@@ -19,8 +19,13 @@ the tree, and two of its Tier-0 items have landed: the per-game card-point table
 declare one), and ceiling division is in the language as `divided by ... rounded up`. Its sharpest single finding has also expired —
 `five_hundred_trick_winner`, "the sharpest breach", is gone, and
 `PRIMITIVE_TRICK_WINNERS` is empty, so no game-local trick-winner Python remains.
-Re-derive any figure before citing it: the module census is
-`ls cardlang/runtime/`, and the registry is `primitives_block.PRIMITIVE_IMPLEMENTATIONS`.
+Re-derive any figure before citing it, and derive it from a REGISTRY rather than
+from the directory — `cardlang/runtime/` holds the engine's own modules alongside the
+games', so listing it answers a different question than this note asks. The modules a
+declared Primitive names are `{e.module for e in primitives_block.PRIMITIVE_IMPLEMENTATIONS.values()}`;
+the games that reach Python through a mechanic slot instead are in
+`primitives_block.WALLED_NAMESPACES`, keyed by the slot each is walled behind. The
+union of the two is the population this note inventoried.
 
 One structural caveat about the figures themselves, independent of their age: this note
 counts MODULES, so its "0 / 15" headline is a claim about how many runtime files are
