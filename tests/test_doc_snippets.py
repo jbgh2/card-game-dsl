@@ -832,7 +832,14 @@ def test_every_poker_street_writes_the_documented_terminator() -> None:
     block's terminator in library.md.
     """
     want = _squash(_block_by_label("betting_street").text)
-    terminator = want[want.index("until ") :]
+    assert "until " in want, (
+        "the `betting_street` block no longer carries an `until` clause, so "
+        "this pin has nothing to hold the corpus to — the block, or the "
+        "sentence above it, moved."
+    )
+    # To the last `)`, not to the end: the block's own trailing `}` closes its
+    # phase, and a street is free to put statements after its `round`.
+    terminator = want[want.index("until ") : want.rindex(")") + 1]
     users = sorted(
         p for p in GAMES_DIR.glob("*.cardlang") if "uses poker_betting" in p.read_text()
     )
