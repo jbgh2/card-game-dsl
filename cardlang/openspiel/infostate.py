@@ -21,16 +21,18 @@ to guarantee, kept equal by review.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import Any
 
 from cardlang.runtime.observe import view_of
+from cardlang.runtime.reads import deep_freeze
 from cardlang.runtime.state import RuntimeState, StructValue
 from cardlang.runtime.values import Card
 
 
 def _render(value: Any) -> str:
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         items = sorted(value.items(), key=lambda kv: repr(kv[0]))
         return "{" + ",".join(f"{k}:{_render(v)}" for k, v in items) + "}"
     if isinstance(value, (list, tuple, set, frozenset)):
@@ -61,9 +63,13 @@ class SeatView:
     """Everything one seat knows at one position, and nothing else.
 
     The value has no hidden fields, so "this cannot leak" is a property of the
-    type rather than a claim about the code that builds it: a renderer holding
-    a SeatView has no route to another seat's zones, because the route is not
-    in its hands.
+    type rather than a claim about the code that builds it: a holder has no
+    route to another seat's zones, because the route is not in its hands.
+
+    Not leaking and not aliasing are different guarantees, and only the first
+    is the type's. A view built straight off the frames would hold their live
+    dicts; `derive` is the constructor that snapshots, and the one whose result
+    is safe to keep.
 
     Every field is ordered as it is rendered, so the ordering decisions live at
     the one site that makes them.
@@ -91,11 +97,16 @@ def _zone_facts(rs: RuntimeState, player: int) -> tuple[tuple[str, ZoneView], ..
     )
 
 
-def derive(
+def _facts(
     player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
 ) -> SeatView:
-    """What `player` knows at this position: zones through their projections,
-    the public state variables, and their own observation log."""
+    """The derivation, over the live world.
+
+    Private, and the privacy is the invariant: the state values here are the
+    frames' own objects, so this view is safe only while it cannot outlive the
+    call that made it. The one caller that renders immediately uses it; the one
+    that hands a view out takes a snapshot first. Nothing else may.
+    """
     merged: dict[str, Any] = {}
     for frame in rs.frames:  # later frames shadow earlier (phase-local over game)
         merged.update(frame)
@@ -104,6 +115,33 @@ def derive(
         zones=_zone_facts(rs, player),
         state=tuple(sorted(merged.items())),
         obs_log=tuple(obs_log),
+    )
+
+
+def derive(
+    player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
+) -> SeatView:
+    """What `player` knows at this position, as a value safe to keep.
+
+    A snapshot, not a window: an indexed state variable is a live
+    `{player: value}` dict on the frame, so a view over it would keep reading
+    the world as the world moved on, and its holder could write through the
+    dict into engine state. `frozen=True` stops neither — it guards the field,
+    never what the field points at. `deep_freeze` owns that class
+    (`runtime/reads.py`), and its refusal of anything outside the declared
+    value shapes holds this bundle to the domain `_render` covers.
+
+    The zones need none of it: a projection is a tuple of strings, a count, or
+    nothing. Nor does the observation log, whose payloads come from the closed
+    set of shapes the emitter produces and are immutable at every corpus site
+    measured (issue #638).
+
+    Copying is why this is separate from `_facts`: the snapshot costs about as
+    much again as a whole render, and the rendering path has no use for it.
+    """
+    live = _facts(player, rs, obs_log)
+    return replace(
+        live, state=tuple((k, deep_freeze(v)) for k, v in live.state)
     )
 
 
@@ -126,4 +164,10 @@ def render_information_state(view: SeatView) -> str:
 def information_state(
     player: int, rs: RuntimeState, obs_log: list[tuple[Any, ...]]
 ) -> str:
-    return render_information_state(derive(player, rs, obs_log))
+    """The seat's knowledge, derived and rendered in one step.
+
+    Renders `_facts` rather than `derive`: the view is consumed before this
+    returns and never reaches a caller, so it has nothing to gain from a
+    snapshot and would pay for one on the engine's most-called derivation.
+    """
+    return render_information_state(_facts(player, rs, obs_log))
