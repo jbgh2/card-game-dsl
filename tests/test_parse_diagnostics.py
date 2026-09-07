@@ -3,10 +3,13 @@
 A designer's first error is a syntax error: it arrives before resolve or
 typecheck can say anything, and for a language whose acceptance test is "a
 non-player reads the file cold" it is the worst place to answer in the parser
-generator's vocabulary. This module grids the two halves of answering it in the
-designer's [[vocabulary]] — that every terminal the grammar defines has a word a
-designer could have written, and that each reachable parser failure renders into
-a sentence carrying no engine noun.
+generator's vocabulary. This module grids answering it in the designer's
+[[vocabulary]]: that every terminal the grammar defines has a word a designer
+could have written, that each reachable parser failure renders into a sentence
+carrying no engine noun, and that what the sentence says about the file around
+the failure — which block is open, what it is called, where it opened — is read
+from the source's own lexemes rather than from its characters, so a brace
+inside a comment or a text value is not structure.
 
 Completeness ledger (decisions.md "Closed-domain completeness")
 --------------------------------------------------------------
@@ -19,22 +22,30 @@ property:   a parse failure reaching a designer names only things they could
             carries. Separately and by construction: every terminal in the
             grammar's own table renders to such a word, or the parser refuses to
             build.
-domain:     four axes. Two are crossed with each other and two stand alone,
-            because only the first two interact: the structural sentence and
-            the lexeme rendering are computed from the source text, not from
-            the failure kind.
+domain:     five axes. Two are crossed with each other and three stand alone,
+            because only the first two interact: the structural sentence, the
+            block's name and the lexeme rendering are read from the token
+            stream, not from the failure kind.
             (a) parser failure kind — `lark.exceptions.UnexpectedInput`'s
             subclass closure, which is the whole set the caught base admits;
             (b) parse entry point — the `start` symbols `cardlang/parse.py`
             itself passes, reusing `tests/test_parse.py`'s scrape rather than
-            re-deriving them; (a) x (b) is crossed. (c) source brace balance,
-            the three-valued property that decides which structural sentence a
-            failure earns (balanced, a block left open, a surplus `}`).
+            re-deriving them; (a) x (b) is crossed.
+            (c) the structural verdict, `cardlang.parse._StructuralVerdict` —
+            the closed set of things a failure's surroundings can honestly
+            say about it, which decides both the sentence and whether the
+            expectation clause survives beside it.
             (d) the character class of the offending lexeme — word-shaped,
-            printable ASCII, and the classes that arrive by paste rather than
+            printable ASCII, a run of word characters no single lexeme can
+            end inside, and the classes that arrive by paste rather than
             by typing (a byte-order mark, a non-breaking space, a smart quote,
             a non-Latin letter), which are invisible or confusable in an editor
             and so are named as well as quoted.
+            (e) where a block's own keyword sits relative to its `{` — against
+            it, behind a header, on the line above, sharing a line with an
+            enclosing opener, spelt inside a string or a comment, nested,
+            absent from the header entirely, or separated from the `{` by a
+            group that has already closed.
             The terminal axis is `_parser().terminals` entire — every terminal
             Lark compiles from `cardlang/grammar/cardlang.lark`, including the
             anonymous ones it mints for inline literals in productions.
@@ -55,6 +66,12 @@ registry:   failure kinds: `lark.exceptions.UnexpectedInput.__subclasses__()`,
             `tests/test_parse.py::_parse_entry_points`, itself a scrape of
             `cardlang/parse.py`'s `parse_to_tree` call sites, and pinned there
             by `tests/test_parse.py::test_the_hint_start_axis_is_every_entry_point`.
+            Structural verdicts: `cardlang.parse._StructuralVerdict`, read
+            through `typing.get_args`. Block-opener words:
+            `cardlang.parse._block_opener_words`, the first symbol of every
+            rule in `_parser().rules` whose expansion carries the `{`
+            terminal, spoken through `_designer_word` — so a block construct
+            added to the grammar names itself with nothing to keep in sync.
             Terminals: `cardlang.parse._parser().terminals`. The rendering
             rules and the override table: `cardlang.parse._WORD_OVERRIDES`
             and `cardlang.parse._designer_word`. Message text for whole
@@ -71,11 +88,31 @@ does not prove:  that a rendered word is the word a designer would CHOOSE. The
             SENSIBLE set at any point — an expectation clause listing three
             plausible continuations and an expectation clause listing three
             absurd ones are equally green.
+            Nor that a block's rendered name is its construct's own keyword in
+            EVERY source. The name is read from the tokens between the `{` and
+            the enclosing brace, so a header that spells no block keyword — a
+            `produces` arm — is named by its own first word, which is what a
+            designer reads on that line; a header spelling one inside a
+            subexpression (`if ... card_points(card) ... {`) is named by the
+            keyword its line begins with. Measured over `docs/games/*.cardlang`
+            on 2026-09-06: every `{` in the corpus named by its own
+            construct's keyword, bar the `produces` arms named by their arm's
+            name.
+            Nor that the lexer these positions come from is the one the parse
+            ran under. It is not, and cannot be: this grammar disambiguates
+            its identifier-shaped terminals BY POSITION, so a context-free
+            lexer types them wrongly — pinned by
+            `tests/test_keyword_anchoring.py::test_basic_lexer_cannot_tokenize_the_grammar`.
+            What the locator reads is therefore only what a context-free scan
+            settles: each token's offset and text, and the two brace terminals,
+            which no other terminal can match. A cell asserting a token's
+            KIND would be asserting something false.
 """
 
 from __future__ import annotations
 
 import re
+from typing import get_args
 
 import pytest
 from lark.exceptions import (
@@ -266,82 +303,272 @@ def test_every_reachable_failure_kind_reads_as_the_language(
 
 
 # --------------------------------------------------------------------------
-# Axis (c) — brace balance, the property that decides the structural sentence.
+# Axis (c) — the structural verdict, the property that decides what a
+# failure's surroundings are allowed to say about it.
 # --------------------------------------------------------------------------
 
-_BALANCE_CELLS = {
-    # balanced: no structural sentence, and the expectation clause stands.
+_VERDICTS: tuple[str, ...] = tuple(str(v) for v in get_args(parse._StructuralVerdict))
+
+#: verdict -> (source, the fragment its sentence carries or None for silence,
+#: whether the expectation clause survives beside it). A verdict whose sentence
+#: names a SITE replaces the expectation, because an expectation computed under
+#: a bracket context the mistake already broke invites exactly the wrong edit;
+#: one that only characterises the file supplements it.
+_VERDICT_SOURCES: dict[str, tuple[str, str | None, bool]] = {
+    # Nothing is open at the end: no structural sentence, expectation stands.
     "balanced": (
         "game G {\n  players: 2\n  state { s : Integer : 0 }\n}\n",
         None,
+        True,
     ),
-    # a block left open: the sentence names the innermost block open AT THE
-    # FAILURE POINT and the line it opened on -- not the innermost surviving to
-    # end of text, which last-opened-first-closed matching leaves as the
-    # OUTERMOST block and which points further from the mistake than the
-    # failure line does.
-    "unclosed": (
+    # A block open AT THE FAILURE POINT survives to the end of the file. The
+    # sentence names the innermost such block and the line it opened on -- not
+    # the innermost surviving to end of text, which last-opened-first-closed
+    # matching leaves as the OUTERMOST block, further from the mistake than the
+    # failure line itself.
+    "block_open_at_failure": (
         "game G {\n  players: 2\n  zones {\n    deck : Deck\n"
         "  state { s : Integer = 0 }\n}\n",
-        "`zones {` block opened on line 3",
+        "the `zones {` block opened on line 3 is never closed",
+        False,
     ),
-    # a surplus `}`: which brace is surplus is not recoverable, so the sentence
-    # states the count and names no line.
-    "surplus": (
+    # A block is left open, but every block open at the failure closes: the
+    # failure is not inside the unclosed one, so no site is named and the
+    # expectation -- computed under a bracket context the mistake did NOT
+    # break -- is the honest advice.
+    "block_open_elsewhere": (
+        "game G {\n  players: 2 @\n  zones { deck : Deck }\n"
+        "  state { s : Integer = 0 }\n}\nphase p {\n",
+        "a block in this file is never closed",
+        True,
+    ),
+    # A surplus `}`: which brace is surplus is not recoverable -- every
+    # candidate matches equally well -- so the sentence states the count and
+    # names no line.
+    "surplus_close": (
         "game G {\n  players: 2\n  zones { deck : Deck } }\n"
         "  state { s : Integer = 0 }\n}\n",
         "more `}` than `{`",
+        True,
+    ),
+    # A `"` with no closing `"`: a lexeme, not a block. Naming the string is
+    # the fix, so it replaces the expectation the way a named block does.
+    "string_open_at_failure": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n"
+        '  state { s : String = "oops }\n}\n',
+        "the quoted string opened on line 4 is never closed",
+        False,
+    ),
+    # The scan cannot reach the end of the file, so the balance past the
+    # failure is unknown: the honest sentence is none. Here a stray `@` is
+    # skipped and an unterminated string beyond it stops the scan for good --
+    # its body would otherwise contribute braces it does not have.
+    "unscannable": (
+        'game G {\n  players: 2 @\n  state { s : String = "oops\n}\n',
+        None,
+        True,
     ),
 }
 
 
-@pytest.mark.parametrize("balance", sorted(_BALANCE_CELLS))
-def test_the_structural_sentence_matches_the_sources_brace_balance(
-    balance: str,
-) -> None:
-    """The three-valued balance axis, each with the sentence it earns.
+def test_the_verdict_axis_is_the_renderers_own_registry() -> None:
+    """Completeness by superset: the cells are keyed by the renderer's own
+    verdict type, so a verdict added there with no source here arrives as a
+    failure rather than as a silence.
 
-    A sentence that names a site REPLACES the expectation clause, because an
-    expectation computed under a wrong bracket context invites exactly the
-    wrong edit; a sentence that only characterises the file supplements it.
+    red under: add a member to `parse._StructuralVerdict` -- this names it.
     """
-    source, expected_fragment = _BALANCE_CELLS[balance]
-    message = _render(source).diagnostic.message
-    if expected_fragment is None:
+    assert set(_VERDICT_SOURCES) == set(_VERDICTS), (
+        f"cells {sorted(_VERDICT_SOURCES)} against verdicts {sorted(_VERDICTS)}"
+    )
+    assert len(_VERDICTS) >= 6, _VERDICTS
+
+
+@pytest.mark.parametrize("verdict", sorted(_VERDICT_SOURCES))
+def test_a_source_earns_the_sentence_its_structural_verdict_names(
+    verdict: str,
+) -> None:
+    """The verdict axis, each cell with the sentence it earns and whether the
+    expectation clause stands beside it.
+
+    The verdict is read back at the position the parser itself stamped on the
+    span, so the cell proves the source reaches the verdict it claims rather
+    than merely producing a message that looks right.
+    """
+    source, fragment, expectation_stands = _VERDICT_SOURCES[verdict]
+    error = _render(source)
+    span = error.diagnostic.span
+    assert span is not None
+    assert parse._structure(source, span.start, 0).verdict == verdict, (
+        f"{verdict}: the source reaches "
+        f"{parse._structure(source, span.start, 0).verdict!r} instead"
+    )
+    message = error.diagnostic.message
+    if fragment is None:
         assert "never closed" not in message, message
         assert "more `}`" not in message, message
-        assert "; expected " in message, (
-            f"a balanced source earns the expectation clause: {message}"
-        )
     else:
-        assert expected_fragment in message, (
-            f"balance={balance}: expected {expected_fragment!r} in: {message}"
-        )
-
-
-def test_a_named_site_replaces_the_expectation_clause() -> None:
-    """The composition rule, asserted where it bites.
-
-    On the unclosed-block source the parser's own expectation is `:` or `[` --
-    locally true, and an invitation to add a colon to an innocent line. The
-    sentence that names the unclosed block stands in its place.
-    """
-    source, _ = _BALANCE_CELLS["unclosed"]
-    message = _render(source).diagnostic.message
-    assert "never closed" in message, message
-    assert "; expected " not in message, (
-        "the unclosed-block sentence names the fix, so the expectation clause "
-        f"it would otherwise carry is withheld: {message}"
+        assert fragment in message, f"{verdict}: expected {fragment!r} in: {message}"
+    assert ("; expected " in message) is expectation_stands, (
+        f"{verdict}: the expectation clause "
+        f"{'is missing from' if expectation_stands else 'survives in'}: {message}"
     )
 
 
-def test_a_surplus_brace_keeps_the_expectation_clause() -> None:
-    """The other arm of the same rule: a sentence that names no site cannot
-    stand in for the expectation, so both are carried."""
-    source, _ = _BALANCE_CELLS["surplus"]
+def test_a_file_of_unspellable_characters_claims_nothing_about_its_braces() -> None:
+    """The `unscannable` verdict's OTHER route, which the cell above does not
+    take: a scan steps over a character no terminal admits, but only so many.
+
+    Past `parse._RESYNC_LIMIT` it stops and the diagnostic says nothing about
+    the file's braces rather than guessing at them -- a designed constraint,
+    since a file with that many unspellable characters has a problem the
+    failure's own sentence already names.
+
+    red under: let the resync loop run to the end of the source instead of
+    stopping at `_RESYNC_LIMIT` -- the scan then completes and the verdict is
+    `block_open_at_failure`, naming the unclosed `zones {`. Raising the
+    constant is NOT the plant: the stray count below is derived from it, so a
+    higher limit only writes more strays. Verified 2026-09-06.
+    """
+    strays = "@" * (parse._RESYNC_LIMIT + 2)
+    source = f"game G {{\n  players: 2 {strays}\n  zones {{\n    deck : Deck\n"
+    error = _render(source)
+    span = error.diagnostic.span
+    assert span is not None
+    assert parse._structure(source, span.start, 0).verdict == "unscannable"
+    assert "never closed" not in error.diagnostic.message, error.diagnostic.message
+
+
+# --------------------------------------------------------------------------
+# Axis (e) — where a block's own keyword sits relative to its `{`.
+# --------------------------------------------------------------------------
+
+#: shape -> (source, the whole structural sentence the shape earns). Each
+#: source leaves exactly one block open at its failure, so the sentence names
+#: that block and the line its `{` sits on.
+_OPENER_SHAPES: dict[str, tuple[str, str]] = {
+    "keyword against its brace": (
+        "game G {\n  players: 2\n  zones {\n    deck : Deck\n",
+        "the `zones {` block opened on line 3 is never closed",
+    ),
+    "keyword behind a header": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n  phase p {\n    skip\n",
+        "the `phase {` block opened on line 4 is never closed",
+    ),
+    # The brace is what is unmatched, so the brace's line is the one to look
+    # at; the keyword a line above it is what says WHICH block it opens.
+    "brace on the line below its keyword": (
+        "game G {\n  players: 2\n  zones\n  {\n    deck : Deck\n",
+        "the `zones {` block opened on line 4 is never closed",
+    ),
+    "two openers sharing one line": (
+        "game G { zones {\n    deck : Deck\n",
+        "the `zones {` block opened on line 1 is never closed",
+    ),
+    # An UNMATCHED `{` inside a quoted string is part of a lexeme, not a
+    # block. The string is one token, so no scan can mistake it for structure
+    # -- and it sits inside the block the sentence must name, so a scan that
+    # counted it would name a block opened on the string's own line instead.
+    "keyword and brace spelt inside a string": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n  phase p {\n"
+        '    let s = "zones {"\n    skip\n',
+        "the `phase {` block opened on line 4 is never closed",
+    ),
+    # `%ignore LINE_COMMENT` means a commented brace never becomes a token,
+    # and this one is likewise inside the block that must be named.
+    "keyword and brace spelt inside a comment": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n  phase p {\n"
+        "    // note: zones {\n    skip\n",
+        "the `phase {` block opened on line 4 is never closed",
+    ),
+    "nested blocks, the innermost is the site": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n"
+        "  phase p {\n    if x > 1 {\n      skip\n",
+        "the `if {` block opened on line 5 is never closed",
+    ),
+    # A clause whose line begins with a word that opens no block: the keyword
+    # that does is found by looking back, not by reading the line's first word.
+    "a nested clause under an outer one on the same line": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n"
+        "  phase p {\n    for each player q: if x > 1 {\n      skip\n",
+        "the `if {` block opened on line 5 is never closed",
+    ),
+    # A `produces` arm's header spells no block keyword at all. Its own name is
+    # what a designer reads on that line, so its own name is what it is called.
+    "a header that spells no block keyword": (
+        "game G {\n  players: 2\n  cards: standard52\n"
+        "  ranking: A K Q J 10 9 8 7 6 5 4 3 2\n  zones { deck : Deck }\n"
+        "  state { s : Integer = 0 }\n  phase p {\n    play produces:\n"
+        "      won(x) {\n        s := 1\n        @\n",
+        "the `won {` block opened on line 9 is never closed",
+    ),
+    # A phase body written under its outcome set: the tokens between the two
+    # braces are the group that has just closed, so the header before it is
+    # what names the block.
+    "a brace behind a group that has already closed": (
+        "game G {\n  players: 2\n  zones { deck : Deck }\n"
+        "  phase auction -> outcome {\n    won(Player)\n  }\n  {\n    skip\n",
+        "the `phase {` block opened on line 7 is never closed",
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_OPENER_SHAPES))
+def test_a_block_is_named_by_the_keyword_that_opens_it(shape: str) -> None:
+    """The opener axis: a block's name is read from the tokens before its `{`.
+
+    A line's raw first word is not that name. A `{` on the line below its
+    keyword has none; two blocks opening on one line share one; a keyword
+    inside a string or a comment is not a keyword at all.
+
+    Five shapes are born green, because a character scan gets them right too,
+    and each names the mutation that reddens it. `keyword against its brace`
+    and `keyword behind a header` fail when `_opener_word` returns None, so
+    every block reads as "the block". `keyword and brace spelt inside a
+    string` and `... a comment` fail when the scan reads characters instead of
+    lexemes -- planted by neutering `//` and `"` in `_scan`'s input, which
+    turns each commented and quoted brace into structure and names a block
+    opened on the string's own line. `nested blocks, the innermost is the
+    site` fails when the site becomes the OUTERMOST block open at the failure
+    rather than the innermost. All verified 2026-09-06.
+    """
+    source, sentence = _OPENER_SHAPES[shape]
     message = _render(source).diagnostic.message
-    assert "more `}` than `{`" in message, message
-    assert "; expected " in message, message
+    assert sentence in message, f"{shape}: expected {sentence!r} in: {message}"
+
+
+def test_the_block_opener_words_are_the_grammars_own() -> None:
+    """Anti-vacuity on the derived registry.
+
+    An empty set would not silence the cells above -- the fallback still names
+    a block by its header's first word, and most headers begin with their own
+    keyword -- so the collapse has to be asserted against directly. The one
+    cell it WOULD redden is the nested clause under an outer one, whose line
+    begins with `for`.
+
+    red under: return `frozenset()` from `parse._block_opener_words` -- this
+    cell and `a nested clause under an outer one on the same line` both fail.
+    """
+    words = parse._block_opener_words()
+    assert {"zones", "phase", "state", "game", "if", "move_type", "else"} <= words, (
+        sorted(words)
+    )
+    # A clause keyword that opens no block is not in the set, or a `players:`
+    # line before an opener would name the block.
+    assert not {"players", "cards", "winner", "ranking"} & words, sorted(words)
+    assert all(word.replace("_", "").isalnum() for word in words), sorted(words)
+
+
+def test_the_lexer_reads_the_same_terminals_as_the_parser() -> None:
+    """The locator scans with a context-free lexer over the same grammar the
+    Earley parser was built from. Two Lark objects compile that grammar, so
+    the agreement is asserted rather than assumed.
+
+    red under: point `parse._lexer` at a different grammar resource.
+    """
+    assert {t.name for t in parse._lexer().terminals} == {
+        t.name for t in parse._parser().terminals
+    }
 
 
 # --------------------------------------------------------------------------
@@ -365,6 +592,34 @@ def test_a_non_word_lexeme_is_quoted_as_the_single_character() -> None:
     already see it, so a Unicode gloss beside it would be noise."""
     message = _render("game G {\n  players: 2 @\n}\n").diagnostic.message
     assert message.startswith("syntax error: unexpected `@`;"), message
+
+
+#: A run of word characters that begins with a digit is what a designer typed
+#: as one word and what no lexeme can end inside
+#: (tests/test_keyword_anchoring.py). `_offending_lexeme` does not branch on
+#: the clause, so these are a WITNESS SET rather than a coverage axis: three
+#: places a designer meets the same rendering, not three cells of a domain.
+_DIGIT_LED_WITNESSES: dict[str, tuple[str, str]] = {
+    "a player count": ("game G {\n  players: 2foo\n}\n", "`2foo`"),
+    "a length bound": ("game G {\n  players: 2\n  max_length: 10x\n}\n", "`10x`"),
+    "a state initializer": (
+        "game G {\n  players: 2\n  state { s : Integer = 0z }\n}\n",
+        "`0z`",
+    ),
+}
+
+
+@pytest.mark.parametrize("clause", sorted(_DIGIT_LED_WITNESSES))
+def test_a_word_run_beginning_with_a_digit_is_quoted_whole(clause: str) -> None:
+    """The digits alone are not the mistake -- the suffix is.
+
+    `2foo` is one run of word characters and no lexeme of this grammar can end
+    inside one, so quoting `2` would show a designer a fragment their file does
+    not contain and would hide the thing they must delete.
+    """
+    source, quoted = _DIGIT_LED_WITNESSES[clause]
+    message = _render(source).diagnostic.message
+    assert f"unexpected {quoted}" in message, f"{clause}: {message}"
 
 
 # Characters that reach a game file by paste rather than by typing. Each is

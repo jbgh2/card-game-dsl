@@ -19,7 +19,11 @@ Establishes:  a syntactically valid frozen AST; every node carries a
               words the DSL itself uses: the lexeme they wrote, quoted; what the
               grammar accepts there rendered through ``_designer_word``,
               which is derived from the terminal table so it cannot drift from
-              the grammar; and the block they left open. No semantic claims —
+              the grammar; and the block they left open, read from the source's
+              own lexemes (``_scan``) rather than from its characters, so a
+              brace inside a comment or a text value is not structure and a
+              block is named for the keyword that opens it wherever its `{`
+              sits. No semantic claims —
               names carry no
               [[ref-kind]] yet (``NameRef.ref_kind`` is ``None``) and
               nothing is typed. The `primitives { }` entry's own production
@@ -79,10 +83,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from importlib import resources
-from typing import cast
+from typing import Literal, cast
 
 from lark import Lark, Token, Tree
-from lark.exceptions import UnexpectedInput, VisitError
+from lark.exceptions import UnexpectedCharacters, UnexpectedInput, VisitError
 from lark.tree import Meta
 from lark.visitors import Transformer, v_args
 
@@ -294,11 +298,15 @@ class _MoveEffect:
     body: tuple[object, ...]
 
 
+@cache
+def _grammar_text() -> str:
+    return resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
+
+
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
-    grammar = resources.files("cardlang.grammar").joinpath("cardlang.lark").read_text()
     parser = Lark(
-        grammar,
+        _grammar_text(),
         parser="earley",
         propagate_positions=True,
         maybe_placeholders=True,
@@ -311,6 +319,29 @@ def _parser() -> Lark:
     # designer's word for it cannot wait for a syntax error to be noticed.
     _check_every_terminal_renders(parser.terminals)
     return parser
+
+
+@cache
+def _lexer() -> Lark:
+    """The same grammar as a standalone lexer, for reading a FAILED parse.
+
+    A syntax error leaves no tree, so the structure a diagnostic describes —
+    which braces are open, which words head a block, where a string ends — has
+    to be read from the text. Reading it as TOKENS rather than as characters is
+    what keeps a `{` inside a comment or a string from counting as structure.
+
+    Context-free, and so wrong about token KINDS: this grammar disambiguates
+    `NAME`/`QNOUN`/`CARD_RANK_NAME`/`STRUCT_TYPE_NAME` by position and a basic
+    lexer cannot (tests/test_keyword_anchoring.py). What it settles is what a
+    scan needs and no more — each lexeme's offset and text, and the braces and
+    string literals, which no other terminal can match.
+    """
+    return Lark(
+        _grammar_text(),
+        parser=None,
+        lexer="basic",
+        propagate_positions=True,
+    )
 
 
 # The grammar's RANK_DIR terminal (`cardlang.lark`, "lowest" | "highest"),
@@ -2246,6 +2277,46 @@ def _spelling(word: str) -> str:
     return quoted.group(1) if quoted else ""
 
 
+@cache
+def _brace_terminals() -> tuple[str, str]:
+    """The terminal names for `{` and `}`, read from the compiled table.
+
+    They are the one pair a context-free scan can trust: no other terminal of
+    this grammar matches either character.
+    """
+    named = {
+        str(getattr(t.pattern, "value", "")): t.name
+        for t in _parser().terminals
+        if getattr(t.pattern, "value", None) in ("{", "}")
+    }
+    return named["{"], named["}"]
+
+
+@cache
+def _block_opener_words() -> frozenset[str]:
+    """Every word a block can begin with, derived from the grammar's own rules.
+
+    A block-opening production leads with its keyword and carries `{`, so the
+    set is the first symbol of each such rule spoken through
+    ``_designer_word``. Deriving rather than listing is what lets a block
+    construct added to the grammar name itself: a listed set would leave the
+    new one nameless and nothing would say so. A first symbol that spells a
+    CLASS of text rather than one word — the struct type of a `Trick { }`
+    literal, the name of a `produces` arm — renders to prose with no literal
+    in it and so is not a word a header can be recognised by.
+    """
+    lbrace, _ = _brace_terminals()
+    words: set[str] = set()
+    for rule in _parser().rules:
+        names = [symbol.name for symbol in rule.expansion]
+        if lbrace not in names:
+            continue
+        word = _spelling(_designer_word(str(names[0])))
+        if word and word.replace("_", "").isalnum():
+            words.add(word)
+    return frozenset(words)
+
+
 def _expected_words(exc: UnexpectedInput, typed: str) -> tuple[str, ...]:
     """What the grammar accepts at the failure point, in the designer's words.
 
@@ -2288,13 +2359,23 @@ def _expected_clause(exc: UnexpectedInput, typed: str) -> str:
     return f"; expected {shown}, among others"
 
 
+#: A run of word characters. No lexeme of this grammar can end inside one —
+#: the identifier-shaped terminals run to the end of the run and every other
+#: word-shaped terminal refuses a word character after it
+#: (tests/test_keyword_anchoring.py) — so the run is one word both to the
+#: lexer and to the designer, and quoting less of it would show them a
+#: fragment their file does not contain.
+_WORD_RUN = re.compile(r"[A-Za-z0-9_]+")
+
+
 def _offending_lexeme(text: str, pos: int) -> str:
     """What the designer wrote at the failure point, quoted whole.
 
     The dynamic lexer reports the first CHARACTER it cannot place, so a
     misspelled keyword surfaces as its initial letter — as opaque to a
-    designer as a terminal name. A word-shaped run is quoted entire, because
-    the word is what they can find in their file.
+    designer as a terminal name — and `2foo` surfaces as the digit, which
+    hides the suffix that is the whole mistake. A word run is quoted entire,
+    because the word is what they can find in their file.
 
     A character outside printable ASCII is named as well as quoted. The ones
     that reach a game file arrive by paste — a byte-order mark, a non-breaking
@@ -2305,7 +2386,7 @@ def _offending_lexeme(text: str, pos: int) -> str:
     if pos >= len(text):
         return "end of file"
     rest = text[pos:]
-    word = re.match(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+", rest)
+    word = _WORD_RUN.match(rest)
     if word:
         return f"`{word.group()}`"
     char = rest[0]
@@ -2328,75 +2409,213 @@ def _character_name(char: str) -> str:
         return f"U+{ord(char):04X}"
 
 
-def _brace_scan(text: str, upto: int) -> tuple[int, list[tuple[int, str | None]]]:
-    """Brace depth at end of text, and the blocks still open at `upto`.
+#: How many characters no terminal admits a scan steps over before it gives
+#: up. Each one costs a re-scan of the whole text, and past a handful the file
+#: has a problem the failure's own sentence already names. A designed
+#: constraint: the scan says it is incomplete and the diagnostic then claims
+#: nothing about the file's structure, which is the honest answer.
+_RESYNC_LIMIT = 8
 
-    Comments and string literals are masked as it goes: `%ignore LINE_COMMENT`
-    and the `STRING` terminal both admit braces, and a game file's commentary
-    is full of them. Each opener is recorded with the first word of its line,
-    which is the construct's own keyword for every block the grammar has —
-    `zones {`, `phase play {`, `move_type m(...) {` all lead with it.
+
+@dataclass(frozen=True, slots=True)
+class _Scan:
+    """A source that does not parse, read as lexemes rather than as characters.
+
+    `stops_at_string` is the offset of a `"` with no closing `"`: the STRING
+    terminal is the only one that can begin there, so its own end is what the
+    file is missing. A scan cannot step over it the way it steps over a
+    character no terminal admits — everything after it is the string's body,
+    and counting braces inside a text value would invent structure the
+    designer did not write.
+
+    `complete` is false wherever the scan stopped short, and every sentence
+    about the file's structure is withheld when it is.
     """
+
+    tokens: tuple[Token, ...]
+    stops_at_string: int | None
+    complete: bool
+
+
+def _line_of(text: str, pos: int) -> int:
+    """The 1-based line an offset falls on, in the DSL text's own numbering."""
+    return text.count("\n", 0, pos) + 1
+
+
+def _lex_as_far_as_possible(source: str) -> tuple[list[Token], int | None]:
+    """Every lexeme of `source` up to the first character no terminal admits,
+    with that character's offset."""
+    tokens: list[Token] = []
+    stream = _lexer().lex(source)
+    while True:
+        try:
+            tokens.append(next(stream))
+        except StopIteration:
+            return tokens, None
+        except UnexpectedCharacters as exc:
+            return tokens, int(exc.pos_in_stream or 0)
+
+
+@lru_cache(maxsize=8)
+def _scan(text: str) -> _Scan:
+    """`text` as lexemes, stepping over the characters no terminal admits.
+
+    A character the lexer cannot place is BLANKED rather than sliced out, so
+    every offset, line and column the rest of the scan reports is still the
+    one in the designer's file. Slicing would leave two derivations of every
+    position, which is the thing reading tokens exists to remove.
+    """
+    source = text
+    tokens: list[Token] = []
+    for _ in range(_RESYNC_LIMIT + 1):
+        tokens, stopped = _lex_as_far_as_possible(source)
+        if stopped is None:
+            return _Scan(tuple(tokens), None, True)
+        if source[stopped : stopped + 1] == '"':
+            return _Scan(tuple(tokens), stopped, False)
+        source = f"{source[:stopped]} {source[stopped + 1 :]}"
+    return _Scan(tuple(tokens), None, False)
+
+
+def _opener_word(header: list[Token]) -> str | None:
+    """What a block is called, read from the lexemes between it and the brace
+    that encloses it.
+
+    Its own keyword where the header spells one: the first word of the line
+    the header ends on when that word opens a block, so a `phase p repeat
+    until X {` is the phase's; else the nearest opening keyword before the
+    `{`, which is what names an `if` written after a `for each` on one line,
+    or a condition carried over two lines. A header that spells no block
+    keyword at all keeps its own first word, which is what a designer reads
+    on a `produces` arm's line.
+    """
+    if not header:
+        return None
+    openers = _block_opener_words()
+    head = next(token for token in header if token.line == header[-1].line)
+    if head.value in openers:
+        return str(head.value)
+    for token in reversed(header):
+        if token.value in openers:
+            return str(token.value)
+    return str(head.value)
+
+
+@dataclass(frozen=True, slots=True)
+class _Block:
+    """An opening brace: the line it sits on, and what its block is called."""
+
+    line: int
+    word: str | None
+
+
+def _open_blocks(scan: _Scan, pos: int) -> tuple[tuple[_Block, ...], int, int]:
+    """The blocks open at `pos`, the shallowest depth reached from `pos` on,
+    and the depth at the end of the scan.
+
+    The shallowest depth is what says whether a block open AT the failure is
+    ever closed: matching is last-opened-first-closed, so the blocks that
+    survive are exactly the ones below every level the file returns to.
+    """
+    lbrace, rbrace = _brace_terminals()
+    stack: list[_Block] = []
+    headers: list[list[Token]] = [[]]
+    closed: list[Token] = []
     depth = 0
-    stack: list[tuple[int, str | None]] = []
-    open_at_pos: list[tuple[int, str | None]] | None = None
-    lines = text.splitlines()
-    line = 1
-    i = 0
-    while i < len(text):
-        if open_at_pos is None and i >= upto:
-            open_at_pos = list(stack)
-        char = text[i]
-        if char == "\n":
-            line += 1
-            i += 1
-            continue
-        if text.startswith("//", i):
-            newline = text.find("\n", i)
-            i = len(text) if newline < 0 else newline
-            continue
-        if char == '"':
-            closing = text.find('"', i + 1)
-            if closing < 0:
-                break
-            line += text.count("\n", i, closing)
-            i = closing + 1
-            continue
-        if char == "{":
-            head = lines[line - 1].strip().split() if line <= len(lines) else []
-            stack.append((line, head[0] if head else None))
+    at_failure: tuple[_Block, ...] | None = None
+    low = 0
+    for token in scan.tokens:
+        if at_failure is None and (token.start_pos or 0) >= pos:
+            at_failure, low = tuple(stack), depth
+        if token.type == lbrace:
+            stack.append(_Block(token.line or 1, _opener_word(headers[-1] or closed)))
             depth += 1
-        elif char == "}":
+            closed = []
+            headers.append([])
+        elif token.type == rbrace:
             depth -= 1
             if stack:
                 stack.pop()
-        i += 1
-    return depth, stack if open_at_pos is None else open_at_pos
+            if len(headers) > 1:
+                headers.pop()
+            # A group that has closed leaves its own header standing, so a
+            # phase body written under its outcome set is still the phase's.
+            closed = headers[-1]
+            headers[-1] = []
+        else:
+            headers[-1].append(token)
+            closed = []
+        if at_failure is not None:
+            low = min(low, depth)
+    if at_failure is None:
+        return tuple(stack), depth, depth
+    return at_failure, low, depth
 
 
-def _structural_clause(text: str, pos: int, line_offset: int) -> tuple[str, bool]:
-    """The sentence a source's brace balance earns, and whether it names a site.
+_StructuralVerdict = Literal[
+    "balanced",
+    "block_open_at_failure",
+    "block_open_elsewhere",
+    "surplus_close",
+    "string_open_at_failure",
+    "unscannable",
+]
 
-    A file with an unopened block names one: the innermost block open AT THE
-    FAILURE POINT, which is the one the designer was writing inside. The
-    innermost surviving to end of text is the wrong choice — matching is
-    last-opened-first-closed, so a single missing `}` leaves the OUTERMOST
-    block open, further from the mistake than the failure line itself.
 
-    A surplus `}` names none. Which brace is surplus is not recoverable: every
-    candidate matches equally well, so the count is all that can be said
-    honestly.
+@dataclass(frozen=True, slots=True)
+class _Structure:
+    """What a failure's surroundings say about it, and whether that replaces
+    the parser's own expectation."""
+
+    verdict: _StructuralVerdict
+    clause: str
+    names_a_site: bool
+
+
+def _structure(text: str, pos: int, line_offset: int) -> _Structure:
+    """What a failure's surroundings earn the right to say about it.
+
+    A block left open names a site only when the failure is INSIDE one: the
+    innermost block open at the failure point that the file never closes,
+    which is the one the designer was writing in. The innermost surviving to
+    end of text is the wrong choice — matching is last-opened-first-closed, so
+    a single missing `}` leaves the OUTERMOST block open, further from the
+    mistake than the failure line itself. A block left open somewhere the
+    failure is not says so and no more; naming it would send a designer to
+    close a brace that has nothing to do with what they are reading.
+
+    A surplus `}` names no line either. Which brace is surplus is not
+    recoverable: every candidate matches equally well, so the count is all
+    that can be said honestly.
     """
-    depth, open_here = _brace_scan(text, pos)
+    scan = _scan(text)
+    if scan.stops_at_string is not None:
+        if scan.stops_at_string <= pos:
+            line = _line_of(text, scan.stops_at_string) + line_offset
+            return _Structure(
+                "string_open_at_failure",
+                f"; the quoted string opened on line {line} is never closed",
+                True,
+            )
+        return _Structure("unscannable", "", False)
+    if not scan.complete:
+        return _Structure("unscannable", "", False)
+    open_here, low, depth = _open_blocks(scan, pos)
     if depth < 0:
-        return "; this file has more `}` than `{`", False
-    if depth == 0:
-        return "", False
-    if not open_here:
-        return "; a block in this file is never closed", True
-    line, word = open_here[-1]
-    named = f"the `{word} {{` block" if word else "the block"
-    return f"; {named} opened on line {line + line_offset} is never closed", True
+        return _Structure("surplus_close", "; this file has more `}` than `{`", False)
+    if low > 0 and open_here:
+        block = open_here[-1]
+        named = f"the `{block.word} {{` block" if block.word else "the block"
+        return _Structure(
+            "block_open_at_failure",
+            f"; {named} opened on line {block.line + line_offset} is never closed",
+            True,
+        )
+    if depth > 0:
+        return _Structure(
+            "block_open_elsewhere", "; a block in this file is never closed", False
+        )
+    return _Structure("balanced", "", False)
 
 
 # A clause that is legal SOMEWHERE but not where it was written can only be
@@ -2440,20 +2659,19 @@ _PARSE_HINTS: dict[str, tuple[str | None, str]] = {
 }
 
 
-def _parse_hint(text: str, line: int, column: int, start: str) -> str:
+def _parse_hint(text: str, pos: int, line: int, start: str) -> str:
     """Two probes, because Lark points at either end of the offending clause.
 
     A clause on its own line fails at the clause keyword itself; one written
-    inline after `{` fails a few characters in. So try the identifier AT the
-    reported column first, then fall back to the line's leading word.
+    inline after `{` fails a few characters in. So try the lexeme AT the
+    failure first, then fall back to the one the line begins with. Both are
+    read as lexemes, so a clause keyword spelt inside a text value or a
+    comment is not one and fires nothing.
 
     `start` is the entry point the text was parsed under, and a hint scoped to
     another one is withheld rather than qualified: a sentence a reader cannot
     act on is worse than no sentence.
     """
-    lines = text.splitlines()
-    if not 1 <= line <= len(lines):
-        return ""
 
     def hint_for(keyword: str) -> str | None:
         row = _PARSE_HINTS.get(keyword)
@@ -2462,14 +2680,16 @@ def _parse_hint(text: str, line: int, column: int, start: str) -> str:
         scope, hint = row
         return hint if scope is None or scope == start else ""
 
-    source = lines[line - 1]
-    at_column = re.match(r"[A-Za-z_][A-Za-z0-9_]*", source[max(0, column - 1) :])
-    if at_column:
-        found = hint_for(at_column.group())
+    tokens = _scan(text).tokens
+    at_failure = next(
+        (t for t in tokens if (t.start_pos or 0) >= pos and t.line == line), None
+    )
+    if at_failure is not None:
+        found = hint_for(str(at_failure.value))
         if found is not None:
             return found
-    head = source.strip().split(":")[0].split()
-    return (hint_for(head[0]) or "") if head else ""
+    head = next((t for t in tokens if t.line == line), None)
+    return (hint_for(str(head.value)) or "") if head is not None else ""
 
 
 def parse_to_tree(
@@ -2494,19 +2714,20 @@ def parse_to_tree(
         at_end = reported is None or reported < 0
         pos: int = len(text) if at_end else int(reported or 0)
         raw_line: int = (
-            text.count("\n", 0, pos) + 1 if at_end else int(getattr(exc, "line", 1))
+            _line_of(text, pos) if at_end else int(getattr(exc, "line", 1))
         )
         column: int = (
             pos - text.rfind("\n", 0, pos) if at_end else int(getattr(exc, "column", 1))
         )
         span = Span(source_name, pos, pos, raw_line + line_offset, column)
         lexeme = _offending_lexeme(text, pos)
-        structural, names_a_site = _structural_clause(text, pos, line_offset)
+        structure = _structure(text, pos, line_offset)
+        structural, names_a_site = structure.clause, structure.names_a_site
         # A clause naming the block to close IS the instruction; the parser's
         # own expectation, computed under a bracket context the missing `}`
         # already broke, would invite exactly the wrong edit beside it.
         expected = "" if names_a_site else _expected_clause(exc, lexeme.strip("`"))
-        hint = _parse_hint(text, raw_line, column, start)
+        hint = _parse_hint(text, pos, raw_line, start)
         message = f"syntax error: unexpected {lexeme}{structural}{expected}{hint}"
         raise DiagnosticError(Diagnostic(Severity.ERROR, message, span)) from exc
     assert isinstance(tree, Tree)
