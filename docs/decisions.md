@@ -1075,14 +1075,14 @@ language uses for block-scoped local variables. No `per_hand` /
 contains the declaration *is* the scope. Refactoring a phase carries
 its state with it.
 
-**Reads from enclosing scopes are free.** A scoring component running
-inside `hand_sequence` can read `games_won` declared in `rubber`
+**Reads from enclosing scopes are free.** A scoring phase inside
+`hand_sequence` can read `games_won` declared in `rubber`
 because `rubber` lexically encloses `hand_sequence`. This is ordinary
 nested-scope visibility.
 
 **Writes follow the same rule.** A phase may write to a variable
 declared in its enclosing scope (Bridge's `scoring` writes
-`games_won += 1` and `below_line_current_game := 0`, both of which
+`games_won[dteam] += 1` and `below_current[dteam] := 0`, both of which
 live in `rubber`). A phase may *not* write to a variable declared in
 a sibling or descendant scope, because that variable's owning phase
 may not be active.

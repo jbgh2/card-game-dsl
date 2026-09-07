@@ -199,7 +199,7 @@ a pointer to the underlying specification in [decisions.md](decisions.md)
 or elsewhere.
 
 **Composition over inheritance.** A game is a tree of phases plus a
-set of mechanics, rules, and scoring components composed by name.
+set of mechanics and rules composed by name.
 There is no game-class hierarchy and no delta mechanism; variants are
 sibling games over a shared core. (See "Composition over inheritance"
 above.)

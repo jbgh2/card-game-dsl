@@ -117,8 +117,8 @@ on the Earley parser to surface ambiguity, then tighten toward LALR so
 the grammar is provably deterministic. Use a `Transformer` to produce a
 typed AST of Python dataclasses — one node kind per primitive in the
 [model.md](model.md) table (Card, Resource, Zone, Phase, Rule, MoveType,
-Move, observation/memory operations, scoring component, user-defined
-type, and the game-level blocks).
+Move, observation/memory operations, user-defined type, and the
+game-level blocks).
 
 *Forcing function:* wherever the syntax across the docs is inconsistent
 or underspecified, the grammar can't be written or a game won't parse.
