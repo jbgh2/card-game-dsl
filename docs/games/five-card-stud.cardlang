@@ -12,7 +12,7 @@
 // which is one choice made once — the three places the page names it are
 // consistent with each other and are quoted at the rules they govern below:
 // the compulsory bring-in opens the first round, the last two rounds are big
-// bets only, and every wager on a street is that street's size.
+// bets only, and a big bet is answered by big raises.
 //
 // The .cardlang runtime needs a terminal, so as in the corpus's Seven-Card Stud
 // this plays a session until one player holds all the chips and declares that
