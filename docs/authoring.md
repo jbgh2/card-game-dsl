@@ -360,6 +360,24 @@ no proof module covers a game outside it (issue #25). The adapter's derivation
 is the same either way; the standing evidence that it holds for *your* game is
 what is absent.
 
+A cash game has no terminal of its own, and which one the file supplies decides
+what the adapter is usable for. The corpus writes both shapes. Kuhn Poker,
+Leduc Poker and heads-up Hold'em play **one hand** and return the chip delta —
+a `net` state variable set to each seat's stack less what it started with,
+under `winner: highest net`, so the returns are chips won and lost
+([decisions.md](decisions.md), "Game result: `winner:` and `loser:`").
+Seven-Card Stud and three-handed Hold'em instead wrap the hand in a **session**
+that runs until one player holds all the chips. The session wrapper is there to
+give the playout driver a terminal, and it charges the information state for
+it: the zone and state-variable segments stay the size of one hand while the
+observation log accumulates every hand played so far, so a seat's information
+state grows with the session rather than with the hand. `cardlang demo` is
+where that shows: `--decisions` counts a playout's decisions, and
+`--info-state <seat> --at <n>` prints the state at each of them. One hand with
+chip-delta returns is a cash game's OpenSpiel-usable form; reach for the
+session wrapper when the session is the game being played, not to give a hand
+somewhere to stop.
+
 ## Where the language cannot go yet
 
 You will meet a rule the language cannot express. The rule for what to do is
