@@ -138,7 +138,8 @@ straight to `open_street`. Sizing the STREET rather than one seat's move is what
 makes the big bet reach every seat rather than only the seat showing the pair,
 which is the half of the rule
 [#546](https://github.com/jbgh2/card-game-dsl/issues/546) is about; the other
-half, that the small bet stays available beside it, is #648.
+half, that the small bet stays available beside it, is
+[#648](https://github.com/jbgh2/card-game-dsl/issues/648).
 
 The `until` predicate closes a street when no live player still owes or has yet
 to act, or when one lone contender remains already matched.
