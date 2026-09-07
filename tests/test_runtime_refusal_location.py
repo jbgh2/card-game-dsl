@@ -70,11 +70,10 @@ registry:   the statement axis: `typing.get_args(cardlang.ast.nodes.Stmt)`;
             package, the same derivation shape
             tests/test_failure_taxonomy.py uses for the taxonomy's own
             domain; the driver positions: `cardlang.runtime.driver.play_game`
-            and `run_phase`. Where each class SITS in the failure tree is
-            pinned at tests/test_failure_taxonomy.py, and that every raise
-            site names a class with a recorded Author at
-            tests/test_guard_role_sites.py; neither enumeration is re-copied
-            here.
+            and `run_phase`; where each class sits in the failure tree:
+            tests/test_failure_taxonomy.py; the recorded Author at every
+            raise site: tests/test_guard_role_sites.py. Neither of those two
+            enumerations is re-copied here.
 does not prove:  nothing here says the refusal MESSAGES are the right words
             for a designer — the wording of the runtime's refusals is issue
             #329, and a green here holds whatever text those raise sites
