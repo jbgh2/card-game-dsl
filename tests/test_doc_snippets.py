@@ -55,7 +55,13 @@ property:   every fenced block in docs/{decisions,library,model}.md carries
             fragment is PROVEN, by execution, to pass or reject the
             front-end pipeline as its tag claims — not merely assumed from
             its tag, and not merely "rejected" as an artifact of not being
-            a whole game or of the pipeline crashing.
+            a whole game or of the pipeline crashing. Second property, over
+            a narrower domain: where a block's prose claims PROVENANCE — this
+            is game X's own text, and the corpus writes it this way — that
+            claim is held against the corpus too. Compiling and being the
+            text the doc says it is are different properties, and the
+            execution half proves only the first: a freely rewritten street
+            compiles.
 domain:     the fenced blocks `cardlang.extract.extract_blocks` finds in
             docs/decisions.md, docs/library.md, docs/model.md. Every one of
             them is classified; the EXECUTED half stops where the wrapping
@@ -86,11 +92,17 @@ does not prove:  that the live docs exercise every tag. Where no block in the
             against a block the spec actually publishes — the classification,
             pass, reject and mistagged-benign paths each have one, so the
             guard has teeth on the day a tag is first used, and until then a
-            green says nothing about the docs on that tag.
+            green says nothing about the docs on that tag. Nor does the
+            provenance half generalize: it is NOT derived from the block
+            domain, because no machine reading tells which blocks claim a
+            source. Each pin is hand-written for the sentence it holds, so a
+            NEW provenance claim in the docs is unguarded until someone writes
+            its pin — a green here says nothing about that sentence.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -380,6 +392,59 @@ game Skeleton {{
 """
 
 
+def _wrap_betting_street(frag: str) -> str:
+    # library.md "Mechanics", the betting bullet: one poker street, quoted from
+    # docs/games/leduc-poker.cardlang. The skeleton supplies what a street
+    # legitimately leaves to its host — `uses poker_betting` (which brings
+    # check/bet/call/raise, the ring predicates and `open_street`), the names
+    # that library's `requires` block demands, the `first_actor` the ring
+    # starts from, and a game-local `fold`, which the library deliberately omits
+    # because folding touches cards. The betting state sits in a GAME-level
+    # `state { }` because Leduc's does, which is also what puts the pot picture
+    # in a seat's OpenSpiel view (authoring.md, "The loop: check, play, read
+    # the information state"). It shares no vocabulary with the other recipes'
+    # skeleton, so it builds its own.
+    return f"""
+game Skeleton {{
+  uses poker_betting
+  players: 2
+  max_length: 200
+  cards: standard52
+  ranking: aces high
+  zones {{
+    deck         : Deck
+    hand[player] : Hand<player>
+    muck         : Muck
+  }}
+  state {{
+    stack[player]     : Integer = 40
+    committed[player] : Integer = 0
+    bet_by[player]    : Integer = 0
+    folded[player]    : Boolean = false
+    bet_to_match      : Integer = 0
+    level             : Integer = 0
+    raises            : Integer = 0
+    raise_cap         : Integer = 2
+    first_actor       : Player  = 0
+  }}
+  phase deal {{
+    shuffle deck
+    for each player p: deal 1 card from deck to hand[p]
+  }}
+{frag}
+  winner: highest stack
+}}
+
+move_type fold {{
+  when: bet_to_match > bet_by[actor]
+  effect {{
+    folded[actor] := true
+    move all cards from hand[actor] to muck
+  }}
+}}
+"""
+
+
 # recipe label -> wrapper. The label is the second word of a fragment block's
 # fence info string (```cardlang-fragment <label>) — a stable name that rides
 # with the block through edits, so a prose change above it never touches this
@@ -424,6 +489,7 @@ WRAPPER_RECIPES: dict[str, Callable[[str], str]] = {
     "winner_loser": _wrap_winner_loser,
     "passing_phase": _wrap_passing_phase,
     "library_zones": _wrap_library_zones_block,
+    "betting_street": _wrap_betting_street,
 }
 
 
@@ -465,8 +531,8 @@ def test_the_block_domain_is_the_size_the_recipes_define() -> None:
         name: len(extract_blocks((DOCS_DIR / name).read_text(), name))
         for name in DOC_NAMES
     }
-    assert per_doc == {"decisions.md": 56, "library.md": 13, "model.md": 5}
-    assert len(_BLOCKS) == 74
+    assert per_doc == {"decisions.md": 56, "library.md": 14, "model.md": 5}
+    assert len(_BLOCKS) == 75
 
 
 def _block_id(block: FencedBlock) -> str:
@@ -708,6 +774,89 @@ def test_bad_fragment_blocks_are_rejected_when_wrapped(block: FencedBlock) -> No
         "counterexample no longer demonstrates the mistake, or it should be "
         "retagged."
     )
+
+
+# ---------------------------------------------------------------------------
+# Provenance: a block whose prose names a source file is held to that source.
+# Checking is a different property from being the text the doc says it is, and
+# the pass above proves only the first.
+# ---------------------------------------------------------------------------
+
+GAMES_DIR = DOCS_DIR / "games"
+
+
+def _block_by_label(label: str) -> FencedBlock:
+    matches = [b for b in _FRAGMENT_BLOCKS if _label(b) == label]
+    assert len(matches) == 1, (
+        f"expected exactly one `cardlang-fragment {label}` block in the three "
+        f"docs, found {len(matches)} — a provenance pin names its block by "
+        "label, so a renamed or duplicated label leaves the claim unguarded."
+    )
+    return matches[0]
+
+
+def _squash(text: str) -> str:
+    """Collapse every run of whitespace, so indentation depth stops mattering."""
+    return " ".join(text.split())
+
+
+def test_the_betting_street_block_is_leducs_own_text() -> None:
+    """library.md calls the block `verbatim from games/leduc-poker.cardlang`.
+
+    `test_fragment_blocks_pass_when_wrapped` proves the block COMPILES, which a
+    freely rewritten street would too. Nothing else reaches the provenance, and
+    the gloss is what the reader trusts when they copy it.
+
+    red under: any token of the block, or of Leduc's `phase first_street`.
+    """
+    block = _block_by_label("betting_street")
+    leduc = (GAMES_DIR / "leduc-poker.cardlang").read_text()
+    assert block.text.strip("\n") in leduc, (
+        "the `betting_street` block is no longer a byte-exact substring of "
+        "docs/games/leduc-poker.cardlang, which library.md's gloss says it is "
+        "— restore the block from the game file, or move the gloss to whatever "
+        "the block now quotes."
+    )
+
+
+def test_every_poker_street_writes_the_documented_terminator() -> None:
+    """library.md says the corpus's poker streets all write the block's `until`.
+
+    Membership is derived — the games under `docs/games/` whose text carries
+    `uses poker_betting` — so a poker game added tomorrow is held to the same
+    sentence without anyone remembering to add it. A street's terminator counts
+    as written when it matches the block's modulo indentation: Hold'em and Stud
+    nest deeper, and the doc's claim is about the words.
+
+    red under: trimming an arm off any poker street's `until`, or editing the
+    block's terminator in library.md.
+    """
+    want = _squash(_block_by_label("betting_street").text)
+    assert "until " in want, (
+        "the `betting_street` block no longer carries an `until` clause, so "
+        "this pin has nothing to hold the corpus to — the block, or the "
+        "sentence above it, moved."
+    )
+    # To the last `)`, not to the end: the block's own trailing `}` closes its
+    # phase, and a street is free to put statements after its `round`.
+    terminator = want[want.index("until ") : want.rindex(")") + 1]
+    users = sorted(
+        p for p in GAMES_DIR.glob("*.cardlang") if "uses poker_betting" in p.read_text()
+    )
+    assert users, (
+        "no game under docs/games/ carries `uses poker_betting` — this pin "
+        "reads as green while checking nothing; the library or the games moved."
+    )
+    for path in users:
+        text = path.read_text()
+        offerings = len(re.findall(r"\bround offering\b", text))
+        written = _squash(text).count(terminator)
+        assert written == offerings, (
+            f"{path.name}: {offerings} `round offering` statements but "
+            f"{written} carry the terminator library.md prints — either the "
+            "street diverged, or library.md's 'all write them exactly as "
+            "above' no longer holds and the sentence needs opening up."
+        )
 
 
 # ---------------------------------------------------------------------------

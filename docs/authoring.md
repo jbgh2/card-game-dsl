@@ -162,7 +162,16 @@ adapter (below): `state.information_state_string(seat)` answers at any
 decision node and for any seat, and is empty at the chance root and at the
 terminal node. Decision N there is decision N here, and the two render the
 same zones and the same log of it; the adapter's state-variable segment names
-only the game-level ones, which is issue #612.
+only the game-level ones, which is issue #612. A betting game feels that as the
+pot picture, and where the file declares the variables is the whole of it.
+Seven-Card Stud and three-handed Hold'em declare the chips committed, the
+standing bet and who has folded inside the phase that plays a hand, so no
+seat's information state carries them and an agent has only the observation
+log to reconstruct them from. Kuhn Poker, Leduc Poker and heads-up Hold'em
+declare the same variables in the game's own `state { }`, and their seats see
+the pot in full. So declare them at game level when an agent should read them
+— a game that plays more than one hand then resets them itself, in the
+[Hand Loop](glossary/hand-loop.md)'s `before_each`.
 
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the
@@ -355,6 +364,24 @@ not get is the readiness proof battery — the per-game proofs under
 no proof module covers a game outside it (issue #25). The adapter's derivation
 is the same either way; the standing evidence that it holds for *your* game is
 what is absent.
+
+A cash game has no terminal of its own, and which one the file supplies decides
+what the adapter is usable for. The corpus writes both shapes. Kuhn Poker,
+Leduc Poker and heads-up Hold'em play **one hand** and return the chip delta —
+a `net` state variable set to each seat's stack less what it started with,
+under `winner: highest net`, so the returns are chips won and lost
+([decisions.md](decisions.md), "Game result: `winner:` and `loser:`").
+Seven-Card Stud and three-handed Hold'em instead put the hand inside a
+[Hand Loop](glossary/hand-loop.md) that runs until one player holds all the
+chips. The loop is there to give the playout driver a terminal, and it charges
+the information state for it: the zone and state-variable segments stay the
+size of one hand while the observation log accumulates every hand played so
+far, so a seat's information state grows with the run of hands rather than
+with the hand. `cardlang demo` is where that shows: `--decisions` numbers a
+playout's decisions, and `--info-state <seat> --at <n>` prints the state at
+each of them. One hand with chip-delta returns is a cash game's
+OpenSpiel-usable form; reach for the Hand Loop when the run of hands is the
+game being played, not to give a hand somewhere to stop.
 
 ## Where the language cannot go yet
 

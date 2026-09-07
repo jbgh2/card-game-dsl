@@ -267,7 +267,7 @@ are built in. (See [library.md](library.md), "Types" and
 [decisions.md](decisions.md), "Typed object model".)
 
 **Vocabulary in the syntax.** Domain words from rulebooks — the `round`
-construct (its trick / auction / betting forms), `Hand`, `Deck`, `Discard`,
+construct (its trick / auction / climb forms), `Hand`, `Deck`, `Discard`,
 `Muck`, `ChipStack`, `ChallengeWindow`, `MustFollowSuit` — are first-class names
 in the library rather than abstractions the user has to invent. (See "Domain
 vocabulary in the syntax" above and [library.md](library.md).)
