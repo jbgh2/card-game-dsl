@@ -109,9 +109,11 @@ sequences, sets, capot, pique, repique.
 **Why interesting.** Among the most heavily structured-scored games
 in existence. Each phase contributes scoring events that can change
 the *order and value* of subsequent ones (pique, repique). A stress
-test for the scoring-component composition story in
-[decisions.md](../decisions.md) and for the triggered-scoring
-machinery committed there.
+test for the ruling that scoring has no constructs of its own
+([decisions.md](../decisions.md), "Scoring has no constructs of its own"):
+scoring events that reorder and revalue later ones are the shape a
+component subsystem would have been built for, and ordinary sequential
+statements must carry them instead.
 
 **Construct.** Witness for issue #254 — declarations compared between
 the two players, category by category (coverage by construct, above).
@@ -418,7 +420,7 @@ cards each ≤ 8. With Hold'em now in the corpus the community board
 and the side-pot layering are both already carried, so what Omaha
 newly forces is exactly the per-pot SPLIT — a per-game shape that
 fits the "each game declares its own scoring structure" decision in
-decisions.md "Scoring composition". The use-exactly-two constraint
+decisions.md "Scoring has no constructs of its own". The use-exactly-two constraint
 is a second pressure: Hold'em's evaluator takes the best five of
 seven unconstrained, which Omaha cannot.
 

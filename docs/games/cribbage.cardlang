@@ -9,7 +9,7 @@
 // crib (a filtered movement, seat order); the starter is cut (his heels);
 // pegging plays through forced, filtered card picks, with ordinary statement
 // control flow (`repeat until`, `if`/`else`, `skip to next hand`) reproducing
-// the 121-cutoff gate a scoring component at a time. Pegging has no round
+// the 121-cutoff gate a scoring rule at a time. Pegging has no round
 // form of its own — no existing `round` fits its per-play scoring plus
 // forced-play flow (docs/kernel-migration.md, WS4) — so the current
 // sub-round's card provenance (who played each `play_pile` card) is carried
@@ -182,6 +182,6 @@ game Cribbage {
 
 // True the instant either player has reached the 121-point target — read at
 // every scoring point inside `phase play` (mirroring the monolith's `add()`
-// gate: once a component crosses 121, no later component in the same hand may
+// gate: once a scoring rule crosses 121, no later rule in the same hand may
 // score, and no further chooser draw may occur).
 function game_over() = any player where score[player] >= 121

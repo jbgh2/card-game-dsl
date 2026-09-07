@@ -18,7 +18,7 @@ internally consistent so each hand's score reconciles):
 - **Bag overflow.** Every 10 accumulated bags costs 100 points and drops the
   bag counter by 10.
 
-The game file folds scoring into the `scoring` phase (as Hearts does) rather than
-using separate `scoring_component` blocks; the first-trick "no spades" ban from
+The game file scores in the `scoring` phase as ordinary statements (as Hearts
+does); the first-trick "no spades" ban from
 some rulebooks is omitted because "no leading spades until broken" already
 forbids leading a spade on the first trick.

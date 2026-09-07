@@ -46,8 +46,8 @@ raw DSL text ──parse──▶ typed AST ──resolve──▶ resolved AST 
   domain in type-parameter position — its own rule, not ordinary generics),
   visibility-projection enums, rule-clause types (`applies_when` is a predicate,
   `demands` returns candidate moves, `if_impossible` is a fallback), mechanic
-  `winner`/`routing` signatures, scoring components producing `ScoreDelta`, and
-  exhaustiveness of matches on typed phase/mechanic outcomes.
+  `winner`/`routing` signatures, and exhaustiveness of matches on typed
+  phase/mechanic outcomes.
 - **expand** — procedure expansion: every `run` site is spliced by value into a
   hygienic `Block` and `Game.procedures` is emptied, so no later stage ever sees
   a `RunStmt`. It sits after typecheck (a procedure's parameter types can only be
@@ -196,7 +196,7 @@ construct.
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
 | `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |
-| `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where action.card.suit is hearts` — the move-event + `where` form already used by `triggered_by:` (decisions.md, "Triggered scoring components"; "Event-driven sub-phase transitions") |
+| `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where action.card.suit is hearts` — the move-event + `where` form (decisions.md, "Sub-phase entry and exit") |
 | `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `winner` (the just-run round's player) stays. Affects Bridge/Getaway too |
 
 ## Disciplined workflow

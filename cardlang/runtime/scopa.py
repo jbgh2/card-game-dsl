@@ -3,7 +3,7 @@
 The whole game runs in the DSL (docs/games/scopa.cardlang) — the misdeal
 redeal, the alternating turn loop, the forced single-card capture, the scopa
 bonus and its final-play exception, the last capturer taking what remains, all
-five scoring components with the primiera included, and the guard that asks
+five scoring categories with the primiera included, and the guard that asks
 whether the layout holds a satisfying set at all, which is the subset binder.
 
 Two things stay here, and both because the capture is a DECISION rather than a

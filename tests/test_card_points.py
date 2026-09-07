@@ -2,7 +2,7 @@
 
 The second Merge Lane A change of issue #249 (epic #248). The operator ruling
 (points 1 and 2), the per-PR counsel, and the framing-check enumeration live
-on that issue; docs/decisions.md "Scoring composition" carries the settled
+on that issue; docs/decisions.md "Scoring has no constructs of its own" carries the settled
 text this grid pins. The Builtin renames `card_value` -> `card_points` in the
 same change, and the four populated deck tables migrate into their game files
 (one source: `Deck` carries no point table).

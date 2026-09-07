@@ -246,8 +246,7 @@ the monolith does not.
 auction, play, and scoring in one Python function until the whole hand moved
 in that game's migration (auction on this workstream's form, trick play on the
 Step 0 `round` or hand-ordered filtered movements, scoring as game-local
-Primitives rather than Workstream 4's shared `scoring_component`
-subsystem — see that workstream's note below). Bridge was already split (play
+Primitives, which is the designed shape — see Workstream 4). Bridge was already split (play
 is DSL), so it finished first and validated `auction` end to end.
 
 ## Workstream 2 — Betting and the pot (Seven-Card Stud)
@@ -407,23 +406,25 @@ The design the construct settled:
 
 ## Workstream 4 — Counting and in-play scoring (Cribbage, Schnapsen)
 
-This workstream builds the **`scoring_component` runtime subsystem**
-([decisions.md](decisions.md), "Scoring composition" / "Triggered scoring
-components"), which the runtime has so far folded inline (issue #115).
+This workstream builds no subsystem. Every game below landed on the kernel as
+ordinary statements plus game-local Primitives, and that is the designed end
+state ([decisions.md](decisions.md), "Scoring has no constructs of its own");
+the component subsystem this workstream was once to build is the rejected
+alternative in
+[design-notes/scoring-components.md](design-notes/scoring-components.md).
 
-- **Cribbage** — *done, ahead of this workstream.* The whole hand landed on the
-  kernel without the `scoring_component` subsystem this workstream builds: the
+- **Cribbage** — *done.* The whole hand landed on the kernel: the
   discards and every pegging play are filtered card movements, and the 121-point
-  cutoff is reproduced a component at a time by ordinary statement control flow
+  cutoff is reproduced a scoring rule at a time by ordinary statement control flow
   (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
   pegging's per-play scoring plus forced-play flow, so it uses none; the current
   sub-round's card provenance is carried in two `Integer` state variables and
   decoded by the `peg_origin_of` Primitive. The module-level Cribbage
   scorers (pegging counts + the show's fifteens/pairs/runs/flush/his-nob) re-homed
   as game-local Primitives, like Stud's `pot_share` and Pinochle's
-  `pinochle_meld_value` — migrate, don't redesign; promoting them to the shared
-  `scoring_component` subsystem is corpus-first future work, not a requirement
-  this migration carried.
+  `pinochle_meld_value`. The show's folds are reachable through the subset
+  binder; what keeps the show in Python is a subset source spanning the hand
+  and the starter, which is that construct's next stage (issue #246).
 - **Schnapsen** — *done.* Not `offer`s: the leader's whole mixed turn (lead a
   card / declare a marriage / exchange the trump jack / close the talon) is ONE
   flat candidate list, so it landed as the **auction form over a
@@ -439,20 +440,18 @@ components"), which the runtime has so far folded inline (issue #115).
   resolves through the engine-core `highest_trump_or_led_suit` call form over
   `trick_pile`'s Arrival Record — no game-local Python anywhere (issue #256
   retired the attribution shell; the game file states everything).
-- **Pinochle** — *done, ahead of this workstream.* The whole hand (trump
+- **Pinochle** — *done.* The whole hand (trump
   declaration, meld, and the twelve strict tricks) landed on the kernel via
   Workstream 1 (above) before this workstream reached it. Meld stayed a
   Counter-based, game-local `pinochle_meld_value` Primitive (like
-  Stud's `pot_share`) rather than either this workstream's `scoring_component`
-  subsystem or Workstream 3's combination model — migrate, don't redesign;
-  promoting it to either shared mechanism is corpus-first future work, not a
-  requirement the migration itself carried.
-- **Tarot** — *done, ahead of this workstream.* Likewise landed via Workstream
+  Stud's `pot_share`) — the designed shape until a declared catalogue earns
+  its witnesses as a general recognition construct.
+- **Tarot** — *done.* Likewise landed via Workstream
   1 (above): the bouts-conditional threshold, the taker's doubled card points,
   the petit-au-bout adjustment, and the bid multiplier all settle in
   `tarot_per_opp`, a game-local Primitive in the same shape as
-  `pinochle_meld_value`/`pot_share` — not this workstream's `scoring_component`
-  subsystem.
+  `pinochle_meld_value`/`pot_share`, and stays there: its settlement is one
+  game's arithmetic.
 
 **Test-depth nets.** Schnapsen's nets are the pinned 50-seed scores golden plus
 the per-hand `game_score` vector golden (`tests/test_migration_characterization.py`
@@ -517,7 +516,6 @@ second legally-unbounded-lines witness
 These land inside the workstreams above and are shared on the third use:
 
 - generalized `round` axes — Step 0, the spine for all of it;
-- the `scoring_component` runtime subsystem — Workstream 4;
 - the integer **resource primitive** (per-player amounts + `transfer`) — settled by
   Coup ([decisions.md](decisions.md), "Resource amount syntax" / "Resource transfer
   failure"), used by Stud's chips and Coup's coins. *Distinct from the poker
@@ -537,10 +535,10 @@ These land inside the workstreams above and are shared on the third use:
 3. **Stud** — betting + pot.
 4. **Tichu** — done: climbing + the combination model (Big Two first, then
    Tichu's special-card flows on the climb form's terminal state).
-5. **Cribbage + Schnapsen** — done, without the scoring-component subsystem
-   (Pinochle's, Cribbage's, and Schnapsen's scoring all landed as ordinary
-   statements plus game-local Primitives; the subsystem itself remains
-   unbuilt, corpus-first future work).
+5. **Cribbage + Schnapsen** — done (Pinochle's, Cribbage's, and Schnapsen's
+   scoring all landed as ordinary statements plus game-local Primitives,
+   which is the designed end state — [decisions.md](decisions.md), "Scoring
+   has no constructs of its own").
 6. **Coup** — done at real interactive scope: challenge / block / claim /
    target are player decisions (Workstream 5; Tichu's call windows remain).
 
