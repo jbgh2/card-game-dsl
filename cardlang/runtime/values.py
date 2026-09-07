@@ -156,6 +156,16 @@ COMPONENT_SETS: dict[str, ComponentSet] = {
         ("suit", "rank"),
         Deck(suits=SUITS, ranks=("A", "10", "K", "Q", "J", "9"), copies=2),
     ),
+    # 40-card Italian pack in French suits: A 2 3 4 5 6 7 J Q K per suit, with
+    # coins spelled as diamonds. Scopa's capture values are the deck's own
+    # ordinal (A=1 up to K=10) and its primiera scale is neither an order nor a
+    # capture value, so scopa.cardlang declares the scale as its
+    # `card_points { }` and reads the ordinal off `ranking:`.
+    "scopa40": ComponentSet(
+        "card",
+        ("suit", "rank"),
+        Deck(suits=SUITS, ranks=("K", "Q", "J", "7", "6", "5", "4", "3", "2", "A")),
+    ),
     # 32-card Skat pack: A 10 K Q J 9 8 7 per suit; skat.cardlang's
     # `card_points { }` prices it Ace-Ten (120 card points total).
     "skat32": ComponentSet(

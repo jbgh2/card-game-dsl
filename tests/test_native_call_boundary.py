@@ -159,6 +159,20 @@ _ZONE_PROBES: dict[str, str] = {
             " : Boolean reads hand[p], taken[p] }\n"
         ),
     ),
+    # Scopa's joint predicate: the four sevens sum to twenty-four under this
+    # game's own ranking (`rank_value + 1`, so a seven is worth six), and the
+    # eight courts in the other hand sum to something else — the same
+    # {0: 1, 1: 0} contract as the gin probes, over a zone argument.
+    "scopa_sums_to": _game(
+        "  phase p {\n" + _DEAL +
+        "    if scopa_sums_to(hand[dealer], 24) { score[dealer] += 1 }\n"
+        "    if scopa_sums_to(hand[1], 24) { score[1] += 1 }\n"
+        "  }",
+        clauses=(
+            "  primitives { scopa_sums_to(cards : Collection<Card>, target : Integer)"
+            " : Boolean }\n"
+        ),
+    ),
     # `top_of`/`bottom_of` (decisions.md "Position domains and positional
     # zones"): each reads a card off a ZONE argument. The filtered deal
     # preserves deck order (suit-major, 2..A rank-minor), so hand[dealer] is

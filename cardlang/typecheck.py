@@ -222,6 +222,8 @@ RANKING_GATED_FUNCS: frozenset[str] = frozenset(
         "cribbage_show_value",
         "cribbage_crib_value",
         "salvo_combos",
+        "scopa_can_sum",
+        "scopa_sums_to",
     }
 )
 RANKING_GATED_WINNERS: frozenset[str] = frozenset(
