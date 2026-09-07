@@ -59,8 +59,9 @@ name = register_game_file("my-game.cardlang")
 game = pyspiel.load_game(name)
 ```
 
-`register_game_file` checks the file, registers it under `cardlang_<stem>`,
-and returns that short name. `CARDLANG_GAMES` does the same at import time: an
+`register_game_file` checks the file, registers it under `cardlang_<stem>`
+with hyphens turned to underscores — `my-game.cardlang` becomes
+`cardlang_my_game` — and returns that short name. `CARDLANG_GAMES` does the same at import time: an
 `os.pathsep`-separated list of game files or directories, registered when the
 adapter loads. That path needs the `openspiel` extra; `check` and `play` do
 not.
