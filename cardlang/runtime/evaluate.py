@@ -573,7 +573,8 @@ def _refuse_a_zone_listed_twice(e: n.SubsetQuery, values: list[Any], ctx: Ctx) -
     a computed index cannot be told apart until now, so this is that guard's
     play-time half, by identity: the pool would hold one zone's cards twice
     and answer nothing the sentence meant. Named for the designer as the two
-    members and the zone they turned out to be."""
+    members and the zone they turned out to be; the caller locates it at the
+    whole list, as it does the bound's refusal."""
     seen: dict[int, int] = {}
     for i, value in enumerate(values):
         if not isinstance(value, Zone):
@@ -582,13 +583,11 @@ def _refuse_a_zone_listed_twice(e: n.SubsetQuery, values: list[Any], ctx: Ctx) -
             first = _member_label(e.source[seen[id(value)]]) or "a member"
             again = _member_label(e.source[i]) or "a member"
             resolved = _resolved_label(e.source[i], ctx)
-            exc = OwnerGuardError(
+            raise OwnerGuardError(
                 f"`{again}` and `{first}` are the same zone at this point of play"
                 f"{f' ({resolved})' if resolved else ''} — a subset source lists "
                 f"each zone once"
             )
-            exc.locate(zone=_source_label(e.source), span=e.span)
-            raise exc
         seen[id(value)] = i
 
 
@@ -646,9 +645,9 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     # card two members both hold is present once per member, which is the
     # multiset reading the runtime already keeps for duplicate copies.
     values = [evaluate(member, ctx) for member in e.source]
-    _refuse_a_zone_listed_twice(e, values, ctx)
     pool = [card for value in values for card in elements(value)]
     try:
+        _refuse_a_zone_listed_twice(e, values, ctx)
         subsets.check_pool(
             pool,
             "a subset query",
