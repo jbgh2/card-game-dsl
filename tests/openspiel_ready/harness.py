@@ -1155,7 +1155,14 @@ class ReadinessProofs:
         history: list[int] = []
         r = run(spec.path, seed, ())
         steps = 0
+        # Whether the loop below ran at all, which is the only thing that makes
+        # the record's `action_strings_compared` true. `steps` cannot answer it:
+        # the `adapter_terminal_steps` branch overwrites it with the greedy
+        # line's length, and a spec at depth 0 skips the loop entirely while
+        # still reaching the record.
+        compared = False
         while isinstance(r, DecisionNode) and steps < spec.depth:
+            compared = True
             assert not state.is_terminal()
             assert state.current_player() == r.player, (
                 f"{spec.short_name}: step {steps}: adapter player "
@@ -1224,4 +1231,4 @@ class ReadinessProofs:
         record(spec.short_name, "adapter", seed=seed, steps=steps,
                terminal=dsl_returns is not None,
                returns_compared=dsl_returns is not None,
-               action_strings_compared=True)
+               action_strings_compared=compared)
