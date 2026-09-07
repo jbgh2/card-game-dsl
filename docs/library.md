@@ -370,7 +370,8 @@ in tests/test_trump_slot_class.py.
 
   `until` is a clause of the form, and what the family library shares is the
   predicates the terminator is built from rather than the terminator itself —
-  so every street writes those two arms out, and writes them exactly as above.
+  so every street writes those two arms out, and the corpus's poker streets
+  all write them exactly as above.
   What a street varies is the bet size `open_street` takes, the seat the ring
   starts from, and whether `raise` is on the offering (Kuhn Poker's is not).
   Both arms are the ring's: the street closes when no seat is `pending` — the
