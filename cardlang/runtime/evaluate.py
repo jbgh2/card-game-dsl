@@ -567,6 +567,22 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
 
 
+def _source_label(source: n.Expr) -> str | None:
+    """How a query's source zone is spelled in the game file, for a refusal's
+    location. Only the two shapes `zone_expr` admits are rendered; anything
+    else answers None rather than inventing a label, because a location is
+    metadata on a refusal already being raised and must never replace it."""
+    match source:
+        case n.NameRef():
+            return source.name
+        case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
+            return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base):
+            return f"{base.name}[...]"
+        case _:
+            return None
+
+
 def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     """The subset register, both folds. The binder is bound to each candidate
     SET, so the predicate and the aggregated body see a card collection.
@@ -580,11 +596,20 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     semantics-preserving, and it is what keeps the common case cheap when the
     domain is large."""
     pool = list(elements(evaluate(e.source, ctx)))
-    subsets.check_pool(
-        pool,
-        "a subset query",
-        "narrow the zone it ranges over, or ask about a smaller one",
-    )
+    try:
+        subsets.check_pool(
+            pool,
+            "a subset query",
+            "narrow the zone it ranges over, or ask about a smaller one",
+        )
+    except OwnerGuardError as exc:
+        # Locate the refusal at the zone this query RANGED OVER, before any
+        # enclosing frame can. Stamping is first-writer-wins, and a subset
+        # query is legal inside a movement's `where` filter — where the
+        # movement's own frame would otherwise stamp ITS source and send the
+        # designer to a zone the refusal is not about.
+        exc.locate(zone=_source_label(e.source), span=e.span)
+        raise
     # The dynamic half of the size guard, and a guard this arm would rather not
     # need (decisions.md "Prefer the guard you cannot need"). The statically
     # typed class is `typecheck._check_subset_query`'s, and no route from a game

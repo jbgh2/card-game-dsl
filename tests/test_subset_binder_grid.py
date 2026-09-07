@@ -339,3 +339,29 @@ def test_the_bound_is_the_pool_even_where_the_domain_would_be_small() -> None:
             table_ranks=("7", "6", "5", "4"),
             extra='    move 1 card from deck where card.rank is A to table\n',
         )
+
+
+def test_the_bound_refusal_names_the_zone_it_is_about() -> None:
+    """A subset query is legal inside a movement's `where` filter, and a
+    movement locates its own refusals at its own source zone. First writer of
+    each field wins, so without a stamp here the designer would be sent to the
+    zone the MOVEMENT drew from rather than the one the query ranged over —
+    two different zones, and only one of them too big.
+
+    red under: drop the `locate` call from `evaluate._subset_query`'s
+    bound arm."""
+    src = game(
+        "    move all cards from hand[0]\n"
+        "         where any subset of 2 or more cards in table where 1 is 1 to pile",
+        # Five ranks is twenty cards, past the bound. The ranks avoid the 6s
+        # so hand[0] still holds four — an empty movement source would never
+        # evaluate the filter, and the cell would pass without raising.
+        table_ranks=("7", "5", "4", "3", "2"),
+    ).replace(
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player> }",
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player>\n"
+        "          pile : Discard }",
+    )
+    with pytest.raises(OwnerGuardError) as exc:
+        play_game(check_dsl(src, "grid.cardlang"), rng=random.Random(0))
+    assert exc.value.zone == "table", exc.value.zone
