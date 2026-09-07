@@ -10,8 +10,8 @@ spellings reach one parser rather than two code paths that can disagree about
 what `--emit-ir` means.
 
 `play` is reserved for the session where a person takes a seat, and is refused
-until that exists — a spelling this command line retires keeps its place in the
-first-token vocabulary so the refusal can name what replaces it.
+until that exists — a retired spelling stays a token this command line answers
+to in first position, so the refusal can name what replaces it.
 
 This module owns one defect class — the values a caller supplies, which no
 earlier layer sees: the path argument, and the seat `--info-state` names.
@@ -115,10 +115,10 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
 COMMANDS: tuple[str, ...] = tuple(_COMMAND_TABLE)
 
 # Command spellings the command line no longer carries, and what replaces
-# each. A retired spelling stays in the first-token vocabulary rather than
-# leaving it: dropped, `_normalize` would read the spelling as a file name and
-# argparse would report the caller's real path as a stray argument, naming
-# neither the rename nor the file they meant.
+# each. A retired spelling stays a token answered to in first position rather
+# than falling back to the filesystem: dropped, `_normalize` would read the
+# spelling as a file name and argparse would report the caller's real path as a
+# stray argument, naming neither the rename nor the file they meant.
 RETIRED_COMMANDS: dict[str, str] = {"play": "demo"}
 
 _EXIT_OK = 0
