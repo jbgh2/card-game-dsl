@@ -101,7 +101,7 @@ HighCard — 2 seats, uniform-random self-play
   seed         3
 
 information state, seat 1, at the terminal position:
-P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
+P1|deck=#48;hand[0]=#1;hand[1]=[5♣];shown[0]=[4♥];shown[1]=[8♦]|state:score={0:0,1:1}|obs:('move', 'deck', 2, 'hand[0]', 2);('move', 'deck', 2, 'hand[1]', ('5♣', '8♦'));('chose', '8♦');('chose', ('8♦',));('move', 'hand[0]', 1, 'shown[0]', ('4♥',));('move', 'hand[1]', ('8♦',), 'shown[1]', ('8♦',))
 ```
 
 Omitting `--seed` draws one and reports it, so any run repeats. `cardlang
@@ -149,17 +149,20 @@ The numbered list is your view of the playout, never a seat's: it names the
 candidates the engine offered, and at another seat's decision that is
 information no seat may hold. Only the `--info-state` line is a seat's view.
 
-A decision is one moment a seat is asked, which is what `--at` numbers. The
-summary's `decisions` counts something else — the picks those moments spend,
-which is what `max_length` bounds ([decisions.md](decisions.md), "Game length
-as a declared contract"). The two agree above and part company wherever a game
-chooses several cards at once: Hearts' three-card pass is one decision and
-three picks, and the listing's header names both counts whenever they differ.
+A decision is one choice made — one card, one bid, one bet — which is what
+`--at` numbers, what the summary's `decisions` line counts, and what
+`max_length` bounds
+([decisions.md](decisions.md), "Game length as a declared contract"). Asking
+for several cards at once does not make one decision of them: Hearts'
+three-card pass is three, each offering what the ones before it left, and
+`--at` reaches every one.
 
 pyspiel derives a seat's view the same way, on a game loaded through the
 adapter (below): `state.information_state_string(seat)` answers at any
 decision node and for any seat, and is empty at the chance root and at the
-terminal node.
+terminal node. Decision N there is decision N here, and the two render the
+same zones and the same log of it; the adapter's state-variable segment names
+only the game-level ones, which is issue #612.
 
 The last line is the point of the language. It is the seat's **information
 state** — the per-seat artifact OpenSpiel consumes; the information set is the

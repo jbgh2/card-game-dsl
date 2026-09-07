@@ -43,7 +43,7 @@ from cardlang.diagnostics import DiagnosticError
 from cardlang.openspiel.infostate import information_state
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source, compile_path
-from cardlang.runtime.chooser import random_chooser
+from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
 from cardlang.runtime.errors import GameDescriptionError, InstallationError
 from cardlang.runtime.observe import render
@@ -254,9 +254,9 @@ def _play(
     world: list[RuntimeState] = []
     # One entry per decision the playout makes, in order: its description
     # where a line will be shown, None otherwise. `len` is the count `--at`
-    # indexes; rendering only what is shown keeps a plain playout clear of
-    # `observe.render`, which a listing reaches over every candidate offered
-    # rather than only the one chosen.
+    # indexes. A line renders every candidate OFFERED — a far wider set than
+    # the cards taken, and the one place `observe.render` can meet a shape no
+    # playout hands it — so only a line that will be shown is rendered at all.
     decisions: list[str | None] = []
 
     def observe(player: Player, event: tuple[Any, ...]) -> None:
@@ -288,19 +288,30 @@ def _play(
     play_uniformly = random_chooser(rng)
 
     def choose(player: Player, candidates: list[Any], count: int) -> list[Any]:
-        # The Chooser is the seam every decision passes through, and it runs
-        # while the frames still stand — the same window the terminal snapshot
-        # needs, reached at a decision rather than at the end. The view is
-        # rendered here rather than held, because `world[0]` is the live world
-        # and goes on changing; the seat's log is complete for this position
-        # and grows only forward (perfect recall), so nothing needs trimming.
-        index = len(decisions)
-        decisions.append(
-            _decision(player, count, candidates) if listing or index == at else None
-        )
-        if index == at and seat is not None:
-            snapshot.append(information_state(seat, world[0], logs[seat]))
-        return play_uniformly(player, candidates, count)
+        # The candidates are drawn in ONE call, which is what keeps a seeded
+        # playout where it was: `play_game` would draw them in one call too.
+        # Numbering walks them afterwards through `sequential_decisions`, the
+        # tree's own reading of a multi-card call, so the command and the
+        # adapter reach the same positions in the same order and record the
+        # same choices.
+        taken = iter(play_uniformly(player, candidates, count))
+
+        def decide(actor: Player, pool: list[Any]) -> Any:
+            # A decision runs while the frames still stand — the same window
+            # the terminal snapshot needs, reached at a decision rather than at
+            # the end. The view is rendered here rather than held, because
+            # `world[0]` is the live world and goes on changing; the seat's log
+            # is complete for this position and grows only forward (perfect
+            # recall), so nothing needs trimming.
+            index = len(decisions)
+            decisions.append(
+                _decision(actor, pool) if listing or index == at else None
+            )
+            if index == at and seat is not None:
+                snapshot.append(information_state(seat, world[0], logs[seat]))
+            return next(taken)
+
+        return sequential_decisions(player, candidates, count, decide, observe)
 
     result = play_game(
         game,
@@ -310,11 +321,13 @@ def _play(
         observer=observe,
         on_first_decision=hold,
     )
-    picks = world[0].decisions_made if world else 0
-    print(_summary(game, result, picks, drawn))
+    # The driver's own count, not a second one taken off the list: the two are
+    # the same unit and `tests/test_cli_surface.py` pins them equal.
+    made = world[0].decisions_made if world else 0
+    print(_summary(game, result, made, drawn))
     if listing:
         print()
-        print(_listing(decisions, picks))
+        print(_listing(decisions))
 
     if seat is None:
         return _EXIT_OK
@@ -352,13 +365,15 @@ def _play(
 _CANDIDATES_SHOWN = 6
 
 
-def _decision(player: Player, count: int, candidates: list[Any]) -> str:
+def _decision(player: Player, candidates: list[Any]) -> str:
     """One decision, as both the listing and the `--at` echo name it.
 
     The candidates are what tell a designer WHICH decision this is — a discard
     offers cards where a betting round offers `call, fold, raise` — so they
     carry the line. `observe.render` is the rendering the observation log
-    already uses, so a candidate reads the same way in both places.
+    already uses, so a candidate reads the same way in both places. A call
+    taking several cards reads as several lines, each offering what the ones
+    before it left.
 
     Two betting rounds offer the same candidates and so read alike; the phase
     is the name that would separate them, and the Chooser seam carries no
@@ -367,25 +382,23 @@ def _decision(player: Player, count: int, candidates: list[Any]) -> str:
     shown = [str(render(c)) for c in candidates[:_CANDIDATES_SHOWN]]
     if len(candidates) > _CANDIDATES_SHOWN:
         shown.append("...")
-    return f"P{player} chooses {count} of {len(candidates)}: " + ", ".join(shown)
+    return f"P{player} chooses 1 of {len(candidates)}: " + ", ".join(shown)
 
 
-def _listing(decisions: list[str | None], picks: int) -> str:
+def _listing(decisions: list[str | None]) -> str:
     """Every decision the playout made, numbered the way `--at` numbers them.
 
-    The header states both counts wherever they differ, because they are
-    different units and the summary shows the other one: a decision is one
-    moment a seat is asked, and a game that takes three cards at once spends
-    three picks on it. Picks are what `max_length` bounds
-    (`docs/decisions.md`, "Game length as a declared contract").
+    One entry per choice made, which is the unit throughout: the game tree
+    branches once per card of a multi-card call, the adapter replays one action
+    for each, `max_length` bounds that same count (`docs/decisions.md`, "Game
+    length as a declared contract"), and the summary's `decisions` line reports
+    it. A second unit here would put a number on the screen that `--at` does
+    not accept.
     """
     total = len(decisions)
     if total == 0:
         return "this playout makes no decisions, so --at names none"
-    head = f"{total} decisions"
-    if picks != total:
-        head += f", {picks} choices made across them"
-    head += f"; --at takes 0..{total - 1}"
+    head = f"{total} decisions; --at takes 0..{total - 1}"
     width = len(str(total - 1))
     rows = [
         f"  {index:>{width}}  {line}"
