@@ -30,7 +30,7 @@ registered Python primitive.
 
 | witness | what it recognizes | where the Python lives |
 |---|---|---|
-| Cribbage's show | fifteens (subset sums), all pairs, runs with multiplicity, flushes, his nobs | `cribbage_show_value`, `cribbage_crib_value` |
+| Cribbage's show | fifteens (subset sums), all pairs, runs with multiplicity, flushes, his nobs | none: subset queries over `[played[p], starter]` in the game file |
 | Seven-Card Stud's showdown | full poker ranking, best five of seven | `pot_share` |
 | Climbing vocabularies (Big Two, Tichu) | singles, pairs, triples, full houses, straights, pair sequences, bombs — enumerated AND compared | `runtime/tichu_combinations.py` |
 | Gin's melds | sets and suited runs; arrangement validity; deadwood | `gin_valid_meld` and kin |

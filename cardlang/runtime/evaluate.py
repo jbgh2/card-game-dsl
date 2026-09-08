@@ -8,14 +8,14 @@ exactly what the deep-resolution pass exists to make possible.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, assert_never
+from typing import Any, assert_never, cast
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.domains import require_role, role_members
 from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.state import Ctx, Move, StructValue, elements
+from cardlang.runtime.state import Ctx, Move, StructValue, Zone, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -567,16 +567,51 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
 
 
-def _source_label(source: n.Expr) -> str | None:
-    """How a query's source zone is spelled in the game file, for a refusal's
-    location. Only the two shapes `zone_expr` admits are rendered; anything
-    else answers None rather than inventing a label, because a location is
-    metadata on a refusal already being raised and must never replace it."""
+def _refuse_a_zone_listed_twice(e: n.SubsetQuery, values: list[Any]) -> None:
+    """Two members that are one zone at play time -- `[hand[p], hand[q]]`
+    with p = q. Resolve refuses the same SPELLING twice (`_check_subset_source`);
+    a computed index cannot be told apart until now, so this is that guard's
+    play-time half, by identity: the pool would hold one zone's cards twice
+    and answer nothing the sentence meant. Named for the designer as the two
+    members as written; the caller locates it at the whole list, as it does
+    the bound's refusal. Nothing here evaluates: an index may hold a chooser
+    draw, and a refusal that evaluated it again would draw again."""
+    seen: dict[int, int] = {}
+    for i, value in enumerate(values):
+        if not isinstance(value, Zone):
+            continue
+        if id(value) in seen:
+            first = _member_label(e.source[seen[id(value)]]) or "a member"
+            again = _member_label(e.source[i]) or "a member"
+            raise OwnerGuardError(
+                f"`{again}` and `{first}` are the same zone at this point of play "
+                f"— a subset source lists each zone once"
+            )
+        seen[id(value)] = i
+
+
+def _source_label(source: tuple[n.Expr, ...]) -> str | None:
+    """How a query's source is spelled in the game file, for a refusal's
+    location: one member bare, several as the designer listed them. Only the
+    two shapes `zone_expr` admits are rendered; a member of any other shape
+    makes the whole label None rather than inventing one, because a location
+    is metadata on a refusal already being raised and must never replace it."""
+    labels = [_member_label(m) for m in source]
+    if any(label is None for label in labels):
+        return None
+    if len(labels) == 1:
+        return labels[0]
+    return "[" + ", ".join(cast(list[str], labels)) + "]"
+
+
+def _member_label(source: n.Expr) -> str | None:
     match source:
         case n.NameRef():
             return source.name
         case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
             return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base, index=n.NameRef() as idx):
+            return f"{base.name}[{idx.name}]"
         case n.Subscript(obj=n.NameRef() as base):
             return f"{base.name}[...]"
         case _:
@@ -595,12 +630,17 @@ def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
     predicates are side-effect-free, so stopping at the first answer is
     semantics-preserving, and it is what keeps the common case cheap when the
     domain is large."""
-    pool = list(elements(evaluate(e.source, ctx)))
+    # The pool is every member's contents, concatenated in written order: a
+    # card two members both hold is present once per member, which is the
+    # multiset reading the runtime already keeps for duplicate copies.
+    values = [evaluate(member, ctx) for member in e.source]
+    pool = [card for value in values for card in elements(value)]
     try:
+        _refuse_a_zone_listed_twice(e, values)
         subsets.check_pool(
             pool,
             "a subset query",
-            "narrow the zone it ranges over, or ask about a smaller one",
+            "narrow the source it ranges over, or ask about a smaller one",
         )
     except OwnerGuardError as exc:
         # Locate the refusal at the zone this query RANGED OVER, before any

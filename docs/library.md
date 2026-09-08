@@ -429,12 +429,14 @@ in tests/test_trump_slot_class.py.
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
   count) and decoded by the `peg_origin_of` Primitive query. The per-card
-  pegging value is the game's own `card_points { }` clause; the game-local
+  pegging value is the game's own `card_points { }` clause, and the show is
+  written in the language — fifteens, pairs and runs as subset queries over
+  `[played[p], starter]`, the flush and his nob as card queries; the game-local
   Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
-  `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
-  pegging-count and show scorers, in the same game-local shape as Stud's
-  `pot_share` and Pinochle's `pinochle_meld_value` — the designed shape for
-  what the language cannot yet say about a hand.
+  `peg_origin_of` — hold the pegging-count scorers and the provenance decoder,
+  in the same game-local shape as Stud's `pot_share` and Pinochle's
+  `pinochle_meld_value` — the designed shape for what the language cannot yet
+  say about a hand.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
   close the talon) is the **auction form over a single-participant ring** —
@@ -947,10 +949,6 @@ comparisons):
 - `peg_origin_of(card: Card) → Player` — which player played a given live
   `play_pile` card, decoded from the `seq_bits`/`seq_len` play-order state; routes
   each sub-round's cards into `played[dealer]` / `played[nondealer]` at the close.
-- `cribbage_show_value(player: Player) → Integer` — a player's pegged hand's show
-  score (fifteens, pairs, runs, flush, his-nob) counted against the shared starter.
-- `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
-  all five cards, unlike the four-card hand flush).
 
 Schnapsen carries no game-local primitive: its two-card trick resolves
 through the engine-core `highest_trump_or_led_suit` call (above) over the

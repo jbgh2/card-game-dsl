@@ -13,7 +13,25 @@ domain:     the three closed value domains the construct declares. Fully
             produce (a zone name, a zone-family subscript, a `let`-bound
             collection), since `NameRef` and `Subscript` are the only two the
             production admits and a computed collection reaches one only
-            through a name.
+            through a name -- in ONE OR MORE members, several listed in
+            brackets (`[table, hand[0]]`). A multi-member source is a phrase
+            on the node, never a value: it has no type, cannot be bound, and can reach no other
+            slot, which is what keeps every zone-demanding position untouched.
+            Its members are crossed over arity {1, 2, 3} and composition
+            {zone, subscript, let, and their lists}; the list's semantics
+            are pinned as cells -- a card in two members counts once per
+            member (concatenation, the runtime's own multiset), the same zone
+            twice is refused -- by spelling at check time, by identity at play
+            time, where a computed index is first decidable -- one zone in
+            brackets is refused as a second spelling of the bare zone, and
+            the enumeration bound applies to the list's total. Order across a
+            list is stated and not pinned: every fold the construct has is
+            commutative, so it is unobservable through this construct. The
+            list is the Subset Source's alone: at the six per-card source
+            slots it is refused naming the one-zone boundary, and the bare
+            joiners' reject twins ride only behind a mandatory clause, for the
+            reasons the grammar states beside them -- both pinned in the
+            rejections module, this grid's sibling.
             Swept at both values but NOT crossed with the above, each for a
             stated reason: the filter axis, which exists only in the
             aggregation register (the query forms' `where` is mandatory) and
@@ -121,6 +139,57 @@ _SOURCES = {
     "subscript": ("hand[0]", ""),
     "let": ("held", "    let held = cards in table where 1 is 1\n"),
 }
+
+# The listed members. `table` holds the four 7s and `hand[0]` the four 6s, so
+# every two-member list below is eight cards and the three-member one adds
+# the empty `hand[1]`, which contributes nothing -- an arity-3 cell whose
+# expected values are the arity-2 ones is exactly what proves an empty member
+# is inert rather than an error. The two orders of the same pair pin that no
+# fold can see the order. The `let` member is the four table cards again, so
+# `[held, table]` is the OVERLAP cell: eight cards, every one
+# present twice, and concatenation counts each twice.
+_LISTED_SOURCES = {
+    "zone+subscript": ("[table, hand[0]]", "", 8),
+    "subscript+zone": ("[hand[0], table]", "", 8),
+    "let+subscript": ("[held, hand[0]]", "    let held = cards in table where 1 is 1\n", 8),
+    "three": ("[table, hand[0], hand[1]]", "", 8),
+    "overlap": ("[held, table]", "    let held = cards in table where 1 is 1\n", 8),
+}
+
+
+def _choose(n: int, k: int) -> int:
+    from math import comb
+    return comb(n, k)
+
+
+# The authored arithmetic for a pool of N cards, size 2 in both modes, checked
+# against the two hand-computed pools before any listed cell trusts it.
+def _expected(size: int) -> dict[tuple[str, str], int | bool]:
+    return {
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT): _choose(size, 2),
+        (n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR): 2 ** size - 1 - size,
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT): 2 * _choose(size, 2),
+        (n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR): size * 2 ** (size - 1) - size,
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_EXACT): 2,
+        (n.SUBSET_AGG_HIGHEST, n.SUBSET_SIZE_FLOOR): size,
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_EXACT): 2,
+        (n.SUBSET_AGG_LOWEST, n.SUBSET_SIZE_FLOOR): 2,
+    }
+
+
+def test_the_listed_source_arithmetic_agrees_with_the_hand_computed_cells() -> None:
+    """The formula is only as good as the two pools it was checked against:
+    the four-card values every single-source cell below carries by hand, and
+    the eight-card values computed by hand for the listed-source cells."""
+    four = _expected(4)
+    assert four[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT)] == 6
+    assert four[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR)] == 11
+    assert four[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR)] == 28
+    eight = _expected(8)
+    assert eight[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_EXACT)] == 28
+    assert eight[(n.SUBSET_KIND_COUNT, n.SUBSET_SIZE_FLOOR)] == 247
+    assert eight[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_EXACT)] == 56
+    assert eight[(n.SUBSET_AGG_SUM, n.SUBSET_SIZE_FLOOR)] == 1016
 
 # Expected values over a four-card source.
 #   exact 2 -> C(4,2) = 6 subsets, every one of size 2
@@ -393,3 +462,110 @@ def test_a_zone_may_be_named_for_the_binder_and_the_binder_still_wins() -> None:
     )
     result = play_game(check_dsl(src, "grid.cardlang"), rng=random.Random(0))
     assert int(result.scores[0]) == 6, "the zone answered, not the binder"
+
+
+# --- Grid F: the listed source -----------------------------------------------
+_LISTED_QUERY_CELLS = [
+    (kind, mode, src)
+    for src in _LISTED_SOURCES
+    for kind in sorted(n.SUBSET_QUERY_KINDS)
+    for mode in sorted(n.SUBSET_SIZE_MODES)
+]
+_LISTED_AGG_CELLS = [
+    (agg, mode, src)
+    for src in _LISTED_SOURCES
+    for agg in sorted(n.SUBSET_AGGREGATORS)
+    for mode in sorted(n.SUBSET_SIZE_MODES)
+]
+
+
+@pytest.mark.parametrize("kind,mode,source", _LISTED_QUERY_CELLS)
+def test_query_register_over_a_listed_source(kind: str, mode: str, source: str) -> None:
+    name, extra, size = _LISTED_SOURCES[source]
+    if kind == n.SUBSET_KIND_COUNT:
+        sentence = _query_sentence(kind, mode, name, _TAUTOLOGY)
+        assert probe_value(sentence, extra=extra) == _expected(size)[(kind, mode)]
+    else:
+        sentence = _query_sentence(kind, mode, name, _IS_A_PAIR)
+        # every exact-2 subset is a pair; a floor-2 domain also holds larger ones
+        expected = True if kind == n.SUBSET_KIND_ANY else mode == n.SUBSET_SIZE_EXACT
+        assert probe_bool(sentence, extra=extra) is expected
+
+
+@pytest.mark.parametrize("agg,mode,source", _LISTED_AGG_CELLS)
+def test_aggregation_register_over_a_listed_source(agg: str, mode: str, source: str) -> None:
+    name, extra, size = _LISTED_SOURCES[source]
+    assert probe_value(_agg_sentence(agg, mode, name, None), extra=extra) == _expected(size)[(agg, mode)]
+
+
+def test_the_listed_source_axes_are_the_whole_registries() -> None:
+    assert {k for k, _, _ in _LISTED_QUERY_CELLS} == n.SUBSET_QUERY_KINDS
+    assert {a for a, _, _ in _LISTED_AGG_CELLS} == n.SUBSET_AGGREGATORS
+    assert {m for _, m, _ in _LISTED_QUERY_CELLS} == n.SUBSET_SIZE_MODES
+    assert {s for _, _, s in _LISTED_QUERY_CELLS} == set(_LISTED_SOURCES)
+
+
+def test_the_same_zone_twice_is_refused_by_name() -> None:
+    """`[table, table]` names one zone twice. Refused at resolve, in
+    the designer's words, naming the zone -- not folded into a domain where
+    every card appears twice and nothing says so."""
+    try:
+        probe_value("number of subsets of 2 cards in [table, table] where 1 is 1")
+    except Exception as exc:
+        assert "table" in str(exc) and "twice" in str(exc), str(exc)
+    else:
+        raise AssertionError("a zone named twice was accepted")
+
+
+def test_the_bound_applies_to_the_listed_sources_total() -> None:
+    """Twelve cards on the table and four in hand is sixteen -- the bound
+    exactly -- and the whole non-empty powerset is walked; one more rank on
+    the table makes twenty, and the list is refused as a whole."""
+    assert probe_value(
+        "number of subsets of 1 or more cards in [table, hand[0]] where 1 is 1",
+        table_ranks=("7", "5", "4"),
+    ) == 2 ** ENUMERATION_BOUND - 1
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 1 or more cards in [table, hand[0]] where 1 is 1",
+            table_ranks=("7", "5", "4", "3"),
+        )
+    assert "20 cards" in str(exc.value), str(exc.value)
+
+
+def test_a_computed_index_lists_a_zone_once() -> None:
+    """`[table, hand[p]]` with `p` bound at play time is the pool
+    `[table, hand[0]]` is, so the listed cells' arithmetic applies to it."""
+    assert probe_value(
+        "number of subsets of 2 cards in [table, hand[p]] where 1 is 1",
+        extra="    let p = the player where player is 0\n",
+    ) == _choose(8, 2)
+
+
+def test_two_members_that_are_one_zone_at_play_time_are_refused() -> None:
+    """`[hand[p], hand[q]]` with p = q. Resolve refuses the same SPELLING
+    twice; a computed index is decided here, by identity, so the pool never
+    holds one zone's cards twice. The refusal names both members as written
+    -- evaluating nothing, since an index may hold a chooser draw -- and is
+    located at the whole list."""
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 2 cards in [hand[p], hand[q]] where 1 is 1",
+            extra=("    let p = the player where player is 0\n"
+                   "    let q = the player where player is 0\n"),
+        )
+    message = str(exc.value)
+    assert "`hand[q]`" in message and "`hand[p]`" in message, message
+    assert exc.value.zone == "[hand[p], hand[q]]", exc.value.zone
+
+
+def test_the_bound_refusal_names_the_whole_list() -> None:
+    """The refusal is located at the list the designer wrote, not at its
+    first member and not at nothing."""
+    with pytest.raises(OwnerGuardError) as exc:
+        probe_value(
+            "number of subsets of 1 or more cards in [table, hand[0]] where 1 is 1",
+            table_ranks=("7", "5", "4", "3"),
+        )
+    assert exc.value.zone == "[table, hand[0]]", exc.value.zone
+

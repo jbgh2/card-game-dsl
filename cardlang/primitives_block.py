@@ -276,14 +276,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED,
         Sig((TPlayer(), TCard()), TBoolean()),
     ),
-    "cribbage_crib_value": Implementation(
-        "cardlang.runtime.cribbage", "cribbage_crib_value", InvocationContract.BUNDLED,
-        Sig((), TInteger()),
-    ),
-    "cribbage_show_value": Implementation(
-        "cardlang.runtime.cribbage", "cribbage_show_value", InvocationContract.BUNDLED,
-        Sig((TPlayer(),), TInteger()),
-    ),
     "first_to_act_seat": Implementation(
         "cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED,
         Sig((), TPlayer()),

@@ -2120,12 +2120,24 @@ cards, binding `subset` to each candidate set — the domain noun's singular, as
 `card` is the card queries'. The binder is a card collection, so the predicate
 asks about the set as a whole, which is the sentence no per-card form can say:
 
-- `any subset of <k> [or more] cards in <zone> where <pred>`, and the `all
+- `any subset of <k> [or more] cards in <source> where <pred>`, and the `all
   subsets …` / `number of subsets …` folds;
-- `sum of <expr> over subsets of <k> [or more] cards in <zone> [where <pred>]`,
+- `sum of <expr> over subsets of <k> [or more] cards in <source> [where <pred>]`,
   and the `highest`/`lowest` forms with the same mandatory `or <default>`.
 
-The source phrase is spelled with `of`, never `in`: `any <noun> in <expr>
+The Subset Source is one zone, or two or more listed in brackets —
+`[played[p], starter]`, the shape the language already uses for "these,
+listed" (`teams:`, `offering [...]`, `x in [a, b]`), and read the same way: a
+subset is drawn from any of them. The list is a phrase of the subset forms,
+never a value — it cannot be bound or passed, and no other source slot takes
+it, because a subset that straddles two zones cannot be built from subsets of
+each, while a count or a quantifier over two zones is one over each. The
+members' contents are pooled as written, so a card held by two members counts
+once per member; the same zone listed twice is refused, by spelling at check
+time and by identity at play time; one zone in brackets is refused as a second
+spelling of the bare zone; and the enumeration bound applies to the pool.
+
+The size clause is spelled with `of`, never `in`: `any <noun> in <expr>
 where` already means "iterate the collection's members", so spelling subsets
 with `in` would change the iteration domain with nothing on the page to mark
 it. The size clause is mandatory in both modes — `of <k> cards` names one size

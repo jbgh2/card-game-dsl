@@ -129,3 +129,128 @@ def test_the_size_clause_cannot_be_dropped_silently() -> None:
         check_dsl(_game("    score[0] := number of subsets in table where 1 is 1"),
                   "misuse.cardlang")
     assert "expected `of`" in str(exc.value), str(exc.value)
+
+
+# --- the listed source: the wrong spellings and the wrong members ------------
+# Each of these is a sentence a designer would plausibly write for "these two
+# zones together" without the brackets. The bare comma has the language's own
+# precedent (`reads a, b`), `+` reads as addition, and `and` is the boolean
+# operator three words later -- each meets a rejection that NAMES the bracket
+# list, never a bare token error, on the `trick_order_comma_reject`
+# precedent, in every form where a mandatory clause follows the source (the
+# three query forms, the ordering fold). A member that is not a zone meets
+# the shared source Owner Guard -- the message a lone source earns
+# (`typecheck._check_card_source`), because the member check IS that guard
+# applied per member, and a second wording would be a Shadow Guard. The rest
+# are lists written where the language does not offer one, which stay syntax
+# errors and must not silently parse as something else.
+_LISTED_SOURCE_PROBES: list[tuple[str, str, str]] = [
+    ("comma", "    score[0] := number of subsets of 2 cards in table, hand[0] where 1 is 1",
+     "[table, hand[p]]"),
+    ("plus", "    score[0] := number of subsets of 2 cards in table + hand[0] where 1 is 1",
+     "[table, hand[p]]"),
+    ("and", "    score[0] := number of subsets of 2 cards in table and hand[0] where 1 is 1",
+     "[table, hand[p]]"),
+    ("plus, in the ordering fold",
+     "    score[0] := highest 1 over subsets of 2 cards in table + hand[0] or 0",
+     "[table, hand[p]]"),
+    ("a state variable as a member",
+     "    score[0] := number of subsets of 2 cards in [table, score] where 1 is 1",
+     "expects a zone or collection of cards"),
+    ("the list bound by let first",
+     "    let both = [table, hand[0]]\n"
+     "    score[0] := number of subsets of 2 cards in both where 1 is 1",
+     "listed in the subset source itself"),
+    ("one zone in brackets",
+     "    score[0] := number of subsets of 2 cards in [table] where 1 is 1",
+     "written bare"),
+    # The list at every per-card source slot: the six productions that take
+    # `card_source`, each refused naming the one-zone boundary.
+    ("the list at a card query, set form",
+     "    let held = cards in [table, hand[0]] where 1 is 1\n    score[0] := 1",
+     "ranges over one zone"),
+    ("the list at a card query, count form",
+     "    score[0] := number of cards in [table, hand[0]]",
+     "ranges over one zone"),
+    ("the list at a card query, any form",
+     "    if any card in [table, hand[0]] where 1 is 1 { score[0] := 1 }",
+     "ranges over one zone"),
+    ("the list at a card query, all form",
+     "    if all cards in [table, hand[0]] where 1 is 1 { score[0] := 1 }",
+     "ranges over one zone"),
+    ("the list at the sum fold over cards",
+     "    score[0] := sum of 1 over cards in [table, hand[0]]",
+     "ranges over one zone"),
+    ("the list at the ordering fold over cards",
+     "    score[0] := highest 1 over cards in [table, hand[0]] or 0",
+     "ranges over one zone"),
+    ("the list bound by let, at a card query",
+     "    let both = [table, hand[0]]\n    score[0] := number of cards in both",
+     "one query per zone"),
+]
+
+# Born green, and staying green: sentences that are syntax errors today and
+# must REMAIN syntax errors after the list lands -- never a silent parse to
+# some other meaning. Each names the edit that would redden it.
+#   a number or player collection as a member:
+#       red under: widen `subset_source`'s member from `zone_expr` to `expr`.
+#   empty brackets:
+#       red under: make the list's members optional, `"[" [zone_expr ("," zone_expr)*] "]"`.
+#   a trailing comma:
+#       red under: make the trailing member optional, `("," [zone_expr])*`.
+#   an unclosed list:
+#       red under: make the closing bracket optional, `["]"]`.
+#   a nested list:
+#       red under: widen the list's member from `zone_expr` to `subset_source`.
+#   a misjoin behind the `sum` fold's open end:
+#       red under: give `agg_subset_sum` the guarded `subset_of_guarded` --
+#       the edit `test_a_plus_behind_the_sum_fold_gets_no_wrong_fix` below
+#       exists to refuse.
+_LISTED_SOURCE_STAYS_A_SYNTAX_ERROR: list[tuple[str, str]] = [
+    ("empty brackets", "    score[0] := number of subsets of 2 cards in [] where 1 is 1"),
+    ("a trailing comma", "    score[0] := number of subsets of 2 cards in [table,] where 1 is 1"),
+    ("an unclosed list", "    score[0] := number of subsets of 2 cards in [table, hand[0] where 1 is 1"),
+    ("a number as a member",
+     "    score[0] := number of subsets of 2 cards in [table, 5] where 1 is 1"),
+    ("a player collection as a member",
+     "    score[0] := number of subsets of 2 cards in [table, all players] where 1 is 1"),
+    ("a nested list",
+     "    score[0] := number of subsets of 2 cards in [[table], hand[0]] where 1 is 1"),
+    ("a misjoin behind the sum fold",
+     "    score[0] := sum of 1 over subsets of 2 cards in table + hand[0] where 1 is 1"),
+]
+
+
+@pytest.mark.parametrize("label,body,carries", _LISTED_SOURCE_PROBES, ids=[p[0] for p in _LISTED_SOURCE_PROBES])
+def test_a_wrong_listed_source_is_refused_loudly(label: str, body: str, carries: str) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game(body), "misuse.cardlang")
+    message = str(exc.value)
+    assert carries in message, message
+    assert "misuse.cardlang:" in message, message
+
+
+@pytest.mark.parametrize("label,body", _LISTED_SOURCE_STAYS_A_SYNTAX_ERROR,
+                         ids=[p[0] for p in _LISTED_SOURCE_STAYS_A_SYNTAX_ERROR])
+def test_a_malformed_listed_source_stays_a_syntax_error(label: str, body: str) -> None:
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game(body), "misuse.cardlang")
+    message = str(exc.value)
+    assert "syntax error" in message, message
+    assert "misuse.cardlang:" in message, message
+
+
+def test_a_plus_behind_the_sum_fold_gets_no_wrong_fix() -> None:
+    """`sum of 1 over subsets of 2 cards in table + score[1]` is a fold
+    missing its parentheses (a fold is an `expr`, never an operand), and
+    behind the sum fold's open end nothing says it was a source instead. It
+    meets the parser's own refusal, never the twin's zone-list fix. Born
+    green; red under: give `agg_subset_sum` the guarded `subset_of_guarded`
+    in the grammar (the twin then claims the sentence and names the bracket
+    list)."""
+    with pytest.raises(DiagnosticError) as exc:
+        check_dsl(_game("    score[0] := sum of 1 over subsets of 2 cards in table + score[1]"),
+                  "misuse.cardlang")
+    message = str(exc.value)
+    assert "syntax error" in message, message
+    assert "[table, hand[p]]" not in message, message

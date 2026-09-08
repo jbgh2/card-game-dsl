@@ -853,21 +853,6 @@ def _drive_peg_run_points() -> None:
     cribbage.peg_run_points(facts, gr)
 
 
-def _drive_cribbage_show(is_crib: bool) -> Callable[[], None]:
-    def drive() -> None:
-        from cardlang.runtime import cribbage
-
-        cribbage.show_score(
-            [Card("2", "clubs"), Card("3", "hearts"), Card("4", "spades"), Card("A", "clubs")],
-            Card("K", "hearts"),
-            is_crib,
-            _PARTIAL,
-            reader="cribbage_crib_value" if is_crib else "cribbage_show_value",
-        )
-
-    return drive
-
-
 def _drive_salvo_combos() -> None:
     from cardlang.runtime import salvo
 
@@ -938,8 +923,6 @@ _DRIVERS: Mapping[str, Callable[[], None]] = {
     "highest_of_led_suit": _drive_slot("highest_of_led_suit"),
     "highest_trump_or_led_suit": _drive_call_form,
     "peg_run_points": _drive_peg_run_points,
-    "cribbage_show_value": _drive_cribbage_show(False),
-    "cribbage_crib_value": _drive_cribbage_show(True),
     "salvo_combos": _drive_salvo_combos,
     "scopa_sums_to": _drive_scopa("scopa_sums_to"),
     "president_lead_options": _drive_president("president_lead_options"),

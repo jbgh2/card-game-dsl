@@ -693,7 +693,9 @@ def _expr(e: n.Expr) -> IRDict:
                 "kind": "subset_query",
                 "size_mode": e.size_mode,
                 "count": _expr(e.count),
-                "source": _expr(e.source),
+                # Always a list -- one shape, whether the source names one zone
+                # or several; no golden pins a subset query's rendering.
+                "source": [_expr(member) for member in e.source],
                 "binder": e.binder,
             }
             # Exactly one fold is present, so exactly one of these keys is
