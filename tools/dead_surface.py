@@ -26,9 +26,12 @@ Three sections, each derived:
   scoring sentence is an assignment, or a `let` binding, whose target is the
   game's winner variable (`winner: highest x`) or a name whose value flows
   into it through an assignment or a binding, transitively; a function every
-  call of which sits in a scoring sentence counts as one, transitively. Names
+  call of which sits in a scoring sentence counts as one, transitively, its
+  calls gathered across every source -- a library function called only from
+  games' scoring sentences is scoring surface housed in the library. Names
   resolve lexically: a `let` binds for the rest of its block, a parameter
-  within its function, and a state or zone name by spelling.
+  within its function, and a state or zone name by spelling within its own
+  source; a call's callee is not a read.
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
@@ -129,7 +132,14 @@ def keyword_axis(grammar: str) -> dict[str, str]:
 
 # --- reading consumers ---------------------------------------------------------
 
-Identity = tuple[str, str]  # ("state", name) | ("let", start offset) | ("param", "fn:name")
+# A value's identity: ("state", source, name) | ("let", source, offset) |
+# ("param", source, function, name). Namespaced by source, so two games'
+# `score` never meet.
+Identity = tuple[str, ...]
+# A function's identity: (source, name) for a game's own function, and
+# ("library", name) for a library's, which every game that calls the name
+# shares -- two libraries defining one name merge, conservatively.
+FunctionId = tuple[str, str]
 
 # A statement that gives a name a value: an assignment's target, or a `let`'s
 # bound name. Both are read the same way -- the target is the first child, the
@@ -138,11 +148,20 @@ _BINDING_STATEMENTS: frozenset[str] = frozenset({"assign_stmt", "let_stmt"})
 
 
 @dataclasses.dataclass
-class _Read:
-    """What one parsed source contributes."""
+class _Analysis:
+    """What one parsed source contributes, before calls are resolved across
+    sources: every subtree with the binding it sits in and the function it
+    sits in; every call with the same context; every binding's dataflow; the
+    winner variable; the functions this source defines; the keywords it
+    writes."""
 
-    produced: dict[str, bool]  # rule -> every occurrence is a scoring sentence
-    written: frozenset[str]  # keyword terminal names written as whole words
+    sites: list[tuple[str, Identity | None, FunctionId | None]]
+    calls: list[tuple[str, Identity | None, FunctionId | None]]
+    flows: list[tuple[Identity, frozenset[Identity]]]
+    winner: Identity | None
+    functions: frozenset[str]
+    written: frozenset[str]
+    library: bool
 
 
 def _name_tokens(tree: Tree[Token] | Token | None) -> list[str]:
@@ -158,42 +177,60 @@ def _target_root(target: Tree[Token] | Token | None) -> str | None:
     return names[0] if names else None
 
 
-def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
-    """One parsed source's contribution. Names resolve lexically as the walk
-    goes: a `let` binds its name for the rest of its parent's children,
-    innermost binding first; a function's parameters bind within its body;
-    every other name is a state or zone name, matched by spelling. A scoring
-    sentence is a binding statement whose target's identity flows into the
-    winner variable's, transitively, or a function every call of which sits
-    in one, transitively."""
+def _analyse(tree: Tree[Token], text: str, source: Source, keywords: dict[str, str]) -> _Analysis:
+    """Names resolve lexically as the walk goes: a `let` binds its name for
+    the rest of its parent's children, innermost binding first; a function's
+    parameters bind within its body; every other name is a state or zone name
+    of this source, matched by spelling. A call's callee is not a read."""
+    owner = "library" if source.start == "library" else source.name
     winner: Identity | None = None
     for sub in tree.iter_subtrees():
         if str(sub.data) == "winner":
             names = _name_tokens(sub)
             if names:
-                winner = ("state", names[-1])
-    sites: list[tuple[str, Identity | None, str | None]] = []  # rule, binding written, function
-    calls: list[tuple[str, Identity | None, str | None]] = []  # callee, same context
-    flows: list[tuple[Identity, frozenset[Identity]]] = []  # target <- what its value reads
+                winner = ("state", source.name, names[-1])
+    sites: list[tuple[str, Identity | None, FunctionId | None]] = []
+    calls: list[tuple[str, Identity | None, FunctionId | None]] = []
+    flows: list[tuple[Identity, frozenset[Identity]]] = []
+    functions: set[str] = set()
     frames: list[dict[str, Identity]] = []
 
     def resolve(name: str) -> Identity:
         for frame in reversed(frames):
             if name in frame:
                 return frame[name]
-        return ("state", name)
+        return ("state", source.name, name)
 
-    def walk(node: Tree[Token] | Token | None, binding: Identity | None, function: str | None) -> None:
+    def value_reads(node: Tree[Token] | Token | None) -> frozenset[Identity]:
+        found: set[Identity] = set()
+
+        def visit(n: Tree[Token] | Token | None) -> None:
+            if n is None:
+                return
+            if isinstance(n, Token):
+                if n.type == "NAME":
+                    found.add(resolve(str(n)))
+                return
+            children = n.children[1:] if str(n.data) == "call" else n.children
+            for child in children:
+                visit(child)
+
+        visit(node)
+        return frozenset(found)
+
+    def walk(node: Tree[Token] | Token | None, binding: Identity | None, function: FunctionId | None) -> None:
         if node is None or isinstance(node, Token):
             return
         rule = str(node.data)
         frames.append({})
         if rule == "function_def":
             names = _name_tokens(node.children[0])
-            function = names[0] if names else function
-            if len(node.children) > 2:
-                for param in _name_tokens(node.children[1]):
-                    frames[-1][param] = ("param", f"{function}:{param}")
+            if names:
+                functions.add(names[0])
+                function = (owner, names[0])
+                if len(node.children) > 2:
+                    for param in _name_tokens(node.children[1]):
+                        frames[-1][param] = ("param", source.name, names[0], param)
         if rule == "call":
             names = _name_tokens(node.children[0])
             if names:
@@ -204,8 +241,12 @@ def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
             value = node.children[-1]
             target: Identity | None = None
             if target_name is not None:
-                target = ("let", str(node.meta.start_pos)) if rule == "let_stmt" else resolve(target_name)
-                flows.append((target, frozenset(resolve(n) for n in _name_tokens(value))))
+                target = (
+                    ("let", source.name, str(node.meta.start_pos))
+                    if rule == "let_stmt"
+                    else resolve(target_name)
+                )
+                flows.append((target, value_reads(value)))
             for child in node.children[:-1]:
                 walk(child, binding, function)
             walk(value, target, function)
@@ -218,30 +259,6 @@ def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
         frames.pop()
 
     walk(tree, None, None)
-    scoring: set[Identity] = set() if winner is None else {winner}
-    while winner is not None:
-        grown = set(scoring)
-        for target, read in flows:
-            if target in scoring:
-                grown |= read
-        if grown == scoring:
-            break
-        scoring = grown
-    scoring_functions: set[str] = set()
-    while True:
-        called = {f for f, _, _ in calls}
-        grown_functions = {
-            f
-            for f in called
-            if all(b in scoring or enclosing in scoring_functions for g, b, enclosing in calls if g == f)
-        }
-        if grown_functions == scoring_functions:
-            break
-        scoring_functions = grown_functions
-    produced: dict[str, bool] = {}
-    for rule, binding, function in sites:
-        is_scoring = binding in scoring or function in scoring_functions
-        produced[rule] = produced.get(rule, True) and is_scoring
     # A keyword is written where it stands as a whole word in CODE -- outside
     # comments and strings as the grammar defines them, which is what the
     # fusion sweep's scanner reads; masked characters become spaces so word
@@ -252,7 +269,49 @@ def _read(tree: Tree[Token], text: str, keywords: dict[str, str]) -> _Read:
         for name, word in keywords.items()
         if re.search(rf"(?<![A-Za-z0-9_]){re.escape(word)}(?![A-Za-z0-9_])", code)
     )
-    return _Read(produced, written)
+    return _Analysis(sites, calls, flows, winner, frozenset(functions), written, owner == "library")
+
+
+def _scoring(analyses: dict[str, _Analysis]) -> tuple[set[Identity], set[FunctionId]]:
+    """The identities whose values reach a winner variable, per source, and
+    the functions every call of which -- from any source -- sits in a scoring
+    sentence, to a fixpoint over both."""
+    identities: set[Identity] = set()
+    for analysis in analyses.values():
+        if analysis.winner is None:
+            continue
+        reached = {analysis.winner}
+        while True:
+            grown = set(reached)
+            for target, read in analysis.flows:
+                if target in reached:
+                    grown |= read
+            if grown == reached:
+                break
+            reached = grown
+        identities |= reached
+    library_functions = {
+        name for analysis in analyses.values() if analysis.library for name in analysis.functions
+    }
+    resolved: list[tuple[FunctionId, Identity | None, FunctionId | None]] = []
+    for source, analysis in analyses.items():
+        for callee, binding, enclosing in analysis.calls:
+            if callee in analysis.functions and not analysis.library:
+                resolved.append(((source, callee), binding, enclosing))
+            elif callee in library_functions:
+                resolved.append((("library", callee), binding, enclosing))
+    functions: set[FunctionId] = set()
+    while True:
+        called = {f for f, _, _ in resolved}
+        grown_functions = {
+            f
+            for f in called
+            if all(b in identities or e in functions for g, b, e in resolved if g == f)
+        }
+        if grown_functions == functions:
+            break
+        functions = grown_functions
+    return identities, functions
 
 
 # --- the report ------------------------------------------------------------------
@@ -316,9 +375,8 @@ def report(grammar: str, sources: Iterable[Source]) -> Report:
     keywords = keyword_axis(grammar)
     parsed: list[str] = []
     unparsed: list[str] = []
-    rule_consumers: dict[str, dict[str, list[str]]] = {}
-    keyword_consumers: dict[str, dict[str, list[str]]] = {}
-    scoring_by_rule: dict[str, dict[str, bool]] = {}  # rule -> live file -> all scoring there
+    analyses: dict[str, _Analysis] = {}
+    tiers: dict[str, str] = {}
     for source in sorted(sources, key=lambda s: s.name):
         try:
             tree = parse_to_tree(source.text, source.name, start=source.start)
@@ -326,13 +384,23 @@ def report(grammar: str, sources: Iterable[Source]) -> Report:
             unparsed.append(source.name)
             continue
         parsed.append(source.name)
-        read = _read(tree, source.text, keywords)
-        for rule, scoring in read.produced.items():
-            rule_consumers.setdefault(rule, {}).setdefault(source.tier, []).append(source.name)
-            if source.tier in LIVE_TIERS:
-                scoring_by_rule.setdefault(rule, {})[source.name] = scoring
-        for name in read.written:
-            keyword_consumers.setdefault(name, {}).setdefault(source.tier, []).append(source.name)
+        analyses[source.name] = _analyse(tree, source.text, source, keywords)
+        tiers[source.name] = source.tier
+    identities, functions = _scoring(analyses)
+    rule_consumers: dict[str, dict[str, list[str]]] = {}
+    keyword_consumers: dict[str, dict[str, list[str]]] = {}
+    scoring_by_rule: dict[str, dict[str, bool]] = {}  # rule -> live file -> all scoring there
+    for name, analysis in analyses.items():
+        produced: dict[str, bool] = {}
+        for rule, binding, function in analysis.sites:
+            is_scoring = binding in identities or function in functions
+            produced[rule] = produced.get(rule, True) and is_scoring
+        for rule, scoring in produced.items():
+            rule_consumers.setdefault(rule, {}).setdefault(tiers[name], []).append(name)
+            if tiers[name] in LIVE_TIERS:
+                scoring_by_rule.setdefault(rule, {})[name] = scoring
+        for keyword in analysis.written:
+            keyword_consumers.setdefault(keyword, {}).setdefault(tiers[name], []).append(name)
     all_scoring = {
         rule: tuple(sorted(files))
         for rule, files in scoring_by_rule.items()
@@ -343,8 +411,8 @@ def report(grammar: str, sources: Iterable[Source]) -> Report:
         unparsed=tuple(unparsed),
         rules=rules,
         keywords=keywords,
-        rule_consumers={r: {t: tuple(sorted(f)) for t, f in tiers.items()} for r, tiers in rule_consumers.items()},
-        keyword_consumers={k: {t: tuple(sorted(f)) for t, f in tiers.items()} for k, tiers in keyword_consumers.items()},
+        rule_consumers={r: {t: tuple(sorted(f)) for t, f in by.items()} for r, by in rule_consumers.items()},
+        keyword_consumers={k: {t: tuple(sorted(f)) for t, f in by.items()} for k, by in keyword_consumers.items()},
         all_scoring=all_scoring,
     )
 

@@ -21,7 +21,10 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             function -- state and zone names match by spelling, so two phases
             declaring one state name share it; a game with no `winner:
             highest/lowest x` has no scoring sentence, which is stated, not a
-            gap.
+            gap. Calls resolve to the calling game's own function, else to a
+            library's by name (two libraries defining one name merge,
+            conservatively); a Primitive or builtin callee has no body to
+            classify and is skipped.
 registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
@@ -167,6 +170,32 @@ def test_strings_and_comments_are_read_as_the_grammar_defines_them() -> None:
     )
     rep = ds.report(GRAMMAR, [src("a.cardlang", inside_a_multiline_string)])
     assert "DOWN" in rep.dead_keywords()
+
+
+def test_a_library_function_called_only_to_score_is_scoring_surface() -> None:
+    """The construct lives in the library; every call sits in a game's
+    scoring sentence; the library is where the column names it. Red under:
+    resolving calls within one source only."""
+    library = ds.Source("l.cardlang", f"library L {{\n  function f() = {COUNT}\n}}\n", "library", "shared")
+    scoring_game = src("a.cardlang", game("    score[0] := f()"))
+    rep = ds.report(GRAMMAR, [library, scoring_game])
+    assert rep.all_scoring["sq_count"] == ("l.cardlang",)
+    guarding_game = src("b.cardlang", game("    if f() > 0 { score[0] := 1 }"))
+    rep = ds.report(GRAMMAR, [library, scoring_game, guarding_game])
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_a_callee_is_not_a_read_of_a_same_named_state_variable() -> None:
+    """State `f` and function `f` may share a spelling; `score[0] := f()`
+    reads the function, never the state. Red under: taking every NAME token
+    of a value as a read."""
+    text = game(
+        f"    f := {COUNT}\n    score[0] := f()",
+        state="f : Integer = 0",
+        functions="function f() = 1\n",
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" not in rep.all_scoring
 
 
 def test_a_game_with_no_ranked_winner_has_no_scoring_sentence() -> None:
