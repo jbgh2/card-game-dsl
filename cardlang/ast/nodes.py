@@ -263,13 +263,21 @@ class SubsetQuery:
     `size_mode` is a member of `SUBSET_SIZE_MODES`: `exact` enumerates subsets
     of exactly `count` cards, `floor` every size from `count` up. `count` is an
     ordinary expression evaluated OUTSIDE the binder scope, like every other
-    source-slot operand."""
+    source-slot operand.
+
+    `source` is ONE OR MORE zone references (`NameRef` or `Subscript`, the two
+    shapes `zone_expr` admits); several are listed in brackets in the surface,
+    `[played[p], starter]`. The pool is their contents concatenated in written
+    order -- a card held by two
+    members counts once per member, which is the runtime's own multiset
+    reading. The list is a phrase on this node and never a value: it has no
+    type, cannot be bound, and reaches no other slot."""
 
     kind: str | None  # a member of SUBSET_QUERY_KINDS, or None for an aggregation
     agg: str | None  # a member of SUBSET_AGGREGATORS, or None for a query
     size_mode: str  # a member of SUBSET_SIZE_MODES
     count: Expr
-    source: Expr
+    source: tuple[Expr, ...]  # one or more zone references, never empty
     binder: str
     body: Expr | None = None  # the aggregated expression; None for a query
     where: Expr | None = None

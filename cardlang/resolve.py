@@ -59,7 +59,10 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer. And, for a game that ``uses`` a
+              rather than in the type layer. And a subset source that
+              names the same zone twice (``_check_subset_source``) -- a
+              spelling fact, settled beside the other subset-shape guard.
+              And, for a game that ``uses`` a
               library, a game-introduced binder or declaration parameter
               spelled like a variable the library PROVIDES, where the game
               does not already bind that spelling at declaration level
@@ -2371,6 +2374,8 @@ def resolve(game: n.Game) -> n.Game:
     for dq in _walk(game):
         if isinstance(dq, n.DomainQuery):
             _check_domain_query(dq, game, bag)
+        elif isinstance(dq, n.SubsetQuery):
+            _check_subset_source(dq, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
@@ -7707,6 +7712,45 @@ def _check_offering_moves(
 # cells"): `any line in …` / `all cells in …`. Any other `in` noun is rejected
 # naming these two; further nouns are a recorded residual (issue #111).
 _COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
+
+def _spelled_zone(member: n.Expr) -> str | None:
+    """How a subset-source member is spelled, for the same-zone check: a bare
+    name, a name with a literal index, or a name with a named index -- the
+    shapes `zone_expr` admits. Two members that spell the same are the same
+    zone. A computed index cannot be told apart statically and answers None,
+    so it never matches."""
+    match member:
+        case n.NameRef():
+            return member.name
+        case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
+            return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base, index=n.NameRef() as idx):
+            return f"{base.name}[{idx.name}]"
+        case _:
+            return None
+
+
+def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
+    """The same zone named twice in one subset source (`[table, table]`).
+    The pool is the members' contents concatenated, so the sentence
+    would count every card twice and say nothing a designer meant; it is
+    refused naming the spelling. A name fact -- two members spell the same --
+    settled here beside the other subset-shape guard, not in the type layer:
+    whether each member IS a zone or a card collection is the type layer's
+    per-member Owner Guard (`typecheck._check_card_source`)."""
+    seen: set[str] = set()
+    for member in sq.source:
+        spelled = _spelled_zone(member)
+        if spelled is None:
+            continue
+        if spelled in seen:
+            bag.error(
+                f"`{spelled}` appears twice in one subset source — name each "
+                f"zone once; a card is counted once per zone it is drawn from",
+                member.span,
+            )
+        seen.add(spelled)
+
 
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").

@@ -554,13 +554,6 @@ def test_gin_deadwood_table_matches_the_declared_clause() -> None:
     assert rows == _POINTS and else_value is None
 
 
-def test_cribbage_show_table_matches_the_declared_clause() -> None:
-    from cardlang.runtime.cribbage import _VALUE
-
-    rows, else_value = _declared_table("cribbage.cardlang")
-    assert rows == _VALUE and else_value is None
-
-
 def test_canasta_meld_core_table_matches_the_declared_clause() -> None:
     from cardlang.runtime.canasta import POINTS
 

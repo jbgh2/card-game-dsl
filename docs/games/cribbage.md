@@ -30,10 +30,12 @@ per-play scoring plus forced-play flow — so the current sub-round's card
 provenance (who played each `play_pile` card) is carried by two `Integer` state
 variables (`seq_bits`/`seq_len`, public information: every player watched the
 count) and decoded by the `peg_origin_of` Primitive at each close, which
-routes the pile into `played[dealer]` / `played[nondealer]`. The combination
-scorers (fifteens, pairs, runs, flush, his nob) and the pegging-count scorers are
-Primitives, unit-tested against known hands (the 29-hand, runs with
-multiplicity, flushes, his nob). The game declares all five, with what each
-reads, in its own `primitives { }` block; `peg_origin_of` reads state from
-`phase play` and from `phase hand_sequence` around it, which is what commits
-it to being called where the pegging runs.
+routes the pile into `played[dealer]` / `played[nondealer]`. The show is
+written in the language: fifteens, pairs and runs are subset queries over the
+hand listed with the starter (`[played[p], starter]`), the flush and his nob
+card queries — the functions after the game block, each written for a hand
+and again for the crib, because a function cannot take a zone. The
+pegging-count scorers and the provenance decoder are the game's three
+Primitives, declared with what each reads in its own `primitives { }` block;
+`peg_origin_of` reads state from `phase play` and from `phase hand_sequence`
+around it, which is what commits it to being called where the pegging runs.

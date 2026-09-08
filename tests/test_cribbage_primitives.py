@@ -21,8 +21,6 @@ import pytest
 from cardlang.ast import nodes as n
 from cardlang.runtime import reads, narrowing
 from cardlang.runtime.cribbage import (
-    cribbage_crib_value,
-    cribbage_show_value,
     peg_origin,
     peg_origin_of,
 )
@@ -86,7 +84,7 @@ def test_peg_origin_31_reset_boundary() -> None:
     assert peg_origin(1, 1, 0) == 1  # a fresh sub-round, dealer leads
 
 
-# --- peg_origin_of / cribbage_show_value / cribbage_crib_value: ctx-adapters ---
+# --- peg_origin_of: the ctx-adapter ---
 
 
 def _zone_decls() -> tuple[n.ZoneDecl, ...]:
@@ -181,50 +179,3 @@ def test_peg_origin_of_requires_reading_before_the_pile_drains() -> None:
     rs.zones.single("play_pile").remove(c0)
     with pytest.raises(ValueError):
         peg_origin_of(*narrowing.bind(rs, None, _row("peg_origin_of")), c0)
-
-
-def _show_ctx(
-    entry: str,
-    played0: list[Card],
-    played1: list[Card],
-    crib: list[Card],
-    starter: Card,
-) -> _Bundles:
-    rs = RuntimeState(Seating(2), ZoneStore(_zone_decls(), (0, 1)), random.Random(0))
-    rs.rank_index = _aces_low_index()
-    # The bundle materialises the ENTRY's whole declared row, so a fixture
-    # must declare every name in it — an omission is indistinguishable from
-    # the game file and the module having drifted apart. The whole world is
-    # set up either way, so an entry reading past its own clause meets the
-    # bundle miss rather than a fixture that happened to be thin.
-    rs.push_frame()
-    rs.declare("dealer", False, 1)
-    rs.declare("seq_bits", False, 0)
-    rs.declare("seq_len", False, 0)
-    rs.zones.instance("played", 0).add_all(played0)
-    rs.zones.instance("played", 1).add_all(played1)
-    rs.zones.single("crib").add_all(crib)
-    rs.zones.single("starter").add(starter)
-    return narrowing.bind(rs, None, _row(entry))
-
-
-def test_cribbage_show_value_reads_the_players_pegged_hand() -> None:
-    # The classic perfect 29: three 5s + the J of diamonds, with the fourth 5
-    # (also diamonds) as the starter. Fifteens: four (5+5+5) + four (5+J) = 8 -> 16;
-    # pairs: C(4,2) = 6 -> 12; his nob: the J matches the diamond starter -> 1.
-    # Total 29.
-    hand = [Card("5", "clubs"), Card("5", "hearts"), Card("5", "spades"), Card("J", "diamonds")]
-    starter = Card("5", "diamonds")
-    ctx = _show_ctx("cribbage_show_value", hand, [], [], starter)
-    assert cribbage_show_value(*ctx, 0) == 29
-    assert cribbage_show_value(*ctx, 1) == 0  # player 1's played hand is empty
-
-
-def test_cribbage_crib_value_reads_the_crib_against_the_starter() -> None:
-    hand = [Card("5", "clubs"), Card("5", "hearts"), Card("5", "spades"), Card("J", "diamonds")]
-    starter = Card("5", "diamonds")
-    ctx = _show_ctx("cribbage_crib_value", [], [], hand, starter)
-    # The crib scores the same combination points as a hand would, EXCEPT the
-    # crib-only flush rule (is_crib=True: a 4-flush is worth 0, not 4) — moot
-    # here (the sample hand isn't a flush), so the value is the same 29.
-    assert cribbage_crib_value(*ctx) == 29

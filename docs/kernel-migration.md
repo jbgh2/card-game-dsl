@@ -419,12 +419,12 @@ alternative in
   (`repeat until`, `if`/`else`, `skip to next hand`). No `round` form fits
   pegging's per-play scoring plus forced-play flow, so it uses none; the current
   sub-round's card provenance is carried in two `Integer` state variables and
-  decoded by the `peg_origin_of` Primitive. The module-level Cribbage
-  scorers (pegging counts + the show's fifteens/pairs/runs/flush/his-nob) re-homed
-  as game-local Primitives, like Stud's `pot_share` and Pinochle's
-  `pinochle_meld_value`. The show's folds are reachable through the subset
-  binder; what keeps the show in Python is a subset source spanning the hand
-  and the starter, which is that construct's next stage (issue #246).
+  decoded by the `peg_origin_of` Primitive. The pegging-count scorers
+  re-homed as game-local Primitives, like Stud's `pot_share` and Pinochle's
+  `pinochle_meld_value`; the show is written in the language — fifteens, pairs
+  and runs as subset queries over the hand listed with the starter
+  (`[played[p], starter]`), the flush and his nob as card queries, in the
+  game's own functions.
 - **Schnapsen** — *done.* Not `offer`s: the leader's whole mixed turn (lead a
   card / declare a marriage / exchange the trump jack / close the talon) is ONE
   flat candidate list, so it landed as the **auction form over a
