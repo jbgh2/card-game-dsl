@@ -31,7 +31,8 @@ Three sections, each derived:
   games' scoring sentences is scoring surface housed in the library. Names
   resolve lexically: a `let` binds for the rest of its block, a parameter
   within its function, and a state or zone name by spelling within its own
-  source; a call's callee is not a read.
+  source; a call's callee, a member's field and a struct or named argument's
+  label are labels, not reads. Only live sources' calls classify a function.
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
@@ -145,6 +146,13 @@ FunctionId = tuple[str, str]
 # bound name. Both are read the same way -- the target is the first child, the
 # value the last -- so the dataflow closure and the walk treat them alike.
 _BINDING_STATEMENTS: frozenset[str] = frozenset({"assign_stmt", "let_stmt"})
+# NAME positions inside a value that are LABELS, not references: a call's
+# callee, a struct literal's or named argument's field, and a member access's
+# field (`box.value` reads `box`, never a state named `value`). The first
+# child is skipped for the first three; only the first child is read for the
+# last.
+_LABEL_FIRST: frozenset[str] = frozenset({"call", "field_init", "named_arg"})
+_BASE_ONLY: frozenset[str] = frozenset({"member"})
 
 
 @dataclasses.dataclass
@@ -211,8 +219,11 @@ def _analyse(tree: Tree[Token], text: str, source: Source, keywords: dict[str, s
                 if n.type == "NAME":
                     found.add(resolve(str(n)))
                 return
-            children = n.children[1:] if str(n.data) == "call" else n.children
-            for child in children:
+            rule = str(n.data)
+            if rule in _BASE_ONLY:
+                visit(n.children[0])
+                return
+            for child in n.children[1:] if rule in _LABEL_FIRST else n.children:
                 visit(child)
 
         visit(node)
@@ -272,13 +283,15 @@ def _analyse(tree: Tree[Token], text: str, source: Source, keywords: dict[str, s
     return _Analysis(sites, calls, flows, winner, frozenset(functions), written, owner == "library")
 
 
-def _scoring(analyses: dict[str, _Analysis]) -> tuple[set[Identity], set[FunctionId]]:
-    """The identities whose values reach a winner variable, per source, and
-    the functions every call of which -- from any source -- sits in a scoring
-    sentence, to a fixpoint over both."""
+def _scoring(analyses: dict[str, _Analysis], live: frozenset[str]) -> tuple[set[Identity], set[FunctionId]]:
+    """The identities whose values reach a winner variable, per live source,
+    and the functions every LIVE call of which sits in a scoring sentence, to
+    a fixpoint over both. A call from an experiment or a test fixture is not a
+    consumer the column speaks about, so it neither makes nor unmakes a
+    scoring function."""
     identities: set[Identity] = set()
-    for analysis in analyses.values():
-        if analysis.winner is None:
+    for name, analysis in analyses.items():
+        if analysis.winner is None or name not in live:
             continue
         reached = {analysis.winner}
         while True:
@@ -295,6 +308,8 @@ def _scoring(analyses: dict[str, _Analysis]) -> tuple[set[Identity], set[Functio
     }
     resolved: list[tuple[FunctionId, Identity | None, FunctionId | None]] = []
     for source, analysis in analyses.items():
+        if source not in live:
+            continue
         for callee, binding, enclosing in analysis.calls:
             if callee in analysis.functions and not analysis.library:
                 resolved.append(((source, callee), binding, enclosing))
@@ -386,7 +401,8 @@ def report(grammar: str, sources: Iterable[Source]) -> Report:
         parsed.append(source.name)
         analyses[source.name] = _analyse(tree, source.text, source, keywords)
         tiers[source.name] = source.tier
-    identities, functions = _scoring(analyses)
+    live = frozenset(name for name, tier in tiers.items() if tier in LIVE_TIERS)
+    identities, functions = _scoring(analyses, live)
     rule_consumers: dict[str, dict[str, list[str]]] = {}
     keyword_consumers: dict[str, dict[str, list[str]]] = {}
     scoring_by_rule: dict[str, dict[str, bool]] = {}  # rule -> live file -> all scoring there

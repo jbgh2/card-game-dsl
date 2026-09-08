@@ -24,7 +24,9 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             gap. Calls resolve to the calling game's own function, else to a
             library's by name (two libraries defining one name merge,
             conservatively); a Primitive or builtin callee has no body to
-            classify and is skipped.
+            classify and is skipped; only live sources' calls classify a
+            function. A NAME in label position -- a callee, a member's
+            field, a struct or named argument's label -- is not a read.
 registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
@@ -195,6 +197,31 @@ def test_a_callee_is_not_a_read_of_a_same_named_state_variable() -> None:
         functions="function f() = 1\n",
     )
     rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_a_member_field_is_a_label_not_a_read() -> None:
+    """State `value` and a field `.value` share a spelling; `score[0] :=
+    box.value` reads `box`. Red under: visiting a member's field child."""
+    text = game(
+        f"    value := {COUNT}\n    score[0] := box.value",
+        state="value : Integer = 0  box : Integer = 0",
+    )
+    rep = ds.report(GRAMMAR, [src("a.cardlang", text)])
+    assert "sq_count" not in rep.all_scoring
+
+
+def test_only_live_call_sites_classify_a_shared_function() -> None:
+    """A fixture guarding on a library function is not a consumer the column
+    speaks about, so it neither unmakes a scoring function (first) nor makes
+    one (second). Red under: resolving calls from every tier."""
+    library = ds.Source("l.cardlang", f"library L {{\n  function f() = {COUNT}\n}}\n", "library", "shared")
+    scoring_game = src("a.cardlang", game("    score[0] := f()"))
+    fixture_guard = src("tests/fixtures/g.cardlang", game("    if f() > 0 { score[0] := 1 }"), "other")
+    rep = ds.report(GRAMMAR, [library, scoring_game, fixture_guard])
+    assert rep.all_scoring["sq_count"] == ("l.cardlang",)
+    fixture_scoring = src("tests/fixtures/s.cardlang", game("    score[0] := f()"), "other")
+    rep = ds.report(GRAMMAR, [library, fixture_scoring])
     assert "sq_count" not in rep.all_scoring
 
 
