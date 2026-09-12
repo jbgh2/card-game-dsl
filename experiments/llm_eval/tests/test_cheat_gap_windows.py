@@ -90,6 +90,37 @@ def windows_dicts(windows: list[gap_windows.WindowRecord]) -> list[dict[str, Any
 # --- enumeration --------------------------------------------------------------
 
 
+def test_lie_labels_come_from_the_replay_not_the_recorded_facts(
+    tmp_path: Path, game: Any
+) -> None:
+    """A transcript whose recorded `facts` and `action` fields are wrong still
+    yields the lie labels the replayed history settles — the digest
+    authenticates the game source, not what the recording code wrote."""
+    record = _play(game, 3, "tamper", 0, max_decisions=110)
+    honest = gap_windows.enumerate_windows(_archive_of(tmp_path / "honest", [record]), None)
+    tampered = record.as_dict()
+    for d in tampered["decisions"]:
+        if d["facts"].get("kind") == "card":
+            d["facts"]["card"] = "Z?"       # a rank no claim can match
+            d["action"] = "Z?"
+        if d["facts"].get("kind") == "window":
+            d["action"] = "allow" if d["action"] == "call_cheat" else "call_cheat"
+    root = tmp_path / "tampered"
+    root.mkdir()
+    (root / "tamper.jsonl").write_text(json.dumps(tampered, ensure_ascii=False) + "\n")
+    got = gap_windows.enumerate_windows(root, None)
+    assert [(w.step, w.lie, w.action) for w in got] == [
+        (w.step, w.lie, w.action) for w in honest
+    ]
+
+
+def _archive_of(root: Path, records: list[GameRecord]) -> Path:
+    root.mkdir()
+    _write(root / "cg.jsonl", records)
+    return root
+
+
+
 def test_window_facts_match_reconstructed_plays(archive: Path, windows: list[Any]) -> None:
     """`lie`, `forced_lie` and `window_position` agree with an INDEPENDENT
     grouping of the same transcript by `metrics.reconstruct_plays` — the check
@@ -243,7 +274,7 @@ def test_the_adaptive_budget_stops_at_the_floor_or_the_cap(
     )
     assert easy
     for r in easy:
-        assert r["converged"] is True
+        assert r["converged"] is True and r["dropped"] is False
         assert r["ess"] >= 1.0
         assert r["n_proposed"] <= 800
 
@@ -320,7 +351,9 @@ def test_zero_acceptance_at_the_first_budget_escalates_rather_than_drops(
         game_path=CHEAT_PATH, observer_agent=None,
     )
     assert seen == [200, 400]
-    assert records == []
+    assert len(records) == 1
+    assert records[0]["dropped"] is True and records[0]["converged"] is False
+    assert records[0]["p_lie"] is None and records[0]["n_proposed"] == 400
     assert any("DROPPED" in line for line in log)
 
 

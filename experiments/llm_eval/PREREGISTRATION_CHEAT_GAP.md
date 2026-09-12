@@ -104,6 +104,7 @@ are a second, independently-parameterized card-blind reference.
 | population, registered cells | EVERY in-bound window of the LLM seat: `--observer-agent llm_<tier> --per-cell 2000` |
 | population, in-cell null | the same cell's rule seats: `--observer-agent rule --per-cell 600` |
 | replay checks | 1 per window (`--check-count 1`) |
+| convergence gate | 0.95 of a seat class's selected windows (`verify_cheat_gap.CONVERGENCE_FLOOR`, `--convergence-floor`); a dropped window is a record with `dropped: true` and counts against it; every statistic pools converged records only |
 | bootstrap | 2000 resamples, resampling GAMES, seed 0 (`verify_cheat_gap.BOOTSTRAP_*`) |
 | `n` | 20 (`llm_cheap_table`), 20 (`llm_mid_table`), 10 (`llm_frontier_table`) |
 
@@ -265,7 +266,10 @@ Declared in advance, so it cannot be rationalized afterwards:
   it.)
 - **Convergence below 95%** of the LLM seat's in-bound windows at the registered
   budget. The depth bound is then wrong for that cell, and the cell is reported
-  as **unmeasured** rather than scored on the windows that happened to converge.
+  as **unmeasured** rather than scored on the windows that happened to converge
+  — enforced by the scorer itself (`verify_cheat_gap.CONVERGENCE_FLOOR`), which
+  prints the convergence share per seat class, refuses a statistic below the
+  floor, and pools converged records only above it.
 - **Any replay-check failure.** A sampled world that does not replay to the
   window it was drawn for is an instrument bug: halt, fix it, and quote nothing
   until the checks pass again.

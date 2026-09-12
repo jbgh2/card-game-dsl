@@ -66,6 +66,13 @@ BOOTSTRAP_SEED = 0
 SUBSETS = ("all", "abstains", "fires")
 ACTIONS = ("challenged", "allowed", "any")
 
+#: The registered convergence gate (`PREREGISTRATION_CHEAT_GAP.md`, "What
+#: would make the result unusable"): a cell x seat class whose selected
+#: windows converged below this share is reported UNMEASURED, and no
+#: statistic is computed for it. Every statistic pools converged records
+#: only, whatever the share.
+CONVERGENCE_FLOOR = 0.95
+
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     """JSON lines, plain or gzipped by suffix — the archive commits derived
@@ -108,13 +115,30 @@ def _in_subset(record: dict[str, Any], subset: str) -> bool:
     raise ValueError(f"unknown subset {subset!r}")
 
 
+def converged(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The records a statistic may pool: converged, with a posterior. A
+    dropped window (`dropped: true`, no `p_lie`) and an unconverged one both
+    count toward the convergence gate and toward nothing else."""
+    return [r for r in records if r.get("converged") and r.get("p_lie") is not None]
+
+
+def convergence(records: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """`(selected, converged, dropped)` over a set of posterior records."""
+    return (
+        len(records),
+        len(converged(records)),
+        sum(1 for r in records if r.get("dropped")),
+    )
+
+
 def bucket(
     records: list[dict[str, Any]], matchup: str, seat_class: str, subset: str, action: str
 ) -> list[dict[str, Any]]:
-    """Every posterior record in one (cell, seat class, subset, action) cell."""
+    """Every CONVERGED posterior record in one (cell, seat class, subset,
+    action) cell."""
     return [
         r
-        for r in records
+        for r in converged(records)
         if r["matchup"] == matchup
         and r["observer_agent"] == seat_class
         and _in_subset(r, subset)
@@ -197,18 +221,6 @@ def residual_summary(records: list[dict[str, Any]]) -> tuple[float, float] | Non
     return mean, math.sqrt(variance)
 
 
-def _per_seed_gap(records: list[dict[str, Any]]) -> dict[int, float]:
-    by_seed: dict[int, list[dict[str, Any]]] = {}
-    for r in records:
-        by_seed.setdefault(r["seed"], []).append(r)
-    out: dict[int, float] = {}
-    for seed, rows in by_seed.items():
-        stat = gap_stat(rows)
-        if stat is not None:
-            out[seed] = stat
-    return out
-
-
 def sign_test(pairs: list[tuple[float, float]]) -> tuple[int, int, int, float]:
     """Exact two-sided sign test on paired differences (`verify_kuhn.sign_test`'s
     arithmetic, reproduced here rather than imported — this module imports
@@ -266,10 +278,12 @@ def contrast_sign_test(records: list[dict[str, Any]]) -> tuple[int, int, int, fl
 def paired_seed_comparison(
     records_a: list[dict[str, Any]], records_b: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Per-seed gap differences between two already-bucketed record sets,
-    paired by seed, scored with an exact two-sided sign test — the
-    `compare.py` pattern for a quantity that is a gap rather than a rate."""
-    ga, gb = _per_seed_gap(records_a), _per_seed_gap(records_b)
+    """Per-seed SELECTION CONTRAST differences between two already-bucketed
+    record sets, paired by seed, scored with an exact two-sided sign test —
+    the `compare.py` pattern for the registered quantity. The raw gap is not
+    what is paired: it carries the literal reference's calibration, and two
+    cells can differ in it without differing in what either seat reads."""
+    ga, gb = per_seed_contrast(records_a), per_seed_contrast(records_b)
     shared = sorted(set(ga) & set(gb))
     pairs = [(ga[s], gb[s]) for s in shared]
     up, down, tied, p = sign_test(pairs)
@@ -291,7 +305,11 @@ def _seat_classes(records: list[dict[str, Any]], matchup: str) -> list[str]:
     return sorted({r["observer_agent"] for r in records if r["matchup"] == matchup})
 
 
-def report(windows: list[dict[str, Any]], posterior: list[dict[str, Any]]) -> list[str]:
+def report(
+    windows: list[dict[str, Any]],
+    posterior: list[dict[str, Any]],
+    convergence_floor: float = CONVERGENCE_FLOOR,
+) -> list[str]:
     """The whole AUDIT text, as lines — `main` prints them and optionally
     writes them to `--out`."""
     lines: list[str] = []
@@ -299,15 +317,32 @@ def report(windows: list[dict[str, Any]], posterior: list[dict[str, Any]]) -> li
     for w in windows:
         total_windows[w["matchup"]] = total_windows.get(w["matchup"], 0) + 1
 
+    lines.append(f"(convergence floor: {convergence_floor:.2f} of selected windows)")
     for matchup in _cells(posterior):
         lines.append(f"\n=== {matchup} ===")
-        subsampled = sum(1 for r in posterior if r["matchup"] == matchup)
+        cell_rows = [r for r in posterior if r["matchup"] == matchup]
+        selected, conv, dropped = convergence(cell_rows)
         lines.append(
             f"  windows enumerated: {total_windows.get(matchup, 0)}   "
-            f"subsampled: {subsampled}"
+            f"selected: {selected}   converged: {_rate_str(conv, selected)}   "
+            f"dropped: {dropped}"
         )
         for seat_class in _seat_classes(posterior, matchup):
             lines.append(f"\n  -- seat class: {seat_class} --")
+            seat_rows = [r for r in cell_rows if r["observer_agent"] == seat_class]
+            selected, conv, dropped = convergence(seat_rows)
+            share = _rate(conv, selected)
+            lines.append(
+                f"    convergence: {_rate_str(conv, selected)}   dropped: {dropped}"
+            )
+            if share is None or share < convergence_floor:
+                lines.append(
+                    f"    UNMEASURED: converged below the floor "
+                    f"{convergence_floor:.2f}; no statistic is computed for this "
+                    f"seat class (PREREGISTRATION_CHEAT_GAP.md, \"What would make "
+                    f"the result unusable\")"
+                )
+                continue
             for subset in SUBSETS:
                 for action in ACTIONS:
                     rows = bucket(posterior, matchup, seat_class, subset, action)
@@ -364,7 +399,17 @@ def report(windows: list[dict[str, Any]], posterior: list[dict[str, Any]]) -> li
         classes = _seat_classes(posterior, matchup)
         if not classes or any(not c.startswith("rule") for c in classes):
             continue
-        rows = [r for r in posterior if r["matchup"] == matchup and not r["r1_widened"]]
+        selected, conv, _dropped = convergence([r for r in posterior if r["matchup"] == matchup])
+        share = _rate(conv, selected)
+        if share is None or share < convergence_floor:
+            lines.append(
+                f"  {matchup}: UNMEASURED (converged {_rate_str(conv, selected)}, "
+                f"floor {convergence_floor:.2f})"
+            )
+            continue
+        rows = [
+            r for r in converged(posterior) if r["matchup"] == matchup and not r["r1_widened"]
+        ]
         challenged = [r for r in rows if _action_bucket(r["action"]) == "challenged"]
         if not challenged:
             lines.append(f"  {matchup}: n=0 (no abstains-subset challenges)")
@@ -393,11 +438,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--windows", required=True)
     ap.add_argument("--posterior", required=True)
     ap.add_argument("--out", default=None, help="also write the report here")
+    ap.add_argument(
+        "--convergence-floor",
+        type=float,
+        default=CONVERGENCE_FLOOR,
+        help="the registered gate: a seat class converged below this share is UNMEASURED",
+    )
     args = ap.parse_args(argv)
 
     windows = _load_jsonl(Path(args.windows))
     posterior = _load_jsonl(Path(args.posterior))
-    lines = report(windows, posterior)
+    lines = report(windows, posterior, convergence_floor=args.convergence_floor)
     text = "\n".join(lines)
     print(text)
     if args.out:

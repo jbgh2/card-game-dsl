@@ -21,9 +21,11 @@ seed regardless of dict iteration order.
 start at `--min-proposals`, double while the effective sample size is under
 `--ess-floor` and the budget is under `--max-proposals`. Zero accepted proposals
 doubles the budget exactly as a low ESS does; a window whose CAP is exhausted
-with zero accepted (`gap_sampler.estimate` raises `ValueError`) is DROPPED and
-logged — never silently absent, since a silent cap here would read as "the
-sampler covered every selected window." `--max-depth` bounds eligibility to
+with zero accepted (`gap_sampler.estimate` raises `ValueError`) is DROPPED:
+logged, and written as a record carrying `dropped: true` and no `p_lie`, so
+the scorer counts it against the convergence gate — never silently absent,
+since a silent cap here would read as "the sampler covered every selected
+window." `--max-depth` bounds eligibility to
 the decision index the study's null control converges at.
 
 Contract
@@ -31,12 +33,13 @@ Contract
 Assumes: `--windows` is `gap_windows`' own JSONL output — in particular every
 record's `infostate` is what the observer's view rendered at that window, and
 `r1_widened` is `infostate.provably_false` already evaluated there.
-Establishes: one JSONL record per window the adaptive budget converged (or
-exhausted without dropping), carrying every field of its window record plus
-the posterior estimate and enough of the sampler's own diagnostics
-(`ess`, `n_accepted`, `split_half`, `rejects`) to judge whether to trust it.
-Illegal after: reading `p_lie` as ground truth, or trusting a record whose
-`converged` is `False` without reading `split_half` first.
+Establishes: one JSONL record per SELECTED window — `converged` and
+`dropped` say what the budget bought — carrying every field of its window
+record plus the posterior estimate and enough of the sampler's own
+diagnostics (`ess`, `n_accepted`, `split_half`, `rejects`) to judge whether
+to trust it; a dropped record has no `p_lie`.
+Illegal after: reading `p_lie` as ground truth, or pooling a record whose
+`converged` is `False` into any statistic.
 """
 
 from __future__ import annotations
@@ -224,6 +227,20 @@ def run(
                 log.append(
                     f"DROPPED {matchup} seed={w['seed']} step={w['step']}: {e}"
                 )
+                dropped = {k: v for k, v in w.items() if k != "infostate"}
+                dropped.update(
+                    p_lie=None,
+                    ess=0.0,
+                    n_proposed=max_proposals,
+                    n_accepted=0,
+                    split_half=[None, None],
+                    n_checked=0,
+                    rejects=[],
+                    converged=False,
+                    dropped=True,
+                    sampler_seed=sampler_seed,
+                )
+                out.append(dropped)
                 continue
             if not result.converged:
                 log.append(
@@ -244,6 +261,7 @@ def run(
                 n_checked=est.n_checked,
                 rejects=[list(r) for r in est.rejects],
                 converged=result.converged,
+                dropped=False,
                 sampler_seed=sampler_seed,
             )
             out.append(record)

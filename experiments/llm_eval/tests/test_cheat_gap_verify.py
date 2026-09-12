@@ -29,7 +29,9 @@ def _window(
     action: str = "call_cheat",
     lie: bool = True,
     r1_widened: bool = False,
-    p_lie: float = 0.5,
+    p_lie: float | None = 0.5,
+    converged: bool = True,
+    dropped: bool = False,
 ) -> dict[str, Any]:
     return {
         "matchup": matchup,
@@ -40,6 +42,8 @@ def _window(
         "lie": lie,
         "r1_widened": r1_widened,
         "p_lie": p_lie,
+        "converged": converged,
+        "dropped": dropped,
     }
 
 
@@ -126,7 +130,7 @@ def test_bootstrap_interval_contains_the_point_estimate() -> None:
     ci = vcg.bootstrap_gap(rows, n_resamples=500, seed=0)
     assert point is not None and ci is not None
     lo, hi = ci
-    assert lo <= point <= hi
+    assert lo - 1e-9 <= point <= hi + 1e-9  # percentile endpoints carry representation error
 
 
 def test_bootstrap_is_none_with_no_windows() -> None:
@@ -151,12 +155,35 @@ def test_sign_test_is_one_with_no_untied_pairs() -> None:
     assert (up, down, tied, p) == (0, 0, 2, 1.0)
 
 
+def _pair_game(seed: int, challenged_lie: bool, allowed_lie: bool) -> list[dict[str, Any]]:
+    """One game carrying a contrast: a challenged and an allowed window."""
+    return [
+        _window(seed=seed, step=0, action="call_cheat", lie=challenged_lie, p_lie=0.5),
+        _window(seed=seed, step=1, action="allow", lie=allowed_lie, p_lie=0.5),
+    ]
+
+
 def test_paired_seed_comparison_pairs_by_shared_seed_only() -> None:
-    a = [_window(seed=1, step=0, lie=True, p_lie=0.0), _window(seed=2, step=0, lie=False, p_lie=0.0)]
-    b = [_window(seed=1, step=0, lie=False, p_lie=0.0), _window(seed=3, step=0, lie=True, p_lie=0.0)]
+    a = _pair_game(1, True, False) + _pair_game(2, False, False)
+    b = _pair_game(1, False, True) + _pair_game(3, True, False)
     result = vcg.paired_seed_comparison(a, b)
     assert result["shared_seeds"] == 1
     assert len(result["pairs"]) == 1
+
+
+def test_paired_seed_comparison_pairs_contrasts_not_raw_gaps() -> None:
+    """Two cells whose raw gaps differ by a constant (a calibration
+    offset) but whose selection contrasts are identical must pair as ties:
+    the registered quantity is the contrast."""
+    a = _pair_game(1, True, False) + _pair_game(2, True, False)
+    b = [
+        {**r, "p_lie": r["p_lie"] + 0.3}  # same lies, a shifted reference
+        for r in a
+    ]
+    result = vcg.paired_seed_comparison(a, b)
+    assert result["shared_seeds"] == 2
+    assert result["up"] == 0 and result["down"] == 0 and result["tied"] == 2
+    assert all(x == y for x, y in result["pairs"])
 
 
 # --- the selection contrast ---------------------------------------------------
@@ -178,7 +205,7 @@ def test_contrast_stat_by_hand() -> None:
     ]
     assert vcg.contrast_stat(rows) == pytest.approx(20.0)
     ci = vcg.bootstrap_gap(rows, n_resamples=200, stat=vcg.contrast_stat)
-    assert ci is not None and ci[0] <= 20.0 <= ci[1]
+    assert ci is not None and ci[0] - 1e-9 <= 20.0 <= ci[1] + 1e-9
 
 
 def test_contrast_stat_is_none_without_a_challenge() -> None:
@@ -349,4 +376,55 @@ def test_load_jsonl_reads_plain_and_gzipped_alike(tmp_path: Path) -> None:
             handle.write(json.dumps(r) + "\n")
     assert vcg._load_jsonl(plain) == rows
     assert vcg._load_jsonl(packed) == rows
+
+
+# --- the convergence gate ------------------------------------------------------
+
+
+def _converged_fixture() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    windows = [{"matchup": "m", "seed": s, "step": t} for s in range(4) for t in range(2)]
+    posterior: list[dict[str, Any]] = []
+    for s in range(3):
+        posterior += [
+            _window(matchup="m", seed=s, step=0, observer_agent="rule",
+                    action="call_cheat", lie=True, r1_widened=False, p_lie=0.5),
+            _window(matchup="m", seed=s, step=1, observer_agent="rule",
+                    action="allow", lie=False, r1_widened=False, p_lie=0.5),
+        ]
+    # One unconverged record (a posterior it is illegal to pool) and one
+    # dropped record (no posterior at all).
+    posterior.append(_window(matchup="m", seed=3, step=0, observer_agent="rule",
+                             action="call_cheat", lie=False, r1_widened=False,
+                             p_lie=0.99, converged=False))
+    posterior.append(_window(matchup="m", seed=3, step=1, observer_agent="rule",
+                             action="allow", lie=False, r1_widened=False,
+                             p_lie=None, converged=False, dropped=True))
+    return windows, posterior
+
+
+def test_bucket_pools_converged_records_only() -> None:
+    _, posterior = _converged_fixture()
+    rows = vcg.bucket(posterior, "m", "rule", "abstains", "any")
+    assert len(rows) == 6
+    assert all(r["converged"] and r["p_lie"] is not None for r in rows)
+    assert vcg.convergence(posterior) == (8, 6, 1)
+
+
+def test_report_marks_a_seat_class_below_the_floor_unmeasured() -> None:
+    windows, posterior = _converged_fixture()
+    text = "\n".join(vcg.report(windows, posterior))  # 6/8 = 0.75 < 0.95
+    assert "UNMEASURED" in text
+    assert "GAP=" not in text
+    assert "converged: 6 / 8" in text
+
+
+def test_report_scores_above_the_floor_over_converged_records_only() -> None:
+    windows, posterior = _converged_fixture()
+    text = "\n".join(vcg.report(windows, posterior, convergence_floor=0.5))
+    assert "UNMEASURED" not in text
+    # Three challenged lies over three converged challenged windows, p 0.5:
+    # GAP(challenged) = (1.0 - 0.5) * 100 = +50; the unconverged 0.99 and the
+    # dropped record contribute nothing.
+    assert "abstains / challenged  n=3" in text
+    assert "GAP=+50.00pp" in text
 

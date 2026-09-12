@@ -21,15 +21,18 @@ nothing to check the loaded game's source against. Both refusals raise
 module cannot trust the action ids of is not a transcript it can enumerate
 windows from.
 
-Every other fact is recomputed fresh from the replayed view rather than
-trusted from the transcript's own recorded `facts` — the same independent-
-recomputation stance `verify.py --deep` takes, and for the same reason: a
-transcript's `facts` are whatever the code that wrote it computed, and this is
-the code that scores it. `metrics.decision_facts` is reused rather than
-reimplemented (it is the one place `provably_false` and `provably_false_hand_only`
-are already wired to an information state), and `metrics.reconstruct_plays` is
-reused for the ground-truth lie flag, so a play's cards are read once, by the
-module that owns grouping decisions into plays.
+Every other fact — the observer's action, the claim, the ground-truth lie
+flag — is recomputed from the replayed view and the recorded action id rather
+than read from the transcript's own `facts` or `action` fields: the same
+independent-recomputation stance `verify.py --deep` takes, and for the same
+reason. A transcript's `facts` are whatever the code that wrote it computed,
+this is the code that scores it, and the digest authenticates the game source
+and nothing written beside a decision. `metrics.decision_facts` is reused
+rather than reimplemented (it is the one place `provably_false` and
+`provably_false_hand_only` are already wired to an information state), and
+`metrics.reconstruct_plays` is reused for the ground-truth lie flag over the
+replay-derived decisions, so a play's cards are read once, by the module that
+owns grouping decisions into plays.
 
 `r0`, the declared prior, is read from an optional `<matchup>.treatment.json`
 sidecar beside the transcript — the same file `promote.py` carries across and
@@ -144,7 +147,28 @@ def _windows_of(
     except ProvenanceError as e:
         raise ProvenanceError(f"{matchup}: {e}") from e
 
-    decisions = record["decisions"]
+    # Every fact below comes from the REPLAY — the view the engine renders and
+    # the action id the transcript recorded — never from the transcript's own
+    # `facts` or `action` fields. Those were written by the code that ran the
+    # game, and this is the code that scores it; the digest authenticates the
+    # game source, not what that code wrote beside each decision.
+    decisions: list[dict[str, Any]] = []
+    for step, (view, action_id) in enumerate(zip(views, record["history"], strict=True)):
+        if action_id not in view.legal_actions:
+            raise ValueError(
+                f"{matchup}: game_index={record['game_index']} step={step} "
+                f"recorded action id {action_id}, which the replayed view does "
+                f"not offer — the transcript and the game disagree"
+            )
+        chosen = view.legal_strings[view.legal_actions.index(action_id)]
+        decisions.append(
+            {
+                "step": step,
+                "player": view.player,
+                "action": chosen,
+                "facts": decision_facts(view, chosen, "cheat"),
+            }
+        )
     plays: list[Play] = reconstruct_plays(decisions)
     flat_windows: list[tuple[Play, int]] = [
         (play, position) for play in plays for position in range(len(play.windows))
@@ -156,7 +180,7 @@ def _windows_of(
     for step, (view, decision) in enumerate(zip(views, decisions, strict=True)):
         if istate.decision_kind(view.legal_strings) != "window":
             continue
-        facts = decision_facts(view, decision["action"], "cheat")
+        facts = decision["facts"]
         claimant = facts["claimant"]
         if claimant is None:
             raise ValueError(
