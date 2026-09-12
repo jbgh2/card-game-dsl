@@ -1,0 +1,165 @@
+# cheat_gap — a convention-gap measurement on Cheat, run configuration.
+#
+# Run:   python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_cheat_gap.yaml
+# Recon: python -m experiments.llm_eval.run_eval --config experiments/llm_eval/config_cheat_gap.yaml \
+#          --matchup llm_cheap_table --estimate 5
+#
+# `rule_table` and `rule_vs_random` need no API key and are the end-to-end
+# smoke test; both are free cells this study runs immediately.
+#
+# THE MEASUREMENT. At every challenge window an observer's READER'S GAP is the
+# observed lie rate among the plays it challenged minus the literal posterior
+# P(lie | its information state); its DECEIVER'S GAP is the same quantity over
+# the plays it allowed. `rule_table` — four identical bluffing rule agents — is
+# the NULL CONTROL: a rule agent's challenge decision does not condition on
+# anything but `provably_false` and a fixed independent draw
+# (`agents.RuleAgent`), so its reader's gap on windows where the claim is not
+# provably false is zero BY CONSTRUCTION, and its measured spread across seeds
+# is this study's noise floor.
+#
+# `results_cheat_gap/` is this study's own tree. The Cheat study's archive
+# under `results/` is a different experiment and is not read by this one.
+game: cardlang_cheat
+results_dir: experiments/llm_eval/results_cheat_gap
+
+seeds:
+  start: 0            # game i uses seed start+i; the adapter addresses 4096 deals
+
+# Left uncapped, a single game is a material fraction of a frontier budget.
+# The unit of analysis in this study is the challenge WINDOW, and a window's
+# literal posterior conditions on its own complete prefix, so windows from a
+# capped game are as valid as any other and the scorer keeps them. What the cap
+# biases is game-level outcomes (returns, win rates), which this study does not
+# report; every cell's `games_truncated` is printed beside its window counts so
+# the reader sees how many lines the cap cut.
+#
+# 1200 is measured, not guessed. Bluffing rule agents (`bluff_prob: 0.4`) run
+# longer than truthful ones — an uncaught bluff keeps a play cycling instead of
+# shedding it — so the truthful-agent figures behind the Cheat study's cap do
+# not transfer. Measured 2026-09-12 on this study's own free cells at 1200:
+#
+#   rule_table      (4 x bluffing rule, N=100)          truncates 10/100
+#   rule_vs_random  (1 bluffing rule + 3 random, N=20)  truncates  5/20
+#
+# Raising the cap is a deliberate act taken after measuring its cost: a longer
+# episode is more decisions, hence more billed calls per game for every LLM
+# cell. It is never folded silently into a re-run.
+max_decisions: 1200
+
+store_prompts: false
+store_infostates: false
+
+# Deliberately LOW: this study's LLM cells are not run before the
+# preregistration is committed (see the `llm_*_table` matchups below), and
+# `rule_table` / `rule_vs_random` spend nothing (a roster naming no model is
+# exempt from every cap). Raising `max_cost_usd` is a deliberate act taken
+# AFTER `--estimate` has priced the LLM cells on this account — never a
+# default to build the config against.
+token_budget:
+  max_input_tokens: 4000000
+  max_output_tokens: 100000
+  max_cost_usd: 40.0
+
+models:
+  frontier:
+    kind: anthropic
+    model: claude-opus-5
+    params:
+      max_tokens: 512
+      # Claude Opus 5 rejects `temperature` outright and runs adaptive thinking
+      # unless told otherwise. Thinking is disabled here because the harness
+      # makes hundreds of calls per game and each one is a short, well-specified
+      # classification; disabling is legal at effort `high` or below.
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  # Mid-tier, configured to match `frontier` exactly so the only difference
+  # between the two runs is the model. Claude Sonnet 5 rejects a non-default
+  # `temperature` outright, so it is omitted rather than set to 0.
+  mid:
+    kind: anthropic
+    model: claude-sonnet-5
+    params:
+      max_tokens: 512
+      thinking: {type: disabled}
+      output_config: {effort: low}
+
+  cheap:
+    kind: anthropic
+    model: claude-haiku-4-5
+    params:
+      max_tokens: 512
+      temperature: 0
+
+matchups:
+  # THE NULL CONTROL. Four identical bluffing rule agents at the table size
+  # this study measures windows over. Its windows per game and its share of
+  # provably-false claims are what `PREREGISTRATION_CHEAT_GAP.md` sizes the
+  # LLM cells from, and its reader's gap on non-provable windows is the
+  # study's noise floor.
+  - name: rule_table
+    n: 100
+    rotate: true
+    agents:
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # Smoke: baseline separation against a table that cannot bluff or challenge
+  # deliberately. No API key needed.
+  - name: rule_vs_random
+    n: 20
+    rotate: true
+    agents:
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: random}
+      - {kind: random}
+      - {kind: random}
+
+  # --- one-LLM-seat cells: cheap / mid / frontier, against three bluffing rule
+  # agents, rendered state, default `reasoning` arm. Each differs from the
+  # other two ONLY in the LLM seat's `model` and `name`.
+  #
+  # `n` is fixed by `PREREGISTRATION_CHEAT_GAP.md` from `rule_table`'s
+  # measured windows per game and provably-false share, not chosen here.
+  # These three matchups DO NOT RUN before the preregistration is committed.
+  - name: llm_cheap_table
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap, model: cheap, render: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_mid_table
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_mid, model: mid, render: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  - name: llm_frontier_table
+    n: 10
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_frontier, model: frontier, render: true}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+      - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
+
+  # EXPLORATORY. Four cheap LLM seats, rendered, at every table position — a
+  # look at the gap measurement with no rule agent in the roster at all, not a
+  # powered cell. `n: 3` is small on purpose: this cell is not preregistered
+  # and does not run before the preregistration is committed either.
+  - name: llm_cheap_four
+    n: 3
+    rotate: true
+    agents:
+      - {kind: llm, name: llm_cheap_0, model: cheap, render: true}
+      - {kind: llm, name: llm_cheap_1, model: cheap, render: true}
+      - {kind: llm, name: llm_cheap_2, model: cheap, render: true}
+      - {kind: llm, name: llm_cheap_3, model: cheap, render: true}
