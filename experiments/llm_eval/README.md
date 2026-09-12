@@ -481,9 +481,10 @@ python -m experiments.llm_eval.verify_cheat_gap \
 posterior records are regenerated rather than committed (`*.jsonl` is
 gitignored under `results_cheat_gap/`): every number in them is a pure function
 of the archive, the subsample seed and the sampler seed each record names. What
-is committed under `results_cheat_gap/derived/` is the free cells' audit text
-and `gap_posterior`'s own log, which is where a dropped or unconverged window
-is on the record.
+is committed under `results_cheat_gap/derived/` is the free cells' posterior
+records, gzipped as the transcripts are, the audit text scored from them, and
+`gap_posterior`'s own log, which is where a dropped or unconverged window is
+on the record.
 
 ## Adding an experiment
 

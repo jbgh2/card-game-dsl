@@ -9,6 +9,8 @@ fixtures below stand in for.
 from __future__ import annotations
 
 import ast
+import gzip
+import json
 import inspect
 import math
 from pathlib import Path
@@ -335,3 +337,16 @@ def test_verify_cheat_gap_imports_nothing_of_this_package_or_the_engine() -> Non
     )
     forbidden = {"cardlang", "pyspiel", "gap_sampler", "gap_replay", "gap_windows", "gap_posterior"}
     assert not (absolute & forbidden), f"verify_cheat_gap reaches {absolute & forbidden}"
+
+
+def test_load_jsonl_reads_plain_and_gzipped_alike(tmp_path: Path) -> None:
+    rows = [{"a": 1}, {"a": 2}]
+    plain = tmp_path / "x.jsonl"
+    plain.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    packed = tmp_path / "x.jsonl.gz"
+    with gzip.open(packed, "wt", encoding="utf-8") as handle:
+        for r in rows:
+            handle.write(json.dumps(r) + "\n")
+    assert vcg._load_jsonl(plain) == rows
+    assert vcg._load_jsonl(packed) == rows
+

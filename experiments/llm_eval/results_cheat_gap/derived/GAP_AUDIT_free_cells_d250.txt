@@ -17,6 +17,7 @@
     abstains / any         n=599  lie_rate=260 / 599 = 0.4341  mean_R_literal=0.9619  GAP=-52.79pp  95% CI=[-57.36,-48.27]pp
       residual (lie-p_lie): mean=-0.5279 sd=0.4968
     abstains / CONTRAST     GAP(challenged) - GAP(any) = +6.67pp  95% CI=[-6.98,+19.87]pp
+    abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=41 pos=22 neg=19 p_two_sided=0.75523
        fires / challenged  n=0 (no windows)
        fires / allowed     n=0 (no windows)
        fires / any         n=0 (no windows)
@@ -40,6 +41,7 @@
     abstains / any         n=222  lie_rate=107 / 222 = 0.4820  mean_R_literal=0.9420  GAP=-46.00pp  95% CI=[-54.74,-37.71]pp
       residual (lie-p_lie): mean=-0.4600 sd=0.4910
     abstains / CONTRAST     GAP(challenged) - GAP(any) = +2.62pp  95% CI=[-2.40,+8.38]pp
+    abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=20 pos=13 neg=7 p_two_sided=0.26318
        fires / challenged  n=120  lie_rate=120 / 120 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
        fires / allowed     n=104  lie_rate=104 / 104 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
@@ -63,6 +65,7 @@
     abstains / any         n=31   lie_rate=28 / 31 = 0.9032  mean_R_literal=0.9515  GAP=-4.83pp  95% CI=[-15.43,+4.21]pp
       residual (lie-p_lie): mean=-0.0483 sd=0.2867
     abstains / CONTRAST     GAP(challenged) - GAP(any) = +5.68pp  95% CI=[-3.13,+16.35]pp
+    abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=1 pos=0 neg=1 p_two_sided=1.00000
        fires / challenged  n=123  lie_rate=123 / 123 = 1.0000  mean_R_literal=1.0000  GAP=+0.00pp  95% CI=[+0.00,+0.00]pp
       residual (lie-p_lie): mean=+0.0000 sd=0.0000
        fires / allowed     n=0 (no windows)

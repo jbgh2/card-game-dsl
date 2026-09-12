@@ -50,6 +50,7 @@ capability gradient, which `PREREGISTRATION_CHEAT_GAP.md` marks `~`.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import random
@@ -67,8 +68,11 @@ ACTIONS = ("challenged", "allowed", "any")
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
+    """JSON lines, plain or gzipped by suffix — the archive commits derived
+    records gzipped, the same way it commits transcripts."""
     out: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as handle:
+    opener = gzip.open(path, "rt", encoding="utf-8") if path.suffix == ".gz" else path.open(encoding="utf-8")
+    with opener as handle:
         for line in handle:
             line = line.strip()
             if line:
