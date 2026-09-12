@@ -91,7 +91,7 @@ def _select(
     settles a revealed card's journey over one pile pickup, and a deeper line
     asks it to settle more than one by luck, so the depth a study registers
     is the depth at which its null control converges (`gap_sampler`, "What
-    rejection costs")."""
+    rejection costs"; issue #662)."""
     eligible = [
         w
         for w in windows

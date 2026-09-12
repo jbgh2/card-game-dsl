@@ -63,7 +63,7 @@ seat that loses the next challenge. The lookahead forces and bars that journey
 over ONE pickup, which the log settles exactly; a journey that needs two is
 proposed by luck and rejected when the luck does not hold. So a deep window buys
 effective samples with proposals, and the way to more of them is lookahead over
-longer journeys rather than a bigger sample count.
+longer journeys rather than a bigger sample count (issue #662).
 
 Contract
 --------
