@@ -122,19 +122,19 @@ two pickups is proposed by luck and rejected when the luck does not hold
 lengthens, and the fix is more lookahead rather than more samples
 ([issue #662](https://github.com/jbgh2/card-game-dsl/issues/662)). Measured on
 the free cells, 2026-09-12: unbounded, the sampler converged on 22 of 40
-null-control windows; under `--max-depth 250` it converged on 1196 of the 1199
-records it produced from 1200 selected windows (one dropped for zero accepted
-proposals at the cap, three finishing under the ESS floor, median budget 2000),
-and all 1199 replay checks passed. The bound is registered at **250 decisions**.
+null-control windows; under `--max-depth 250` it converged on 1196 of 1200
+selected windows (one dropped for zero accepted proposals at the cap, three
+finishing under the ESS floor, median budget 2000), and every replay check on
+the 1199 windows that accepted a world passed. The bound is registered at **250 decisions**.
 The deeper half of every line is outside the instrument and no claim is made
 about it.
 
 ## N per cell, and the power argument
 
 The floor sets the scale. Measured on `rule_table` (2026-09-12, R1-abstains,
-depth ≤ 250): 46 challenged windows out of 599, contrast **+6.67 pp**, 95%
-bootstrap CI **[−6.98, +19.87] pp** — a half-width of ≈13 pp at 46 challenged
-windows.
+depth ≤ 250): 46 challenged windows out of the 596 that converged, contrast
+**+6.46 pp**, 95% bootstrap CI **[−7.18, +19.64] pp** — a half-width of ≈13 pp
+at 46 challenged windows.
 
 Yield per LLM game, from the null control's measured window counts and the prior
 study's challenge rate: ~23.5 in-bound windows per seat per game, ~21 of them
@@ -288,14 +288,15 @@ cut.
 
 Every contrast in this study is read against the null control's, never against
 zero in the abstract. Measured 2026-09-12 on `rule_table`, R1-abstains,
-depth ≤ 250, 599 windows of which 46 were challenged:
+depth ≤ 250, 600 windows selected of which 596 converged and 46 were
+challenged (the scorer pools converged records only):
 
 | | value |
 |---|---|
-| **CONTRAST** | **+6.67 pp**, 95% CI [−6.98, +19.87] pp |
+| **CONTRAST** | **+6.46 pp**, 95% CI [−7.18, +19.64] pp |
 | raw GAP(challenged) | −46.11 pp, 95% CI [−60.82, −32.01] pp |
-| mean `R_literal` | 0.9611 |
-| observed lie rate | 0.4341 over all 599 |
+| mean `R_literal` | 0.9611 over the challenged, 0.9620 over all 596 |
+| observed lie rate | 0.4362 over all 596 |
 
 The second card-blind reference agrees, on `rule_vs_random`'s random seats
 (same date, same bound): contrast **+2.62 pp**, 95% CI [−2.40, +8.38] pp over

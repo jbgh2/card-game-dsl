@@ -1,22 +1,24 @@
+(convergence floor: 0.95 of selected windows)
 
 === rule_table ===
-  windows enumerated: 24005   subsampled: 599
+  windows enumerated: 24005   selected: 600   converged: 596 / 600 = 0.9933   dropped: 1
 
   -- seat class: rule --
+    convergence: 596 / 600 = 0.9933   dropped: 1
          all / challenged  n=46   lie_rate=23 / 46 = 0.5000  mean_R_literal=0.9611  GAP=-46.11pp  95% CI=[-60.82,-32.01]pp
       residual (lie-p_lie): mean=-0.4611 sd=0.5008
-         all / allowed     n=553  lie_rate=237 / 553 = 0.4286  mean_R_literal=0.9620  GAP=-53.34pp  95% CI=[-57.85,-48.85]pp
-      residual (lie-p_lie): mean=-0.5334 sd=0.4960
-         all / any         n=599  lie_rate=260 / 599 = 0.4341  mean_R_literal=0.9619  GAP=-52.79pp  95% CI=[-57.36,-48.27]pp
-      residual (lie-p_lie): mean=-0.5279 sd=0.4968
-         all / CONTRAST     GAP(challenged) - GAP(any) = +6.67pp  95% CI=[-6.98,+19.87]pp
+         all / allowed     n=550  lie_rate=237 / 550 = 0.4309  mean_R_literal=0.9621  GAP=-53.12pp  95% CI=[-57.74,-48.60]pp
+      residual (lie-p_lie): mean=-0.5312 sd=0.4965
+         all / any         n=596  lie_rate=260 / 596 = 0.4362  mean_R_literal=0.9620  GAP=-52.58pp  95% CI=[-57.13,-48.01]pp
+      residual (lie-p_lie): mean=-0.5258 sd=0.4971
+         all / CONTRAST     GAP(challenged) - GAP(any) = +6.46pp  95% CI=[-7.18,+19.64]pp
     abstains / challenged  n=46   lie_rate=23 / 46 = 0.5000  mean_R_literal=0.9611  GAP=-46.11pp  95% CI=[-60.82,-32.01]pp
       residual (lie-p_lie): mean=-0.4611 sd=0.5008
-    abstains / allowed     n=553  lie_rate=237 / 553 = 0.4286  mean_R_literal=0.9620  GAP=-53.34pp  95% CI=[-57.85,-48.85]pp
-      residual (lie-p_lie): mean=-0.5334 sd=0.4960
-    abstains / any         n=599  lie_rate=260 / 599 = 0.4341  mean_R_literal=0.9619  GAP=-52.79pp  95% CI=[-57.36,-48.27]pp
-      residual (lie-p_lie): mean=-0.5279 sd=0.4968
-    abstains / CONTRAST     GAP(challenged) - GAP(any) = +6.67pp  95% CI=[-6.98,+19.87]pp
+    abstains / allowed     n=550  lie_rate=237 / 550 = 0.4309  mean_R_literal=0.9621  GAP=-53.12pp  95% CI=[-57.74,-48.60]pp
+      residual (lie-p_lie): mean=-0.5312 sd=0.4965
+    abstains / any         n=596  lie_rate=260 / 596 = 0.4362  mean_R_literal=0.9620  GAP=-52.58pp  95% CI=[-57.13,-48.01]pp
+      residual (lie-p_lie): mean=-0.5258 sd=0.4971
+    abstains / CONTRAST     GAP(challenged) - GAP(any) = +6.46pp  95% CI=[-7.18,+19.64]pp
     abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=41 pos=22 neg=19 p_two_sided=0.75523
        fires / challenged  n=0 (no windows)
        fires / allowed     n=0 (no windows)
@@ -24,9 +26,10 @@
        fires / CONTRAST     n/a (no challenged windows)
 
 === rule_vs_random ===
-  windows enumerated: 2991   subsampled: 600
+  windows enumerated: 2991   selected: 600   converged: 600 / 600 = 1.0000   dropped: 0
 
   -- seat class: random --
+    convergence: 446 / 446 = 1.0000   dropped: 0
          all / challenged  n=228  lie_rate=175 / 228 = 0.7675  mean_R_literal=0.9730  GAP=-20.55pp  95% CI=[-25.21,-16.17]pp
       residual (lie-p_lie): mean=-0.2055 sd=0.4031
          all / allowed     n=218  lie_rate=156 / 218 = 0.7156  mean_R_literal=0.9692  GAP=-25.36pp  95% CI=[-31.88,-19.39]pp
@@ -51,6 +54,7 @@
        fires / CONTRAST     GAP(challenged) - GAP(any) = +0.00pp  95% CI=[+0.00,+0.00]pp
 
   -- seat class: rule --
+    convergence: 154 / 154 = 1.0000   dropped: 0
          all / challenged  n=126  lie_rate=126 / 126 = 1.0000  mean_R_literal=0.9998  GAP=+0.02pp  95% CI=[+0.00,+0.05]pp
       residual (lie-p_lie): mean=+0.0002 sd=0.0015
          all / allowed     n=28   lie_rate=25 / 28 = 0.8929  mean_R_literal=0.9472  GAP=-5.43pp  95% CI=[-17.05,+4.62]pp
@@ -75,6 +79,6 @@
 
 === NULL CONTROL (noise floor) ===
   cells whose observers are ALL rule agents, on the R1-abstains subset, which a rule agent challenges by a coin flip independent of the cards: the SELECTION CONTRAST is zero in expectation and its interval is the instrument's noise floor. The raw GAP beside it is the literal reference's own miscalibration, a property of the reference and not of the reader.
-  rule_table: n_challenged=46 n_all=599 CONTRAST=+6.67pp  95% CI=[-6.98,+19.87]pp   raw GAP(challenged)=-46.11pp  95% CI=[-60.82,-32.01]pp
+  rule_table: n_challenged=46 n_all=596 CONTRAST=+6.46pp  95% CI=[-7.18,+19.64]pp   raw GAP(challenged)=-46.11pp  95% CI=[-60.82,-32.01]pp
 
 (bootstrap: 2000 resamples over games, seed=0)
