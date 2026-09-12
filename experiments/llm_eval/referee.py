@@ -12,12 +12,16 @@ Assumes: `cardlang.openspiel.game` imports (which requires the `openspiel`
 extra) and the corpus directory is present.
 Establishes: a `GameRecord` from which the whole game is replayable — `(seed,
 history)` is a pure function of the engine, so the transcript needs no state
-snapshots to be auditable.
+snapshots to be auditable — and its `game_digest` field, which pins the
+`.cardlang` source the recorded action ids were assigned against;
+`replay_views` refuses a replay whose `expected_digest` names a different
+source rather than silently decoding ids the loaded game may not have.
 Illegal after: passing a `pyspiel.State` into anything in `agents.py`.
 """
 
 from __future__ import annotations
 
+import hashlib
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -39,6 +43,33 @@ def load_game(short_name: str) -> Any:
     from cardlang.openspiel import game as _adapter  # noqa: F401  (registration)
 
     return pyspiel.load_game(short_name)
+
+
+class ProvenanceError(ValueError):
+    """A transcript names a digest the loaded game's source does not match."""
+
+
+def game_digest(short_name: str) -> str:
+    """SHA-256 hex digest of the `.cardlang` source bytes registered under
+    `short_name`.
+
+    The path comes from `cardlang.openspiel.registry.GAMES` — the same map
+    `cardlang/openspiel/game.py`'s own corpus registration loop reads short
+    names and files from — joined with that module's games directory, rather
+    than a path hard-coded here, so a corpus rename cannot silently point this
+    at a stale file. Covers the game SOURCE only: the OpenSpiel action
+    encoding a transcript's ids are recorded against also depends on the
+    checker and `cardlang.openspiel.encoding.ActionSpace`, and a change there
+    with the source untouched is not visible to this digest.
+    """
+    from cardlang.openspiel.registry import GAMES, _GAMES_DIR
+
+    if short_name not in GAMES:
+        raise KeyError(
+            f"{short_name!r} is not a corpus game; "
+            f"cardlang.openspiel.registry.GAMES names {sorted(GAMES)}"
+        )
+    return hashlib.sha256((_GAMES_DIR / GAMES[short_name]).read_bytes()).hexdigest()
 
 
 @dataclass
@@ -68,6 +99,11 @@ class GameRecord:
     # travels alone otherwise loses its identity — which is what let `verify.py`
     # fold a poker archive with Cheat's rate table and exit 0.
     game: str
+    # SHA-256 of the `.cardlang` source `game` names (`referee.game_digest`).
+    # A record without this key still loads: every reader here treats a
+    # record as a dict of the specific keys it uses, never a required set, and
+    # only a caller that asks `replay_views` for provenance needs this one.
+    game_digest: str
     seats: dict[int, str]
     history: list[int]
     decisions: list[Decision]
@@ -107,7 +143,8 @@ def play_game(
     # Which game's facts to record, DERIVED from the loaded game rather than
     # passed beside it. A mismatch between the two would compute one game's
     # metrics over another's transcript and report them without complaint.
-    key = game_key(game.get_type().short_name)
+    short_name = game.get_type().short_name
+    key = game_key(short_name)
     state = game.new_initial_state()
     state.apply_action(seed % NUM_SEEDS)  # the root chance node: the deal
 
@@ -174,7 +211,8 @@ def play_game(
         matchup=matchup,
         game_index=game_index,
         seed=seed,
-        game=game.get_type().short_name,
+        game=short_name,
+        game_digest=game_digest(short_name),
         seats={p: a.name for p, a in agents.items()},
         history=history,
         decisions=decisions,
@@ -187,7 +225,9 @@ def play_game(
     )
 
 
-def replay_views(game: Any, seed: int, history: list[int]) -> list[DecisionView]:
+def replay_views(
+    game: Any, seed: int, history: list[int], *, expected_digest: str | None = None
+) -> list[DecisionView]:
     """Reconstruct every `DecisionView` of a recorded game from `(seed,
     history)` alone.
 
@@ -195,7 +235,26 @@ def replay_views(game: Any, seed: int, history: list[int]) -> list[DecisionView]
     information-state strings per game: the engine is a pure function of those
     two, so the views — and therefore the prompts — are recoverable exactly.
     Used by the audit path and by tests; the metrics pass does not need it.
+
+    `expected_digest`, when given, must equal `game_digest` of the LOADED
+    game's short name or this raises `ProvenanceError` before touching
+    `history`: a history is a sequence of action ids, meaningful only against
+    the action space it was assigned under, and a different game source can
+    renumber that space silently. Omitted, this replays the transcript's own
+    recorded ids against whatever `game` decodes them as — which is what an
+    archive with no `game_digest` field gets.
     """
+    if expected_digest is not None:
+        short_name = game.get_type().short_name
+        actual_digest = game_digest(short_name)
+        if actual_digest != expected_digest:
+            raise ProvenanceError(
+                f"the transcript for {short_name!r} was recorded against a "
+                f"game source digesting to {expected_digest}, but the loaded "
+                f"game's source now digests to {actual_digest} — its action "
+                f"ids name moves the loaded game may not have, so replaying "
+                f"them through it is not a valid audit."
+            )
     state = game.new_initial_state()
     state.apply_action(seed % NUM_SEEDS)
     views: list[DecisionView] = []
