@@ -10,12 +10,18 @@
 # THE MEASUREMENT. At every challenge window an observer's READER'S GAP is the
 # observed lie rate among the plays it challenged minus the literal posterior
 # P(lie | its information state); its DECEIVER'S GAP is the same quantity over
-# the plays it allowed. `rule_table` — four identical bluffing rule agents — is
-# the NULL CONTROL: a rule agent's challenge decision does not condition on
-# anything but `provably_false` and a fixed independent draw
-# (`agents.RuleAgent`), so its reader's gap on windows where the claim is not
-# provably false is zero BY CONSTRUCTION, and its measured spread across seeds
-# is this study's noise floor.
+# the plays it allowed. Neither raw gap is a reading: under uniform card choice
+# a claim is a lie in most consistent worlds whoever made it, so every seat's
+# raw gap is large and negative. The statistic is the SELECTION CONTRAST — the
+# gap over the windows a seat challenged minus the gap over every window it
+# faced (`verify_cheat_gap.contrast_stat`).
+#
+# `rule_table` — four identical bluffing rule agents — is the NULL CONTROL: a
+# rule agent's challenge decision does not condition on anything but
+# `provably_false` and a fixed independent draw (`agents.RuleAgent`), so on
+# windows where the claim is not provably false it challenges by a coin flip
+# that cannot see the cards, its selection contrast is zero IN EXPECTATION, and
+# the interval that contrast measures at is this study's noise floor.
 #
 # `results_cheat_gap/` is this study's own tree. The Cheat study's archive
 # under `results/` is a different experiment and is not read by this one.
@@ -49,12 +55,14 @@ max_decisions: 1200
 store_prompts: false
 store_infostates: false
 
-# Deliberately LOW: this study's LLM cells are not run before the
-# preregistration is committed (see the `llm_*_table` matchups below), and
-# `rule_table` / `rule_vs_random` spend nothing (a roster naming no model is
-# exempt from every cap). Raising `max_cost_usd` is a deliberate act taken
-# AFTER `--estimate` has priced the LLM cells on this account — never a
-# default to build the config against.
+# Deliberately LOW: the free cells spend nothing (a roster naming no model is
+# exempt from every cap), and this ceiling is below the envelope
+# `PREREGISTRATION_CHEAT_GAP.md` registers for the three LLM cells, so as
+# written it WILL stop them partway and report a partial N. That is the cap
+# doing its job. Raising `max_cost_usd` is a deliberate act taken after
+# `--estimate` has priced each cell on this account and before that cell runs
+# — never a default to build the config against, and never folded silently
+# into a re-run.
 token_budget:
   max_input_tokens: 4000000
   max_output_tokens: 100000
@@ -95,7 +103,7 @@ matchups:
   # THE NULL CONTROL. Four identical bluffing rule agents at the table size
   # this study measures windows over. Its windows per game and its share of
   # provably-false claims are what `PREREGISTRATION_CHEAT_GAP.md` sizes the
-  # LLM cells from, and its reader's gap on non-provable windows is the
+  # LLM cells from, and its selection contrast on non-provable windows is the
   # study's noise floor.
   - name: rule_table
     n: 100
@@ -119,13 +127,18 @@ matchups:
 
   # --- one-LLM-seat cells: cheap / mid / frontier, against three bluffing rule
   # agents, rendered state, default `reasoning` arm. Each differs from the
-  # other two ONLY in the LLM seat's `model` and `name`.
+  # other two ONLY in the LLM seat's `model` and `name` and in its registered
+  # `n` — so a difference between two cells is attributable to the model.
   #
-  # `n` is fixed by `PREREGISTRATION_CHEAT_GAP.md` from `rule_table`'s
-  # measured windows per game and provably-false share, not chosen here.
-  # These three matchups DO NOT RUN before the preregistration is committed.
+  # Each `n` below is the value REGISTERED in
+  # `PREREGISTRATION_CHEAT_GAP.md`, derived there from `rule_table`'s measured
+  # windows per game and its noise floor on the selection contrast. The two
+  # cheaper cells carry the extra within-cell resolution; seeds 0-9 are shared
+  # by all three, which is what the across-model pairing runs on. Changing an
+  # `n` here changes a registered parameter and belongs in the
+  # preregistration first.
   - name: llm_cheap_table
-    n: 10
+    n: 20
     rotate: true
     agents:
       - {kind: llm, name: llm_cheap, model: cheap, render: true}
@@ -134,7 +147,7 @@ matchups:
       - {kind: rule, challenge_prob: 0.1, bluff_prob: 0.4}
 
   - name: llm_mid_table
-    n: 10
+    n: 20
     rotate: true
     agents:
       - {kind: llm, name: llm_mid, model: mid, render: true}
@@ -153,8 +166,9 @@ matchups:
 
   # EXPLORATORY. Four cheap LLM seats, rendered, at every table position — a
   # look at the gap measurement with no rule agent in the roster at all, not a
-  # powered cell. `n: 3` is small on purpose: this cell is not preregistered
-  # and does not run before the preregistration is committed either.
+  # powered cell. `n: 3` is small on purpose:
+  # `PREREGISTRATION_CHEAT_GAP.md` carries this cell as an exploratory
+  # secondary marked `~`, so nothing it produces carries the study's `*`.
   - name: llm_cheap_four
     n: 3
     rotate: true

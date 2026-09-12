@@ -477,11 +477,13 @@ python -m experiments.llm_eval.verify_cheat_gap \
   --windows windows.jsonl --posterior posterior.jsonl --out GAP_AUDIT.txt
 ```
 
-`windows.jsonl` carries an information-state string per window and is
-regenerated rather than committed; the posterior records and the audit for
-the free cells are committed under `results_cheat_gap/derived/`, and every
-number in them is a pure function of the archive, the subsample seed and the
-sampler seed each record names.
+`windows.jsonl` carries an information-state string per window, and it and the
+posterior records are regenerated rather than committed (`*.jsonl` is
+gitignored under `results_cheat_gap/`): every number in them is a pure function
+of the archive, the subsample seed and the sampler seed each record names. What
+is committed under `results_cheat_gap/derived/` is the free cells' audit text
+and `gap_posterior`'s own log, which is where a dropped or unconverged window
+is on the record.
 
 ## Adding an experiment
 

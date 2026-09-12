@@ -201,6 +201,93 @@ def test_any_bucket_is_the_union_of_challenged_and_allowed() -> None:
     assert len(c) + len(a) == len(both) == 5
 
 
+# --- the per-game contrast and its sign test ----------------------------------
+
+
+def _game(seed: int, challenged: list[tuple[bool, float]],
+          allowed: list[tuple[bool, float]]) -> list[dict[str, Any]]:
+    rows = []
+    step = 0
+    for lie, p in challenged:
+        rows.append(_window(matchup="m", seed=seed, step=step, observer_agent="x",
+                            action="call_cheat", lie=lie, r1_widened=False, p_lie=p))
+        step += 1
+    for lie, p in allowed:
+        rows.append(_window(matchup="m", seed=seed, step=step, observer_agent="x",
+                            action="allow", lie=lie, r1_widened=False, p_lie=p))
+        step += 1
+    return rows
+
+
+def test_per_seed_contrast_by_hand() -> None:
+    """Seed 1: challenged (lie, p 0.5); allowed (no lie, p 0.5). GAP(challenged)
+    = (1 - 0.5) * 100 = +50; GAP(any) = (0.5 - 0.5) * 100 = 0; contrast = +50.
+    Seed 2 is the mirror: challenged (no lie); allowed (lie); contrast = -50."""
+    rows = _game(1, [(True, 0.5)], [(False, 0.5)]) + _game(
+        2, [(False, 0.5)], [(True, 0.5)]
+    )
+    got = vcg.per_seed_contrast(rows)
+    assert set(got) == {1, 2}
+    assert got[1] == pytest.approx(50.0)
+    assert got[2] == pytest.approx(-50.0)
+
+
+def test_per_seed_contrast_drops_a_game_with_no_allowed_window() -> None:
+    """Challenges alone make GAP(challenged) and GAP(any) the same bucket, so
+    the contrast is identically zero — a tie the sign test must not count."""
+    rows = _game(1, [(True, 0.5), (False, 0.5)], []) + _game(
+        2, [(True, 0.5)], [(False, 0.5)]
+    )
+    assert vcg.contrast_stat([r for r in rows if r["seed"] == 1]) == pytest.approx(0.0)
+    assert set(vcg.per_seed_contrast(rows)) == {2}
+
+
+def test_per_seed_contrast_drops_a_game_with_no_challenged_window() -> None:
+    rows = _game(1, [], [(True, 0.5)]) + _game(2, [(True, 0.5)], [(False, 0.5)])
+    assert set(vcg.per_seed_contrast(rows)) == {2}
+
+
+def test_contrast_sign_test_matches_a_hand_computed_case() -> None:
+    """Five games positive, one negative: exact two-sided tail at k=1, n=6."""
+    rows: list[dict[str, Any]] = []
+    for seed in range(5):
+        rows += _game(seed, [(True, 0.5)], [(False, 0.5)])
+    rows += _game(5, [(False, 0.5)], [(True, 0.5)])
+    n_games, pos, neg, p = vcg.contrast_sign_test(rows)
+    assert (n_games, pos, neg) == (6, 5, 1)
+    expected = min(1.0, 2 * sum(math.comb(6, i) for i in range(2)) / (2**6))
+    assert p == pytest.approx(expected)
+
+
+def test_contrast_sign_test_counts_an_exact_zero_as_neither_sign() -> None:
+    """A game whose challenged and allowed windows give the same gap sits on
+    zero: it is in `n_games` and in neither tail, so the two counts do not have
+    to sum to it."""
+    rows = _game(1, [(True, 0.5)], [(True, 0.5)]) + _game(
+        2, [(True, 0.5)], [(False, 0.5)]
+    )
+    n_games, pos, neg, p = vcg.contrast_sign_test(rows)
+    assert (n_games, pos, neg) == (2, 1, 0)
+    assert p == pytest.approx(1.0)
+
+
+def test_contrast_sign_test_is_one_with_no_scoreable_game() -> None:
+    assert vcg.contrast_sign_test([]) == (0, 0, 0, 1.0)
+
+
+def test_report_prints_the_abstains_sign_test() -> None:
+    windows = [{"matchup": "m", "seed": s, "step": 0} for s in range(3)]
+    posterior: list[dict[str, Any]] = []
+    for seed in range(3):
+        posterior += _game(seed, [(True, 0.5)], [(False, 0.5)])
+    text = "\n".join(vcg.report(windows, posterior))
+    assert "abstains / SIGN TEST" in text
+    assert "n_games=3 pos=3 neg=0" in text
+    # The subset the endpoint is not registered on gets no sign-test line.
+    assert "fires / SIGN TEST" not in text
+    assert "all / SIGN TEST" not in text
+
+
 # --- report() runs over a tiny end-to-end fixture -----------------------------
 
 

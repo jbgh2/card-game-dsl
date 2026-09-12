@@ -37,12 +37,14 @@ posterior record carries `p_lie`, `lie`, `r1_widened`, `observer_agent`,
 `action`, `matchup` and `seed`.
 Establishes: a plain-text AUDIT report — every rate as `n / d = value` (or
 `null` over a zero denominator), a bootstrap 95% interval per bucket and per
-selection contrast resampling GAMES, the null-control noise floor for
-all-rule cells on the contrast, and a paired-by-seed sign test between two
-named cells.
+selection contrast resampling GAMES, the exact two-sided sign test of the
+per-game contrast against zero on the R1-abstains subset
+(`contrast_sign_test`, the registered endpoint's test), the null-control noise
+floor for all-rule cells on the contrast, and a paired-by-seed sign test
+between two named cells.
 Illegal after: quoting a GAP without its bootstrap interval, or a p-value from
-`paired_seed_comparison` as anything but exploratory — it is not
-pre-registered here.
+`paired_seed_comparison` as anything but exploratory — that comparison is the
+capability gradient, which `PREREGISTRATION_CHEAT_GAP.md` marks `~`.
 """
 
 from __future__ import annotations
@@ -218,6 +220,45 @@ def sign_test(pairs: list[tuple[float, float]]) -> tuple[int, int, int, float]:
     return up, down, tied, min(1.0, 2 * tail)
 
 
+def per_seed_contrast(records: list[dict[str, Any]]) -> dict[int, float]:
+    """The selection contrast of each game (seed) separately, for the games
+    that carry one.
+
+    A game enters only if it offers the observer BOTH a challenged and an
+    allowed window in this bucket. With challenges alone `gap_stat` over the
+    challenged windows is `gap_stat` over all of them, so the contrast is
+    identically zero — a degenerate value that a sign test would count as a
+    tie and read as evidence of no effect. Such a game carries no contrast and
+    is absent here rather than scored."""
+    by_seed: dict[int, list[dict[str, Any]]] = {}
+    for r in records:
+        by_seed.setdefault(r["seed"], []).append(r)
+    out: dict[int, float] = {}
+    for seed, rows in by_seed.items():
+        buckets = {_action_bucket(r["action"]) for r in rows}
+        if not {"challenged", "allowed"} <= buckets:
+            continue
+        stat = contrast_stat(rows)
+        if stat is not None:
+            out[seed] = stat
+    return out
+
+
+def contrast_sign_test(records: list[dict[str, Any]]) -> tuple[int, int, int, float]:
+    """`(n_games, n_positive, n_negative, p)` — the per-game selection
+    contrast against zero, under the exact two-sided `sign_test`.
+
+    The test the study's primary endpoint names: the bootstrap interval says
+    how precisely the pooled contrast is measured, and this says how
+    consistently the games agree on its sign. `n_games` is every game
+    `per_seed_contrast` admits, so `n_games - n_positive - n_negative` is the
+    count sitting exactly on zero."""
+    contrasts = per_seed_contrast(records)
+    pairs = [(0.0, value) for value in contrasts.values()]
+    up, down, _tied, p = sign_test(pairs)
+    return len(contrasts), up, down, p
+
+
 def paired_seed_comparison(
     records_a: list[dict[str, Any]], records_b: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -298,6 +339,13 @@ def report(windows: list[dict[str, Any]], posterior: list[dict[str, Any]]) -> li
                     f"GAP(challenged) - GAP(any) = {contrast:+.2f}pp"
                     + (f"  95% CI=[{ci[0]:+.2f},{ci[1]:+.2f}]pp" if ci else "")
                 )
+                if subset == "abstains":
+                    n_games, pos, neg, p = contrast_sign_test(rows)
+                    lines.append(
+                        f"    {subset:>8} / SIGN TEST    per-game CONTRAST vs 0: "
+                        f"n_games={n_games} pos={pos} neg={neg} "
+                        f"p_two_sided={p:.5f}"
+                    )
 
     lines.append("\n=== NULL CONTROL (noise floor) ===")
     lines.append(

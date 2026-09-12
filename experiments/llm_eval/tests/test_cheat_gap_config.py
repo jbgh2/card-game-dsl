@@ -27,8 +27,16 @@ CONFIG_PATH = Path("experiments/llm_eval/config_cheat_gap.yaml")
 ARCHIVE = Path("experiments/llm_eval/results_cheat_gap/transcripts")
 
 # The three cells this study preregisters before running: identical to each
-# other except for the LLM seat's `model` and `name`.
+# other except for the LLM seat's `model` and `name` and the registered `n`.
 LLM_TABLE_CELLS = ("llm_cheap_table", "llm_mid_table", "llm_frontier_table")
+
+# `n` per registered cell, as `PREREGISTRATION_CHEAT_GAP.md` registers it. The
+# frontier model is ~5x the per-game cost of the cheap one, so the cheaper
+# cells buy the extra within-cell resolution and the frontier cell is sized to
+# the 10 seeds all three share. A registered parameter is exactly what a test
+# may pin: an `n` that drifts from this table makes the preregistration
+# describe a study nobody ran.
+REGISTERED_N = {"llm_cheap_table": 20, "llm_mid_table": 20, "llm_frontier_table": 10}
 
 
 def _config() -> dict[str, Any]:
@@ -81,7 +89,19 @@ def test_rule_table_is_four_identical_seats() -> None:
     assert len(shapes) == 1, f"rule_table's seats are not identical: {agents}"
 
 
+def test_registered_cells_carry_their_registered_n() -> None:
+    by_name = _by_name(_config())
+    got = {cell: by_name[cell]["n"] for cell in LLM_TABLE_CELLS}
+    assert got == REGISTERED_N, (
+        f"{got} is not the N registered in PREREGISTRATION_CHEAT_GAP.md "
+        f"({REGISTERED_N}) — change the preregistration first"
+    )
+
+
 def test_llm_table_cells_differ_only_in_the_llm_seat() -> None:
+    """`n` is excluded from the compared shape and pinned by name above: it
+    differs between these cells BY REGISTRATION, where a difference in any
+    other key would make a model comparison unattributable."""
     by_name = _by_name(_config())
     shared = None
     seen_models = set()
@@ -94,7 +114,6 @@ def test_llm_table_cells_differ_only_in_the_llm_seat() -> None:
         seen_models.add(llm_seat.get("model"))
         seen_names.add(llm_seat.get("name"))
         shape = {
-            "n": matchup["n"],
             "rotate": matchup.get("rotate", True),
             "llm_seat_minus_model_and_name": {
                 k: v for k, v in llm_seat.items() if k not in ("model", "name")
