@@ -157,6 +157,50 @@ def test_paired_seed_comparison_pairs_by_shared_seed_only() -> None:
     assert len(result["pairs"]) == 1
 
 
+# --- the selection contrast ---------------------------------------------------
+
+
+def test_contrast_stat_by_hand() -> None:
+    """Two challenged windows (one lie, p 0.9 and 0.7) and two allowed (no
+    lies, p 0.8 and 0.6): GAP(challenged) = (0.5 - 0.8) * 100 = -30;
+    GAP(any) = (0.25 - 0.75) * 100 = -50; contrast = +20."""
+    rows = [
+        _window(matchup="m", seed=0, step=0, observer_agent="x",
+                action="call_cheat", lie=True, r1_widened=False, p_lie=0.9),
+        _window(matchup="m", seed=0, step=1, observer_agent="x",
+                action="call_cheat", lie=False, r1_widened=False, p_lie=0.7),
+        _window(matchup="m", seed=1, step=0, observer_agent="x",
+                action="allow", lie=False, r1_widened=False, p_lie=0.8),
+        _window(matchup="m", seed=1, step=1, observer_agent="x",
+                action="allow", lie=False, r1_widened=False, p_lie=0.6),
+    ]
+    assert vcg.contrast_stat(rows) == pytest.approx(20.0)
+    ci = vcg.bootstrap_gap(rows, n_resamples=200, stat=vcg.contrast_stat)
+    assert ci is not None and ci[0] <= 20.0 <= ci[1]
+
+
+def test_contrast_stat_is_none_without_a_challenge() -> None:
+    rows = [
+        _window(matchup="m", seed=0, step=0, observer_agent="x",
+                action="allow", lie=False, r1_widened=False, p_lie=0.8),
+    ]
+    assert vcg.contrast_stat(rows) is None
+    assert vcg.contrast_stat([]) is None
+
+
+def test_any_bucket_is_the_union_of_challenged_and_allowed() -> None:
+    rows = [
+        _window(matchup="m", seed=0, step=i, observer_agent="x",
+                action=("call_cheat" if i % 2 else "allow"), lie=False,
+                r1_widened=False, p_lie=0.5)
+        for i in range(5)
+    ]
+    c = vcg.bucket(rows, "m", "x", "all", "challenged")
+    a = vcg.bucket(rows, "m", "x", "all", "allowed")
+    both = vcg.bucket(rows, "m", "x", "all", "any")
+    assert len(c) + len(a) == len(both) == 5
+
+
 # --- report() runs over a tiny end-to-end fixture -----------------------------
 
 
@@ -176,6 +220,7 @@ def test_report_runs_and_names_the_null_control() -> None:
     assert "m" in text
     assert "NULL CONTROL" in text
     assert "rule" in text
+    assert "CONTRAST" in text
 
 
 # --- purity: stdlib only, nothing from the engine or the sampler -------------

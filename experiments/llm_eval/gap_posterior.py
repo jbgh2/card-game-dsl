@@ -19,10 +19,12 @@ seed regardless of dict iteration order.
 
 `gap_sampler.estimate` runs with an ADAPTIVE proposal budget per window:
 start at `--min-proposals`, double while the effective sample size is under
-`--ess-floor` and the budget is under `--max-proposals`. A window whose budget
-is exhausted with zero accepted proposals (`gap_sampler.estimate` raises
-`ValueError`) is DROPPED and logged — never silently absent, since a silent
-cap here would read as "the sampler covered every selected window."
+`--ess-floor` and the budget is under `--max-proposals`. Zero accepted proposals
+doubles the budget exactly as a low ESS does; a window whose CAP is exhausted
+with zero accepted (`gap_sampler.estimate` raises `ValueError`) is DROPPED and
+logged — never silently absent, since a silent cap here would read as "the
+sampler covered every selected window." `--max-depth` bounds eligibility to
+the decision index the study's null control converges at.
 
 Contract
 --------
@@ -80,11 +82,21 @@ def _select(
     per_cell: int,
     rng: random.Random,
     observer_agent: str | None,
+    max_depth: int | None,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """The stratified subsample for one cell, plus what was available to draw
-    from — the counts `main` logs so a short subsample is never silent."""
+    from — the counts `main` logs so a short subsample is never silent.
+
+    `max_depth` bounds the window's decision index: the sampler's lookahead
+    settles a revealed card's journey over one pile pickup, and a deeper line
+    asks it to settle more than one by luck, so the depth a study registers
+    is the depth at which its null control converges (`gap_sampler`, "What
+    rejection costs")."""
     eligible = [
-        w for w in windows if observer_agent is None or w["observer_agent"] == observer_agent
+        w
+        for w in windows
+        if (observer_agent is None or w["observer_agent"] == observer_agent)
+        and (max_depth is None or int(w["depth"]) <= max_depth)
     ]
     abstains = sorted(
         (w for w in eligible if not w["r1_widened"]), key=lambda w: (w["seed"], w["step"])
@@ -124,20 +136,31 @@ def _adaptive_estimate(
     check_count: int,
 ) -> _Adaptive:
     """`gap_sampler.estimate`, doubling the proposal budget while the ESS is
-    under floor and the budget is under the cap. Raises `ValueError` — the
-    same exception `gap_sampler.estimate` raises on zero accepted proposals —
-    when even the maximum budget accepts nothing; `main` is the one that
-    decides that means "drop and log", not this function."""
+    under floor — or nothing is accepted at all — and the budget is under the
+    cap. Raises `ValueError`, the exception `gap_sampler.estimate` raises on
+    zero accepted proposals, only when the maximum budget itself accepts
+    nothing; `main` is the one that decides that means "drop and log"."""
     proposals = min_proposals
     while True:
-        est = gap_sampler.estimate(
-            infostate,
-            seed=sampler_seed,
-            samples=proposals,
-            proposal=gap_sampler.SMART,
-            check=check,
-            check_count=check_count,
-        )
+        try:
+            est = gap_sampler.estimate(
+                infostate,
+                seed=sampler_seed,
+                samples=proposals,
+                proposal=gap_sampler.SMART,
+                check=check,
+                check_count=check_count,
+            )
+        except ValueError:
+            # Zero accepted proposals is the same signal as a low ESS — the
+            # budget is too small for this depth — and gets the same answer,
+            # a doubled budget, until the cap says otherwise. Dropping at the
+            # first budget would drop exactly the deep windows the cap exists
+            # to reach.
+            if proposals >= max_proposals:
+                raise
+            proposals = min(proposals * 2, max_proposals)
+            continue
         converged = est.ess >= ess_floor
         if converged or proposals >= max_proposals:
             return _Adaptive(estimate=est, n_proposed_final=proposals, converged=converged)
@@ -155,6 +178,7 @@ def run(
     check_count: int,
     game_path: str,
     observer_agent: str | None,
+    max_depth: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """The whole pipeline over an already-loaded window population.
 
@@ -169,9 +193,12 @@ def run(
     out: list[dict[str, Any]] = []
     log: list[str] = []
     for matchup in sorted(by_matchup):
-        chosen, counts = _select(by_matchup[matchup], per_cell, rng, observer_agent)
+        chosen, counts = _select(
+            by_matchup[matchup], per_cell, rng, observer_agent, max_depth
+        )
         log.append(
             f"{matchup}: eligible={counts['eligible']} "
+            f"(of {len(by_matchup[matchup])}, max_depth={max_depth}) "
             f"abstains={counts['abstains_taken']}/{counts['abstains_available']} "
             f"fires={counts['fires_taken']}/{counts['fires_available']} "
             f"selected={len(chosen)}/{per_cell}"
@@ -238,6 +265,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--game-path", default=DEFAULT_GAME_PATH)
     ap.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+        help="restrict eligible windows to decision index <= this (default: no bound)",
+    )
+    ap.add_argument(
         "--observer-agent", default=None,
         help="restrict eligible windows to this observer_agent (default: every seat)",
     )
@@ -254,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
         check_count=args.check_count,
         game_path=args.game_path,
         observer_agent=args.observer_agent,
+        max_depth=args.max_depth,
     )
 
     out_path = Path(args.out)

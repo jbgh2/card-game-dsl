@@ -22,8 +22,12 @@ The **reader's gap** of a seat class, over a subset of its windows, is
 (`gap_sampler.estimate` is `R_literal`; `PREREGISTRATION_CHEAT_GAP.md` defines
 both gaps and names which is the registered endpoint).
 Both are computed here, per cell (matchup) x seat class (`observer_agent`) x
-subset (all / R1-abstains / R1-fires) x action (challenged / allowed), as
-percentage points.
+subset (all / R1-abstains / R1-fires) x action (challenged / allowed / any), as
+percentage points. The **selection contrast** — the gap over the windows a
+seat challenged minus the gap over every window it faced — is the statistic
+that isolates reading beyond the literal channel (`contrast_stat` says why the
+raw gap cannot), and the null control's expected zero is a statement about
+the contrast, not the raw gap.
 
 Contract
 --------
@@ -32,9 +36,10 @@ Assumes: `--windows` is `gap_windows`' JSONL output and `--posterior` is
 posterior record carries `p_lie`, `lie`, `r1_widened`, `observer_agent`,
 `action`, `matchup` and `seed`.
 Establishes: a plain-text AUDIT report — every rate as `n / d = value` (or
-`null` over a zero denominator), a bootstrap 95% interval per bucket
-resampling GAMES, the null-control noise floor for all-rule cells, and a
-paired-by-seed sign test between two named cells.
+`null` over a zero denominator), a bootstrap 95% interval per bucket and per
+selection contrast resampling GAMES, the null-control noise floor for
+all-rule cells on the contrast, and a paired-by-seed sign test between two
+named cells.
 Illegal after: quoting a GAP without its bootstrap interval, or a p-value from
 `paired_seed_comparison` as anything but exploratory — it is not
 pre-registered here.
@@ -47,6 +52,7 @@ import json
 import math
 import random
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 #: Resamples for every bootstrap interval in this module, and the seed that
@@ -55,7 +61,7 @@ BOOTSTRAP_RESAMPLES = 2000
 BOOTSTRAP_SEED = 0
 
 SUBSETS = ("all", "abstains", "fires")
-ACTIONS = ("challenged", "allowed")
+ACTIONS = ("challenged", "allowed", "any")
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -106,7 +112,7 @@ def bucket(
         if r["matchup"] == matchup
         and r["observer_agent"] == seat_class
         and _in_subset(r, subset)
-        and _action_bucket(r["action"]) == action
+        and (action == "any" or _action_bucket(r["action"]) == action)
     ]
 
 
@@ -121,12 +127,36 @@ def gap_stat(records: list[dict[str, Any]]) -> float | None:
     return (rate - mean_r) * 100.0
 
 
+def contrast_stat(records: list[dict[str, Any]]) -> float | None:
+    """The SELECTION CONTRAST: `gap_stat` over the windows the observer
+    challenged minus `gap_stat` over every window it faced, in percentage
+    points — `None` unless both halves have windows.
+
+    The raw gap carries the literal reference's own miscalibration: under
+    uniform card choice a claim is a lie in most consistent worlds whoever
+    made it, so a challenger that ignores the cards still measures a large
+    negative gap. The contrast removes that, and the base lie rate with it:
+    a challenge decision that is independent of the cards leaves the
+    challenged windows a random draw from all of them, so the two gaps agree
+    and the contrast is zero in expectation. What remains is the part of
+    the challenged windows' excess lie rate that the literal information at
+    those windows does not explain."""
+    challenged = [r for r in records if _action_bucket(r["action"]) == "challenged"]
+    a = gap_stat(challenged)
+    b = gap_stat(records)
+    if a is None or b is None:
+        return None
+    return a - b
+
+
 def bootstrap_gap(
     records: list[dict[str, Any]],
     n_resamples: int = BOOTSTRAP_RESAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    stat: Callable[[list[dict[str, Any]]], float | None] = gap_stat,
 ) -> tuple[float, float] | None:
-    """A 95% percentile interval for `gap_stat`, resampling GAMES (`(matchup,
+    """A 95% percentile interval for `stat` (`gap_stat` unless another is
+    named, `contrast_stat` being the other), resampling GAMES (`(matchup,
     seed)` pairs) with replacement — not windows, since windows within one
     game share a hand and are not independent trials."""
     if not records:
@@ -139,9 +169,9 @@ def bootstrap_gap(
     stats: list[float] = []
     for _ in range(n_resamples):
         pooled = [row for g in (rng.choice(games) for _ in games) for row in by_game[g]]
-        stat = gap_stat(pooled)
-        if stat is not None:
-            stats.append(stat)
+        value = stat(pooled)
+        if value is not None:
+            stats.append(value)
     if not stats:
         return None
     stats.sort()
@@ -257,34 +287,47 @@ def report(windows: list[dict[str, Any]], posterior: list[dict[str, Any]]) -> li
                             f"      residual (lie-p_lie): mean={resid[0]:+.4f} "
                             f"sd={resid[1]:.4f}"
                         )
+                rows = bucket(posterior, matchup, seat_class, subset, "any")
+                contrast = contrast_stat(rows)
+                if contrast is None:
+                    lines.append(f"    {subset:>8} / CONTRAST     n/a (no challenged windows)")
+                    continue
+                ci = bootstrap_gap(rows, stat=contrast_stat)
+                lines.append(
+                    f"    {subset:>8} / CONTRAST     "
+                    f"GAP(challenged) - GAP(any) = {contrast:+.2f}pp"
+                    + (f"  95% CI=[{ci[0]:+.2f},{ci[1]:+.2f}]pp" if ci else "")
+                )
 
     lines.append("\n=== NULL CONTROL (noise floor) ===")
     lines.append(
-        "  cells whose observers are ALL rule agents: reader's gap on the "
-        "R1-abstains subset, which a rule agent challenges by a coin flip "
-        "independent of the cards — expected gap zero."
+        "  cells whose observers are ALL rule agents, on the R1-abstains "
+        "subset, which a rule agent challenges by a coin flip independent of "
+        "the cards: the SELECTION CONTRAST is zero in expectation and its "
+        "interval is the instrument's noise floor. The raw GAP beside it is "
+        "the literal reference's own miscalibration, a property of the "
+        "reference and not of the reader."
     )
     for matchup in _cells(posterior):
         classes = _seat_classes(posterior, matchup)
         if not classes or any(not c.startswith("rule") for c in classes):
             continue
-        rows = [
-            r
-            for r in posterior
-            if r["matchup"] == matchup
-            and not r["r1_widened"]
-            and _action_bucket(r["action"]) == "challenged"
-        ]
-        n = len(rows)
-        if n == 0:
+        rows = [r for r in posterior if r["matchup"] == matchup and not r["r1_widened"]]
+        challenged = [r for r in rows if _action_bucket(r["action"]) == "challenged"]
+        if not challenged:
             lines.append(f"  {matchup}: n=0 (no abstains-subset challenges)")
             continue
-        gap = gap_stat(rows)
-        ci = bootstrap_gap(rows)
-        assert gap is not None
+        contrast = contrast_stat(rows)
+        c_ci = bootstrap_gap(rows, stat=contrast_stat)
+        gap = gap_stat(challenged)
+        g_ci = bootstrap_gap(challenged)
+        assert contrast is not None and gap is not None
         lines.append(
-            f"  {matchup}: n={n} GAP={gap:+.2f}pp"
-            + (f"  95% CI=[{ci[0]:+.2f},{ci[1]:+.2f}]pp" if ci else "")
+            f"  {matchup}: n_challenged={len(challenged)} n_all={len(rows)} "
+            f"CONTRAST={contrast:+.2f}pp"
+            + (f"  95% CI=[{c_ci[0]:+.2f},{c_ci[1]:+.2f}]pp" if c_ci else "")
+            + f"   raw GAP(challenged)={gap:+.2f}pp"
+            + (f"  95% CI=[{g_ci[0]:+.2f},{g_ci[1]:+.2f}]pp" if g_ci else "")
         )
 
     lines.append(

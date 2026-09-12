@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from .. import gap_posterior, gap_windows, metrics
+from .. import gap_posterior, gap_sampler, gap_windows, metrics
 from ..agents import Agent, RuleAgent
 from ..infostate import parse
 from ..referee import GameRecord, ProvenanceError, load_game, play_game
@@ -285,3 +285,56 @@ def test_check_count_performs_replay_checks(windows_dicts: list[dict[str, Any]])
     )
     assert records
     assert sum(r["n_checked"] for r in records) > 0
+
+
+def test_zero_acceptance_at_the_first_budget_escalates_rather_than_drops(
+    monkeypatch: pytest.MonkeyPatch, windows_dicts: list[dict[str, Any]]
+) -> None:
+    """A budget that accepts nothing is the same signal as a low ESS — too
+    small for this depth — and gets the same answer. Only the cap drops."""
+    shallow = _shallowest(windows_dicts, 1)
+    real = gap_sampler.estimate
+    seen: list[int] = []
+
+    def flaky(infostate: str, *, samples: int, **kw: Any) -> Any:
+        seen.append(samples)
+        if samples < 800:
+            raise ValueError("no consistent world (simulated)")
+        return real(infostate, samples=samples, **kw)
+
+    monkeypatch.setattr(gap_sampler, "estimate", flaky)
+    records, log = gap_posterior.run(
+        shallow, per_cell=1, subsample_seed=1, ess_floor=1.0,
+        min_proposals=200, max_proposals=800, check_count=0,
+        game_path=CHEAT_PATH, observer_agent=None,
+    )
+    assert seen == [200, 400, 800], seen
+    assert len(records) == 1 and records[0]["n_proposed"] == 800
+    assert not any("DROPPED" in line for line in log)
+
+    # The cap itself accepting nothing is the drop, and it is logged.
+    seen.clear()
+    records, log = gap_posterior.run(
+        shallow, per_cell=1, subsample_seed=1, ess_floor=1.0,
+        min_proposals=200, max_proposals=400, check_count=0,
+        game_path=CHEAT_PATH, observer_agent=None,
+    )
+    assert seen == [200, 400]
+    assert records == []
+    assert any("DROPPED" in line for line in log)
+
+
+def test_max_depth_bounds_eligibility(windows_dicts: list[dict[str, Any]]) -> None:
+    depths = sorted({int(w["depth"]) for w in windows_dicts})
+    assert len(depths) >= 2, "the fixture has windows at one depth only"
+    bound = depths[len(depths) // 2]
+    records, log = gap_posterior.run(
+        windows_dicts, per_cell=10_000, subsample_seed=1, ess_floor=1.0,
+        min_proposals=50, max_proposals=50, check_count=0,
+        game_path=CHEAT_PATH, observer_agent=None, max_depth=bound,
+    )
+    assert records
+    assert all(int(r["depth"]) <= bound for r in records)
+    assert len(records) == sum(1 for w in windows_dicts if int(w["depth"]) <= bound)
+    assert any(f"max_depth={bound}" in line for line in log)
+
