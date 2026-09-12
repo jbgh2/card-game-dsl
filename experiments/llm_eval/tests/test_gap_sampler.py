@@ -1,6 +1,6 @@
 """The literal-posterior sampler, against oracles that can disagree with it.
 
-Five of the checks here are execution oracles rather than assertions about the
+The checks below are execution oracles rather than assertions about the
 sampler's internals, because an estimator's defect is a number that is quietly
 wrong:
 
@@ -8,9 +8,9 @@ wrong:
    posterior is `1 - C(4-j, c) / C(39, c)` for an observer holding `j` of the
    claimed rank against a claim of `c` cards. Swept over deals that give
    several values of `j`.
-2. **A naive sampler.** Label all thirty-nine hidden deal positions by one
-   uniform permutation, choose every hidden play uniformly, reject on any
-   violated observation — trivially uniform over consistent worlds, and
+2. **A naive sampler.** Label every hidden deal position by one uniform
+   permutation, choose every hidden play uniformly, reject on any violated
+   observation — trivially uniform over consistent worlds, and
    hopeless past a few constraints. On a short line it is the oracle the
    weighted sampler answers to.
 3. **The provable subset.** Where `infostate.provably_false` fires, every
@@ -18,10 +18,12 @@ wrong:
 4. **Information-state measurability.** Two lines whose observer sees the same
    bytes and whose ground truths differ estimate identically — the executable
    form of the guarantee that makes the comparison belief-vs-belief.
-5. **The replay.** Every accepted world is materialized, injected as a deal,
+5. **The replay.** An accepted world is materialized, injected as a deal,
    replayed through the engine, and required to render the observer the same
    information state with the same legal actions. A world that fails is not
    one of the worlds the observer cannot rule out.
+6. **Every proposal.** All four combinations of the proposal's knobs against
+   the closed form, so no way of drawing a world goes unweighed.
 
 The negative controls matter as much: a sweep that covers one `j`, a naive
 sampler that accepts nothing, and a replay check that passes a wrong world are
@@ -35,7 +37,7 @@ import inspect
 import math
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 import pytest
 
@@ -223,6 +225,49 @@ def test_the_opening_window_matches_the_closed_form(
     assert est.p_lie == pytest.approx(expected, abs=1e-12)
 
 
+#: Every combination of `Proposal`'s knobs. Crossed rather than sampled, and
+#: held to the whole cube by `test_the_proposal_is_two_booleans`: the knobs
+#: change how a world is drawn, so a combination nothing estimates with is a
+#: proposal whose weights nobody has ever checked.
+PROPOSALS = [
+    gs.Proposal(label_up_front=up_front, lookahead=lookahead)
+    for up_front in (False, True)
+    for lookahead in (False, True)
+]
+
+
+def test_the_proposal_is_two_booleans() -> None:
+    """`PROPOSALS` crosses every field of `Proposal`. A new field would leave
+    the grid below covering one face of a larger cube while reading as
+    complete."""
+    assert get_type_hints(gs.Proposal) == {
+        "label_up_front": bool,
+        "lookahead": bool,
+    }
+    assert len(PROPOSALS) == 4
+
+
+@pytest.mark.parametrize(
+    "proposal", PROPOSALS, ids=lambda p: f"{p.label_up_front}-{p.lookahead}"
+)
+def test_every_proposal_estimates_the_same_posterior(
+    game: Any, proposal: gs.Proposal
+) -> None:
+    """All four proposals against the closed form, at a window where all four
+    accept everything.
+
+    Labelling up front makes each sample's answer a Boolean rather than a
+    conditional, so that arm is a real Monte Carlo average and is held to the
+    tolerance its own effective sample size justifies — four standard errors of
+    a Bernoulli mean, the widest the run could honestly claim.
+    """
+    view = _opening_window(game, 0, 2)
+    est = gs.estimate(view.infostate, seed=5, samples=2_000, proposal=proposal)
+    assert est.n_accepted == est.n_proposed, "nothing constrains the opening window"
+    error = abs(est.p_lie - _opening_closed_form(view))
+    assert error <= 4.0 * math.sqrt(0.25 / est.ess)
+
+
 def test_the_closed_form_sweep_is_not_vacuous(game: Any) -> None:
     """The swept deals really do differ in the observer's own holding, and the
     expected answers are not all certainty.
@@ -246,32 +291,47 @@ def test_the_closed_form_sweep_is_not_vacuous(game: Any) -> None:
 def _flip_and_pickup_line(game: Any) -> DecisionView:
     """A short line carrying both labelling events, and a window after them.
 
-    Seat 0 opens with one card, which nobody challenges, so it lies unseen in
-    the pile. Seat 1 then plays its single two truthfully and seat 2 — the
-    observer — challenges: the flip names seat 1's card to the whole table, the
-    honest claim sends the flipped card AND the pile into the wrong
-    challenger's own hand, and that pickup names seat 0's opening card too.
-    Seat 2 plays, seat 3 plays, and seat 2 is offered the window on it.
+    Seat 0 — the observer here — opens with one card that nobody challenges, so
+    the pile holds nothing but its own. Seat 1 then plays its single two
+    truthfully and seat 0 challenges: the flip names seat 1's card to the whole
+    table, and the honest claim sends the flipped card AND the pile into the
+    wrong challenger's own hand, naming the pile. Seat 2 plays, and seat 0 is
+    offered the window on it.
+
+    Deliberately the CHEAPEST line carrying both events, because the naive
+    oracle pays for every one of them: it labels the deal blind, so a card the
+    flip names has to have landed in the right hand and been chosen out of it.
+    The pile here names only cards the observer played itself, which is free —
+    a pile holding another seat's card would cost a second factor of the
+    hidden deal's size and leave the oracle with too few samples to be one.
     """
     _, views = _views(
         game,
         0,
         _seats(
+            ScriptedAgent(counts=(1,), challenges=frozenset({0})),
             ScriptedAgent(counts=(1,)),
             ScriptedAgent(counts=(1,)),
-            ScriptedAgent(challenges=frozenset({1})),
-            ScriptedAgent(counts=(1,)),
+            ScriptedAgent(),
         ),
         max_decisions=24,
     )
-    view = next(
+    view = _first_window_past_both(views, 0)
+    info = parse(view.infostate)
+    assert info.claimant == 2 and info.claim_rank == "3" and info.claim_count == 1
+    return view
+
+
+def _first_window_past_both(views: list[DecisionView], observer: int) -> DecisionView:
+    """The observer's first window with a flip and a pickup into its own hand
+    already in its log — the earliest place both labelling events bind."""
+    return next(
         v
         for _, v in _windows(views)
-        if v.player == 2 and _has_flip(v.infostate) and _has_own_pickup(v.infostate)
+        if v.player == observer
+        and _has_flip(v.infostate)
+        and _has_own_pickup(v.infostate)
     )
-    info = parse(view.infostate)
-    assert info.claimant == 3 and info.claim_rank == "4"
-    return view
 
 
 def test_the_naive_sampler_agrees_with_the_weighted_one(game: Any) -> None:
@@ -285,7 +345,7 @@ def test_the_naive_sampler_agrees_with_the_weighted_one(game: Any) -> None:
     """
     view = _flip_and_pickup_line(game)
     smart = gs.estimate(view.infostate, seed=3, samples=256)
-    naive = gs.estimate(view.infostate, seed=5, samples=40_000, proposal=NAIVE)
+    naive = gs.estimate(view.infostate, seed=5, samples=20_000, proposal=NAIVE)
     assert naive.n_accepted >= 100, (
         f"the naive oracle accepted {naive.n_accepted} of {naive.n_proposed} "
         f"proposals — too few to be an oracle"
@@ -297,21 +357,33 @@ def test_the_naive_sampler_agrees_with_the_weighted_one(game: Any) -> None:
 
 def test_dropping_the_lookahead_leaves_the_answer_alone(game: Any) -> None:
     """A third proposal, weighted like the first but blind: it chooses hidden
-    plays from the whole hand and rejects what the reveals contradict.
+    plays out of the whole hand and rejects whatever the reveals contradict.
 
-    Where the smart proposal's eligible sets differ from the blind one's, the
-    two runs' importance weights differ — so this is the check that the weights
-    are computed from the proposal that was actually used, on a real line
-    rather than a constructed one.
+    Run at the first window of a real line where the lookahead earns its name —
+    where the blind proposal rejects worlds the smart one never proposes — so
+    the two runs differ in acceptance and in the proposal probabilities their
+    weights are built from. Agreement there is the check that a weight is
+    computed from the proposal that drew it; a pair of runs that had proposed
+    identically could not tell a right weight from a wrong one.
     """
-    view = _flip_and_pickup_line(game)
-    smart = gs.estimate(view.infostate, seed=3, samples=256)
-    blind = gs.estimate(
-        view.infostate, seed=4, samples=2_000, proposal=gs.Proposal(lookahead=False)
+    blind_proposal = gs.Proposal(lookahead=False)
+    for depth, view in _deep_windows(game, REPLAY_SEED)[:20]:
+        blind = gs.estimate(
+            view.infostate, seed=depth, samples=300, proposal=blind_proposal
+        )
+        if blind.rejects and blind.n_accepted >= 100:
+            smart = gs.estimate(view.infostate, seed=depth, samples=300)
+            assert smart.n_accepted > blind.n_accepted, (
+                "the lookahead accepted no more than the blind proposal here, so "
+                "this window does not distinguish them"
+            )
+            tolerance = 4.0 * math.sqrt(0.25 / blind.ess)
+            assert abs(smart.p_lie - blind.p_lie) <= tolerance
+            return
+    pytest.fail(
+        "no window in the line where the blind proposal rejects anything — the "
+        "lookahead is untested against it"
     )
-    assert blind.n_accepted >= 100
-    tolerance = 4.0 * math.sqrt(0.25 / blind.ess)
-    assert abs(smart.p_lie - blind.p_lie) <= tolerance
 
 
 # --- 3. the provable subset ---------------------------------------------------
@@ -388,6 +460,12 @@ def test_one_information_state_gives_one_estimate_whatever_was_played(
 # --- 5. the replay ------------------------------------------------------------
 
 
+#: The rule-agent line the replay net is driven over. Its seed is passed to the
+#: checker as well as to the game: the observer's own deal is the one fact of a
+#: world the seed decides rather than the sampler (`gap_replay`).
+REPLAY_SEED = 3
+
+
 def _deep_windows(game: Any, seed: int) -> list[tuple[int, DecisionView]]:
     _, views = _rule_line(game, seed, max_decisions=220)
     return _windows(views)
@@ -405,7 +483,7 @@ def test_every_accepted_world_replays_to_the_same_information_state(
     so the structure the sampler invents is checked where it has had the most
     room to go wrong.
     """
-    windows = _deep_windows(game, 3)
+    windows = _deep_windows(game, REPLAY_SEED)
     assert windows, "no window in the line"
     by_depth = {
         "opening": windows[0],
@@ -414,7 +492,9 @@ def test_every_accepted_world_replays_to_the_same_information_state(
         "deepest": windows[-1],
     }
     for name, (depth, view) in by_depth.items():
-        checker = make_checker(view.infostate, CHEAT, legal=view.legal_actions)
+        checker = make_checker(
+            view.infostate, CHEAT, seed=REPLAY_SEED, legal=view.legal_actions
+        )
         est = gs.estimate(
             view.infostate, seed=depth, samples=8, check=checker, check_count=3
         )
@@ -430,7 +510,7 @@ def test_the_replay_check_refuses_a_world_the_observer_can_see_is_wrong(
     changes what the observer is dealt, so the replayed information state
     cannot match. A check that passed this would pass anything.
     """
-    windows = _deep_windows(game, 3)
+    windows = _deep_windows(game, REPLAY_SEED)
     depth, view = next(w for w in windows if _has_flip(w[1].infostate))
     sample = next(
         s
@@ -444,7 +524,9 @@ def test_the_replay_check_refuses_a_world_the_observer_can_see_is_wrong(
     deal = [list(hand) for hand in world.deal]
     deal[observer][0], deal[other][0] = deal[other][0], deal[observer][0]
     wrong = replace(world, deal=tuple(tuple(hand) for hand in deal))
-    checker = make_checker(view.infostate, CHEAT, legal=view.legal_actions)
+    checker = make_checker(
+        view.infostate, CHEAT, seed=REPLAY_SEED, legal=view.legal_actions
+    )
     with pytest.raises((AssertionError, ValueError)):
         checker(wrong)
 
@@ -483,7 +565,7 @@ def test_the_replay_check_imports_only_the_replay_seam() -> None:
     from .. import gap_replay
 
     source = Path(inspect.getsourcefile(gap_replay) or "").read_text(encoding="utf-8")
-    reached = set()
+    reached: set[str] = set()
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             reached.update(alias.name for alias in node.names)
@@ -528,19 +610,19 @@ def test_a_decision_that_is_not_a_window_is_refused(game: Any) -> None:
             gs.estimate(view.infostate, seed=1, samples=4)
 
 
-def test_an_unreadable_observation_log_is_refused() -> None:
+def test_an_unmodelled_observation_event_is_refused(game: Any) -> None:
     """An event the walk does not model stops the estimate rather than being
-    skipped. A dropped event is a silently wrong posterior — the same
-    unsoundness-by-omission `infostate.parse_events` refuses."""
-    view = (
-        "P1|deck=#0;flipped=[];pile=#0;played=#1;hand[0]=#12;"
-        "hand[1]=[A♣];hand[2]=#13;hand[3]=#13"
-        "|state:challenged=False;challenger=None;claim_count=1;claim_rank=A;"
-        "claimant=0;responder=1;window_open=True;won={0:False}"
-        "|obs:('reveal', 'pile', 'A♥')"
-    )
+    skipped.
+
+    A real window with one `reveal` appended — the fourth member of
+    `cardlang.runtime.observe.EVENT_TYPES`, which Cheat emits none of because
+    its flip is a movement. A walk that skipped it would answer with a pile
+    whose contents it had not read, which is unsoundness by omission: the same
+    failure `infostate.parse_events` refuses to have.
+    """
+    doctored = _opening_window(game, 0, 1).infostate + ";('reveal', 'pile', 'A♥')"
     with pytest.raises(ValueError, match="reveal"):
-        gs.estimate(view, seed=1, samples=4)
+        gs.estimate(doctored, seed=1, samples=4)
 
 
 def test_a_checker_with_nothing_to_check_is_refused(game: Any) -> None:
