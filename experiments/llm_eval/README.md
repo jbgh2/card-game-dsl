@@ -127,7 +127,12 @@ python -m experiments.llm_eval.study --figure
 --deep` additionally replays every game through the engine, which needs an
 archive whose action ids still name moves the game has — the Cheat archive's
 do not (it predates the removal of the four-card play cap), and the auditor
-says so rather than failing obscurely. [`REVIEWER.md`](REVIEWER.md)
+says so rather than failing obscurely. Every transcript also carries the
+SHA-256 digest of the `.cardlang` source it was played against
+(`referee.game_digest`); a replay that passes that digest to `replay_views` as
+`expected_digest` refuses with `ProvenanceError` when the loaded game's source
+no longer matches, rather than decoding recorded action ids against an action
+space that has since been renumbered. [`REVIEWER.md`](REVIEWER.md)
 explains what each check rules out.
 
 ---
