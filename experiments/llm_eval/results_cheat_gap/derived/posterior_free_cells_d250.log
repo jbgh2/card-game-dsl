@@ -1,0 +1,6 @@
+rule_table: eligible=9410 (of 24005, max_depth=250) abstains=600/8429 fires=0/981 selected=600/600
+NOT CONVERGED rule_table seed=5 step=234: ess=59.4 < floor 200.0 at 32000 proposals (max 32000)
+NOT CONVERGED rule_table seed=22 step=237: ess=96.5 < floor 200.0 at 32000 proposals (max 32000)
+DROPPED rule_table seed=46 step=223: no consistent world in 32000 proposals at this window. A deep line is the likely reason and more proposals the answer — the proposal leaves the long journeys to luck (see this module's 'What rejection costs'). A window where no sample count helps is instead a line this sampler's model of the log gets wrong, and the rejections say which constraint: {'this play cannot carry the cards a later reveal owes the pile and still be the size it was': 32000}
+NOT CONVERGED rule_table seed=62 step=234: ess=7.4 < floor 200.0 at 32000 proposals (max 32000)
+rule_vs_random: eligible=795 (of 2991, max_depth=250) abstains=253/253 fires=347/542 selected=600/600

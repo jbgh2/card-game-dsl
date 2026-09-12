@@ -127,7 +127,12 @@ python -m experiments.llm_eval.study --figure
 --deep` additionally replays every game through the engine, which needs an
 archive whose action ids still name moves the game has — the Cheat archive's
 do not (it predates the removal of the four-card play cap), and the auditor
-says so rather than failing obscurely. [`REVIEWER.md`](REVIEWER.md)
+says so rather than failing obscurely. Every transcript also carries the
+SHA-256 digest of the `.cardlang` source it was played against
+(`referee.game_digest`); a replay that passes that digest to `replay_views` as
+`expected_digest` refuses with `ProvenanceError` when the loaded game's source
+no longer matches, rather than decoding recorded action ids against an action
+space that has since been renumbered. [`REVIEWER.md`](REVIEWER.md)
 explains what each check rules out.
 
 ---
@@ -419,6 +424,67 @@ where a Cheat episode is ~210.
 Dollars are **tokens × the list-price table in `providers.py`**, not a billing
 figure. The $6.33 above is the main invocation; the smoke ($0.0006) and the
 `--estimate 5` recon ($0.0264) bring the session to **$6.36**.
+
+## The `cheat_gap` study — reading beyond the literal channel
+
+A separate study on Cheat, with its own config, archive, preregistration and
+audit: `config_cheat_gap.yaml`, `results_cheat_gap/`,
+[`PREREGISTRATION_CHEAT_GAP.md`](PREREGISTRATION_CHEAT_GAP.md),
+`verify_cheat_gap.py`. It shares the referee, the agents, the providers and
+the budget with the Cheat study above and reads none of that study's archive.
+
+The unit is the challenge window. At each one an observer sees a standing
+claim and calls "Cheat!" or lets it go, and three things are known about it:
+the observer's information state, the observer's action, and the ground truth
+the referee holds. `gap_sampler.estimate` turns the first into the **literal
+posterior** — P(the claim is a lie | the information state) under a uniform
+deal and uniform hidden card choice, by importance sampling over the worlds
+the observer cannot rule out, and reading nothing but the information-state
+string. The **gap** of a set of windows is its observed lie rate minus its mean
+literal posterior. Under that reference a claim is a lie in most consistent
+worlds whoever made it, so every seat's raw gap is large and negative; the
+statistic that isolates reading is the **selection contrast**, the gap over
+the windows a seat challenged minus the gap over every window it faced, which
+is zero in expectation for a challenge decision independent of the cards. A
+table of four rule agents is the null control on exactly that account.
+
+The sampler's lookahead settles a revealed card's journey over one pile
+pickup, so the posterior converges on the early part of a line and not on the
+deep part (issue #662); the study registers a depth bound and measures inside
+it, and `gap_posterior --max-depth` is where the bound is applied.
+
+```bash
+# The free cells: the null control and the smoke cell. No API key.
+python -m experiments.llm_eval.run_eval \
+  --config experiments/llm_eval/config_cheat_gap.yaml \
+  --matchup rule_table --matchup rule_vs_random
+python -m experiments.llm_eval.promote \
+  --results experiments/llm_eval/results_cheat_gap --run <stamp>
+
+# Every window in the archive, each replayed against its recorded game digest.
+python -m experiments.llm_eval.gap_windows \
+  --dir experiments/llm_eval/results_cheat_gap/transcripts --out windows.jsonl
+
+# The literal posterior over a deterministic, depth-bounded subsample per cell.
+python -m experiments.llm_eval.gap_posterior \
+  --windows windows.jsonl --out posterior.jsonl \
+  --per-cell 600 --subsample-seed 0 --ess-floor 200 \
+  --min-proposals 2000 --max-proposals 32000 --max-depth 250 \
+  --check-count 1
+
+# The independent recomputation: stdlib only, no engine, no sampler.
+python -m experiments.llm_eval.verify_cheat_gap \
+  --windows windows.jsonl --posterior posterior.jsonl --out GAP_AUDIT.txt
+```
+
+`windows.jsonl` carries an information-state string per window, and it and the
+posterior records are regenerated rather than committed (`*.jsonl` is
+gitignored under `results_cheat_gap/`): every number in them is a pure function
+of the archive, the subsample seed and the sampler seed each record names. What
+is committed under `results_cheat_gap/derived/` is the free cells' posterior
+records, gzipped as the transcripts are, the audit text scored from them, and
+`gap_posterior`'s own log, which is where a dropped or unconverged window is
+on the record.
 
 ## Adding an experiment
 
