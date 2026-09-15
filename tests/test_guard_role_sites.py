@@ -101,6 +101,8 @@ _ACCOUNTED = frozenset(
         "_ContinueTo",
         "_SkipHand",
         "ChooserAbort",
+        "TakeBack",
+        "Leave",
         # compile-pass diagnostic factories — `error` is the bag's first
         # diagnostic, the others build an AssertionError with a class-level
         # explanation attached

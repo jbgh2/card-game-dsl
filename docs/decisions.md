@@ -2693,6 +2693,17 @@ fills a seat answers through it. The mechanism is
 - **A policy's randomness is a function of its seed and its view.** The
   uniform opponent draws from a digest of both, never from a stream. So one
   seed and one history name one line of play, however the line was reached.
+- **A person at the table is a Seat Policy.** `cardlang play` shows the person
+  their Seat View's text and a menu numbering the legal action ids by the
+  adapter's own strings, and they answer with a number. Their controls end the
+  line through their seat, and taking a pick back plays the line again without
+  it.
+- **A saved session names the game it was played in.** It carries the game's
+  identity (`pipeline.game_identity`) and a format number beside the seed, the
+  seat and the history, and resuming refuses a mismatch in either before
+  anything replays. A history of action ids carries no trace of its game:
+  resumed against another game whose early picks happen to be legal, it would
+  replay without complaint.
 
 ## Position domains and positional zones
 

@@ -1,21 +1,19 @@
-"""Command-line entry point: check a game file, or play one through.
+"""Command-line entry point: check a game file, play it, or watch it played.
 
     cardlang docs/games/hearts.cardlang            # check only; silent on success
     cardlang docs/games/hearts.cardlang --emit-ir  # check, then print the IR JSON
     cardlang check docs/games/hearts.cardlang      # the same check, named
+    cardlang play docs/games/hearts.cardlang       # take a seat and play it
     cardlang demo docs/games/hearts.cardlang       # one uniform-random self-play
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
 what `--emit-ir` means.
 
-`play` is reserved for the session where a person takes a seat, and is refused
-until that exists — a retired spelling stays a token this command line answers
-to in first position, so the refusal can name what replaces it.
-
 This module owns one defect class — the values a caller supplies, which no
-earlier layer sees: the path argument, and the seats `--info-state` and
-`--view` name. Everything else it RENDERS rather than decides. The compile
+earlier layer sees: the path argument, the seats `--info-state`, `--view` and
+`--seat` name, and the files `--save` and `--resume` name. Everything else it
+RENDERS rather than decides. The compile
 stages' [[failure-channel]] and the runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
@@ -36,8 +34,9 @@ Exit codes: 0 on success; 1 when the game file is where to look, whether a
 compile stage or the runtime says so — which covers both a file that is at
 fault and one whose own rule refused with nobody to tell; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
-not seat, a broken checkout, an argparse usage error. The two are split by
-who must act, not by how badly it went.
+not seat, a saved game that cannot be resumed or saved, a game whose decisions
+the action space cannot number, a broken checkout, an argparse usage error.
+The two are split by who must act, not by how badly it went.
 """
 
 from __future__ import annotations
@@ -53,8 +52,9 @@ from typing import Any
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
 from cardlang.openspiel.infostate import derive, render_information_state
-from cardlang.openspiel.replay import returns_for
-from cardlang.pipeline import check_source, compile_path
+from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
+from cardlang.pipeline import check_source, compile_path, game_identity
+from cardlang.play.session import Session, read_saved, unwritable
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
@@ -110,6 +110,35 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--seat",
+        type=int,
+        metavar="SEAT",
+        help="the seat you take, seat 0 unless named; every other seat picks "
+        "uniformly at random",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        metavar="N",
+        help="seed the deal and the other seats' picks; with none given a seed "
+        "is drawn and reported, so any game repeats",
+    )
+    parser.add_argument(
+        "--save",
+        metavar="FILE",
+        help="keep the game in FILE before each of your picks and when you "
+        "leave, so --resume can go on with it",
+    )
+    parser.add_argument(
+        "--resume",
+        metavar="FILE",
+        help="go on with the game saved in FILE, at the seat and seed it was "
+        "played with, saving back to FILE unless --save names another",
+    )
+
+
 # The commands, and the one place they are written: `build_parser` registers a
 # subparser per row and `COMMANDS` is derived from the same rows, so the
 # dispatch, the parser and the surface grid's command axis cannot disagree
@@ -121,6 +150,10 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
         "parse and statically check a game file; silent on success",
         _add_check_arguments,
     ),
+    "play": (
+        "check a game file, then take a seat and play it",
+        _add_play_arguments,
+    ),
     "demo": (
         "check a game file, then play one uniform-random self-play",
         _add_demo_arguments,
@@ -128,13 +161,6 @@ _COMMAND_TABLE: dict[str, tuple[str, Callable[[argparse.ArgumentParser], None]]]
 }
 
 COMMANDS: tuple[str, ...] = tuple(_COMMAND_TABLE)
-
-# Command spellings the command line no longer carries, and what replaces
-# each. A retired spelling stays a token answered to in first position rather
-# than falling back to the filesystem: dropped, `_normalize` would read the
-# spelling as a file name and argparse would report the caller's real path as a
-# stray argument, naming neither the rename nor the file they meant.
-RETIRED_COMMANDS: dict[str, str] = {"play": "demo"}
 
 _EXIT_OK = 0
 _EXIT_GAME_AT_FAULT = 1
@@ -176,23 +202,6 @@ def _normalize(argv: list[str]) -> list[str]:
     return ["check", *argv]
 
 
-def _retired_refusal(spelling: str) -> str:
-    """What a caller who typed a retired spelling is told.
-
-    It answers in the caller's own words — what they typed, what it is for
-    now, and the command that does the thing they asked for — because the
-    person who types the old spelling is a designer following a habit or a
-    page written before the rename, not someone reading this source.
-    """
-    replacement = RETIRED_COMMANDS[spelling]
-    return (
-        f"cardlang: `{spelling}` is reserved for taking a seat and playing a "
-        f"hand yourself, which is not built yet\n"
-        f"  the self-play you are after is `{replacement}`:\n"
-        f"      cardlang {replacement} <file>"
-    )
-
-
 def _unreadable(path: Path) -> str | None:
     """Why the front end cannot read `path`, or None when it can.
 
@@ -223,13 +232,6 @@ def _unreadable(path: Path) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
-    if raw and raw[0] in RETIRED_COMMANDS:
-        # Answered before the parser sees it. `_normalize` rewrites any first
-        # token that is not a command into `check <token>`, which would read
-        # the retired spelling as a file name and report the caller's real
-        # path as a stray argument.
-        print(_retired_refusal(raw[0]), file=sys.stderr)
-        return _EXIT_CANNOT_PROCEED
     args = build_parser().parse_args(_normalize(raw))
     implicit = bool(raw) and raw[0] not in COMMANDS and raw[0] not in ("-h", "--help")
 
@@ -251,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
             return _demo(
                 path, args.seed, args.info_state, args.view, args.at, args.decisions
             )
+        if args.command == "play":
+            return _play(path, args.seat, args.seed, args.save, args.resume)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -317,6 +321,96 @@ def _check(path: Path, emit_ir: bool) -> int:
         print(json.dumps(compile_path(path), indent=2))
     else:
         check_source(path)
+    return _EXIT_OK
+
+
+def _cannot(message: str) -> int:
+    print(f"cardlang: {message}", file=sys.stderr)
+    return _EXIT_CANNOT_PROCEED
+
+
+def _play(
+    path: Path,
+    seat: int | None,
+    seed: int | None,
+    save: str | None,
+    resume: str | None,
+) -> int:
+    try:
+        game, space = load(str(path))
+    except NotImplementedError as exc:
+        # `ActionSpace.for_game` refuses a decision it has no numbering for; the
+        # game is sound and plays in `demo`, and what cannot proceed is a table
+        # whose picks are action ids.
+        return _cannot(
+            f"{path} cannot be played at a table yet: one of its decisions has no "
+            f"numbering for its picks ({exc})"
+        )
+    seats = game.players.low
+    if seat is not None and not 0 <= seat < seats:
+        return _cannot(f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table")
+    history: list[Any] = []
+    if resume is not None:
+        saved = read_saved(Path(resume), game_identity(game))
+        if isinstance(saved, str):
+            return _cannot(f"cannot resume {resume}: {saved}")
+        if seat is not None and seat != saved.seat:
+            return _cannot(
+                f"cannot resume {resume}: it was played at seat {saved.seat}, and "
+                f"--seat {seat} names another; leave --seat out to go on with it"
+            )
+        if seed is not None and seed != saved.seed:
+            return _cannot(
+                f"cannot resume {resume}: it was dealt with seed {saved.seed}, and "
+                f"--seed {seed} names another; leave --seed out to go on with it"
+            )
+        if not 0 <= saved.seat < seats:
+            return _cannot(
+                f"cannot resume {resume}: it was played at seat {saved.seat}, and "
+                f"{path} seats 0..{seats - 1}"
+            )
+        seat, seed, history = saved.seat, saved.seed, saved.history
+    save_to = None if save is None and resume is None else Path(save or str(resume))
+    if save_to is not None:
+        refusal = unwritable(save_to)
+        if refusal is not None:
+            return _cannot(f"cannot save to {save_to}: {refusal}")
+    session = Session(
+        str(path),
+        game,
+        space,
+        0 if seat is None else seat,
+        random.randrange(2**31) if seed is None else seed,
+        history,
+        sys.stdin,
+        sys.stdout,
+        save_to,
+    )
+    try:
+        session.run()
+    except HistoryMismatch as exc:
+        if resume is None:
+            raise
+        return _cannot(f"cannot resume {resume}: its picks no longer replay in {path} ({exc})")
+    except GameDescriptionError as exc:
+        print(f"cardlang: playing {path} failed", file=sys.stderr)
+        _print_refusal(exc)
+        print(
+            "  the static checks passed — this is a rule only play reaches; "
+            f"{session.who_played()}",
+            file=sys.stderr,
+        )
+        return _EXIT_GAME_AT_FAULT
+    except IllegalMove as exc:
+        print(f"cardlang: playing {path} failed", file=sys.stderr)
+        _print_refusal(exc)
+        print("  this is your game's own `error(...)` refusing", file=sys.stderr)
+        print(
+            "  from a rule's `if_impossible:` it means no card satisfied that "
+            "rule: widen its `demands:`, or give it a card set to fall back on",
+            file=sys.stderr,
+        )
+        return _EXIT_GAME_AT_FAULT
     return _EXIT_OK
 
 

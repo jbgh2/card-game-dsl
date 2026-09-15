@@ -90,7 +90,63 @@ failure:
 $ cardlang check high-card.cardlang
 ```
 
-Then play one uniform-random self-play, asking for a seat's view at the end:
+Then take a seat and play it. `play` shows you what your seat knows and a menu
+of what you can pick, and you answer with a number:
+
+```console
+$ cardlang play high-card.cardlang --seed 3 --save game.json
+HighCard: you are P0, seed 3
+P1 picks uniformly at random; choosing an opponent is not built yet
+saving to game.json before each of your picks
+
+HighCard, as P0 sees it
+your turn to choose
+
+zones
+  deck      48 cards
+  hand[0]   2♦ 4♥
+  hand[1]   2 cards
+  shown[0]  empty
+  shown[1]  empty
+
+state variables
+  score  {0:0,1:0}
+
+observation log
+  1  moved from deck (2 cards) to hand[0] (2♦ 4♥)
+  2  moved from deck (2 cards) to hand[1] (2 cards)
+
+choose 1 of 2
+  1  2♦   2  4♥
+your pick (1 to 2), or u to take back your last pick, ? to show the whole table, q to leave the table: 2
+
+the game is over
+...
+  returns      P0 0, P1 1
+  best return  P1
+u to take back your last pick, ? to show the whole table, q to leave the table: q
+
+you left the table
+the game is saved in game.json; to go on with it:
+    cardlang play high-card.cardlang --resume game.json
+```
+
+`u` takes back your last pick: the game is played again up to it, and you are
+asked where you made it. `?` shows the whole table, since a decision shows only
+the latest lines of the observation log. `--seat` chooses your seat, seat 0
+unless named, and `--seed` fixes the deal and the other seats' picks, so a game
+repeats. Every other seat picks uniformly at random; choosing an opponent is
+issue #617. The menu names each pick the way the OpenSpiel adapter does, so
+what you play through is what an agent trained on the game plays through.
+
+`--save` keeps the game in a file before each of your picks and when you leave,
+and `--resume` goes on with it at the decision you left. A saved game names the
+game it was played in, so resuming it against another game, or against this
+one after an edit to its rules or to a library it uses, is refused rather than
+replayed.
+
+`demo` plays one uniform-random self-play instead, and can show a seat's view
+at the end:
 
 ```console
 $ cardlang demo high-card.cardlang --seed 3 --info-state 1

@@ -183,7 +183,7 @@ These carry several meanings each; always qualify them. The ones that also name 
 
 | Word | Approved compounds |
 |---|---|
-| [action](glossary/action.md) | OpenSpiel action id (Interop only) · the `action` pronoun (the candidate Move under consideration — kept deliberately small so the Interop translation stays one-directional) |
+| [action](glossary/action.md) | OpenSpiel action id (Interop only, and the recorded history a saved session of `cardlang play` holds, which is read back through the Interop package's replay) · the `action` pronoun (the candidate Move under consideration — kept deliberately small so the Interop translation stays one-directional) |
 | [block](glossary/block.md) | fenced block (markdown) · `Block` node (synthetic) · braced body — say which |
 | [brief](glossary/brief.md) | execution brief · decision brief · the worker's brief — the instruction handed down to a worker, always with its qualifier. Never the summary handed up to the operator: that is the [[Headnote]]. |
 | [channel](glossary/channel.md) | failure channel · scoring channel · observation channel · communication channel · a library's feeding channel |

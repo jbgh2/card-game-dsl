@@ -136,6 +136,10 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     "_ContinueTo": {"in_game_description_tree": False, "is_runtime_error": False},
     "_SkipHand": {"in_game_description_tree": False, "is_runtime_error": False},
     "ChooserAbort": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A person at the table taking a pick back or leaving: the only way a
+    # running game stops is an exception unwinding it.
+    "TakeBack": {"in_game_description_tree": False, "is_runtime_error": False},
+    "Leave": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- the compile passes' own channel -----------------------------------
     # Diagnostics are bag-collected and carry spans; a compile failure is never
     # a play-time refusal, and catching one as a game-description failure would

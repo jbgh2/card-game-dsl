@@ -385,11 +385,12 @@ _REFUSALS: frozenset[str] = frozenset(
     {"GameDescriptionError", "OwnerGuardError", "ShadowGuardError", "IllegalMove"}
 )
 
-# Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, and a
-# chooser suspending a steppable playout. Locating one would be locating an
-# ordinary control transfer.
+# Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, a
+# chooser suspending a steppable playout, and a person at the table taking a
+# pick back or leaving. Locating one would be locating an ordinary control
+# transfer.
 _SIGNALS: frozenset[str] = frozenset(
-    {"_ProduceSignal", "_ContinueTo", "_SkipHand", "ChooserAbort"}
+    {"_ProduceSignal", "_ContinueTo", "_SkipHand", "ChooserAbort", "TakeBack", "Leave"}
 )
 
 # Real failures addressed to somebody other than the game author, so a game
