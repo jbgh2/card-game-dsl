@@ -62,7 +62,10 @@ does not prove:  Which pick a person should make, or that the opponents are
                  as the adapter's legal actions do (issue #281). A person seated
                  as a declarer is asked for the dummy's cards because a line asks
                  the Decider, which tests/test_live_line.py pins over the
-                 registry; no cell here seats one.
+                 registry; no cell here seats one. A file option naming a named
+                 pipe or a device reads it as a file, and reading a named pipe
+                 waits for something to write to it; no kind in `_FILE_KINDS`
+                 is one.
 """
 
 from __future__ import annotations
