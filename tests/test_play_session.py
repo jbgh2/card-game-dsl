@@ -942,6 +942,7 @@ _FILE_KINDS: dict[str, Callable[[Path, Path], Path | str]] = {
     "a file that is not a saved session": lambda tmp_path, game: _written(tmp_path / "notes.txt", "notes\n"),
     "a directory": lambda tmp_path, game: tmp_path,
     "a file in a directory that does not exist": lambda tmp_path, game: tmp_path / "nowhere" / "saved.json",
+    "a name longer than a folder allows": lambda tmp_path, game: tmp_path / ("x" * 300 + ".json"),
     "a saved session in a directory that cannot be written to": _in_a_locked_directory,
     "a saved session that cannot be read": _unreadable,
     "an empty name": lambda tmp_path, game: "",
@@ -953,6 +954,7 @@ _FILE_EXPECTED: dict[tuple[str, str], tuple[str, str]] = {
     ("--resume", "a directory"): ("refused", "Is a directory"),
     ("--resume", "a file in a directory that does not exist"): ("refused", "no such file"),
     ("--resume", "a file that does not exist"): ("refused", "no such file"),
+    ("--resume", "a name longer than a folder allows"): ("refused", "File name too long"),
     ("--resume", "a file that is not a saved session"): ("refused", "not a saved session"),
     ("--resume", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
     ("--resume", "a saved session of another game"): ("refused", "different game"),
@@ -963,6 +965,7 @@ _FILE_EXPECTED: dict[tuple[str, str], tuple[str, str]] = {
     ("--save", "a directory"): ("refused", "it is a directory"),
     ("--save", "a file in a directory that does not exist"): ("refused", "there is no directory"),
     ("--save", "a file that does not exist"): ("plays", ""),
+    ("--save", "a name longer than a folder allows"): ("refused", "File name too long"),
     ("--save", "a file that is not a saved session"): ("refused", _NOT_A_SESSION),
     ("--save", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
     ("--save", "a saved session of another game"): ("plays", ""),
@@ -1018,6 +1021,7 @@ def test_each_kind_of_path_a_file_option_names(
             (after[path].st_ino, after[path].st_mtime_ns) == (stamp.st_ino, stamp.st_mtime_ns)
             for path, stamp in stamps.items()
         ), "a refused path must leave every file as it was"
+        assert not list(tmp_path.rglob("*.tmp")), "a refused save must leave no temporary file"
     finally:
         for path in [tmp_path, *tmp_path.rglob("*")]:
             path.chmod(0o700 if path.is_dir() else 0o600)

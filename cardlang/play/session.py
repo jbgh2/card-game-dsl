@@ -39,6 +39,7 @@ import contextlib
 import json
 import os
 import shlex
+import stat
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -270,16 +271,20 @@ def unwritable(path: Path) -> str | None:
     """Why a session cannot be saved at `path`, or None when it can. Nothing
     is written to `path` itself, and a file already there is replaced only when
     it is a saved session."""
-    if path.is_dir():
-        return "it is a directory"
-    if not path.parent.is_dir():
-        return f"there is no directory {path.parent}"
-    if path.exists() and isinstance(_record(path), str):
-        return (
-            "it holds something that cannot be read as a saved session, and saving "
-            "would replace it; name another file"
-        )
     try:
+        try:
+            there = os.stat(path)
+        except FileNotFoundError:
+            there = None
+        if there is not None and stat.S_ISDIR(there.st_mode):
+            return "it is a directory"
+        if not path.parent.is_dir():
+            return f"there is no directory {path.parent}"
+        if there is not None and isinstance(_record(path), str):
+            return (
+                "it holds something that cannot be read as a saved session, and "
+                "saving would replace it; name another file"
+            )
         with tempfile.NamedTemporaryFile(dir=path.parent):
             pass
     except OSError as exc:
