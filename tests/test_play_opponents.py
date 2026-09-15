@@ -30,8 +30,9 @@ domain:          Values: `_WHO` crossed with the opponent spellings (the table's
                  it prints run again under names that need quoting. What a person
                  is shown: `_HEADERS`, and who picked when a game refuses. Row
                  properties: each opponent at every seat of each registered game.
-                 The `first` oracle: each registered game with other seats. The
-                 `random` regression: `_UNIFORM_LINES`.
+                 The `first` oracle: each registered game, skipping a game of
+                 one seat, where no seat is left for `first`. The `random`
+                 regression: `_UNIFORM_LINES`.
 registry:        opponents: `cardlang.openspiel.seat_policy.OPPONENTS`; games:
                  `cardlang.openspiel.registry.GAMES`; the saved `opponents`
                  field's values: tests/test_play_session.py's `_BAD_SAVES`; the
@@ -42,8 +43,10 @@ does not prove:  That an opponent plays well. That a table ends: when every seat
                  `max_length`, and the refusal names the game as at fault (issue
                  #698). That `first` and `random` are the opponents a designer
                  needs; only `seat_policy.OPPONENTS` says which exist. An
-                 opponent that takes an argument: no row takes one, so a colon
-                 is read as part of an opponent's name, and that name is refused.
+                 opponent that takes an argument. The table has no column for
+                 one, by decision: no opponent takes an argument, and a column
+                 nothing reads could not fail. So `name:argument` is read as a
+                 whole name, and refused.
 """
 
 from __future__ import annotations
