@@ -7,11 +7,16 @@
 # what Ready means is a change to that file first (its Merge Lane table,
 # "tools/ harness scripts — semantics").
 #
-# stdout: one Ready issue per line — number, reachability, #143 rank
-#         ("-" where the ordering issue does not reference it), title.
+# stdout: one Ready issue per line — number, reachability, priority tier
+#         ("-" where no tier applies), title — in the front's own order:
+#         tier (P1, P2, none), then reachability, then number. A blocker
+#         inherits the tier of every open issue it blocks, transitively,
+#         so a tiered issue's unblocking work ranks where the issue does.
+#         The tier is the direction review's triage decision
+#         (docs/harness.md, "The Ready Front"); nothing here reads #143.
 # stderr: every open issue accounted for, as counted exclusion buckets.
 #         The sweep never truncates silently: a capped fetch is a loud
-#         failure, never a shorter list, and a failed Lease or rank
+#         failure, never a shorter list, and a failed Lease or label
 #         lookup aborts rather than degrading.
 #
 # Read-only. Needs gh (authenticated) and jq.
@@ -46,18 +51,30 @@ leased_json=$(gh api --paginate "repos/$OWNER/$NAME/git/matching-refs/heads/clau
            | [.[].ref | select(test("^refs/heads/claude/issue-[0-9]+$"))
               | sub("^refs/heads/claude/issue-"; "") | tonumber]')
 
-# First-appearance rank of every #N the ordering issue's body references.
-# Advisory annotation only — ordering authority stays with #143 itself.
-ranks_json=$(gh issue view "$ORDERING_ISSUE" --repo "$OWNER/$NAME" --json body -q .body \
-  | { grep -oE '#[0-9]+' || true; } | tr -d '#' | awk '!seen[$0]++' \
-  | jq -Rn '[inputs] | to_entries | map({key: .value, value: (.key + 1)}) | from_entries')
-
 result=$(jq -s \
   --argjson leased "$leased_json" \
-  --argjson ranks "$ranks_json" \
   --argjson ordering "$ORDERING_ISSUE" '
   def labelnames: [.labels.nodes[].name];
   def kinds: ["bug", "enhancement", "documentation", "tech-debt"];
+  # Tier order: P1 before P2 before none. Any other priority: spelling is
+  # a label outside the vocabulary and aborts rather than sorting somewhere.
+  def own_tier:
+    ([labelnames[] | select(startswith("priority:"))]
+     | if length > 1 then error("issue #\(.number) carries two priority labels") else .[0] // "" end)
+    | if . == "priority:P1" then 1 elif . == "priority:P2" then 2 elif . == "" then 3
+      else error("unknown priority label \(.)") end;
+  # A blocker inherits the best tier of what it blocks; relaxed to a fixed
+  # point, so a chain of blockers carries the tier the whole way down.
+  def inherit_tiers:
+    . as $rows
+    | (map({key: (.number | tostring), value: .tier}) | from_entries) as $init
+    | reduce range(0; length) as $_ ($init;
+        . as $t
+        | reduce ($rows[] | select(.blockers | length > 0)) as $r ($t;
+            reduce $r.blockers[] as $b (.;
+              (.[$b | tostring] // 3) as $cur
+              | ($t[$r.number | tostring] // 3) as $from
+              | if $from < $cur then .[$b | tostring] = $from else . end)));
   # One bucket per issue, first match wins, in docs/harness.md list order.
   def bucket:
     .number as $n
@@ -83,10 +100,13 @@ result=$(jq -s \
   (map({number, title, bucket: bucket,
         reach: (([labelnames[] | select(startswith("reachability:"))][0] // "")
                 | sub("^reachability:"; "")),
-        rank: ($ranks[.number | tostring] // null)})
+        tier: own_tier,
+        blockers: [.blockedBy.nodes[] | select(.state == "OPEN") | .number]})
+   | (inherit_tiers) as $tiers
+   | map(.tier = $tiers[.number | tostring])
    | {stats: (group_by(.bucket) | map({bucket: .[0].bucket, n: length})),
       ready: ([.[] | select(.bucket == "READY")]
-              | sort_by([(.rank // 999999), .reach, .number]))})
+              | sort_by([.tier, .reach, .number]))})
   ' <<<"$issues_json")
 
 {
@@ -94,4 +114,4 @@ result=$(jq -s \
   jq -r '.stats[] | "  \(.n)\t\(.bucket)"' <<<"$result"
 } >&2
 
-jq -r '.ready[] | [.number, .reach, (.rank // "-"), .title] | @tsv' <<<"$result"
+jq -r '.ready[] | [.number, .reach, (if .tier == 1 then "P1" elif .tier == 2 then "P2" else "-" end), .title] | @tsv' <<<"$result"

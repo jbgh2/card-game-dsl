@@ -311,8 +311,10 @@ issue.
 
 Keep the label set minimal. The whole vocabulary is five **kinds** — `bug`,
 `enhancement`, `documentation`, `tech-debt`, `epic` — two **modifiers**,
-`blocked:needs-witness` and `needs-triage`, and the four **reachability**
-labels, `reachability:R1`–`R4` (below). Area labels
+`blocked:needs-witness` and `needs-triage`, the four **reachability**
+labels, `reachability:R1`–`R4` (below), and the two **priority** tiers,
+`priority:P1` and `priority:P2` — triage, set only by the direction
+review and never at filing (`docs/harness.md`, "The Ready Front"). Area labels
 (checker/runtime/testing) were rejected deliberately — semantic issue search
 covers retrieval, so wait for the problem before adding a label.
 
@@ -377,7 +379,8 @@ Lease protocol live in `docs/harness.md`; its sweep,
 `tools/ready-front.sh`, is the third sibling of the two above.
 
 [Issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the pinned
-ordering issue and the authority on cross-cutting task sequence.
+ordering issue and the authority on cross-cutting task sequence; what an
+agent takes next is the Priority Tier, which the Ready Front sorts by.
 
 ## Operating rules (load-bearing)
 

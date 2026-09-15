@@ -23,8 +23,8 @@ single CI runner; raising it is a charter edit.
 1. **Preflight.** Pull main. Run `tools/ready-front.sh`. Compute free
    slots: cap minus the Dispatcher's open `claude/issue-*` PRs and live
    Leases.
-2. **Select**, top of the front first (#143 rank, then reachability,
-   then age), skipping what the charter forbids (below) and preferring
+2. **Select**, top of the front first — the sweep's own order: Priority
+   Tier, then reachability, then number — skipping what the charter forbids (below) and preferring
    disjoint subsystems across simultaneous slots. When #143 names a
    cluster ("four issues, one defect"), the cluster is one item: Lease
    the primary, comment the linkage on each sibling, one PR closes all.

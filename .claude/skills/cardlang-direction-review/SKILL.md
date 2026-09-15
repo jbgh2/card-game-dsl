@@ -1,6 +1,6 @@
 ---
 name: cardlang-direction-review
-description: "Periodic portfolio review — run every ~10 merged PRs, or when the operator asks where effort is going. Reads the whole tracker and recent PR history, checks the trend lines no single change can see, and outputs a short verdict plus at most small doctrine amendments and a reprioritization of issue #143. Never outputs new enforcement machinery. This is the outer loop; the audit and review skills are the inner one."
+description: "Periodic portfolio review — run every ~10 merged PRs, or when the operator asks where effort is going. Reads the whole tracker and recent PR history, checks the trend lines no single change can see, and outputs a short verdict, the triage pass that sets each arriving issue's Priority Tier, and at most small doctrine amendments. Never outputs new enforcement machinery. This is the outer loop; the audit and review skills are the inner one."
 ---
 
 # Cardlang direction review
@@ -56,14 +56,21 @@ Each check names its query so the answer is derived, not vibed:
 
 A short verdict (one screen): the shape the window shows, the two or three
 reallocation moves with the most leverage, and — only where a trend check
-demands it — a doctrine amendment, drafted as the exact edit. Reprioritize
-issue #143 in place if the ordering should change — and treat that edit as
-code, because #143's prose is the ranking function: `tools/ready-front.sh`
-ranks by first mention in its body. After editing, re-run the sweep and
-check two things: the derived ranks match the intended order, and every
-move the verdict ranks is selectable by the Ready Front (an epic
-container, a doc paragraph, and the verdict itself are not). Save the
-verdict where the operator will find it and previous verdicts can be
+demands it — a doctrine amendment, drafted as the exact edit.
+
+**Then triage.** The review is the one role that sets a Priority Tier
+(docs/harness.md, "The Ready Front"): every designer-reachable issue filed
+since the previous verdict gets `priority:P1` (a silent defect a designer
+or corpus game meets, or a corpus game wrong against its source),
+`priority:P2` (a loud designer-facing defect), or is left untiered on
+purpose; a departure from that default says why on the issue, and a tier
+whose reason has gone comes off. Then re-run `tools/ready-front.sh` and
+check two things: the top of the front is the work the verdict names,
+and every move the verdict names is selectable by the Ready Front (an
+epic container, a doc paragraph, and the verdict itself are not). Issue
+#143 is the cross-cutting sequence document, edited only when the
+sequence changes — the sweep does not read it, so it ranks nothing. Save
+the verdict where the operator will find it and previous verdicts can be
 compared.
 
 What this skill must never do: add gates, add machinery, file more than a
