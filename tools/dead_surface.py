@@ -11,13 +11,15 @@ Run: `python -m tools.dead_surface`
 Two sections, each derived:
 
 - Rules and aliases no live file produces. The rule axis is read from the
-  compiled grammar, walking from its start symbols: every alias, plus every
-  rule that is neither filtered (`_name`) nor a precedence level (`?name`,
-  which names a level and not a construct -- the constructs at that level are
-  its aliases) and has an un-aliased alternative. The walk never takes a
-  reject-with-replacement twin (`*_reject`), so neither a twin nor a rule
-  only a twin leads to is on the axis: both are produced only to refuse. A
-  rule no start symbol reaches is a row, since nothing can produce it. A
+  compiled grammar, walking from its start symbols, and names each node as
+  lark's tree builder does: every alias, plus every rule (a template by its
+  own name) that is neither filtered (`_name`) nor a precedence level
+  (`?name`, which names a level and not a construct -- the constructs at that
+  level are its aliases) and has an un-aliased alternative. The walk never
+  takes a node the parse builder only refuses -- a reject-with-replacement
+  twin (`*_reject`), or any node whose builder method raises on every path --
+  so neither it nor a rule only it leads to is on the axis. A rule or
+  template no start symbol reaches is a row, since nothing can produce it. A
   rule's consumers are the files whose parse tree contains it. A row is dead
   when no CORPUS or SHARED file produces it; OTHER consumers (experiment
   games, test fixtures) are named beside the row so the review sees "only a
@@ -31,8 +33,9 @@ not the parse tree (issue #664).
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
-Assumes:      the grammar file, the parser's start symbols and the source
-              globs, nothing else -- no list maintained by hand anywhere.
+Assumes:      the grammar file, the parser's start symbols and parse builder,
+              and the source globs, nothing else -- no list maintained by
+              hand anywhere.
 Establishes:  a deterministic text, sorted in every section, identical across
               runs on an unchanged tree.
 Now illegal:  a copy of this output under version control.
@@ -41,10 +44,13 @@ Now illegal:  a copy of this output under version control.
 from __future__ import annotations
 
 import argparse
+import ast
 import dataclasses
+import inspect
 import pathlib
 import re
 import sys
+import textwrap
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 
@@ -52,7 +58,7 @@ from lark import Lark, Token, Tree
 from lark.grammar import Rule
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import _parser, parse_to_tree
+from cardlang.parse import _Builder, _parser, parse_to_tree
 from tests.keyword_fusion_sweep import code_mask
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -107,20 +113,58 @@ def default_sources(root: pathlib.Path = ROOT) -> list[Source]:
 _KEYWORD = re.compile(r'^_([A-Z0-9_]+)_KW:\s*"([^"]+)"', re.M)
 
 
-def rule_axis(grammar: str) -> frozenset[str]:
+def refusing_methods(builder: type) -> frozenset[str]:
+    """The builder's node methods that raise on every path: no `return`
+    anywhere, and a body that ends in a `raise` or in a call to a `self`
+    method that does. Filtered helpers are followed but never named, since no
+    node dispatches to them."""
+    module = ast.parse(textwrap.dedent(inspect.getsource(builder)))
+    cls = next(node for node in module.body if isinstance(node, ast.ClassDef))
+    methods = {f.name: f for f in cls.body if isinstance(f, ast.FunctionDef)}
+
+    def refuses(name: str, via: frozenset[str]) -> bool:
+        method = methods.get(name)
+        if method is None or name in via or any(isinstance(x, ast.Return) for x in ast.walk(method)):
+            return False
+        last = method.body[-1]
+        if isinstance(last, ast.Raise):
+            return True
+        call = last.value if isinstance(last, ast.Expr) else None
+        return (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name)
+            and call.func.value.id == "self"
+            and refuses(call.func.attr, via | {name})
+        )
+
+    return frozenset(name for name in methods if not name.startswith("_") and refuses(name, frozenset()))
+
+
+def rule_axis(grammar: str, builder: type = _Builder) -> frozenset[str]:
     """Every name a valid parse tree could carry, read from the compiled
-    grammar: walking from the start symbols, each alternative contributes its
-    alias, or its rule when that rule is neither filtered nor a precedence
-    level. The walk never takes a reject twin, because a twin is produced only
-    to refuse and so is every rule only a twin leads to. A rule no start
-    symbol reaches is on the axis too, since nothing can produce it."""
+    grammar and named as lark's tree builder names a node: walking from the
+    start symbols, each alternative contributes its alias, or its rule (a
+    template by its own name) when that rule is neither filtered nor a
+    precedence level. The walk never takes a node the parse builder only
+    refuses -- a `*_reject` twin, or a node whose builder method raises on
+    every path -- so it never reaches a rule only a refusal leads to. A rule
+    or template no start symbol reaches is on the axis too, since nothing can
+    produce it."""
     start = list(_parser().options.start)
     compiled = Lark(grammar, parser=None, lexer="basic", start=start)
+    refusing = refusing_methods(builder)
     alternatives: dict[str, list[Rule]] = defaultdict(list)
     for rule in compiled.rules:
         alternatives[rule.origin.name].append(rule)
 
-    def walk(*, through_twins: bool) -> list[Rule]:
+    def defined(rule: Rule) -> str:
+        return str(rule.options.template_source or rule.origin.name)
+
+    def node(rule: Rule) -> str:
+        return str(rule.alias or defined(rule))
+
+    def walk(*, through_refusals: bool) -> list[Rule]:
         taken: list[Rule] = []
         seen: set[str] = set()
         pending = list(start)
@@ -130,18 +174,18 @@ def rule_axis(grammar: str) -> frozenset[str]:
                 continue
             seen.add(origin)
             for rule in alternatives[origin]:
-                if not through_twins and (rule.alias or "").endswith("_reject"):
+                if not through_refusals and (node(rule).endswith("_reject") or node(rule) in refusing):
                     continue
                 taken.append(rule)
                 pending.extend(s.name for s in rule.expansion if not s.is_term)
         return taken
 
     names = {
-        str(rule.alias or rule.origin.name)
-        for rule in walk(through_twins=False)
+        node(rule)
+        for rule in walk(through_refusals=False)
         if rule.alias or not (rule.origin.name.startswith("_") or rule.options.expand1)
     }
-    reached = {str(rule.origin.name) for rule in walk(through_twins=True)}
+    reached = {defined(rule) for rule in walk(through_refusals=True)}
     unreached = {str(name) for name, *_ in compiled.grammar.rule_defs if name not in reached and not name.startswith("_")}
     return frozenset(names | unreached)
 

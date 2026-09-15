@@ -11,25 +11,33 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             cell depends on what the corpus happens to use today -- the one
             corpus-facing pin is that the real tree renders. The rule axis is
             the compiled grammar's (aliases and un-aliased rules that are
-            neither filtered nor precedence levels, on the alternatives a
-            start symbol reaches without a reject twin, plus any rule no
-            start symbol reaches) and the keyword axis is every `_X_KW`
-            terminal, pinned against the parser's own terminal table. Which
-            of a live construct's consumers are scoring sentences is outside
-            it: that is a question for the checked game (issue #664).
+            neither filtered nor precedence levels, named as lark's tree
+            builder names their nodes, on the alternatives a start symbol
+            reaches without taking a node the parse builder only refuses,
+            plus any rule or template no start symbol reaches) and the
+            keyword axis is every `_X_KW` terminal, pinned against the
+            parser's own terminal table. Which of a live construct's
+            consumers are scoring sentences is outside it: that is a
+            question for the checked game (issue #664).
 registry:   rule axis: `tools.dead_surface.rule_axis`, over lark's compiled
-            rules; keyword axis: `tools.dead_surface.keyword_axis`, pinned
-            against `cardlang.parse._parser().terminals`; consumer tiers:
+            rules; refusals: `tools.dead_surface.refusing_methods`, over
+            `cardlang.parse._Builder`; keyword axis:
+            `tools.dead_surface.keyword_axis`, pinned against
+            `cardlang.parse._parser().terminals`; consumer tiers:
             `tools.dead_surface.TIERS`.
 does not prove:  that a dead row SHOULD be retired -- the report is an input to
             the direction review, which owns that decision, and register
             symmetry keeps some rows alive on purpose. Nor that a `?`-level
             rule with an un-aliased multi-child alternative is on the axis:
             precedence levels are excluded wholesale, so such a construct
-            would go unreported rather than misreported. Nor that a keyword
-            off the dead list is used AS the keyword: the scan reads spellings
-            in code, not the parser's tokens, so a live file that spells a
-            keyword as a name keeps it off the list.
+            would go unreported rather than misreported. Nor that every
+            refusal is recognised: a node is one when its name ends in
+            `_reject` or its builder method raises on every path, through its
+            own `raise` or a `self` call that does, so a refusal reached any
+            other way stays a row. Nor that a keyword off the dead list is
+            used AS the keyword: the scan reads spellings in code, not the
+            parser's tokens, so a live file that spells a keyword as a name
+            keeps it off the list.
 """
 
 from __future__ import annotations
@@ -107,6 +115,58 @@ def test_a_rule_only_a_reject_twin_reaches_is_not_surface() -> None:
 def test_an_arrow_the_grammar_matches_as_text_is_not_an_alias() -> None:
     planted = GRAMMAR + '\n%extend primitive_type: planted_arrow -> planted_arrow_holder\nplanted_arrow: "zzarrow" "->" NAME\n'
     assert "planted_arrow" in ds.rule_axis(planted)
+
+
+class _PlantedBuilder:
+    def planted_refused(self, meta: object, c: list[object]) -> None:
+        raise ValueError("refused")
+
+    def planted_refused_through_a_helper(self, meta: object, c: list[object]) -> None:
+        self._refuse()
+
+    def planted_built(self, meta: object, c: list[object]) -> list[object]:
+        if not c:
+            raise ValueError("refused")
+        return c
+
+    def _refuse(self) -> None:
+        raise ValueError("refused")
+
+
+def test_a_node_its_builder_only_refuses_is_not_surface() -> None:
+    """A node is refusal machinery by what its builder does, whatever it is
+    named; a builder that refuses on only some paths builds surface.
+    Red under: skipping only `_reject` names in `rule_axis`, or not following
+    a refusal through a `self` helper in `refusing_methods`."""
+    planted = GRAMMAR + (
+        '\n%extend primitive_type: "zza" NAME -> planted_refused'
+        '\n%extend primitive_type: "zzb" NAME -> planted_refused_through_a_helper'
+        '\n%extend primitive_type: "zzc" NAME -> planted_built\n'
+    )
+    axis = ds.rule_axis(planted, builder=_PlantedBuilder)
+    assert not {"planted_refused", "planted_refused_through_a_helper"} & axis
+    assert "planted_built" in axis
+
+
+def test_the_default_builder_is_the_parsers() -> None:
+    """`div_symbol` refuses the retired `/` and `%` on every path without the
+    `_reject` spelling. Red under: defaulting `builder` to anything but
+    `cardlang.parse._Builder`."""
+    assert "div_symbol" not in ds.rule_axis(GRAMMAR)
+
+
+def test_a_template_is_named_as_its_nodes_are() -> None:
+    """An instance's node carries its template's name, and a template nothing
+    reachable instantiates is a row. Red under: naming an instance by its
+    compiled rule instead of `template_source`."""
+    planted = GRAMMAR + (
+        '\nplanted_wrapper{x}: "zzwrap" x'
+        "\n%extend primitive_type: planted_wrapper{NAME} -> planted_wrapped"
+        '\nplanted_unused{x}: "zzunused" x\n'
+    )
+    axis = ds.rule_axis(planted)
+    assert {"planted_wrapper", "planted_unused"} <= axis
+    assert not any("{" in name for name in axis)
 
 
 def test_a_precedence_level_is_not_a_row_but_its_aliases_are() -> None:
