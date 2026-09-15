@@ -8,8 +8,9 @@ property:   the report names every construct the grammar defines that no live
             writes it, and an experiment or test consumer is named beside the
             row without reviving it.
 domain:     synthetic sources built here, parsed by the real grammar, so no
-            cell depends on what the corpus happens to use today -- the one
-            corpus-facing pin is that the real tree renders. The rule axis is
+            cell depends on what the corpus happens to use today -- the
+            corpus-facing pins are that the real tree renders and that every
+            tree its sources build is on the axis. The rule axis is
             the compiled grammar's (aliases and un-aliased rules that are
             neither filtered nor precedence levels, named as lark's tree
             builder names their nodes, on the alternatives a start symbol
@@ -21,20 +22,24 @@ domain:     synthetic sources built here, parsed by the real grammar, so no
             question for the checked game (issue #664).
 registry:   rule axis: `tools.dead_surface.rule_axis`, over lark's compiled
             rules; refusals: `tools.dead_surface.refusing_methods`, over
-            `cardlang.parse._Builder`; keyword axis:
+            `cardlang.parse._Builder`; accepted trees:
+            `tools.dead_surface.default_sources` through
+            `cardlang.parse._transform`; keyword axis:
             `tools.dead_surface.keyword_axis`, pinned against
             `cardlang.parse._parser().terminals`; consumer tiers:
             `tools.dead_surface.TIERS`.
 does not prove:  that a dead row SHOULD be retired -- the report is an input to
             the direction review, which owns that decision, and register
-            symmetry keeps some rows alive on purpose. Nor that a `?`-level
-            rule with an un-aliased multi-child alternative is on the axis:
-            precedence levels are excluded wholesale, so such a construct
-            would go unreported rather than misreported. Nor that every
-            refusal is recognised: a node is one when its name ends in
-            `_reject` or its builder method raises on every path, through its
-            own `raise` or a `self` call that does, so a refusal reached any
-            other way stays a row. Nor that a keyword off the dead list is
+            symmetry keeps some rows alive on purpose. Nor that the axis is
+            exact beyond the trees the sources build: the accepted-tree
+            oracle proves no such tree carries a name the axis lacks, so an
+            omission only an unwritten sentence would show (a `?` level whose
+            un-aliased alternative keeps more than one child, say) is
+            unchecked, and a name no accepted tree carries is on the axis by
+            the model alone -- refusal read from the `_reject` spelling and
+            from builder methods that raise on every path through their own
+            `raise` or a `self` call, nodes named as lark's tree builder
+            names them. Nor that a keyword off the dead list is
             used AS the keyword: the scan reads spellings in code, not the
             parser's tokens, so a live file that spells a keyword as a name
             keeps it off the list.
@@ -47,7 +52,8 @@ import re
 
 import pytest
 
-from cardlang.parse import _parser
+from cardlang.diagnostics import DiagnosticError
+from cardlang.parse import _Builder, _parser, _transform, parse_to_tree
 from tools import dead_surface as ds
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -153,6 +159,25 @@ def test_the_default_builder_is_the_parsers() -> None:
     `_reject` spelling. Red under: defaulting `builder` to anything but
     `cardlang.parse._Builder`."""
     assert "div_symbol" not in ds.rule_axis(GRAMMAR)
+
+
+def test_every_node_an_accepted_tree_carries_is_on_the_axis() -> None:
+    """The axis against the trees lark builds: every node name in every
+    source the parse builder accepts is on it. A source the builder refuses
+    is outside the check, since no valid file produces its tree.
+    Red under: dropping un-aliased rules from `rule_axis`."""
+    axis = ds.rule_axis(GRAMMAR)
+    missing: dict[str, str] = {}
+    for source in ds.default_sources():
+        try:
+            tree = parse_to_tree(source.text, source.name, start=source.start)
+            names = {str(sub.data) for sub in tree.iter_subtrees()}
+            _transform(_Builder(source.name, 0), tree)
+        except DiagnosticError:
+            continue
+        for name in names - axis:
+            missing.setdefault(name, source.name)
+    assert not missing, missing
 
 
 def test_a_template_is_named_as_its_nodes_are() -> None:
