@@ -28,13 +28,14 @@ domain:          The kinds and each kind's fields are the rows of
                  an observer installed, and the sweep must meet every kind at
                  least once, so no kind is certified by a line that never
                  emitted it.
-registry:        kinds and fields: `cardlang.runtime.observe.EVENT_PAYLOADS`;
-                 shapes: `cardlang.runtime.observe.PAYLOAD_SHAPES`; the refusal:
-                 `cardlang.runtime.observe.payload_refusal`; cards:
-                 `cardlang.runtime.values.COMPONENT_SETS`, each set's cards as
-                 `build_deck` builds them; the probes and the synthetic
-                 members: `tests.openspiel_ready.partition`'s `PAYLOAD_PROBES`
-                 and `SYNTHETIC_PAYLOAD`; games:
+registry:        the kinds and their fields,
+                 `cardlang.runtime.observe.EVENT_PAYLOADS`; the field shapes,
+                 `cardlang.runtime.observe.PAYLOAD_SHAPES`; the refusal,
+                 `cardlang.runtime.observe.payload_refusal`; the cards, every
+                 set in `cardlang.runtime.values.COMPONENT_SETS` as
+                 `build_deck` builds it; the probes and the synthetic members,
+                 `tests.openspiel_ready.partition`'s `PAYLOAD_PROBES` and
+                 `SYNTHETIC_PAYLOAD`; the games,
                  `cardlang.openspiel.registry.GAMES`.
 does not prove:  That a site emits the RIGHT value. A `move` whose view is a
                  well-formed count of the wrong cards passes every cell here;
