@@ -35,12 +35,22 @@ SYNTHETIC = Card("‡", "synthetic")
 
 _SENTINEL = "«perturbed»"
 
+# Two renderings of real cards, for the payload probes: a probed event carries
+# only what the payload shapes admit, and a card shape admits no rendering a
+# component set does not hold.
+_PROBE_CARD = str(Card("A", "spades"))
+_OTHER_PROBE_CARD = str(Card("K", "spades"))
+
+
+def _with_probe_card(renderings: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(sorted((*renderings, _PROBE_CARD)))
+
 
 def _perturbed_view(view: Any) -> Any:
     if view is None:
         return 0
     if isinstance(view, tuple):
-        return (*view, _SENTINEL)
+        return _with_probe_card(view)
     return view + 1
 
 
@@ -48,7 +58,7 @@ def _perturbed_value(value: Any) -> Any:
     if value is None:
         return _SENTINEL
     if isinstance(value, tuple):
-        return (*value, _SENTINEL)
+        return _with_probe_card(value)
     return value + (_SENTINEL if isinstance(value, str) else 1)
 
 
@@ -61,8 +71,8 @@ def _perturbed_value(value: Any) -> Any:
 # pin is tests/test_observation_payloads.py.
 PAYLOAD_PROBES: dict[str, Callable[[Any], Any]] = {
     "seat": lambda seat: seat + 1,
-    "label": lambda label: label + _SENTINEL,
-    "card": lambda card: card + _SENTINEL,
+    "label": lambda label: "perturbed_" + label,
+    "card": lambda card: _OTHER_PROBE_CARD if card == _PROBE_CARD else _PROBE_CARD,
     "view": _perturbed_view,
     "value": _perturbed_value,
 }
@@ -72,8 +82,8 @@ PAYLOAD_PROBES: dict[str, Callable[[Any], Any]] = {
 # rendering that refuses anything else is probed rather than crashed.
 SYNTHETIC_PAYLOAD: dict[str, Any] = {
     "seat": 0,
-    "label": "«synthetic»",
-    "card": "«synthetic»",
+    "label": "synthetic",
+    "card": _PROBE_CARD,
     "view": 1,
     "value": "«synthetic»",
 }

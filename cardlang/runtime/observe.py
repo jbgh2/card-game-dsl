@@ -32,12 +32,13 @@ its observers.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeGuard
 
 from cardlang.domains import zone_observer_key
 from cardlang.runtime.state import Ctx, RuntimeState
-from cardlang.runtime.values import Card, Player
+from cardlang.runtime.values import COMPONENT_SETS, Card, Player, build_deck
 from cardlang.stdlib.zones import zone_projection
 
 
@@ -46,19 +47,40 @@ def _is_integer(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+# A zone's label as `_label` spells it: the zone's name (the grammar's `NAME`),
+# alone or with a family instance's key — a seat, a team, a position index or
+# a board cell.
+_LABEL = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\[[A-Za-z0-9_]+\])?")
+
+# The rendering of every card and piece a component set holds.
+_CARD_RENDERINGS = frozenset(
+    str(card) for name in COMPONENT_SETS for card in build_deck(name)
+)
+
+
+def _is_card_rendering(value: object) -> TypeGuard[str]:
+    return isinstance(value, str) and value in _CARD_RENDERINGS
+
+
 def _is_card_renderings(value: object) -> bool:
-    return isinstance(value, tuple) and all(isinstance(item, str) for item in value)
+    # In the one order `view_of` and `render` sort them into: an identity
+    # projection reveals which cards moved, never the order they sat in.
+    if not isinstance(value, tuple):
+        return False
+    renderings = [item for item in value if _is_card_rendering(item)]
+    return len(renderings) == len(value) and renderings == sorted(renderings)
 
 
 # What each payload field shape admits: the alternatives its emitters produce,
-# and nothing else.
+# and nothing else. No string is both a label and a card, so a site that hands
+# over one in the other's place is refused rather than read.
 PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
     # a seat index — the actor of an announcement
     "seat": _is_integer,
     # a zone's label: its name, or `name[key]` for a family instance
-    "label": lambda value: isinstance(value, str),
+    "label": lambda value: isinstance(value, str) and _LABEL.fullmatch(value) is not None,
     # one card, rendered
-    "card": lambda value: isinstance(value, str),
+    "card": _is_card_rendering,
     # what one observer sees of moved cards through a projection (`view_of`):
     # the cards rendered, a count, or nothing
     "view": lambda value: (
