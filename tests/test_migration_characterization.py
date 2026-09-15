@@ -536,8 +536,12 @@ def _first_divergence(low: str, high: str, window: int = 240) -> str:
     )
 
 
-def _capture_under_hashseed(name: str, seeds: int, hashseed: str) -> str:
-    """`_HASHSEED_CAPTURE`'s RAW stdout, under an explicit `PYTHONHASHSEED`.
+def _capture_under_hashseed(
+    name: str, seeds: int, hashseed: str, script: str = _HASHSEED_CAPTURE
+) -> str:
+    """`script`'s RAW stdout, run with `name` and `seeds` as its arguments,
+    under an explicit `PYTHONHASHSEED` (`_HASHSEED_CAPTURE` unless a caller
+    witnessing another route's independence from the hash seed passes its own).
 
     Deliberately not routed through `seeds_for`: the games this pin sweeps need
     not be games this module holds a golden for, and under
@@ -548,7 +552,7 @@ def _capture_under_hashseed(name: str, seeds: int, hashseed: str) -> str:
     `test_only_the_hash_seed_pin_sets_the_hash_seed` is what keeps it the one.
     """
     proc = subprocess.run(
-        [sys.executable, "-c", _HASHSEED_CAPTURE, name, str(seeds)],
+        [sys.executable, "-c", script, name, str(seeds)],
         cwd=REPO,
         env=dict(os.environ, PYTHONHASHSEED=hashseed),
         capture_output=True,

@@ -90,6 +90,7 @@ _ACCOUNTED = frozenset(
         # other Authors, each with its position pinned in the taxonomy
         "InstallationError",
         "GameRegistrationError",
+        "HistoryMismatch",
         "PrimitiveReadError",
         "DiagnosticError",
         # not a defect: the game author wrote `error(...)` and the refusal is
@@ -112,6 +113,9 @@ _ACCOUNTED = frozenset(
         "AssertionError",
         # `raise exc.orig_exc` — re-raising an already-classified exception
         "exc.orig_exc",
+        # `raise self._raised` — a Seat Policy's own exception, raised again
+        # unchanged while the run it ended unwinds
+        "self._raised",
         # the CLI's exit path
         "SystemExit",
     }
