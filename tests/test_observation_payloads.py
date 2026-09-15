@@ -85,7 +85,7 @@ GAMES_DIR = Path(__file__).parent.parent / "docs" / "games"
 # sorted order with repeats kept (none, when nothing moved), a count, or
 # nothing at all; a value is a decision value as `observe.render` spells it —
 # a string, an integer or flag, nothing, or a multi-card selection.
-_MEMBERS: dict[str, tuple[Any, ...]] = {
+SHAPE_MEMBERS: dict[str, tuple[Any, ...]] = {
     "seat": (0, 3),
     "label": ("deck", "hand[2]", "square[a1]"),
     "card": ("Q♠", "10♥", "Joker:joker", "mark:x"),
@@ -119,7 +119,7 @@ _RENDERINGS = sorted({str(card) for name in COMPONENT_SETS for card in build_dec
 def test_the_shape_cells_name_every_declared_shape() -> None:
     """The member and refusal columns cover the shape axis the table declares,
     so a shape added to `PAYLOAD_SHAPES` arrives as cells to decide."""
-    assert set(_MEMBERS) == set(observe.PAYLOAD_SHAPES)
+    assert set(SHAPE_MEMBERS) == set(observe.PAYLOAD_SHAPES)
     assert set(_REFUSALS) == set(observe.PAYLOAD_SHAPES)
 
 
@@ -133,7 +133,7 @@ def test_every_shape_a_row_names_is_declared_and_every_declared_shape_is_named()
 
 @pytest.mark.parametrize(
     ("shape", "member"),
-    [(shape, member) for shape, members in _MEMBERS.items() for member in members],
+    [(shape, member) for shape, members in SHAPE_MEMBERS.items() for member in members],
 )
 def test_a_shape_admits_each_of_its_alternatives(shape: str, member: Any) -> None:
     assert observe.PAYLOAD_SHAPES[shape](member)
@@ -159,7 +159,7 @@ def test_every_card_a_component_set_holds_is_a_card_and_never_a_label(
 
 
 def _well_formed(kind: str) -> tuple[Any, ...]:
-    return (kind, *(_MEMBERS[shape][0] for shape in observe.EVENT_PAYLOADS[kind]))
+    return (kind, *(SHAPE_MEMBERS[shape][0] for shape in observe.EVENT_PAYLOADS[kind]))
 
 
 @pytest.mark.parametrize("kind", sorted(observe.EVENT_PAYLOADS))
@@ -213,7 +213,7 @@ def test_every_shape_has_one_probe_and_one_synthetic_member() -> None:
 
 @pytest.mark.parametrize(
     ("shape", "member"),
-    [(shape, member) for shape, members in _MEMBERS.items() for member in members],
+    [(shape, member) for shape, members in SHAPE_MEMBERS.items() for member in members],
 )
 def test_a_probe_keeps_a_member_inside_its_shape_and_changes_it(
     shape: str, member: Any

@@ -64,24 +64,24 @@ def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
     unstable repr in a certified-deterministic string."""
     import pytest
 
-    from cardlang.openspiel.infostate import _render
+    from cardlang.openspiel.infostate import render_state_variable
     from cardlang.runtime.state import StructValue
     from cardlang.runtime.values import Card
 
-    assert _render(3) == "3"
-    assert _render(True) == "True"
-    assert _render("hearts") == "hearts"
-    assert _render(None) == "None"
-    assert _render(Card("Q", "spades")) == "Q♠"
+    assert render_state_variable(3) == "3"
+    assert render_state_variable(True) == "True"
+    assert render_state_variable("hearts") == "hearts"
+    assert render_state_variable(None) == "None"
+    assert render_state_variable(Card("Q", "spades")) == "Q♠"
     a = StructValue("Contract", {"level": 1, "suit": "spades"})
     b = StructValue("Contract", {"suit": "spades", "level": 1})
-    assert _render(a) == _render(b) == "Contract{level:1,suit:spades}"
+    assert render_state_variable(a) == render_state_variable(b) == "Contract{level:1,suit:spades}"
 
     class Alien:
         pass
 
     with pytest.raises(AssertionError, match="no declared rendering"):
-        _render(Alien())
+        render_state_variable(Alien())
 
 
 def test_a_derived_view_does_not_follow_the_world_it_came_from() -> None:

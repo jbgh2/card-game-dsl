@@ -31,14 +31,18 @@ from cardlang.runtime.state import RuntimeState, StructValue
 from cardlang.runtime.values import Card
 
 
-def _render(value: Any) -> str:
+def render_state_variable(value: Any) -> str:
+    """A State Variable's content, spelled canonically: the one spelling every
+    rendering of a Seat View gives it."""
     if isinstance(value, Mapping):
         items = sorted(value.items(), key=lambda kv: repr(kv[0]))
-        return "{" + ",".join(f"{k}:{_render(v)}" for k, v in items) + "}"
+        return "{" + ",".join(f"{k}:{render_state_variable(v)}" for k, v in items) + "}"
     if isinstance(value, (list, tuple, set, frozenset)):
-        return "[" + ",".join(sorted(_render(v) for v in value)) + "]"
+        return "[" + ",".join(sorted(render_state_variable(v) for v in value)) + "]"
     if isinstance(value, StructValue):  # canonical: sorted declared fields
-        fields = ",".join(f"{k}:{_render(v)}" for k, v in sorted(value.fields.items()))
+        fields = ",".join(
+            f"{k}:{render_state_variable(v)}" for k, v in sorted(value.fields.items())
+        )
         return f"{value.type_name}{{{fields}}}"
     if isinstance(value, (int, str, Card)) or value is None:
         return str(value)
@@ -136,8 +140,8 @@ def derive(
     level.
 
     What it guarantees is immutability, not renderability: it admits shapes
-    `_render` has no spelling for, so a view holding one derives here and is
-    refused where it is rendered.
+    `render_state_variable` has no spelling for, so a view holding one derives
+    here and is refused where it is rendered.
 
     The observation log is not copied: every field shape `EVENT_PAYLOADS`
     declares is immutable, and emission is not fenced against a payload outside
@@ -174,7 +178,7 @@ def _zone_line(label: str, view: ZoneView) -> str:
 def render_information_state(view: SeatView) -> str:
     """The seat's knowledge as the string OpenSpiel keys on."""
     zones = ";".join(_zone_line(label, zone) for label, zone in view.zones)
-    state_vars = ";".join(f"{k}={_render(v)}" for k, v in view.state)
+    state_vars = ";".join(f"{k}={render_state_variable(v)}" for k, v in view.state)
     obs = ";".join(repr(e) for e in view.obs_log)
     return f"P{view.player}|" + zones + f"|state:{state_vars}|obs:{obs}"
 
