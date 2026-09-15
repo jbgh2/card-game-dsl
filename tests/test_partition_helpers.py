@@ -8,7 +8,11 @@ import json
 import random
 from typing import Any
 
+import pytest
+
 from cardlang.ast import nodes as n
+from cardlang.openspiel.infostate import information_state
+from cardlang.runtime import observe
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 from tests.openspiel_ready.partition import (
@@ -89,6 +93,7 @@ def test_visible_fact_matrix_passes_on_a_correct_state() -> None:
     assert counts["zone_trivial"] >= 1       # muck
     assert counts["state_vars"] == 1         # score
     assert counts["obs_events"] == 1
+    assert counts["obs_fields"] == 2         # the announcing seat, the bid
 
 
 def test_visible_fact_matrix_restores_the_world() -> None:
@@ -186,10 +191,11 @@ def test_visible_fact_matrix_catches_an_identity_zone_rendered_as_count() -> Non
 
 
 def test_visible_fact_matrix_catches_log_deduplication() -> None:
-    # A renderer that deduplicates identical events keeps every repr present
-    # (and still changes on a novel append) — only the per-index deletion
-    # probe catches it, because deleting one copy of a duplicate leaves the
-    # deduplicated rendering unchanged.
+    # A renderer that deduplicates identical events still shows every field of
+    # each (perturbing one copy makes two distinct events) and still changes on
+    # an append — only the per-index deletion probe catches it, because
+    # deleting one copy of a duplicate leaves the deduplicated rendering
+    # unchanged.
     rs = _rs()
     log: list[tuple[Any, ...]] = [("announce", 1, "ask(0,6)"), ("announce", 1, "ask(0,6)")]
 
@@ -203,7 +209,7 @@ def test_visible_fact_matrix_catches_log_deduplication() -> None:
 
 
 def test_visible_fact_matrix_catches_log_order_canonicalization() -> None:
-    # A renderer that sorts the log keeps presence, multiplicity, and
+    # A renderer that sorts the log keeps every field, multiplicity, and
     # append-sensitivity — only the adjacent-swap probe catches it.
     rs = _rs()
     log: list[tuple[Any, ...]] = [("chose", "Q\u2660"), ("announce", 1, "bid(3)")]
@@ -215,6 +221,100 @@ def test_visible_fact_matrix_catches_log_order_canonicalization() -> None:
     assert any("swapped adjacent events" in f.fact for f in failures), (
         "an order-canonicalizing renderer must fail a swap probe"
     )
+
+
+def test_visible_fact_matrix_catches_a_dropped_payload_field() -> None:
+    # A renderer that shows a `move` without its source view keeps every event,
+    # in order, and changes on every deletion, swap and append — only the probe
+    # of that one field catches it. This is the failure a rendering written for
+    # a person invites: the source's view reads as redundant beside the
+    # destination's, and it is not when the two sides project differently.
+    rs = _rs()
+    log: list[tuple[Any, ...]] = [
+        ("move", "deck", 1, "hand[0]", ("Q♠",)),
+        ("move", "hand[0]", ("Q♠",), "trick_pile", ("Q♠",)),
+    ]
+
+    def drops_the_source_view(
+        player: int, rs_: RuntimeState, log_: list[tuple[Any, ...]]
+    ) -> str:
+        shown = [e[:2] + e[3:] if e[0] == "move" else e for e in log_]
+        return information_state(player, rs_, shown)
+
+    failures, _ = check_visible_facts(rs, log, observer=0, info_fn=drops_the_source_view)
+    assert failures
+    assert all("field 2 (view)" in f.fact for f in failures), (
+        "only the dropped field may fail: "
+        + "; ".join(f.fact for f in failures)
+    )
+
+
+def test_visible_fact_matrix_catches_a_summarized_log() -> None:
+    # A renderer that reports how long the log is changes on every deletion and
+    # every append, and a single event offers no neighbour to swap — the field
+    # probes are what refuse a summary for the events it stands in for.
+    rs = _rs()
+    log: list[tuple[Any, ...]] = [("announce", 1, "bid(3)")]
+
+    def summarized(player: int, rs_: RuntimeState, log_: list[tuple[Any, ...]]) -> str:
+        return information_state(player, rs_, []) + f"{len(log_)} events"
+
+    failures, _ = check_visible_facts(rs, log, observer=0, info_fn=summarized)
+    assert {f.fact for f in failures} == {
+        "P0's observation log: event #0 (('announce', 1, 'bid(3)')), field 1 (seat) perturbed",
+        "P0's observation log: event #0 (('announce', 1, 'bid(3)')), field 2 (value) perturbed",
+    }
+
+
+def test_a_rendering_that_refuses_undeclared_events_can_still_be_probed() -> None:
+    # The matrix appends events to probe a log's extension, and every event it
+    # builds is one the vocabulary declares — so a rendering that refuses
+    # anything else, as a rendering exhaustive over the vocabulary must, is
+    # probed rather than crashed.
+    rs = _rs()
+    log: list[tuple[Any, ...]] = [("announce", 1, "bid(3)"), ("chose", "7♥")]
+
+    def strict(player: int, rs_: RuntimeState, log_: list[tuple[Any, ...]]) -> str:
+        for event in log_:
+            refusal = observe.payload_refusal(event)
+            if refusal is not None:
+                raise AssertionError(refusal)
+        return information_state(player, rs_, log_)
+
+    failures, counts = check_visible_facts(rs, log, observer=0, info_fn=strict)
+    assert failures == []
+    assert counts["obs_fields"] == 3
+
+
+def test_an_undeclared_event_fails_loudly_at_probe_time() -> None:
+    # The runtime refusal behind the payload table's static pins: an event the
+    # vocabulary does not declare has no fields the matrix knows how to probe,
+    # so the matrix refuses it rather than counting it covered.
+    rs = _rs()
+    with pytest.raises(AssertionError, match="is not declared"):
+        check_visible_facts(rs, [("nonesuch", 42)], observer=0)
+
+
+def test_a_malformed_payload_fails_loudly_at_probe_time() -> None:
+    rs = _rs()
+    with pytest.raises(AssertionError, match="field 2 of a 'move' event"):
+        check_visible_facts(rs, [("move", "deck", {"x"}, "hand[0]", 1)], observer=0)
+
+
+def test_an_unprobed_payload_shape_fails_loudly_at_probe_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The pattern `ZONE_PROBES` sets for projections: a shape the emitter
+    # gains before the matrix declares how to perturb it is refused at probe
+    # time, never passed over.
+    monkeypatch.setitem(observe.PAYLOAD_SHAPES, "tally", lambda value: isinstance(value, int))
+    monkeypatch.setitem(observe.EVENT_PAYLOADS, "tally", ("tally",))
+    rs = _rs()
+    with pytest.raises(AssertionError, match="no declared probe"):
+        check_visible_facts(
+            rs, [("tally", 3)], observer=0,
+            info_fn=lambda player, rs_, log: repr(log),
+        )
 
 
 def test_visible_fact_matrix_catches_a_leaking_renderer() -> None:

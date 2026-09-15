@@ -147,7 +147,44 @@ bluff turns on.
 
 The numbered list is your view of the playout, never a seat's: it names the
 candidates the engine offered, and at another seat's decision that is
-information no seat may hold. Only the `--info-state` line is a seat's view.
+information no seat may hold. Only what `--info-state` and `--view` print is a
+seat's view.
+
+The information state is built for OpenSpiel to key on, and it reads that way.
+`--view` prints the same view laid out for a person to read: each zone as the
+seat sees it, with its cards in the game's own order, then the public state
+variables, then the whole observation log, one line per event. It takes a seat
+the way `--info-state` does, pairs with `--at` the same way, and the two flags
+can be given together:
+
+```console
+$ cardlang demo high-card.cardlang --seed 3 --view 1 --at 1
+...
+view, seat 1, at decision 1 (P1 chooses 1 of 2: 5♣, 8♦):
+HighCard, as P1 sees it
+your turn to choose
+
+zones
+  deck      48 cards
+  hand[0]   2 cards
+  hand[1]   5♣ 8♦
+  shown[0]  empty
+  shown[1]  empty
+
+state variables
+  score  {0:0,1:0}
+
+observation log
+  1  moved from deck (2 cards) to hand[0] (2 cards)
+  2  moved from deck (2 cards) to hand[1] (5♣ 8♦)
+```
+
+Both flags render one derivation of the seat's knowledge, so they never
+disagree about it. "your turn to choose" appears when the decision is the
+seat's own. When it is another seat's, the only place that says so is the
+header line above the view, which is your view of the playout, not the seat's.
+The log names zones and cards exactly as its events do: `hand[0]` rather than a
+player, and brackets for cards chosen together, as in `you chose [8♦]`.
 
 A decision is one choice made — one card, one bid, one bet — which is what
 `--at` numbers, what the summary's `decisions` line counts, and what
