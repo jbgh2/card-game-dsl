@@ -235,6 +235,8 @@ class AgentStats:
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
     plays: int = 0
     lies: int = 0
@@ -263,6 +265,9 @@ class AgentStats:
             # actually played, so a matchup where it sat out does not dilute it.
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
             "output_tokens_per_game": _rate(self.output_tokens, self.games),
+            # The share of prompt tokens the cache served. Near zero on a
+            # cached run is the sign the prompt's prefix is not repeating.
+            "cache_read_share": _rate(self.cache_read_input_tokens, self.input_tokens),
             "llm_calls_per_game": _rate(self.llm_calls, self.games),
             "win_rate": _rate(self.wins, self.games_scored),
             "fallback_rate": _rate(self.fallbacks, self.open_decisions),
@@ -326,6 +331,8 @@ def aggregate(
             s.llm_calls += int(tally.get("llm_calls", 0))
             s.input_tokens += int(tally.get("input_tokens", 0))
             s.output_tokens += int(tally.get("output_tokens", 0))
+            s.cache_read_input_tokens += int(tally.get("cache_read_input_tokens", 0))
+            s.cache_creation_input_tokens += int(tally.get("cache_creation_input_tokens", 0))
 
         for d in record["decisions"]:
             s = stat(seats[d["player"]])

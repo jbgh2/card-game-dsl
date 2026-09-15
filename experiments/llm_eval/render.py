@@ -24,6 +24,14 @@ small sections (Haiku misreading its hand; Opus misreading `claim_rank`), while
 the log — 80% of the tokens — has produced none. Rendering it would inflate the
 prompt, and summarising it would lose information and break the round-trip.
 
+The log comes FIRST, before the table view, and on one line. Between two calls
+of the same seat the log only grows while the table view changes, so with the
+log ahead of the view a prompt's prefix through the log is byte-identical to
+the previous call's up to the events added since — the shape the API's prompt
+cache serves (`prompts.cache_partition` cuts the prompt at `LOG_HEADER`,
+`LOG_END` and the log's event separators). The view behind it is the small
+part; the log is most of every prompt's tokens.
+
 Contract
 --------
 Assumes: an information state for `docs/games/cheat.cardlang` specifically. The
@@ -53,6 +61,13 @@ RANK_PLURAL: dict[str, str] = {
 PLURAL_TO_RANK: dict[str, str] = {v: k for k, v in RANK_PLURAL.items()}
 
 COUNT_WORD: dict[int, str] = {1: "one", 2: "two", 3: "three", 4: "four"}
+
+#: The line that introduces the event log, and the bytes that close it. The
+#: log is the text between them, verbatim from the raw state and free of
+#: newlines, so both `recover` and `prompts.cache_partition` find it by these
+#: two markers alone.
+LOG_HEADER = "Your complete event log, oldest first:\n"
+LOG_END = "\n\n"
 
 # The fields no sentence below states, because no decision point exhibits them
 # set: nobody is asked anything between a call and its adjudication, and
@@ -99,6 +114,9 @@ def render_state(info_state: str) -> str:
         raise ValueError(f"unexpected table zones: {sorted(zone_names)}")
 
     lines: list[str] = [f"You are seat {info.player}, of {len(seats)} players.", ""]
+    lines.append(LOG_HEADER.rstrip("\n"))
+    lines.append(info.obs)
+    lines.append("")
 
     hand = info.hand
     lines.append(f"Your hand holds {len(hand)} cards: {' '.join(hand)}")
@@ -180,9 +198,6 @@ def render_state(info_state: str) -> str:
         else "No seat has gone out yet."
     )
 
-    lines.append("")
-    lines.append("Your complete event log, oldest first:")
-    lines.append(info.obs)
     return "\n".join(lines)
 
 
@@ -237,5 +252,5 @@ def recover(rendered: str) -> dict[str, object]:
     facts["window_open"] = "The challenge window is open." in rendered
     m = re.search(r"Seats that have gone out: ([\d, ]+)\.", rendered)
     facts["won"] = sorted(int(x) for x in m.group(1).split(",")) if m else []
-    facts["obs"] = rendered.split("Your complete event log, oldest first:\n", 1)[1]
+    facts["obs"] = rendered.split(LOG_HEADER, 1)[1].split(LOG_END, 1)[0]
     return facts

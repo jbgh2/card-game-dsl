@@ -385,9 +385,58 @@ python -m experiments.llm_eval.verify_cheat_gap \
 
 Then `llm_mid_table` and `llm_frontier_table`, identically.
 
-`windows.jsonl` and the posterior JSONL are regenerated rather than committed —
-`results_cheat_gap/.gitignore` excludes `*.jsonl`, and both are pure functions
-of the archive, the subsample seed and the sampler seed each record names. What
-is committed under `results_cheat_gap/derived/` is the audit text and
-`gap_posterior`'s own log, which is where a dropped or unconverged window is on
-the record.
+`windows.jsonl` is regenerated rather than committed — `results_cheat_gap/
+.gitignore` excludes `*.jsonl`, and it is a pure function of the archive. What
+is committed under `results_cheat_gap/derived/` is the posterior records,
+gzipped as the transcripts are (`posterior_<cell>_d250.jsonl.gz`, one per
+scored seat class), the audit text scored from them, and `gap_posterior`'s
+own log, which is where a dropped or unconverged window is on the record.
+
+## Amendment 2026-09-14 — the prompt is cache-shaped; nothing registered moves
+
+**Made before any registered cell ran.** The only model data in existence
+when this was written is one `--estimate 1` game of `llm_cheap_table` (seed
+0, scratch, not promoted), read for its cost and fallback rate only.
+
+That game cost $7.69 against the ~$1.10 planning figure above: bluffing
+tables run longer than the prior study's, and the prompt carries the seat's
+whole event log, so each call's prompt grows with the line (1.5k tokens on
+the first call, 28k on the last) and a game's cost is quadratic in its
+length. At that rate the three registered cells come to roughly $700–1000.
+
+The fix is the API's prompt cache, and it needs the prompt's repeating part
+ahead of its changing part. So, from this date, the rendered arm's prompt
+puts the event log BEFORE the table view (`render.render_state`; the format
+guide's one sentence on order says so), and the request carries the prompt
+as content blocks cut at the log's event separators with a cache breakpoint
+on the last complete chunk (`prompts.cache_partition`). The API tokenizes a
+multi-block message as its exact concatenation, so the cut changes nothing
+the model reads; the reorder does — the same facts, in a different order —
+and is why this is an amendment rather than a footnote. The treatment record
+moves with it (`agents.prompt_fingerprint`), and no comparison of a
+challenge rate here to the prior Cheat study's rendered arm is made without
+saying so.
+
+Every registered parameter, cell, `n`, endpoint, gate and stopping rule
+above is unchanged. What changes is billing: `input_tokens` stays the whole
+prompt, `cache_read_input_tokens` and `cache_creation_input_tokens` ride
+beside it in every transcript, summary and spend-log line, and dollars come
+from the split (`providers.Usage.cost`). Simulated on the estimate game
+against a cache model, the cheap cell's per-game cost falls from $7.82 to
+$1.39, and the study's envelope from ≈$700–1000 to ≈$125–175; the cheap
+cell's `--estimate` before it runs is the live check, and a cell whose
+summary shows `cache_read_share` near zero is a rig defect to fix before
+the cell is scored, never a result.
+
+**The cheap cell's first invocation stopped at 5 of 20 games, and was
+resumed to 20 before any window was scored (2026-09-15).** The stop was
+`max_input_tokens`, a token backstop that counts cached tokens and was left
+at its pre-cache value while only the dollar cap was priced; the dollar
+spend at the stop was $1.52 of a $40 ceiling. No endpoint, window or
+posterior had been computed when the resume was ordered — the only figures
+read were the summary's game count, fallback rate, cache share and cost —
+so the resume is the registered `n` being completed, not an extension after
+a look: `run_eval`'s `resume_from` plays games 5–19 with the seeds and seat
+rotation a single invocation would have used and appends them to the same
+transcript under the same recorded treatment. The transcript's per-game
+records and the run's `summary.json` (`resumed_from: 5`) carry the seam.

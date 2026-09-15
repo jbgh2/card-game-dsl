@@ -181,6 +181,62 @@ def test_several_runs_promote_into_one_archive(tmp_path: Path) -> None:
     assert summary["totals"]["cheap"]["cost_usd"] == 3.0
 
 
+def test_a_later_promotion_keeps_what_the_archive_already_holds(tmp_path: Path) -> None:
+    """An archive grows one promotion at a time — the free cells first, an LLM
+    cell days later — and the later promotion names only its own run. The
+    summary it writes must still describe the whole archive: every matchup
+    with a transcript in it, every run it came from, spend summed over all of
+    them; the earlier run's transcripts are gone by then (gitignored working
+    copies) and only its tracked summary remains.
+
+    red under: composing the summary from the runs named on the command line
+    alone.
+    """
+    results = tmp_path / "results_x"
+    first = _make_run(results, "2026-01-01T00-00-00Z", GAME, {"a_vs_b": 2})
+    promote(results, [first])
+    for path in (first / layout.ARCHIVE).iterdir():
+        path.unlink()  # a fresh clone: the run's summary is tracked, its transcripts are not
+
+    second = _make_run(results, "2026-01-02T00-00-00Z", GAME, {"c_vs_d": 3})
+    done = promote(results, [second])
+
+    assert done["matchups"] == ["c_vs_d"]
+    summary = json.loads((results / "summary.json").read_text())
+    assert [b["matchup"] for b in summary["matchups"]] == ["a_vs_b", "c_vs_d"]
+    assert summary["promoted_from_runs"] == [first.name, second.name]
+    assert summary["totals"]["cheap"]["cost_usd"] == 3.0
+    manifest = (results / "AUDIT.txt").read_text()
+    assert "a_vs_b.jsonl.gz" in manifest and "c_vs_d.jsonl.gz" in manifest
+
+
+def test_a_later_promotion_of_the_same_run_does_not_double_count(tmp_path: Path) -> None:
+    """Re-promoting a run the archive already came from — after a resume
+    appended games to it — replaces its blocks and counts its spend once."""
+    results = tmp_path / "results_x"
+    run = _make_run(results, "2026-01-01T00-00-00Z", GAME, {"a_vs_b": 2})
+    promote(results, [run])
+    promote(results, [run])
+    summary = json.loads((results / "summary.json").read_text())
+    assert summary["promoted_from_runs"] == [run.name]
+    assert summary["totals"]["cheap"]["cost_usd"] == 1.5
+    assert [b["matchup"] for b in summary["matchups"]] == ["a_vs_b"]
+
+
+def test_a_later_promotion_refuses_a_matchup_the_archive_took_from_another_run(
+    tmp_path: Path,
+) -> None:
+    """The same matchup from two runs is the refusal `plan` already makes
+    within one promotion; it holds across promotions too, or a second run's
+    games would silently replace an archived cell's."""
+    results = tmp_path / "results_x"
+    first = _make_run(results, "2026-01-01T00-00-00Z", GAME, {"a_vs_b": 2})
+    promote(results, [first])
+    second = _make_run(results, "2026-01-02T00-00-00Z", GAME, {"a_vs_b": 3})
+    with pytest.raises(PromotionError, match="a_vs_b"):
+        promote(results, [second])
+
+
 def test_an_unchanged_transcript_is_not_rewritten(tmp_path: Path) -> None:
     """Re-promoting must not churn a committed archive's bytes for data that did
     not change — gzip output is not byte-stable, and the SHA manifest is

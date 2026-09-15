@@ -29,7 +29,7 @@ from ..prompts import (
     build_prompt,
 )
 from ..providers import FakeProvider
-from ..render import RANK_PLURAL, recover, render_state
+from ..render import LOG_END, LOG_HEADER, RANK_PLURAL, recover, render_state
 
 pytest.importorskip("pyspiel", reason="the OpenSpiel adapter needs the `openspiel` extra")
 
@@ -105,10 +105,27 @@ def test_rendering_states_no_strategy(states: list[str]) -> None:
     )
     for raw in states[:120]:
         text = render_state(raw).lower()
-        # The event log passes through verbatim and is not the renderer's prose.
-        prose = text.split("your complete event log")[0]
+        # The event log passes through verbatim and is not the renderer's prose:
+        # drop the one line that holds it.
+        prose = "\n".join(
+            line for line in text.split("\n") if not line.startswith("('")
+        )
         for word in banned:
             assert word not in prose, f"renderer prose contains advice word {word!r}"
+
+
+def test_the_log_precedes_the_table_view(states: list[str]) -> None:
+    """The event log is the part of the prompt that only grows between a
+    seat's calls, and the table view is the part that changes; the log comes
+    first so the prompt cache can serve it (`prompts.cache_partition`)."""
+    for raw in states[:60]:
+        text = render_state(raw)
+        info = istate.parse(raw)
+        assert text.startswith(f"You are seat {info.player}, of 4 players.\n\n{LOG_HEADER}")
+        log_line, _, table = text[len(f"You are seat {info.player}, of 4 players.\n\n{LOG_HEADER}"):].partition(LOG_END)
+        assert log_line == info.obs
+        assert table.startswith("Your hand holds")
+        assert LOG_HEADER not in table
 
 
 def test_render_is_deterministic_and_pure(states: list[str]) -> None:

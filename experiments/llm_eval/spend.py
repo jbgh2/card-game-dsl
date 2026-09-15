@@ -100,23 +100,50 @@ ENTRY_FIELDS: Final[Mapping[str, str]] = {
     "calls": "count",
     "input_tokens": "count",
     "output_tokens": "count",
+    "cache_read_input_tokens": "count",
+    "cache_creation_input_tokens": "count",
     "cost_usd": "amount",
+}
+
+#: The fields a line carries only since the prompt cache: what a request read
+#: from and wrote to it.
+CACHE_FIELDS: Final[tuple[str, ...]] = (
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+
+#: The one other shape of line this log has ever written: every field but the
+#: cache ones. A line of that shape is uncached spend by construction — no
+#: request asked for the cache before the fields that record it existed — so
+#: the reader admits it with both cache counts zero. Anything between the two
+#: shapes (one cache field present) or short of either is damage, refused as
+#: every damaged line is.
+PRIOR_ENTRY_FIELDS: Final[Mapping[str, str]] = {
+    name: kind for name, kind in ENTRY_FIELDS.items() if name not in CACHE_FIELDS
 }
 
 
 @dataclass(frozen=True)
 class Spend:
-    """Tokens and dollars, added and subtracted as one quantity."""
+    """Tokens and dollars, added and subtracted as one quantity.
+
+    `input_tokens` is the whole prompt; the two cache fields are the part of
+    it the prompt cache read and wrote (`providers.Usage`).
+    """
 
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
     def __add__(self, other: Spend) -> Spend:
         return Spend(
             self.input_tokens + other.input_tokens,
             self.output_tokens + other.output_tokens,
             self.cost_usd + other.cost_usd,
+            self.cache_read_input_tokens + other.cache_read_input_tokens,
+            self.cache_creation_input_tokens + other.cache_creation_input_tokens,
         )
 
     def __sub__(self, other: Spend) -> Spend:
@@ -124,6 +151,8 @@ class Spend:
             self.input_tokens - other.input_tokens,
             self.output_tokens - other.output_tokens,
             self.cost_usd - other.cost_usd,
+            self.cache_read_input_tokens - other.cache_read_input_tokens,
+            self.cache_creation_input_tokens - other.cache_creation_input_tokens,
         )
 
 
@@ -249,6 +278,8 @@ def _line(
         "calls": billed.calls,
         "input_tokens": billed.spend.input_tokens,
         "output_tokens": billed.spend.output_tokens,
+        "cache_read_input_tokens": billed.spend.cache_read_input_tokens,
+        "cache_creation_input_tokens": billed.spend.cache_creation_input_tokens,
         "cost_usd": round(billed.spend.cost_usd, 6),
     }
 
@@ -261,12 +292,20 @@ def registry_spend(registry: Mapping[str, Provider]) -> Spend:
     """
     total = Spend()
     for provider in registry.values():
-        total = total + Spend(
-            provider.usage.input_tokens,
-            provider.usage.output_tokens,
-            provider.usage.cost(provider.model),
-        )
+        total = total + _spend_of(provider)
     return total
+
+
+def _spend_of(provider: Provider) -> Spend:
+    """A provider's cumulative usage as the log's quantity."""
+    usage = provider.usage
+    return Spend(
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cost(provider.model),
+        usage.cache_read_input_tokens,
+        usage.cache_creation_input_tokens,
+    )
 
 
 @dataclass
@@ -353,7 +392,9 @@ class SpendLog:
             raise ValueError(
                 f"{where} holds a {type(loaded).__name__}, not a spend entry. {why}"
             )
-        for field_name, kind in ENTRY_FIELDS.items():
+        prior = not any(name in loaded for name in CACHE_FIELDS)
+        fields = PRIOR_ENTRY_FIELDS if prior else ENTRY_FIELDS
+        for field_name, kind in fields.items():
             if field_name not in loaded:
                 raise ValueError(
                     f"{where} has no {field_name!r} field. {why}"
@@ -363,6 +404,8 @@ class SpendLog:
                     f"{where} carries {field_name}={loaded[field_name]!r}, which "
                     f"is not a readable {kind}. {why}"
                 )
+        if prior:
+            loaded = {**loaded, **{name: 0 for name in CACHE_FIELDS}}
         return loaded
 
     def total(self, window: Window, *, now: datetime | None = None) -> Spend:
@@ -385,7 +428,11 @@ class SpendLog:
         for entry in self.entries():
             if window.admits(entry, now=moment, session=self.session):
                 total = total + Spend(
-                    entry["input_tokens"], entry["output_tokens"], entry["cost_usd"]
+                    entry["input_tokens"],
+                    entry["output_tokens"],
+                    entry["cost_usd"],
+                    entry["cache_read_input_tokens"],
+                    entry["cache_creation_input_tokens"],
                 )
         return total
 
@@ -398,9 +445,7 @@ def snapshot(providers: Mapping[str, Provider]) -> dict[str, Billed]:
             model_ref=ref,
             model=p.model,
             calls=p.usage.calls,
-            spend=Spend(
-                p.usage.input_tokens, p.usage.output_tokens, p.usage.cost(p.model)
-            ),
+            spend=_spend_of(p),
         )
         for ref, p in providers.items()
     }

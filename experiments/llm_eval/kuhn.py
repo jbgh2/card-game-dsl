@@ -618,6 +618,8 @@ class KuhnStats:
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
 
     dominated_offered: int = 0
     dominated_taken: int = 0
@@ -747,6 +749,7 @@ class KuhnStats:
         return {
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
             "output_tokens_per_game": _rate(self.output_tokens, self.games),
+            "cache_read_share": _rate(self.cache_read_input_tokens, self.input_tokens),
             "llm_calls_per_game": _rate(self.llm_calls, self.games),
             "win_rate": _rate(self.wins, self.games_scored),
             "chips_per_hand": (
@@ -878,6 +881,8 @@ def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
             s.llm_calls += int(tally.get("llm_calls", 0))
             s.input_tokens += int(tally.get("input_tokens", 0))
             s.output_tokens += int(tally.get("output_tokens", 0))
+            s.cache_read_input_tokens += int(tally.get("cache_read_input_tokens", 0))
+            s.cache_creation_input_tokens += int(tally.get("cache_creation_input_tokens", 0))
 
         # Which deal this game drew, from the two seats' own facts. Reported
         # because the adapter addresses 4096 seeds over only SIX deals, so a

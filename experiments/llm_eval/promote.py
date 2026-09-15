@@ -128,6 +128,15 @@ def promote(results_dir: Path, runs: list[Path]) -> dict[str, Any]:
     game, pairs = plan(runs)
     archive = layout.archive_dir(results_dir)
     archive.mkdir(parents=True, exist_ok=True)
+    prior = _prior_runs(results_dir, game, runs)
+    for matchup, run in _held_matchups(prior, archive).items():
+        if matchup in pairs:
+            raise PromotionError(
+                f"matchup {matchup!r} is already in the archive from {run} — a "
+                f"second run's games would replace an archived cell's; resume "
+                f"into that run directory, or promote under a distinct matchup "
+                f"name"
+            )
 
     written: list[str] = []
     for matchup, (transcript, sidecar) in sorted(pairs.items()):
@@ -138,12 +147,60 @@ def promote(results_dir: Path, runs: list[Path]) -> dict[str, Any]:
             written.append(target.name)
         shutil.copyfile(sidecar, archive / sidecar.name)
 
-    summary = _archive_summary(game, runs, sorted(pairs), archive)
+    # The summary describes the WHOLE archive, not this promotion: every run
+    # it has ever come from (each run's summary.json is tracked, so a prior
+    # run still speaks for its spend after its transcripts are gone) and every
+    # matchup with a transcript in it.
+    every_run = sorted(prior + runs, key=lambda r: r.name)
+    archived = sorted(p.name[: -len(".jsonl.gz")] for p in archive.glob("*.jsonl.gz"))
+    summary = _archive_summary(game, every_run, archived, archive)
     (results_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     (results_dir / "AUDIT.txt").write_text(_manifest(archive), encoding="utf-8")
     return {"game": game, "matchups": sorted(pairs), "rewritten": written}
+
+
+def _prior_runs(results_dir: Path, game: str, runs: list[Path]) -> list[Path]:
+    """The runs the archive's existing summary came from, other than `runs`.
+
+    Each must still have its tracked summary.json, which is the archive's only
+    record of what that run spent; a prior run without one, or an archive of
+    another game, is refused rather than silently dropped from the totals.
+    """
+    existing = results_dir / "summary.json"
+    if not existing.is_file():
+        return []
+    held = json.loads(existing.read_text())
+    if held.get("game") != game:
+        raise PromotionError(
+            f"{existing} describes {held.get('game')!r}, not {game!r} — one archive "
+            f"holds one game"
+        )
+    named = {r.name for r in runs}
+    prior = []
+    for stamp in held.get("promoted_from_runs", []):
+        if stamp in named:
+            continue
+        run = results_dir / layout.RUNS / str(stamp)
+        if not (run / "summary.json").is_file():
+            raise PromotionError(
+                f"{existing} names run {stamp!r}, whose summary.json is gone — the "
+                f"archive can no longer say what that run spent"
+            )
+        prior.append(run)
+    return prior
+
+
+def _held_matchups(prior: list[Path], archive: Path) -> dict[str, Path]:
+    """Each archived matchup a prior run contributed, by the run it came from."""
+    held: dict[str, Path] = {}
+    for run in prior:
+        for block in _read_summary(run).get("matchups", []):
+            name = str(block.get("matchup"))
+            if (archive / f"{name}.jsonl.gz").is_file():
+                held[name] = run
+    return held
 
 
 #: The repo root, derived from this module's own location rather than the
@@ -167,7 +224,7 @@ def _archive_summary(
     """
     per_matchup: dict[str, Any] = {}
     totals: dict[str, dict[str, Any]] = {}
-    for run in runs:
+    for run in runs:  # every run the archive came from, each exactly once
         summary = _read_summary(run)
         for block in summary.get("matchups", []):
             name = str(block.get("matchup"))

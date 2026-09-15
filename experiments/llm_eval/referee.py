@@ -35,6 +35,15 @@ from .metrics import decision_facts, game_key
 NUM_SEEDS = 4096
 
 
+#: The token quantities every attempt record carries and every tally sums.
+TOKEN_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+
+
 def load_game(short_name: str) -> Any:
     """The registered OpenSpiel game. Importing `cardlang.openspiel.game` is
     what registers every corpus game, so it must precede the load."""
@@ -177,12 +186,19 @@ def play_game(
         trace = agent.pop_trace()
         if trace:
             tally = usage.setdefault(
-                agent.name, {"llm_calls": 0, "input_tokens": 0, "output_tokens": 0}
+                agent.name,
+                {
+                    "llm_calls": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                },
             )
             for attempt in trace.get("attempts", []):
                 tally["llm_calls"] += 1
-                tally["input_tokens"] += int(attempt.get("input_tokens", 0))
-                tally["output_tokens"] += int(attempt.get("output_tokens", 0))
+                for key in TOKEN_FIELDS:
+                    tally[key] += int(attempt.get(key, 0))
             if not store_prompts:
                 trace = {k: v for k, v in trace.items() if k != "prompt"}
 

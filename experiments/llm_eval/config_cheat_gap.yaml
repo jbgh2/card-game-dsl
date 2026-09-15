@@ -55,17 +55,28 @@ max_decisions: 1200
 store_prompts: false
 store_infostates: false
 
-# Deliberately LOW: the free cells spend nothing (a roster naming no model is
-# exempt from every cap), and this ceiling is below the envelope
-# `PREREGISTRATION_CHEAT_GAP.md` registers for the three LLM cells, so as
-# written it WILL stop them partway and report a partial N. That is the cap
-# doing its job. Raising `max_cost_usd` is a deliberate act taken after
-# `--estimate` has priced each cell on this account and before that cell runs
-# — never a default to build the config against, and never folded silently
-# into a re-run.
+# A ceiling per invocation, set cell by cell: the free cells spend nothing (a
+# roster naming no model is exempt from every cap), and each LLM cell is
+# priced with `--estimate` on this account before it runs, with the cap then
+# raised deliberately to cover its registered `n` with headroom — never a
+# default to build the config against, and never folded silently into a
+# re-run. A cell the cap stops partway reports a partial N, which is the cap
+# doing its job. Priced 2026-09-15 with the prompt cache in force:
+#
+#   llm_cheap_table   $0.36/game (542 decisions, 83% of input from cache)
+#                     -> n=20 is ~$7, under this ceiling even at the
+#                        decision cap
+#
+# The token caps are backstops behind the dollar one, sized so the dollars
+# bind first: `input_tokens` counts the WHOLE prompt of every call, cached
+# or not, so a cached cell that costs little still counts ~0.3-1.6M input
+# tokens per game (measured on the cheap cell's first five games) and a
+# game at the decision cap several times that. A token cap under the
+# dollar cap stops a cell that was affordable, and did so at 5/20 on the
+# cheap cell's first invocation (4M input tokens, 2026-09-15).
 token_budget:
-  max_input_tokens: 4000000
-  max_output_tokens: 100000
+  max_input_tokens: 60000000
+  max_output_tokens: 600000
   max_cost_usd: 40.0
 
 models:

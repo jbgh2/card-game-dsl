@@ -16,6 +16,7 @@ import pytest
 
 from .. import run_eval as run_eval_mod
 from ..metrics import iter_jsonl
+from ..prompts import Prompt
 from ..run_eval import (
     Budget,
     ensure_provider,
@@ -679,7 +680,7 @@ class ExplodingProvider:
         self._ok = ok_calls
         self._message = message
 
-    def complete(self, prompt: str) -> Any:
+    def complete(self, prompt: Prompt) -> Any:
         from ..providers import Reply
 
         if self.usage.calls >= self._ok:

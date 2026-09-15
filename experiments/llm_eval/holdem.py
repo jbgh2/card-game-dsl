@@ -450,6 +450,8 @@ class HoldemStats:
     llm_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
     verb_chosen: dict[str, int] = field(default_factory=dict)
     verb_offered: dict[str, int] = field(default_factory=dict)
 
@@ -464,6 +466,7 @@ class HoldemStats:
             "fallback_rate": _rate(self.fallbacks, self.decisions),
             "input_tokens_per_game": _rate(self.input_tokens, self.games),
             "output_tokens_per_game": _rate(self.output_tokens, self.games),
+            "cache_read_share": _rate(self.cache_read_input_tokens, self.input_tokens),
             "llm_calls_per_game": _rate(self.llm_calls, self.games),
             # OFFER-CONDITIONED: a verb's denominator is the decisions where it
             # was LEGAL. Over all decisions instead, `fold_rate` would mix
@@ -523,6 +526,8 @@ def aggregate(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
             s.llm_calls += int(tally.get("llm_calls", 0))
             s.input_tokens += int(tally.get("input_tokens", 0))
             s.output_tokens += int(tally.get("output_tokens", 0))
+            s.cache_read_input_tokens += int(tally.get("cache_read_input_tokens", 0))
+            s.cache_creation_input_tokens += int(tally.get("cache_creation_input_tokens", 0))
 
         for d in record["decisions"]:
             s = stat(seats[d["player"]])
