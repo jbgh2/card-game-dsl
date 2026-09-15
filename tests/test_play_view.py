@@ -328,7 +328,9 @@ def test_the_view_needs_no_world() -> None:
 
 # The decisions along each game's line the pin probes at: the first few, where
 # a deal has just landed, and a sparser run past them, where plays, bids and
-# reveals have gathered in the log.
+# reveals have gathered in the log. Every decision through the last of them
+# costs nearly eight times as long and found no failure these miss (measured
+# 2026-09-14, serially over the registry: 37s against 284s).
 _POSITIONS = frozenset({0, 1, 2, 3, 5, 8, 13, 21, 34, 55})
 _SEED = 5
 
