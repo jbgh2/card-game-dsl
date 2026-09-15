@@ -19,8 +19,8 @@ are two renderings of that value:
 
 A renderer takes a Seat View and the game's own declarations, never the
 [World](../glossary/world.md), so the most it can show is what the seat knows.
-The type enforces that, not a reviewer. The policies that will choose for a
-seat (#617) read the same value, for the same reason.
+The type enforces that, not a reviewer. A policy that chooses for a seat reads
+the same value, for the same reason (#617).
 
 The text lives in its own package because its output is not the OpenSpiel
 contract. The information state sits in the Interop package because its string
@@ -90,7 +90,7 @@ text that drops a zone the seat sees, an event line that drops a field, and a
 text showing only the latest events.
 
 The pin runs inside the Chooser, which is where `demo` renders, because every
-phase frame still stands there. The adapter's decision nodes see a world
+phase frame still stands there. The adapter's decision nodes see a World
 unwound past those frames, and they drop the phase-local state variables
 (issue #612).
 

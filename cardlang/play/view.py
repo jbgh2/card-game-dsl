@@ -1,7 +1,7 @@
 """A seat's view as text a person reads: the Seat View's second rendering.
 
 `render_view` reads a Seat View and the game's own declarations and nothing
-else, never the world, so what it can show is what the seat knows. The
+else, never the World, so what it can show is what the seat knows. The
 information state (`cardlang.openspiel.infostate.render_information_state`)
 renders the same view for OpenSpiel to key on; this text is laid out for a
 person, and tests/test_play_view.py certifies that every fact the view carries
@@ -10,10 +10,10 @@ still shows in it.
 The text shows whose view it is, with a turn line when the decision is the
 seat's own; each zone as its projection answers, the cards in the game's order,
 a count, or unseen; the public state variables; and the whole observation log,
-one line per event (`cardlang.play.events`). A caller shows the facts of the
-decision beside it: which decision it is, whose it is when it is another
-seat's, what can be chosen. None of those is in a Seat View, and nothing shows
-here that the soundness matrix cannot probe or the swap proof does not hold.
+one line per event (`cardlang.play.events`). Every fact of the position it
+shows is one the soundness matrix probes, or, for the turn line, one the swap
+proof holds. A caller shows the other facts of the decision beside it: which
+decision it is, whose it is when it is another seat's, what can be chosen.
 """
 
 from __future__ import annotations
@@ -94,9 +94,9 @@ def render_view(game: n.Game, view: SeatView, *, your_turn: bool = False) -> str
     """What `view.player` knows at this position, as text a person reads.
 
     `your_turn` says the decision at this position is the seat's own. It is the
-    one fact here a Seat View does not carry; the swap proof holds it, since
-    worlds the deciding seat cannot tell apart give that seat the decision in
-    both.
+    one fact of the position shown here that a Seat View does not carry, and
+    the swap proof holds it: worlds the deciding seat cannot tell apart give
+    that seat the decision in both.
     """
     noun = game.content_flavor
     key = card_order(game)

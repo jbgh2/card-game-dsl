@@ -17,7 +17,7 @@ does not prove:  That the arrangement is the right one: every text here was
                  captured from the tree, so an arrangement wrong the same way
                  for every game is pinned as faithfully as a good one. Nothing
                  past the first decision is pinned, and the position is the
-                 adapter's decision node, whose world has unwound past every
+                 adapter's decision node, whose World has unwound past every
                  phase frame, so a phase-local state variable never appears in
                  these texts (issue #612) — tests/test_play_view.py probes the
                  text where those variables stand.

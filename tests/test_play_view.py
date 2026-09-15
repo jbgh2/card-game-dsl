@@ -289,7 +289,7 @@ def test_a_game_with_no_ranking_shows_its_decks_own_order() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The rest of the text: state variables, the turn line, no world.
+# The rest of the text: state variables, the turn line, no World.
 # ---------------------------------------------------------------------------
 
 
@@ -309,7 +309,7 @@ def test_the_view_needs_no_world() -> None:
     this is the cell that would stop being writable if it were not: no
     `RuntimeState` exists here.
 
-    red under: give `render_view` a parameter only the world can supply.
+    red under: give `render_view` a parameter only the World can supply.
     """
     view = _view(
         player=1,
@@ -350,7 +350,7 @@ def _walk(
     last: int,
 ) -> None:
     """Play one seeded line of `file_name` the way `demo` plays it, calling `at`
-    with the decision's index, the live world and every seat's log from inside
+    with the decision's index, the live World and every seat's log from inside
     the Chooser at each decision up to `last`."""
     game = _game(file_name)
     rng = random.Random(_SEED)
