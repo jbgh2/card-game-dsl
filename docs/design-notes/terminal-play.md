@@ -1,7 +1,7 @@
 # Terminal play: a seat's view, read by a person
 
-*Design note for epic #613, covering what `cardlang demo --view` shows today
-and how `cardlang play` builds on it. The settled rulings are in
+*Design note for epic #613, covering what a seat's view shows, what answers for
+a seat, and the session `cardlang play` runs. The settled rulings are in
 [decisions.md](../decisions.md), "A seat's knowledge, rendered". The stage
 sequence is the plan, [plans/2026-09-06-terminal-play.md](../plans/2026-09-06-terminal-play.md).*
 
@@ -25,7 +25,7 @@ the same value, for the same reason (#617).
 The text lives in its own package because its output is not the OpenSpiel
 contract. The information state sits in the Interop package because its string
 *is* that contract. The text is for a person, and the session that seats a
-person (#616) builds on it in the same package.
+person shows it from the same package (`cardlang/play/session.py`).
 
 ## What the text shows
 
@@ -137,11 +137,55 @@ A reformatted or moved copy keeps its identity; an edit to the game, or to a
 library it uses, changes it. It is what ties recorded action ids to the game
 they were recorded in.
 
+## The session
+
+`cardlang play` seats a person at one seat (`cardlang/play/session.py`). The
+session is a line of play and nothing else: its state is `(seed, history)`,
+played on through `replay.LiveLine`, and the person is one Seat Policy among the
+seats'. At each of their decisions they are shown the text of the Seat View
+their seat is handed, with only the latest lines of its log, and a menu that
+numbers the legal action ids by `ActionSpace.to_string`, the strings the adapter
+and every agent read. The whole text is one keypress away. Every other seat
+plays the uniform opponent on the session's seed, and the header says so.
+
+A running game stops only by an exception unwinding it, so a person's controls
+travel through their seat as one, the way `ChooserAbort` suspends the adapter's
+replay. Taking a pick back plays the line again from the history before the
+person's last pick, which asks them again where they made it. The opponents'
+picks up to it replay unchanged, because a policy's answer is a function of its
+seed and its view. Leaving ends the line where it stands.
+
+A saved session holds the history with the seed, the seat, the game's identity
+and a format number. It is written before each of the person's decisions and
+whenever the session stops, so a session that dies at a prompt still has the
+line up to that decision; a save that cannot be written ends the session with
+that refusal, and the file keeps the save before it. Saving replaces a file
+only when it holds a saved session, so a path that names the game file is
+refused. Resuming refuses a format it does not read, a game whose identity
+differs, and a flag that contradicts the file, all before anything is dealt.
+The history replays through the replay chooser, which refuses a pick that is
+not an action id or that the game does not offer. The action ids cross out of
+the Interop package here deliberately: a saved session is a recorded history,
+and recorded picks have one reader.
+
+A game that refuses mid-session reaches the person as the refusal `demo` would
+print, naming who picked for each seat, with the picks before it saved. A game
+whose decisions the action space cannot number is refused before it is dealt.
+
+The session shows no more of a decision than the adapter's strings carry
+(issue #682). A pick asked while another decision is being made shows as a
+decision of its own, with nothing saying it belongs to the other (issue #605).
+A choice from a zone the seat cannot see lists the cards the zone holds, as the
+adapter's legal actions do (issue #281).
+
+The pin is `tests/test_play_session.py`: every input a person gives, a control
+or otherwise, at each place a prompt stands; the flags and the seat range; the
+saved files a person most plausibly hands `--resume`; each kind of path the
+options that name a file can be handed; and, over every registered game, the
+text and menu shown at each of the person's decisions.
+
 ## What builds on this
 
-- **The session (#616).** `cardlang play` seats a person against opponents they
-  choose. It shows this text with the menu and the turn beside it, and the
-  person answers through the Seat Policy like every opponent.
 - **The policies that choose for a seat, and how a caller names an opponent
   (#617), then the rule-based policy (#553).** A policy reads the Seat View,
   never the node, so the value this text renders is the policy's whole input.

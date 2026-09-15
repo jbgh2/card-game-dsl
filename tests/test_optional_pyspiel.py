@@ -8,8 +8,8 @@ that: the corpus pin briefly imported `cardlang.openspiel.game`, which
 registers against pyspiel at module import time). This test is the missing
 pin: a subprocess with pyspiel import-blocked must still run the whole
 core path — the pipeline over a real game, the corpus glob↔registry
-check via the pure-data registry module, and a line of play whose seats
-Seat Policies answer.
+check via the pure-data registry module, a line of play whose seats
+Seat Policies answer, and `cardlang play` seating a person.
 
 A subprocess (not an in-process meta_path hack) because pyspiel may already
 be imported by neighbouring adapter tests; blocking must start from a clean
@@ -66,6 +66,15 @@ from cardlang.openspiel.seat_policy import UniformSeatPolicy
 line = LiveLine(str(Path("docs/games") / GAMES["cardlang_kuhn_poker"]), 0)
 line.play({0: UniformSeatPolicy(0), 1: UniformSeatPolicy(0)})
 assert line.history, "the line made no pick"
+
+# A person at the table: `cardlang play` to its first decision and away again.
+import io
+from cardlang.cli import main
+out = io.StringIO()
+sys.stdin, sys.stdout = io.StringIO("q\\n"), out
+code = main(["play", str(Path("docs/games") / GAMES["cardlang_hearts"]), "--seed", "3"])
+sys.stdin, sys.stdout = sys.__stdin__, sys.__stdout__
+assert code == 0 and "choose 1 of" in out.getvalue(), out.getvalue()
 
 assert "pyspiel" not in sys.modules
 print("CORE-OK", len(GAMES))

@@ -18,8 +18,10 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  own options, derived the same way. That cross varies an
                  option's PRESENCE and holds one representative value; the
                  value classes — the integer/non-integer and
-                 in-range/out-of-range splits of the four options that take
-                 one — are crossed separately, in the probes below. `--at`
+                 in-range/out-of-range splits of the four `demo` options that
+                 take one — are crossed separately, in the probes below; the
+                 `play` command's value classes and combinations are
+                 tests/test_play_session.py's. `--at`
                  numbers decision nodes, one per candidate a Chooser call
                  takes, which is the unit the game tree branches on, the unit
                  the adapter replays and the unit `max_length` bounds — so the
@@ -61,8 +63,7 @@ domain:          The commands and options are whatever `cardlang.cli`'s
 registry:        commands and options: `cardlang.cli.build_parser` via
                  `_command_options` below, both derived from
                  `cardlang.cli._COMMAND_TABLE`, which the parser is built from
-                 and `COMMANDS` is derived from; retired spellings:
-                 `cardlang.cli.RETIRED_COMMANDS`; the combination cross:
+                 and `COMMANDS` is derived from; the combination cross:
                  `_play_option_subsets` below, over the same parser; seat
                  bound: `game.players.low`, the same value
                  `cardlang.runtime.driver.play_game` seats; the decomposition
@@ -118,6 +119,8 @@ does not prove:  Only the exact long spelling of each option. The parser is
 from __future__ import annotations
 
 import argparse
+import io
+import json
 import os
 import random
 import subprocess
@@ -132,7 +135,6 @@ from cardlang.cli import (
     _CANDIDATES_SHOWN,
     _COMMAND_TABLE,
     COMMANDS,
-    RETIRED_COMMANDS,
     build_parser,
     main,
 )
@@ -144,7 +146,7 @@ from cardlang.openspiel.infostate import (
     render_information_state,
 )
 from cardlang.openspiel.replay import returns_for
-from cardlang.pipeline import check_source
+from cardlang.pipeline import check_source, game_identity
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
@@ -239,7 +241,30 @@ _SAMPLE_VALUE: dict[str, list[str]] = {
     "--view": ["0"],
     "--at": ["0"],
     "--decisions": [],
+    "--seat": ["0"],
+    "--save": ["{tmp}/saved.json"],
+    "--resume": ["{tmp}/resume.json"],
 }
+
+
+def _sample(option: str, tmp_path: Path) -> list[str]:
+    """The option's sample value, with its files placed in `tmp_path`; the file
+    `--resume` names is a saved session of the sample game at seat 0, seed 7."""
+    if option == "--resume":
+        game = check_source(KUHN)
+        (tmp_path / "resume.json").write_text(
+            json.dumps(
+                {
+                    "cardlang_session": 1,
+                    "game": game.name,
+                    "identity": game_identity(game),
+                    "seed": 7,
+                    "seat": 0,
+                    "history": [],
+                }
+            )
+        )
+    return [value.replace("{tmp}", str(tmp_path)) for value in _SAMPLE_VALUE[option]]
 
 # What an option needs beside it to be carried out at all, so a per-option
 # cell measures the COMMAND's answer and not a companion's absence. `--at`
@@ -260,12 +285,27 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--at"): "refused",
     ("check", "--decisions"): "refused",
     ("check", "--view"): "refused",
+    ("check", "--seat"): "refused",
+    ("check", "--save"): "refused",
+    ("check", "--resume"): "refused",
     ("demo", "--emit-ir"): "refused",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
     ("demo", "--at"): "accepted",
     ("demo", "--decisions"): "accepted",
     ("demo", "--view"): "accepted",
+    ("demo", "--seat"): "refused",
+    ("demo", "--save"): "refused",
+    ("demo", "--resume"): "refused",
+    ("play", "--emit-ir"): "refused",
+    ("play", "--seed"): "accepted",
+    ("play", "--info-state"): "refused",
+    ("play", "--at"): "refused",
+    ("play", "--decisions"): "refused",
+    ("play", "--view"): "refused",
+    ("play", "--seat"): "accepted",
+    ("play", "--save"): "accepted",
+    ("play", "--resume"): "accepted",
 }
 
 # The authored expected column for the combination cross. `--at` is refused
@@ -334,88 +374,23 @@ def test_every_combination_is_authored() -> None:
     )
 
 
-# The authored expected column for the retired-spelling registry: each
-# spelling the command line no longer carries, and the command that replaces
-# it. Authored, never derived from `cli.RETIRED_COMMANDS`: a table checked
-# against itself reports that the registry agrees with itself.
-_RETIRED_EXPECTED: dict[str, str] = {"play": "demo"}
-
-
-def test_every_retired_spelling_is_authored() -> None:
-    """The registry the refusal is built from and the authored column name the
-    same spellings, so a spelling retired later arrives as a cell to decide."""
-    assert dict(RETIRED_COMMANDS) == _RETIRED_EXPECTED, (
-        "`cli.RETIRED_COMMANDS` and the authored expectations have drifted; "
-        "decide what each newly retired spelling says rather than letting it ride"
-    )
-
-
-def test_a_retired_spelling_is_no_longer_a_command() -> None:
-    """A retired spelling is not carried in parallel with its replacement.
-
-    The registry says what a spelling MEANT, not what it still does, so a
-    spelling in both places would be the rename half-done -- two commands
-    doing one job, and the grid above crossing options against both.
-    """
-    assert not set(RETIRED_COMMANDS) & set(COMMANDS)
-
-
-@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
-def test_a_retired_spelling_is_refused_and_names_its_replacement(
-    spelling: str, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("command", sorted(COMMANDS))
+def test_a_file_named_for_a_command_needs_the_explicit_command(
+    command: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The old sentence a designer's fingers still type is answered, not
-    misread.
-
-    Without the registry this is not a usage error at all: `_normalize`
-    rewrites any first token that is not a command into `check <token>`, so
-    the retired spelling is read as the FILENAME and the real path becomes a
-    stray argument -- argparse then reports "unrecognized arguments", naming
-    neither the rename nor the file the caller meant.
-    """
-    assert main([spelling, str(HEARTS)]) == 2
-    err = capsys.readouterr().err
-    assert spelling in err, "the refusal does not name the spelling that was typed"
-    assert _RETIRED_EXPECTED[spelling] in err, (
-        "the refusal does not name the command that replaces it"
-    )
-    assert "unrecognized arguments" not in err, (
-        "the retired spelling fell through to the implicit-check path and was "
-        "read as a file name"
-    )
-
-
-@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
-def test_a_retired_spelling_alone_is_refused_the_same_way(
-    spelling: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """With no path beside it the answer is the same one: the caller named a
-    command, and what is wrong with it is that it is retired -- not that a
-    file called `play` is missing."""
-    assert main([spelling]) == 2
-    err = capsys.readouterr().err
-    assert _RETIRED_EXPECTED[spelling] in err
-    assert "no such file" not in err
-
-
-@pytest.mark.parametrize("spelling", sorted(_RETIRED_EXPECTED))
-def test_a_file_named_for_a_retired_spelling_needs_the_explicit_command(
-    spelling: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A path whose name is a retired spelling is reachable, and only the
-    explicit form reaches it.
-
-    The first token of an implicit invocation is read as a command whenever it
-    could be one, and retiring a spelling keeps it in that set rather than
-    handing it back to the filesystem -- so this collision behaves as it does
-    for a live command, and the refusal is what says so.
-    """
+    """A path whose name is a command's spelling is reachable, and only the
+    explicit form reaches it: the first token of an implicit invocation is read
+    as a command whenever it could be one, so the bare name is refused as a
+    command with no file, never checked as the file."""
     # Markdown content, because a name with no `.cardlang` suffix routes to the
     # extractor — the file-shape dispatch, which this cell is not about.
-    game = tmp_path / spelling
+    game = tmp_path / command
     game.write_text(MARKDOWN.read_text())
-    assert main([spelling]) == 2
-    capsys.readouterr()
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as exit_info:
+        main([command])
+    assert exit_info.value.code == 2
+    assert "file" in capsys.readouterr().err
     assert main(["check", str(game)]) == 0
 
 
@@ -435,14 +410,23 @@ def test_the_parser_and_the_dispatch_cannot_disagree_about_the_commands() -> Non
 
 
 @pytest.mark.parametrize(("command", "option"), sorted(_EXPECTED))
-def test_command_option_cell(command: str, option: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_command_option_cell(
+    command: str,
+    option: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     argv = [
         command,
         str(KUHN),
         option,
-        *_SAMPLE_VALUE[option],
+        *_sample(option, tmp_path),
         *_COMPANION.get(option, []),
     ]
+    # `play` reads the person's picks; an empty stream is a person who leaves
+    # at the first decision.
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     if _EXPECTED[(command, option)] == "accepted":
         assert main(argv) == 0
         return

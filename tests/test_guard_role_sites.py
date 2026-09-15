@@ -91,6 +91,7 @@ _ACCOUNTED = frozenset(
         "InstallationError",
         "GameRegistrationError",
         "HistoryMismatch",
+        "SaveFailed",
         "PrimitiveReadError",
         "DiagnosticError",
         # not a defect: the game author wrote `error(...)` and the refusal is
@@ -101,6 +102,8 @@ _ACCOUNTED = frozenset(
         "_ContinueTo",
         "_SkipHand",
         "ChooserAbort",
+        "TakeBack",
+        "Leave",
         # compile-pass diagnostic factories — `error` is the bag's first
         # diagnostic, the others build an AssertionError with a class-level
         # explanation attached
@@ -184,6 +187,12 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "retyping it breaks that conversion silently. ZoneStore.locate's is "
         "unreachable by construction (Zone is instantiated only inside "
         "ZoneStore.__init__)."),
+    ),
+    ("cardlang/cli.py", "argparse.ArgumentTypeError"): (
+        1,
+        ("`_file`, the `type=` of the options that name a file. argparse catches "
+        "the class by type and prints it as the usage error naming the option, "
+        "so the person at the command line is who acts, before any game is read."),
     ),
     ("cardlang/libraries.py", "KeyError"): (
         1,

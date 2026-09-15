@@ -385,24 +385,27 @@ _REFUSALS: frozenset[str] = frozenset(
     {"GameDescriptionError", "OwnerGuardError", "ShadowGuardError", "IllegalMove"}
 )
 
-# Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, and a
-# chooser suspending a steppable playout. Locating one would be locating an
-# ordinary control transfer.
+# Unwinding, not failing: `produce`, `continue to`, `skip to next hand`, a
+# chooser suspending a steppable playout, and a person at the table taking a
+# pick back or leaving. Locating one would be locating an ordinary control
+# transfer.
 _SIGNALS: frozenset[str] = frozenset(
-    {"_ProduceSignal", "_ContinueTo", "_SkipHand", "ChooserAbort"}
+    {"_ProduceSignal", "_ContinueTo", "_SkipHand", "ChooserAbort", "TakeBack", "Leave"}
 )
 
 # Real failures addressed to somebody other than the game author, so a game
 # file's line is not where their reader must look: the primitive maintainer,
 # whoever installed the checkout, whoever chose the files a process registers,
-# whoever supplied a recorded history, whoever edited the grammar, and the
-# compile channel, which already carries its own span.
+# whoever supplied a recorded history, whoever named the file a session saves
+# to, whoever edited the grammar, and the compile channel, which already
+# carries its own span.
 _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
     {
         "PrimitiveReadError",
         "InstallationError",
         "GameRegistrationError",
         "HistoryMismatch",
+        "SaveFailed",
         "UnrenderableTerminal",
         "DiagnosticError",
     }
