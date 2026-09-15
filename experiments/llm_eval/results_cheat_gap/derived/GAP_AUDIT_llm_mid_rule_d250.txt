@@ -1,0 +1,32 @@
+(convergence floor: 0.95 of selected windows)
+
+=== llm_mid_table ===
+  windows enumerated: 4422   selected: 600   converged: 598 / 600 = 0.9967   dropped: 0
+
+  -- seat class: rule --
+    convergence: 598 / 600 = 0.9967   dropped: 0
+         all / challenged  n=59   lie_rate=26 / 59 = 0.4407  mean_R_literal=0.9536  GAP=-51.29pp  95% CI=[-62.82,-39.66]pp
+      residual (lie-p_lie): mean=-0.5129 sd=0.4953
+         all / allowed     n=539  lie_rate=215 / 539 = 0.3989  mean_R_literal=0.9579  GAP=-55.91pp  95% CI=[-61.24,-50.40]pp
+      residual (lie-p_lie): mean=-0.5591 sd=0.4959
+         all / any         n=598  lie_rate=241 / 598 = 0.4030  mean_R_literal=0.9575  GAP=-55.45pp  95% CI=[-60.31,-50.34]pp
+      residual (lie-p_lie): mean=-0.5545 sd=0.4960
+         all / CONTRAST     GAP(challenged) - GAP(any) = +4.16pp  95% CI=[-7.20,+15.48]pp
+    abstains / challenged  n=59   lie_rate=26 / 59 = 0.4407  mean_R_literal=0.9536  GAP=-51.29pp  95% CI=[-62.82,-39.66]pp
+      residual (lie-p_lie): mean=-0.5129 sd=0.4953
+    abstains / allowed     n=539  lie_rate=215 / 539 = 0.3989  mean_R_literal=0.9579  GAP=-55.91pp  95% CI=[-61.24,-50.40]pp
+      residual (lie-p_lie): mean=-0.5591 sd=0.4959
+    abstains / any         n=598  lie_rate=241 / 598 = 0.4030  mean_R_literal=0.9575  GAP=-55.45pp  95% CI=[-60.31,-50.34]pp
+      residual (lie-p_lie): mean=-0.5545 sd=0.4960
+    abstains / CONTRAST     GAP(challenged) - GAP(any) = +4.16pp  95% CI=[-7.20,+15.48]pp
+    abstains / SIGN TEST    per-game CONTRAST vs 0: n_games=20 pos=11 neg=9 p_two_sided=0.82380
+       fires / challenged  n=0 (no windows)
+       fires / allowed     n=0 (no windows)
+       fires / any         n=0 (no windows)
+       fires / CONTRAST     n/a (no challenged windows)
+
+=== NULL CONTROL (noise floor) ===
+  cells whose observers are ALL rule agents, on the R1-abstains subset, which a rule agent challenges by a coin flip independent of the cards: the SELECTION CONTRAST is zero in expectation and its interval is the instrument's noise floor. The raw GAP beside it is the literal reference's own miscalibration, a property of the reference and not of the reader.
+  llm_mid_table: n_challenged=59 n_all=598 CONTRAST=+4.16pp  95% CI=[-7.20,+15.48]pp   raw GAP(challenged)=-51.29pp  95% CI=[-62.82,-39.66]pp
+
+(bootstrap: 2000 resamples over games, seed=0)
