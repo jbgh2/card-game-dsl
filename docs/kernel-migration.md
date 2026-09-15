@@ -53,12 +53,13 @@ behaviour preserved (byte-identical goldens per migration, sanctioned
 normalizations recorded in `tests/test_migration_characterization.py`); IR
 goldens unchanged (no kernel game ever emitted an `instantiate` node);
 `mypy --strict` clean; docs in lockstep. One latent footgun to watch as the
-language grows: `cardlang/openspiel/infostate.py`'s `_render` sorts
-list/tuple-valued state variables before rendering into the information
-state, so a future *ordered* list-valued state variable (a bid history, a
-play sequence — anything where order itself carries information) must not be
-rendered sorted, or distinct information sets that differ only in order
-would silently collapse into the same string.
+language grows: `cardlang/openspiel/infostate.py`'s `render_state_variable`
+sorts list/tuple-valued state variables, and both the information state and
+the text a person reads spell a state variable through it, so a future
+*ordered* list-valued state variable (a bid history, a play sequence —
+anything where order itself carries information) must not be rendered sorted,
+or distinct information sets that differ only in order would silently
+collapse into the same string and the same text.
 
 **What remains honest to record — the scope boundary, not debt.** No
 rules-level randomness remains: both Workstream 5 halves are done. Coup's

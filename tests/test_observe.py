@@ -118,7 +118,7 @@ def test_team_owner_resolution() -> None:
     ctx, _ = _ctx_with_log()
     # captured is team-indexed; player 2 is on team 0.
     assert observe.view_of(ctx.rs, "captured", 0, 2, [Card("2", "clubs")]) == (
-        str(Card("2", "clubs")),
+        Card("2", "clubs"),
     )
 
 

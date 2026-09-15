@@ -16,9 +16,9 @@ admits. This is what each carries:
   ("move", src_label, src_view, dst_label, dst_view)
                                           what THIS observer learned of a card
                                           transfer through each side's declared
-                                          projection: a sorted tuple of card
-                                          strings (identity), a count
-                                          (count_only), or None (trivial)
+                                          projection: the seen cards' renderings
+                                          in `view_of`'s order (identity), a
+                                          count (count_only), or None (trivial)
   ("reveal", zone_label, <card>)          a `reveal` names one card in place
                                           (`execute._reveal`). The one event
                                           that is public by construction:
@@ -211,19 +211,30 @@ def _is_owner(
     return zone_observer_key(index, rs, observer) == key
 
 
+# What one zone projects to one observer: the cards themselves, a bare count, or
+# nothing at all — the whole domain a reader of a projection has to carry.
+ZoneView = tuple[Card, ...] | int | None
+
+
 def view_of(
     rs: RuntimeState,
     zone_name: str,
     key: Player | str | None,
     observer: Player,
     cards: Any,
-) -> tuple[str, ...] | int | None:
-    """What `observer` sees of `cards` at this zone, per its declared projection."""
+) -> ZoneView:
+    """What `observer` sees of `cards` at this zone, per its declared projection.
+
+    Seen cards come in one canonical order, by their rendering. An identity
+    projection reveals which cards a zone holds and never the order they sit in
+    (decisions.md "Projections: what visibility controls"), so no reader of a
+    view meets the storage order.
+    """
     proj = zone_projection(
         rs.zones.zone_type[zone_name], _is_owner(rs, zone_name, key, observer)
     )
     if proj == "identity":
-        return tuple(sorted(str(c) for c in cards))
+        return tuple(sorted(cards, key=str))
     if proj == "count_only":
         return len(cards)
     if proj == "trivial":
@@ -253,4 +264,20 @@ def movement(
         dst_view = view_of(ctx.rs, dst[0], dst[1], p, cards)
         if src_view is None and dst_view is None:
             continue
-        ctx.observe(p, ("move", _label(*src), src_view, _label(*dst), dst_view))
+        ctx.observe(
+            p,
+            ("move", _label(*src), _rendered(src_view), _label(*dst), _rendered(dst_view)),
+        )
+
+
+def _rendered(view: ZoneView) -> tuple[str, ...] | int | None:
+    """A view as an event carries it: the seen cards by their renderings.
+
+    The information state spells the observation log as each event's `repr`,
+    so a card in a payload would change the string OpenSpiel keys on. A payload
+    therefore stays strings and counts, and carrying the cards themselves is a
+    change of its own under the goldens' full width (issue #666). A reader of
+    the log meets a card's rendering, never the card, and derives no fact by
+    parsing one.
+    """
+    return tuple(str(card) for card in view) if isinstance(view, tuple) else view

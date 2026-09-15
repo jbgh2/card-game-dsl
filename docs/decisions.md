@@ -2634,6 +2634,45 @@ moves no information state), and the copy-purity pin (two replays of one
 world serialize the record identically, so no per-object identity can hide
 in it).
 
+### A seat's knowledge, rendered
+
+A seat's knowledge is derived once, as a
+[Seat View](glossary/seat-view.md) (`infostate.derive`): its zones through
+their projections, the public state variables, and its own observation log.
+Everything that shows a seat's knowledge renders that one value: the
+information-state string OpenSpiel keys on, and the text a person reads
+(`cardlang/play/view.py`, printed by `cardlang demo --view`). None of them reads
+anything else of the World. A second derivation beside it would be a second
+implementation of the very property the language exists to guarantee. The
+mechanism is [design-notes/terminal-play.md](design-notes/terminal-play.md).
+
+- **An identity projection is a multiset.** A Seat View holds a zone's visible
+  cards in one canonical order. A rendering may reorder them by the game's
+  static declarations (the deck's suits, the `ranking:`), which depend on the
+  multiset alone. The order the cards sit in is never shown.
+- **An event's payload is a rendering.** Observation events carry zone labels
+  and card renderings, not zones and cards, because the information state
+  spells the log as each event's `repr`. A rendering shows them as the event
+  spells them and derives no fact by parsing one (issue #666). It spells them
+  so that no two distinct events read alike, since two logs shown as one would
+  hide a difference the seat is entitled to.
+- **A rendering is certified fact by fact.** The per-visible-fact matrix runs
+  with the rendering as its subject. Every zone the seat sees, every state
+  variable and every field of every event must move the rendering, and a hidden
+  zone's content must not. The content probes come from the declared payload
+  table (`observe.EVENT_PAYLOADS`), never from how one rendering spells an
+  event, so one matrix certifies every rendering.
+- **The whole log is rendered.** A seat with perfect recall knows every event,
+  so a certified rendering shows all of them. A window onto the most recent
+  events is a presentation choice for a session in which the rest stays
+  reachable.
+- **A decision's facts are not the seat's.** Which decision a position is,
+  whose it is, and what can be chosen are facts of the decision node, not of
+  the Seat View. A rendering shows one only when a proof holds it for the seat.
+  The seat's own turn is the one that qualifies, held by the swap proof. Every
+  other such fact is the caller's to show beside the rendering. The running
+  phase and a hand number wait for a structural source (issues #605, #573).
+
 ## Position domains and positional zones
 
 Solitaire layouts (and any game whose rules address *places* — columns,

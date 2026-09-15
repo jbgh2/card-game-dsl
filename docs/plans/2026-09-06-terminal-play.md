@@ -99,7 +99,7 @@ so that no stage invents its domain:
 | #614, #616 | flags per command | the argparse parser, as the surface grid already reads it |
 | #615 | zone projections | `ZONE_PROJECTIONS` (`cardlang/stdlib/zones.py`) |
 | #615 | observation events | the closed observation-event vocabulary |
-| #615 | state value shapes | `infostate._render`'s declared shapes |
+| #615 | state value shapes | `infostate.render_state_variable`'s declared shapes |
 | #617 | opponent kinds | the Opponent Spec registry itself |
 | #553 | Candidate kinds | `CANDIDATE_RANKERS` |
 
