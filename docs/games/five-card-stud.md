@@ -38,7 +38,10 @@ pair and quads count normally, so with three cards showing 3-3-3 opens ahead of
 at all. Ties break on the suit of the highest card.
 
 Every round allows **one bet and three raises**, except heads-up, where the
-rules cap nothing.
+rules cap nothing. Heads-up means two seats that can still be raised: a seat
+that is all-in stays in the hand and contends at the showdown, but it is not
+counted, so a three-way pot with one seat all-in is uncapped between the other
+two.
 
 ## Where this file departs from Pagat
 
@@ -140,7 +143,11 @@ fact about these zones, and an observation opponents' information sets carry.
 
 Two things the game writes rather than the library. `raise_cap` is set **per
 street** from the count of seats that can act, because Pagat's cap has a
-heads-up arm; and the second street's size is an expression,
+heads-up arm — and the count excludes an all-in seat because the cap exists,
+in the words of Pagat's
+[betting rules](https://www.pagat.com/poker/rules/betting.html), to protect a
+third player who "has no option but to call", which an all-in seat never is;
+and the second street's size is an expression,
 `if (number of players where shows_pair(player)) > 0 then 20 else 10`, passed
 straight to `open_street`. Sizing the STREET rather than one seat's move is what
 makes the big bet reach every seat rather than only the seat showing the pair,

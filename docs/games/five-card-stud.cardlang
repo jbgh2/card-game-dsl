@@ -53,9 +53,20 @@
 // betting round, if there were more than two active players at the start of the
 // betting round." The trailing clause is a real rule, so `raise_cap` is set per
 // street from the count of seats that can act rather than declared once. The
-// bring-in is short of a full bet and so spends none of the cap: "A bring-in of
-// less than a small bet does not count as a bet for this purpose - after it is
-// completed there can be three raises."
+// count is of seats that can ACT, not of seats in the hand: an all-in seat is
+// dealt, shows its cards and contends at the showdown, but it is not one of the
+// "more than two". Pagat's betting page (https://www.pagat.com/poker/rules/betting.html)
+// gives the cap its purpose, "to prevent two players from colluding by making a
+// long series of small raises, which a third player wishing to remain in the
+// pot has no option but to call", and an all-in seat can be made to call
+// nothing; its active players are the ones who "must at least match the other
+// players' bets", which a seat with no chips cannot. So a three-way pot with
+// one seat all-in is uncapped between the two seats that can still be raised.
+// Counting the all-in seat would read "active" as "not folded" and cap a
+// street the rule's own reason leaves open. The bring-in is short of a full
+// bet and so spends none of the cap: "A bring-in of less than a small bet does
+// not count as a bet for this purpose - after it is completed there can be
+// three raises."
 //
 // DEVIATIONS. Two, and both are rules the language cannot yet state. Every
 // other rule above is in the file as itself.
