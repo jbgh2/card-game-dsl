@@ -534,26 +534,34 @@ def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
 
 
 class _LockingKeyboard(_Keyboard):
-    """A keyboard that makes `folder` unwritable once it has read one line."""
+    """A keyboard that makes `folder` unwritable once it has read `lines`
+    lines."""
 
-    def __init__(self, typed: str, folder: Path) -> None:
+    def __init__(self, typed: str, folder: Path, lines: int) -> None:
         super().__init__(typed)
         self.folder = folder
+        self.unread = lines
 
     def readline(self) -> str:
         line = super().readline()
-        self.folder.chmod(0o500)
+        self.unread -= 1
+        if self.unread == 0:
+            self.folder.chmod(0o500)
         return line
 
 
+@pytest.mark.parametrize("kept", [0, 1])
 def test_a_save_that_fails_mid_session_is_refused_with_the_last_save_kept(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    kept: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """red under: let `Session.save` pass the operating system's error on."""
+    """The folder locks after the person's pick `kept + 1`, so the save
+    before their next decision fails and the file keeps the one before it.
+
+    red under: let `Session.save` pass the operating system's error on."""
     folder = tmp_path / "saves"
     folder.mkdir()
     saved = folder / "saved.json"
-    monkeypatch.setattr(sys, "stdin", _LockingKeyboard("1\n1\n1\n", folder))
+    monkeypatch.setattr(sys, "stdin", _LockingKeyboard("1\n1\n1\n", folder, lines=kept + 1))
     try:
         code = main(["play", _path("cardlang_hearts"), "--seed", str(_SEED), "--save", str(saved)])
     finally:
@@ -562,7 +570,7 @@ def test_a_save_that_fails_mid_session_is_refused_with_the_last_save_kept(
     assert "Traceback" not in err
     assert code == 2, err
     assert f"cannot save to {saved}: Permission denied" in err
-    assert _saved(saved)["history"] == []
+    assert len(_saved(saved)["history"]) == kept
 
 
 def test_the_recent_end_of_the_log_is_the_whole_text_with_the_earlier_lines_folded() -> None:
