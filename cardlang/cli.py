@@ -63,6 +63,7 @@ from cardlang.runtime.observe import render
 from cardlang.runtime.state import IllegalMove, RuntimeState
 from cardlang.runtime.values import Player
 
+
 def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--emit-ir",
@@ -110,6 +111,12 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _file(value: str) -> str:
+    if not value:
+        raise argparse.ArgumentTypeError("an empty name names no file")
+    return value
+
+
 def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--seat",
@@ -127,12 +134,14 @@ def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--save",
+        type=_file,
         metavar="FILE",
         help="keep the game in FILE before each of your picks and when you "
         "leave, so --resume can go on with it",
     )
     parser.add_argument(
         "--resume",
+        type=_file,
         metavar="FILE",
         help="go on with the game saved in FILE, at the seat and seed it was "
         "played with, saving back to FILE unless --save names another",
@@ -370,7 +379,7 @@ def _play(
                 f"{path} seats 0..{seats - 1}"
             )
         seat, seed, history = saved.seat, saved.seed, saved.history
-    save_to = None if save is None and resume is None else Path(save or str(resume))
+    save_to = Path(save) if save is not None else None if resume is None else Path(resume)
     if save_to is not None:
         refusal = unwritable(save_to)
         if refusal is not None:

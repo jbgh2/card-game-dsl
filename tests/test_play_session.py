@@ -14,7 +14,9 @@ property:        Everything a person types at the table is carried out or
                  saved file that is not a saved session, that another game or
                  another version of this one wrote, that a flag contradicts, or
                  whose picks do not replay is refused naming the file, before
-                 anything is played. A game that refuses mid-session reaches the
+                 anything is played, and so is a path no saved session can be
+                 read from or written to; saving never replaces a file that is
+                 not a saved session. A game that refuses mid-session reaches the
                  person as that refusal with the picks before it kept, and a game
                  whose decisions the action space cannot number is refused before
                  it is dealt.
@@ -23,19 +25,21 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  pick of a call for several; a decision the other seats played up
                  to; the end of the game). Inputs: the controls, derived from
                  `session.CONTROLS`, and `_OTHER_INPUT`, the other keystrokes a
-                 person most plausibly gives. A pick taken back: one made in
-                 the sitting, and one the line replayed (a game resumed from
-                 its file, a second take-back in a row). The flags: every subset of the
-                 `play` command's options, derived from the parser. Seats: each
-                 side of the seat range, on a game of one seat and of two. Saved
-                 files: `_BAD_SAVES`, each field of the format missing and
+                 person most plausibly gives. A pick taken back: one made in the
+                 sitting, and one the line replayed (a game resumed from its
+                 file, a second take-back in a row). The flags: every subset of
+                 the `play` command's options, derived from the parser. Seats:
+                 each side of the seat range, on a game of one seat and of two.
+                 Saved files: `_BAD_SAVES`, each field of the format missing and
                  mistyped, a later format, another game, an edited game, and
                  picks that do not replay, beside the controls that must resume
-                 (the file as saved, a renamed game, a reformatted copy). The
-                 shown text: every registered game's first decisions at seat 0.
-                 What a stopped session keeps: the file at every decision, and
-                 after a person's interrupt, a game's refusal and an engine
-                 failure.
+                 (the file as saved, a renamed game, a reformatted copy). Paths:
+                 `_FILE_KINDS`, each kind of path a person can hand an option
+                 that names a file, crossed with those options, read off the
+                 parser. The shown text: every registered game's first
+                 decisions at seat 0. What a stopped session keeps: the file at
+                 every decision, and after a person's interrupt, a game's
+                 refusal and an engine failure.
 registry:        controls: `cardlang.play.session.CONTROLS`; commands and
                  options: `cardlang.cli.build_parser`, read through
                  tests/test_cli_surface.py's `_command_options`; games:
@@ -60,8 +64,10 @@ does not prove:  Which pick a person should make, or that the opponents are
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Sequence
@@ -72,7 +78,7 @@ from typing import Any
 
 import pytest
 
-from cardlang.cli import main
+from cardlang.cli import build_parser, main
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import LiveLine, load
@@ -836,19 +842,136 @@ def test_a_file_that_is_not_this_games_saved_session_is_refused(
     assert resume.read_text() == kept, "a refused file must not be overwritten"
 
 
-def test_a_missing_file_to_resume_is_refused(tmp_path: Path, sit: _Sit) -> None:
-    missing = tmp_path / "nothing.json"
-    sitting = sit([_path("cardlang_kuhn_poker"), "--resume", str(missing)], "")
-    assert sitting.code == 2
-    assert str(missing) in sitting.err
+def _file_options() -> tuple[str, ...]:
+    """The `play` options whose value names a file, read off the parser."""
+    return tuple(
+        sorted(
+            option
+            for action in build_parser()._actions
+            if isinstance(action, argparse._SubParsersAction)
+            for sub_action in action.choices["play"]._actions
+            if sub_action.metavar == "FILE"
+            for option in sub_action.option_strings
+        )
+    )
 
 
-def test_a_save_file_that_cannot_be_written_is_refused_before_the_deal(tmp_path: Path, sit: _Sit) -> None:
-    unwritable = tmp_path / "no-such-directory" / "saved.json"
-    sitting = sit([_path("cardlang_kuhn_poker"), "--save", str(unwritable)], "1\nq\n")
-    assert sitting.code == 2
-    assert not sitting.asks
-    assert str(unwritable) in sitting.err
+def _written(path: Path, text: str) -> Path:
+    path.write_text(text)
+    return path
+
+
+def _a_saved_file(path: Path, game: Path) -> Path:
+    return _written(path, json.dumps(_a_save(str(game), seat=0, seed=7, history=[])))
+
+
+def _in_a_locked_directory(tmp_path: Path, game: Path) -> Path:
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    saved = _a_saved_file(locked / "saved.json", game)
+    locked.chmod(0o500)
+    assert not os.access(locked, os.W_OK), "this user writes to a directory it may not write to"
+    return saved
+
+
+def _unreadable(tmp_path: Path, game: Path) -> Path:
+    saved = _a_saved_file(tmp_path / "saved.json", game)
+    saved.chmod(0o200)
+    assert not os.access(saved, os.R_OK), "this user reads a file it may not read"
+    return saved
+
+
+# Each kind of path a person can hand an option that names a file, made beside
+# a copy of the game being played.
+_FILE_KINDS: dict[str, Callable[[Path, Path], Path | str]] = {
+    "a file that does not exist": lambda tmp_path, game: tmp_path / "new.json",
+    "a saved session of this game": lambda tmp_path, game: _a_saved_file(tmp_path / "saved.json", game),
+    "a saved session of another game": lambda tmp_path, game: _a_saved_file(
+        tmp_path / "hearts.json", Path(_path("cardlang_hearts"))
+    ),
+    "the game file itself": lambda tmp_path, game: game,
+    "a file that is not a saved session": lambda tmp_path, game: _written(tmp_path / "notes.txt", "notes\n"),
+    "a directory": lambda tmp_path, game: tmp_path,
+    "a file in a directory that does not exist": lambda tmp_path, game: tmp_path / "nowhere" / "saved.json",
+    "a saved session in a directory that cannot be written to": _in_a_locked_directory,
+    "a saved session that cannot be read": _unreadable,
+    "an empty name": lambda tmp_path, game: "",
+}
+
+# What each path does, and what a refusal says of it.
+_NOT_A_SESSION = "cannot be read as a saved session"
+_FILE_EXPECTED: dict[tuple[str, str], tuple[str, str]] = {
+    ("--resume", "a directory"): ("refused", "Is a directory"),
+    ("--resume", "a file in a directory that does not exist"): ("refused", "no such file"),
+    ("--resume", "a file that does not exist"): ("refused", "no such file"),
+    ("--resume", "a file that is not a saved session"): ("refused", "not a saved session"),
+    ("--resume", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
+    ("--resume", "a saved session of another game"): ("refused", "different game"),
+    ("--resume", "a saved session of this game"): ("plays", ""),
+    ("--resume", "a saved session that cannot be read"): ("refused", "Permission denied"),
+    ("--resume", "an empty name"): ("a usage error", "an empty name names no file"),
+    ("--resume", "the game file itself"): ("refused", "not a saved session"),
+    ("--save", "a directory"): ("refused", "it is a directory"),
+    ("--save", "a file in a directory that does not exist"): ("refused", "there is no directory"),
+    ("--save", "a file that does not exist"): ("plays", ""),
+    ("--save", "a file that is not a saved session"): ("refused", _NOT_A_SESSION),
+    ("--save", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
+    ("--save", "a saved session of another game"): ("plays", ""),
+    ("--save", "a saved session of this game"): ("plays", ""),
+    ("--save", "a saved session that cannot be read"): ("refused", _NOT_A_SESSION),
+    ("--save", "an empty name"): ("a usage error", "an empty name names no file"),
+    ("--save", "the game file itself"): ("refused", _NOT_A_SESSION),
+}
+
+
+def test_every_file_option_and_kind_of_path_is_authored() -> None:
+    derived = {(option, kind) for option in _file_options() for kind in _FILE_KINDS}
+    assert derived == set(_FILE_EXPECTED), "decide what each new path does"
+
+
+@pytest.mark.parametrize(("option", "kind"), sorted(_FILE_EXPECTED))
+def test_each_kind_of_path_a_file_option_names(
+    option: str,
+    kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    sit: _Sit,
+) -> None:
+    """red under: drop any one of `unwritable`'s refusals, or the parser's
+    refusal of an empty name."""
+    monkeypatch.chdir(tmp_path)
+    game = _written(tmp_path / "kuhn.cardlang", Path(_path("cardlang_kuhn_poker")).read_text())
+    named = str(_FILE_KINDS[kind](tmp_path, game))
+    stamps = {path: path.stat() for path in tmp_path.rglob("*") if path.is_file()}
+    outcome, says = _FILE_EXPECTED[(option, kind)]
+    try:
+        if outcome == "a usage error":
+            with pytest.raises(SystemExit) as exit_info:
+                sit([str(game), option, named], "q\n")
+            assert exit_info.value.code == 2
+            err = capsys.readouterr().err
+            assert option in err and says in err
+            return
+        sitting = sit([str(game), option, named], "q\n")
+        assert "Traceback" not in sitting.err
+        if outcome == "plays":
+            assert sitting.code == 0, sitting.err
+            assert sitting.asks
+            assert _saved(Path(named))["identity"] == game_identity(check_source(game))
+            return
+        assert outcome == "refused"
+        assert sitting.code == 2
+        assert not sitting.asks
+        assert named in sitting.err and says in sitting.err
+        after = {path: path.stat() for path in stamps}
+        assert all(
+            (after[path].st_ino, after[path].st_mtime_ns) == (stamp.st_ino, stamp.st_mtime_ns)
+            for path, stamp in stamps.items()
+        ), "a refused path must leave every file as it was"
+    finally:
+        for path in [tmp_path, *tmp_path.rglob("*")]:
+            path.chmod(0o700 if path.is_dir() else 0o600)
 
 
 def test_leaving_says_how_to_resume(tmp_path: Path, sit: _Sit) -> None:

@@ -158,12 +158,14 @@ seed and its view. Leaving ends the line where it stands.
 A saved session holds the history with the seed, the seat, the game's identity
 and a format number. It is written before each of the person's decisions and
 whenever the session stops, so a session that dies at a prompt still has the
-line up to that decision. Resuming refuses a format it does not read, a game
-whose identity differs, and a flag that contradicts the file, all before
-anything is dealt. The history replays through the replay chooser, which
-refuses a pick that is not an action id or that the game does not offer. The
-action ids cross out of the Interop package here deliberately: a saved session
-is a recorded history, and recorded picks have one reader.
+line up to that decision. Saving replaces a file only when it holds a saved
+session, so a path that names the game file is refused. Resuming refuses a
+format it does not read, a game whose identity differs, and a flag that
+contradicts the file, all before anything is dealt. The history replays
+through the replay chooser, which refuses a pick that is not an action id or
+that the game does not offer. The action ids cross out of the Interop package
+here deliberately: a saved session is a recorded history, and recorded picks
+have one reader.
 
 A game that refuses mid-session reaches the person as the refusal `demo` would
 print, naming who picked for each seat, with the picks before it saved. A game
@@ -177,8 +179,9 @@ adapter's legal actions do (issue #281).
 
 The pin is `tests/test_play_session.py`: every input a person gives, a control
 or otherwise, at each place a prompt stands; the flags and the seat range; the
-saved files a person most plausibly hands `--resume`; and, over every registered
-game, the text and menu shown at each of the person's decisions.
+saved files a person most plausibly hands `--resume`; each kind of path the
+options that name a file can be handed; and, over every registered game, the
+text and menu shown at each of the person's decisions.
 
 ## What builds on this
 

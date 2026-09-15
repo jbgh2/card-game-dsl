@@ -187,6 +187,12 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
         "unreachable by construction (Zone is instantiated only inside "
         "ZoneStore.__init__)."),
     ),
+    ("cardlang/cli.py", "argparse.ArgumentTypeError"): (
+        1,
+        ("`_file`, the `type=` of the options that name a file. argparse catches "
+        "the class by type and prints it as the usage error naming the option, "
+        "so the person at the command line is who acts, before any game is read."),
+    ),
     ("cardlang/libraries.py", "KeyError"): (
         1,
         ("load_library on an unregistered name. Its own comment says resolve "

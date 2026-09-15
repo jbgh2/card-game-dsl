@@ -194,9 +194,9 @@ class Saved:
     history: list[Any]
 
 
-def read_saved(path: Path, identity: str) -> Saved | str:
-    """The session saved at `path`, or why the game with `identity` cannot
-    resume it."""
+def _record(path: Path) -> dict[str, Any] | str:
+    """What the file at `path` holds when it is a saved session of any format,
+    or why it is not one."""
     try:
         text = path.read_text()
     except FileNotFoundError:
@@ -211,9 +211,18 @@ def read_saved(path: Path, identity: str) -> Saved | str:
         return "not a saved session: not JSON"
     if not isinstance(data, dict):
         return "not a saved session: not a JSON object"
-    version = data.get("cardlang_session")
-    if type(version) is not int:
+    if type(data.get("cardlang_session")) is not int:
         return "not a saved session: no `cardlang_session` format number"
+    return data
+
+
+def read_saved(path: Path, identity: str) -> Saved | str:
+    """The session saved at `path`, or why the game with `identity` cannot
+    resume it."""
+    data = _record(path)
+    if isinstance(data, str):
+        return data
+    version = data["cardlang_session"]
     if version != SESSION_FORMAT:
         return (
             f"saved in session format {version}, and this cardlang reads format "
@@ -242,11 +251,17 @@ def read_saved(path: Path, identity: str) -> Saved | str:
 
 def unwritable(path: Path) -> str | None:
     """Why a session cannot be saved at `path`, or None when it can. Nothing
-    is written to `path` itself."""
+    is written to `path` itself, and a file already there is replaced only when
+    it is a saved session."""
     if path.is_dir():
         return "it is a directory"
     if not path.parent.is_dir():
         return f"there is no directory {path.parent}"
+    if path.exists() and isinstance(_record(path), str):
+        return (
+            "it holds something that cannot be read as a saved session, and saving "
+            "would replace it; name another file"
+        )
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent):
             pass

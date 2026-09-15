@@ -140,10 +140,11 @@ issue #617. The menu names each pick the way the OpenSpiel adapter does, so
 what you play through is what an agent trained on the game plays through.
 
 `--save` keeps the game in a file before each of your picks and when you leave,
-and `--resume` goes on with it at the decision you left. A saved game names the
-game it was played in, so resuming it against another game, or against this
-one after an edit to its rules or to a library it uses, is refused rather than
-replayed.
+and `--resume` goes on with it at the decision you left. `--save` replaces a
+file only when it holds a saved game, so a slip that names your game file is
+refused. A saved game names the game it was played in, so resuming it against
+another game, or against this one after an edit to its rules or to a library it
+uses, is refused rather than replayed.
 
 `demo` plays one uniform-random self-play instead, and can show a seat's view
 at the end:
