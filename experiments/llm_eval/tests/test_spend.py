@@ -80,7 +80,9 @@ from ..layout import spend_log_path
 from ..providers import FakeProvider, Provider, Usage
 from ..run_eval import CAPS, Budget, budget_of, spend_log
 from ..spend import (
+    CACHE_FIELDS,
     ENTRY_FIELDS,
+    PRIOR_ENTRY_FIELDS,
     ROLLING_SPELLING,
     STAMP_FORMAT,
     WINDOW_KINDS,
@@ -520,6 +522,62 @@ def test_a_damaged_line_cannot_reach_the_default_window(
     # or this would be a test of a log with nothing wrong with it.
     with pytest.raises(ValueError, match=str(log.path)):
         log.total(Window("all"), now=NOW)
+
+
+def _prior_line() -> dict[str, Any]:
+    """The line shape this log wrote before the cache fields existed: every
+    field of `PRIOR_ENTRY_FIELDS`, nothing else."""
+    good = json.loads(_LINE)
+    return {k: v for k, v in good.items() if k in PRIOR_ENTRY_FIELDS}
+
+
+def test_the_prior_line_schema_is_a_registered_member() -> None:
+    """The prior shape is the current table minus the cache fields and
+    nothing else — the one shape `record` ever wrote before them."""
+    assert set(PRIOR_ENTRY_FIELDS) == set(ENTRY_FIELDS) - set(CACHE_FIELDS)
+    assert all(PRIOR_ENTRY_FIELDS[k] == ENTRY_FIELDS[k] for k in PRIOR_ENTRY_FIELDS)
+
+
+@pytest.mark.parametrize("kind", [k for k in WINDOW_KINDS if k != "invocation"])
+def test_a_prior_schema_line_reads_with_zero_cache_counts(tmp_path: Path, kind: str) -> None:
+    """A line written before the cache fields existed is uncached spend by
+    construction — no request asked for the cache before the fields that
+    record it — so it reads under every file-reading window with both cache
+    counts zero, and its tokens and dollars count in full.
+
+    red under: dropping the prior-schema arm of `SpendLog._read_entry`.
+    """
+    log = SpendLog(tmp_path / "log.jsonl")
+    log.path.parent.mkdir(parents=True, exist_ok=True)
+    log.path.write_text(json.dumps(_prior_line()) + "\n", encoding="utf-8")
+    assert log.total(parse_window(WINDOWS[kind]), now=NOW) == Spend(10, 2, 0.5, 0, 0)
+    assert set(next(iter(log.entries()))) == set(ENTRY_FIELDS)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Half-migrated: exactly one cache field present is neither shape.
+        *[json.dumps({**_prior_line(), name: 0}) for name in CACHE_FIELDS],
+        # The prior shape missing one of its own fields, or carrying the
+        # wrong kind there, is damage under that shape too.
+        *[
+            json.dumps(bad)
+            for name, kind in PRIOR_ENTRY_FIELDS.items()
+            for bad in (
+                {k: v for k, v in _prior_line().items() if k != name},
+                {**_prior_line(), name: (None if kind == "text" else "lots")},
+            )
+        ],
+    ],
+)
+@pytest.mark.parametrize("kind", [k for k in WINDOW_KINDS if k != "invocation"])
+def test_a_line_matching_neither_schema_refuses(tmp_path: Path, kind: str, text: str) -> None:
+    log = SpendLog(tmp_path / "log.jsonl")
+    log.path.parent.mkdir(parents=True, exist_ok=True)
+    log.path.write_text(_LINE + "\n" + text + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=str(log.path)):
+        log.total(parse_window(WINDOWS[kind]), now=NOW)
 
 
 def test_the_undamaged_line_the_probes_are_built_from_reads_clean(

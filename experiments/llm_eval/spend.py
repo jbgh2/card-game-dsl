@@ -105,6 +105,23 @@ ENTRY_FIELDS: Final[Mapping[str, str]] = {
     "cost_usd": "amount",
 }
 
+#: The fields a line carries only since the prompt cache: what a request read
+#: from and wrote to it.
+CACHE_FIELDS: Final[tuple[str, ...]] = (
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+
+#: The one other shape of line this log has ever written: every field but the
+#: cache ones. A line of that shape is uncached spend by construction — no
+#: request asked for the cache before the fields that record it existed — so
+#: the reader admits it with both cache counts zero. Anything between the two
+#: shapes (one cache field present) or short of either is damage, refused as
+#: every damaged line is.
+PRIOR_ENTRY_FIELDS: Final[Mapping[str, str]] = {
+    name: kind for name, kind in ENTRY_FIELDS.items() if name not in CACHE_FIELDS
+}
+
 
 @dataclass(frozen=True)
 class Spend:
@@ -375,7 +392,9 @@ class SpendLog:
             raise ValueError(
                 f"{where} holds a {type(loaded).__name__}, not a spend entry. {why}"
             )
-        for field_name, kind in ENTRY_FIELDS.items():
+        prior = not any(name in loaded for name in CACHE_FIELDS)
+        fields = PRIOR_ENTRY_FIELDS if prior else ENTRY_FIELDS
+        for field_name, kind in fields.items():
             if field_name not in loaded:
                 raise ValueError(
                     f"{where} has no {field_name!r} field. {why}"
@@ -385,6 +404,8 @@ class SpendLog:
                     f"{where} carries {field_name}={loaded[field_name]!r}, which "
                     f"is not a readable {kind}. {why}"
                 )
+        if prior:
+            loaded = {**loaded, **{name: 0 for name in CACHE_FIELDS}}
         return loaded
 
     def total(self, window: Window, *, now: datetime | None = None) -> Spend:
