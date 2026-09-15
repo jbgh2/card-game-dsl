@@ -134,7 +134,8 @@ must seat the same object a person plays against. `first` answers the lowest
 legal id, which is the first item on a person's menu. It is a baseline that
 answers the same way every time, so a table where every seat takes the first
 item can repeat one exchange until the game's `max_length` refuses it (issue
-#698).
+#698; what the bound means for a legally unbounded line is
+[open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)).
 
 The pin is `tests/test_live_line.py`. Along every registered game's line, at
 sampled picks, the line asks the seat the adapter's replay pauses at, over the
