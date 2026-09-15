@@ -37,7 +37,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shlex
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -113,6 +112,11 @@ def _menu(space: ActionSpace, legal: Sequence[int]) -> str:
     return "\n".join(lines)
 
 
+def _word(path: str) -> str:
+    """`path` as a command-line word the parser does not read as an option."""
+    return os.path.join(os.curdir, path) if path.startswith("-") else path
+
+
 def _returns(returns: Sequence[float]) -> str:
     def trimmed(value: float) -> str:
         return str(int(value)) if value == int(value) else str(value)
@@ -167,12 +171,13 @@ class PersonSeat:
         say(render_view(self.game, view, your_turn=True, recent=RECENT_EVENTS))
         say("")
         say(_menu(self.space, legal))
+        numbered = {str(number): aid for number, aid in enumerate(legal, start=1)}
         while True:
             word = self.prompt.read(f"your pick (1 to {len(legal)}), or {_controls()}: ")
             if word is None or word == "q":
                 raise Leave
-            if re.fullmatch(r"[0-9]+", word) and 1 <= int(word) <= len(legal):
-                return legal[int(word) - 1]
+            if word.lstrip("0") in numbered:
+                return numbered[word.lstrip("0")]
             if word == "u":
                 raise TakeBack
             if word == "?":
@@ -211,6 +216,10 @@ def _record(path: Path) -> dict[str, Any] | str:
         data = json.loads(text)
     except json.JSONDecodeError:
         return "not a saved session: not JSON"
+    except (ValueError, RecursionError):
+        # A number past the digits `int` converts, or nesting past the
+        # recursion limit.
+        return "not a saved session: JSON too large to read"
     if not isinstance(data, dict):
         return "not a saved session: not a JSON object"
     version = data.get("cardlang_session")
@@ -414,5 +423,6 @@ class Session:
         self.prompt.say("")
         self.prompt.say("you left the table")
         if self.save_to is not None:
-            resume = shlex.join(["cardlang", "play", self.path, "--resume", str(self.save_to)])
+            words = [_word(self.path), "--resume", _word(str(self.save_to))]
+            resume = shlex.join(["cardlang", "play", *words])
             self.prompt.say(f"the game is saved in {self.save_to}; to go on with it:\n    {resume}")

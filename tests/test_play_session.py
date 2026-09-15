@@ -31,17 +31,18 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  the `play` command's options, derived from the parser. Seats:
                  each side of the seat range, on a game of one seat and of two.
                  Saved files: `_BAD_SAVES`, each field of the format missing and
-                 mistyped, a later format, another game, an edited game, and
-                 picks that do not replay, beside the controls that must resume
-                 (the file as saved, a renamed game, a reformatted copy); each
-                 is also handed to `--save`. Paths: `_FILE_KINDS`, each kind of
-                 path a person can hand an option that names a file, crossed
-                 with those options, read off the parser; and the command
-                 printed on leaving, run again, for `_NAMES`, names as a
-                 person's folders and files come. The shown text: every
-                 registered game's first decisions at seat 0. What a stopped
-                 session keeps: the file at every decision, and after a
-                 person's interrupt, a game's refusal and an engine failure.
+                 mistyped, a later format, JSON too large to read, another
+                 game, an edited game, and picks that do not replay, beside the
+                 controls that must resume (the file as saved, a renamed game,
+                 a reformatted copy); each is also handed to `--save`. Paths:
+                 `_FILE_KINDS`, each kind of path a person can hand an option
+                 that names a file, crossed with those options, read off the
+                 parser; and the command printed on leaving, run again, for
+                 `_NAMES`, names as a person's folders and files come. The
+                 shown text: every registered game's first decisions at seat
+                 0. What a stopped session keeps: the file at every decision,
+                 and after a person's interrupt, a game's refusal and an
+                 engine failure.
 registry:        controls: `cardlang.play.session.CONTROLS`; commands and
                  options: `cardlang.cli.build_parser`, read through
                  tests/test_cli_surface.py's `_command_options`; games:
@@ -272,7 +273,9 @@ _WHERE: dict[str, _Where] = {
 # The keystrokes a person most plausibly gives besides a control.
 _OTHER_INPUT: dict[str, str | None] = {
     "a number on the menu": "1",
+    "a number with a leading zero": "01",
     "a number past the menu": "99",
+    "a number too long to read": "9" * 5000,
     "a word that is not a control": "x",
     "an empty line": "",
     "an interrupt": _INTERRUPT,
@@ -301,6 +304,14 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("a number on the menu", "an inner pick of one call"): "picks",
     ("a number on the menu", "a decision the other seats played up to"): "picks",
     ("a number on the menu", "the end of the game"): "refuses the input",
+    ("a number with a leading zero", "the first decision"): "picks",
+    ("a number with a leading zero", "an inner pick of one call"): "picks",
+    ("a number with a leading zero", "a decision the other seats played up to"): "picks",
+    ("a number with a leading zero", "the end of the game"): "refuses the input",
+    ("a number too long to read", "the first decision"): "refuses the input",
+    ("a number too long to read", "an inner pick of one call"): "refuses the input",
+    ("a number too long to read", "a decision the other seats played up to"): "refuses the input",
+    ("a number too long to read", "the end of the game"): "refuses the input",
     ("a number past the menu", "the first decision"): "refuses the input",
     ("a number past the menu", "an inner pick of one call"): "refuses the input",
     ("a number past the menu", "a decision the other seats played up to"): "refuses the input",
@@ -335,7 +346,8 @@ def test_every_input_at_every_position_is_authored() -> None:
 @pytest.mark.parametrize(("typed", "where"), sorted(_EXPECTED))
 def test_what_a_person_types_at_each_position(typed: str, where: str, tmp_path: Path, sit: _Sit) -> None:
     """red under, for an interrupt at the end of the game: let `_Prompt.read`
-    pass the interrupt on."""
+    pass the interrupt on; for a number with a leading zero: look the number
+    up as it was typed."""
     place = _WHERE[where]
     path = _game_path(place.game, tmp_path)
     game, _ = load(path)
@@ -800,6 +812,8 @@ def _identity_of(path: Callable[[Path], str]) -> Callable[[dict[str, Any], Path]
 # saved session, and what the refusal says of each.
 _BAD_SAVES: dict[str, tuple[Callable[[dict[str, Any], Path], str], str]] = {
     "text that is not JSON": (lambda good, tmp_path: "{", "not a saved session"),
+    "a number too long to read": (lambda good, tmp_path: '{"seed": ' + "9" * 5000 + "}", "not a saved session"),
+    "nesting too deep to read": (lambda good, tmp_path: "[" * 200_000 + "]" * 200_000, "not a saved session"),
     "a JSON list": (lambda good, tmp_path: "[]", "not a saved session"),
     "no format": (_without("cardlang_session"), "not a saved session"),
     "no game": (_without("game"), "not a saved session"),
@@ -982,6 +996,8 @@ def test_each_kind_of_path_a_file_option_names(
 # any other is refused and kept.
 _SAVE_OVER: dict[str, str] = {
     "text that is not JSON": "refused",
+    "a number too long to read": "refused",
+    "nesting too deep to read": "refused",
     "a JSON list": "refused",
     "no format": "refused",
     "no game": "refused",
@@ -1029,27 +1045,34 @@ def test_saving_over_a_file_replaces_only_a_saved_session(kind: str, tmp_path: P
     assert target.read_text() == kept, "a refused file must not be overwritten"
 
 
-# Names as a person's folders and files come: plain, with spaces, and with
-# characters a shell reads.
-_NAMES: dict[str, tuple[str, str]] = {
-    "plain names": ("games", "saved.json"),
-    "names with spaces": ("my games", "my game.json"),
-    "names a shell reads": ("$HOME", "it's $(date).json"),
+# Names as a person's folders and files come: plain, with spaces, with
+# characters a shell reads, and beginning with a dash, which a parser reads as
+# an option.
+_NAMES: dict[str, tuple[str, str, str]] = {
+    "plain names": ("games", "kuhn.cardlang", "saved.json"),
+    "names with spaces": ("my games", "kuhn poker.cardlang", "my game.json"),
+    "names a shell reads": ("$HOME", "kuhn $(date).cardlang", "it's $(date).json"),
+    "names beginning with a dash": ("-games", "-kuhn.cardlang", "-saved.json"),
 }
 
 
 @pytest.mark.parametrize("names", sorted(_NAMES))
-def test_leaving_prints_a_command_that_resumes_the_game(names: str, tmp_path: Path, sit: _Sit) -> None:
-    """red under: print the paths into the command as they are."""
-    folder_name, file_name = _NAMES[names]
-    folder = tmp_path / folder_name
-    folder.mkdir()
-    game = _written(folder / "kuhn.cardlang", Path(_path("cardlang_kuhn_poker")).read_text())
-    saved = folder / file_name
-    sitting = sit([str(game), "--seed", "3", "--save", str(saved)], "q\n")
+def test_leaving_prints_a_command_that_resumes_the_game(
+    names: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sit: _Sit
+) -> None:
+    """red under: print the paths into the command as they are, or quoted
+    with a leading dash left to read as an option."""
+    folder_name, game_name, save_name = _NAMES[names]
+    monkeypatch.chdir(tmp_path)
+    Path(folder_name).mkdir()
+    game = _written(Path(folder_name) / game_name, Path(_path("cardlang_kuhn_poker")).read_text())
+    saved = Path(folder_name) / save_name
+    sitting = sit(["--seed", "3", f"--save={saved}", "--", str(game)], "q\n")
+    assert sitting.code == 0, sitting.err
     (command,) = [line.strip() for line in sitting.out.splitlines() if line.strip().startswith("cardlang play")]
     argv = shlex.split(command)
-    assert argv == ["cardlang", "play", str(game), "--resume", str(saved)]
+    assert argv[:2] == ["cardlang", "play"] and argv[3] == "--resume"
+    assert (Path(argv[2]), Path(argv[4])) == (game, saved)
     again = sit(argv[2:], "q\n")
     assert again.code == 0, again.err
     assert again.asks == sitting.asks
