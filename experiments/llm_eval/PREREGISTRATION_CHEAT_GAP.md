@@ -427,3 +427,16 @@ $1.39, and the study's envelope from ≈$700–1000 to ≈$125–175; the cheap
 cell's `--estimate` before it runs is the live check, and a cell whose
 summary shows `cache_read_share` near zero is a rig defect to fix before
 the cell is scored, never a result.
+
+**The cheap cell's first invocation stopped at 5 of 20 games, and was
+resumed to 20 before any window was scored (2026-09-15).** The stop was
+`max_input_tokens`, a token backstop that counts cached tokens and was left
+at its pre-cache value while only the dollar cap was priced; the dollar
+spend at the stop was $1.52 of a $40 ceiling. No endpoint, window or
+posterior had been computed when the resume was ordered — the only figures
+read were the summary's game count, fallback rate, cache share and cost —
+so the resume is the registered `n` being completed, not an extension after
+a look: `run_eval`'s `resume_from` plays games 5–19 with the seeds and seat
+rotation a single invocation would have used and appends them to the same
+transcript under the same recorded treatment. The transcript's per-game
+records and the run's `summary.json` (`resumed_from: 5`) carry the seam.
