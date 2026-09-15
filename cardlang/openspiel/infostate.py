@@ -25,7 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
-from cardlang.runtime.observe import view_of
+from cardlang.runtime.observe import ZoneView, view_of
 from cardlang.runtime.reads import deep_freeze
 from cardlang.runtime.state import RuntimeState, StructValue
 from cardlang.runtime.values import Card
@@ -52,12 +52,6 @@ def _render(value: Any) -> str:
     )
 
 
-# What one zone projects to one observer: `view_of`'s three answers, which are
-# the whole domain a renderer has to carry — card identities, a bare count, or
-# nothing at all.
-ZoneView = tuple[str, ...] | int | None
-
-
 @dataclass(frozen=True)
 class SeatView:
     """Everything one seat knows at one position, and nothing else.
@@ -67,9 +61,9 @@ class SeatView:
     route to another seat's zones, because the route is not in its hands.
 
     Not leaking and not aliasing are different guarantees, and only the first
-    is the type's. A view built straight off the frames would hold their live
-    dicts; `derive` is the constructor that snapshots, and the one whose result
-    is safe to keep.
+    is the type's. A view built straight off the world would hold the frames'
+    live dicts and the zones' own cards; `derive` is the constructor that
+    snapshots, and the one whose result is safe to keep.
 
     Every field is ordered as it is rendered, so the ordering decisions live at
     the one site that makes them.
@@ -130,37 +124,49 @@ def derive(
 ) -> SeatView:
     """What `player` knows at this position, as a value safe to keep.
 
-    A snapshot, not a window: an indexed state variable is a live
-    `{player: value}` dict on the frame, so a view over it would keep reading
-    the world as the world moved on, and its holder could write through the
-    dict into engine state. `frozen=True` stops neither — it guards the field,
-    never what the field points at. `deep_freeze` owns that class
-    (`runtime/reads.py`).
+    A snapshot, not a window. An indexed state variable is a live
+    `{player: value}` dict on the frame, and a seen zone's cards are the
+    engine's own card values, so a view over either would keep reading the
+    world as the world moved on, and its holder could write through into
+    engine state — through a frozen card too, whose fields `object.__setattr__`
+    still reaches. `frozen=True` guards the view's fields, never what they point
+    at; `deep_freeze` owns that class (`runtime/reads.py`) and rebuilds every
+    level.
 
     What it guarantees is immutability, not renderability: it admits shapes
     `_render` has no spelling for, so a view holding one derives here and is
     refused where it is rendered.
 
-    The zones need none of it: a projection is a tuple of strings, a count, or
-    nothing. Nor does the observation log: every field shape `EVENT_PAYLOADS`
+    The observation log is not copied: every field shape `EVENT_PAYLOADS`
     declares is immutable, and emission is not fenced against a payload outside
     them (issue #638).
 
-    Copying is why this is separate from `_facts`: the snapshot costs about as
-    much again as a whole render, and the rendering path has no use for it.
+    Copying is why this is separate from `_facts`: the rendering path consumes
+    its view before it returns, and has no use for a snapshot.
     """
     live = _facts(player, rs, obs_log)
     return replace(
-        live, state=tuple((k, deep_freeze(v)) for k, v in live.state)
+        live,
+        zones=tuple((label, deep_freeze(zone)) for label, zone in live.zones),
+        state=tuple((k, deep_freeze(v)) for k, v in live.state),
     )
 
 
 def _zone_line(label: str, view: ZoneView) -> str:
     if view is None:
         return f"{label}=?"
-    if isinstance(view, int):
+    if isinstance(view, int) and not isinstance(view, bool):
         return f"{label}=#{view}"
-    return f"{label}=[" + ",".join(view) + "]"
+    if isinstance(view, tuple) and all(isinstance(card, Card) for card in view):
+        return f"{label}=[" + ",".join(str(card) for card in view) + "]"
+    # Closed-domain completeness: `view_of` answers cards, a count, or nothing,
+    # and another shape spelled as one of those would read as a projection
+    # that never happened.
+    raise AssertionError(
+        f"zone {label}: a view of type {type(view).__name__} has no declared "
+        f"rendering in information_state — `view_of` answers cards, a count, "
+        f"or nothing"
+    )
 
 
 def render_information_state(view: SeatView) -> str:
