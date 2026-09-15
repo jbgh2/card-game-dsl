@@ -101,9 +101,11 @@ def _facts(
     call that made it. The one caller that renders immediately uses it; the one
     that hands a view out takes a snapshot first. Nothing else may.
     """
-    if player not in rs.seating.players:
+    if isinstance(player, bool) or player not in rs.seating.players:
         # The projection would answer for any integer — every zone through a
-        # non-owner's view — and the result would read as some seat's view.
+        # non-owner's view — and the result would read as some seat's view. A
+        # flag passes the membership test, since `True == 1`, and would show
+        # that seat's private zones under a name no seat has.
         raise AssertionError(
             f"no seat {player!r} at this table: a seat view is derived for one "
             f"of seats 0..{len(rs.seating.players) - 1}"

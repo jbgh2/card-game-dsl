@@ -5,31 +5,46 @@ property:        Every event an emission site delivers to an observer carries a
                  field by field, a value inside the shape that kind's row names
                  — checked by execution over every registered game — and
                  `observe.payload_refusal` refuses, in words, a kind, an arity
-                 or a field outside the table. Every shape a row names has one
-                 perturbation in the soundness matrix's payload probe table
+                 or a field outside the table. The shapes tell their fields
+                 apart: no string is both a label and a card, a card is the
+                 rendering of a card some component set holds, and a group of
+                 cards travels in the one sorted order, so a site that hands
+                 over a label in a card's place, a card no set holds, or cards
+                 in the order they sat is refused. Every shape a row names has
+                 one perturbation in the soundness matrix's payload probe table
                  that keeps a value inside its shape and changes it, and one
                  synthetic member the matrix builds an appended event from, so
                  the matrix probes an event's content field by field for any
                  rendering rather than by the spelling of one.
 domain:          The kinds and each kind's fields are the rows of
                  `EVENT_PAYLOADS`; the shapes are `PAYLOAD_SHAPES`. A shape's
-                 members are the alternatives its predicate admits, one cell
-                 per alternative below, each beside the nearest value an
-                 emission site could plausibly hand over instead. The emission
-                 axis is every registered game played along a bounded seeded
-                 line with an observer installed, and the sweep must meet every
-                 kind at least once, so no kind is certified by a line that
-                 never emitted it.
+                 members are the alternatives its predicate admits, cells per
+                 alternative below, each beside the nearest values an emission
+                 site could plausibly hand over instead, and every one of those
+                 is crossed with every field that carries the shape. The card
+                 and label shapes are also crossed with the rendering of every
+                 card and piece the component sets hold. The emission axis is
+                 every registered game played along a bounded seeded line with
+                 an observer installed, and the sweep must meet every kind at
+                 least once, so no kind is certified by a line that never
+                 emitted it.
 registry:        kinds and fields: `cardlang.runtime.observe.EVENT_PAYLOADS`;
                  shapes: `cardlang.runtime.observe.PAYLOAD_SHAPES`; the refusal:
-                 `cardlang.runtime.observe.payload_refusal`; the probes and the
-                 synthetic members: `tests.openspiel_ready.partition`'s
-                 `PAYLOAD_PROBES` and `SYNTHETIC_PAYLOAD`; games:
+                 `cardlang.runtime.observe.payload_refusal`; cards:
+                 `cardlang.runtime.values.COMPONENT_SETS`, each set's cards as
+                 `build_deck` builds them; the probes and the synthetic
+                 members: `tests.openspiel_ready.partition`'s `PAYLOAD_PROBES`
+                 and `SYNTHETIC_PAYLOAD`; games:
                  `cardlang.openspiel.registry.GAMES`.
 does not prove:  That a site emits the RIGHT value. A `move` whose view is a
                  well-formed count of the wrong cards passes every cell here;
                  which observer learns what is the per-observer proofs' claim
-                 (tests/openspiel_ready/). The sweep is bounded and seeded, so
+                 (tests/openspiel_ready/). A card is held to every component
+                 set rather than the game's own, so another deck's card passes;
+                 a label is held to its spelling rather than the game's zones,
+                 so a well-formed label naming no zone passes, and a decision
+                 value is any string, so a label or a card handed over as one
+                 passes. The sweep is bounded and seeded, so
                  a shape alternative only a later position or another line
                  emits is unwitnessed by it — a `move` out of a trivial zone
                  into an identity one among them, which the member cells cover
@@ -57,35 +72,48 @@ from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import GameDescriptionError
 from cardlang.runtime.state import IllegalMove
-from cardlang.runtime.values import Card
+from cardlang.runtime.values import COMPONENT_SETS, Card, build_deck
 from tests.openspiel_ready import partition
 
 GAMES_DIR = Path(__file__).parent.parent / "docs" / "games"
 
-# One member per alternative each shape admits. The alternatives are the
-# emitters' own: a seat is a seat index; a label names a zone or a family
-# instance; a card is a card's rendering; a view is what one observer sees of
-# moved cards through a projection — card renderings (none, when nothing
-# moved), a count, or nothing at all; a value is a decision value as
-# `observe.render` spells it — a string, an integer or flag, nothing, or a
-# multi-card selection.
+# The members of each alternative each shape admits. The alternatives are the
+# emitters' own: a seat is a seat index; a label names a zone, or a family
+# instance keyed by a seat, a team, a position or a board cell; a card is the
+# rendering of a card or piece a component set holds; a view is what one
+# observer sees of moved cards through a projection — card renderings in
+# sorted order with repeats kept (none, when nothing moved), a count, or
+# nothing at all; a value is a decision value as `observe.render` spells it —
+# a string, an integer or flag, nothing, or a multi-card selection.
 _MEMBERS: dict[str, tuple[Any, ...]] = {
     "seat": (0, 3),
-    "label": ("deck", "hand[2]"),
-    "card": ("Q♠", "Joker:joker"),
-    "view": (("2♣", "9♥"), (), 2, 0, None),
+    "label": ("deck", "hand[2]", "square[a1]"),
+    "card": ("Q♠", "10♥", "Joker:joker", "mark:x"),
+    "view": (("2♣", "9♥"), ("Joker:joker", "Joker:joker"), (), 2, 0, None),
     "value": ("pass", "bid(3)", 7, True, None, ("2♣", "A♠")),
 }
 
-# The nearest wrong value per shape: what a site that forgot to render, or
-# rendered through the wrong function, would hand the observer instead.
+# The nearest wrong values per shape: what a site that forgot to render,
+# rendered through the wrong function, handed over a neighbouring field, or
+# kept the order the cards sat in would hand the observer instead.
 _REFUSALS: dict[str, tuple[Any, ...]] = {
     "seat": ("1", True, None),
-    "label": (3, None, ("hand", 1)),
-    "card": (Card("Q", "spades"), None, 12),
-    "view": ({"2♣"}, ["2♣"], True, 1.0, (Card("2", "clubs"),)),
-    "value": (object(), 1.5, ["pass"], (Card("2", "clubs"),)),
+    "label": ("Q♠", "hand[2]«perturbed»", 3, None, ("hand", 1)),
+    "card": ("hand[2]", str(partition.SYNTHETIC), Card("Q", "spades"), None, 12),
+    "view": (
+        ("9♥", "2♣"),
+        ("hand[2]",),
+        {"2♣"},
+        ["2♣"],
+        True,
+        1.0,
+        (Card("2", "clubs"),),
+    ),
+    "value": (("A♠", "2♣"), ("pass",), object(), 1.5, ["pass"], (Card("2", "clubs"),)),
 }
+
+# Every card and piece rendering the component sets hold.
+_RENDERINGS = sorted({str(card) for name in COMPONENT_SETS for card in build_deck(name)})
 
 
 def test_the_shape_cells_name_every_declared_shape() -> None:
@@ -119,6 +147,17 @@ def test_a_shape_refuses_the_nearest_wrong_value(shape: str, value: Any) -> None
     assert not observe.PAYLOAD_SHAPES[shape](value)
 
 
+@pytest.mark.parametrize("rendering", _RENDERINGS)
+def test_every_card_a_component_set_holds_is_a_card_and_never_a_label(
+    rendering: str,
+) -> None:
+    """A `reveal` carries a label and a card side by side, so the two shapes
+    must not share a string anywhere in the card domain, or a site that swaps
+    them is read as well-formed."""
+    assert observe.PAYLOAD_SHAPES["card"](rendering)
+    assert not observe.PAYLOAD_SHAPES["label"](rendering)
+
+
 def _well_formed(kind: str) -> tuple[Any, ...]:
     return (kind, *(_MEMBERS[shape][0] for shape in observe.EVENT_PAYLOADS[kind]))
 
@@ -129,17 +168,18 @@ def test_a_well_formed_event_of_each_kind_is_accepted(kind: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("kind", "index"),
+    ("kind", "index", "wrong"),
     [
-        (kind, index)
+        (kind, index, wrong)
         for kind, row in sorted(observe.EVENT_PAYLOADS.items())
-        for index in range(len(row))
+        for index, shape in enumerate(row)
+        for wrong in range(len(_REFUSALS[shape]))
     ],
 )
-def test_a_field_outside_its_shape_is_refused(kind: str, index: int) -> None:
+def test_a_field_outside_its_shape_is_refused(kind: str, index: int, wrong: int) -> None:
     shape = observe.EVENT_PAYLOADS[kind][index]
     fields = list(_well_formed(kind))
-    fields[index + 1] = _REFUSALS[shape][0]
+    fields[index + 1] = _REFUSALS[shape][wrong]
     refusal = observe.payload_refusal(tuple(fields))
     assert refusal is not None
     assert kind in refusal and shape in refusal
