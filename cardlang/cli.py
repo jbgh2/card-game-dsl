@@ -316,9 +316,10 @@ def _demo(
     game = check_source(path)
     seats = game.players.low
     if seat is not None and not 0 <= seat < seats:
-        # Nothing downstream would notice: `information_state` takes any int
-        # and projects zones through whatever observer it is handed, so an
-        # out-of-range seat renders a plausible string for nobody's view.
+        # A Shadow Guard of the derivation's own (`infostate._facts`), which
+        # refuses a seat nobody sits in only once the playout has run, and in
+        # the engine maintainer's channel. Taken here, the refusal comes before
+        # the game is played and in the words of the caller who named the seat.
         print(
             f"cardlang: {path} seats 0..{seats - 1}; --info-state {seat} names "
             "no seat at this table",

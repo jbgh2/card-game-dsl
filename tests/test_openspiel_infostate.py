@@ -6,8 +6,10 @@ from __future__ import annotations
 import random
 from typing import Any
 
+import pytest
+
 from cardlang.ast import nodes as n
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import derive, information_state
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -131,3 +133,18 @@ def test_a_view_cannot_be_written_through_into_the_world() -> None:
     with pytest.raises(TypeError):
         scores[0] = -1
     assert rs.get("score") == {0: 10, 1: 20}
+
+
+@pytest.mark.parametrize("seat", [-1, 2, 7])
+def test_a_view_is_derived_only_for_a_seat_at_the_table(seat: int) -> None:
+    """Handed an integer that seats nobody, the projection would still answer —
+    every zone through the view of a non-owner — and render a plausible view
+    that belongs to no one.
+
+    red under: drop the seat check from `infostate._facts`.
+    """
+    rs = _rs()
+    with pytest.raises(AssertionError, match="no seat"):
+        information_state(seat, rs, [])
+    with pytest.raises(AssertionError, match="no seat"):
+        derive(seat, rs, [])

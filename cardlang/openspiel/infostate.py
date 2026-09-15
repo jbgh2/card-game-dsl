@@ -107,6 +107,13 @@ def _facts(
     call that made it. The one caller that renders immediately uses it; the one
     that hands a view out takes a snapshot first. Nothing else may.
     """
+    if player not in rs.seating.players:
+        # The projection would answer for any integer — every zone through a
+        # non-owner's view — and the result would read as some seat's view.
+        raise AssertionError(
+            f"no seat {player!r} at this table: a seat view is derived for one "
+            f"of seats 0..{len(rs.seating.players) - 1}"
+        )
     merged: dict[str, Any] = {}
     for frame in rs.frames:  # later frames shadow earlier (phase-local over game)
         merged.update(frame)
@@ -128,13 +135,16 @@ def derive(
     the world as the world moved on, and its holder could write through the
     dict into engine state. `frozen=True` stops neither — it guards the field,
     never what the field points at. `deep_freeze` owns that class
-    (`runtime/reads.py`), and its refusal of anything outside the declared
-    value shapes holds this bundle to the domain `_render` covers.
+    (`runtime/reads.py`).
+
+    What it guarantees is immutability, not renderability: it admits shapes
+    `_render` has no spelling for, so a view holding one derives here and is
+    refused where it is rendered.
 
     The zones need none of it: a projection is a tuple of strings, a count, or
-    nothing. Nor does the observation log, whose payloads come from the closed
-    set of shapes the emitter produces and are immutable at every corpus site
-    measured (issue #638).
+    nothing. Nor does the observation log: every field shape `EVENT_PAYLOADS`
+    declares is immutable, and emission is not fenced against a payload outside
+    them (issue #638).
 
     Copying is why this is separate from `_facts`: the snapshot costs about as
     much again as a whole render, and the rendering path has no use for it.

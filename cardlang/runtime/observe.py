@@ -1,8 +1,9 @@
 """Per-observer [[observation-event]] emission — the [[projection]] substrate.
 
-Every event is a plain, deterministic, human-readable tuple. The event types are
-`EVENT_TYPES` below, which is the closed set and the authority; this is what each
-carries:
+Every event is a plain, deterministic, human-readable tuple. The kinds, and the
+shape of every field each kind carries, are `EVENT_PAYLOADS` below — the closed
+set and the authority, with `PAYLOAD_SHAPES` saying what each field shape
+admits. This is what each carries:
 
   ("chose", <rendered value>)             delivered to the actor only, at the
                                           moment of the chooser draw (perfect
@@ -31,6 +32,7 @@ its observers.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from cardlang.domains import zone_observer_key
@@ -38,13 +40,88 @@ from cardlang.runtime.state import Ctx, RuntimeState
 from cardlang.runtime.values import Card, Player
 from cardlang.stdlib.zones import zone_projection
 
-# The closed set of observation-event types (closed-domain completeness,
-# decisions.md): every event any emission site delivers to an observer log
-# carries one of these tags. Emission sites: `choice`/`announce`/`movement`
-# below, the replay chooser's per-draw `chose`, and execute._reveal. Pinned
-# by a corpus sweep (tests/test_observe.py) so a typo'd tag cannot mint a
-# new event kind silently; a NEW deliberate kind is added here first.
-EVENT_TYPES: frozenset[str] = frozenset({"chose", "announce", "move", "reveal"})
+
+def _is_integer(value: object) -> bool:
+    # `isinstance(True, int)` holds, and neither a seat nor a count is a flag.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_card_renderings(value: object) -> bool:
+    return isinstance(value, tuple) and all(isinstance(item, str) for item in value)
+
+
+# What each payload field shape admits: the alternatives its emitters produce,
+# and nothing else.
+PAYLOAD_SHAPES: dict[str, Callable[[object], bool]] = {
+    # a seat index — the actor of an announcement
+    "seat": _is_integer,
+    # a zone's label: its name, or `name[key]` for a family instance
+    "label": lambda value: isinstance(value, str),
+    # one card, rendered
+    "card": lambda value: isinstance(value, str),
+    # what one observer sees of moved cards through a projection (`view_of`):
+    # the cards rendered, a count, or nothing
+    "view": lambda value: (
+        value is None or _is_integer(value) or _is_card_renderings(value)
+    ),
+    # a decision value as `render` spells it: a string, an integer or flag,
+    # nothing, or a multi-card selection
+    "value": lambda value: (
+        value is None or isinstance(value, (str, int)) or _is_card_renderings(value)
+    ),
+}
+
+# The closed set of observation-event kinds, each with the shape of every field
+# it carries after its tag (closed-domain completeness, decisions.md). Emission
+# sites: `choice`/`announce`/`movement` below, `chooser.sequential_decisions`'
+# per-pick `chose`, and `execute._reveal`. A new kind, or a new field on one, is
+# declared here first. Pinned by tests/test_observation_payloads.py, which plays
+# every registered game with an observer installed and holds every delivered
+# event to its row.
+#
+# The rung, recorded: the log stays tagged tuples and a consumer refuses what
+# the table does not describe (`payload_refusal`), rather than a typed event
+# union every site constructs — each tuple's `repr` is the information state's
+# own substrate, so typing the log is a change of its own under the goldens'
+# full width. Emission is therefore unfenced: `Ctx.observe` delivers whatever
+# a site hands it.
+EVENT_PAYLOADS: dict[str, tuple[str, ...]] = {
+    "chose": ("value",),
+    "announce": ("seat", "value"),
+    "move": ("label", "view", "label", "view"),
+    "reveal": ("label", "card"),
+}
+
+
+def payload_refusal(event: object) -> str | None:
+    """Why `event` is not an observation event `EVENT_PAYLOADS` describes, or
+    None when it is one.
+
+    For the consumers that must not read an event the table does not describe —
+    a rendering, a proof that perturbs events field by field — because nothing
+    downstream has a declared reading for one.
+    """
+    if not isinstance(event, tuple) or not event or not isinstance(event[0], str):
+        return (
+            f"{event!r} is not an observation event: an event is a tuple whose "
+            "first item names its kind"
+        )
+    kind, fields = event[0], event[1:]
+    row = EVENT_PAYLOADS.get(kind)
+    if row is None:
+        return (
+            f"observation event kind {kind!r} is not declared; the kinds are "
+            f"{', '.join(sorted(EVENT_PAYLOADS))}"
+        )
+    if len(fields) != len(row):
+        return (
+            f"a {kind!r} event carries {len(row)} field(s) ({', '.join(row)}), "
+            f"not {len(fields)}: {event!r}"
+        )
+    for position, (shape, value) in enumerate(zip(row, fields), start=1):
+        if not PAYLOAD_SHAPES[shape](value):
+            return f"field {position} of a {kind!r} event is a {shape}, not {value!r}"
+    return None
 
 
 def render_candidate(name: str, param: Any) -> str:

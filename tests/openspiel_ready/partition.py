@@ -19,11 +19,13 @@ This module must not import pyspiel: the root-level unit tests
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from cardlang.domains import zone_observer_key
 from cardlang.openspiel.infostate import information_state
+from cardlang.runtime.observe import EVENT_PAYLOADS, payload_refusal
 from cardlang.runtime.state import RuntimeState, Zone
 from cardlang.runtime.values import Card
 from cardlang.stdlib.zones import ZONE_PROJECTIONS, zone_projection
@@ -32,7 +34,59 @@ from cardlang.stdlib.zones import ZONE_PROJECTIONS, zone_projection
 SYNTHETIC = Card("‡", "synthetic")
 
 _SENTINEL = "«perturbed»"
-_SENTINEL_EVENT: tuple[Any, ...] = ("«synthetic-event»",)
+
+
+def _perturbed_view(view: Any) -> Any:
+    if view is None:
+        return 0
+    if isinstance(view, tuple):
+        return (*view, _SENTINEL)
+    return view + 1
+
+
+def _perturbed_value(value: Any) -> Any:
+    if value is None:
+        return _SENTINEL
+    if isinstance(value, tuple):
+        return (*value, _SENTINEL)
+    return value + (_SENTINEL if isinstance(value, str) else 1)
+
+
+# The payload probe table: for every field shape an observation event can carry
+# (`cardlang.runtime.observe.PAYLOAD_SHAPES`), the one perturbation that keeps a
+# value inside its shape and changes it — so the content of an event is probed
+# field by field, and no probe reads how a rendering spells one. A shape with
+# no entry here CANNOT be probed, and check_visible_facts refuses it rather
+# than passing it over, as ZONE_PROBES does for a projection level; the static
+# pin is tests/test_observation_payloads.py.
+PAYLOAD_PROBES: dict[str, Callable[[Any], Any]] = {
+    "seat": lambda seat: seat + 1,
+    "label": lambda label: label + _SENTINEL,
+    "card": lambda card: card + _SENTINEL,
+    "view": _perturbed_view,
+    "value": _perturbed_value,
+}
+
+# One member of every field shape, from which the matrix builds an event of
+# each declared kind to append — an event the vocabulary declares, so a
+# rendering that refuses anything else is probed rather than crashed.
+SYNTHETIC_PAYLOAD: dict[str, Any] = {
+    "seat": 0,
+    "label": "«synthetic»",
+    "card": "«synthetic»",
+    "view": 1,
+    "value": "«synthetic»",
+}
+
+
+def _declared(table: dict[str, Any], shape: str, what: str) -> Any:
+    if shape not in table:
+        raise AssertionError(
+            f"payload shape {shape!r} has no declared {what} — declare it before "
+            f"the matrix can certify events that carry it (an unprobed shape "
+            f"passes vacuously)"
+        )
+    return table[shape]
 
 
 class InfoFn(Protocol):
@@ -156,6 +210,7 @@ def check_visible_facts(
     counts = {f"zone_{p}": 0 for p in ZONE_PROBES}
     counts["state_vars"] = 0
     counts["obs_events"] = 0
+    counts["obs_fields"] = 0
     before = info_fn(observer, rs, obs_log)
 
     for name, key, zone in zone_instances(rs):
@@ -233,23 +288,37 @@ def check_visible_facts(
         )
 
     # Observation events. Perfect recall is a property of the log's exact
-    # sequence — multiplicity and order included — so presence alone is not
-    # enough: a renderer that deduplicates identical events (repeated asks,
-    # repeated announces) or canonicalizes their order would keep every
-    # repr present while over-hiding the sequence. Three probes per log:
-    # presence (guards truncation/summarization), one DELETION per index
-    # (guards deduplication — removing one copy of a duplicated event must
-    # still change the rendering), and one adjacent SWAP per distinct
-    # neighbor pair (guards order canonicalization).
+    # sequence, and each dimension of it has its own probe, none of which reads
+    # how a rendering spells an event (decisions.md "Closed-domain
+    # completeness"): CONTENT, one perturbation per field of every event, drawn
+    # from PAYLOAD_PROBES — a rendering that drops a field, or summarizes the
+    # log, keeps every other dimension; MULTIPLICITY, one DELETION per index —
+    # removing one copy of a duplicated event must still change the rendering;
+    # ORDER, one adjacent SWAP per distinct neighbour pair; and EXTENSION, one
+    # appended event per declared kind. An event the vocabulary does not
+    # declare has no fields to probe, so it is refused before any probe runs.
+    for i, e in enumerate(obs_log):
+        refusal = payload_refusal(e)
+        if refusal is not None:
+            raise AssertionError(
+                f"P{observer}'s observation log, event #{i}: {refusal} — the "
+                f"matrix probes only events the vocabulary declares"
+            )
     for i, e in enumerate(obs_log):
         counts["obs_events"] += 1
-        if repr(e) not in before:
-            failures.append(
-                FactFailure(
-                    fact=f"observation event {e!r} of P{observer}",
-                    expected="change",
-                    witness="event repr absent from the information state",
-                )
+        for position, shape in enumerate(EVENT_PAYLOADS[e[0]], start=1):
+            perturb = _declared(PAYLOAD_PROBES, shape, "probe")
+            obs_log[i] = (*e[:position], perturb(e[position]), *e[position + 1 :])
+            after = info_fn(observer, rs, obs_log)
+            obs_log[i] = e
+            counts["obs_fields"] += 1
+            _probe(
+                f"P{observer}'s observation log: event #{i} ({e!r}), field "
+                f"{position} ({shape}) perturbed",
+                True,
+                before,
+                after,
+                failures,
             )
         deleted = obs_log.pop(i)
         after = info_fn(observer, rs, obs_log)
@@ -273,16 +342,21 @@ def check_visible_facts(
                 after,
                 failures,
             )
-    obs_log.append(_SENTINEL_EVENT)
-    after = info_fn(observer, rs, obs_log)
-    obs_log.pop()
-    _probe(
-        f"P{observer}'s observation log: appended a synthetic event",
-        True,
-        before,
-        after,
-        failures,
-    )
+    for kind, row in sorted(EVENT_PAYLOADS.items()):
+        synthetic = (
+            kind,
+            *(_declared(SYNTHETIC_PAYLOAD, shape, "synthetic member") for shape in row),
+        )
+        obs_log.append(synthetic)
+        after = info_fn(observer, rs, obs_log)
+        obs_log.pop()
+        _probe(
+            f"P{observer}'s observation log: appended a synthetic {kind!r} event",
+            True,
+            before,
+            after,
+            failures,
+        )
 
     return failures, counts
 

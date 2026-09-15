@@ -918,8 +918,9 @@ class ReadinessProofs:
         stays as the end-to-end complement."""
         spec = self.spec
         _, pause = _advance(spec.path, seed, spec.depth)
-        totals = {"zone_identity": 0, "zone_count_only": 0, "zone_trivial": 0,
-                  "state_vars": 0, "obs_events": 0}
+        # Keyed by whatever the matrix counts, so a probe dimension it gains is
+        # recorded rather than refused by a list of the ones it had.
+        totals: dict[str, int] = {}
         for observer in range(len(pause.obs_logs)):
             failures, counts = check_visible_facts(
                 pause.rs, pause.obs_logs[observer], observer
@@ -929,7 +930,7 @@ class ReadinessProofs:
                 f"{spec.short_name}: the fact enumeration for P{observer} was empty"
             )
             for k, v in counts.items():
-                totals[k] += v
+                totals[k] = totals.get(k, 0) + v
         record(spec.short_name, "facts", seed=seed, observers=len(pause.obs_logs),
                depth=spec.depth, **totals)
 
