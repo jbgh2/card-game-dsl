@@ -104,9 +104,9 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         "--at",
         type=int,
         metavar="N",
-        help="show the --info-state seat's view at decision N — the position "
-        "just before that one choice is made — instead of at the terminal "
-        "position; --decisions lists the numbers",
+        help="print what --info-state and --view show at decision N — the "
+        "position just before that one choice is made — instead of at the "
+        "terminal position; --decisions lists the numbers",
     )
 
 
