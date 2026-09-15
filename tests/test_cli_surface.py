@@ -8,17 +8,17 @@ property:        Every option the parser declares is accepted by exactly the
                  refused in the command's own words, and a game that refuses
                  at play time reaches the caller as that refusal under every
                  one of them; every value class a caller can supply to
-                 `--seed`, `--info-state` or `--at` is either carried out or
-                 refused with a message naming what is valid; and the two
-                 invocation forms — the console script and `python -m cardlang`
-                 — reach the same front end.
+                 `--seed`, `--info-state`, `--view` or `--at` is either carried
+                 out or refused with a message naming what is valid; and the
+                 two invocation forms — the console script and
+                 `python -m cardlang` — reach the same front end.
 domain:          The commands and options are whatever `cardlang.cli`'s
                  parser declares, derived from the parser itself, and the
                  combination cross is the power set of the `demo` command's
                  own options, derived the same way. That cross varies an
                  option's PRESENCE and holds one representative value; the
                  value classes — the integer/non-integer and
-                 in-range/out-of-range splits of the three options that take
+                 in-range/out-of-range splits of the four options that take
                  one — are crossed separately, in the probes below. `--at`
                  numbers decision nodes, one per candidate a Chooser call
                  takes, which is the unit the game tree branches on, the unit
@@ -76,7 +76,9 @@ registry:        commands and options: `cardlang.cli.build_parser` via
                  module renders: tests/test_failure_taxonomy.py; the file-shape
                  dispatch: tests/test_pipeline_cardlang.py; the append-only
                  observation log a mid-hand view is projected from:
-                 tests/openspiel_ready/harness.py.
+                 tests/openspiel_ready/harness.py; the text `--view` prints,
+                 `cardlang.play.view.render_view`, certified by
+                 tests/test_play_view.py.
 does not prove:  Only the exact long spelling of each option. The parser is
                  built without `allow_abbrev=False`, so every unambiguous
                  prefix (`--info`, `--se`) reaches the same destination and no
@@ -135,9 +137,15 @@ from cardlang.cli import (
     main,
 )
 from cardlang.openspiel.encoding import ActionSpace
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import (
+    SeatView,
+    derive,
+    information_state,
+    render_information_state,
+)
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source
+from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser
 from cardlang.runtime.driver import play_game
 from cardlang.runtime.errors import InstallationError
@@ -228,6 +236,7 @@ _SAMPLE_VALUE: dict[str, list[str]] = {
     "--emit-ir": [],
     "--seed": ["7"],
     "--info-state": ["0"],
+    "--view": ["0"],
     "--at": ["0"],
     "--decisions": [],
 }
@@ -250,33 +259,51 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--info-state"): "refused",
     ("check", "--at"): "refused",
     ("check", "--decisions"): "refused",
+    ("check", "--view"): "refused",
     ("demo", "--emit-ir"): "refused",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
     ("demo", "--at"): "accepted",
     ("demo", "--decisions"): "accepted",
+    ("demo", "--view"): "accepted",
 }
 
 # The authored expected column for the combination cross. `--at` is refused
-# exactly when no `--info-state` says whose view to render; every other
-# combination is carried out.
+# exactly when neither `--info-state` nor `--view` says whose view to render;
+# every other combination is carried out, both seat flags together included.
 _COMBINATION_EXPECTED: dict[tuple[str, ...], str] = {
     (): "accepted",
     ("--at",): "refused",
     ("--decisions",): "accepted",
     ("--info-state",): "accepted",
     ("--seed",): "accepted",
+    ("--view",): "accepted",
     ("--at", "--decisions"): "refused",
     ("--at", "--info-state"): "accepted",
     ("--at", "--seed"): "refused",
+    ("--at", "--view"): "accepted",
     ("--decisions", "--info-state"): "accepted",
     ("--decisions", "--seed"): "accepted",
+    ("--decisions", "--view"): "accepted",
     ("--info-state", "--seed"): "accepted",
+    ("--info-state", "--view"): "accepted",
+    ("--seed", "--view"): "accepted",
     ("--at", "--decisions", "--info-state"): "accepted",
     ("--at", "--decisions", "--seed"): "refused",
+    ("--at", "--decisions", "--view"): "accepted",
     ("--at", "--info-state", "--seed"): "accepted",
+    ("--at", "--info-state", "--view"): "accepted",
+    ("--at", "--seed", "--view"): "accepted",
     ("--decisions", "--info-state", "--seed"): "accepted",
+    ("--decisions", "--info-state", "--view"): "accepted",
+    ("--decisions", "--seed", "--view"): "accepted",
+    ("--info-state", "--seed", "--view"): "accepted",
     ("--at", "--decisions", "--info-state", "--seed"): "accepted",
+    ("--at", "--decisions", "--info-state", "--view"): "accepted",
+    ("--at", "--decisions", "--seed", "--view"): "accepted",
+    ("--at", "--info-state", "--seed", "--view"): "accepted",
+    ("--decisions", "--info-state", "--seed", "--view"): "accepted",
+    ("--at", "--decisions", "--info-state", "--seed", "--view"): "accepted",
 }
 
 
@@ -444,7 +471,7 @@ def test_play_option_combination_cell(
     assert main(argv) == 2
     err = capsys.readouterr().err
     assert "--at" in err, "the refusal must name the option that needs a companion"
-    assert "--info-state" in err, "the refusal must name what to add"
+    assert "--info-state" in err and "--view" in err, "the refusal must name what to add"
 
 
 @pytest.mark.parametrize("subset", sorted(_COMBINATION_EXPECTED))
@@ -485,7 +512,7 @@ def test_a_refusing_game_under_every_option_combination(
         assert "Traceback" not in err, err
         return
     assert code == 2
-    assert "--info-state" in err, "the refusal must name what to add"
+    assert "--info-state" in err and "--view" in err, "the refusal must name what to add"
     assert REFUSAL_MESSAGE not in err, (
         "the invocation is refused before the game runs, so the game's own "
         "refusal cannot be what the caller reads"
@@ -630,23 +657,37 @@ def test_each_command_has_its_own_help(
         assert option in out
 
 
+@pytest.mark.parametrize("flag", ["--info-state", "--view"])
 @pytest.mark.parametrize("seat", ["2", "-1"])
-def test_seat_outside_the_table_is_refused(seat: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_seat_outside_the_table_is_refused(
+    flag: str, seat: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Kuhn seats two. A seat it does not seat is refused before the playout,
-    with the range named — nothing downstream of here would notice: a bad seat
-    projects zones through the wrong observer and renders a plausible string.
+    with the range named and the flag that named it.
     """
-    assert main(["demo", str(KUHN), "--info-state", seat]) == 2
+    assert main(["demo", str(KUHN), flag, seat]) == 2
     err = capsys.readouterr().err
-    assert "seat" in err
+    assert f"{flag} {seat}" in err, "the refusal must name the flag and the seat"
     assert "0..1" in err, "the refusal must name the seats this game seats"
 
 
-def test_non_integer_seat_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize("flag", ["--info-state", "--view"])
+def test_a_bad_seat_beside_a_good_one_is_refused(
+    flag: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Each seat flag is checked on its own, so a good seat on one does not
+    carry a bad seat on the other into the playout."""
+    other = "--view" if flag == "--info-state" else "--info-state"
+    assert main(["demo", str(KUHN), other, "0", flag, "5"]) == 2
+    assert f"{flag} 5" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("flag", ["--info-state", "--view"])
+def test_non_integer_seat_is_refused(flag: str, capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["demo", str(KUHN), "--info-state", "north"])
+        main(["demo", str(KUHN), flag, "north"])
     assert exit_info.value.code == 2
-    assert "--info-state" in capsys.readouterr().err
+    assert flag in capsys.readouterr().err
 
 
 def test_non_integer_seed_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
@@ -682,13 +723,13 @@ def _listing_of(rendered: str) -> tuple[str, list[str]]:
 
 
 def test_at_alone_says_whose_view_is_missing(capsys: pytest.CaptureFixture[str]) -> None:
-    """`--at` picks which decision and `--info-state` picks whose view. Neither
-    answers the other's question, so the sentence is refused rather than
-    carried out against a seat nobody named."""
+    """`--at` picks which decision, and `--info-state` or `--view` picks whose
+    view. Neither answers the other's question, so the sentence is refused
+    rather than carried out against a seat nobody named."""
     assert main(["demo", str(KUHN), "--at", "0"]) == 2
     err = capsys.readouterr().err
     assert "--at" in err
-    assert "--info-state" in err, "the refusal must name what to add"
+    assert "--info-state" in err and "--view" in err, "the refusal must name what to add"
 
 
 def test_a_negative_decision_index_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1147,6 +1188,114 @@ def test_a_decision_records_the_cards_the_same_call_already_took(
         assert "('chose', ('" not in log, (
             "a card taken is recorded as that card, not as a finished selection"
         )
+
+
+# ---------------------------------------------------------------------------
+# `--view`: the seat's view as text a person reads, from the same derivation.
+# ---------------------------------------------------------------------------
+
+
+class _WalkedFarEnough(Exception):
+    """The walk holds every decision the cell reads."""
+
+
+def _views_walk(path: Path, seed: int, seat: int, last: int) -> list[tuple[int, SeatView]]:
+    """Who decides, and `seat`'s derived view, at each decision up to `last` of
+    the line a seeded `demo` walks — taken the way `_tree_walk` takes the
+    string, so the two walks and the command meet the same positions."""
+    game = check_source(path)
+    rng = random.Random(seed)
+    play_uniformly = random_chooser(rng)
+    logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+    world: list[RuntimeState] = []
+    views: list[tuple[int, SeatView]] = []
+
+    def observe(player: int, event: tuple[Any, ...]) -> None:
+        logs[player].append(event)
+
+    def choose(player: int, candidates: list[Any], count: int) -> list[Any]:
+        taken = play_uniformly(player, candidates, count)
+        for choice in taken:
+            views.append((player, derive(seat, world[0], logs[seat])))
+            if len(views) > last:
+                raise _WalkedFarEnough
+            observe(player, ("chose", render(choice)))
+        return taken
+
+    with pytest.raises(_WalkedFarEnough):
+        play_game(
+            game, rng, None, chooser=choose, observer=observe, on_first_decision=world.append
+        )
+    return views
+
+
+def _printed_view(out: str, header: str) -> str:
+    """The text `demo` printed under the line beginning `header`: the view is
+    the last thing it prints."""
+    lines = out.splitlines()
+    start = next(k for k, line in enumerate(lines) if line.startswith(header))
+    return "\n".join(lines[start + 1 :])
+
+
+def test_view_at_a_decision_is_the_text_of_the_view_the_walk_holds(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """What `--view --at N` prints is `render_view` of the seat's view at
+    decision N, with the turn line exactly when N is the seat's own decision.
+
+    red under: pass `your_turn=True` from `cardlang.cli._demo` whatever the
+    decision; the second index is another seat's.
+    """
+    game = check_source(HEARTS)
+    walk = _views_walk(HEARTS, 7, 1, 12)
+    own = next(k for k, (actor, _) in enumerate(walk) if actor == 1)
+    other = next(k for k, (actor, _) in enumerate(walk) if actor != 1)
+    for index in (own, other):
+        argv = ["demo", str(HEARTS), "--seed", "7", "--view", "1", "--at", str(index)]
+        assert main(argv) == 0
+        printed = _printed_view(capsys.readouterr().out, f"view, seat 1, at decision {index} (")
+        actor, view = walk[index]
+        assert printed == render_view(game, view, your_turn=actor == 1)
+        assert ("your turn to choose" in printed) == (actor == 1)
+
+
+def test_view_and_info_state_render_one_position(capsys: pytest.CaptureFixture[str]) -> None:
+    """Named together, the two flags show one position: the string is the
+    information state of the seat's view there and the text is its rendering
+    for a person, so neither can be of a later moment than the other."""
+    game = check_source(KUHN)
+    actor, view = _views_walk(KUHN, 7, 1, 1)[1]
+    argv = ["demo", str(KUHN), "--seed", "7", "--info-state", "1", "--view", "1", "--at", "1"]
+    assert main(argv) == 0
+    out = capsys.readouterr().out
+    assert _seats_view(out, 1) == render_information_state(view)
+    assert _printed_view(out, "view, seat 1, at decision 1 (") == render_view(
+        game, view, your_turn=actor == 1
+    )
+
+
+def test_the_two_seat_flags_may_name_different_seats(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    game = check_source(KUHN)
+    _, seat_0 = _views_walk(KUHN, 7, 0, 0)[0]
+    actor, seat_1 = _views_walk(KUHN, 7, 1, 0)[0]
+    argv = ["demo", str(KUHN), "--seed", "7", "--info-state", "0", "--view", "1", "--at", "0"]
+    assert main(argv) == 0
+    out = capsys.readouterr().out
+    assert _seats_view(out, 0) == render_information_state(seat_0)
+    assert _printed_view(out, "view, seat 1, at decision 0 (") == render_view(
+        game, seat_1, your_turn=actor == 1
+    )
+
+
+def test_view_at_the_terminal_position(capsys: pytest.CaptureFixture[str]) -> None:
+    """With no decision named, the view is the terminal position's, and no
+    decision is anyone's there."""
+    assert main(["demo", str(KUHN), "--seed", "7", "--view", "0"]) == 0
+    printed = _printed_view(capsys.readouterr().out, "view, seat 0, at the terminal position")
+    assert printed.startswith("KuhnPoker, as P0 sees it\n")
+    assert "your turn" not in printed
 
 
 # ---------------------------------------------------------------------------

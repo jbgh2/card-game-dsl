@@ -614,9 +614,9 @@ def test_an_unmodelled_observation_event_is_refused(game: Any) -> None:
     """An event the walk does not model stops the estimate rather than being
     skipped.
 
-    A real window with one `reveal` appended — the fourth member of
-    `cardlang.runtime.observe.EVENT_TYPES`, which Cheat emits none of because
-    its flip is a movement. A walk that skipped it would answer with a pile
+    A real window with one `reveal` appended — a kind
+    `cardlang.runtime.observe.EVENT_PAYLOADS` declares, which Cheat emits none
+    of because its flip is a movement. A walk that skipped it would answer with a pile
     whose contents it had not read, which is unsoundness by omission: the same
     failure `infostate.parse_events` refuses to have.
     """

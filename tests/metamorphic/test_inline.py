@@ -157,6 +157,7 @@ def test_the_library_procedure_games_are_pinned_as_uncovered() -> None:
     names = sorted(p.name for p in LIBRARY_PROCEDURE_GAMES)
     assert names == [
         "five-card-draw.cardlang",
+        "five-card-stud.cardlang",
         "holdem-heads-up.cardlang",
         "holdem.cardlang",
         "kuhn-poker.cardlang",

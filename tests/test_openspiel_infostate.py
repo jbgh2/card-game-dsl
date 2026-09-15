@@ -6,8 +6,10 @@ from __future__ import annotations
 import random
 from typing import Any
 
+import pytest
+
 from cardlang.ast import nodes as n
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import derive, information_state
 from cardlang.runtime.state import RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
@@ -62,24 +64,24 @@ def test_render_covers_the_declared_value_shapes_and_refuses_the_rest() -> None:
     unstable repr in a certified-deterministic string."""
     import pytest
 
-    from cardlang.openspiel.infostate import _render
+    from cardlang.openspiel.infostate import render_state_variable
     from cardlang.runtime.state import StructValue
     from cardlang.runtime.values import Card
 
-    assert _render(3) == "3"
-    assert _render(True) == "True"
-    assert _render("hearts") == "hearts"
-    assert _render(None) == "None"
-    assert _render(Card("Q", "spades")) == "Q♠"
+    assert render_state_variable(3) == "3"
+    assert render_state_variable(True) == "True"
+    assert render_state_variable("hearts") == "hearts"
+    assert render_state_variable(None) == "None"
+    assert render_state_variable(Card("Q", "spades")) == "Q♠"
     a = StructValue("Contract", {"level": 1, "suit": "spades"})
     b = StructValue("Contract", {"suit": "spades", "level": 1})
-    assert _render(a) == _render(b) == "Contract{level:1,suit:spades}"
+    assert render_state_variable(a) == render_state_variable(b) == "Contract{level:1,suit:spades}"
 
     class Alien:
         pass
 
     with pytest.raises(AssertionError, match="no declared rendering"):
-        _render(Alien())
+        render_state_variable(Alien())
 
 
 def test_a_derived_view_does_not_follow_the_world_it_came_from() -> None:
@@ -131,3 +133,87 @@ def test_a_view_cannot_be_written_through_into_the_world() -> None:
     with pytest.raises(TypeError):
         scores[0] = -1
     assert rs.get("score") == {0: 10, 1: 20}
+
+
+def test_a_view_holds_the_cards_themselves_in_one_canonical_order() -> None:
+    """A seat entitled to a zone's cards is handed the cards as values — what a
+    reader needs to rank them, group them by suit or compare their strength —
+    and in one canonical order, because an identity projection reveals which
+    cards a zone holds and never the order they sit in it.
+
+    red under: `view_of`'s identity arm answering the cards' renderings, or the
+    cards in the order the zone stores them.
+    """
+    rs = _rs()
+    hand = rs.zones.instance("hand", 0)
+    hand.add(Card("10", "spades"))
+    hand.add(Card("2", "hearts"))
+    assert [str(card) for card in hand.cards] == ["Q♠", "10♠", "2♥"]
+
+    held = dict(derive(0, rs, []).zones)["hand[0]"]
+    assert held == (Card("10", "spades"), Card("2", "hearts"), Card("Q", "spades"))
+
+
+def test_a_view_cannot_be_written_through_into_a_zone() -> None:
+    """A card in a kept view is not the card in the zone.
+
+    `frozen=True` stops `card.rank = ...` and not `object.__setattr__`, so a view
+    handing out the engine's own card would hand out a way to change what a zone
+    holds.
+
+    red under: `infostate.derive` passing the zone views through without the
+    snapshot.
+    """
+    rs = _rs()
+    held = dict(derive(0, rs, []).zones)["hand[0]"]
+    assert isinstance(held, tuple)
+    object.__setattr__(held[0], "rank", "K")
+    assert rs.zones.instance("hand", 0).cards == [Card("Q", "spades")]
+
+
+def test_a_zone_view_spells_each_declared_shape() -> None:
+    from cardlang.openspiel.infostate import _zone_line
+
+    assert _zone_line("hand[0]", (Card("10", "spades"), Card("Q", "spades"))) == (
+        "hand[0]=[10♠,Q♠]"
+    )
+    assert _zone_line("trick_pile", ()) == "trick_pile=[]"
+    assert _zone_line("deck", 48) == "deck=#48"
+    assert _zone_line("deck", 0) == "deck=#0"
+    assert _zone_line("muck", None) == "muck=?"
+
+
+@pytest.mark.parametrize(
+    "wrong",
+    [["Q♠"], {"Q♠"}, frozenset({"Q♠"}), {"Q♠": 1}, True, 1.0, ("Q♠",)],
+    ids=["list", "set", "frozenset", "dict", "a flag", "a float", "card renderings"],
+)
+def test_a_zone_view_outside_the_declared_shapes_is_refused(wrong: Any) -> None:
+    """`view_of` answers cards, a count, or nothing, and the information state
+    spells exactly those — never an iterable's items as though they were cards,
+    nor a flag as though it were a count.
+
+    red under: `_zone_line` spelling any non-tuple as a count, or joining any
+    tuple's items.
+    """
+    from cardlang.openspiel.infostate import _zone_line
+
+    with pytest.raises(AssertionError, match="no declared rendering"):
+        _zone_line("hand[0]", wrong)
+
+
+@pytest.mark.parametrize("seat", [-1, 2, 7, True, False])
+def test_a_view_is_derived_only_for_a_seat_at_the_table(seat: int) -> None:
+    """Handed an integer that seats nobody, the projection would still answer —
+    every zone through the view of a non-owner — and render a plausible view
+    that belongs to no one. Handed a flag, it would answer as seat 1 or seat 0
+    and render that seat's private cards under the name `PTrue` or `PFalse`.
+
+    red under: drop the seat check from `infostate._facts` (every cell), or
+    only its flag test (the two flag cells).
+    """
+    rs = _rs()
+    with pytest.raises(AssertionError, match="no seat"):
+        information_state(seat, rs, [])
+    with pytest.raises(AssertionError, match="no seat"):
+        derive(seat, rs, [])

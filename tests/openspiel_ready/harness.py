@@ -48,7 +48,7 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # registers on import
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import derive, information_state
 from cardlang.openspiel.replay import (
     DecisionNode,
     TerminalNode,
@@ -57,6 +57,7 @@ from cardlang.openspiel.replay import (
     returns_for,
     run,
 )
+from cardlang.play.view import render_view
 from cardlang.runtime.driver import play_game
 
 from .partition import (
@@ -738,7 +739,7 @@ class ReadinessProofs:
     def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
-        _, space = load(path)
+        game, space = load(path)
         hz = spec.hidden_zone
         history, pause_a = _advance(path, seed, spec.depth)
         p = pause_a.player
@@ -757,17 +758,36 @@ class ReadinessProofs:
             side2: tuple[str, int | None] = (hz, opp2)
             who = f"players {opp1},{opp2}"
         else:
-            # 2-player games: there is only ever one opponent, so the harness
-            # swaps between that opponent's hand and the un-dealt deck instead —
-            # both hidden from P throughout the replayed prefix. This only works
-            # when the pause coincides with the first decider (`p == d0`), so the
-            # swap (fired at the very first decision) never mutates a decider
-            # whose candidates were already computed from the un-swapped world.
-            assert p == d0, (
-                f"{spec.short_name}: with 2 players the harness needs the depth pause "
-                f"to coincide with the first decider (p == d0) — adjust the spec's depth"
+            # ONE other observer, so there is no second hand to swap against:
+            # the harness swaps that observer's hidden zone against the un-dealt
+            # stock instead, both hidden from P throughout the replayed prefix.
+            # Two kinds of game land here. A 2-player game always does — P and
+            # the first decider are the same seat, leaving the single opponent.
+            # A 3-player game does whenever the pause and the first decider are
+            # DIFFERENT seats, which a game whose street opener is read off the
+            # cards cannot arrange away: Stud's opener varies with the deal, so
+            # no one depth lands on the first decider across a whole manifest.
+            #
+            # What the branch needs is not that the pause coincide with the
+            # first decider, but that the swap leave the FIRST DECIDER's own
+            # hidden cards alone — the swap fires at the very first decision,
+            # and a decider whose candidates were computed from the un-swapped
+            # world must still be holding the cards they were computed from.
+            # `others` excludes both `p` and `d0` by construction, so the seat
+            # whose zone moves is neither, and that is the condition.
+            #
+            # The stock side is read AT THE PAUSE, which is what makes it safe
+            # to deal from between the swap and the pause: a card still in the
+            # stock there was dealt nowhere in the replayed prefix, so putting
+            # the opponent's card in its place changes no public observation
+            # the prefix already made.
+            assert len(others) == 1, (
+                f"{spec.short_name}: the stock-swap branch needs exactly one "
+                f"observer who is neither the paused player nor the first "
+                f"decider, and there are {len(others)} — with 2 players that "
+                f"means the depth pause must coincide with the first decider "
+                f"(p == d0); adjust the spec's depth"
             )
-            assert len(others) == 1, f"{spec.short_name}: expected exactly one other player"
             opp = others[0]
             hand = pause_a.rs.zones.instance(hz, opp).cards
             deck = pause_a.rs.zones.single(spec.stock_zone).cards[spec.stock_swap_skip:]
@@ -779,6 +799,7 @@ class ReadinessProofs:
         assert candidates, "no swap pair available; lower the spec's depth for this game"
 
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
+        text_a = render_view(game, derive(p, pause_a.rs, pause_a.obs_logs[p]), your_turn=True)
         strings_a = action_strings(space, pause_a.legal)
         last_err: ValueError | None = None
         proved: list[str] = []
@@ -800,6 +821,17 @@ class ReadinessProofs:
                 f"CHANGED P{p}'s information state — the info-set leaks.\n"
                 f"worlds: seed={seed} depth={len(history)} swap=({x},{y})\n"
                 f"witness: {first_divergence(info_a, info_b)}"
+            )
+            # The text a person reads renders the same view, so it agrees as
+            # well: the leak direction only, since a text showing nothing would
+            # agree too. tests/test_play_view.py holds the other direction.
+            text_b = render_view(
+                game, derive(p, pause_b.rs, pause_b.obs_logs[p]), your_turn=True
+            )
+            assert text_a == text_b, (
+                f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) CHANGED "
+                f"the text P{p}'s view renders as, while the information state "
+                f"agreed.\nwitness: {first_divergence(text_a, text_b)}"
             )
             # Legal-action agreement: two worlds in the same information set
             # for the player to move must offer identical legal actions —
@@ -838,6 +870,7 @@ class ReadinessProofs:
             candidates=len(candidates),
             legal_agreement=True,
             string_agreement=True,
+            text_agreement=True,
         )
 
     @pytest.mark.parametrize("seed", manifest())
@@ -899,8 +932,9 @@ class ReadinessProofs:
         stays as the end-to-end complement."""
         spec = self.spec
         _, pause = _advance(spec.path, seed, spec.depth)
-        totals = {"zone_identity": 0, "zone_count_only": 0, "zone_trivial": 0,
-                  "state_vars": 0, "obs_events": 0}
+        # Keyed by whatever the matrix counts, so a probe dimension it gains is
+        # recorded rather than refused by a list of the ones it had.
+        totals: dict[str, int] = {}
         for observer in range(len(pause.obs_logs)):
             failures, counts = check_visible_facts(
                 pause.rs, pause.obs_logs[observer], observer
@@ -910,7 +944,7 @@ class ReadinessProofs:
                 f"{spec.short_name}: the fact enumeration for P{observer} was empty"
             )
             for k, v in counts.items():
-                totals[k] += v
+                totals[k] = totals.get(k, 0) + v
         record(spec.short_name, "facts", seed=seed, observers=len(pause.obs_logs),
                depth=spec.depth, **totals)
 
@@ -1136,7 +1170,14 @@ class ReadinessProofs:
         history: list[int] = []
         r = run(spec.path, seed, ())
         steps = 0
+        # Whether the loop below ran at all, which is the only thing that makes
+        # the record's `action_strings_compared` true. `steps` cannot answer it:
+        # the `adapter_terminal_steps` branch overwrites it with the greedy
+        # line's length, and a spec at depth 0 skips the loop entirely while
+        # still reaching the record.
+        compared = False
         while isinstance(r, DecisionNode) and steps < spec.depth:
+            compared = True
             assert not state.is_terminal()
             assert state.current_player() == r.player, (
                 f"{spec.short_name}: step {steps}: adapter player "
@@ -1205,4 +1246,4 @@ class ReadinessProofs:
         record(spec.short_name, "adapter", seed=seed, steps=steps,
                terminal=dsl_returns is not None,
                returns_compared=dsl_returns is not None,
-               action_strings_compared=True)
+               action_strings_compared=compared)

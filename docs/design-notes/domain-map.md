@@ -85,14 +85,17 @@ boundary contract — which is why the Observation renderer
 (`openspiel/replay.py`), and Decision's `ActionSpace`
 (`openspiel/encoding.py`) sit in the Interop package: their artifacts (the
 info-state string, the returns vector, the action ids) are the OpenSpiel
-contract itself. Do not "fix" their location.
+contract itself. Do not "fix" their location. The converse holds too: the text
+a person reads of a seat's view is an Observation rendering whose output is not
+that contract, so it lives in `cardlang/play/`, where the session that seats a
+person lives.
 
 | Domain | Code | Completeness checks (the pins) |
 |---|---|---|
 | Description | `grammar/`, `parse.py`, `ast/nodes.py`, `resolve.py`, `typecheck.py`, `ir.py` | Surface-totality matrices (movement grid, rejection tests); closed AST unions under `mypy --strict` with `assert_never` dispatches; declared-type-name and named-arg rejections |
 | Table | `runtime/values.py`, `runtime/state.py`, `stdlib/zones.py` | `ZONE_PROBES` ↔ `ZONE_PROJECTIONS` pin + probe-time refusal; deck registries derived from `DECKS` (suits) or drift-pinned (sizes); emission-rule raise in `view_of` |
 | Decision | `domains.py`, `runtime/mechanics.py`, `runtime/chooser.py`, `runtime/execute.py` (offer), `openspiel/encoding.py` | The quantifiable-domain registry (`domains.py`) is the one table behind both namespaces — the `for each`/quantifier role nouns and the capitalised move-parameter spellings: resolve's `_ITERATION_ROLES`/`_FIXED_DOMAINS`, typecheck's binder typing, the runtime's `role_members`/`enumerate_domain`, and `execute._for_each`'s actorhood are all derived columns, pinned by the domain × form matrix (tests/test_domain_registry.py); registry→dispatcher pins (`CALL_FUNCS`, the round-callback and climb-query name sets); encoder ends in loud errors |
-| Observation | `runtime/observe.py`, `openspiel/infostate.py` | `EVENT_TYPES` vocabulary + corpus-sweep pin; renderer shape Owner Guards (undeclared value shapes refuse); the partition proof battery |
+| Observation | `runtime/observe.py`, `openspiel/infostate.py`, `play/` (the text a person reads) | `EVENT_PAYLOADS` (each kind and the shape of every field it carries), pinned by an every-game emission sweep and refused where consumed (`payload_refusal`); renderer shape Owner Guards (undeclared value shapes refuse); the partition proof battery, whose per-field payload probes derive from the same table and certify every rendering of a Seat View — the text's matrix pin runs inside the Chooser over every registered game (tests/test_play_view.py), its event lines exhaustive over the same table |
 | Control | `runtime/driver.py`, `runtime/active_rules.py` | Central decision counting vs `max_length` (one wrapper, every chooser site); round-form surface under Description's totality |
 | Valuation | `openspiel/replay.py` (`returns_for`), driver winner handling | Bounded by the `winner:` grammar surface; per-game playout + conservation tests |
 | Chance | seeded in `runtime/driver.py`, carried as `rs.rng` | The seed/rng non-observability pin; replay purity (chooser makes no rng calls) |
