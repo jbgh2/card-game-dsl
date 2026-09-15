@@ -47,6 +47,12 @@ def sequential_decisions(
     equal to the one taken, so a two-deck game takes one of a matching pair
     rather than both.
     """
+    if n > len(candidates):
+        # The game asked for more than the pool holds: the authoring error
+        # `random_chooser` refuses on the per-call route, refused here for every
+        # route that reads a call one pick at a time, before the first pick
+        # leaves a later one choosing from nothing.
+        raise OwnerGuardError(f"cannot choose {n} of {len(candidates)} candidates")
     pool = list(candidates)
     taken: list[Any] = []
     for _ in range(n):
@@ -64,8 +70,8 @@ def random_chooser(rng: random.Random) -> Chooser:
             # error, so the Owner Guard names the author. Nothing upstream
             # compares the count against the live pool (`_check_count` bars
             # only negative and zero), which is what makes this the Owner
-            # rather than a Shadow. Note it guards `random_chooser`, not the
-            # `Chooser` seam: `ReplayChooser` has no equivalent.
+            # rather than a Shadow. It owns the per-call route; the per-pick
+            # routes meet the same refusal in `sequential_decisions`.
             raise OwnerGuardError(f"cannot choose {n} of {len(candidates)} candidates")
         return rng.sample(candidates, n)
 

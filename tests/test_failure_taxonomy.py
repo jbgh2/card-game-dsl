@@ -124,6 +124,14 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # saying the checkout is incomplete, which is not what a caller who passed
     # a path can act on.
     "GameRegistrationError": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever supplied a recorded history -----------------------
+    # A saved session or a harness's history that does not replay in the game
+    # it is replayed against. The game is sound; the record is not its own.
+    "HistoryMismatch": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever named the file a session saves to -----------------
+    # The file cannot be written; the game is sound and the session is not
+    # the game's.
+    "SaveFailed": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},
@@ -132,6 +140,10 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     "_ContinueTo": {"in_game_description_tree": False, "is_runtime_error": False},
     "_SkipHand": {"in_game_description_tree": False, "is_runtime_error": False},
     "ChooserAbort": {"in_game_description_tree": False, "is_runtime_error": False},
+    # A person at the table taking a pick back or leaving: the only way a
+    # running game stops is an exception unwinding it.
+    "TakeBack": {"in_game_description_tree": False, "is_runtime_error": False},
+    "Leave": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- the compile passes' own channel -----------------------------------
     # Diagnostics are bag-collected and carry spans; a compile failure is never
     # a play-time refusal, and catching one as a game-description failure would

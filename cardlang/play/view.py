@@ -83,20 +83,31 @@ def _aligned(rows: Iterable[tuple[str, str]], empty: str) -> list[str]:
     return [f"  {name:<{width}}  {text}" for name, text in listed]
 
 
-def _numbered(lines: list[str]) -> list[str]:
+def _numbered(lines: list[str], recent: int | None) -> list[str]:
     if not lines:
         return ["  nothing yet"]
     width = len(str(len(lines)))
-    return [f"  {number:>{width}}  {line}" for number, line in enumerate(lines, start=1)]
+    rows = [f"  {number:>{width}}  {line}" for number, line in enumerate(lines, start=1)]
+    folded = 0 if recent is None else max(0, len(lines) - recent)
+    if not folded:
+        return rows
+    earlier = "1 earlier event" if folded == 1 else f"{folded} earlier events"
+    return [f"  {'':>{width}}  {earlier}", *rows[folded:]]
 
 
-def render_view(game: n.Game, view: SeatView, *, your_turn: bool = False) -> str:
+def render_view(
+    game: n.Game, view: SeatView, *, your_turn: bool = False, recent: int | None = None
+) -> str:
     """What `view.player` knows at this position, as text a person reads.
 
     `your_turn` says the decision at this position is the seat's own. It is the
     one fact of the position shown here that a Seat View does not carry, and
     the swap proof holds it: worlds the deciding seat cannot tell apart give
     that seat the decision in both.
+
+    `recent` shows only that many of the log's latest events, under one line
+    counting the events before them. The text with the whole log is the one
+    certified; a window onto it is a presentation its caller chooses.
     """
     noun = game.content_flavor
     key = card_order(game)
@@ -110,5 +121,5 @@ def render_view(game: n.Game, view: SeatView, *, your_turn: bool = False) -> str
         ((name, render_state_variable(content)) for name, content in view.state), "none"
     )
     lines += ["", "observation log"]
-    lines += _numbered([event_line(event, noun) for event in view.obs_log])
+    lines += _numbered([event_line(event, noun) for event in view.obs_log], recent)
     return "\n".join(lines)

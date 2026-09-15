@@ -20,6 +20,8 @@ callers decide how to render it.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from functools import cache
 from pathlib import Path
 
@@ -80,3 +82,16 @@ def compile_markdown(markdown: str, source_name: str) -> dict[str, IRValue]:
 def compile_path(path: str | Path) -> dict[str, IRValue]:
     """Compile a game file on disk to its IR."""
     return emit(check_source(path))
+
+
+def game_identity(game: Game) -> str:
+    """Which game a checked game is, for a file replayed against one.
+
+    A digest of the game's IR: the checked program, with every definition a
+    `uses` library splices in, and none of the file's layout, comments or path.
+    So a copy reformatted or moved keeps its identity, and an edit that reaches
+    the program moves it, a library's included — which the bytes of the game's
+    own file could not show. A saved session carries it and is refused against
+    a game whose identity differs."""
+    text = json.dumps(emit(game), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()

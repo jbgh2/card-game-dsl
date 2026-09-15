@@ -11,12 +11,29 @@ pure function of ``seed``.
 
 For a Chance-Free Game the seed reaches nothing: its generator refuses every
 draw (`cardlang.runtime.chance`), so a run is a pure function of ``history``
-alone and `game.py` gives it a tree with no root chance node."""
+alone and `game.py` gives it a tree with no root chance node.
+
+A :class:`LiveLine` is the same chooser given a continuation: past the recorded
+history it asks each seat's [[seat-policy]] instead of pausing, so a person or
+an opponent plays on from ``(seed, history)`` through the positions the
+adapter's tree holds.
+
+Contract
+--------
+Assumes: a checked game whose action space `ActionSpace.for_game` derives.
+Establishes: one decoder of recorded action ids, whether the run then pauses
+or asks a Seat Policy; one rule choosing the generator a ``(path, seed)`` runs
+under (`generator_for`); a Seat Policy asked at a position is handed the
+[[seat-view]] derived there while every phase frame stands, and its answer is
+one of the legal action ids or the line refuses it.
+Illegal after: a second site choosing a game's generator; a continuation that
+draws from the game's generator; a policy asked again once it has raised in
+the same run."""
 
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -25,6 +42,8 @@ from typing import Any, cast
 from cardlang.ast import nodes as n
 from cardlang.domains import Role, role_of
 from cardlang.openspiel.encoding import ActionSpace
+from cardlang.openspiel.infostate import SeatView, derive
+from cardlang.openspiel.seat_policy import SeatPolicy
 from cardlang.pipeline import check_source
 from cardlang.runtime.chance import RefusingRandom, is_chance_free
 from cardlang.runtime.chooser import sequential_decisions
@@ -94,27 +113,67 @@ class ReplayChooser:
     into one information state (a perfect-recall violation). Per-draw emission
     keeps every replayed card in the actor's log, and the log append-only
     across ``(seed, history)`` extensions; the runtime aggregate that follows a
-    completed call is kept (it is the canonical event native playouts emit)."""
+    completed call is kept (it is the canonical event native playouts emit).
+
+    ``beyond`` is the continuation past the recorded history. Without one the
+    chooser pauses the run; with one it asks ``beyond(decider, legal)`` for an
+    action id, refuses an answer that is not one of ``legal``, and appends the
+    id to ``taken`` as the pick is made. A continuation that raises is not
+    asked again in the same run: `driver.run_phase` runs `after_each` on the way
+    out of an iteration, exceptions included, and an `after_each` that decides
+    would reach it a second time while the run unwinds. ``deciders`` holds the
+    seat each pick was made for, recorded and live alike."""
 
     def __init__(
         self,
         space: ActionSpace,
         history: tuple[int, ...],
         emit: Callable[[int, tuple[Any, ...]], None],
+        beyond: Callable[[int, list[int]], int] | None = None,
+        taken: list[int] | None = None,
     ) -> None:
         self.space = space
         self.history = history
         self.emit = emit
+        self.beyond = beyond
         self.cursor = 0
+        self.taken: list[int] = [] if taken is None else taken
+        self.deciders: list[int] = []
+        self._raised: BaseException | None = None
 
     def __call__(self, player: int, candidates: list[Any], k: int) -> list[Any]:
         def decide(actor: int, pool: list[Any]) -> Any:
-            if self.cursor >= len(self.history):
-                legal = sorted({self.space.encode(c) for c in pool})
+            if self.cursor < len(self.history):
+                index = self.cursor
+                aid = self.history[index]
+                self.cursor += 1
+                self.deciders.append(actor)
+                # `type`, not `isinstance`: a flag passes `decode`'s range test
+                # as id 0 or 1.
+                if type(aid) is not int:
+                    raise HistoryMismatch(f"recorded pick {index}: {aid!r} is not an action id")
+                try:
+                    return self.space.match(aid, pool)
+                except ValueError as exc:
+                    raise HistoryMismatch(f"recorded pick {index}: {exc}") from exc
+            legal = sorted({self.space.encode(c) for c in pool})
+            if self.beyond is None:
                 raise ChooserAbort(actor, legal)
-            aid = self.history[self.cursor]
-            self.cursor += 1
-            return self.space.match(aid, pool)  # must be among the candidates
+            if self._raised is not None:
+                raise self._raised
+            try:
+                aid = self.beyond(actor, legal)
+            except BaseException as signal:
+                self._raised = signal
+                raise
+            if type(aid) is not int or aid not in legal:
+                raise AssertionError(
+                    f"the Seat Policy for seat {actor} answered {aid!r}, which is not "
+                    f"one of the legal action ids {legal}"
+                )
+            self.taken.append(aid)
+            self.deciders.append(actor)
+            return self.space.match(aid, pool)
 
         return sequential_decisions(player, candidates, k, decide, self.emit)
 
@@ -230,6 +289,97 @@ def returns_for(game: n.Game, result: GameResult) -> list[float]:
     return [sign * scores[key] for key in _score_key_by_seat(game, n_players)]
 
 
+def generator_for(path_str: str, seed: int) -> random.Random:
+    """The generator the game at `path_str` plays under for `seed`.
+
+    A Chance-Free Game gets one that refuses every draw; every other game gets
+    `random.Random(seed)`, which only the game draws from. The choice lives
+    here because every route that plays a ``(path, seed)`` must make it the same
+    way, or one seed would name two deals: `run` reads it, and so does every
+    `LiveLine`. A refusing generator belongs where no chooser draws either —
+    the default `random_chooser`'s draws are a policy's, not the game's, and
+    would make the refusal fire on a playout that is behaving correctly."""
+    return RefusingRandom(seed) if chance_free(path_str) else random.Random(seed)
+
+
+class HistoryMismatch(ValueError):
+    """A recorded history that does not replay in the game it is replayed in:
+    a pick that is not an action id, a pick its position does not offer, or
+    picks left over when the game ends.
+
+    Addressed to whoever supplied the history (a saved session, a harness), not
+    to the game author: the game is sound, and the record is not its own."""
+
+
+@dataclass(frozen=True)
+class LiveEnd:
+    """How a live line ended: the game's returns, and each seat's view at the
+    terminal position (none when the game ended before any decision, since the
+    engine then hands over no world to derive from)."""
+
+    returns: list[float]
+    views: dict[int, SeatView]
+
+
+class LiveLine:
+    """A line of play from ``(seed, history)``: the recorded picks replayed, then
+    each seat's Seat Policy asked at every further decision.
+
+    ``history`` is the recorded picks followed by every pick taken live, in the
+    order taken, so it holds every pick made even when a policy's signal or a
+    refusal ends the run; ``deciders`` names the seat each pick was made for.
+    Played again, a line replays whatever ``history`` holds, which is how a
+    line resumes, and how a truncated one takes a pick back.
+
+    A policy is handed the Decider's Seat View derived inside the Chooser call,
+    where every phase frame stands — not a `DecisionNode`'s, whose world has
+    unwound past them (issue #612)."""
+
+    def __init__(self, path_str: str, seed: int, prefix: Sequence[int] = ()) -> None:
+        self.path = path_str
+        self.seed = seed
+        self.history: list[int] = list(prefix)
+        self.deciders: list[int] = []
+
+    def play(self, policies: Mapping[int, SeatPolicy]) -> LiveEnd:
+        game, space = load(self.path)
+        logs: dict[int, list[tuple[Any, ...]]] = {p: [] for p in range(game.players.low)}
+        world: list[RuntimeState] = []
+        views: dict[int, SeatView] = {}
+
+        def observe(player: int, event: tuple[Any, ...]) -> None:
+            logs[player].append(event)
+
+        def ask(decider: int, legal: list[int]) -> int:
+            return policies[decider](derive(decider, world[0], logs[decider]), legal)
+
+        def trace(event: str, _data: Any) -> None:
+            # `play_game` emits `game_end` before it pops the game's own frame;
+            # a view taken after it returns would hold no state variable.
+            if event == "game_end" and world:
+                views.update({seat: derive(seat, world[0], log) for seat, log in logs.items()})
+
+        # The chooser appends each live pick to this line's own history as the
+        # pick is made, so a policy reading the line mid-run sees every pick
+        # before it.
+        chooser = ReplayChooser(space, tuple(self.history), observe, ask, self.history)
+        self.deciders = chooser.deciders
+        result = play_game(
+            game,
+            generator_for(self.path, self.seed),
+            trace,
+            chooser=chooser,
+            observer=observe,
+            on_first_decision=world.append,
+        )
+        if chooser.cursor < len(chooser.history):
+            raise HistoryMismatch(
+                f"the game ended after {chooser.cursor} of the "
+                f"{len(chooser.history)} recorded picks; the rest run past the end"
+            )
+        return LiveEnd(returns_for(game, result), views)
+
+
 def run(
     path_str: str,
     seed: int,
@@ -246,17 +396,10 @@ def run(
         logs[player].append(event)
 
     chooser = ReplayChooser(space, history, observe)
-    # A Chance-Free Game gets a generator that refuses every draw. `run` is the
-    # right site for it: it is the one entry point the adapter and every
-    # `tests/openspiel_ready/` proof share, and the only one where the chooser
-    # is guaranteed not to be the default `random_chooser` — whose draws are the
-    # POLICY's, not the game's, and would make the refusal fire on a playout
-    # that is behaving correctly.
-    rng = RefusingRandom(seed) if chance_free(path_str) else random.Random(seed)
     try:
         result = play_game(
             game,
-            rng,
+            generator_for(path_str, seed),
             chooser=chooser,
             observer=observe,
             on_first_decision=on_first_decision,
