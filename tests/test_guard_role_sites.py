@@ -91,6 +91,7 @@ _ACCOUNTED = frozenset(
         "InstallationError",
         "GameRegistrationError",
         "HistoryMismatch",
+        "SaveFailed",
         "PrimitiveReadError",
         "DiagnosticError",
         # not a defect: the game author wrote `error(...)` and the refusal is

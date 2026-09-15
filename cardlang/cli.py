@@ -54,7 +54,7 @@ from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
 from cardlang.pipeline import check_source, compile_path, game_identity
-from cardlang.play.session import Session, read_saved, unwritable
+from cardlang.play.session import SaveFailed, Session, read_saved, unwritable
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
@@ -397,6 +397,8 @@ def _play(
     )
     try:
         session.run()
+    except SaveFailed as exc:
+        return _cannot(str(exc))
     except HistoryMismatch as exc:
         if resume is None:
             raise

@@ -35,6 +35,7 @@ recorded picks; reading a fact out of a label, an action string or a rendering.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shlex
@@ -85,6 +86,11 @@ class TakeBack(Exception):
 
 class Leave(Exception):
     """The person leaves the table, ending the line where it stands."""
+
+
+class SaveFailed(Exception):
+    """The session's file could not be written. The file holds whatever the
+    last save before it wrote."""
 
 
 def _controls() -> str:
@@ -288,7 +294,8 @@ class Session:
     `run` returns when the person leaves. A refusal the game raises, or a
     history that does not replay, ends the session as that exception, with the
     picks made before it saved (a history that does not replay leaves the file
-    as it was)."""
+    as it was). A save that cannot be written ends it as `SaveFailed`, with
+    no second attempt."""
 
     def __init__(
         self,
@@ -337,11 +344,19 @@ class Session:
             "seat": self.seat,
             "history": self.history,
         }
-        with tempfile.NamedTemporaryFile(
-            "w", dir=self.save_to.parent, suffix=".tmp", delete=False
-        ) as handle:
-            handle.write(json.dumps(record) + "\n")
-        os.replace(handle.name, self.save_to)
+        written: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", dir=self.save_to.parent, suffix=".tmp", delete=False
+            ) as handle:
+                written = handle.name
+                handle.write(json.dumps(record) + "\n")
+            os.replace(written, self.save_to)
+        except OSError as exc:
+            if written is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink(written)
+            raise SaveFailed(f"cannot save to {self.save_to}: {exc.strerror or exc}") from exc
 
     def run(self) -> None:
         self.prompt.say(self._header())
@@ -356,7 +371,7 @@ class Session:
                 self._keep(line)
                 self._left()
                 return
-            except HistoryMismatch:
+            except (HistoryMismatch, SaveFailed):
                 raise
             except BaseException:
                 self._keep(line)

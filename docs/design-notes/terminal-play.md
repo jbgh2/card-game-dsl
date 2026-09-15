@@ -158,14 +158,15 @@ seed and its view. Leaving ends the line where it stands.
 A saved session holds the history with the seed, the seat, the game's identity
 and a format number. It is written before each of the person's decisions and
 whenever the session stops, so a session that dies at a prompt still has the
-line up to that decision. Saving replaces a file only when it holds a saved
-session, so a path that names the game file is refused. Resuming refuses a
-format it does not read, a game whose identity differs, and a flag that
-contradicts the file, all before anything is dealt. The history replays
-through the replay chooser, which refuses a pick that is not an action id or
-that the game does not offer. The action ids cross out of the Interop package
-here deliberately: a saved session is a recorded history, and recorded picks
-have one reader.
+line up to that decision; a save that cannot be written ends the session with
+that refusal, and the file keeps the save before it. Saving replaces a file
+only when it holds a saved session, so a path that names the game file is
+refused. Resuming refuses a format it does not read, a game whose identity
+differs, and a flag that contradicts the file, all before anything is dealt.
+The history replays through the replay chooser, which refuses a pick that is
+not an action id or that the game does not offer. The action ids cross out of
+the Interop package here deliberately: a saved session is a recorded history,
+and recorded picks have one reader.
 
 A game that refuses mid-session reaches the person as the refusal `demo` would
 print, naming who picked for each seat, with the picks before it saved. A game

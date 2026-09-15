@@ -41,8 +41,8 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  `_NAMES`, names as a person's folders and files come. The
                  shown text: every registered game's first decisions at seat
                  0. What a stopped session keeps: the file at every decision,
-                 and after a person's interrupt, a game's refusal and an
-                 engine failure.
+                 and after a person's interrupt, a game's refusal, an engine
+                 failure and a save that cannot be written.
 registry:        controls: `cardlang.play.session.CONTROLS`; commands and
                  options: `cardlang.cli.build_parser`, read through
                  tests/test_cli_surface.py's `_command_options`; games:
@@ -531,6 +531,38 @@ def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
     with pytest.raises(AssertionError, match="an engine assertion"):
         sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\n")
     assert len(_saved(saved)["history"]) == 3 + 4
+
+
+class _LockingKeyboard(_Keyboard):
+    """A keyboard that makes `folder` unwritable once it has read one line."""
+
+    def __init__(self, typed: str, folder: Path) -> None:
+        super().__init__(typed)
+        self.folder = folder
+
+    def readline(self) -> str:
+        line = super().readline()
+        self.folder.chmod(0o500)
+        return line
+
+
+def test_a_save_that_fails_mid_session_is_refused_with_the_last_save_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """red under: let `Session.save` pass the operating system's error on."""
+    folder = tmp_path / "saves"
+    folder.mkdir()
+    saved = folder / "saved.json"
+    monkeypatch.setattr(sys, "stdin", _LockingKeyboard("1\n1\n1\n", folder))
+    try:
+        code = main(["play", _path("cardlang_hearts"), "--seed", str(_SEED), "--save", str(saved)])
+    finally:
+        folder.chmod(0o700)
+    err = capsys.readouterr().err
+    assert "Traceback" not in err
+    assert code == 2, err
+    assert f"cannot save to {saved}: Permission denied" in err
+    assert _saved(saved)["history"] == []
 
 
 def test_the_recent_end_of_the_log_is_the_whole_text_with_the_earlier_lines_folded() -> None:

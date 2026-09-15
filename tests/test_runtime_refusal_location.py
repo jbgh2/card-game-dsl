@@ -396,14 +396,16 @@ _SIGNALS: frozenset[str] = frozenset(
 # Real failures addressed to somebody other than the game author, so a game
 # file's line is not where their reader must look: the primitive maintainer,
 # whoever installed the checkout, whoever chose the files a process registers,
-# whoever supplied a recorded history, whoever edited the grammar, and the
-# compile channel, which already carries its own span.
+# whoever supplied a recorded history, whoever named the file a session saves
+# to, whoever edited the grammar, and the compile channel, which already
+# carries its own span.
 _ADDRESSED_ELSEWHERE: frozenset[str] = frozenset(
     {
         "PrimitiveReadError",
         "InstallationError",
         "GameRegistrationError",
         "HistoryMismatch",
+        "SaveFailed",
         "UnrenderableTerminal",
         "DiagnosticError",
     }

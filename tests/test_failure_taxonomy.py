@@ -128,6 +128,10 @@ _EXPECTED: dict[str, dict[str, bool]] = {
     # A saved session or a harness's history that does not replay in the game
     # it is replayed against. The game is sound; the record is not its own.
     "HistoryMismatch": {"in_game_description_tree": False, "is_runtime_error": False},
+    # --- Author: whoever named the file a session saves to -----------------
+    # The file cannot be written; the game is sound and the session is not
+    # the game's.
+    "SaveFailed": {"in_game_description_tree": False, "is_runtime_error": False},
     # --- not a defect at all: the game is working as written ---------------
     # The author wrote `error(...)`; refusing the move IS the rule.
     "IllegalMove": {"in_game_description_tree": False, "is_runtime_error": False},
