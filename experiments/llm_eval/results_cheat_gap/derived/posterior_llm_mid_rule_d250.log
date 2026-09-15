@@ -1,0 +1,5 @@
+llm_mid_table: eligible=1406 (of 4422, max_depth=250) abstains=600/1310 fires=0/96 selected=600/600
+NOT CONVERGED llm_mid_table seed=8 step=229: ess=69.2 < floor 200.0 at 32000 proposals (max 32000)
+NOT CONVERGED llm_mid_table seed=13 step=242: ess=118.5 < floor 200.0 at 32000 proposals (max 32000)
+
+wrote 600 posterior record(s) to /private/tmp/claude-501/-Users-benh-Projects-Card-game-DSL--claude-worktrees-openspiel-card-game-design-9aa2fe/bd812d17-30da-4118-a4e4-43c137a29c1f/scratchpad/posterior_llm_mid_rule_d250.jsonl (598/600 converged at ess-floor 200.0)
