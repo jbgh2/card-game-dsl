@@ -273,9 +273,11 @@ def movement(
 def _rendered(view: ZoneView) -> tuple[str, ...] | int | None:
     """A view as an event carries it: the seen cards by their renderings.
 
-    A card is writable through `object.__setattr__` and a string is not, and a
-    Seat View holds its observation log uncopied, so a payload stays strings
-    and counts. A reader of the log meets a card's rendering, never the card,
-    and derives no fact by parsing one (issue #666).
+    The information state spells the observation log as each event's `repr`,
+    so a card in a payload would change the string OpenSpiel keys on. A payload
+    therefore stays strings and counts, and carrying the cards themselves is a
+    change of its own under the goldens' full width (issue #666). A reader of
+    the log meets a card's rendering, never the card, and derives no fact by
+    parsing one.
     """
     return tuple(str(card) for card in view) if isinstance(view, tuple) else view
