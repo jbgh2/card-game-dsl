@@ -3139,11 +3139,13 @@ construct:
 **The test, at the moment of temptation: a construct whose definition has to
 mention a point value is the wrong shape.** Recognition over card sets is
 general and earns grammar on witnesses; pricing never does. A construct that
-is general by definition but finds only scoring consumers is filed as general
-and watched — the dead-surface report (issue #653) is the instrument that
-shows whether it ever finds another, and a member of a closed register may
-ship ahead of its first game when its sibling has one (a language with
-`highest` and not `lowest` has a hole a designer meets).
+is general by definition but finds only scoring consumers is filed as general.
+The dead-surface report (`python -m tools.dead_surface`) shows the surface no
+game, library or stdlib rule uses; whether a live construct's consumers are
+all scoring sentences is a question for the checked game, not the parse tree
+(issue #664). A member of a closed register may ship ahead of its first game
+when its sibling has one (a language with `highest` and not `lowest` has a
+hole a designer meets).
 
 What the language cannot yet say about a hand stays a declared Primitive in
 the game file (`primitives { }`; "Family libraries"), where the declaration is
