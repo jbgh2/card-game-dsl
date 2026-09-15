@@ -21,7 +21,8 @@ domain:          The commands and options are whatever `cardlang.cli`'s
                  in-range/out-of-range splits of the four `demo` options that
                  take one — are crossed separately, in the probes below; the
                  `play` command's value classes and combinations are
-                 tests/test_play_session.py's. `--at`
+                 tests/test_play_session.py's, and its `--vs` values
+                 tests/test_play_opponents.py's. `--at`
                  numbers decision nodes, one per candidate a Chooser call
                  takes, which is the unit the game tree branches on, the unit
                  the adapter replays and the unit `max_length` bounds — so the
@@ -244,6 +245,7 @@ _SAMPLE_VALUE: dict[str, list[str]] = {
     "--seat": ["0"],
     "--save": ["{tmp}/saved.json"],
     "--resume": ["{tmp}/resume.json"],
+    "--vs": ["all=random"],
 }
 
 
@@ -255,11 +257,12 @@ def _sample(option: str, tmp_path: Path) -> list[str]:
         (tmp_path / "resume.json").write_text(
             json.dumps(
                 {
-                    "cardlang_session": 1,
+                    "cardlang_session": 2,
                     "game": game.name,
                     "identity": game_identity(game),
                     "seed": 7,
                     "seat": 0,
+                    "opponents": {"1": "random"},
                     "history": [],
                 }
             )
@@ -272,6 +275,12 @@ def _sample(option: str, tmp_path: Path) -> list[str]:
 # probe that names it; supplying the companion here keeps the two questions
 # apart.
 _COMPANION: dict[str, list[str]] = {"--at": ["--info-state", "0"]}
+
+# The same, for what a command needs beside every option: `play` refuses a
+# game with other seats until they are named, except one resumed from the file
+# that names them.
+_COMMAND_COMPANION: dict[str, list[str]] = {"play": ["--vs", "all=random"]}
+_NAMES_ITS_OWN_OPPONENTS = ("--vs", "--resume")
 
 # The authored expected column. Written as decisions, never derived from the
 # parser: a grid whose expectations come from the same object it measures
@@ -288,6 +297,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("check", "--seat"): "refused",
     ("check", "--save"): "refused",
     ("check", "--resume"): "refused",
+    ("check", "--vs"): "refused",
     ("demo", "--emit-ir"): "refused",
     ("demo", "--seed"): "accepted",
     ("demo", "--info-state"): "accepted",
@@ -297,6 +307,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("demo", "--seat"): "refused",
     ("demo", "--save"): "refused",
     ("demo", "--resume"): "refused",
+    ("demo", "--vs"): "refused",
     ("play", "--emit-ir"): "refused",
     ("play", "--seed"): "accepted",
     ("play", "--info-state"): "refused",
@@ -306,6 +317,7 @@ _EXPECTED: dict[tuple[str, str], str] = {
     ("play", "--seat"): "accepted",
     ("play", "--save"): "accepted",
     ("play", "--resume"): "accepted",
+    ("play", "--vs"): "accepted",
 }
 
 # The authored expected column for the combination cross. `--at` is refused
@@ -423,6 +435,7 @@ def test_command_option_cell(
         option,
         *_sample(option, tmp_path),
         *_COMPANION.get(option, []),
+        *([] if option in _NAMES_ITS_OWN_OPPONENTS else _COMMAND_COMPANION.get(command, [])),
     ]
     # `play` reads the person's picks; an empty stream is a person who leaves
     # at the first decision.

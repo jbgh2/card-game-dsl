@@ -31,10 +31,12 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  the `play` command's options, derived from the parser. Seats:
                  each side of the seat range, on a game of one seat and of two.
                  Saved files: `_BAD_SAVES`, each field of the format missing and
-                 mistyped, a later format, JSON too large to read, another
-                 game, an edited game, and picks that do not replay, beside the
-                 controls that must resume (the file as saved, a renamed game,
-                 a reformatted copy); each is also handed to `--save`. Paths:
+                 mistyped, a later format and an earlier one, JSON too large to
+                 read, another game, an edited game, opponents recorded for
+                 seats other than the game's other seats or by names no
+                 opponent has, and picks that do not replay, beside the controls
+                 that must resume (the file as saved, a renamed game, a
+                 reformatted copy); each is also handed to `--save`. Paths:
                  `_FILE_KINDS`, each kind of path a person can hand an option
                  that names a file, crossed with those options, read off the
                  parser; and the command printed on leaving, run again, for
@@ -51,13 +53,14 @@ registry:        controls: `cardlang.play.session.CONTROLS`; commands and
                  game's identity: tests/test_game_identity.py; the text of a Seat
                  View: `cardlang.play.view.render_view`, certified by
                  tests/test_play_view.py.
-does not prove:  Which pick a person should make, or that the opponents are
-                 any good: every other seat is the uniform opponent. The menu's
-                 labels are the adapter's strings, and a label that says too
-                 little (a bare number, a card set in rendering order) is shown
-                 as it is (issue #682). A pick asked while another decision is being made (a
-                 `choose` inside a move's effect) is shown as a decision of its
-                 own, with nothing saying it belongs to the other (issue #605). A
+does not prove:  Which pick a person should make. Who plays the other seats is
+                 tests/test_play_opponents.py's, and every session here seats
+                 `random` at them. The menu's labels are the adapter's strings,
+                 and a label that says too little (a bare number, a card set in
+                 rendering order) is shown as it is (issue #682). A pick asked
+                 while another decision is being made (a `choose` inside a
+                 move's effect) is shown as a decision of its own, with nothing
+                 saying it belongs to the other (issue #605). A
                  choice from a zone the seat cannot see lists the cards it holds,
                  as the adapter's legal actions do (issue #281). A person seated
                  as a declarer is asked for the dummy's cards because a line asks
@@ -203,8 +206,9 @@ class _Keyboard:
         return line
 
 
-@pytest.fixture
-def sit(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> _Sit:
+def seat_a_person(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> _Sit:
+    """A scripted person at `cardlang play`, recording each position they are
+    asked at."""
     asks: list[_Ask] = []
     person = PersonSeat.__call__
 
@@ -222,6 +226,15 @@ def sit(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> 
         return _Sitting(code, captured.out, captured.err, list(asks))
 
     return run
+
+
+@pytest.fixture
+def sit(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> _Sit:
+    return seat_a_person(monkeypatch, capsys)
+
+
+# Every other seat a uniform draw, as a game with other seats must name them.
+_VS = ["--vs", "all=random"]
 
 
 class _Stopped(Exception):
@@ -355,7 +368,7 @@ def test_what_a_person_types_at_each_position(typed: str, where: str, tmp_path: 
     keys = _inputs()[typed]
     script = "1\n" * place.picks_before + ("" if keys is None else f"{keys}\nq\n")
     sitting = sit(
-        [path, "--seat", str(place.seat), "--seed", str(_SEED), "--save", str(saved)], script
+        [path, "--seat", str(place.seat), "--seed", str(_SEED), "--save", str(saved), *_VS], script
     )
     assert "Traceback" not in sitting.err
     assert sitting.code == 0, sitting.err
@@ -404,13 +417,13 @@ def test_a_pick_the_line_replayed_is_taken_back_where_it_was_made(
     """red under: leave the seat of a replayed pick out of `ReplayChooser.deciders`."""
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
-    played = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\nq\n")
+    played = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\nq\n")
     made = _saved(saved)["history"]
     if route == "a game resumed from its file":
         sitting = sit([path, "--resume", str(saved)], "u\nq\n")
         asked, kept = [played.asks[3], played.asks[2]], 2
     else:
-        sitting = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\nu\nu\nq\n")
+        sitting = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\nu\nu\nq\n")
         asked, kept = [*played.asks, played.asks[2], played.asks[1]], 1
     assert sitting.code == 0, sitting.err
     assert sitting.asks == asked
@@ -429,7 +442,7 @@ _PICKS = 20
 def test_each_decision_shows_the_seat_its_view_and_the_menu(short_name: str, sit: _Sit) -> None:
     path = _path(short_name)
     game, space = load(path)
-    sitting = sit([path, "--seed", str(_SEED)], "1\n" * _PICKS)
+    sitting = sit([path, "--seed", str(_SEED), *(_VS if game.players.low > 1 else [])], "1\n" * _PICKS)
     assert "Traceback" not in sitting.err
     assert sitting.code == 0, sitting.err
     assert sitting.asks, f"{short_name}: seat 0 was never asked"
@@ -450,7 +463,7 @@ def test_a_number_picks_the_id_the_menu_lists_under_it(number: int, tmp_path: Pa
     """red under: `return legal[int(word) % len(legal)]` in `PersonSeat.__call__`."""
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
-    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved)], f"{number}\nq\n")
+    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], f"{number}\nq\n")
     _, space = load(path)
     first = sitting.asks[0]
     assert len(first.legal) == 13, "Hearts' first pass pick offers a whole hand"
@@ -477,7 +490,7 @@ def test_the_file_holds_the_line_whenever_the_person_is_asked(
         return asked(self, view, legal)
 
     monkeypatch.setattr(PersonSeat, "__call__", reading)
-    sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\n1\nq\n")
+    sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n1\nq\n")
     lines = [_replayed(path, _SEED, history) for history in held]
     assert [line.deciders.count(0) for line in lines] == [0, 1, 2, 3, 4]
     assert all(line.history == history for line, history in zip(lines, held))
@@ -501,7 +514,7 @@ def test_an_interrupt_while_the_other_seats_pick_leaves_and_keeps_the_game(
         return drawn(self, view, legal)
 
     monkeypatch.setattr(UniformSeatPolicy, "__call__", interrupted)
-    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\n")
+    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n")
     assert sitting.code == 0, sitting.err
     assert "you left the table" in sitting.out
     assert len(_saved(saved)["history"]) == 3 + 4
@@ -529,7 +542,7 @@ def test_an_engine_failure_mid_session_keeps_the_picks_before_it(
 
     monkeypatch.setattr(UniformSeatPolicy, "__call__", failing)
     with pytest.raises(AssertionError, match="an engine assertion"):
-        sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\n")
+        sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n")
     assert len(_saved(saved)["history"]) == 3 + 4
 
 
@@ -563,7 +576,7 @@ def test_a_save_that_fails_mid_session_is_refused_with_the_last_save_kept(
     saved = folder / "saved.json"
     monkeypatch.setattr(sys, "stdin", _LockingKeyboard("1\n1\n1\n", folder, lines=kept + 1))
     try:
-        code = main(["play", _path("cardlang_hearts"), "--seed", str(_SEED), "--save", str(saved)])
+        code = main(["play", _path("cardlang_hearts"), "--seed", str(_SEED), "--save", str(saved), *_VS])
     finally:
         folder.chmod(0o700)
     err = capsys.readouterr().err
@@ -598,29 +611,8 @@ def test_the_recent_end_of_the_log_is_the_whole_text_with_the_earlier_lines_fold
     assert render_view(game, short, recent=RECENT_EVENTS) == render_view(game, short)
 
 
-@pytest.mark.parametrize(
-    ("short_name", "seat", "others"),
-    [
-        ("cardlang_kuhn_poker", 0, "P1 picks uniformly at random"),
-        ("cardlang_hearts", 2, "P0, P1 and P3 each pick uniformly at random"),
-        ("cardlang_freecell", 0, None),
-    ],
-)
-def test_the_header_names_the_seat_the_seed_and_who_picks_at_random(
-    short_name: str, seat: int, others: str | None, sit: _Sit
-) -> None:
-    path = _path(short_name)
-    sitting = sit([path, "--seat", str(seat), "--seed", "11"], "")
-    head = sitting.out.split("\n\n", 1)[0]
-    assert f"P{seat}" in head and "seed 11" in head
-    if others is None:
-        assert "random" not in head
-    else:
-        assert others in head
-
-
 def test_an_unseeded_game_reports_the_seed_it_drew(sit: _Sit) -> None:
-    sitting = sit([_path("cardlang_kuhn_poker")], "")
+    sitting = sit([_path("cardlang_kuhn_poker"), *_VS], "")
     assert re.search(r"seed -?\d+", sitting.out)
 
 
@@ -643,7 +635,7 @@ _SEAT_EXPECTED: dict[tuple[str, int], str] = {
 def test_a_seat_is_taken_or_refused_naming_the_seats(short_name: str, seat: int, sit: _Sit) -> None:
     path = _path(short_name)
     game, _ = load(path)
-    sitting = sit([path, "--seat", str(seat), "--seed", "3"], "")
+    sitting = sit([path, "--seat", str(seat), "--seed", "3", *(_VS if game.players.low > 1 else [])], "")
     if _SEAT_EXPECTED[(short_name, seat)] == "seated":
         assert sitting.code == 0, sitting.err
         assert sitting.asks and sitting.asks[0].view.player == seat
@@ -668,25 +660,46 @@ def _play_option_subsets() -> tuple[tuple[str, ...], ...]:
     )
 
 
-# A saved game played at seat 1 with seed 9, beside flags naming seat 0 and
-# seed 7: `--resume` beside either of those contradicts the file.
+_CONTRADICTS = "contradicts the file"
+_NO_OPPONENTS = "names no opponent"
+
+# A saved game played at seat 1 with seed 9 against `random`, beside flags
+# naming seat 0, seed 7 and `--vs all=random`: `--resume` beside the seat or
+# the seed contradicts the file, and a game that is not resumed names its
+# opponents or is refused.
 _PLAY_COMBINATION_EXPECTED: dict[tuple[str, ...], str] = {
-    (): "accepted",
+    (): _NO_OPPONENTS,
     ("--resume",): "accepted",
-    ("--save",): "accepted",
-    ("--seat",): "accepted",
-    ("--seed",): "accepted",
+    ("--save",): _NO_OPPONENTS,
+    ("--seat",): _NO_OPPONENTS,
+    ("--seed",): _NO_OPPONENTS,
+    ("--vs",): "accepted",
     ("--resume", "--save"): "accepted",
-    ("--resume", "--seat"): "refused",
-    ("--resume", "--seed"): "refused",
-    ("--save", "--seat"): "accepted",
-    ("--save", "--seed"): "accepted",
-    ("--seat", "--seed"): "accepted",
-    ("--resume", "--save", "--seat"): "refused",
-    ("--resume", "--save", "--seed"): "refused",
-    ("--resume", "--seat", "--seed"): "refused",
-    ("--save", "--seat", "--seed"): "accepted",
-    ("--resume", "--save", "--seat", "--seed"): "refused",
+    ("--resume", "--seat"): _CONTRADICTS,
+    ("--resume", "--seed"): _CONTRADICTS,
+    ("--resume", "--vs"): "accepted",
+    ("--save", "--seat"): _NO_OPPONENTS,
+    ("--save", "--seed"): _NO_OPPONENTS,
+    ("--save", "--vs"): "accepted",
+    ("--seat", "--seed"): _NO_OPPONENTS,
+    ("--seat", "--vs"): "accepted",
+    ("--seed", "--vs"): "accepted",
+    ("--resume", "--save", "--seat"): _CONTRADICTS,
+    ("--resume", "--save", "--seed"): _CONTRADICTS,
+    ("--resume", "--save", "--vs"): "accepted",
+    ("--resume", "--seat", "--seed"): _CONTRADICTS,
+    ("--resume", "--seat", "--vs"): _CONTRADICTS,
+    ("--resume", "--seed", "--vs"): _CONTRADICTS,
+    ("--save", "--seat", "--seed"): _NO_OPPONENTS,
+    ("--save", "--seat", "--vs"): "accepted",
+    ("--save", "--seed", "--vs"): "accepted",
+    ("--seat", "--seed", "--vs"): "accepted",
+    ("--resume", "--save", "--seat", "--seed"): _CONTRADICTS,
+    ("--resume", "--save", "--seat", "--vs"): _CONTRADICTS,
+    ("--resume", "--save", "--seed", "--vs"): _CONTRADICTS,
+    ("--resume", "--seat", "--seed", "--vs"): _CONTRADICTS,
+    ("--save", "--seat", "--seed", "--vs"): "accepted",
+    ("--resume", "--save", "--seat", "--seed", "--vs"): _CONTRADICTS,
 }
 
 
@@ -697,14 +710,20 @@ def test_every_play_option_combination_is_authored() -> None:
     )
 
 
-def _a_save(path: str, *, seat: int, seed: int, history: list[Any]) -> dict[str, Any]:
+def _a_save(
+    path: str, *, seat: int, seed: int, history: list[Any], opponents: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """A saved session of the game at `path`, every other seat `random` unless
+    `opponents` names them."""
     game = check_source(Path(path))
+    others = {str(other): "random" for other in range(game.players.low) if other != seat}
     return {
-        "cardlang_session": 1,
+        "cardlang_session": 2,
         "game": game.name,
         "identity": game_identity(game),
         "seed": seed,
         "seat": seat,
+        "opponents": others if opponents is None else opponents,
         "history": history,
     }
 
@@ -719,12 +738,14 @@ def test_play_option_combination_cell(subset: tuple[str, ...], tmp_path: Path, s
         "--seed": ["7"],
         "--save": [str(tmp_path / "save.json")],
         "--resume": [str(resume)],
+        "--vs": ["all=random"],
     }
     argv = [path]
     for option in subset:
         argv += [option, *values[option]]
     sitting = sit(argv, "")
-    if _PLAY_COMBINATION_EXPECTED[subset] == "accepted":
+    expected = _PLAY_COMBINATION_EXPECTED[subset]
+    if expected == "accepted":
         assert sitting.code == 0, sitting.err
         assert sitting.asks
         seat = 1 if "--resume" in subset else 0
@@ -732,6 +753,10 @@ def test_play_option_combination_cell(subset: tuple[str, ...], tmp_path: Path, s
         return
     assert sitting.code == 2
     assert not sitting.asks
+    if expected == _NO_OPPONENTS:
+        assert "name who plays the other seats" in sitting.err
+        return
+    assert expected == _CONTRADICTS
     assert str(resume) in sitting.err
     assert any(option in sitting.err for option in ("--seat", "--seed") if option in subset)
 
@@ -753,11 +778,12 @@ def test_a_flag_that_agrees_with_the_saved_game_is_accepted(tmp_path: Path, sit:
 def test_the_saved_file_carries_the_format_the_game_and_the_line(tmp_path: Path, sit: _Sit) -> None:
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
-    sit([path, "--seat", "0", "--seed", str(_SEED), "--save", str(saved)], "1\n1\nq\n")
+    sit([path, "--seat", "0", "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\nq\n")
     data = _saved(saved)
     game = check_source(Path(path))
-    assert set(data) == {"cardlang_session", "game", "identity", "seed", "seat", "history"}
-    assert data["cardlang_session"] == 1
+    assert set(data) == {"cardlang_session", "game", "identity", "seed", "seat", "opponents", "history"}
+    assert data["cardlang_session"] == 2
+    assert data["opponents"] == {"1": "random", "2": "random", "3": "random"}
     assert data["game"] == game.name
     assert data["identity"] == game_identity(game)
     assert (data["seed"], data["seat"]) == (_SEED, 0)
@@ -767,7 +793,7 @@ def test_the_saved_file_carries_the_format_the_game_and_the_line(tmp_path: Path,
 def test_a_saved_game_resumes_at_the_decision_it_was_left_at(tmp_path: Path, sit: _Sit) -> None:
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
-    before = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\n1\nq\n")
+    before = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n1\n1\n1\nq\n")
     after = sit([path, "--resume", str(saved)], "q\n")
     assert after.code == 0, after.err
     assert after.asks == [before.asks[-1]]
@@ -776,7 +802,7 @@ def test_a_saved_game_resumes_at_the_decision_it_was_left_at(tmp_path: Path, sit
 def test_a_resumed_game_saves_back_to_its_own_file(tmp_path: Path, sit: _Sit) -> None:
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
-    sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\nq\n")
+    sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\nq\n")
     first = _saved(saved)["history"]
     sit([path, "--resume", str(saved)], "1\nq\n")
     second = _saved(saved)["history"]
@@ -787,7 +813,7 @@ def test_save_beside_resume_writes_the_other_file(tmp_path: Path, sit: _Sit) -> 
     path = _path("cardlang_hearts")
     saved = tmp_path / "saved.json"
     other = tmp_path / "other.json"
-    sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\nq\n")
+    sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\nq\n")
     kept = saved.read_text()
     sit([path, "--resume", str(saved), "--save", str(other)], "1\nq\n")
     assert saved.read_text() == kept
@@ -797,7 +823,7 @@ def test_save_beside_resume_writes_the_other_file(tmp_path: Path, sit: _Sit) -> 
 def test_a_game_saved_at_its_end_resumes_at_its_end(tmp_path: Path, sit: _Sit) -> None:
     path = _game_path("one_pick", tmp_path)
     saved = tmp_path / "saved.json"
-    sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\nq\n")
+    sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\nq\n")
     after = sit([path, "--resume", str(saved)], "q\n")
     assert after.code == 0, after.err
     assert not after.asks
@@ -818,7 +844,7 @@ def test_a_reformatted_copy_of_the_game_resumes_its_save(tmp_path: Path, sit: _S
     copy = tmp_path / "kuhn-copy.cardlang"
     copy.write_text("// a copy, reformatted\n\n" + Path(path).read_text())
     saved = tmp_path / "saved.json"
-    sit([path, "--seed", "9", "--save", str(saved)], "1\nq\n")
+    sit([path, "--seed", "9", "--save", str(saved), *_VS], "1\nq\n")
     sitting = sit([str(copy), "--resume", str(saved)], "q\n")
     assert sitting.code == 0, sitting.err
 
@@ -866,8 +892,32 @@ _BAD_SAVES: dict[str, tuple[Callable[[dict[str, Any], Path], str], str]] = {
     "the seed as text": (_with(seed="9"), "not a saved session"),
     "the seat as a flag": (_with(seat=True), "not a saved session"),
     "the history as a number": (_with(history=3), "not a saved session"),
-    "a field the format does not have": (_with(opponents=["uniform"]), "not a saved session"),
-    "a later format": (_with(cardlang_session=2), "format 2"),
+    "a field the format does not have": (_with(notes=["a good game"]), "not a saved session"),
+    "a later format": (_with(cardlang_session=3), "format 3"),
+    "an earlier format, which records no opponents": (
+        lambda good, tmp_path: json.dumps(
+            {**{k: v for k, v in good.items() if k != "opponents"}, "cardlang_session": 1}
+        ),
+        "saved by an earlier cardlang, before saved games recorded who plays the other seats",
+    ),
+    "no opponents": (_without("opponents"), "not a saved session"),
+    "the opponents as a list": (_with(opponents=["random"]), "not a saved session"),
+    "the opponents as text": (_with(opponents="random"), "not a saved session"),
+    "no opponent for a seat": (_with(opponents={}), "one opponent for each of P1"),
+    "an opponent for a seat the game does not seat": (
+        _with(opponents={"1": "random", "2": "random"}),
+        "one opponent for each of P1",
+    ),
+    "an opponent for the person's own seat": (
+        _with(opponents={"0": "random", "1": "random"}),
+        "one opponent for each of P1",
+    ),
+    "a seat written with a leading zero": (_with(opponents={"01": "random"}), "one opponent for each of P1"),
+    "a seat written as a word": (_with(opponents={"one": "random"}), "one opponent for each of P1"),
+    "all in place of a seat": (_with(opponents={"all": "random"}), "one opponent for each of P1"),
+    "an opponent this cardlang does not have": (_with(opponents={"1": "chat:claude -p"}), "there is no opponent"),
+    "rest as an opponent": (_with(opponents={"1": "rest"}), "there is no opponent"),
+    "an opponent as a number": (_with(opponents={"1": 3}), "there is no opponent"),
     "another game": (_identity_of(lambda tmp_path: _path("cardlang_hearts")), "different game"),
     "an edited version of the game": (
         _identity_of(lambda tmp_path: str(_edited_kuhn(tmp_path))),
@@ -1017,15 +1067,16 @@ def test_each_kind_of_path_a_file_option_names(
     named = str(_FILE_KINDS[kind](tmp_path, game))
     stamps = {path: path.stat() for path in tmp_path.rglob("*") if path.is_file()}
     outcome, says = _FILE_EXPECTED[(option, kind)]
+    vs = _VS if option == "--save" else []
     try:
         if outcome == "a usage error":
             with pytest.raises(SystemExit) as exit_info:
-                sit([str(game), option, named], "q\n")
+                sit([str(game), option, named, *vs], "q\n")
             assert exit_info.value.code == 2
             err = capsys.readouterr().err
             assert option in err and says in err
             return
-        sitting = sit([str(game), option, named], "q\n")
+        sitting = sit([str(game), option, named, *vs], "q\n")
         assert "Traceback" not in sitting.err
         if outcome == "plays":
             assert sitting.code == 0, sitting.err
@@ -1068,6 +1119,19 @@ _SAVE_OVER: dict[str, str] = {
     "the history as a number": "refused",
     "a field the format does not have": "refused",
     "a later format": "refused",
+    "an earlier format, which records no opponents": "refused",
+    "no opponents": "refused",
+    "the opponents as a list": "refused",
+    "the opponents as text": "refused",
+    "no opponent for a seat": "replaced",
+    "an opponent for a seat the game does not seat": "replaced",
+    "an opponent for the person's own seat": "replaced",
+    "a seat written with a leading zero": "replaced",
+    "a seat written as a word": "replaced",
+    "all in place of a seat": "replaced",
+    "an opponent this cardlang does not have": "replaced",
+    "rest as an opponent": "replaced",
+    "an opponent as a number": "replaced",
     "another game": "replaced",
     "an edited version of the game": "replaced",
     "a seat the game does not seat": "replaced",
@@ -1089,7 +1153,7 @@ def test_saving_over_a_file_replaces_only_a_saved_session(kind: str, tmp_path: P
     target = tmp_path / "saved.json"
     target.write_text(make(_a_save(path, seat=0, seed=9, history=[]), tmp_path))
     kept = target.read_text()
-    sitting = sit([path, "--seed", "3", "--save", str(target)], "q\n")
+    sitting = sit([path, "--seed", "3", "--save", str(target), *_VS], "q\n")
     assert "Traceback" not in sitting.err
     if _SAVE_OVER[kind] == "replaced":
         assert sitting.code == 0, sitting.err
@@ -1123,7 +1187,7 @@ def test_leaving_prints_a_command_that_resumes_the_game(
     Path(folder_name).mkdir()
     game = _written(Path(folder_name) / game_name, Path(_path("cardlang_kuhn_poker")).read_text())
     saved = Path(folder_name) / save_name
-    sitting = sit(["--seed", "3", f"--save={saved}", "--", str(game)], "q\n")
+    sitting = sit(["--seed", "3", f"--save={saved}", *_VS, "--", str(game)], "q\n")
     assert sitting.code == 0, sitting.err
     (command,) = [line.strip() for line in sitting.out.splitlines() if line.strip().startswith("cardlang play")]
     argv = shlex.split(command)
@@ -1142,24 +1206,24 @@ def test_leaving_prints_a_command_that_resumes_the_game(
 def test_a_game_that_refuses_mid_session_keeps_the_picks_before_it(tmp_path: Path, sit: _Sit) -> None:
     path = str(FIXTURES / "empty_zone_choice.cardlang")
     saved = tmp_path / "saved.json"
-    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n")
+    sitting = sit([path, "--seed", str(_SEED), "--save", str(saved), *_VS], "1\n")
     assert sitting.code == 1
     assert "Traceback" not in sitting.err
     assert "cannot choose 1 of 0 candidates" in sitting.err
-    assert "P1 picked uniformly at random" in sitting.err
+    assert "P1: random (picks uniformly at random); P0 was you" in sitting.err
     assert "uniform-random self-play" not in sitting.err
     assert len(_saved(saved)["history"]) == 2
 
 
 def test_a_game_that_overruns_its_length_mid_session_is_refused(sit: _Sit) -> None:
-    sitting = sit([str(FIXTURES / "exceeds_max_length.cardlang"), "--seed", "1"], "1\n")
+    sitting = sit([str(FIXTURES / "exceeds_max_length.cardlang"), "--seed", "1", *_VS], "1\n")
     assert sitting.code == 1
     assert "max_length" in sitting.err
     assert "Traceback" not in sitting.err
 
 
 def test_a_games_own_error_before_any_decision_is_refused(sit: _Sit) -> None:
-    sitting = sit([str(FIXTURES / "rule_refuses_every_card.cardlang"), "--seed", "1"], "")
+    sitting = sit([str(FIXTURES / "rule_refuses_every_card.cardlang"), "--seed", "1", *_VS], "")
     assert sitting.code == 1
     assert "the lead must be a spade" in sitting.err
     assert "Traceback" not in sitting.err
@@ -1186,6 +1250,6 @@ def test_the_seed_reaches_the_other_seats_in_a_chance_free_game(tmp_path: Path, 
     lines = []
     for seed in (1, 2):
         saved = tmp_path / f"saved-{seed}.json"
-        sit([path, "--seed", str(seed), "--save", str(saved)], "1\n1\n1\nq\n")
+        sit([path, "--seed", str(seed), "--save", str(saved), *_VS], "1\n1\n1\nq\n")
         lines.append(_saved(saved)["history"])
     assert lines[0] != lines[1]

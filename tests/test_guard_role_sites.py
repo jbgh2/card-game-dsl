@@ -190,7 +190,8 @@ _RESIDUAL: dict[tuple[str, str], tuple[int, str]] = {
     ),
     ("cardlang/cli.py", "argparse.ArgumentTypeError"): (
         1,
-        ("`_file`, the `type=` of the options that name a file. argparse catches "
+        ("`_usage`, the one raise of the options' `type=` callables (the files "
+        "`--save` and `--resume` name, the items of `--vs`). argparse catches "
         "the class by type and prints it as the usage error naming the option, "
         "so the person at the command line is who acts, before any game is read."),
     ),

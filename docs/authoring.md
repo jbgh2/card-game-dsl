@@ -90,13 +90,14 @@ failure:
 $ cardlang check high-card.cardlang
 ```
 
-Then take a seat and play it. `play` shows you what your seat knows and a menu
-of what you can pick, and you answer with a number:
+Then take a seat and play it, naming who plays the other seats. `play` shows
+you what your seat knows and a menu of what you can pick, and you answer with a
+number:
 
 ```console
-$ cardlang play high-card.cardlang --seed 3 --save game.json
+$ cardlang play high-card.cardlang --seed 3 --save game.json --vs all=random
 HighCard: you are P0, seed 3
-P1 picks uniformly at random; choosing an opponent is not built yet
+P1: random (picks uniformly at random)
 saving to game.json before each of your picks
 
 HighCard, as P0 sees it
@@ -135,12 +136,22 @@ the game is saved in game.json; to go on with it:
 asked where you made it. `?` shows the whole table, since a decision shows only
 the latest lines of the observation log. `--seat` chooses your seat, seat 0
 unless named, and `--seed` fixes the deal and the other seats' picks, so a game
-repeats. Every other seat picks uniformly at random; choosing an opponent is
-issue #617. The menu names each pick the way the OpenSpiel adapter does, so
-what you play through is what an agent trained on the game plays through.
+repeats. The menu names each pick the way the OpenSpiel adapter does, so what
+you play through is what an agent trained on the game plays through.
+
+`--vs WHO=OPPONENT` names who plays a seat you do not take, one item per
+`--vs`. `--vs all=random` seats one opponent at every other seat, `--vs 1=first
+--vs 2=random --vs 3=random` names each seat, and `--vs 1=first --vs
+rest=random` names one and fills the rest. There is no default: a game with
+other seats and no `--vs` is refused before it is dealt, and the refusal names
+the seats, shows a command that seats them, and lists every opponent, as
+`cardlang play --help` does. An opponent that always takes the first pick
+repeats itself, so a table where every seat does, you included, can run a game
+past its `max_length`, and that refusal blames the game (issue #698).
 
 `--save` keeps the game in a file before each of your picks and when you leave,
-and `--resume` goes on with it at the decision you left. `--save` replaces a
+and `--resume` goes on with it at the decision you left, against the opponents
+it was played with; a `--vs` beside it that names others is refused. `--save` replaces a
 file only when it holds a saved game, so a slip that names your game file is
 refused. A saved game names the game it was played in, so resuming it against
 another game, or against this one after an edit to its rules or to a library it

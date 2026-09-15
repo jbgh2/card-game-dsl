@@ -10,12 +10,17 @@ with its own name, never this one widened.
 
 The ids are OpenSpiel action ids, which is why the type lives in the Interop
 package: its input and its output are that boundary's currency.
+
+`OPPONENTS` is the table of [[opponent]]s, the Seat Policies a person seats by
+name. It is the one place an opponent is defined, and every listing of them is
+rendered from it.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
 from cardlang.openspiel.infostate import SeatView, render_information_state
@@ -35,7 +40,7 @@ class SeatPolicy(Protocol):
 
 
 class UniformSeatPolicy:
-    """Every legal id alike: the opponent a seat gets when nobody names one.
+    """Every legal id alike.
 
     The draw is a digest of the seed and the view's information state, not a
     random stream, so the same seed answers the same view the same way however
@@ -50,3 +55,33 @@ class UniformSeatPolicy:
             f"{self.seed}\n{render_information_state(view)}".encode()
         ).digest()
         return legal[int.from_bytes(digest[:8], "big") % len(legal)]
+
+
+class FirstSeatPolicy:
+    """The lowest legal id, which is the first pick a person's menu lists.
+
+    A baseline that answers a position the same way every time, so a table
+    whose every seat takes the first pick can repeat one exchange until the
+    game's `max_length` refuses it (issue #698)."""
+
+    def __call__(self, view: SeatView, legal: Sequence[int]) -> int:
+        return legal[0]
+
+
+@dataclass(frozen=True)
+class Opponent:
+    """A Seat Policy a person seats by name: `description` says in one line
+    what it does, and `make` builds it from the session's seed."""
+
+    name: str
+    description: str
+    make: Callable[[int], SeatPolicy]
+
+
+OPPONENTS: dict[str, Opponent] = {
+    opponent.name: opponent
+    for opponent in (
+        Opponent("first", "always takes the first pick on the menu", lambda seed: FirstSeatPolicy()),
+        Opponent("random", "picks uniformly at random", UniformSeatPolicy),
+    )
+}

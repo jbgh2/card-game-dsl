@@ -5,8 +5,8 @@ A session is a line of play, ``(seed, history)`` played on through
 [[seat-policy]] like every other seat: handed their seat's [[seat-view]] and the
 legal action ids, they are shown the view's text (`render_view`) and a menu that
 numbers the ids by the adapter's own strings (`ActionSpace.to_string`), and they
-answer with a number. Every other seat plays `UniformSeatPolicy` on the
-session's seed.
+answer with a number. Every other seat plays the [[opponent]] named for it
+(`cardlang.play.opponents`), built from the session's seed.
 
 The session holds OpenSpiel action ids outside the Interop package, and does so
 deliberately: a saved session is a recorded history, and recorded picks have one
@@ -16,14 +16,15 @@ A running game stops only by an exception unwinding it, so a person's controls
 travel through their seat as one. Taking a pick back ends the line and plays it
 again from the history before the person's last pick, which asks them again
 where they made it; leaving ends it where it stands, and so does an interrupt.
-A saved session is the history with the seed, the seat, the game's identity
-(`pipeline.game_identity`) and a format number, written before each of the
-person's decisions and whenever the session stops.
+A saved session is the history with the seed, the seat, each other seat's
+opponent, the game's identity (`pipeline.game_identity`) and a format number,
+written before each of the person's decisions and whenever the session stops.
 
 Contract
 --------
-Assumes: a checked game whose action space `ActionSpace.for_game` derives, and
-a seat the game seats.
+Assumes: a checked game whose action space `ActionSpace.for_game` derives, a
+seat the game seats, and an opponent in `seat_policy.OPPONENTS` for each other
+seat.
 Establishes: the session's state is ``(seed, history)`` and nothing else; the
 person is shown the Seat View their seat is handed and the legal action ids,
 never a node or the World; a control ends the line only through the person's
@@ -50,8 +51,9 @@ from cardlang.ast import nodes as n
 from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.replay import HistoryMismatch, LiveEnd, LiveLine
-from cardlang.openspiel.seat_policy import SeatPolicy, UniformSeatPolicy
+from cardlang.openspiel.seat_policy import OPPONENTS, SeatPolicy
 from cardlang.pipeline import game_identity
+from cardlang.play.opponents import by_opponent
 from cardlang.play.view import render_view
 
 # What a person may type at a prompt besides a number on the menu.
@@ -65,7 +67,10 @@ CONTROLS: dict[str, str] = {
 RECENT_EVENTS = 12
 
 # The saved-session format this module writes, and the only one it reads.
-SESSION_FORMAT = 1
+SESSION_FORMAT = 2
+
+# The formats before this module's, each with what it does not record.
+_EARLIER_FORMATS: dict[int, str] = {1: "who plays the other seats"}
 
 _FIELDS: dict[str, type] = {
     "cardlang_session": int,
@@ -73,6 +78,7 @@ _FIELDS: dict[str, type] = {
     "identity": str,
     "seed": int,
     "seat": int,
+    "opponents": dict,
     "history": list,
 }
 
@@ -98,11 +104,6 @@ def _controls() -> str:
     return ", ".join(f"{word} to {what}" for word, what in CONTROLS.items())
 
 
-def _named(seats: Sequence[int]) -> str:
-    names = [f"P{seat}" for seat in seats]
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
-
-
 def _menu(space: ActionSpace, legal: Sequence[int]) -> str:
     digits = len(str(len(legal)))
     cells = [
@@ -119,9 +120,14 @@ def _menu(space: ActionSpace, legal: Sequence[int]) -> str:
     return "\n".join(lines)
 
 
-def _word(path: str) -> str:
+def path_word(path: str) -> str:
     """`path` as a command-line word the parser does not read as an option."""
     return os.path.join(os.curdir, path) if path.startswith("-") else path
+
+
+def command(words: Sequence[str]) -> str:
+    """`cardlang play` with `words`, quoted as a shell reads them."""
+    return shlex.join(["cardlang", "play", *words])
 
 
 def _returns(returns: Sequence[float]) -> str:
@@ -199,11 +205,14 @@ class PersonSeat:
 class Saved:
     """What a saved session holds besides its format and the game's identity.
 
-    `history` is as the file holds it: the line's replay is what refuses a pick
-    that is not an action id, or that the game does not offer."""
+    `opponents` and `history` are as the file holds them: the opponents are
+    seated against the game (`opponents.recorded`), and the line's replay is
+    what refuses a pick that is not an action id, or that the game does not
+    offer."""
 
     seed: int
     seat: int
+    opponents: dict[str, Any]
     history: list[Any]
 
 
@@ -246,6 +255,11 @@ def _record(path: Path) -> dict[str, Any] | str:
     version = data.get("cardlang_session")
     if type(version) is not int:
         return "not a saved session: no `cardlang_session` format number"
+    if version in _EARLIER_FORMATS:
+        return (
+            "it was saved by an earlier cardlang, before saved games recorded "
+            f"{_EARLIER_FORMATS[version]}; start a new game"
+        )
     if version != SESSION_FORMAT:
         return (
             f"saved in session format {version}, and this cardlang reads format "
@@ -278,7 +292,7 @@ def read_saved(path: Path, identity: str) -> Saved | str:
             "replays only in the game it was played in, so start a new game, or "
             "resume it in the game it was saved from"
         )
-    return Saved(data["seed"], data["seat"], data["history"])
+    return Saved(data["seed"], data["seat"], data["opponents"], data["history"])
 
 
 def unwritable(path: Path) -> str | None:
@@ -315,7 +329,7 @@ class Session:
     history that does not replay, ends the session as that exception, with the
     picks made before it saved (a history that does not replay leaves the file
     as it was). A save that cannot be written ends it as `SaveFailed`, with
-    no second attempt."""
+    no second attempt. `opponents` names the opponent at each other seat."""
 
     def __init__(
         self,
@@ -324,6 +338,7 @@ class Session:
         space: ActionSpace,
         seat: int,
         seed: int,
+        opponents: Mapping[int, str],
         history: Sequence[Any],
         reader: TextIO,
         writer: TextIO,
@@ -338,20 +353,16 @@ class Session:
         self.identity = game_identity(game)
         self.prompt = _Prompt(reader, writer)
         self.person = PersonSeat(game, space, reader, writer)
-        self.others = [other for other in range(game.players.low) if other != seat]
-        uniform = UniformSeatPolicy(seed)
+        self.opponents = dict(sorted(opponents.items()))
         self.policies: Mapping[int, SeatPolicy] = {
-            other: (self._ask if other == seat else uniform)
-            for other in range(game.players.low)
+            seat: self._ask,
+            **{other: OPPONENTS[name].make(seed) for other, name in self.opponents.items()},
         }
         self.line = LiveLine(path, seed, self.history)
 
     def who_played(self) -> str:
         """Who chose for each seat, as a refusal names them."""
-        if not self.others:
-            return f"P{self.seat} was you"
-        verb = "picked" if len(self.others) == 1 else "each picked"
-        return f"{_named(self.others)} {verb} uniformly at random, and P{self.seat} was you"
+        return "; ".join([*by_opponent(self.opponents), f"P{self.seat} was you"])
 
     def save(self) -> None:
         if self.save_to is None:
@@ -362,6 +373,7 @@ class Session:
             "identity": self.identity,
             "seed": self.seed,
             "seat": self.seat,
+            "opponents": {str(other): name for other, name in self.opponents.items()},
             "history": self.history,
         }
         written: str | None = None
@@ -412,12 +424,7 @@ class Session:
 
     def _header(self) -> str:
         lines = [f"{self.game.name}: you are P{self.seat}, seed {self.seed}"]
-        if self.others:
-            verb = "picks" if len(self.others) == 1 else "each pick"
-            lines.append(
-                f"{_named(self.others)} {verb} uniformly at random; choosing an "
-                "opponent is not built yet"
-            )
+        lines.extend(by_opponent(self.opponents))
         if self.save_to is not None:
             lines.append(f"saving to {self.save_to} before each of your picks")
         return "\n".join(lines)
@@ -458,6 +465,5 @@ class Session:
         self.prompt.say("")
         self.prompt.say("you left the table")
         if self.save_to is not None:
-            words = [_word(self.path), "--resume", _word(str(self.save_to))]
-            resume = shlex.join(["cardlang", "play", *words])
+            resume = command([path_word(self.path), "--resume", path_word(str(self.save_to))])
             self.prompt.say(f"the game is saved in {self.save_to}; to go on with it:\n    {resume}")
