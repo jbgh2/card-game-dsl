@@ -78,10 +78,16 @@ from cardlang.runtime.state import IllegalMove
 GAMES_DIR = Path(__file__).parent.parent / "docs" / "games"
 
 _SEED = 5
+# The picks along each game's line the comparison runs at: the first few, where
+# a deal has just landed, and a sparser run past them. Every pick through the
+# last of them costs over four times as long and found no divergence these miss
+# (measured 2026-09-14, serially over the registry: 13s against 57s).
 _POSITIONS = frozenset({0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144})
 _LAST = max(_POSITIONS)
 # Hearts deals a new hand after 64 picks (a pass of three cards per seat, then
-# thirteen tricks); the third hand begins at pick 128.
+# thirteen tricks); the third hand begins at pick 128. Every pick of the whole
+# game costs over thirty times as long and found no divergence (measured
+# 2026-09-14, serially: 0.5s against 17s).
 _HEARTS_DEEP = 140
 
 
@@ -246,7 +252,8 @@ def _answer_flag(view: SeatView, legal: Sequence[int]) -> int:
 
 # The answers a policy author most plausibly gives in place of an action id:
 # a position in the menu, the Candidate the id denotes, nothing, and a flag
-# that compares equal to a legal id.
+# that compares equal to a legal id. The flag passes a membership test, so only
+# the check of the answer's type refuses it.
 _WRONG_ANSWERS: dict[str, Callable[[SeatView, Sequence[int]], int]] = {
     "an index past the legal ids": _answer_index,
     "the decoded candidate": _answer_card,
@@ -384,6 +391,10 @@ def test_the_state_a_policy_is_handed_is_the_state_the_adapter_node_holds() -> N
         assert derive(node.player, node.rs, node.obs_logs[node.player]).state == ask.view.state
 
 
+# Where each game's line is cut: its first picks, and a sparser run past them.
+# Every cut through `_LAST` costs over eighteen times as long and found no
+# failure these miss (measured 2026-09-14, serially over the registry: 8s
+# against 144s).
 _CUTS = (0, 1, 3, 13, 55)
 
 
