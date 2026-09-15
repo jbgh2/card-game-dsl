@@ -33,13 +33,15 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  Saved files: `_BAD_SAVES`, each field of the format missing and
                  mistyped, a later format, another game, an edited game, and
                  picks that do not replay, beside the controls that must resume
-                 (the file as saved, a renamed game, a reformatted copy). Paths:
-                 `_FILE_KINDS`, each kind of path a person can hand an option
-                 that names a file, crossed with those options, read off the
-                 parser. The shown text: every registered game's first
-                 decisions at seat 0. What a stopped session keeps: the file at
-                 every decision, and after a person's interrupt, a game's
-                 refusal and an engine failure.
+                 (the file as saved, a renamed game, a reformatted copy); each
+                 is also handed to `--save`. Paths: `_FILE_KINDS`, each kind of
+                 path a person can hand an option that names a file, crossed
+                 with those options, read off the parser; and the command
+                 printed on leaving, run again, for `_NAMES`, names as a
+                 person's folders and files come. The shown text: every
+                 registered game's first decisions at seat 0. What a stopped
+                 session keeps: the file at every decision, and after a
+                 person's interrupt, a game's refusal and an engine failure.
 registry:        controls: `cardlang.play.session.CONTROLS`; commands and
                  options: `cardlang.cli.build_parser`, read through
                  tests/test_cli_surface.py's `_command_options`; games:
@@ -69,6 +71,7 @@ import io
 import json
 import os
 import re
+import shlex
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -974,11 +977,82 @@ def test_each_kind_of_path_a_file_option_names(
             path.chmod(0o700 if path.is_dir() else 0o600)
 
 
-def test_leaving_says_how_to_resume(tmp_path: Path, sit: _Sit) -> None:
+# What saving over each of those files does: a file that reads as a saved
+# session in the format resuming reads is replaced, whichever game it names, and
+# any other is refused and kept.
+_SAVE_OVER: dict[str, str] = {
+    "text that is not JSON": "refused",
+    "a JSON list": "refused",
+    "no format": "refused",
+    "no game": "refused",
+    "no identity": "refused",
+    "no seed": "refused",
+    "no seat": "refused",
+    "no history": "refused",
+    "the format as text": "refused",
+    "the identity as a number": "refused",
+    "the seed as text": "refused",
+    "the seat as a flag": "refused",
+    "the history as a number": "refused",
+    "a field the format does not have": "refused",
+    "a later format": "refused",
+    "another game": "replaced",
+    "an edited version of the game": "replaced",
+    "a seat the game does not seat": "replaced",
+    "a pick the game does not offer": "replaced",
+    "a flag for a pick": "replaced",
+}
+
+
+def test_saving_over_each_saved_file_kind_is_authored() -> None:
+    assert set(_SAVE_OVER) == set(_BAD_SAVES), "decide what saving over each new kind does"
+
+
+@pytest.mark.parametrize("kind", sorted(_SAVE_OVER))
+def test_saving_over_a_file_replaces_only_a_saved_session(kind: str, tmp_path: Path, sit: _Sit) -> None:
+    """red under: let `unwritable` replace any JSON object carrying a format
+    number."""
     path = _path("cardlang_kuhn_poker")
-    saved = tmp_path / "saved.json"
-    sitting = sit([path, "--seed", "3", "--save", str(saved)], "q\n")
-    assert f"--resume {saved}" in sitting.out
+    make, _ = _BAD_SAVES[kind]
+    target = tmp_path / "saved.json"
+    target.write_text(make(_a_save(path, seat=0, seed=9, history=[]), tmp_path))
+    kept = target.read_text()
+    sitting = sit([path, "--seed", "3", "--save", str(target)], "q\n")
+    assert "Traceback" not in sitting.err
+    if _SAVE_OVER[kind] == "replaced":
+        assert sitting.code == 0, sitting.err
+        assert _saved(target)["identity"] == game_identity(check_source(Path(path)))
+        return
+    assert sitting.code == 2
+    assert not sitting.asks
+    assert str(target) in sitting.err and _NOT_A_SESSION in sitting.err
+    assert target.read_text() == kept, "a refused file must not be overwritten"
+
+
+# Names as a person's folders and files come: plain, with spaces, and with
+# characters a shell reads.
+_NAMES: dict[str, tuple[str, str]] = {
+    "plain names": ("games", "saved.json"),
+    "names with spaces": ("my games", "my game.json"),
+    "names a shell reads": ("$HOME", "it's $(date).json"),
+}
+
+
+@pytest.mark.parametrize("names", sorted(_NAMES))
+def test_leaving_prints_a_command_that_resumes_the_game(names: str, tmp_path: Path, sit: _Sit) -> None:
+    """red under: print the paths into the command as they are."""
+    folder_name, file_name = _NAMES[names]
+    folder = tmp_path / folder_name
+    folder.mkdir()
+    game = _written(folder / "kuhn.cardlang", Path(_path("cardlang_kuhn_poker")).read_text())
+    saved = folder / file_name
+    sitting = sit([str(game), "--seed", "3", "--save", str(saved)], "q\n")
+    (command,) = [line.strip() for line in sitting.out.splitlines() if line.strip().startswith("cardlang play")]
+    argv = shlex.split(command)
+    assert argv == ["cardlang", "play", str(game), "--resume", str(saved)]
+    again = sit(argv[2:], "q\n")
+    assert again.code == 0, again.err
+    assert again.asks == sitting.asks
 
 
 # ---------------------------------------------------------------------------

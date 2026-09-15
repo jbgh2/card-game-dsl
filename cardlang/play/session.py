@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -195,8 +196,9 @@ class Saved:
 
 
 def _record(path: Path) -> dict[str, Any] | str:
-    """What the file at `path` holds when it is a saved session of any format,
-    or why it is not one."""
+    """What the file at `path` holds when it is a saved session in the format
+    this module reads, whichever game it was saved from, or why it is not
+    one."""
     try:
         text = path.read_text()
     except FileNotFoundError:
@@ -211,18 +213,9 @@ def _record(path: Path) -> dict[str, Any] | str:
         return "not a saved session: not JSON"
     if not isinstance(data, dict):
         return "not a saved session: not a JSON object"
-    if type(data.get("cardlang_session")) is not int:
+    version = data.get("cardlang_session")
+    if type(version) is not int:
         return "not a saved session: no `cardlang_session` format number"
-    return data
-
-
-def read_saved(path: Path, identity: str) -> Saved | str:
-    """The session saved at `path`, or why the game with `identity` cannot
-    resume it."""
-    data = _record(path)
-    if isinstance(data, str):
-        return data
-    version = data["cardlang_session"]
     if version != SESSION_FORMAT:
         return (
             f"saved in session format {version}, and this cardlang reads format "
@@ -239,6 +232,15 @@ def read_saved(path: Path, identity: str) -> Saved | str:
             return f"not a saved session: no `{field}`"
         if type(data[field]) is not kind:
             return f"not a saved session: `{field}` is {data[field]!r}"
+    return data
+
+
+def read_saved(path: Path, identity: str) -> Saved | str:
+    """The session saved at `path`, or why the game with `identity` cannot
+    resume it."""
+    data = _record(path)
+    if isinstance(data, str):
+        return data
     if data["identity"] != identity:
         return (
             "it was saved from a different game, or from another version of this "
@@ -412,7 +414,5 @@ class Session:
         self.prompt.say("")
         self.prompt.say("you left the table")
         if self.save_to is not None:
-            self.prompt.say(
-                f"the game is saved in {self.save_to}; to go on with it:\n"
-                f"    cardlang play {self.path} --resume {self.save_to}"
-            )
+            resume = shlex.join(["cardlang", "play", self.path, "--resume", str(self.save_to)])
+            self.prompt.say(f"the game is saved in {self.save_to}; to go on with it:\n    {resume}")
