@@ -5,7 +5,11 @@
 # the queries below are its fenced sweeps in executable form — this file
 # cites, it never redefines. The third section lists what
 # blocked:needs-witness gates, for the judgment the label demands: a
-# witness-gated issue whose body names no witness is mislabeled.
+# witness-gated issue whose body names no witness is mislabeled. The
+# fourth counts the designer-reachable issues filed since the newest
+# direction-review verdict that carry no priority tier: a latency the
+# direction review clears at its next run (docs/harness.md, "The Ready
+# Front"), never a filing defect — a filer does not set tiers.
 #
 # Read-only; the Warden (role-warden) acts on what this reports.
 # Empty first two sections are the clean state.
@@ -32,3 +36,12 @@ gh issue list --repo "$REPO" --state open --limit "$LIMIT" \
 echo "== witness-gated: judge that each body NAMES its witness =="
 gh issue list --repo "$REPO" --state open --label blocked:needs-witness --limit "$LIMIT" \
   --json number,title --jq '.[] | "\(.number) \(.title)"'
+
+# The newest verdict is the newest file in the verdicts' directory; the
+# script runs from the repo root, as the Warden's charter has it run.
+VERDICTS=docs/superpowers/direction-reviews
+NEWEST=$(ls "$VERDICTS" | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' | sort | tail -1 | sed 's/\.md$//')
+[ -n "$NEWEST" ] || { echo "no verdict file under $VERDICTS" >&2; exit 1; }
+echo "== untriaged since the $NEWEST verdict: designer-reachable, no priority tier (a latency, not a defect) =="
+gh issue list --repo "$REPO" --state open --limit "$LIMIT" \
+  --json number,title,labels,createdAt --jq '.[] | select(.createdAt[0:10] > "'"$NEWEST"'") | select([.labels[].name] | any(. == "reachability:R1" or . == "reachability:R2")) | select([.labels[].name] | any(startswith("priority:")) | not) | "\(.number) \(.title)"'

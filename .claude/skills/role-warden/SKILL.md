@@ -66,6 +66,10 @@ clock (below), so markers carry an instance, not just a gap:
    - Each `blocked:needs-witness` issue whose body names no witness:
      comment (`warden:witness`) quoting the rule — the label does not
      apply without a named witness.
+   - The untriaged count (designer-reachable issues filed since the
+     newest verdict with no Priority Tier): report the number, nothing
+     else. No marker, no label — the tier is the direction review's
+     (docs/harness.md, "The Ready Front"), and the Warden never sets one.
 2. **Stale Leases** — `tools/stale-leases.sh`
    (`docs/harness.md`, "Leases", owns the definition). The daily cadence
    follows this chore: a watcher's clock follows the fastest signal it

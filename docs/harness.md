@@ -197,11 +197,14 @@ on the issue:
   that is not an issue: the body names the game or data point that
   unblocks (CLAUDE.md, "The tracker").
 
-Ordering stays where it is:
+Ordering is a label, set by one role:
 [issue #143](https://github.com/jbgh2/card-game-dsl/issues/143) is the
-authority on cross-cutting sequence, and its maintenance contract (in its
-own body) says who may reorder it. The graph answers *what is possible*;
-#143 answers *what is next*.
+authority on cross-cutting sequence — which workstream unblocks what — and
+its maintenance contract (in its own body) says who may reorder it. What
+an agent takes next is the **Priority Tier**, `priority:P1` or
+`priority:P2`, and only the direction review sets it (below). The graph
+answers *what is possible*; the tier answers *what is next*; #143 answers
+*what comes after*.
 
 ### The Ready Front
 
@@ -224,11 +227,28 @@ The disqualifiers, in the order the sweep counts them:
 - it is Leased.
 
 `tools/ready-front.sh` computes the front — the third sibling of the two
-CLAUDE.md sweeps. It annotates each Ready issue with its #143 rank where
-that body references it; ordering authority stays with #143 and the
-operator. The sweep reports, it does not decide, and it never truncates
-silently: any capped or partial fetch is a loud failure, and every
-excluded issue lands in a counted bucket on stderr.
+CLAUDE.md sweeps — in the order an agent takes it: Priority Tier first
+(`P1`, then `P2`, then none), then reachability, then number, with a
+blocker inheriting the tier of every open issue it blocks so a tiered
+issue's unblocking work ranks where the issue does. The sweep reports, it
+does not decide, and it never truncates silently: any capped or partial
+fetch is a loud failure, and every excluded issue lands in a counted
+bucket on stderr.
+
+**The tier is triage, and triage is the direction review's.** A filer
+states facts — kind, reachability, the body — and never a tier: the
+weight of an issue is a portfolio judgment, and the role with the whole
+tracker in view makes it, the way a bug's filer and its triager are two
+people. The review's default rule: a silent defect a designer or a corpus
+game meets (decisions.md, "Reachability ranks the work", read with the
+review skill's severity order), or a corpus game wrong against its
+source, is `P1`; a loud designer-facing defect is `P2`; everything else
+carries no tier and ranks by reachability. A departure from the default
+says why on the issue. Absence is visible, never silent:
+`tools/tracker-sweeps.sh` counts the designer-reachable issues filed
+since the newest verdict that carry no tier, and that count is the
+triage latency the operator reads to decide whether the review runs
+early.
 
 **Body sufficiency is judgment, deliberately outside the mechanical
 definition.** A Ready issue can still be unworkable — Detail too thin to
