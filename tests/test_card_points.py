@@ -2,7 +2,7 @@
 
 The second Merge Lane A change of issue #249 (epic #248). The operator ruling
 (points 1 and 2), the per-PR counsel, and the framing-check enumeration live
-on that issue; docs/decisions.md "Scoring composition" carries the settled
+on that issue; docs/decisions.md "Scoring has no constructs of its own" carries the settled
 text this grid pins. The Builtin renames `card_value` -> `card_points` in the
 same change, and the four populated deck tables migrate into their game files
 (one source: `Deck` carries no point table).
@@ -552,13 +552,6 @@ def test_gin_deadwood_table_matches_the_declared_clause() -> None:
 
     rows, else_value = _declared_table("gin-rummy.cardlang")
     assert rows == _POINTS and else_value is None
-
-
-def test_cribbage_show_table_matches_the_declared_clause() -> None:
-    from cardlang.runtime.cribbage import _VALUE
-
-    rows, else_value = _declared_table("cribbage.cardlang")
-    assert rows == _VALUE and else_value is None
 
 
 def test_canasta_meld_core_table_matches_the_declared_clause() -> None:

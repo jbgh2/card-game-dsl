@@ -330,7 +330,7 @@ in tests/test_trump_slot_class.py.
   comparison (Bridge, Pinochle, Tarot, Skat) found the four share only the
   kernel form itself — the accumulator variables, ring topology (continuous /
   shrinking / two-seat-twice), bid vocabulary, and outcome mechanism (named
-  function vs inline survivor, and Skat uses the outcome-less betting form)
+  function vs inline survivor, and Skat omits the `outcome` clause altogether)
   all genuinely diverge — so the shared thing IS this `round` form, and a
   promoted `auction` configuration would abstract over instances that agree
   on nothing it could parameterize. Spades and Oh Hell use *inline per-player
@@ -339,9 +339,9 @@ in tests/test_trump_slot_class.py.
   use the auction form. Schnapsen configures the same form differently again: a
   single-participant ring whose free actions loop the leader until a card is led
   (see "Mechanics" below).
-- **Betting runs on the betting form of the kernel `round`** (see
-  [decisions.md](decisions.md) "The auction form of `round`") — the same
-  continuous-ring form as an auction, on the **default ring** (a bet or raise
+- **Betting runs on the auction form of the kernel `round`** (see
+  [decisions.md](decisions.md) "The auction form of `round`") — the one form
+  serves both, configured here on the **default ring** (a bet or raise
   re-opens the seats it passed, and the pointer reaches the seats behind the
   aggressor first — poker's continuation order) and with the
   `outcome` clause omitted (a bet mutates chip/fold state directly, producing no
@@ -353,15 +353,40 @@ in tests/test_trump_slot_class.py.
   move types' own `when:` guards (free-to-act → check/bet; facing a bet →
   call/fold/raise-if-uncapped), not separate rules; the bring-in and first-to-act
   seats come from the `bring_in_seat()` / `first_to_act_seat()` Primitive selectors.
-  Each street's `round` carries an `until` terminator. `until` is a clause of
-  the form, and what the family library shares is the predicates the terminator
-  is built from rather than the terminator itself. Both arms are the ring's: the
-  street closes when no seat is `pending` — the settled field, everyone who can
-  act having acted and owing nothing — or when the seats able to act are down to
-  one that owes nothing, the street that opens behind an all-in, where
-  `open_street`'s cleared `acted` would otherwise leave that seat `pending` with
-  nobody to act against. A variant in which no seat can be all-in never reaches
-  that second arm and writes it all the same.
+  A whole street, verbatim from
+  [games/leduc-poker.cardlang](games/leduc-poker.cardlang), whose streets open
+  from a plain state variable rather than a selector:
+
+  ```cardlang-fragment betting_street
+  phase first_street {
+    run open_street(2)
+    round offering [check, bet, call, fold, raise] from first_actor
+          over players where pending(player)
+          until (number of players where pending(player)) is 0
+             or ((number of players where can_act(player)) <= 1
+                 and (number of players where can_act(player) and owes(player)) is 0)
+  }
+  ```
+
+  `until` is a clause of the form, and what the family library shares is the
+  predicates the terminator is built from rather than the terminator itself —
+  so every street writes those two arms out, and the corpus's poker streets
+  all write them exactly as above. What a street varies is the bet size
+  `open_street` takes, the seat the ring starts from, whether `raise` is on
+  the offering (Kuhn Poker's is not), whether a contender count guards the
+  street at all, and whether a forced post sits between `open_street` and the
+  `round` (Stud's bring-in).
+  Both arms are the ring's: the street closes when no seat is `pending` — the
+  settled field, everyone who can act having acted and owing nothing — or when
+  the seats able to act are down to one that owes nothing, the street that
+  opens behind an all-in, where `open_street`'s cleared `acted` would otherwise
+  leave that seat `pending` with nobody to act against. A variant in which no
+  seat can be all-in never reaches that second arm and writes it all the same.
+  Of those variations the guard is the one with a cost in information: Leduc's
+  second street runs only while more than one player is unfolded, and that is
+  what keeps a folded hand's card unknowable even in hindsight. An unguarded
+  street deals the board after a fold, and the board is what a live opponent
+  reasons back from.
   The showdown settles in plain statements around the `pot_share(player)` Primitive
   query — the chips that player collects under the side-pot layering
   (committed-total levels, ties split with the odd chip to the first winner in
@@ -400,16 +425,18 @@ in tests/test_trump_slot_class.py.
   [kernel-migration.md](kernel-migration.md), Workstream 4). Both players'
   discards and every pegging play are filtered card transfers (`move chosen …
   where …`); `repeat until` / `if`/`else` / `skip to next hand` reproduce the
-  121-point cutoff one scoring component at a time. The current sub-round's card
+  121-point cutoff one scoring rule at a time. The current sub-round's card
   provenance (who played each `play_pile` card) is carried by two `Integer` state
   variables (`seq_bits`/`seq_len`, public information — every player watched the
   count) and decoded by the `peg_origin_of` Primitive query. The per-card
-  pegging value is the game's own `card_points { }` clause; the game-local
+  pegging value is the game's own `card_points { }` clause, and the show is
+  written in the language — fifteens, pairs and runs as subset queries over
+  `[played[p], starter]`, the flush and his nob as card queries; the game-local
   Primitives (see "Native functions") — `peg_pair_points`, `peg_run_points`,
-  `peg_origin_of`, `cribbage_show_value`, `cribbage_crib_value` — hold the
-  pegging-count and show scorers, in the same game-local shape as Stud's
-  `pot_share` and Pinochle's `pinochle_meld_value`; game-local until the
-  shared `scoring_component` subsystem lands corpus-first.
+  `peg_origin_of` — hold the pegging-count scorers and the provenance decoder,
+  in the same game-local shape as Stud's `pot_share` and Pinochle's
+  `pinochle_meld_value` — the designed shape for what the language cannot yet
+  say about a hand.
 - **Schnapsen's hand** runs on the kernel with no mechanic: the leader's mixed
   lead decision (play a card / declare a marriage / exchange the trump jack /
   close the talon) is the **auction form over a single-participant ring** —
@@ -477,46 +504,18 @@ in tests/test_trump_slot_class.py.
   (`challenge_stands` / `block_stands`) are public phase state.
 - `MeldingPhase` — currently a placeholder; real definition deferred.
 
-## Scoring components
+## Scoring
 
-> **Status: proposed, not yet built.** No game runs a `scoring_component` /
-> `ScoreDelta` subsystem — the runtime has no `apply_components:` construct. The
-> decompositions below are the intended design; the corpus scores through
-> game-local statements and Primitives (see the Mechanics section above and
-> `decisions.md`, "Scoring composition"). This catalogue is promoted corpus-first
-> when the subsystem is built.
-
-Composition by summation of `ScoreDelta` outputs; triggered components fire on
-specific events via `triggered_by:` clauses (see decisions.md
-"Triggered scoring components"). Proposed decompositions for Bridge and Spades
-follow.
-
-**Bridge:**
-
-- `ContractTrickScore` — below-the-line points for tricks bid and made.
-- `OvertrickScore` — above-the-line points for tricks beyond the contract.
-- `UndertrickPenalty` — above-the-line points to defenders when contract fails.
-- `SlamBonus` — above-the-line bonus for level-6/7 contracts made.
-- `GameBonus`, `RubberBonus` — triggered after `apply_components` on
-  the below-line-crosses-100 and games_won-reaches-2 thresholds.
-
-**Spades:**
-
-- `NilScoring` — per-player ±100 for Nil bidders.
-- `ContractScoring` — per-team scoring on contract success/failure;
-  also accumulates bags on overtricks.
-- `BagOverflow` — triggered after `apply_components` on the
-  bags-crosses-10 threshold.
-
-All currently game-specific. Generalization candidates will emerge with
-more scoring-heavy games (Bridge variants, Pinochle's full meld
-scoring). Skat added another scoring shape (game_value computed from
-base × multiplier with matadors, hand, schneider, schwarz inputs)
-but kept the per-game-helper pattern — the multiplier arithmetic is plain
-statements in the game file over the `skat_matadors` primitive rather
-than a generalized abstraction, with the overbid rule's
-smallest-covering-multiple written as rounded division
-(`divided by … rounded up`) in the game text.
+There is no scoring construct and no scoring library
+([decisions.md](decisions.md), "Scoring has no constructs of its own"). A
+game scores with its `card_points { }` clause, the general constructs, and
+`winner:`; what the language cannot yet say about a hand is a game-local
+Primitive declared in the game file (see "Native functions" below), which is
+the shape Stud's `pot_share`, Pinochle's `pinochle_meld_value` and Cribbage's
+show scorers all take. Skat is the pattern at its plainest: the game value's
+multiplier arithmetic is plain statements in the game file over the
+`skat_matadors` primitive, with the overbid rule's smallest-covering-multiple
+written as rounded division (`divided by … rounded up`) in the game text.
 
 ## Phase types
 
@@ -832,8 +831,12 @@ and which one is the game's own choice:
 - A game that writes a `primitives { }` block declares each primitive's
   reads there, beside its typed signature (decisions.md's design note,
   `design-notes/primitive-sidecars.md` §2). The declaration and the zone
-  then live in one file, so renaming either moves both; the block's presence
-  also means the game names its own primitives and no other game's.
+  then live in one file, so renaming either moves both. The block's presence
+  also scopes what the game may CALL to what it DECLARES, plus the Builtins
+  (see [Primitives Block](glossary/primitives-block.md)). Declaring is what
+  admits a name, not which game the name came from: any game may declare
+  `pot_share` and call it, and a game that declares no `pot_share` cannot call
+  one — the refusal says so and names declaring it as the remedy.
 - The slots a block cannot name — a `round`'s climb queries and auction
   outcomes — are coupled to the `PRIMITIVE_READS` registry
   (`cardlang/runtime/reads.py`), which declares the same names on their
@@ -864,7 +867,7 @@ and which one is the game's own choice:
   agnostic. Used by Pinochle's `MustHeadTrick`/`MustOverTrump` rules to find
   the highest card of a suit played so far in the trick.
 - `card_points(card: Card) → Integer` — the card's points under the game's
-  own `card_points { }` clause (decisions.md "Scoring composition"): listed
+  own `card_points { }` clause (decisions.md "Scoring has no constructs of its own"): listed
   ranks verbatim, unlisted ranks at the `else:` row's value or 0 without one.
   General-purpose for any point-counting game; calling it in a game that
   declares no clause is a resolve error (the table has one source). Used by
@@ -934,8 +937,8 @@ and which one is the game's own choice:
 
 Cribbage's pegging and show scoring, plus the pegging count's card provenance,
 are the game-local primitives below, reading `cardlang/runtime/cribbage.py` —
-game-local (like Stud's `pot_share`) until the shared `scoring_component`
-subsystem lands corpus-first (the per-card pegging value is the game's own
+game-local like Stud's `pot_share`, which is the designed shape for what the
+language cannot yet say (the per-card pegging value is the game's own
 `card_points { }` clause, distinct from its *ranking*, which orders cards for
 comparisons):
 
@@ -946,10 +949,6 @@ comparisons):
 - `peg_origin_of(card: Card) → Player` — which player played a given live
   `play_pile` card, decoded from the `seq_bits`/`seq_len` play-order state; routes
   each sub-round's cards into `played[dealer]` / `played[nondealer]` at the close.
-- `cribbage_show_value(player: Player) → Integer` — a player's pegged hand's show
-  score (fifteens, pairs, runs, flush, his-nob) counted against the shared starter.
-- `cribbage_crib_value() → Integer` — the dealer's crib show score (a flush needs
-  all five cards, unlike the four-card hand flush).
 
 Schnapsen carries no game-local primitive: its two-card trick resolves
 through the engine-core `highest_trump_or_led_suit` call (above) over the

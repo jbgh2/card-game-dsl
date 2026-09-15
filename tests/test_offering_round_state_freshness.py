@@ -112,7 +112,13 @@ WALK_STEPS = 240
 MIN_INSIDE_DECISIONS = 4
 MIN_OUTSIDE_DECISIONS = 20
 
-WALK_SEEDS = (0, 1, 2)
+# The floors above are a fixed sufficiency bar, so the walk's WIDTH is what has
+# to meet them: a game played to a score target contributes outside decisions by
+# the hundred, while a ONE-HAND game contributes only the decisions of its single
+# non-round window, a handful per seed. Widen this rather than lower a floor —
+# more seeds is more evidence, and a floor lowered to fit the narrowest game
+# weakens every other game's.
+WALK_SEEDS = (0, 1, 2, 3, 4)
 
 
 class _Gone:
@@ -186,6 +192,8 @@ class Rounds:
     windows: tuple[Window, ...]
     persistent: frozenset[str]
 
+
+_POKER_BETTING = ("check", "bet", "call", "fold", "raise")
 
 _DOPPELKOPF_POLL = (
     "announce_re", "announce_kontra", "announce_re_no90", "announce_re_no60",
@@ -301,6 +309,38 @@ ROUNDS: dict[str, Rounds] = {
             {
                 "bid_level", "current_level", "dealer", "hands_played",
                 "lead_taker", "leader", "petit_in_last", "score", "taker",
+            }
+        ),
+    ),
+    "five-card-draw.cardlang": Rounds(
+        # The only betting-family game with decisions outside its betting
+        # rounds: the exchange. The two rounds are one window at two sites
+        # over the same street bookkeeping, which `open_street` zeroes — and
+        # the game opens the second street where the first CLOSES, at the top
+        # of the draw, so the exchange's decisions see no standing bet, no
+        # aggression and nobody acted rather than the closed round's residue.
+        # `limit` is persistent because no game can make it anything else: the
+        # library PROVIDES it, so only the library's own definitions may write
+        # it, and the only one that does is `open_street`, which sets it to the
+        # coming street's size rather than clearing it. `acted` reaches an idle
+        # value through that same procedure; `limit` has no such path, and it
+        # reads correctly as the size the street about to be bet is played at.
+        windows=(
+            Window(
+                vocabularies=(_POKER_BETTING,),
+                idle=(
+                    ("acted", Indexed(False)),
+                    ("bet_by", Indexed(0)),
+                    ("bet_to_match", 0),
+                    ("level", 0),
+                    ("raises", 0),
+                ),
+            ),
+        ),
+        persistent=frozenset(
+            {
+                "committed", "drawn", "first_actor", "folded", "in_hand",
+                "limit", "more", "net", "raise_cap", "stack", "tossed",
             }
         ),
     ),

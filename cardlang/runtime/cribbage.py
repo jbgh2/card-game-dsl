@@ -4,23 +4,21 @@ The whole hand — the crib discards, the starter cut (his heels), pegging
 (fifteens, pairs, runs, 31, go / last card), and the show (fifteens, pairs,
 runs, flush, his nob over non-dealer / dealer / crib in order, stopping the
 instant a player crosses 121) — runs in the DSL (docs/games/cribbage.cardlang)
-as filtered [[transfer]]s and ordinary statement control flow. This module holds
-what is not expressible there:
+as filtered [[transfer]]s, ordinary statement control flow, and, for the show,
+subset queries over the hand listed with the starter. This module holds what
+is not expressible there:
 
-- `count_fifteens`/`count_pairs`/`run_score`/`flush_score`/
-  `nob_score`/`show_score` — the show's combination scorers, and
-  `peg_pairs`/`peg_run` — the pegging-count ones. Pure over their arguments
-  so they can be unit-tested against known cribbage hands (the strongest
-  falsifiable check for a counting game) independent of the bundle-taking
-  adapters below. The run scorers take the rank order as a parameter — the
-  adapters pass `facts.rank_index`, built by the driver from the game's
-  `ranking: aces low` — so this module holds NO private copy of the rank
-  order; the declaration is the single source of truth for what "adjacent
-  ranks" means. `peg_pairs` reads no order at all, which is why its adapter
-  is the control the rank-index scrape discriminates against
+- `peg_pairs`/`peg_run` — the pegging-count scorers, pure over their
+  arguments so they can be unit-tested against known counts independent of
+  the bundle-taking adapters below. `peg_run` takes the rank order as a
+  parameter — the adapter passes `facts.rank_index`, built by the driver from
+  the game's `ranking: aces low` — so this module holds NO private copy of
+  the rank order; the declaration is the single source of truth for what
+  "adjacent ranks" means. `peg_pairs` reads no order at all, which is why its
+  adapter is the control the rank-index scrape discriminates against
   (tests/test_primitives_block.py) and why the two adapters share no helper.
-  (The pegging COUNT values are the game file's own `card_points { }` clause;
-  `_VALUE` below survives only as the show scorers' internal weights.)
+  (The pegging COUNT values are the game file's own `card_points { }`
+  clause, read at the pegging sites.)
 - `peg_origin`/`peg_origin_of` — the pegging sub-round's card-provenance
   decoder. Zones don't retain who moved a card, and no `round` [[form]] fits
   pegging's per-play scoring plus forced-play flow (docs/kernel-migration.md,
@@ -29,104 +27,15 @@ what is not expressible there:
   the plays — both public information, since everyone at the table watched
   the count). `peg_origin_of` decodes them to route a `play_pile` card to
   `played[dealer]` / `played[nondealer]` at each sub-round close.
-- `cribbage_show_value`/`cribbage_crib_value` — the show's per-zone
-  adapters, reading `played[player]` / `crib` against the shared `starter`.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from itertools import combinations
 
 from cardlang.runtime import reads
 from cardlang.runtime.narrowing import EngineFacts
 from cardlang.runtime.values import Card, Player, rank_strength
-
-# The show scorers' card weights (fifteens sum to 15 over these) — a second
-# copy of the fact cribbage.cardlang declares as its `card_points { }` clause
-# and reads at the pegging sites. The two must agree or the show and the
-# pegging count diverge; pinned by tests/test_card_points.py::
-# test_cribbage_show_table_matches_the_declared_clause.
-_VALUE = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
-          "10": 10, "J": 10, "Q": 10, "K": 10}
-
-
-# --- the show ---
-
-
-def count_fifteens(cards: list[Card]) -> int:
-    vals = [_VALUE[c.rank] for c in cards]
-    subsets = sum(
-        1
-        for r in range(2, len(vals) + 1)
-        for combo in combinations(vals, r)
-        if sum(combo) == 15
-    )
-    return 2 * subsets
-
-
-def count_pairs(cards: list[Card]) -> int:
-    return 2 * sum(1 for a, b in combinations(cards, 2) if a.rank == b.rank)
-
-
-def run_score(cards: list[Card], order: Mapping[str, int], reader: str) -> int:
-    """Length × multiplicity of the run (≥3) over the ranks (a 5-card show hand
-    contains at most one run). `order` is the game's declared rank order —
-    `facts.rank_index` from cribbage.cardlang's `ranking: aces low` — under
-    which "a run" means ranks ADJACENT in the declaration: strengths are dense
-    consecutive integers (the driver's `enumerate` formula), so A-2-3 runs and
-    Q-K-A does not, exactly the A-low no-wraparound rule. `order` must cover
-    every rank it is asked for, exactly as `rank_value` requires: a rank
-    outside a partial `ranking:` is refused by `rank_strength`, the runtime
-    Owner Guard for that class, naming `reader` (the DSL-visible Primitive
-    that asked) — moot for the corpus, since `aces low` covers the deck."""
-    counts: dict[int, int] = {}
-    for c in cards:
-        strength = rank_strength(order, c.rank, reader)
-        counts[strength] = counts.get(strength, 0) + 1
-    distinct = sorted(counts)
-    i = 0
-    while i < len(distinct):
-        j = i
-        while j + 1 < len(distinct) and distinct[j + 1] == distinct[j] + 1:
-            j += 1
-        length = j - i + 1
-        if length >= 3:
-            mult = 1
-            for k in range(i, j + 1):
-                mult *= counts[distinct[k]]
-            return length * mult
-        i = j + 1
-    return 0
-
-
-def flush_score(hand4: list[Card], starter: Card, is_crib: bool) -> int:
-    if len({c.suit for c in hand4}) != 1:
-        return 0
-    if starter.suit == hand4[0].suit:
-        return 5
-    return 0 if is_crib else 4
-
-
-def nob_score(hand4: list[Card], starter: Card) -> int:
-    return 1 if any(c.rank == "J" and c.suit == starter.suit for c in hand4) else 0
-
-
-def show_score(
-    hand4: list[Card],
-    starter: Card,
-    is_crib: bool,
-    order: Mapping[str, int],
-    reader: str,
-) -> int:
-    five = [*hand4, starter]
-    return (
-        count_fifteens(five)
-        + count_pairs(five)
-        + run_score(five, order, reader)
-        + flush_score(hand4, starter, is_crib)
-        + nob_score(hand4, starter)
-    )
 
 
 # --- pegging ---
@@ -191,25 +100,3 @@ def peg_origin_of(facts: EngineFacts, gr: reads.GameReads, c: Card) -> Player:
     if peg_origin(seq_bits, seq_len, position):
         return dealer
     return next(p for p in facts.seating.players if p != dealer)
-
-
-def cribbage_show_value(
-    facts: EngineFacts, gr: reads.GameReads, p: Player
-) -> int:
-    """`p`'s show score: `played[p]` holds exactly the monolith's `hand4[p]`
-    snapshot once pegging ends (every card started in `hand[p]` and is routed
-    to `played[p]`, never the crib), scored against the shared starter."""
-    hand4 = list(gr.families["played"][p])
-    starter = gr.singles["starter"][0]
-    return show_score(
-        hand4, starter, is_crib=False, order=facts.rank_index, reader="cribbage_show_value"
-    )
-
-
-def cribbage_crib_value(facts: EngineFacts, gr: reads.GameReads) -> int:
-    """The dealer's crib show score against the shared starter."""
-    crib = list(gr.singles["crib"])
-    starter = gr.singles["starter"][0]
-    return show_score(
-        crib, starter, is_crib=True, order=facts.rank_index, reader="cribbage_crib_value"
-    )

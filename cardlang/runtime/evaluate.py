@@ -8,14 +8,14 @@ exactly what the deep-resolution pass exists to make possible.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, assert_never
+from typing import Any, assert_never, cast
 
 from cardlang.ast import nodes as n
 from cardlang.builtins.signatures import CALL_SIGS
 from cardlang.domains import require_role, role_members
-from cardlang.runtime import builtins, observe, primitives, reads
+from cardlang.runtime import builtins, observe, primitives, reads, subsets
 from cardlang.runtime.errors import OwnerGuardError, ShadowGuardError
-from cardlang.runtime.state import Ctx, Move, StructValue, elements
+from cardlang.runtime.state import Ctx, Move, StructValue, Zone, elements
 from cardlang.runtime.values import Card
 from cardlang.stdlib.round_state import ROUND_STATE_FIELDS
 
@@ -105,6 +105,8 @@ def evaluate(e: n.Expr, ctx: Ctx) -> Any:
             return _comprehension(e, ctx)
         case n.PlayerQuery():
             return _player_query(e, ctx)
+        case n.SubsetQuery():
+            return _subset_query(e, ctx)
         case n.CardQuery():
             return _card_query(e, ctx)
         case n.DomainQuery():
@@ -563,6 +565,152 @@ def _card_query(e: n.CardQuery, ctx: Ctx) -> Any:
             return sum(results)
         case _:
             raise AssertionError(f"unknown card-query kind '{e.kind}'")
+
+
+def _refuse_a_zone_listed_twice(e: n.SubsetQuery, values: list[Any]) -> None:
+    """Two members that are one zone at play time -- `[hand[p], hand[q]]`
+    with p = q. Resolve refuses the same SPELLING twice (`_check_subset_source`);
+    a computed index cannot be told apart until now, so this is that guard's
+    play-time half, by identity: the pool would hold one zone's cards twice
+    and answer nothing the sentence meant. Named for the designer as the two
+    members as written; the caller locates it at the whole list, as it does
+    the bound's refusal. Nothing here evaluates: an index may hold a chooser
+    draw, and a refusal that evaluated it again would draw again."""
+    seen: dict[int, int] = {}
+    for i, value in enumerate(values):
+        if not isinstance(value, Zone):
+            continue
+        if id(value) in seen:
+            first = _member_label(e.source[seen[id(value)]]) or "a member"
+            again = _member_label(e.source[i]) or "a member"
+            raise OwnerGuardError(
+                f"`{again}` and `{first}` are the same zone at this point of play "
+                f"— a subset source lists each zone once"
+            )
+        seen[id(value)] = i
+
+
+def _source_label(source: tuple[n.Expr, ...]) -> str | None:
+    """How a query's source is spelled in the game file, for a refusal's
+    location: one member bare, several as the designer listed them. Only the
+    two shapes `zone_expr` admits are rendered; a member of any other shape
+    makes the whole label None rather than inventing one, because a location
+    is metadata on a refusal already being raised and must never replace it."""
+    labels = [_member_label(m) for m in source]
+    if any(label is None for label in labels):
+        return None
+    if len(labels) == 1:
+        return labels[0]
+    return "[" + ", ".join(cast(list[str], labels)) + "]"
+
+
+def _member_label(source: n.Expr) -> str | None:
+    match source:
+        case n.NameRef():
+            return source.name
+        case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
+            return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base, index=n.NameRef() as idx):
+            return f"{base.name}[{idx.name}]"
+        case n.Subscript(obj=n.NameRef() as base):
+            return f"{base.name}[...]"
+        case _:
+            return None
+
+
+def _subset_query(e: n.SubsetQuery, ctx: Ctx) -> Any:
+    """The subset register, both folds. The binder is bound to each candidate
+    SET, so the predicate and the aggregated body see a card collection.
+
+    `count` and `source` are evaluated in the enclosing scope, before the
+    binder exists — the split resolve makes lexically, kept here so the two
+    layers cannot disagree about which scope a source operand reads.
+
+    The Boolean folds short-circuit, exactly as the card queries' do: subset
+    predicates are side-effect-free, so stopping at the first answer is
+    semantics-preserving, and it is what keeps the common case cheap when the
+    domain is large."""
+    # The pool is every member's contents, concatenated in written order: a
+    # card two members both hold is present once per member, which is the
+    # multiset reading the runtime already keeps for duplicate copies.
+    values = [evaluate(member, ctx) for member in e.source]
+    pool = [card for value in values for card in elements(value)]
+    try:
+        _refuse_a_zone_listed_twice(e, values)
+        subsets.check_pool(
+            pool,
+            "a subset query",
+            "narrow the source it ranges over, or ask about a smaller one",
+        )
+    except OwnerGuardError as exc:
+        # Locate the refusal at the zone this query RANGED OVER, before any
+        # enclosing frame can. Stamping is first-writer-wins, and a subset
+        # query is legal inside a movement's `where` filter — where the
+        # movement's own frame would otherwise stamp ITS source and send the
+        # designer to a zone the refusal is not about.
+        exc.locate(zone=_source_label(e.source), span=e.span)
+        raise
+    # The dynamic half of the size guard, and a guard this arm would rather not
+    # need (decisions.md "Prefer the guard you cannot need"). The statically
+    # typed class is `typecheck._check_subset_query`'s, and no route from a game
+    # file to a non-Integer size is known: the one that would reach it, a
+    # move-type parameter's `action.<field>`, is closed a layer up because
+    # bounded-Integer parameter domains are statically refused. It stands
+    # because the alternative is `int(True) == 1` — the size silently becoming
+    # one and the query enumerating singletons — which is the failure the
+    # permissive top exists to make possible. `bool` is tested ahead of `int`
+    # for the reason `_choose_operand` states: it subclasses `int`, so a bare
+    # int check would pass it.
+    k = evaluate(e.count, ctx)
+    if isinstance(k, bool) or not isinstance(k, int):
+        raise OwnerGuardError(
+            f"a subset size counts cards — expected an Integer, got {k!r}"
+        )
+    if k < 1:
+        raise OwnerGuardError(
+            f"a subset ranges over at least one card — this one asks for {k}; "
+            f"the empty set is not a subset the language enumerates, so a size "
+            f"below one names no domain at all"
+        )
+    sizes = range(k, len(pool) + 1) if e.size_mode == n.SUBSET_SIZE_FLOOR else range(k, k + 1)
+    candidates = (list(s) for s in subsets.sized(pool, sizes))
+
+    if e.agg is None:
+        # Shadow Guard behind the grammar: the three query productions all end
+        # in a mandatory `where <pred>`.
+        assert e.where is not None
+        answers = (
+            bool(evaluate(e.where, ctx.with_local(e.binder, c))) for c in candidates
+        )
+        match e.kind:
+            case n.SUBSET_KIND_ANY:
+                return any(answers)
+            case n.SUBSET_KIND_ALL:
+                return all(answers)
+            case n.SUBSET_KIND_COUNT:
+                return sum(1 for ok in answers if ok)
+            case _:
+                raise AssertionError(f"unknown subset-query kind '{e.kind}'")
+
+    # Shadow Guard behind the grammar: `agg_subset_sum` and `agg_subset_order`
+    # are the only productions that build an aggregating SubsetQuery, and both
+    # fill the body slot.
+    assert e.body is not None
+    kept = (
+        c for c in candidates
+        if e.where is None or evaluate(e.where, ctx.with_local(e.binder, c))
+    )
+    values = [evaluate(e.body, ctx.with_local(e.binder, c)) for c in kept]
+    match e.agg:
+        case n.SUBSET_AGG_SUM:
+            return sum(values)
+        case n.SUBSET_AGG_HIGHEST | n.SUBSET_AGG_LOWEST:
+            if not values:
+                assert e.default is not None, "grammar makes `or <default>` mandatory"
+                return evaluate(e.default, ctx)
+            return max(values) if e.agg == n.SUBSET_AGG_HIGHEST else min(values)
+        case _:
+            raise AssertionError(f"unknown subset aggregator '{e.agg}'")
 
 
 def _domain_query(e: n.DomainQuery, ctx: Ctx) -> Any:

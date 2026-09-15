@@ -280,14 +280,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.canasta", "canasta_stage_ok", InvocationContract.BUNDLED,
         Sig((TPlayer(), TCard()), TBoolean()),
     ),
-    "cribbage_crib_value": Implementation(
-        "cardlang.runtime.cribbage", "cribbage_crib_value", InvocationContract.BUNDLED,
-        Sig((), TInteger()),
-    ),
-    "cribbage_show_value": Implementation(
-        "cardlang.runtime.cribbage", "cribbage_show_value", InvocationContract.BUNDLED,
-        Sig((TPlayer(),), TInteger()),
-    ),
     "first_to_act_seat": Implementation(
         "cardlang.runtime.stud", "first_to_act_seat", InvocationContract.BUNDLED,
         Sig((), TPlayer()),
@@ -378,10 +370,6 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
     "salvo_combos": Implementation(
         "cardlang.runtime.salvo", "salvo_combos", InvocationContract.BUNDLED,
         Sig((TPlayer(), TInteger()), TInteger()),
-    ),
-    "scopa_can_sum": Implementation(
-        "cardlang.runtime.scopa", "scopa_can_sum", InvocationContract.BUNDLED,
-        Sig((TInteger(),), TBoolean()),
     ),
     "scopa_sums_to": Implementation(
         "cardlang.runtime.scopa", "scopa_sums_to", InvocationContract.BUNDLED,

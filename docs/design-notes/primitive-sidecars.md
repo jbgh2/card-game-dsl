@@ -13,7 +13,7 @@ The standing policy after `instantiate` was deleted is clear: Python is
 allowed for **pure value computation** — scorers, trick winners, legality
 tables, bid ladders — and never for mechanics, movement, or decisions. Every
 game-local primitive in the corpus conforms in spirit: `pot_share`,
-`pinochle_meld_value`, `skat_next_bid`, `cribbage_show_value` are all reads.
+`pinochle_meld_value`, `skat_next_bid`, `peg_run_points` are all reads.
 
 The implementation of that policy drifted from its intent in three ways.
 One remains open; the migration has closed the other two, and each is
@@ -369,8 +369,7 @@ REPORT verdicts close the round.
 
 The declaration block doubles as a per-game inventory of exactly what is
 not yet expressible in the DSL — which is what these primitives are, and
-why the tracker's generalization work (issues #115 and #140 — the
-`scoring_component` subsystem, the shared combination model, in-DSL outcome
-expressions) should keep burning them down. Sidecars being well-designed
+why the tracker's generalization work (issue #140 — the shared combination
+model, in-DSL outcome expressions) should keep burning them down. Sidecars being well-designed
 must not make them so comfortable that the burn-down stops: a shrinking
 `primitives { }` block is the visible score.

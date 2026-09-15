@@ -46,6 +46,7 @@ does not prove: nothing here runs the game, so it says nothing about WHICH
 
 from __future__ import annotations
 
+import random
 import subprocess
 import sys
 from itertools import combinations
@@ -54,10 +55,11 @@ from pathlib import Path
 import pytest
 
 from cardlang.ast import nodes as n
-from cardlang.pipeline import check_source
+from cardlang.pipeline import check_dsl, check_source
 from cardlang.resolve import _walk
-from cardlang.runtime.execute import _JOINT_ENUMERATION_BOUND
 from cardlang.runtime.primitives import joint_codec_function
+from cardlang.runtime.driver import play_game
+from cardlang.runtime.subsets import ENUMERATION_BOUND
 from cardlang.runtime.scopa import (
     DECK_CAPTURE_VALUES,
     DECK_NAME,
@@ -297,30 +299,85 @@ _POOL = [Card(r, s) for s in ("diamonds", "hearts") for r in DECK_CAPTURE_VALUES
 _TARGETS = sorted(set(DECK_CAPTURE_VALUES.values()))
 
 
-@pytest.mark.parametrize("layout_size", range(0, 5))
-@pytest.mark.parametrize("target", _TARGETS)
-def test_can_sum_agrees_with_the_predicate_it_guards(layout_size: int, target: int) -> None:
-    """The no-implicit-actions pairing: `scopa_can_sum` is true exactly when
-    some subset of the layout satisfies `scopa_sums_to`. False either way is a
-    live defect — true with no satisfying subset offers a movement with nothing
-    to select, and false with one silently drops a legal capture.
+# Every layout this game can build from a chosen set of ranks, as the pairing
+# check's domain. Ranks rather than arbitrary card sets, because a filtered deal
+# is how a `.cardlang` file can be made to hold a KNOWN layout — which is what
+# makes the check a statement about the language rather than about a function.
+_PAIRING_RANKS = ["A", "2", "3", "4", "7"]
 
-    Both sides run here as plain functions over values, which is what the two
-    Primitives are once their reads are bound; the bound versions are driven
-    against a live layout in tests/test_playout_scopa.py.
 
-    red under: drop `n >= minimum` from `_some_subset_sums`'s final test."""
-    from cardlang.runtime.scopa import _some_subset_sums
-
-    seen = 0
-    for layout in combinations(_POOL, layout_size):
-        values = [DECK_CAPTURE_VALUES[c.rank] for c in layout]
-        by_enumeration = any(
-            sums_to([values[i] for i in idx], target)
-            for k in range(MIN_CAPTURE_SET, len(values) + 1)
-            for idx in combinations(range(len(values)), k)
+def _guard_game(ranks: list[str]) -> str:
+    """Scopa's own capture guard, verbatim, asked once per target over a layout
+    of the given ranks. Every target rides ONE game — the answers come back as
+    a bit per target — because the expensive part of a cell is checking a file,
+    not playing it, and a game per (layout, target) pair pays that cost ten
+    times for one layout."""
+    deal = ""
+    if ranks:
+        # A name-form rank is written bare and a numeric one as a string —
+        # the checker refuses each in the other's spelling.
+        picks = " or ".join(
+            f'card.rank is "{r}"' if r.isdigit() else f"card.rank is {r}"
+            for r in ranks
         )
-        assert _some_subset_sums(values, target, MIN_CAPTURE_SET) is by_enumeration, layout
+        deal = (
+            f"    move all cards from deck where ({picks}) and card.suit is clubs"
+            " to table\n"
+        )
+    asks = "".join(
+        "    if any subset of 2 or more cards in table\n"
+        "         where (sum of capture_value(card) over cards in subset)\n"
+        f"               is {t} {{ score[0] += {1 << (t - 1)} }}\n"
+        for t in _TARGETS
+    )
+    return (
+        "game G {\n"
+        "  players: 2\n  max_length: 100\n  cards: scopa40\n"
+        "  ranking: K Q J 7 6 5 4 3 2 A\n"
+        "  zones { deck : Deck  table : Discard  hand[player] : Hand<player> }\n"
+        "  state { score[player] : Integer = 0 }\n"
+        "  winner: highest score\n"
+        "  phase p {\n"
+        "    move all cards to deck\n"
+        f"{deal}{asks}"
+        "  }\n"
+        "}\n"
+        "function capture_value(c : Card) = rank_value(c) + 1\n"
+    )
+
+
+@pytest.mark.parametrize("layout_size", range(0, 5))
+def test_the_dsl_guard_agrees_with_the_predicate_it_guards(layout_size: int) -> None:
+    """The no-implicit-actions pairing, now that the guard is a sentence in the
+    game file rather than a Primitive: `any subset of 2 or more cards in table
+    where ...` is true exactly when some subset of the layout satisfies
+    `scopa_sums_to`. False either way is a live defect — true with no satisfying
+    subset offers a movement with nothing to select, and false with one silently
+    drops a legal capture.
+
+    The guard side RUNS: the sentence is Scopa's own, checked and played over a
+    layout a filtered deal puts on the table, so what is compared is what a
+    designer reaches rather than a function behind it. The predicate side is
+    `sums_to`, the Primitive the movement actually selects under. Both sides
+    are asked about every capture value a played card can carry.
+
+    red under: change the game sentence's `2 or more cards` to `2 cards`, which
+    drops every three- and four-card capture the layouts below can make."""
+    seen = 0
+    for ranks in combinations(_PAIRING_RANKS, layout_size):
+        values = [DECK_CAPTURE_VALUES[r] for r in ranks]
+        expected = 0
+        for t in _TARGETS:
+            if any(
+                sums_to([values[i] for i in idx], t)
+                for k in range(MIN_CAPTURE_SET, len(values) + 1)
+                for idx in combinations(range(len(values)), k)
+            ):
+                expected += 1 << (t - 1)
+        result = play_game(
+            check_dsl(_guard_game(list(ranks)), "pairing.cardlang"), rng=random.Random(0)
+        )
+        assert result.scores[0] == expected, (ranks, result.scores[0], expected)
         seen += 1
     assert seen, "no layouts of this size — the cell would pass vacuously"
 
@@ -359,10 +416,10 @@ def test_the_enumeration_bound_admits_every_capture_set() -> None:
     bound, so the two limits cannot disagree about which sets exist. The widest
     capture the deck can form is four aces and three twos.
 
-    red under: lower `_JOINT_ENUMERATION_BOUND` in cardlang/runtime/execute.py."""
+    red under: lower `ENUMERATION_BOUND` in cardlang/runtime/execute.py."""
     widest = max(len(SCOPA_CAPTURE_CODEC.decode(i)) for i in range(SCOPA_CAPTURE_CODEC.size))
     assert widest == 7
-    assert widest <= _JOINT_ENUMERATION_BOUND
+    assert widest <= ENUMERATION_BOUND
 
 
 # =============================================================================

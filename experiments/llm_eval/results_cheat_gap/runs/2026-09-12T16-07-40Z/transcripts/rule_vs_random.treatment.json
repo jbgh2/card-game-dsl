@@ -1,0 +1,25 @@
+{
+  "game": "cardlang_cheat",
+  "agents": [
+    {
+      "kind": "rule",
+      "challenge_prob": 0.1,
+      "bluff_prob": 0.4
+    },
+    {
+      "kind": "random"
+    },
+    {
+      "kind": "random"
+    },
+    {
+      "kind": "random"
+    }
+  ],
+  "rotate": true,
+  "balanced_seating": false,
+  "max_decisions": 1200,
+  "seed_start": 0,
+  "models": {},
+  "prompt": {}
+}

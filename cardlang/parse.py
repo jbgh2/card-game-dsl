@@ -262,6 +262,16 @@ class _ActionsWhere:
 
 
 @dataclass(frozen=True, slots=True)
+class _SubsetOf:
+    """The `of <k> [or more] cards in <zone>` phrase, shared by both subset
+    registers so the size clause has one builder rather than one per fold."""
+
+    size_mode: str  # a member of n.SUBSET_SIZE_MODES
+    count: object  # Expr
+    source: tuple[object, ...]  # one or more Exprs, each a zone reference
+
+
+@dataclass(frozen=True, slots=True)
 class _Elif:
     cond: object  # Expr
     then: object  # Expr
@@ -1542,6 +1552,130 @@ class _Builder(Transformer[Token, n.Game]):
     def cq_all(self, meta: Meta, c: list[object]) -> n.CardQuery:
         return n.CardQuery(
             kind="all", source=_as_expr(c[0]), where=_as_expr(c[1]), span=self._span(meta)
+        )
+
+    # --- the subset register ------------------------------------------------
+
+    def subset_exact(self, meta: Meta, c: list[object]) -> tuple[str, object]:
+        return (n.SUBSET_SIZE_EXACT, _as_expr(c[0]))
+
+    def subset_floor(self, meta: Meta, c: list[object]) -> tuple[str, object]:
+        return (n.SUBSET_SIZE_FLOOR, _as_expr(c[0]))
+
+    def subset_source(self, meta: Meta, c: list[object]) -> tuple[object, ...]:
+        return tuple(_as_expr(m) for m in c)
+
+    def subset_of(self, meta: Meta, c: list[object]) -> _SubsetOf:
+        mode, count = cast(tuple[str, object], c[0])
+        return _SubsetOf(size_mode=mode, count=count, source=cast(tuple[object, ...], c[1]))
+
+    def _subset_source_reject(self, meta: Meta, written: str) -> None:
+        """Several zones joined bare, with a comma or an operator. The
+        spelling is real, so the message names the list the language uses
+        rather than dying at the token (the `collection_type_reject`
+        precedent)."""
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                f"a subset source that names several zones lists them in "
+                f"brackets — write `... cards in [table, hand[p]] where ...`, "
+                f"not `{written}`",
+                self._span(meta),
+            )
+        )
+
+    def subset_comma_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table, hand[p]")
+
+    def subset_plus_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table + hand[p]")
+
+    def subset_and_reject(self, meta: Meta, c: list[object]) -> None:
+        self._subset_source_reject(meta, "table and hand[p]")
+
+    def subset_source_single_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "one zone is written bare — `... cards in table where ...`; "
+                "brackets list two or more zones",
+                self._span(meta),
+            )
+        )
+
+    def card_source_list_reject(self, meta: Meta, c: list[object]) -> None:
+        raise DiagnosticError(
+            Diagnostic(
+                Severity.ERROR,
+                "a card query or fold ranges over one zone; only a subset query "
+                "lists several (`any subset of 2 cards in [table, hand[p]] where "
+                "...`) — ask each zone on its own and combine the answers: add "
+                "the counts or sums, `or` the anys, `and` the alls",
+                self._span(meta),
+            )
+        )
+
+    def _subset_query(
+        self, kind: str, meta: Meta, of: object, where: object
+    ) -> n.SubsetQuery:
+        phrase = cast(_SubsetOf, of)
+        return n.SubsetQuery(
+            kind=kind,
+            agg=None,
+            size_mode=phrase.size_mode,
+            count=cast(n.Expr, phrase.count),
+            source=cast(tuple[n.Expr, ...], phrase.source),
+            binder=n.SUBSET_BINDER,
+            where=_as_expr(where),
+            span=self._span(meta),
+        )
+
+    def sq_any(self, meta: Meta, c: list[object]) -> n.SubsetQuery:
+        return self._subset_query(n.SUBSET_KIND_ANY, meta, c[0], c[1])
+
+    def sq_all(self, meta: Meta, c: list[object]) -> n.SubsetQuery:
+        return self._subset_query(n.SUBSET_KIND_ALL, meta, c[0], c[1])
+
+    def sq_count(self, meta: Meta, c: list[object]) -> n.SubsetQuery:
+        return self._subset_query(n.SUBSET_KIND_COUNT, meta, c[0], c[1])
+
+    def agg_subset_sum(self, meta: Meta, c: list[object]) -> n.SubsetQuery:
+        # c: [body, subset_of, where?]
+        phrase = cast(_SubsetOf, c[1])
+        return n.SubsetQuery(
+            kind=None,
+            agg=n.SUBSET_AGG_SUM,
+            size_mode=phrase.size_mode,
+            count=cast(n.Expr, phrase.count),
+            source=cast(tuple[n.Expr, ...], phrase.source),
+            binder=n.SUBSET_BINDER,
+            body=_as_expr(c[0]),
+            where=_as_expr(c[2]) if len(c) > 2 and c[2] is not None else None,
+            span=self._span(meta),
+        )
+
+    def agg_subset_order(self, meta: Meta, c: list[object]) -> n.SubsetQuery:
+        # c: [RANK_DIR, body, subset_of, where?, default]
+        direction = str(c[0])
+        if direction not in RANK_DIRECTIONS:
+            # Internal invariant, not a user diagnostic: the grammar's RANK_DIR
+            # terminal and this set are out of sync.
+            raise AssertionError(
+                f"agg_subset_order: unhandled RANK_DIR token {direction!r} — add "
+                "it to RANK_DIRECTIONS"
+            )
+        phrase = cast(_SubsetOf, c[2])
+        return n.SubsetQuery(
+            kind=None,
+            agg=direction,
+            size_mode=phrase.size_mode,
+            count=cast(n.Expr, phrase.count),
+            source=cast(tuple[n.Expr, ...], phrase.source),
+            binder=n.SUBSET_BINDER,
+            body=_as_expr(c[1]),
+            where=_as_expr(c[3]) if c[3] is not None else None,
+            default=_as_expr(c[4]),
+            span=self._span(meta),
         )
 
     def agg_sum(self, meta: Meta, c: list[object]) -> n.Comprehension:

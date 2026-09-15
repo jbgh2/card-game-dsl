@@ -36,7 +36,7 @@ class Deck:
 
     A deck carries COMPOSITION only — no card-point table: card points are a
     scoring fact of the game, declared by its `card_points { }` clause
-    (decisions.md "Scoring composition"), so one deck serves games that price
+    (decisions.md "Scoring has no constructs of its own"), so one deck serves games that price
     it differently. The one-source rule is structural: this class cannot
     represent a deck-side point table at all."""
 

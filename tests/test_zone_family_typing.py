@@ -394,16 +394,9 @@ def test_accepts_the_pile_winner_call_with_a_declared_ranking() -> None:
 # are unscoped here: the probe's own declarations are all game-level, so no
 # tail applies. What the cells assert is that the ranking gate fires by NAME,
 # ahead of the bundle and independently of the regime the caller writes in.
-_PEG_ZONES = (
-    "  play_pile : TrickPile  starter : Discard  crib : FaceDownPile  "
-    "played[player] : PlayerPile<player>"
-)
+_PEG_ZONES = "  play_pile : TrickPile"
 _PEG_ENTRIES: dict[str, str] = {
     "peg_run_points": "peg_run_points() : Integer reads play_pile",
-    "cribbage_show_value": (
-        "cribbage_show_value(p : Player) : Integer reads played[p], starter"
-    ),
-    "cribbage_crib_value": "cribbage_crib_value() : Integer reads crib, starter",
 }
 
 
@@ -428,40 +421,6 @@ def test_accepts_peg_run_points_with_a_declared_ranking() -> None:
         _cribbage_probe(
             "peg_run_points",
             "peg_run_points()",
-            ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
-        )
-    )
-
-
-def test_rejects_cribbage_show_value_with_no_declared_ranking() -> None:
-    _rejects(
-        _cribbage_probe("cribbage_show_value", "cribbage_show_value(0)", ranking=""),
-        "cribbage_show_value() reads a card's rank strength from ranking:",
-    )
-
-
-def test_accepts_cribbage_show_value_with_a_declared_ranking() -> None:
-    _accepts(
-        _cribbage_probe(
-            "cribbage_show_value",
-            "cribbage_show_value(0)",
-            ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
-        )
-    )
-
-
-def test_rejects_cribbage_crib_value_with_no_declared_ranking() -> None:
-    _rejects(
-        _cribbage_probe("cribbage_crib_value", "cribbage_crib_value()", ranking=""),
-        "cribbage_crib_value() reads a card's rank strength from ranking:",
-    )
-
-
-def test_accepts_cribbage_crib_value_with_a_declared_ranking() -> None:
-    _accepts(
-        _cribbage_probe(
-            "cribbage_crib_value",
-            "cribbage_crib_value()",
             ranking="ranking: A K Q J 10 9 8 7 6 5 4 3 2",
         )
     )

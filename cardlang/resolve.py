@@ -59,7 +59,10 @@ Now illegal:  an unresolved name (``ref_kind is None``) or a dangling
               (``_check_actor_alias_comparisons``, decisions.md "Naming
               the acting player twice"). This is a scope fact, not a type
               fact — both operands are ``Player`` — so it is settled here
-              rather than in the type layer. And, for a game that ``uses`` a
+              rather than in the type layer. And a subset source that
+              names the same zone twice (``_check_subset_source``) -- a
+              spelling fact, settled beside the other subset-shape guard.
+              And, for a game that ``uses`` a
               library, a game-introduced binder or declaration parameter
               spelled like a variable the library PROVIDES, where the game
               does not already bind that spelling at declaration level
@@ -472,6 +475,7 @@ _BINDER_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.Comprehension, "binder"),
         (n.Quantifier, "binder"),
         (n.DomainQuery, "binder"),
+        (n.SubsetQuery, "binder"),
         (n.ForEach, "binder"),
         (n.Turns, "binder"),
         (n.ProduceArm, "binders"),
@@ -595,6 +599,9 @@ _KEYWORD_SLOTS: frozenset[tuple[type, str]] = frozenset(
         (n.CardQuery, "kind"),
         (n.PlayerQuery, "kind"),
         (n.DomainQuery, "kind"),
+        (n.SubsetQuery, "kind"),
+        (n.SubsetQuery, "agg"),
+        (n.SubsetQuery, "size_mode"),
         (n.Quantifier, "kind"),
         (n.PhaseQualifier, "kind"),
         (n.Demands, "kind"),
@@ -2367,6 +2374,8 @@ def resolve(game: n.Game) -> n.Game:
     for dq in _walk(game):
         if isinstance(dq, n.DomainQuery):
             _check_domain_query(dq, game, bag)
+        elif isinstance(dq, n.SubsetQuery):
+            _check_subset_source(dq, bag)
 
     # Deep name resolution: classify every bare name and validate calls,
     # card literals, and the rotate/winner targets.
@@ -2454,7 +2463,10 @@ def _node_binders(node: n.Node, flavor: Flavor = "card") -> tuple[str, ...]:
     binders stay `card` because those forms are card-only (rejected in a piece
     game), so the noun they bind is fixed."""
     match node:
-        case n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns() | n.DomainQuery():
+        case (
+            n.Comprehension() | n.Quantifier() | n.ForEach() | n.Turns()
+            | n.DomainQuery() | n.SubsetQuery()
+        ):
             return (node.binder,)
         case n.EachSimultaneous():
             return (node.role,)
@@ -6874,6 +6886,12 @@ _BINDER_SCOPE_FIELDS: dict[type, tuple[str, ...]] = {
     # evaluated in the enclosing scope (mirrors Comprehension/CardQuery, whose
     # source field is likewise absent here).
     n.DomainQuery: ("where",),
+    # A SubsetQuery's binder scopes to the fields that are folded over the
+    # candidate set — its filter and, in the aggregation register, its body.
+    # `count`, `source` and the order aggregators' `default` are absent for the
+    # same reason every source/default field is: they are evaluated outside the
+    # element scope, so `subset` in one of them means an OUTER binder or nothing.
+    n.SubsetQuery: ("where", "body"),
     n.Transfer: ("where",),
     n.EpistemicOp: ("where",),
     n.ForEach: ("body",),
@@ -7695,6 +7713,45 @@ def _check_offering_moves(
 # naming these two; further nouns are a recorded residual (issue #111).
 _COLLECTION_NOUNS: frozenset[str] = frozenset({"line", "cell"})
 
+def _spelled_zone(member: n.Expr) -> str | None:
+    """How a subset-source member is spelled, for the same-zone check: a bare
+    name, a name with a literal index, or a name with a named index -- the
+    shapes `zone_expr` admits. Two members that spell the same are the same
+    zone. A computed index cannot be told apart statically and answers None,
+    so it never matches."""
+    match member:
+        case n.NameRef():
+            return member.name
+        case n.Subscript(obj=n.NameRef() as base, index=n.IntLit() as idx):
+            return f"{base.name}[{idx.value}]"
+        case n.Subscript(obj=n.NameRef() as base, index=n.NameRef() as idx):
+            return f"{base.name}[{idx.name}]"
+        case _:
+            return None
+
+
+def _check_subset_source(sq: n.SubsetQuery, bag: DiagnosticBag) -> None:
+    """The same zone named twice in one subset source (`[table, table]`).
+    The pool is the members' contents concatenated, so the sentence
+    would count every card twice and say nothing a designer meant; it is
+    refused naming the spelling. A name fact -- two members spell the same --
+    settled here beside the other subset-shape guard, not in the type layer:
+    whether each member IS a zone or a card collection is the type layer's
+    per-member Owner Guard (`typecheck._check_card_source`)."""
+    seen: set[str] = set()
+    for member in sq.source:
+        spelled = _spelled_zone(member)
+        if spelled is None:
+            continue
+        if spelled in seen:
+            bag.error(
+                f"`{spelled}` appears twice in one subset source — name each "
+                f"zone once; a card is counted once per zone it is drawn from",
+                member.span,
+            )
+        seen.add(spelled)
+
+
 def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> None:
     """Validate a positional-quantifier noun (decisions.md "Boards and cells").
 
@@ -7726,6 +7783,19 @@ def _check_domain_query(nd: n.DomainQuery, game: n.Game, bag: DiagnosticBag) -> 
         target_ok = nd.binder in declared
         noun_kind = "position domain"
     else:
+        if nd.binder == n.SUBSET_BINDER or nd.spelled == n.SUBSET_BINDER + "s":
+            # `subset` names a real domain in the language, just not this
+            # form's: `in` iterates a collection's MEMBERS, and subsets are
+            # spelled with `of`. Calling the word unknown would be false, and
+            # would send a designer looking for a declaration to add.
+            bag.error(
+                f"`{phrase} {nd.spelled} in ...` iterates a collection's "
+                f"members; subsets are spelled with `of` -- write "
+                f"`{phrase} {nd.spelled} of <n> [or more] cards in <zone> "
+                f"where ...`",
+                nd.span,
+            )
+            return
         universe = "the `in` forms iterate a `line` or a `cell` collection"
         target_ok = nd.binder in _COLLECTION_NOUNS
         noun_kind = "collection noun"

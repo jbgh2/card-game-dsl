@@ -212,8 +212,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "peg_pair_points",  # Cribbage: pairs points at the tail of the live pegging count
         "peg_run_points",  # Cribbage: run points at the tail of the live pegging count
         "peg_origin_of",  # Cribbage: which player played a live pegging-pile card
-        "cribbage_show_value",  # Cribbage: a player's pegged hand's show score
-        "cribbage_crib_value",  # Cribbage: the dealer's crib show score
         "gin_deadwood",  # Gin: optimal-partition deadwood of a hand
         "gin_can_knock",  # Gin: some discard leaves a <= 10 arrangement
         "gin_knock_ok",  # Gin: knock legality after a specific discard
@@ -242,7 +240,6 @@ PRIMITIVE_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_close_ok",  # Canasta: the open attempt closes legally as it stands
         "canasta_canasta_bonus",  # Canasta: 500 per natural / 300 per mixed canasta
         "salvo_combos",  # Salvo: an army's combo bonus at one location
-        "scopa_can_sum",  # Scopa: some set of two or more layout cards sums to the played card
         "scopa_sums_to",  # Scopa: joint sum-capture validity (two or more cards, exact sum)
     }
 )
@@ -421,8 +418,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "canasta_stage_ok",
         "card_points",
         "card_strength",
-        "cribbage_crib_value",
-        "cribbage_show_value",
         "first_to_act_seat",
         "five_hundred_bid_value",
         "five_hundred_next_bid",
@@ -449,7 +444,6 @@ DECK_ONLY_CALL_FUNCS: frozenset[str] = frozenset(
         "pot_share",
         "rank_value",
         "salvo_combos",
-        "scopa_can_sum",
         "scopa_sums_to",
         "skat_matadors",
         "strain_index",

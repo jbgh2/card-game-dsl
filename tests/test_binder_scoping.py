@@ -402,6 +402,54 @@ def test_rotate_of_a_let_bound_local_is_rejected() -> None:
     )
 
 
+# The three binding node kinds `_rewrite` scopes in its own arms rather than
+# through the registry. Each is here for a stated reason, not because it was
+# missed: a `let`'s two names scope in opposite directions (its index inward to
+# its own value, its name forward to later statements), a `ProduceArm`'s binders
+# scope to the arm's body through the outcome machinery, and `_rewrite` returns
+# early for a `TypeDef` and scopes its derived fields itself.
+_SCOPED_BY_HAND = frozenset({"LetStmt", "ProduceArm", "TypeDef"})
+
+
+def test_every_binding_node_kind_scopes_its_binder() -> None:
+    """A binding node kind reaches `_rewrite` with a row in
+    `_BINDER_SCOPE_FIELDS`, or it is one of the three that arm scopes by hand.
+
+    This is the completeness half its sibling below disclaims, and it is worth
+    a pin because the failure is SILENT IN BOTH DIRECTIONS. `_rewrite` reads
+    this registry with `.get(type(node))`, so a missing row is not an error: the
+    binder simply never enters `cats.locals`. Measured, on a `for each` binder
+    with its row removed — a body of `tally[0] := tally[0] + seat`:
+
+      row present, no state variable named `seat`  -> refused, `Player` in `+`
+      row present, a state variable named `seat`   -> refused (the binder shadows)
+      row MISSING,  no state variable named `seat` -> refused, unresolved name
+      row MISSING,  a state variable named `seat`  -> ACCEPTED, and the binder
+                                                      silently reads the state
+
+    The last row is the one that matters: a program that should refuse instead
+    runs, and reads a different value than the sentence says.
+
+    The kind axis is the same scrape `tests/test_family_libraries.py` builds its
+    introducer axis from — one derivation, two consumers, rather than a second
+    copy of the match-arm walk.
+
+    red under: delete the `n.SubsetQuery` row from `_BINDER_SCOPE_FIELDS`."""
+    from tests.test_family_libraries import _binding_node_kinds
+
+    covered = {kind.__name__ for kind in _BINDER_SCOPE_FIELDS} | _SCOPED_BY_HAND
+    unscoped = sorted(_binding_node_kinds() - covered)
+    assert not unscoped, (
+        f"{unscoped} bind a name but have no `_BINDER_SCOPE_FIELDS` row and are "
+        f"not scoped by hand in `_rewrite` — the binder will not enter scope, "
+        f"and where a declaration shares its spelling the reference silently "
+        f"resolves to that declaration instead"
+    )
+    assert _SCOPED_BY_HAND <= _binding_node_kinds(), (
+        "a kind listed as hand-scoped no longer binds anything — drop it"
+    )
+
+
 def test_every_binder_scope_field_is_a_real_field_of_its_node() -> None:
     """`_BINDER_SCOPE_FIELDS` names its scope fields as STRINGS, so `mypy` sees
     nothing when one is renamed — the row goes on pointing at a field that no

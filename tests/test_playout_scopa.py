@@ -210,7 +210,7 @@ def _check_capture_rules(recon: ScopaPlay, label: str) -> None:
 
 
 def _hand_score(piles: dict[Player, list[tuple[str, str]]], sweeps: list[Player]) -> dict[int, int]:
-    """The five components, scored from the final capture piles alone."""
+    """The five scoring categories, scored from the final capture piles alone."""
 
     def coins(p: Player) -> int:
         return sum(1 for c in piles[p] if c[1] == "diamonds")

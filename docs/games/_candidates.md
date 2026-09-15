@@ -68,7 +68,7 @@ regression.
 
 | Construct | Needs | Top candidates |
 |---|---|---|
-| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family for each of its three parts — enumerating subsets of a zone, comparing by a composite key, returning the element rather than the maximum | **[cassino](#cassino)** (Scopa's capture plus builds — a build sits on the table claimed by a player and must be captured whole, which is a stateful question the construct does not own), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545). In the corpus: [Scopa](scopa.cardlang) is the third mechanic family for the ENUMERATION part, and for that part only — its capture is a set of table cards summing to the played card, with the single-card capture forced when one exists, and it carries two declared Primitives because no binder ranges over a zone's subsets. Its primiera is grouped aggregation — the best card per suit under a scalar point scale, then summed — which [combination-scoring.md](../design-notes/combination-scoring.md) classifies as aggregation rather than a composite key, and it writes in the language. Composite ranking and element-returning argmax still have no third witness: the design note defers composite ranking until a second ranking witness, and issue #251's body names Big Two's climb comparison, in the corpus, for that role |
+| issue #246 — subset enumeration, composite ordered values, argmax returning the element (poker's best five, cribbage's fifteens) | a third mechanic family for each of its three parts — enumerating subsets of a zone, comparing by a composite key, returning the element rather than the maximum | **[cassino](#cassino)** (Scopa's capture plus builds — a build sits on the table claimed by a player and must be captured whole, which is a stateful question the construct does not own), [omaha-hi-lo](#omaha-hi-lo) (a partitioned choose — two from the hole cards, three from the board — that a subsets-of-k over one zone cannot state; a design input for the cost-model decision, issue #545). In the corpus: [Scopa](scopa.cardlang) is the third mechanic family for the ENUMERATION part, and for that part only — its capture is a set of table cards summing to the played card, with the single-card capture forced when one exists, and the subset binder that enumeration part asked for is now in the language, so the game keeps one declared Primitive rather than two — the capture's joint PREDICATE, which stays Python because a `where jointly` root names its subset codec and a collection type is spellable only in a `primitives { }` entry. Its primiera is grouped aggregation — the best card per suit under a scalar point scale, then summed — which [combination-scoring.md](../design-notes/combination-scoring.md) classifies as aggregation rather than a composite key, and it writes in the language. Composite ranking and element-returning argmax still have no third witness: the design note defers composite ranking until a second ranking witness, and issue #251's body names Big Two's climb comparison, in the corpus, for that role |
 | issue #251 — play patterns with a derived action space (the climb queries) | a vocabulary the three corpus engines lack, and a play space too large to enumerate | **[dou-dizhu](#dou-dizhu)** (sequences of triplets with attached singles or pairs, quads with attachments, bombs and the rocket). In-family: it corroborates and stresses; the second mechanic family is the classify half of issue #246, so that construct is this one's other witness |
 | issue #252 — ordered ladders (bid ladders with successor and per-rung fields) | an ordered ladder outside the auction family | **[contract-rummy](#contract-rummy)** (seven deals, each a required contract of groups and sequences — a ladder whose rungs carry group quotas), [koenigrufen](#koenigrufen) (fourteen ranked contracts with base scores and an outbid keyed to seat priority — corroborates within the family). In the corpus: [Oh Hell](oh-hell.cardlang)'s deal schedule is a ladder written as arithmetic, the same flattening the issue names in Five Hundred's ordinals |
 | issue #254 — groups (meld shapes, quotas, partitions, catalogues) | a tradition beyond rummy melds, Pinochle's catalogue and Belote's declarations | **[piquet](#piquet)** (point, sequence and set declarations compared between the two players — only the better combination in each category scores, and its holder then scores every other combination held in that category — group declarations compared with no meld reaching the table), [spider](#spider) (a complete king-to-ace same-suit run as the removal criterion — a group in the solitaire family), [contract-rummy](#contract-rummy) (group-count quotas per deal). In the corpus: [Schnapsen](schnapsen.cardlang)'s marriage is a fixed two-card group written as a `move_type` with a suit parameter — the floor, where a fixed shape needs no group construct |
@@ -109,9 +109,11 @@ sequences, sets, capot, pique, repique.
 **Why interesting.** Among the most heavily structured-scored games
 in existence. Each phase contributes scoring events that can change
 the *order and value* of subsequent ones (pique, repique). A stress
-test for the scoring-component composition story in
-[decisions.md](../decisions.md) and for the triggered-scoring
-machinery committed there.
+test for the ruling that scoring has no constructs of its own
+([decisions.md](../decisions.md), "Scoring has no constructs of its own"):
+scoring events that reorder and revalue later ones are the shape a
+component subsystem would have been built for, and ordinary sequential
+statements must carry them instead.
 
 **Construct.** Witness for issue #254 — declarations compared between
 the two players, category by category (coverage by construct, above).
@@ -418,7 +420,7 @@ cards each ≤ 8. With Hold'em now in the corpus the community board
 and the side-pot layering are both already carried, so what Omaha
 newly forces is exactly the per-pot SPLIT — a per-game shape that
 fits the "each game declares its own scoring structure" decision in
-decisions.md "Scoring composition". The use-exactly-two constraint
+decisions.md "Scoring has no constructs of its own". The use-exactly-two constraint
 is a second pressure: Hold'em's evaluator takes the best five of
 seven unconstrained, which Omaha cannot.
 

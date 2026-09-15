@@ -808,7 +808,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 # surviving site, so a count change can be checked against an argument rather
 # than just re-blessed:
 #
-# typecheck.py (16)
+# typecheck.py (17)
 #   legitimate top (no better type exists) — 5:
 #     `type_from_name`'s unknown name (a FORWARD struct reference, ledger
 #     residual 3); pronoun member access (deferred shape); a non-`actor`
@@ -824,7 +824,11 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #     error already in the bag, or with a top receiver.
 #   recorded residual, merge failure — 3: `ListLit` and the two `IfExpr` arms,
 #     where `join` returns None (ledger residual 1).
-#   recorded residual, precision — 1: `max`/`min` (ledger residual 2).
+#   recorded residual, precision — 2: the order aggregators of BOTH
+#     aggregation registers — `max`/`min` over a zone's cards, and the same
+#     two over its subsets. Each takes its result type from the body, which
+#     `infer` does not compute, and `_check_agg_body` is the guard that makes
+#     the looseness safe rather than the type (ledger residual 2).
 #   deliberate, cycle-breaking — 1: `_provisional_structs` types derived
 #     fields as the top so function signatures can be built before them (ledger
 #     residual 4). Written at the site that introduces it, not reached as
@@ -846,7 +850,7 @@ def test_a_forward_struct_reference_types_the_same_in_either_order() -> None:
 #   the `Sig` model cannot express — `highest_by_trick_order`'s VALUE_SIGS row
 #   among them — and the `ChipStack` resource zone's element.
 AUDITED_TOP_SITES: dict[str, int] = {
-    "typecheck.py": 16,
+    "typecheck.py": 17,
     "types.py": 2,
     "builtins/signatures.py": 13,
 }

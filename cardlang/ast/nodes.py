@@ -209,6 +209,82 @@ class Comprehension:
     span: Span | None = None
 
 
+# The subset binder's three closed value domains. Each is the axis its grid is
+# crossed from, and each is folded by an exhaustive `match` that RAISES on an
+# unknown member rather than falling through to a default -- a `case _` that
+# returns a type is how an unknown kind reaches a checker silently.
+SUBSET_KIND_ANY = "any"
+SUBSET_KIND_ALL = "all"
+SUBSET_KIND_COUNT = "count"
+SUBSET_QUERY_KINDS: frozenset[str] = frozenset(
+    {SUBSET_KIND_ANY, SUBSET_KIND_ALL, SUBSET_KIND_COUNT}
+)
+
+SUBSET_AGG_SUM = "sum"
+SUBSET_AGG_HIGHEST = "highest"
+SUBSET_AGG_LOWEST = "lowest"
+SUBSET_AGGREGATORS: frozenset[str] = frozenset(
+    {SUBSET_AGG_SUM, SUBSET_AGG_HIGHEST, SUBSET_AGG_LOWEST}
+)
+
+# `of <k> cards` names one size; `of <k> or more cards` names every size from k
+# up. There is no unbounded form: every witness states a floor, and a subset
+# domain with no stated size has no rulebook reading.
+SUBSET_SIZE_EXACT = "exact"
+SUBSET_SIZE_FLOOR = "floor"
+SUBSET_SIZE_MODES: frozenset[str] = frozenset({SUBSET_SIZE_EXACT, SUBSET_SIZE_FLOOR})
+
+# The binder the subset forms bind per candidate set -- the domain noun's
+# singular, as every query form's pronoun is (decisions.md "The expression
+# register"). Distinct from `where jointly`'s `cards`, which is a decision's
+# candidate set rather than a member of an enumerated domain.
+SUBSET_BINDER = "subset"
+
+
+@dataclass(frozen=True, slots=True)
+class SubsetQuery:
+    """A query or aggregation over a zone's SUBSETS, binder `subset` bound to
+    each candidate set (a card collection, never a single card):
+
+    - `any subset of <k> [or more] cards in <zone> where <pred>`
+    - `all subsets of <k> [or more] cards in <zone> where <pred>`
+    - `number of subsets of <k> [or more] cards in <zone> where <pred>`
+    - `sum of <body> over subsets of <k> [or more] cards in <zone> [where <pred>]`
+    - `highest|lowest <body> over subsets of ... [where <pred>] or <default>`
+
+    One node carries both registers because they differ only in the fold: the
+    enumeration, its size clause and its bound are the same question either
+    way. `kind` names the query fold (a member of `SUBSET_QUERY_KINDS`) and is
+    ``None`` for the aggregation register; `agg` names the aggregation fold (a
+    member of `SUBSET_AGGREGATORS`) and is ``None`` for the query register --
+    exactly one is set, and every consumer folds by an exhaustive `match` that
+    raises rather than defaulting.
+
+    `size_mode` is a member of `SUBSET_SIZE_MODES`: `exact` enumerates subsets
+    of exactly `count` cards, `floor` every size from `count` up. `count` is an
+    ordinary expression evaluated OUTSIDE the binder scope, like every other
+    source-slot operand.
+
+    `source` is ONE OR MORE zone references (`NameRef` or `Subscript`, the two
+    shapes `zone_expr` admits); several are listed in brackets in the surface,
+    `[played[p], starter]`. The pool is their contents concatenated in written
+    order -- a card held by two
+    members counts once per member, which is the runtime's own multiset
+    reading. The list is a phrase on this node and never a value: it has no
+    type, cannot be bound, and reaches no other slot."""
+
+    kind: str | None  # a member of SUBSET_QUERY_KINDS, or None for an aggregation
+    agg: str | None  # a member of SUBSET_AGGREGATORS, or None for a query
+    size_mode: str  # a member of SUBSET_SIZE_MODES
+    count: Expr
+    source: tuple[Expr, ...]  # one or more zone references, never empty
+    binder: str
+    body: Expr | None = None  # the aggregated expression; None for a query
+    where: Expr | None = None
+    default: Expr | None = None  # the order aggregators' mandatory empty answer
+    span: Span | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class CardQuery:
     """A query over a card zone, `pred` evaluated per card with `card` bound
@@ -380,6 +456,7 @@ Expr = (
     | PlayerQuery
     | CardQuery
     | DomainQuery
+    | SubsetQuery
 )
 
 
@@ -799,7 +876,7 @@ class ZoneDecl:
 class CardPointsEntry:
     """One row of the `card_points { }` table: `<rank>: <value>` — the rank in
     `ranking:`'s key position, the value a static signed integer literal
-    (decisions.md "Scoring composition"). Held as a tuple of rows rather than
+    (decisions.md "Scoring has no constructs of its own"). Held as a tuple of rows rather than
     a dict (nodes carry no mutable containers), which also lets resolve point
     a duplicate-key diagnostic at the offending row's own span."""
 
@@ -811,7 +888,7 @@ class CardPointsEntry:
 @dataclass(frozen=True, slots=True)
 class CardPointsTable:
     """The `card_points { }` clause: the game's card-point table (decisions.md
-    "Scoring composition"). `else_value` is the optional trailing `else:`
+    "Scoring has no constructs of its own"). `else_value` is the optional trailing `else:`
     row's everything-else value; with no else row, unlisted ranks read 0 —
     the `card_points(card)` Builtin's contract. The driver materializes the
     table over the deck's ranks at load (`driver.declared_card_points`), so
@@ -1560,6 +1637,7 @@ Node = (
     | PlayerQuery
     | CardQuery
     | DomainQuery
+    | SubsetQuery
 )
 
 

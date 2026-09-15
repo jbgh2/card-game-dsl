@@ -2682,6 +2682,14 @@ _INTRODUCE: tuple[_Site, ...] = (
         "if any line in lines(3) where true { result[0] := 1 }",
         board=True,
     ),
+    # The subset binder: a language-fixed noun, like the card queries' `card`,
+    # so a game cannot choose it and the injection guard has nothing to clash
+    # with -- the same shape as `EpistemicOp`'s `card` above.
+    _Site(
+        "SubsetQuery", "subset", False,
+        "if any subset of 2 cards in hand[0] where "
+        "(number of cards in subset) is 2 { score[0] := 1 }",
+    ),
     # A DECLARED position domain: the noun is the author's own `positions { }`
     # row, so it is one of the game's declarations and the injection guard
     # refuses the clash first.
