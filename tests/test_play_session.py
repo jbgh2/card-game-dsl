@@ -23,7 +23,9 @@ domain:          Positions: `_WHERE`, one of each place a prompt can stand at
                  pick of a call for several; a decision the other seats played up
                  to; the end of the game). Inputs: the controls, derived from
                  `session.CONTROLS`, and `_OTHER_INPUT`, the other keystrokes a
-                 person most plausibly gives. The flags: every subset of the
+                 person most plausibly gives. A pick taken back: one made in
+                 the sitting, and one the line replayed (a game resumed from
+                 its file, a second take-back in a row). The flags: every subset of the
                  `play` command's options, derived from the parser. Seats: each
                  side of the seat range, on a game of one seat and of two. Saved
                  files: `_BAD_SAVES`, each field of the format missing and
@@ -372,6 +374,26 @@ def test_what_a_person_types_at_each_position(typed: str, where: str, tmp_path: 
         assert outcome == "picks"
         line = _replayed(path, _SEED, history)
         assert line.deciders.count(place.seat) == place.picks_before + 1
+
+
+@pytest.mark.parametrize("route", ["a game resumed from its file", "a second take-back in a row"])
+def test_a_pick_the_line_replayed_is_taken_back_where_it_was_made(
+    route: str, tmp_path: Path, sit: _Sit
+) -> None:
+    """red under: leave the seat of a replayed pick out of `ReplayChooser.deciders`."""
+    path = _path("cardlang_hearts")
+    saved = tmp_path / "saved.json"
+    played = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\nq\n")
+    made = _saved(saved)["history"]
+    if route == "a game resumed from its file":
+        sitting = sit([path, "--resume", str(saved)], "u\nq\n")
+        asked, kept = [played.asks[3], played.asks[2]], 2
+    else:
+        sitting = sit([path, "--seed", str(_SEED), "--save", str(saved)], "1\n1\n1\nu\nu\nq\n")
+        asked, kept = [*played.asks, played.asks[2], played.asks[1]], 1
+    assert sitting.code == 0, sitting.err
+    assert sitting.asks == asked
+    assert _saved(saved)["history"] == made[:kept]
 
 
 # ---------------------------------------------------------------------------
