@@ -248,6 +248,10 @@ PRIMITIVE_IMPLEMENTATIONS: dict[str, Implementation] = {
         "cardlang.runtime.belote", "belote_royal_player", InvocationContract.BUNDLED,
         Sig((), TOptional(TPlayer())),
     ),
+    "best_showing_seat": Implementation(
+        "cardlang.runtime.stud", "best_showing_seat", InvocationContract.BUNDLED,
+        Sig((), TPlayer()),
+    ),
     "bring_in_seat": Implementation(
         "cardlang.runtime.stud", "bring_in_seat", InvocationContract.BUNDLED,
         Sig((), TPlayer()),

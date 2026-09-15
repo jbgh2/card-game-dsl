@@ -489,6 +489,7 @@ CONSUMERS: tuple[str, ...] = tuple(
 # a new game joining the family arrives as a name this table does not hold.
 POSTS_BEFORE_THE_ROUND: dict[str, bool] = {
     "five-card-draw": False,  # antes
+    "five-card-stud": True,  # the bring-in
     "holdem": True,  # the blinds
     "holdem-heads-up": True,  # the blinds
     "kuhn-poker": False,  # antes, and an ante is not a bet

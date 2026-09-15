@@ -757,17 +757,36 @@ class ReadinessProofs:
             side2: tuple[str, int | None] = (hz, opp2)
             who = f"players {opp1},{opp2}"
         else:
-            # 2-player games: there is only ever one opponent, so the harness
-            # swaps between that opponent's hand and the un-dealt deck instead —
-            # both hidden from P throughout the replayed prefix. This only works
-            # when the pause coincides with the first decider (`p == d0`), so the
-            # swap (fired at the very first decision) never mutates a decider
-            # whose candidates were already computed from the un-swapped world.
-            assert p == d0, (
-                f"{spec.short_name}: with 2 players the harness needs the depth pause "
-                f"to coincide with the first decider (p == d0) — adjust the spec's depth"
+            # ONE other observer, so there is no second hand to swap against:
+            # the harness swaps that observer's hidden zone against the un-dealt
+            # stock instead, both hidden from P throughout the replayed prefix.
+            # Two kinds of game land here. A 2-player game always does — P and
+            # the first decider are the same seat, leaving the single opponent.
+            # A 3-player game does whenever the pause and the first decider are
+            # DIFFERENT seats, which a game whose street opener is read off the
+            # cards cannot arrange away: Stud's opener varies with the deal, so
+            # no one depth lands on the first decider across a whole manifest.
+            #
+            # What the branch needs is not that the pause coincide with the
+            # first decider, but that the swap leave the FIRST DECIDER's own
+            # hidden cards alone — the swap fires at the very first decision,
+            # and a decider whose candidates were computed from the un-swapped
+            # world must still be holding the cards they were computed from.
+            # `others` excludes both `p` and `d0` by construction, so the seat
+            # whose zone moves is neither, and that is the condition.
+            #
+            # The stock side is read AT THE PAUSE, which is what makes it safe
+            # to deal from between the swap and the pause: a card still in the
+            # stock there was dealt nowhere in the replayed prefix, so putting
+            # the opponent's card in its place changes no public observation
+            # the prefix already made.
+            assert len(others) == 1, (
+                f"{spec.short_name}: the stock-swap branch needs exactly one "
+                f"observer who is neither the paused player nor the first "
+                f"decider, and there are {len(others)} — with 2 players that "
+                f"means the depth pause must coincide with the first decider "
+                f"(p == d0); adjust the spec's depth"
             )
-            assert len(others) == 1, f"{spec.short_name}: expected exactly one other player"
             opp = others[0]
             hand = pause_a.rs.zones.instance(hz, opp).cards
             deck = pause_a.rs.zones.single(spec.stock_zone).cards[spec.stock_swap_skip:]
@@ -1136,7 +1155,14 @@ class ReadinessProofs:
         history: list[int] = []
         r = run(spec.path, seed, ())
         steps = 0
+        # Whether the loop below ran at all, which is the only thing that makes
+        # the record's `action_strings_compared` true. `steps` cannot answer it:
+        # the `adapter_terminal_steps` branch overwrites it with the greedy
+        # line's length, and a spec at depth 0 skips the loop entirely while
+        # still reaching the record.
+        compared = False
         while isinstance(r, DecisionNode) and steps < spec.depth:
+            compared = True
             assert not state.is_terminal()
             assert state.current_player() == r.player, (
                 f"{spec.short_name}: step {steps}: adapter player "
@@ -1205,4 +1231,4 @@ class ReadinessProofs:
         record(spec.short_name, "adapter", seed=seed, steps=steps,
                terminal=dsl_returns is not None,
                returns_compared=dsl_returns is not None,
-               action_strings_compared=True)
+               action_strings_compared=compared)
