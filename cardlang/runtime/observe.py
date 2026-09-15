@@ -271,6 +271,11 @@ def movement(
 
 
 def _rendered(view: ZoneView) -> tuple[str, ...] | int | None:
-    """A view as an event carries it: seen cards by their renderings, which keeps
-    every payload an immutable value."""
+    """A view as an event carries it: the seen cards by their renderings.
+
+    A card is writable through `object.__setattr__` and a string is not, and a
+    Seat View holds its observation log uncopied, so a payload stays strings
+    and counts. A reader of the log meets a card's rendering, never the card,
+    and derives no fact by parsing one (issue #666).
+    """
     return tuple(str(card) for card in view) if isinstance(view, tuple) else view
