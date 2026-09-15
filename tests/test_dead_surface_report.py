@@ -32,6 +32,8 @@ from __future__ import annotations
 import pathlib
 import re
 
+import pytest
+
 from cardlang.parse import _parser
 from tools import dead_surface as ds
 
@@ -165,11 +167,13 @@ def test_the_report_is_sorted_in_every_section() -> None:
         assert keys == sorted(keys), section.splitlines()[0]
 
 
-def test_the_real_tree_renders() -> None:
-    """The one corpus-facing pin: the tool runs over the real grammar and
-    globs and prints its two sections. No row is asserted -- rows are the
-    review's to read, and they move with the corpus."""
-    text = ds.report(ds.GRAMMAR.read_text(), ds.default_sources()).render()
+def test_the_documented_entry_point_renders_the_real_tree(capsys: pytest.CaptureFixture[str]) -> None:
+    """The one corpus-facing pin: `python -m tools.dead_surface` runs over the
+    real grammar and globs and prints its two sections. No row is asserted --
+    rows are the review's to read, and they move with the corpus.
+    Red under: `main` not writing the render to stdout."""
+    assert ds.main([]) == 0
+    text = capsys.readouterr().out
     assert text.startswith("# Dead surface -- derived, never maintained")
     assert "## Rules and aliases no corpus, library or stdlib file produces" in text
     assert "## Keywords no corpus, library or stdlib file writes" in text
