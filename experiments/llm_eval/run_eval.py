@@ -32,7 +32,7 @@ import json
 import sys
 import traceback
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final
@@ -42,7 +42,7 @@ import yaml
 from . import layout
 from .agents import Agent, build_agent, llm_shape, prompt_fingerprint, shape_name
 from .metrics import aggregate, game_key
-from .prompts import parse_response
+from .prompts import Prompt, parse_response
 from .providers import PRICES, Provider, Usage, make_provider
 from .referee import NUM_SEEDS, GameRecord, load_game, play_game
 from .spend import (
@@ -465,10 +465,7 @@ def run_matchup(
     # comprehension that reuses it reads like a shadow even though it is not one.
     providers = {m: ensure_provider(config, m, registry) for m in used}
     budget = budget_of(config)
-    before = {
-        m: (providers[m].usage.input_tokens, providers[m].usage.output_tokens)
-        for m in used
-    }
+    before = {m: replace(providers[m].usage) for m in used}
     # The mark the next spend-log line is measured from. Advanced after every
     # append, so the log's lines partition this matchup's usage exactly once.
     logged = snapshot(providers)
@@ -730,14 +727,9 @@ def run_matchup(
     return summary
 
 
-def _delta(provider: Provider, before: tuple[int, int]) -> dict[str, float | int]:
+def _delta(provider: Provider, before: Usage) -> dict[str, float | int]:
     """This matchup's share of a shared provider's usage."""
-    spent = Usage(
-        calls=0,
-        input_tokens=provider.usage.input_tokens - before[0],
-        output_tokens=provider.usage.output_tokens - before[1],
-    )
-    out = spent.as_dict(provider.model)
+    out = provider.usage.since(before).as_dict(provider.model)
     del out["calls"]  # not tracked per matchup; `run_total` carries the count
     return out
 
@@ -784,11 +776,13 @@ def estimate(
         if played == 0:
             continue
         per_game = usage["cost_usd"] / played
+        cached = usage["cache_read_input_tokens"] / usage["input_tokens"] if usage["input_tokens"] else 0.0
         print(
             f"  {model_name} ({usage['model']}): "
             f"${per_game:.3f}/game, "
             f"{usage['input_tokens'] // played} in + "
-            f"{usage['output_tokens'] // played} out tokens/game"
+            f"{usage['output_tokens'] // played} out tokens/game, "
+            f"{cached:.0%} of input served from cache"
         )
         for target in (20, 50, 100):
             print(f"      N={target:<4} -> ${per_game * target:.2f}")
@@ -844,8 +838,10 @@ def _smoke_calls(
         print(f"\n--- {name} ({provider.model}) params={provider.params}")
         try:
             reply = provider.complete(
-                'Reply with exactly this JSON and nothing else: '
-                '{"action": 0, "reasoning": "smoke test"}'
+                Prompt.single(
+                    'Reply with exactly this JSON and nothing else: '
+                    '{"action": 0, "reasoning": "smoke test"}'
+                )
             )
         except Exception as exc:  # noqa: BLE001 — the point is to report ANY failure
             failures += 1
@@ -998,8 +994,9 @@ def main(argv: list[str] | None = None) -> int:
             if name in totals:
                 # Dollars and counts both add; the prior entry covers earlier
                 # invocations into this directory, `fresh` covers this one.
-                for key in ("calls", "input_tokens", "output_tokens", "cost_usd"):
-                    fresh[key] = totals[name].get(key, 0) + fresh.get(key, 0)
+                for key in fresh:
+                    if key != "model":
+                        fresh[key] = totals[name].get(key, 0) + fresh.get(key, 0)
             totals[name] = fresh
         payload = {
             "config": str(Path(args.config).resolve()),

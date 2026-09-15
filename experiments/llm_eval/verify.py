@@ -228,9 +228,10 @@ def tally(records: list[dict[str, Any]], who: str) -> Counter[str]:
             c["terminal_games"] += bool(r["terminal"])
             c["wins"] += bool(r["terminal"] and r["returns"][me] > 0)
         # Usage is recorded per AGENT NAME, not per seat, so it is added once.
-        c["llm_calls"] += r.get("usage", {}).get(who, {}).get("llm_calls", 0)
-        c["input_tokens"] += r.get("usage", {}).get(who, {}).get("input_tokens", 0)
-        c["output_tokens"] += r.get("usage", {}).get(who, {}).get("output_tokens", 0)
+        tally = r.get("usage", {}).get(who, {})
+        for key in ("llm_calls", "input_tokens", "output_tokens",
+                    "cache_read_input_tokens", "cache_creation_input_tokens"):
+            c[key] += tally.get(key, 0)
 
         for d in r["decisions"]:
             if d["player"] not in mine:

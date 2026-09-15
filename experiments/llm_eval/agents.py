@@ -37,6 +37,7 @@ from .prompts import (
     RULES_RAW,
     RULES_RENDERED,
     build_prompt,
+    cache_partition,
     parse_response,
     response_arm,
 )
@@ -575,7 +576,7 @@ class LLMAgent:
         attempts: list[dict[str, Any]] = []
         text = prompt
         for attempt in range(2):
-            reply = self.provider.complete(text)
+            reply = self.provider.complete(cache_partition(text))
             result = parse_response(reply.text, len(view.legal_actions))
             attempts.append(
                 {
@@ -584,6 +585,8 @@ class LLMAgent:
                     "stop_reason": reply.stop_reason,
                     "input_tokens": reply.input_tokens,
                     "output_tokens": reply.output_tokens,
+                    "cache_read_input_tokens": reply.cache_read_input_tokens,
+                    "cache_creation_input_tokens": reply.cache_creation_input_tokens,
                     "error": result.error,
                     "reasoning": result.reasoning,
                 }

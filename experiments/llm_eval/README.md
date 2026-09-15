@@ -422,7 +422,8 @@ Against **~$1.10/game for a Cheat episode**: a Hold'em hand is 2–3 model calls
 where a Cheat episode is ~210.
 
 Dollars are **tokens × the list-price table in `providers.py`**, not a billing
-figure. The $6.33 above is the main invocation; the smoke ($0.0006) and the
+figure — uncached input at list, cache reads at `CACHE_READ_RATE`, cache
+writes at `CACHE_WRITE_RATE`, output at list. The $6.33 above is the main invocation; the smoke ($0.0006) and the
 `--estimate 5` recon ($0.0264) bring the session to **$6.36**.
 
 ## The `cheat_gap` study — reading beyond the literal channel
@@ -492,6 +493,23 @@ Add a matchup to `config.yaml`. To vary the response format, add a `ResponseArm`
 to `prompts.RESPONSE_ARMS` (instruction plus its matching retry note, which cannot
 vary independently) and name it with `arm:` on the agent. Copy the control's block
 verbatim and change one key, so the delta is attributable.
+
+**Every prompt is cache-shaped, and every request asks for the cache.** A
+decision prompt is billed whole on every call, and the part that repeats
+between a seat's calls — the rules, the event log — is most of it, so a
+prompt whose repeating part sits behind its changing part costs the square
+of the game's length. The shape is: static text first, the append-only part
+next, the part that changes last; the request carries it as content blocks
+cut where the append-only part grows, with the cache breakpoint on the last
+block that cannot change again (`prompts.cache_partition`, which the rendered
+Cheat arm satisfies by putting the log ahead of the table view). The API
+reads the blocks as their exact concatenation, so the cut is billing and
+never stimulus. A new game's renderer keeps that order; a new arm that moves
+the log behind the view is a cost regression, and the first `--estimate`
+game of any new cell says so: `cache_read_share` in its summary is the share
+of prompt tokens the cache served, and near zero means the prefix is not
+repeating. Turning the cache off is not a config knob; a study that must not
+cache says why in its preregistration and changes the provider.
 
 Pre-register the endpoint in `compare.PRIMARY_ENDPOINT` **before** looking at the
 data: ten rates tested at 0.05 give ~40% odds of a false positive, so only the

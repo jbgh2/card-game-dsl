@@ -439,6 +439,43 @@ applied, so a figure quoted in the proposal is never an under-estimate that
 expires. An unpriced model id is refused at construction rather than silently
 costed at zero.
 
+### The prompt cache, and why the log comes first
+
+The planning figures above are per-call averages, and the average hides the
+shape: the prompt carries the seat's complete event log, so it grows with
+the line and a game's input cost is quadratic in its length. Measured
+2026-09-14 on one `cheat_gap` game (seed 0, Haiku 4.5, three bluffing rule
+opponents, 979 decisions): 449 called decisions, prompts from 1.5k to 28k
+tokens, mean 16.6k, 7.46M input tokens, $7.69 — seven times the figure above,
+on a table whose games run about twice as long. The log was 86% of the tokens
+and strictly append-only across the seat's calls (448 of 448).
+
+The API's prompt cache serves a byte-identical prefix at a tenth of the
+price, and hits only at content-block boundaries an earlier request wrote
+at. Two facts decided the design. Splitting a message into text blocks does
+not change what the model reads: `count_tokens` returns the same count for
+the single block and for the split (28175 both ways on that game's last
+prompt, against 28212 with a newline at each join), so the blocks are pure
+billing. And the log's position does: with the table view ahead of it the
+prefix breaks whenever a count changes, and a cache model over the recorded
+game gives 2.5x at the old order against 5.6x with the log first. So the
+rendered arm puts the log before the view, the prompt is cut at every
+`prompts.LOG_CHUNK_EVENTS`-th event separator into chunks that never change
+once complete, and the breakpoint goes on the last complete chunk — a
+boundary the next call reproduces without any state carried between calls.
+The raw arm's string is the proofs' verbatim artifact and puts the log last;
+it is sent as one block and cached not at all, which the partition says
+rather than hides.
+
+Accounting keeps `input_tokens` as the whole prompt so every cap and rate
+means what it did, carries `cache_read_input_tokens` and
+`cache_creation_input_tokens` beside it at every layer (the attempt record,
+the game tally, the aggregate, the summary delta, the spend-log line), and
+prices the split in one place, `providers.Usage.cost`. The per-model cache
+minimum (4096 tokens on Haiku 4.5, 1024 on Sonnet 5, 512 on Opus 5) means
+the first calls of a game cache nothing on Haiku; the five-minute TTL is
+comfortably longer than the seconds between a seat's calls.
+
 ### Request shape
 
 Recorded verbatim in every run's summary, because the current models disagree

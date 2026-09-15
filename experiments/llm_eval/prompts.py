@@ -23,6 +23,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from .render import LOG_END, LOG_HEADER
+
 # --- static rules text ----------------------------------------------------
 #
 # Hand-trimmed from `docs/games/cheat.md`, whose own acceptance test is that a
@@ -179,6 +181,90 @@ def build_prompt(
     )
 
 
+# --- the cache partition ---------------------------------------------------
+
+#: Events per complete log chunk. A call's uncached remainder is at most one
+#: chunk of log plus the table view, so a smaller chunk wastes less; a chunk
+#: is one content block, and the API looks back at most twenty blocks from
+#: the breakpoint for an earlier call's write, so the chunk must exceed the
+#: events a seat's log gains between two of its calls divided by twenty.
+LOG_CHUNK_EVENTS = 20
+
+
+@dataclass(frozen=True)
+class Prompt:
+    """One decision prompt as the request carries it: the blocks whose
+    concatenation is the prompt text, and which block the cache breakpoint
+    sits on.
+
+    The API tokenizes a multi-block user message as the exact concatenation of
+    its blocks, so `text` is the stimulus and the blocks are billing.
+    """
+
+    blocks: tuple[str, ...]
+    cache_at: int | None
+
+    def __post_init__(self) -> None:
+        if not self.blocks:
+            raise ValueError("a prompt needs at least one block")
+        if any(not block for block in self.blocks):
+            raise ValueError("an empty text block is refused by the API; the cut left one")
+        if self.cache_at is not None and not 0 <= self.cache_at < len(self.blocks):
+            raise ValueError(
+                f"cache_at {self.cache_at} is outside the {len(self.blocks)} blocks"
+            )
+
+    @property
+    def text(self) -> str:
+        return "".join(self.blocks)
+
+    @classmethod
+    def single(cls, text: str) -> Prompt:
+        """The prompt as one block with no breakpoint: nothing to cache."""
+        return cls(blocks=(text,), cache_at=None)
+
+
+def cache_partition(text: str, *, chunk: int = LOG_CHUNK_EVENTS) -> Prompt:
+    """Cut a decision prompt where the prompt cache can serve it.
+
+    The rendered arm's prompt is `[rules][seat line][LOG_HEADER][log][LOG_END]
+    [table view][actions][instruction]`. Between two calls of one seat in one
+    game everything through the log is byte-identical to the previous call's
+    prefix up to the events added since, and everything after the log is the
+    part that changes. The cut is: one block through `LOG_HEADER`; one block
+    per COMPLETE chunk of `chunk` events, closed by its last separator, so a
+    chunk's bytes never change once it is complete; then one block holding
+    the partial chunk and the rest. The breakpoint sits on the last complete
+    chunk — a boundary the next call reproduces — or on the head block when
+    the log has no complete chunk yet.
+
+    A prompt without `LOG_HEADER` — the raw arm's, whose state string is the
+    proofs' verbatim artifact and puts the log last — is one block with no
+    breakpoint. Nothing is cached there and nothing pretends to be.
+    """
+    if chunk < 1:
+        raise ValueError(f"chunk must be at least one event, not {chunk}")
+    header_at = text.find(LOG_HEADER)
+    if header_at < 0:
+        return Prompt.single(text)
+    log_start = header_at + len(LOG_HEADER)
+    log_end = text.index(LOG_END, log_start)
+    log = text[log_start:log_end]
+    blocks = [text[:log_start]]
+    cut = 0
+    seen = 0
+    for i, char in enumerate(log):
+        if char == ";":
+            seen += 1
+            if seen == chunk:
+                blocks.append(log[cut : i + 1])
+                cut = i + 1
+                seen = 0
+    blocks.append(log[cut:] + text[log_end:])
+    complete = len(blocks) - 2
+    return Prompt(blocks=tuple(blocks), cache_at=complete if complete else 0)
+
+
 # --- response parsing -----------------------------------------------------
 
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
@@ -245,10 +331,10 @@ RULES_RAW = RULES_TEXT + "\n" + FORMAT_TEXT
 FORMAT_TEXT_RENDERED = """\
 HOW TO READ YOUR SITUATION
 
-You will be shown your own view of the table in plain English, followed by your
-complete personal event log. The log is machine-generated and terse; it is the
-record of everything you have observed, including the cards you chose to play
-(which nobody else saw) and every challenge flip (which everyone saw). Its
+You will be shown your complete personal event log, followed by your own view
+of the table in plain English. The log is machine-generated and terse; it is
+the record of everything you have observed, including the cards you chose to
+play (which nobody else saw) and every challenge flip (which everyone saw). Its
 entries look like:
 
   * ('move', <from>, <n>, <to>, <what>) — n cards moved between zones. `<what>`

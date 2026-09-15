@@ -457,6 +457,8 @@ _LINE = json.dumps(
         "calls": 1,
         "input_tokens": 10,
         "output_tokens": 2,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
         "cost_usd": 0.5,
     }
 )
