@@ -148,6 +148,10 @@ class ReplayChooser:
                 aid = self.history[index]
                 self.cursor += 1
                 self.deciders.append(actor)
+                # `type`, not `isinstance`: a flag passes `decode`'s range test
+                # as id 0 or 1.
+                if type(aid) is not int:
+                    raise HistoryMismatch(f"recorded pick {index}: {aid!r} is not an action id")
                 try:
                     return self.space.match(aid, pool)
                 except ValueError as exc:
@@ -300,7 +304,8 @@ def generator_for(path_str: str, seed: int) -> random.Random:
 
 class HistoryMismatch(ValueError):
     """A recorded history that does not replay in the game it is replayed in:
-    a pick its position does not offer, or picks left over when the game ends.
+    a pick that is not an action id, a pick its position does not offer, or
+    picks left over when the game ends.
 
     Addressed to whoever supplied the history (a saved session, a harness), not
     to the game author: the game is sound, and the record is not its own."""

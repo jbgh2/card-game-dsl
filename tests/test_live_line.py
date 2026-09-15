@@ -9,16 +9,19 @@ property:        A line of play that replays recorded picks and then asks each
                  frames still stand, so it carries the phase-local state variables
                  a node has lost. A line cut at any pick and played again with the
                  same policies reaches the same line. The line refuses an answer
-                 that is not one of the legal action ids, a recorded pick the
-                 position does not offer, recorded picks left over when the game
-                 ends, and a call for more picks than it offers. A policy that
+                 that is not one of the legal action ids, a recorded pick that is
+                 not an action id or that the position does not offer, recorded
+                 picks left over when the game ends, and a call for more picks
+                 than it offers. A policy that
                  raises ends the line with every pick before it kept, and is not
                  asked again while the run unwinds.
 domain:          Positions: one uniform line per registered game at `_SEED`,
                  compared at each pick `_POSITIONS` names that the line reaches,
                  and at every pick of Hearts through `_HEARTS_DEEP`, which is
                  past its first two hands. Cuts: `_CUTS` of each registered game's
-                 line. Answers a policy may wrongly give: `_WRONG_ANSWERS`. The
+                 line. Answers a policy may wrongly give: `_WRONG_ANSWERS`.
+                 Values a recorded history may wrongly hold:
+                 `_WRONG_RECORDED_PICKS`, on both routes. The
                  generator rule: every registered game. The per-pick refusal of
                  an over-long call: every route that reads a call one pick at a
                  time (a live line, the adapter's replay), beside the per-call
@@ -327,6 +330,32 @@ def test_a_recorded_pick_the_position_does_not_offer_is_a_history_mismatch() -> 
     line = LiveLine(path, 0, (stranger,))
     with pytest.raises(HistoryMismatch, match="pick 0"):
         line.play({0: UniformSeatPolicy(0), 1: UniformSeatPolicy(0)})
+
+
+# The values a recorded history most plausibly holds in place of an action id:
+# a flag, which compares equal to 0 or 1 and so passes a range test; the id as
+# a float or as text, as a re-serialized or hand-edited record holds it;
+# nothing; and ids outside the action space.
+_WRONG_RECORDED_PICKS: dict[str, Any] = {
+    "a flag equal to a legal id": True,
+    "the id as a float": 1.0,
+    "the id as text": "1",
+    "nothing": None,
+    "a negative id": -1,
+    "an id past the action space": 10**9,
+}
+
+
+@pytest.mark.parametrize("route", ["a live line", "the adapter's replay"])
+@pytest.mark.parametrize("pick", sorted(_WRONG_RECORDED_PICKS))
+def test_a_recorded_pick_that_is_not_an_action_id_is_a_history_mismatch(pick: str, route: str) -> None:
+    path = _path("cardlang_kuhn_poker")
+    history = (_WRONG_RECORDED_PICKS[pick],)
+    with pytest.raises(HistoryMismatch, match="recorded pick 0"):
+        if route == "a live line":
+            LiveLine(path, 0, history).play({0: UniformSeatPolicy(0), 1: UniformSeatPolicy(0)})
+        else:
+            run(path, 0, history)
 
 
 def test_a_recorded_history_the_game_ends_before_is_a_history_mismatch() -> None:
