@@ -1,0 +1,7 @@
+# SHA-256 manifest of the committed archive.
+# Regenerate with: python -m experiments.llm_eval.promote --results <dir> --run <stamp>
+
+549357ffd456196b4a3b17df77aa4f162574e21dffd233317273b4bcaa59db5a     914,058  rule_table.jsonl.gz
+07e88e9051db85881b51d02f65ff46a1c645487a5efc1fde257f617bc2df9558         523  rule_table.treatment.json
+e4b88b09eb110a24a7933067170bcf8f43e5f8f5afac5f5769a2b1a51c81a5bc     281,936  rule_vs_random.jsonl.gz
+648b1d415d604a65bc3e3aade251b978c7a61c1145eae77368f05fe653dac708         367  rule_vs_random.treatment.json
