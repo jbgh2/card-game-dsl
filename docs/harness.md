@@ -173,6 +173,14 @@ A PR whose author is gone falls to the Warden's thread sweep as the
 Shadow Guard, and the event-driven trigger for authorless rounds is tracker
 work on the epic. The check is derived, like everything else:
 
+**A round is requested to find defects, not to exhaust them.** On a
+change whose findings so far are all R4 — tooling, doctrine text,
+machinery on machinery — the author requests at most one further round.
+Findings after that are answered as ledger sentences (what the change
+does not prove) or filed issues, never a new round; the threads still
+close before merge. A P1 or a designer-reachable finding restarts the
+count.
+
 ```bash
 gh api graphql -f query='{ repository(owner: "jbgh2", name: "card-game-dsl") {
   pullRequest(number: N) { reviewThreads(first: 100) {
