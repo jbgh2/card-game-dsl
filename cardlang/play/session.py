@@ -207,11 +207,25 @@ class Saved:
     history: list[Any]
 
 
+def _not_a_file(mode: int) -> str | None:
+    """Why a path with this `stat` mode is no file a session is read from or
+    saved to, or None when it is an ordinary file. Reading a named pipe would
+    wait for a writer, so this is asked before anything is opened."""
+    if stat.S_ISDIR(mode):
+        return "it is a directory"
+    if not stat.S_ISREG(mode):
+        return "it is not an ordinary file"
+    return None
+
+
 def _record(path: Path) -> dict[str, Any] | str:
     """What the file at `path` holds when it is a saved session in the format
     this module reads, whichever game it was saved from, or why it is not
     one."""
     try:
+        refusal = _not_a_file(os.stat(path).st_mode)
+        if refusal is not None:
+            return refusal
         text = path.read_text()
     except FileNotFoundError:
         return "no such file"
@@ -273,14 +287,15 @@ def unwritable(path: Path) -> str | None:
     it is a saved session."""
     try:
         try:
-            there = os.stat(path)
+            mode: int | None = os.stat(path).st_mode
         except FileNotFoundError:
-            there = None
-        if there is not None and stat.S_ISDIR(there.st_mode):
-            return "it is a directory"
+            mode = None
+        refusal = None if mode is None else _not_a_file(mode)
+        if refusal is not None:
+            return refusal
         if not path.parent.is_dir():
             return f"there is no directory {path.parent}"
-        if there is not None and isinstance(_record(path), str):
+        if mode is not None and isinstance(_record(path), str):
             return (
                 "it holds something that cannot be read as a saved session, and "
                 "saving would replace it; name another file"

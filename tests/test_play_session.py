@@ -62,10 +62,7 @@ does not prove:  Which pick a person should make, or that the opponents are
                  as the adapter's legal actions do (issue #281). A person seated
                  as a declarer is asked for the dummy's cards because a line asks
                  the Decider, which tests/test_live_line.py pins over the
-                 registry; no cell here seats one. A file option naming a named
-                 pipe or a device reads it as a file, and reading a named pipe
-                 waits for something to write to it; no kind in `_FILE_KINDS`
-                 is one.
+                 registry; no cell here seats one.
 """
 
 from __future__ import annotations
@@ -941,6 +938,12 @@ def _unreadable(tmp_path: Path, game: Path) -> Path:
     return saved
 
 
+def _named_pipe(tmp_path: Path, game: Path) -> Path:
+    pipe = tmp_path / "saved.json"
+    os.mkfifo(pipe)
+    return pipe
+
+
 # Each kind of path a person can hand an option that names a file, made beside
 # a copy of the game being played.
 _FILE_KINDS: dict[str, Callable[[Path, Path], Path | str]] = {
@@ -954,6 +957,8 @@ _FILE_KINDS: dict[str, Callable[[Path, Path], Path | str]] = {
     "a directory": lambda tmp_path, game: tmp_path,
     "a file in a directory that does not exist": lambda tmp_path, game: tmp_path / "nowhere" / "saved.json",
     "a name longer than a folder allows": lambda tmp_path, game: tmp_path / ("x" * 300 + ".json"),
+    "a named pipe": _named_pipe,
+    "a device": lambda tmp_path, game: Path(os.devnull),
     "a saved session in a directory that cannot be written to": _in_a_locked_directory,
     "a saved session that cannot be read": _unreadable,
     "an empty name": lambda tmp_path, game: "",
@@ -962,10 +967,12 @@ _FILE_KINDS: dict[str, Callable[[Path, Path], Path | str]] = {
 # What each path does, and what a refusal says of it.
 _NOT_A_SESSION = "cannot be read as a saved session"
 _FILE_EXPECTED: dict[tuple[str, str], tuple[str, str]] = {
-    ("--resume", "a directory"): ("refused", "Is a directory"),
+    ("--resume", "a directory"): ("refused", "it is a directory"),
     ("--resume", "a file in a directory that does not exist"): ("refused", "no such file"),
     ("--resume", "a file that does not exist"): ("refused", "no such file"),
     ("--resume", "a name longer than a folder allows"): ("refused", "File name too long"),
+    ("--resume", "a named pipe"): ("refused", "it is not an ordinary file"),
+    ("--resume", "a device"): ("refused", "it is not an ordinary file"),
     ("--resume", "a file that is not a saved session"): ("refused", "not a saved session"),
     ("--resume", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
     ("--resume", "a saved session of another game"): ("refused", "different game"),
@@ -977,6 +984,8 @@ _FILE_EXPECTED: dict[tuple[str, str], tuple[str, str]] = {
     ("--save", "a file in a directory that does not exist"): ("refused", "there is no directory"),
     ("--save", "a file that does not exist"): ("plays", ""),
     ("--save", "a name longer than a folder allows"): ("refused", "File name too long"),
+    ("--save", "a named pipe"): ("refused", "it is not an ordinary file"),
+    ("--save", "a device"): ("refused", "it is not an ordinary file"),
     ("--save", "a file that is not a saved session"): ("refused", _NOT_A_SESSION),
     ("--save", "a saved session in a directory that cannot be written to"): ("refused", "Permission denied"),
     ("--save", "a saved session of another game"): ("plays", ""),
