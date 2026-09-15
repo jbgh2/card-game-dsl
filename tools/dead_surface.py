@@ -10,15 +10,18 @@ Run: `python -m tools.dead_surface`
 
 Two sections, each derived:
 
-- Rules and aliases no live file produces. The rule axis is scraped from the
-  grammar: every alias, plus every rule that is neither filtered (`_name`) nor
-  a precedence level (`?name`, which names a level and not a construct -- the
-  constructs at that level are its aliases) and has at least one un-aliased
-  alternative; reject-with-replacement twins (`*_reject`) are excluded, being
-  produced only to refuse. A rule's consumers are the files whose parse tree
-  contains it. A row is dead when no CORPUS or SHARED file produces it; OTHER
-  consumers (experiment games, test fixtures) are named beside the row so the
-  review sees "only a fixture uses it".
+- Rules and aliases no live file produces. The rule axis is read from the
+  compiled grammar, walking from its start symbols: every alias, plus every
+  rule that is neither filtered (`_name`) nor a precedence level (`?name`,
+  which names a level and not a construct -- the constructs at that level are
+  its aliases) and has an un-aliased alternative. The walk never takes a
+  reject-with-replacement twin (`*_reject`), so neither a twin nor a rule
+  only a twin leads to is on the axis: both are produced only to refuse. A
+  rule no start symbol reaches is a row, since nothing can produce it. A
+  rule's consumers are the files whose parse tree contains it. A row is dead
+  when no CORPUS or SHARED file produces it; OTHER consumers (experiment
+  games, test fixtures) are named beside the row so the review sees "only a
+  fixture uses it".
 - Keywords no live file writes: every `_X_KW` terminal's word, sought as a
   whole token in each file with comments and string literals stripped.
 
@@ -28,8 +31,8 @@ not the parse tree (issue #664).
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
-Assumes:      the grammar file and the source globs, nothing else -- no list
-              maintained by hand anywhere.
+Assumes:      the grammar file, the parser's start symbols and the source
+              globs, nothing else -- no list maintained by hand anywhere.
 Establishes:  a deterministic text, sorted in every section, identical across
               runs on an unchanged tree.
 Now illegal:  a copy of this output under version control.
@@ -42,12 +45,14 @@ import dataclasses
 import pathlib
 import re
 import sys
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 
-from lark import Token, Tree
+from lark import Lark, Token, Tree
+from lark.grammar import Rule
 
 from cardlang.diagnostics import DiagnosticError
-from cardlang.parse import parse_to_tree
+from cardlang.parse import _parser, parse_to_tree
 from tests.keyword_fusion_sweep import code_mask
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -99,23 +104,46 @@ def default_sources(root: pathlib.Path = ROOT) -> list[Source]:
 
 # --- the grammar axes ---------------------------------------------------------
 
-_RULE_BLOCK = re.compile(r"^(\??)([a-z][a-z0-9_]*)\s*:(.*?)(?=^\S|\Z)", re.M | re.S)
-_ALIAS = re.compile(r"->\s*([a-z][a-z0-9_]*)")
 _KEYWORD = re.compile(r'^_([A-Z0-9_]+)_KW:\s*"([^"]+)"', re.M)
 
 
 def rule_axis(grammar: str) -> frozenset[str]:
-    """Every name a parse tree could carry: aliases, and rules that are
-    neither filtered nor precedence levels with an un-aliased alternative.
-    Reject twins are produced only to refuse, so they are not surface."""
-    names: set[str] = set(_ALIAS.findall(grammar))
-    for inlined, name, body in _RULE_BLOCK.findall(grammar):
-        if inlined or name.startswith("_"):
-            continue
-        alternatives = [a for a in re.split(r"^\s*\|", body, flags=re.M) if a.strip()]
-        if any("->" not in a for a in alternatives):
-            names.add(name)
-    return frozenset(n for n in names if not n.endswith("_reject"))
+    """Every name a valid parse tree could carry, read from the compiled
+    grammar: walking from the start symbols, each alternative contributes its
+    alias, or its rule when that rule is neither filtered nor a precedence
+    level. The walk never takes a reject twin, because a twin is produced only
+    to refuse and so is every rule only a twin leads to. A rule no start
+    symbol reaches is on the axis too, since nothing can produce it."""
+    start = list(_parser().options.start)
+    compiled = Lark(grammar, parser=None, lexer="basic", start=start)
+    alternatives: dict[str, list[Rule]] = defaultdict(list)
+    for rule in compiled.rules:
+        alternatives[rule.origin.name].append(rule)
+
+    def walk(*, through_twins: bool) -> list[Rule]:
+        taken: list[Rule] = []
+        seen: set[str] = set()
+        pending = list(start)
+        while pending:
+            origin = pending.pop()
+            if origin in seen:
+                continue
+            seen.add(origin)
+            for rule in alternatives[origin]:
+                if not through_twins and (rule.alias or "").endswith("_reject"):
+                    continue
+                taken.append(rule)
+                pending.extend(s.name for s in rule.expansion if not s.is_term)
+        return taken
+
+    names = {
+        str(rule.alias or rule.origin.name)
+        for rule in walk(through_twins=False)
+        if rule.alias or not (rule.origin.name.startswith("_") or rule.options.expand1)
+    }
+    reached = {str(rule.origin.name) for rule in walk(through_twins=True)}
+    unreached = {str(name) for name, *_ in compiled.grammar.rule_defs if name not in reached and not name.startswith("_")}
+    return frozenset(names | unreached)
 
 
 def keyword_axis(grammar: str) -> dict[str, str]:

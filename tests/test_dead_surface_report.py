@@ -10,21 +10,26 @@ property:   the report names every construct the grammar defines that no live
 domain:     synthetic sources built here, parsed by the real grammar, so no
             cell depends on what the corpus happens to use today -- the one
             corpus-facing pin is that the real tree renders. The rule axis is
-            the grammar scrape's (aliases, un-aliased non-inlined rules, no
-            reject twins) and the keyword axis is every `_X_KW` terminal,
-            pinned against the parser's own terminal table. Which of a
-            live construct's consumers are scoring sentences is outside it:
-            that is a question for the checked game (issue #664).
-registry:   rule axis: `tools.dead_surface.rule_axis`; keyword axis:
-            `tools.dead_surface.keyword_axis`, pinned against
-            `cardlang.parse._parser().terminals`; consumer tiers:
+            the compiled grammar's (aliases and un-aliased rules that are
+            neither filtered nor precedence levels, on the alternatives a
+            start symbol reaches without a reject twin, plus any rule no
+            start symbol reaches) and the keyword axis is every `_X_KW`
+            terminal, pinned against the parser's own terminal table. Which
+            of a live construct's consumers are scoring sentences is outside
+            it: that is a question for the checked game (issue #664).
+registry:   rule axis: `tools.dead_surface.rule_axis`, over lark's compiled
+            rules; keyword axis: `tools.dead_surface.keyword_axis`, pinned
+            against `cardlang.parse._parser().terminals`; consumer tiers:
             `tools.dead_surface.TIERS`.
 does not prove:  that a dead row SHOULD be retired -- the report is an input to
             the direction review, which owns that decision, and register
             symmetry keeps some rows alive on purpose. Nor that a `?`-level
             rule with an un-aliased multi-child alternative is on the axis:
             precedence levels are excluded wholesale, so such a construct
-            would go unreported rather than misreported.
+            would go unreported rather than misreported. Nor that a keyword
+            off the dead list is used AS the keyword: the scan reads spellings
+            in code, not the parser's tokens, so a live file that spells a
+            keyword as a name keeps it off the list.
 """
 
 from __future__ import annotations
@@ -69,16 +74,39 @@ def test_a_live_consumer_takes_a_rule_off_the_dead_list() -> None:
 
 
 def test_a_planted_production_nothing_produces_is_reported() -> None:
-    """Born green; red under: dropping aliases from `rule_axis`."""
-    planted = GRAMMAR + "\nplanted_rule: NAME -> planted_dead_form\n"
+    """Born green; red under: dropping aliases from `rule_axis`, or dropping
+    the rules no start symbol reaches."""
+    planted = GRAMMAR + '\n%extend primitive_type: "zzplanted" NAME -> planted_dead_form\nplanted_orphan: NAME\n'
     rep = ds.report(planted, [src("a.cardlang", game("    score[0] := 1"))])
-    assert "planted_dead_form" in rep.dead_rules()
+    assert {"planted_dead_form", "planted_orphan"} <= set(rep.dead_rules())
 
 
 def test_a_reject_twin_is_not_surface() -> None:
-    """Red under: dropping the `_reject` exclusion from `rule_axis`."""
+    """Red under: walking reject twins in `rule_axis`."""
     assert "subset_comma_reject" not in ds.rule_axis(GRAMMAR)
     assert "collection_type_reject" not in ds.rule_axis(GRAMMAR)
+
+
+def test_a_rule_only_a_reject_twin_reaches_is_not_surface() -> None:
+    """A twin is produced only to refuse, and so is every rule only a twin
+    leads to, at any depth; a rule a valid alternative also reaches stays.
+    Red under: walking reject twins in `rule_axis`."""
+    planted = GRAMMAR + (
+        '\n%extend primitive_type: NAME "<" planted_helper ">" -> planted_twin_reject'
+        '\nplanted_helper: "zzplanted" planted_deeper'
+        "\nplanted_deeper: NAME"
+        '\n%extend primitive_type: "zzshared" planted_shared -> planted_shared_form'
+        '\n%extend primitive_type: "zzrefused" planted_shared -> planted_shared_reject'
+        "\nplanted_shared: NAME\n"
+    )
+    axis = ds.rule_axis(planted)
+    assert not {"planted_helper", "planted_deeper"} & axis
+    assert {"planted_shared", "planted_shared_form"} <= axis
+
+
+def test_an_arrow_the_grammar_matches_as_text_is_not_an_alias() -> None:
+    planted = GRAMMAR + '\n%extend primitive_type: planted_arrow -> planted_arrow_holder\nplanted_arrow: "zzarrow" "->" NAME\n'
+    assert "planted_arrow" in ds.rule_axis(planted)
 
 
 def test_a_precedence_level_is_not_a_row_but_its_aliases_are() -> None:
