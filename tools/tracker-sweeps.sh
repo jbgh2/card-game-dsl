@@ -42,6 +42,10 @@ gh issue list --repo "$REPO" --state open --label blocked:needs-witness --limit 
 VERDICTS=docs/superpowers/direction-reviews
 NEWEST=$(ls "$VERDICTS" | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' | sort | tail -1 | sed 's/\.md$//')
 [ -n "$NEWEST" ] || { echo "no verdict file under $VERDICTS" >&2; exit 1; }
-echo "== untriaged since the $NEWEST verdict: designer-reachable, no priority tier (a latency, not a defect) =="
+# The cutoff is inclusive of the verdict's own date: a same-day arrival the
+# review triaged carries a tier and drops out of the filter below; one it
+# did not see carries none and is listed, so nothing filed after the
+# review is ever silent.
+echo "== untriaged on or after the $NEWEST verdict: designer-reachable, no priority tier (a latency, not a defect) =="
 gh issue list --repo "$REPO" --state open --limit "$LIMIT" \
-  --json number,title,labels,createdAt --jq '.[] | select(.createdAt[0:10] > "'"$NEWEST"'") | select([.labels[].name] | any(. == "reachability:R1" or . == "reachability:R2")) | select([.labels[].name] | any(startswith("priority:")) | not) | "\(.number) \(.title)"'
+  --json number,title,labels,createdAt --jq '.[] | select(.createdAt[0:10] >= "'"$NEWEST"'") | select([.labels[].name] | any(. == "reachability:R1" or . == "reachability:R2")) | select([.labels[].name] | any(startswith("priority:")) | not) | "\(.number) \(.title)"'
