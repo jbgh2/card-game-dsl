@@ -135,13 +135,15 @@ def test_a_view_cannot_be_written_through_into_the_world() -> None:
     assert rs.get("score") == {0: 10, 1: 20}
 
 
-@pytest.mark.parametrize("seat", [-1, 2, 7])
+@pytest.mark.parametrize("seat", [-1, 2, 7, True, False])
 def test_a_view_is_derived_only_for_a_seat_at_the_table(seat: int) -> None:
     """Handed an integer that seats nobody, the projection would still answer —
     every zone through the view of a non-owner — and render a plausible view
-    that belongs to no one.
+    that belongs to no one. Handed a flag, it would answer as seat 1 or seat 0
+    and render that seat's private cards under the name `PTrue` or `PFalse`.
 
-    red under: drop the seat check from `infostate._facts`.
+    red under: drop the seat check from `infostate._facts` (every cell), or
+    only its flag test (the two flag cells).
     """
     rs = _rs()
     with pytest.raises(AssertionError, match="no seat"):
