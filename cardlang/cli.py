@@ -14,12 +14,12 @@ until that exists — a retired spelling stays a token this command line answers
 to in first position, so the refusal can name what replaces it.
 
 This module owns one defect class — the values a caller supplies, which no
-earlier layer sees: the path argument, and the seat `--info-state` names.
-Everything else it RENDERS rather than decides. The compile stages' [[failure-
-channel]] and the runtime's are both already typed, and each failure reaches
-the [[author]] who can act on it (`cardlang/runtime/errors.py`, Contract): a
-`GameDescriptionError` the game author, an `InstallationError` whoever
-installed this checkout. It never discriminates the `GameDescriptionError`
+earlier layer sees: the path argument, and the seats `--info-state` and
+`--view` name. Everything else it RENDERS rather than decides. The compile
+stages' [[failure-channel]] and the runtime's are both already typed, and each
+failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
+Contract): a `GameDescriptionError` the game author, an `InstallationError`
+whoever installed this checkout. It never discriminates the `GameDescriptionError`
 subtypes; which ROLE of guard fired is the suite's question, not a caller's.
 
 `IllegalMove` is rendered beside them and means something else, which the
@@ -52,9 +52,10 @@ from typing import Any
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import returns_for
 from cardlang.pipeline import check_source, compile_path
+from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
 from cardlang.runtime.errors import GameDescriptionError, InstallationError, Located
@@ -84,6 +85,13 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="SEAT",
         help="also print that seat's derived information state at the "
         "terminal position, or at the decision --at names",
+    )
+    parser.add_argument(
+        "--view",
+        type=int,
+        metavar="SEAT",
+        help="also print what that seat knows, laid out for a person to read, "
+        "at the terminal position or at the decision --at names",
     )
     parser.add_argument(
         "--decisions",
@@ -240,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "demo":
-            return _demo(path, args.seed, args.info_state, args.at, args.decisions)
+            return _demo(
+                path, args.seed, args.info_state, args.view, args.at, args.decisions
+            )
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -311,28 +321,36 @@ def _check(path: Path, emit_ir: bool) -> int:
 
 
 def _demo(
-    path: Path, seed: int | None, seat: int | None, at: int | None, listing: bool
+    path: Path,
+    seed: int | None,
+    seat: int | None,
+    view_seat: int | None,
+    at: int | None,
+    listing: bool,
 ) -> int:
     game = check_source(path)
     seats = game.players.low
-    if seat is not None and not 0 <= seat < seats:
-        # A Shadow Guard of the derivation's own (`infostate._facts`), which
-        # refuses a seat nobody sits in only once the playout has run, and in
-        # the engine maintainer's channel. Taken here, the refusal comes before
-        # the game is played and in the words of the caller who named the seat.
-        print(
-            f"cardlang: {path} seats 0..{seats - 1}; --info-state {seat} names "
-            "no seat at this table",
-            file=sys.stderr,
-        )
-        return _EXIT_CANNOT_PROCEED
+    for flag, named in (("--info-state", seat), ("--view", view_seat)):
+        if named is not None and not 0 <= named < seats:
+            # A Shadow Guard of the derivation's own (`infostate._facts`), which
+            # refuses a seat nobody sits in only once the playout has run, and
+            # in the engine maintainer's channel. Taken here, the refusal comes
+            # before the game is played and in the words of the caller who
+            # named the seat.
+            print(
+                f"cardlang: {path} seats 0..{seats - 1}; {flag} {named} names "
+                "no seat at this table",
+                file=sys.stderr,
+            )
+            return _EXIT_CANNOT_PROCEED
+    named_seats = sorted({s for s in (seat, view_seat) if s is not None})
     # Both `--at` refusals a playout cannot inform are taken here, beside the
     # seat check and before the game runs; the range refusal needs the count
     # only the playout produces and waits below.
-    if at is not None and seat is None:
+    if at is not None and not named_seats:
         print(
             f"cardlang: --at {at} says which decision to look at; add "
-            "--info-state SEAT to say whose view to show",
+            "--view SEAT or --info-state SEAT to say whose view to show",
             file=sys.stderr,
         )
         return _EXIT_CANNOT_PROCEED
@@ -346,7 +364,8 @@ def _demo(
 
     drawn = random.randrange(2**31) if seed is None else seed
     logs: dict[Player, list[tuple[Any, ...]]] = {p: [] for p in range(seats)}
-    snapshot: list[str] = []
+    # What each seat flag prints, keyed by the flag, taken at one position.
+    shown: dict[str, str] = {}
     world: list[RuntimeState] = []
     # One entry per decision the playout makes, in order: its description
     # where a line will be shown, None otherwise. `len` is the count `--at`
@@ -366,6 +385,17 @@ def _demo(
         # Issue #555 is the driver returning that world instead.
         world.append(rs)
 
+    def show(rs: RuntimeState, deciding: Player | None) -> None:
+        # One derivation per seat named, and every rendering reads it, so the
+        # string and the text are of one position.
+        views = {named: derive(named, rs, logs[named]) for named in named_seats}
+        if seat is not None:
+            shown["--info-state"] = render_information_state(views[seat])
+        if view_seat is not None:
+            shown["--view"] = render_view(
+                game, views[view_seat], your_turn=deciding == view_seat
+            )
+
     def trace(event: str, _data: Any) -> None:
         # `driver.play_game` emits `game_end` after the last phase and BEFORE
         # it pops the game-level frame, which is what makes this the terminal
@@ -373,8 +403,8 @@ def _demo(
         # returns, the frame is gone and the state variables render empty.
         # Moving the emit past the pop would empty them here too, silently;
         # tests/test_cli_surface.py pins the segment against that.
-        if event == "game_end" and seat is not None and at is None and world:
-            snapshot.append(information_state(seat, world[0], logs[seat]))
+        if event == "game_end" and named_seats and at is None and world:
+            show(world[0], None)
 
     rng = random.Random(drawn)
     # The one generator, driving the shuffle and the uniform-random policy
@@ -403,8 +433,8 @@ def _demo(
             decisions.append(
                 _decision(actor, pool) if listing or index == at else None
             )
-            if index == at and seat is not None:
-                snapshot.append(information_state(seat, world[0], logs[seat]))
+            if index == at and named_seats:
+                show(world[0], actor)
             return next(taken)
 
         return sequential_decisions(player, candidates, count, decide, observe)
@@ -425,7 +455,7 @@ def _demo(
         print()
         print(_listing(decisions))
 
-    if seat is None:
+    if not named_seats:
         return _EXIT_OK
     if not decisions:
         # No decision means `on_first_decision` never fired, so there is no
@@ -447,12 +477,17 @@ def _demo(
         )
         return _EXIT_CANNOT_PROCEED
     if at is None:
-        print(f"\ninformation state, seat {seat}, at the terminal position:")
+        where = "at the terminal position"
     else:
-        where = decisions[at]
-        assert where is not None, "a named decision always renders its line"
-        print(f"\ninformation state, seat {seat}, at decision {at} ({where}):")
-    print(snapshot[0])
+        line = decisions[at]
+        assert line is not None, "a named decision always renders its line"
+        where = f"at decision {at} ({line})"
+    if seat is not None:
+        print(f"\ninformation state, seat {seat}, {where}:")
+        print(shown["--info-state"])
+    if view_seat is not None:
+        print(f"\nview, seat {view_seat}, {where}:")
+        print(shown["--view"])
     return _EXIT_OK
 
 

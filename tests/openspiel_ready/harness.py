@@ -48,7 +48,7 @@ import pytest
 pyspiel = pytest.importorskip("pyspiel")
 
 import cardlang.openspiel.game as ogame  # registers on import
-from cardlang.openspiel.infostate import information_state
+from cardlang.openspiel.infostate import derive, information_state
 from cardlang.openspiel.replay import (
     DecisionNode,
     TerminalNode,
@@ -57,6 +57,7 @@ from cardlang.openspiel.replay import (
     returns_for,
     run,
 )
+from cardlang.play.view import render_view
 from cardlang.runtime.driver import play_game
 
 from .partition import (
@@ -738,7 +739,7 @@ class ReadinessProofs:
     def test_indistinguishability_under_hidden_swap(self, seed: int) -> None:
         spec = self.spec
         path = spec.path
-        _, space = load(path)
+        game, space = load(path)
         hz = spec.hidden_zone
         history, pause_a = _advance(path, seed, spec.depth)
         p = pause_a.player
@@ -798,6 +799,7 @@ class ReadinessProofs:
         assert candidates, "no swap pair available; lower the spec's depth for this game"
 
         info_a = information_state(p, pause_a.rs, pause_a.obs_logs[p])
+        text_a = render_view(game, derive(p, pause_a.rs, pause_a.obs_logs[p]), your_turn=True)
         strings_a = action_strings(space, pause_a.legal)
         last_err: ValueError | None = None
         proved: list[str] = []
@@ -819,6 +821,17 @@ class ReadinessProofs:
                 f"CHANGED P{p}'s information state — the info-set leaks.\n"
                 f"worlds: seed={seed} depth={len(history)} swap=({x},{y})\n"
                 f"witness: {first_divergence(info_a, info_b)}"
+            )
+            # The text a person reads renders the same view, so it agrees as
+            # well: the leak direction only, since a text showing nothing would
+            # agree too. tests/test_play_view.py holds the other direction.
+            text_b = render_view(
+                game, derive(p, pause_b.rs, pause_b.obs_logs[p]), your_turn=True
+            )
+            assert text_a == text_b, (
+                f"{spec.short_name}: swapping hidden {x}<->{y} ({who}) CHANGED "
+                f"the text P{p}'s view renders as, while the information state "
+                f"agreed.\nwitness: {first_divergence(text_a, text_b)}"
             )
             # Legal-action agreement: two worlds in the same information set
             # for the player to move must offer identical legal actions —
@@ -857,6 +870,7 @@ class ReadinessProofs:
             candidates=len(candidates),
             legal_agreement=True,
             string_agreement=True,
+            text_agreement=True,
         )
 
     @pytest.mark.parametrize("seed", manifest())
