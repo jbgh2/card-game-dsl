@@ -2673,6 +2673,27 @@ mechanism is [design-notes/terminal-play.md](design-notes/terminal-play.md).
   other such fact is the caller's to show beside the rendering. The running
   phase and a hand number wait for a structural source (issues #605, #573).
 
+### What answers for a seat
+
+A [Seat Policy](glossary/seat-policy.md) answers for one seat at a decision
+node: it is handed that seat's Seat View and the legal action ids, and it
+answers one of those ids (`openspiel/seat_policy.py`). Every opponent that
+fills a seat answers through it. The mechanism is
+[design-notes/terminal-play.md](design-notes/terminal-play.md).
+
+- **A policy reads the Seat View, never the World.** Its signature is its
+  whole input, so what it answers is constant across positions its seat cannot
+  tell apart. An opponent that reads the World measures something else, and it
+  is a type with its own name, never this one widened.
+- **A line of play is `(seed, history)` played on through the replay
+  chooser.** The recorded picks replay through the adapter's own chooser, and
+  past them each seat's policy is asked where the adapter would pause. The view
+  it is handed is derived inside the Chooser call, where every phase frame
+  stands. One rule chooses the game's generator, and no policy draws from it.
+- **A policy's randomness is a function of its seed and its view.** The
+  uniform opponent draws from a digest of both, never from a stream. So one
+  seed and one history name one line of play, however the line was reached.
+
 ## Position domains and positional zones
 
 Solitaire layouts (and any game whose rules address *places* — columns,

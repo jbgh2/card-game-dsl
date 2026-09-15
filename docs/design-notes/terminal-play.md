@@ -103,11 +103,45 @@ first decision as each seat reads it (`tests/test_play_view_format.py`). It
 catches a change to the text's arrangement. It says nothing about whether the
 arrangement is a good one.
 
+## What answers for a seat
+
+A [Seat Policy](../glossary/seat-policy.md) answers for one seat at a decision
+node (`cardlang/openspiel/seat_policy.py`). It is handed the seat's Seat View
+and the legal action ids, and it answers one of the ids. It reads the value the
+text renders, for the same reason: its signature is its whole input.
+
+A line of play is the adapter's own `(seed, history)`, played on
+(`replay.LiveLine`). The recorded picks replay through `ReplayChooser`. Past
+them the chooser asks the deciding seat's policy instead of pausing, and hands
+it the Seat View derived inside the Chooser call, as `demo --view` derives the
+text. A decision node would hand it less: the world there has unwound past
+every phase frame and already run each `after_each` (issue #612). The line
+refuses an answer that is not one of the legal ids before it is played.
+
+One seed and one history name one line, however it was reached. The game's
+generator comes from `replay.generator_for` and no policy draws from it, and
+the uniform opponent (`UniformSeatPolicy`) draws from a digest of its seed and
+the view it is handed. A line cut at any pick and played again therefore
+reaches the same line, which is what taking back a pick and resuming a line
+need.
+
+The pin is `tests/test_live_line.py`. Along every registered game's line, at
+sampled picks, the line asks the seat the adapter's replay pauses at, over the
+same legal ids, with the same zones and log. Cut anywhere and played again, it
+reaches the same line. Both routes read `sequential_decisions` and
+`ActionSpace.match`, so the pin tells the live extension and the generator
+discipline apart from the adapter, not the decomposition they share.
+
+A game's identity is `pipeline.game_identity`, a digest of its checked program.
+A reformatted or moved copy keeps its identity; an edit to the game, or to a
+library it uses, changes it. It is what ties recorded action ids to the game
+they were recorded in.
+
 ## What builds on this
 
 - **The session (#616).** `cardlang play` seats a person against opponents they
-  choose. It shows this text with the menu and the turn beside it, and it lands
-  the type the person and every opponent implement.
+  choose. It shows this text with the menu and the turn beside it, and the
+  person answers through the Seat Policy like every opponent.
 - **The policies that choose for a seat, and how a caller names an opponent
   (#617), then the rule-based policy (#553).** A policy reads the Seat View,
   never the node, so the value this text renders is the policy's whole input.
