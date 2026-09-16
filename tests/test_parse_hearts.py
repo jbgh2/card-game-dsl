@@ -43,10 +43,8 @@ def test_header_blocks() -> None:
     # The file defines only the Hearts-specific rules; MustFollowSuit and
     # NoLeadingSuitUntilBroken(hearts) splice in from the standard library at
     # resolve time (see test_demands_two_forms).
-    assert {r.name for r in g.rules} == {
-        "MustLeadTwoOfClubsOnFirstPlay",
-        "NoPenaltyCardsOnFirstTrick",
-    }
+    assert {r.name for r in g.rules} == {"MustLeadTwoOfClubs"}
+    assert {m.name for m in g.move_types} == {"charge_the_others", "credit_the_shooter"}
 
 
 def test_phase_tree_and_qualifier() -> None:
@@ -54,7 +52,7 @@ def test_phase_tree_and_qualifier() -> None:
     hand_seq = _phase(g, "hand_sequence")
     assert hand_seq.qualifier is not None and hand_seq.qualifier.kind == "repeat_until"
     nested = [i.name for i in hand_seq.items if isinstance(i, n.Phase)]
-    assert nested == ["passing", "first_trick", "play", "scoring"]
+    assert nested == ["passing", "play", "scoring"]
     # setup is now a before_each lifecycle hook, not a sub-phase.
     assert any(isinstance(i, n.BeforeEach) for i in hand_seq.items)
 
@@ -99,6 +97,17 @@ def test_every_rule_is_a_card_set_demand_on_the_trick_decision() -> None:
     follow = rules["MustFollowSuit"]  # spliced from the standard library
     assert follow.demands is not None and follow.demands.kind == n.DEMAND_KIND_CARDS
     assert follow.applies_when is not None and not follow.applies_when.always
+
+
+def test_the_shooter_is_offered_both_ways_a_moon_scores() -> None:
+    g = _game()
+    scoring = _phase(_phase(g, "hand_sequence"), "scoring")
+    branch = next(i for i in scoring.items if isinstance(i, n.IfStmt))
+    offer = next(s for s in branch.then_body if isinstance(s, n.AuctionRound))
+    assert offer.offering == ("charge_the_others", "credit_the_shooter")
+    # The plain-hand arm is the else: nobody is asked when there is no moon.
+    assert branch.else_body is not None
+    assert [type(s).__name__ for s in branch.else_body] == ["ForEach"]
 
 
 def test_scoring_comprehension_and_movement() -> None:

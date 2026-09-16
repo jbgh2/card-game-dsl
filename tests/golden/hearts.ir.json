@@ -142,18 +142,6 @@
                 "name": "hold",
                 "ref": "enum_value"
               }
-            },
-            {
-              "kind": "state_decl",
-              "name": "leader",
-              "index": null,
-              "type": "Player",
-              "optional": true,
-              "default": {
-                "kind": "name",
-                "name": "none",
-                "ref": "null"
-              }
             }
           ]
         },
@@ -305,123 +293,38 @@
         },
         {
           "kind": "phase",
-          "name": "first_trick",
-          "qualifier": null,
-          "outcome_cases": [],
-          "items": [
-            {
-              "kind": "active_rules",
-              "refs": [
-                {
-                  "kind": "rule_ref",
-                  "name": "MustFollowSuit",
-                  "delta": "plain"
-                },
-                {
-                  "kind": "rule_ref",
-                  "name": "MustLeadTwoOfClubsOnFirstPlay",
-                  "delta": "plain"
-                },
-                {
-                  "kind": "rule_ref",
-                  "name": "NoPenaltyCardsOnFirstTrick",
-                  "delta": "plain"
-                }
-              ]
-            },
-            {
-              "kind": "legal_moves",
-              "move_types": [
-                "play_to_trick"
-              ]
-            },
-            {
-              "kind": "assign",
-              "target": "leader",
-              "index_expr": null,
-              "op": ":=",
-              "value": {
-                "kind": "call",
-                "func": "player_holding",
-                "args": [
-                  {
-                    "kind": "card",
-                    "rank": "2",
-                    "suit": "clubs"
-                  }
-                ]
-              }
-            },
-            {
-              "kind": "trick_round",
-              "move_type": "play_to_trick",
-              "leader": {
-                "kind": "name",
-                "name": "leader",
-                "ref": "state_var"
-              },
-              "participants": {
-                "kind": "all_players"
-              },
-              "source_zone": "hand",
-              "play_zone": "trick_pile",
-              "winner_fn": "highest_of_led_suit",
-              "trump": null,
-              "early_termination": null
-            },
-            {
-              "kind": "transfer",
-              "verb": "move",
-              "selection_mode": null,
-              "amount": "all",
-              "item": "cards",
-              "source": {
-                "kind": "name",
-                "name": "trick_pile",
-                "ref": "zone"
-              },
-              "dest": {
-                "kind": "subscript",
-                "obj": {
-                  "kind": "name",
-                  "name": "captured",
-                  "ref": "zone"
-                },
-                "index_expr": {
-                  "kind": "name",
-                  "name": "winner",
-                  "ref": "pronoun"
-                }
-              },
-              "dest_each": false,
-              "distribution": null,
-              "visibility": null
-            },
-            {
-              "kind": "assign",
-              "target": "leader",
-              "index_expr": null,
-              "op": ":=",
-              "value": {
-                "kind": "name",
-                "name": "winner",
-                "ref": "pronoun"
-              }
-            }
-          ]
-        },
-        {
-          "kind": "phase",
           "name": "play",
           "qualifier": null,
           "outcome_cases": [],
           "items": [
             {
+              "kind": "state",
+              "decls": [
+                {
+                  "kind": "state_decl",
+                  "name": "leader",
+                  "index": null,
+                  "type": "Player",
+                  "optional": true,
+                  "default": {
+                    "kind": "name",
+                    "name": "none",
+                    "ref": "null"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "active_rules",
               "refs": [
                 {
                   "kind": "rule_ref",
                   "name": "MustFollowSuit",
+                  "delta": "plain"
+                },
+                {
+                  "kind": "rule_ref",
+                  "name": "MustLeadTwoOfClubs",
                   "delta": "plain"
                 }
               ]
@@ -492,6 +395,23 @@
               "name": "hearts_broken",
               "active_rules": [],
               "transitions": []
+            },
+            {
+              "kind": "assign",
+              "target": "leader",
+              "index_expr": null,
+              "op": ":=",
+              "value": {
+                "kind": "call",
+                "func": "player_holding",
+                "args": [
+                  {
+                    "kind": "card",
+                    "rank": "2",
+                    "suit": "clubs"
+                  }
+                ]
+              }
             },
             {
               "kind": "repeat_until",
@@ -586,6 +506,23 @@
           "outcome_cases": [],
           "items": [
             {
+              "kind": "state",
+              "decls": [
+                {
+                  "kind": "state_decl",
+                  "name": "moon_settled",
+                  "index": null,
+                  "type": "Boolean",
+                  "optional": false,
+                  "default": {
+                    "kind": "name",
+                    "name": "false",
+                    "ref": "bool"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "let",
               "name": "base",
               "index": "p",
@@ -660,44 +597,115 @@
               }
             },
             {
-              "kind": "let",
-              "name": "hand_score",
-              "index": "p",
-              "value": {
-                "kind": "if_expr",
-                "cond": {
-                  "kind": "quantifier",
-                  "quant": "any",
-                  "role": "player",
-                  "binder": "player",
-                  "body": {
-                    "kind": "binop",
-                    "op": "is",
-                    "left": {
-                      "kind": "subscript",
-                      "obj": {
-                        "kind": "name",
-                        "name": "base",
-                        "ref": "local"
-                      },
-                      "index_expr": {
-                        "kind": "name",
-                        "name": "player",
-                        "ref": "local"
-                      }
+              "kind": "if",
+              "cond": {
+                "kind": "quantifier",
+                "quant": "any",
+                "role": "player",
+                "binder": "player",
+                "body": {
+                  "kind": "binop",
+                  "op": "is",
+                  "left": {
+                    "kind": "subscript",
+                    "obj": {
+                      "kind": "name",
+                      "name": "base",
+                      "ref": "local"
                     },
-                    "right": {
-                      "kind": "int",
-                      "value": 26
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "player",
+                      "ref": "local"
                     }
+                  },
+                  "right": {
+                    "kind": "int",
+                    "value": 26
                   }
-                },
-                "then": {
-                  "kind": "if_expr",
-                  "cond": {
-                    "kind": "binop",
-                    "op": "is",
-                    "left": {
+                }
+              },
+              "then": [
+                {
+                  "kind": "auction_round",
+                  "offering": [
+                    "charge_the_others",
+                    "credit_the_shooter"
+                  ],
+                  "leader": {
+                    "kind": "player_query",
+                    "query": "pick",
+                    "where": {
+                      "kind": "binop",
+                      "op": "is",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "base",
+                          "ref": "local"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 26
+                      }
+                    }
+                  },
+                  "participants": {
+                    "kind": "player_query",
+                    "query": "set",
+                    "where": {
+                      "kind": "binop",
+                      "op": "is",
+                      "left": {
+                        "kind": "subscript",
+                        "obj": {
+                          "kind": "name",
+                          "name": "base",
+                          "ref": "local"
+                        },
+                        "index_expr": {
+                          "kind": "name",
+                          "name": "player",
+                          "ref": "local"
+                        }
+                      },
+                      "right": {
+                        "kind": "int",
+                        "value": 26
+                      }
+                    }
+                  },
+                  "until": {
+                    "kind": "name",
+                    "name": "moon_settled",
+                    "ref": "state_var"
+                  },
+                  "order_mode": null,
+                  "outcome_fn": null
+                }
+              ],
+              "else": [
+                {
+                  "kind": "for_each",
+                  "role": "player",
+                  "binder": "p",
+                  "body": {
+                    "kind": "assign",
+                    "target": "cumulative_score",
+                    "index_expr": {
+                      "kind": "name",
+                      "name": "p",
+                      "ref": "local"
+                    },
+                    "op": "+=",
+                    "value": {
                       "kind": "subscript",
                       "obj": {
                         "kind": "name",
@@ -709,65 +717,10 @@
                         "name": "p",
                         "ref": "local"
                       }
-                    },
-                    "right": {
-                      "kind": "int",
-                      "value": 26
                     }
-                  },
-                  "then": {
-                    "kind": "int",
-                    "value": 0
-                  },
-                  "elifs": [],
-                  "otherwise": {
-                    "kind": "int",
-                    "value": 26
-                  }
-                },
-                "elifs": [],
-                "otherwise": {
-                  "kind": "subscript",
-                  "obj": {
-                    "kind": "name",
-                    "name": "base",
-                    "ref": "local"
-                  },
-                  "index_expr": {
-                    "kind": "name",
-                    "name": "p",
-                    "ref": "local"
                   }
                 }
-              }
-            },
-            {
-              "kind": "for_each",
-              "role": "player",
-              "binder": "p",
-              "body": {
-                "kind": "assign",
-                "target": "cumulative_score",
-                "index_expr": {
-                  "kind": "name",
-                  "name": "p",
-                  "ref": "local"
-                },
-                "op": "+=",
-                "value": {
-                  "kind": "subscript",
-                  "obj": {
-                    "kind": "name",
-                    "name": "hand_score",
-                    "ref": "local"
-                  },
-                  "index_expr": {
-                    "kind": "name",
-                    "name": "p",
-                    "ref": "local"
-                  }
-                }
-              }
+              ]
             }
           ]
         }
@@ -783,7 +736,7 @@
   "rules": [
     {
       "kind": "rule",
-      "name": "MustLeadTwoOfClubsOnFirstPlay",
+      "name": "MustLeadTwoOfClubs",
       "constrains": "play_to_trick",
       "applies_when": {
         "kind": "applies_when",
@@ -825,75 +778,6 @@
               "kind": "card",
               "rank": "2",
               "suit": "clubs"
-            }
-          }
-        }
-      },
-      "if_impossible": {
-        "kind": "call",
-        "func": "error",
-        "args": [
-          {
-            "kind": "str",
-            "value": "first lead must be 2 of clubs; only the holder can lead"
-          }
-        ]
-      }
-    },
-    {
-      "kind": "rule",
-      "name": "NoPenaltyCardsOnFirstTrick",
-      "constrains": "play_to_trick",
-      "applies_when": {
-        "kind": "applies_when",
-        "always": true,
-        "pred": null
-      },
-      "demands": {
-        "kind": "demands",
-        "form": "cards",
-        "expr": {
-          "kind": "card_query",
-          "query": "set",
-          "source": {
-            "kind": "name",
-            "name": "hand",
-            "ref": "zone"
-          },
-          "where": {
-            "kind": "binop",
-            "op": "and",
-            "left": {
-              "kind": "binop",
-              "op": "is_not",
-              "left": {
-                "kind": "member",
-                "obj": {
-                  "kind": "name",
-                  "name": "card",
-                  "ref": "local"
-                },
-                "field": "suit"
-              },
-              "right": {
-                "kind": "name",
-                "name": "hearts",
-                "ref": "enum_value"
-              }
-            },
-            "right": {
-              "kind": "binop",
-              "op": "is_not",
-              "left": {
-                "kind": "name",
-                "name": "card",
-                "ref": "local"
-              },
-              "right": {
-                "kind": "card",
-                "rank": "Q",
-                "suit": "spades"
-              }
             }
           }
         }
@@ -1025,7 +909,109 @@
       }
     }
   ],
-  "move_types": [],
+  "move_types": [
+    {
+      "kind": "move_type",
+      "name": "charge_the_others",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "let",
+          "name": "shooter",
+          "index": null,
+          "value": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          }
+        },
+        {
+          "kind": "for_each",
+          "role": "player",
+          "binder": "p",
+          "body": {
+            "kind": "if",
+            "cond": {
+              "kind": "binop",
+              "op": "is_not",
+              "left": {
+                "kind": "name",
+                "name": "p",
+                "ref": "local"
+              },
+              "right": {
+                "kind": "name",
+                "name": "shooter",
+                "ref": "local"
+              }
+            },
+            "then": [
+              {
+                "kind": "assign",
+                "target": "cumulative_score",
+                "index_expr": {
+                  "kind": "name",
+                  "name": "p",
+                  "ref": "local"
+                },
+                "op": "+=",
+                "value": {
+                  "kind": "int",
+                  "value": 26
+                }
+              }
+            ],
+            "else": null
+          }
+        },
+        {
+          "kind": "assign",
+          "target": "moon_settled",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "move_type",
+      "name": "credit_the_shooter",
+      "params": [],
+      "when": null,
+      "effect": [
+        {
+          "kind": "assign",
+          "target": "cumulative_score",
+          "index_expr": {
+            "kind": "name",
+            "name": "actor",
+            "ref": "pronoun"
+          },
+          "op": "-=",
+          "value": {
+            "kind": "int",
+            "value": 26
+          }
+        },
+        {
+          "kind": "assign",
+          "target": "moon_settled",
+          "index_expr": null,
+          "op": ":=",
+          "value": {
+            "kind": "name",
+            "name": "true",
+            "ref": "bool"
+          }
+        }
+      ]
+    }
+  ],
   "types": [],
   "defines": [],
   "functions": []

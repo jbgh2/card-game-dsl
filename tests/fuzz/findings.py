@@ -188,6 +188,24 @@ KNOWN_FINDINGS: tuple[Finding, ...] = (
         ),
     ),
     Finding(
+        slug="hearts_missing_deal_empty_pass",
+        classification="accepted-then-crashes-at-playout",
+        stage="playout",
+        exception_type_name="AssertionError",
+        message_substring="playout invariant violated",
+        note=(
+            "docs/games/hearts.cardlang, `delete_line` seed 2, deleting the "
+            "`before_each` line `deal 13 cards from deck to each hand` (line "
+            "52 at discovery time). The simultaneous pass that follows asks "
+            "every seat for `chosen 3` cards out of a hand nothing filled, "
+            "and the draw of three from a pool of none reaches the chooser's "
+            "own contract at the first decision. The same T3 invariant as "
+            "`gops_empty_legal_set`, reached through a movement's `chosen` "
+            "count rather than a trick's candidates, and the same "
+            "missing-deal shape as `getaway_missing_deal_no_hand_holder`."
+        ),
+    ),
+    Finding(
         slug="oh_hell_missing_trump_turnup",
         classification="accepted-then-crashes-at-playout",
         stage="playout",

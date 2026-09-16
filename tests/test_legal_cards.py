@@ -2,8 +2,8 @@
 
 Regression guards for two runtime bugs found in review:
 - An empty intersection would collapse to the whole hand, wiping out *other*
-  active rules — e.g. letting a Hearts player void in the led suit dump penalty
-  cards on the first trick even while holding a safe off-suit card.
+  active rules — e.g. letting a Hearts leader who does not hold the two of
+  clubs lead a heart before hearts are broken.
 - An explicit `if_impossible: error(...)` would be ignored; a forced-lead rule
   that cannot be satisfied must reject the move (raise `IllegalMove`).
 """
@@ -22,6 +22,9 @@ from cardlang.runtime.state import Ctx, IllegalMove, RuntimeState, ZoneStore
 from cardlang.runtime.values import Card, Seating
 
 HEARTS = "docs/games/hearts.cardlang"
+# Getaway is the corpus's `if_impossible: error(...)` witness: its opening lead
+# is forced to one named card with no fallback.
+GETAWAY = "docs/games/getaway.cardlang"
 
 
 def _ctx(
@@ -35,32 +38,47 @@ def _ctx(
     return Ctx(rs=rs, chooser=random_chooser(random.Random(0)), active_rules=active)
 
 
-def test_per_rule_narrowing_excludes_penalty_cards_on_first_trick() -> None:
+def test_per_rule_narrowing_survives_a_rule_that_demands_nothing() -> None:
     game = check_source(HEARTS)
-    # Player is void in the led suit (clubs) but holds a safe diamond. The empty
-    # follow-suit set must NOT re-open penalty cards (Q of spades, hearts).
+    # Leading without the two of clubs: that rule's demand is empty and falls
+    # back to the hand, which must NOT re-open the heart the unbroken-hearts
+    # rule excludes.
     ctx = _ctx(
         game,
-        ["MustFollowSuit", "NoPenaltyCardsOnFirstTrick"],
-        led_suit="clubs",
+        ["MustLeadTwoOfClubs", "NoLeadingSuitUntilBroken"],
+        led_suit=None,
         hand0=[Card("Q", "spades"), Card("A", "hearts"), Card("5", "diamonds")],
     )
     legal = rules.legal_cards(0, "play_to_trick", ctx)
-    assert legal == [Card("5", "diamonds")]
+    assert set(legal) == {Card("Q", "spades"), Card("5", "diamonds")}
 
 
 def test_explicit_if_impossible_error_rejects_the_move() -> None:
-    game = check_source(HEARTS)
-    # Leading (led_suit is none) under the forced two-of-clubs rule, but the
-    # player does not hold the two of clubs -> the rule's error fires.
+    game = check_source(GETAWAY)
+    # Leading (led_suit is none) under the forced ace-of-spades rule, but the
+    # player does not hold the ace of spades -> the rule's error fires.
     ctx = _ctx(
         game,
-        ["MustFollowSuit", "MustLeadTwoOfClubsOnFirstPlay"],
+        ["MustFollowSuit", "MustLeadAceOfSpadesOnFirstPlay"],
         led_suit=None,
         hand0=[Card("A", "hearts"), Card("5", "diamonds")],
     )
     with pytest.raises(IllegalMove):
         rules.legal_cards(0, "play_to_trick", ctx)
+
+
+def test_a_forced_lead_rule_is_empty_once_its_card_is_gone() -> None:
+    game = check_source(HEARTS)
+    # The same leader after the two of clubs has been played: `if_impossible:
+    # hand` leaves every later lead to the other rules, here hearts broken.
+    ctx = _ctx(
+        game,
+        ["MustLeadTwoOfClubs"],
+        led_suit=None,
+        hand0=[Card("A", "hearts"), Card("5", "diamonds")],
+    )
+    legal = rules.legal_cards(0, "play_to_trick", ctx)
+    assert set(legal) == {Card("A", "hearts"), Card("5", "diamonds")}
 
 
 def test_no_constraint_leaves_the_whole_hand_legal() -> None:

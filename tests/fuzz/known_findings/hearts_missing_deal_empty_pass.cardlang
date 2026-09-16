@@ -1,0 +1,29 @@
+// Shrunk from docs/games/hearts.cardlang, `delete_line` seed 2 (deleting the
+// `before_each` line `deal 13 cards from deck to each hand`): the simultaneous
+// pass that follows asks every seat for three cards out of a hand nothing has
+// filled. Minimal form: `transfer chosen 3 cards` from an empty hand. A zone's
+// occupancy is not a static property, so the program is checker-green, and the
+// count reaches the chooser as a draw of three from a pool of none -- the
+// harness's own T3 invariant ("the legal-move set is non-empty until
+// terminal"), which is where `gops_empty_legal_set` lands too, reached here
+// through a movement's `chosen` count rather than a trick's candidates.
+game HeartsMissingDealEmptyPass {
+  players: 2
+  max_length: 100
+  cards: standard52
+  zones {
+    deck         : Deck
+    hand[player] : Hand<player>
+  }
+  state {
+    score[player] : Integer = 0
+  }
+  phase passing {
+    shuffle deck
+    each player simultaneously:
+      transfer chosen 3 cards
+        from hand[player]
+        to   hand[player offset_by left]
+  }
+  winner: highest score
+}

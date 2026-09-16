@@ -40,11 +40,74 @@ def test_200_random_games_satisfy_invariants() -> None:
         assert result.winner is not None
         assert result.winner == min(result.scores, key=lambda p: result.scores[p])
         assert result.loser is None
-        # Each hand contributes 26 points (13 hearts + Q♠), or 78 on a
-        # shoot-the-moon (shooter 0, the other three 26 each).
+        # Each hand contributes 26 points (13 hearts + Q♠). A shoot-the-moon
+        # contributes what its shooter chose: 78 with the other three charged
+        # 26 each, or -26 with the shooter credited.
         deltas = [b - a for a, b in zip([0, *hand_totals], hand_totals)]
-        assert all(d in (26, 78) for d in deltas), f"seed {seed}: hand deltas {deltas}"
+        assert all(d in (26, 78, -26) for d in deltas), f"seed {seed}: hand deltas {deltas}"
         assert len(hand_totals) == result.hands_played
+
+
+def test_a_moon_scores_the_way_its_shooter_chose() -> None:
+    """Shooting the moon is a decision, and both arms are played: the other
+    three charged 26 each, or 26 credited to the shooter (Pagat, Scoring).
+
+    The 120-step conformance walk in `tests/openspiel_ready/test_hearts.py`
+    ends inside the first hand, so this is where the two arms are exercised;
+    that module records them as unreached with this test as their reason.
+    """
+    arms: dict[str, int] = {}
+    moons = 0
+    game = _hearts()
+    for seed in range(200):
+        # Each list carries the trick count at the moment of the event, which
+        # is what assigns a scoring decision to the hand that earned it.
+        tricks: list[tuple[int, Any]] = []
+        chosen: list[tuple[int, int, str]] = []
+        hand_ends: list[tuple[int, dict[int, int]]] = []
+
+        def tracer(event: str, data: Any) -> None:
+            if event == "trick":
+                tricks.append(data)  # noqa: B023 -- consumed before the loop advances
+            elif event == "decision" and isinstance(data[1], tuple):
+                chosen.append((len(tricks), data[0], data[1][0]))  # noqa: B023
+            elif event == "hand_end":
+                hand_ends.append((len(tricks), dict(data)))  # noqa: B023
+
+        play_game(game, random.Random(seed), tracer)
+
+        # Replay each hand: penalty points per player from the tricks they won,
+        # against the score the hand actually moved.
+        start, before = 0, {p: 0 for p in range(4)}
+        for end, after in hand_ends:
+            points = {p: 0 for p in range(4)}
+            for winner, cards in tricks[start:end]:
+                points[winner] += sum(
+                    1 if c.suit == "hearts" else 13 if (c.rank, c.suit) == ("Q", "spades") else 0
+                    for c in cards
+                )
+            delta = {p: after[p] - before[p] for p in range(4)}
+            decisions = [(who, arm) for at, who, arm in chosen if at == end]
+            shooters = [p for p in range(4) if points[p] == 26]
+            if shooters:
+                moons += 1
+                assert len(decisions) == 1, f"seed {seed}: {decisions} for one moon"
+                shooter, arm = decisions[0]
+                assert shooter == shooters[0], f"seed {seed}: {shooter} chose, {shooters[0]} shot"
+                arms[arm] = arms.get(arm, 0) + 1
+                expected = (
+                    {p: (0 if p == shooter else 26) for p in range(4)}
+                    if arm == "charge_the_others"
+                    else {p: (-26 if p == shooter else 0) for p in range(4)}
+                )
+                assert delta == expected, f"seed {seed}: {arm} scored {delta}"
+            else:
+                assert not decisions, f"seed {seed}: {decisions} offered without a moon"
+                assert delta == points, f"seed {seed}: hand scored {delta}, tricks say {points}"
+            start, before = end, after
+
+    assert moons > 0
+    assert set(arms) == {"charge_the_others", "credit_the_shooter"}, arms
 
 
 def test_one_game_trace_is_coherent() -> None:

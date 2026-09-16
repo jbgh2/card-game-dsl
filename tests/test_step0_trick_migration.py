@@ -11,6 +11,13 @@ or early-termination regression), not a redesign.
 (Bridge's play trick also migrates in Step 0; it is already pinned by
 `golden/bridge_scores.json` via test_migration_characterization.py.)
 
+Hearts is the exception. Its vector is pinned on the game as it now plays
+rather than on the pre-migration runtime, because a corpus-truth correction
+against its source moved results the migration itself had to preserve. That
+row therefore certifies only that nothing moves those results again without
+someone blessing the move; what a re-pinned row is worth, and whether a
+corrected game belongs on a different instrument, is issue #542.
+
 A playout does not depend on `PYTHONHASHSEED`
 (test_migration_characterization.py's
 `test_a_playout_is_hash_seed_independent`), so these goldens reproduce under

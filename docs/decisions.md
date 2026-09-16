@@ -99,7 +99,15 @@ Examples:
   rule. Modeled as a sub-phase transition, not a boolean.
 - `spades_broken` in Spades: same shape, same treatment.
 - `is_first_trick`: gates rules unique to the first trick. Modeled
-  as a sibling sub-phase (`first_trick`) rather than a boolean.
+  as a sibling sub-phase (Getaway's `first_trick`, whose cards go to
+  the waste instead of to a winner) rather than a boolean — but only
+  where no mode of the later tricks has to watch the first one. A
+  mode's transition sees its own phase's instance alone, so Hearts
+  plays its first trick as the first pass of `play`'s loop: a
+  `first_trick` sibling would leave a heart played there unseen and
+  hearts unbroken. A first trick whose only rule is a forced opening
+  card needs no phase either — the rule demanding that card is empty
+  on every later lead.
 - `bid_abandoned` in Pinochle: a candidate boolean that would gate
   scoring branches. Modeled instead as a typed outcome on the
   `declare_trump` phase (see "Typed phase outcomes" above) — the
@@ -159,7 +167,11 @@ forms"). The transition is one-shot — once Y is entered, X is not
 re-entered. It is scoped to the enclosing phase instance: when a
 `repeat until` loop begins a new iteration and re-enters the phase, the
 transition resets (Hearts re-breaks hearts each hand), per the
-activation-record semantics in "Loop lifecycle".
+activation-record semantics in "Loop lifecycle". That scoping also
+decides which tricks a mode can see: a mode whose transition must watch
+every trick of a hand belongs to the phase that runs them all, which is
+why Hearts plays its first trick inside `play` ("The
+boolean-as-sub-phase criterion" above).
 
 There is no separate construct for "this sub-phase ends and control
 returns to the enclosing parent's loop." The predicate-guard form
@@ -1168,10 +1180,11 @@ game Bridge {
 enclosing scope that covers all their uses.** If a variable is read
 by both `bidding` and `play`, it lives in their parent `hand_sequence`,
 not in either. This is also how a result threads from one sub-phase to
-a sibling: the trick `leader` that Hearts' `first_trick` hands to
-`play` is a `Player` in their enclosing `hand_sequence` state —
-`first_trick` seeds it (the two-of-clubs holder) and updates it to the
-trick winner, and `play` continues from it. A mechanic's result is read
+a sibling: the trick `leader` that Getaway's `first_trick` hands to
+`play` is a `Player` in the game's own state — `first_trick` seeds it
+(the ace-of-spades holder) and updates it to the trick winner, `play`
+continues from it, and `loser:` reads it at the end, which is what
+makes the game the smallest scope covering its uses. A mechanic's result is read
 as bare `outcome` immediately after the mechanic runs (`leader :=
 outcome`); there is no construct for referencing a prior phase's
 outcome across the phase boundary — the shared enclosing variable is
@@ -1398,7 +1411,7 @@ sub-phases:
 The loop's `state { }` initializes once and **persists** across iterations;
 the hooks run **each** iteration. That separates per-game state from
 per-iteration work. Phase-specific setup stays inside the phase as its first
-statements (Hearts' `first_trick` sets its own leader); the hooks are only for
+statements (Hearts' `play` sets its own leader); the hooks are only for
 the per-iteration boundary. Finer per-phase hooks (`before <phase>`) are
 deliberately *not* provided until a game requires them.
 

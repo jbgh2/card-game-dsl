@@ -189,15 +189,15 @@ construct.
 | `repeat until all hands empty` | needs-formalizing | `repeat until (all players where hand[player] is empty)` |
 | `sum over captured[p]: if … then …` | needs-formalizing | implicit binder: `sum of … over cards in captured[p]` |
 | `queen_of_spades`, `2 of clubs` | needs-formalizing | card literal `RANK of SUIT`: `Q of spades`, `2 of clubs` |
-| shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: shooter (`base[p] is 26`) scores 0, others 26 |
-| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | `demands: actions where action.card_count is 3` — `demands` has two forms: a card-set filter, or `actions where <move-predicate>`. Recurs in Stud/Cribbage/Tichu; promote to decisions.md |
+| shoot-the-moon (`if p shot the moon: 0 else 26`) | needs-formalizing | explicit: the shooter is `base[p] is 26`, and which way the hand scores is that player's own decision — a `round offering` of the two move types |
+| `the move must consist of exactly 3 cards` | decision: demand-clause-shape | not a rule at all: the pass movement's `chosen 3` binds the count, and a `demands: actions where <move-predicate>` form reaches no decision site (tests/test_rule_surface_reachability.py) |
 | `player_holding(2 of clubs)` | runtime-primitive | `player_holding(Card) -> Player` (Builtin query) |
 | `highest_of_led_suit` (round winner) | runtime-primitive | `(played, state) -> Player` named winner function (Builtin winner) |
 | `hand.where(c => …)`, `hand.cards_of_suit(s)` | runtime-primitive | the card queries: `cards in hand where <pred>` (binds `card`) |
 | `move.card_count` | runtime-primitive | `Move.card_count -> Integer` |
 | `play_to_trick`, `transfer_between_hands` | runtime-primitive | move types (library.md); the trick itself is the formal `round` construct |
 | `transition_to: … when any heart_played event fires` | decision (existing) | no ad-hoc events: `transition_to: hearts_broken when play_to_trick where action.card.suit is hearts` — the move-event + `where` form (decisions.md, "Sub-phase entry and exit") |
-| `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the enclosing phase state, seeded by `first_trick` and read by `play` via lexical scope. Bare `winner` (the just-run round's player) stays. Affects Bridge/Getaway too |
+| `outcome of last trick from first_trick` | decision: hoist-to-scope | construct removed; `leader` lives in the smallest scope its readers share, seeded in the phase that plays the first trick and read by `play` via lexical scope. Bare `winner` (the just-run round's player) stays. Affects Bridge/Getaway too |
 
 ## Disciplined workflow
 
