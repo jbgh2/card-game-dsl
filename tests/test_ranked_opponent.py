@@ -83,11 +83,14 @@ does not prove:  That `ranked` plays a game well. It reads no game's own
                  correct for it, an integer carrying no card back to a zone —
                  a game that bid from a hand held by another seat would be
                  counted wrong and no cell would say so (issue #711). The
-                 drawn arm costs play: over 2 seeds of Pinochle, whose deck is
-                 doubled, 22 of 66 throws were drawn for want of a namable
-                 source (measured 2026-09-16 on this branch). Nothing here
-                 measures it against a competent player; the claims are all
-                 against a uniform draw.
+                 drawn arm costs play, and only where a deck repeats a card: of
+                 the registered games that reach a throw at all over three
+                 seeds — Bridge, Cribbage, Oh Hell, Pinochle, Spades — only
+                 Pinochle's doubled deck ever leaves the source undecidable,
+                 30 throws of 98 there and none in the other four (measured
+                 2026-09-16 on this branch, `ranked` at every seat). Nothing
+                 here measures it against a competent player; the claims are
+                 all against a uniform draw.
 """
 
 from __future__ import annotations
