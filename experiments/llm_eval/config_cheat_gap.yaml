@@ -67,7 +67,9 @@ store_infostates: false
 #                     -> n=20 is ~$7, under this ceiling even at the
 #                        decision cap
 #   llm_mid_table     $0.85/game (577 decisions, 91% of input from cache)
-#                     -> n=20 is ~$17
+#                     -> n=20 is ~$17 (the cell came to $22.78: longer games)
+#   llm_frontier_table $1.51/game (one estimate game, 2026-09-16)
+#                     -> n=10 is ~$15
 #
 # The token caps are backstops behind the dollar one, sized so the dollars
 # bind first: `input_tokens` counts the WHOLE prompt of every call, cached

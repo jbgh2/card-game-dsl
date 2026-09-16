@@ -113,6 +113,19 @@ property that makes the comparison fair, and it is enforced by test (§5).
   R1 abstains (it is a partial function; report its coverage). R1 is already
   infostate-measurable and already execution-oracle-tested — reuse, don't
   re-derive.
+- **R2-M — the memoryless policy-aware reference.** P(claim false |
+  the observer's hand, the flip record, the claimant's hand size before the
+  play, the standing claim, the claimant's declared `bluff_prob`): the
+  claimant's hand as a uniform draw from the cards the observer cannot
+  place, each holding of the claimed rank weighted by the likelihood the
+  `RuleAgent` count policy announces the observed count from it
+  (`gap_policy.reference`; the likelihood is read off `RuleAgent._count`
+  with a fixed coin, never restated). Exact and engine-free, and it is
+  1.0 wherever R1 fires. What it does not condition on is the line: the
+  claimant's earlier claims and pickups, and the cards the observer knows
+  to be in the pile. It is the reference a reader who knows the opponents'
+  dispositions but keeps no memory of the game would compute, and it sits
+  between R1 and R2 by construction.
 - **R2 — the policy-aware posterior (Stage B).** P(claim false | information
   state, opponents' declared policies), computed by enumerating/sampling
   worlds consistent with the observer's information state and weighting by

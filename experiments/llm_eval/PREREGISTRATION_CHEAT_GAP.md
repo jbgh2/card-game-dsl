@@ -242,6 +242,16 @@ references is the right way to ask how much of any contrast is policy inference
 rather than reading. It is not built, so the question is registered as not
 answered rather than answered weakly.
 
+**Addendum 2026-09-16, after the cheap and mid cells were scored — exploratory
+(`~`), never `*`.** A memoryless policy-aware reference, R2-M
+(`belief-calibration-spec.md` §3; `gap_policy.py`), is computed over the same
+windows and the selection contrast is scored against it exactly as against
+`R_literal`. It conditions on the claim, the table and the observer's own
+knowledge but not on the line, so it is not R2 and the registered sentence
+above stands: R2 is still not built ([issue
+#707](https://github.com/jbgh2/card-game-dsl/issues/707)). It was built
+after the two cells' contrasts were seen, which is why it carries `~`.
+
 ## Stopping rule
 
 `n` is fixed per cell in `config_cheat_gap.yaml` before the first call. No

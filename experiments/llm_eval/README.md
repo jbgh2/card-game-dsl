@@ -476,6 +476,11 @@ python -m experiments.llm_eval.gap_posterior \
 # The independent recomputation: stdlib only, no engine, no sampler.
 python -m experiments.llm_eval.verify_cheat_gap \
   --windows windows.jsonl --posterior posterior.jsonl --out GAP_AUDIT.txt
+
+# The memoryless policy-aware reference (exploratory): exact, no sampling,
+# the same record shape, scored by the same command.
+python -m experiments.llm_eval.gap_policy \
+  --windows windows.jsonl --out policy.jsonl --observer-agent llm_cheap --max-depth 250
 ```
 
 `windows.jsonl` carries an information-state string per window, and it and the
