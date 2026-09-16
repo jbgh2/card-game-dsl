@@ -310,9 +310,13 @@ challenged (the scorer pools converged records only):
 
 The second card-blind reference agrees, on `rule_vs_random`'s random seats
 (same date, same bound): contrast **+2.62 pp**, 95% CI [−2.40, +8.38] pp over
-222 abstains windows of which 108 were challenged; **+2.35 pp**, 95% CI
-[−0.97, +6.01] pp over all 446. Two independently-parameterized card-blind
-challengers land within a few points of zero with intervals that cover it.
+222 abstains windows of which 108 were challenged; **+2.06 pp**, 95% CI
+[−1.19, +5.69] pp over all 450 (re-measured 2026-09-16 under the per-matchup
+subsample seeding, which moved only this cell's R1-fires draw — the
+abstains figures and every `rule_table` figure are the 2026-09-12 sample;
+the 2026-09-12 all-windows figure was +2.35 pp [−0.97, +6.01] over 446). Two
+independently-parameterized card-blind challengers land within a few points
+of zero with intervals that cover it.
 
 The raw GAP beside them is the point of the paragraph above: −46 pp from a seat
 whose challenge decision reads no card at all. `R_literal`'s miscalibration is a
@@ -437,6 +441,17 @@ $1.39, and the study's envelope from ≈$700–1000 to ≈$125–175; the cheap
 cell's `--estimate` before it runs is the live check, and a cell whose
 summary shows `cache_read_share` near zero is a rig defect to fix before
 the cell is scored, never a result.
+
+**The subsample is seeded per cell (2026-09-16).** `gap_posterior` drew
+every cell's stratified subsample from one generator advanced through the
+cells in sorted order, so a cell scored from its own windows drew a
+different sample than the same cell scored from the full archive, and a
+sample the study called deterministic depended on when the cell was scored.
+The generator is now seeded afresh per cell. Replaying the selection against
+every committed record shows the null control's, the cheap cell's and the mid
+cell's subsamples unchanged; `rule_vs_random`'s R1-fires draw is the one that
+moved, and its posterior and audit are regenerated (the figures above carry
+both dates). Every registered parameter is unchanged.
 
 **The cheap cell's first invocation stopped at 5 of 20 games, and was
 resumed to 20 before any window was scored (2026-09-15).** The stop was
