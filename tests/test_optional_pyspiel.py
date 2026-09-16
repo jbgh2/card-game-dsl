@@ -72,7 +72,7 @@ import io
 from cardlang.cli import main
 out = io.StringIO()
 sys.stdin, sys.stdout = io.StringIO("q\\n"), out
-code = main(["play", str(Path("docs/games") / GAMES["cardlang_hearts"]), "--seed", "3"])
+code = main(["play", str(Path("docs/games") / GAMES["cardlang_hearts"]), "--seed", "3", "--vs", "1=first", "--vs", "rest=random"])
 sys.stdin, sys.stdout = sys.__stdin__, sys.__stdout__
 assert code == 0 and "choose 1 of" in out.getvalue(), out.getvalue()
 

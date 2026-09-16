@@ -49,8 +49,11 @@ stands recorded here rather than being patched out of the rules.
 keeps the bug detector for the twenty-odd bounded games while telling the
 truth about the unbounded one. Settle when a second structurally-unbounded
 game arrives to confirm the shape, or earlier if an OpenSpiel consumer
-actually drives Coup down a passive line (today's harness walks are
-depth-bounded or random, so nothing in-repo reaches the backstop).
+actually drives Coup down a passive line. Today's harness walks are
+depth-bounded or random, but `cardlang play --vs all=first` walks that line
+when the person also takes the first pick every time (the backstop after 126
+of the person's picks, measured 2026-09-15 on seed 1), and the refusal names
+the game as at fault (issue #698).
 
 Related: decisions.md "Game length as a declared contract" (the backstop's contract);
 [games/coup.cardlang](../games/coup.cardlang) (the unbounded witness);

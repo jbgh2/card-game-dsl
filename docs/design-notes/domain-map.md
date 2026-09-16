@@ -116,7 +116,7 @@ completeness.
 | Communication | Observation | LLM player seats ([llm-player-seats](llm-player-seats.md)) and convention-bearing bids: meaning in channels, outside today's structured partition |
 | Representation | Interop | `information_state_tensor` (the roadmap's recorded prize); feature schemas as versioned contracts |
 | Execution | Interop | RL-scale throughput: replay is O(n²) re-simulation today; snapshot/restore must preserve replay purity |
-| Agent / policy | Interop (the replay seam) | Policies that fill a seat answer through the Seat Policy (`openspiel/seat_policy.py`): a Seat View and the legal action ids in, an action id out, asked past a recorded history by `replay.LiveLine`. A person at a terminal is one (`play/session.py`). Its registry arrives with the first opponent a person names (#617) and the first competent one (#553); representative playouts; seat vs agent identity; richer reward structure |
+| Agent / policy | Interop (the replay seam) | Policies that fill a seat answer through the Seat Policy (`openspiel/seat_policy.py`): a Seat View and the legal action ids in, an action id out, asked past a recorded history by `replay.LiveLine`. A person at a terminal is one (`play/session.py`), and the opponents a person names are the table `seat_policy.OPPONENTS`, seated by `cardlang play --vs`. The first competent opponent (#553); representative playouts; seat vs agent identity; richer reward structure |
 | Variant / meta | Description | "X is Y with deltas": MARL curricula and ToM minimal pairs (two games differing in one visibility declaration) from programmatic families |
 | Rules as values | Description | Selectable rule sets at runtime (axis 3); effect composition (CCGs) stays the horizon beyond it (axis 4) |
 

@@ -20,7 +20,7 @@ are two renderings of that value:
 A renderer takes a Seat View and the game's own declarations, never the
 [World](../glossary/world.md), so the most it can show is what the seat knows.
 The type enforces that, not a reviewer. A policy that chooses for a seat reads
-the same value, for the same reason (#617).
+the same value, for the same reason.
 
 The text lives in its own package because its output is not the OpenSpiel
 contract. The information state sits in the Interop package because its string
@@ -125,6 +125,18 @@ the view it is handed. A line cut at any pick and played again therefore
 reaches the same line, which is what taking back a pick and resuming a line
 need.
 
+An [Opponent](../glossary/opponent.md) is a Seat Policy a person seats by name.
+The opponent table (`seat_policy.OPPONENTS`) holds each one, with a line saying
+what it does and how it is built from the session's seed. It sits beside the
+type in the Interop package because an opponent's input and output are that
+boundary's currency, and because a later arena that benchmarks an opponent
+must seat the same object a person plays against. `first` answers the lowest
+legal id, which is the first item on a person's menu. It is a baseline that
+answers the same way every time, so a table where every seat takes the first
+item can repeat one exchange until the game's `max_length` refuses it (issue
+#698; what the bound means for a legally unbounded line is
+[open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)).
+
 The pin is `tests/test_live_line.py`. Along every registered game's line, at
 sampled picks, the line asks the seat the adapter's replay pauses at, over the
 same legal ids, with the same zones and log. Cut anywhere and played again, it
@@ -146,7 +158,8 @@ seats'. At each of their decisions they are shown the text of the Seat View
 their seat is handed, with only the latest lines of its log, and a menu that
 numbers the legal action ids by `ActionSpace.to_string`, the strings the adapter
 and every agent read. The whole text is one keypress away. Every other seat
-plays the uniform opponent on the session's seed, and the header says so.
+plays the opponent named for it, built from the session's seed, and the header
+names each.
 
 A running game stops only by an exception unwinding it, so a person's controls
 travel through their seat as one, the way `ChooserAbort` suspends the adapter's
@@ -155,14 +168,15 @@ person's last pick, which asks them again where they made it. The opponents'
 picks up to it replay unchanged, because a policy's answer is a function of its
 seed and its view. Leaving ends the line where it stands.
 
-A saved session holds the history with the seed, the seat, the game's identity
-and a format number. It is written before each of the person's decisions and
+A saved session holds the history with the seed, the seat, each other seat's
+opponent, the game's identity and a format number. It is written before each of the person's decisions and
 whenever the session stops, so a session that dies at a prompt still has the
 line up to that decision; a save that cannot be written ends the session with
 that refusal, and the file keeps the save before it. Saving replaces a file
 only when it holds a saved session, so a path that names the game file is
 refused. Resuming refuses a format it does not read, a game whose identity
-differs, and a flag that contradicts the file, all before anything is dealt.
+differs, opponents that do not fill the other seats, and a flag that
+contradicts the file, all before anything is dealt.
 The history replays through the replay chooser, which refuses a pick that is
 not an action id or that the game does not offer. The action ids cross out of
 the Interop package here deliberately: a saved session is a recorded history,
@@ -184,11 +198,68 @@ saved files a person most plausibly hands `--resume`; each kind of path the
 options that name a file can be handed; and, over every registered game, the
 text and menu shown at each of the person's decisions.
 
+## Naming the opponents
+
+A person names who plays each seat they do not take with `--vs WHO=OPPONENT`
+(`cardlang/play/opponents.py`). Each item takes one `--vs`. WHO is a seat
+number, `all` or `rest`, and OPPONENT is a name in the table:
+
+- `--vs all=random` seats one opponent at every other seat, and stands alone;
+- `--vs 1=first --vs 2=random --vs 3=random` names each seat;
+- `--vs 1=first --vs rest=random` names seat 1 and fills the seats not numbered.
+
+The flag repeats, one item to each, rather than taking a comma-separated list:
+an opponent's argument can hold a comma (the `chat:` seat
+`experiments/game-to-artifact-plan.md` plans carries a whole command), and a
+list would split it. An item is read on its own when the command line
+is parsed, so a malformed item is a usage error. How the items seat the table
+depends on the game and the person's seat, so those refusals come after the
+game is loaded, in the order a table is set: the game, the person's seat, the
+saved game being resumed, the opponents, and last the file saved to.
+
+The items give every other seat exactly one opponent, or they are refused
+before anything is dealt. A person's own seat, a seat the game does not have, a
+seat named twice, `all` beside another item, `rest` twice, `rest` with no seat
+numbered beside it, and `rest` with no seat left to fill are each refused,
+naming what to change. The order of the items does not matter.
+
+There is no default opponent. A game with other seats and no `--vs` is refused
+before it is dealt, naming the seats that need one, a command that seats them
+(the person's own options, with `all=random` or, beside a partial composition,
+`rest=random`), and every opponent. Seats filled with no word from the person
+would make a choice nobody made, and the game would be judged against it. A
+game of one seat takes no `--vs`.
+
+A saved session records each other seat's opponent by name, never as `all` or
+`rest`, so resuming seats them with no `--vs`. A `--vs` beside `--resume` that
+names the same opponents, however they are spelled, is accepted; one that names
+others is refused, naming what the file records. A file whose recorded
+opponents are edited replays the recorded picks and then plays on against the
+edited ones, and nothing can detect the edit. A session saved in format 1,
+which records no opponents, is refused with that reason rather than resumed
+against `random`, so only one format is ever read.
+
+In a team game a partner's seat is filled by an opponent too. The word is the
+flag's, and it says nothing about which side a seat is on.
+
+The pin is `tests/test_play_opponents.py`. It covers:
+
+- every item spelling across seat numbers, selectors and names;
+- each composition at a table of each size a registered game seats, with the
+  person at the first seat and the last;
+- `--vs` beside `--resume`;
+- the order in which each refusal meets its neighbours.
+
+It also carries two oracles that run the opponents themselves. `first` at one
+seat plays the line a person picking the first item plays at another, over
+every registered game. `all=random` plays the line recorded for a uniform draw
+at every other seat.
+
 ## What builds on this
 
-- **The policies that choose for a seat, and how a caller names an opponent
-  (#617), then the rule-based policy (#553).** A policy reads the Seat View,
-  never the node, so the value this text renders is the policy's whole input.
+- **The rule-based opponent (#553).** A row in the opponent table. A policy
+  reads the Seat View, never the node, so the value this text renders is the
+  policy's whole input.
 - **Structured payloads (#666).** Events that carry zone addresses and cards
   rather than their renderings let a rendering name a zone's owner and order a
   logged group of cards by the game, with no parsing.
