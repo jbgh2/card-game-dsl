@@ -2700,10 +2700,23 @@ fills a seat answers through it. The mechanism is
   it.
 - **A saved session names the game it was played in.** It carries the game's
   identity (`pipeline.game_identity`) and a format number beside the seed, the
-  seat and the history, and resuming refuses a mismatch in either before
-  anything replays. A history of action ids carries no trace of its game:
-  resumed against another game whose early picks happen to be legal, it would
-  replay without complaint.
+  seat, each other seat's opponent and the history, and resuming refuses a
+  mismatch in either before anything replays. A history of action ids carries
+  no trace of its game: resumed against another game whose early picks happen
+  to be legal, it would replay without complaint. Only the current format is
+  read; a file in an earlier one is refused with the reason, never read as a
+  guess at what it would have recorded.
+- **Opponents are one closed table, and a person names every one.** An
+  [Opponent](glossary/opponent.md) is a row of `seat_policy.OPPONENTS`, and
+  `cardlang play --vs WHO=OPPONENT` seats one at each seat the person does not
+  take: a seat number, `all`, or `rest` for the seats not numbered, one item per
+  `--vs`. Every listing of the opponents is rendered from the table, and an
+  unknown name is refused listing it, never read as some other opponent. There
+  is no default: a game with other seats and no `--vs` is refused before it is
+  dealt, naming the seats, a command that seats them and every opponent,
+  because an opponent nobody named is a choice nobody made, and the game would be
+  judged against it. A resumed game seats the opponents its file records, and
+  a `--vs` that names others is refused.
 
 ## Position domains and positional zones
 

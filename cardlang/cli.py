@@ -1,10 +1,10 @@
 """Command-line entry point: check a game file, play it, or watch it played.
 
-    cardlang docs/games/hearts.cardlang            # check only; silent on success
-    cardlang docs/games/hearts.cardlang --emit-ir  # check, then print the IR JSON
-    cardlang check docs/games/hearts.cardlang      # the same check, named
-    cardlang play docs/games/hearts.cardlang       # take a seat and play it
-    cardlang demo docs/games/hearts.cardlang       # one uniform-random self-play
+    cardlang docs/games/hearts.cardlang                       # check only; silent on success
+    cardlang docs/games/hearts.cardlang --emit-ir             # check, then print the IR JSON
+    cardlang check docs/games/hearts.cardlang                 # the same check, named
+    cardlang play docs/games/hearts.cardlang --vs all=random  # take a seat and play it
+    cardlang demo docs/games/hearts.cardlang                  # one uniform-random self-play
 
 `cardlang <file>` names no command: `main` reads it as `check`, so the two
 spellings reach one parser rather than two code paths that can disagree about
@@ -12,9 +12,10 @@ what `--emit-ir` means.
 
 This module owns one defect class — the values a caller supplies, which no
 earlier layer sees: the path argument, the seats `--info-state`, `--view` and
-`--seat` name, and the files `--save` and `--resume` name. Everything else it
-RENDERS rather than decides. The compile
-stages' [[failure-channel]] and the runtime's are both already typed, and each
+`--seat` name, the files `--save` and `--resume` name, and the opponents `--vs`
+seats (read and seated by `cardlang.play.opponents`). Everything else it
+RENDERS rather than decides. The compile stages' [[failure-channel]] and the
+runtime's are both already typed, and each
 failure reaches the [[author]] who can act on it (`cardlang/runtime/errors.py`,
 Contract): a `GameDescriptionError` the game author, an `InstallationError`
 whoever installed this checkout. It never discriminates the `GameDescriptionError`
@@ -34,8 +35,9 @@ Exit codes: 0 on success; 1 when the game file is where to look, whether a
 compile stage or the runtime says so — which covers both a file that is at
 fault and one whose own rule refused with nobody to tell; 2 when the
 invocation cannot be carried out — an unreadable path, a seat the game does
-not seat, a saved game that cannot be resumed or saved, a game whose decisions
-the action space cannot number, a broken checkout, an argparse usage error.
+not seat, opponents that do not seat every other seat once, a saved game that
+cannot be resumed or saved, a game whose decisions the action space cannot
+number, a broken checkout, an argparse usage error.
 The two are split by who must act, not by how badly it went.
 """
 
@@ -47,14 +49,34 @@ import random
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from cardlang.ast import nodes as n
 from cardlang.diagnostics import Diagnostic, DiagnosticError, Severity
 from cardlang.openspiel.infostate import derive, render_information_state
 from cardlang.openspiel.replay import HistoryMismatch, load, returns_for
 from cardlang.pipeline import check_source, compile_path, game_identity
-from cardlang.play.session import SaveFailed, Session, read_saved, unwritable
+from cardlang.play.opponents import (
+    ALL,
+    EXAMPLE,
+    REST,
+    Item,
+    Unnamed,
+    as_flags,
+    listing,
+    read_item,
+    recorded,
+    seated,
+    seats_named,
+)
+from cardlang.play.session import (
+    SaveFailed,
+    Session,
+    command,
+    path_word,
+    read_saved,
+    unwritable,
+)
 from cardlang.play.view import render_view
 from cardlang.runtime.chooser import random_chooser, sequential_decisions
 from cardlang.runtime.driver import GameResult, play_game
@@ -111,10 +133,23 @@ def _add_demo_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _usage(refusal: str) -> NoReturn:
+    """Refuse a value an option's `type=` cannot read. argparse prints the
+    refusal as the usage error naming the option, before any game is read."""
+    raise argparse.ArgumentTypeError(refusal)
+
+
 def _file(value: str) -> str:
     if not value:
-        raise argparse.ArgumentTypeError("an empty name names no file")
+        _usage("an empty name names no file")
     return value
+
+
+def _item(value: str) -> Item:
+    read = read_item(value)
+    if isinstance(read, str):
+        _usage(read)
+    return read
 
 
 def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
@@ -122,8 +157,17 @@ def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
         "--seat",
         type=int,
         metavar="SEAT",
-        help="the seat you take, seat 0 unless named; every other seat picks "
-        "uniformly at random",
+        help="the seat you take, seat 0 unless named",
+    )
+    parser.add_argument(
+        "--vs",
+        type=_item,
+        action="append",
+        metavar="WHO=OPPONENT",
+        help="who plays a seat you do not take: WHO is a seat number, all for "
+        "every other seat, or rest for the seats no other --vs names; OPPONENT "
+        f"is one of {listing()}. Give --vs once for each, as in --vs 1=first "
+        f"--vs rest={EXAMPLE}",
     )
     parser.add_argument(
         "--seed",
@@ -143,8 +187,9 @@ def _add_play_arguments(parser: argparse.ArgumentParser) -> None:
         "--resume",
         type=_file,
         metavar="FILE",
-        help="go on with the game saved in FILE, at the seat and seed it was "
-        "played with, saving back to FILE unless --save names another",
+        help="go on with the game saved in FILE, at the seat and seed and "
+        "against the opponents it was played with, saving back to FILE unless "
+        "--save names another",
     )
 
 
@@ -263,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
                 path, args.seed, args.info_state, args.view, args.at, args.decisions
             )
         if args.command == "play":
-            return _play(path, args.seat, args.seed, args.save, args.resume)
+            return _play(path, args.seat, args.seed, args.save, args.resume, args.vs)
         return _check(path, args.emit_ir)
     except DiagnosticError as exc:
         print(exc.diagnostic.format(), file=sys.stderr)
@@ -338,12 +383,39 @@ def _cannot(message: str) -> int:
     return _EXIT_CANNOT_PROCEED
 
 
+def _unnamed(
+    path: Path,
+    seat: int | None,
+    seed: int | None,
+    save: str | None,
+    items: list[Item],
+    unnamed: Unnamed,
+) -> str:
+    """The refusal of a composition that leaves seats unnamed, with a command
+    that seats them: the person's own options, and `EXAMPLE` for the rest."""
+    words = [path_word(str(path))]
+    words += [] if seat is None else ["--seat", str(seat)]
+    words += [] if seed is None else ["--seed", str(seed)]
+    words += [] if save is None else ["--save", path_word(save)]
+    for item in items:
+        words += ["--vs", str(item)]
+    words += ["--vs", f"{REST if items else ALL}={EXAMPLE}"]
+    verb = "needs" if len(unnamed.seats) == 1 else "need"
+    return (
+        f"name who plays the other seats: you are P{0 if seat is None else seat}, and "
+        f"{seats_named(unnamed.seats)} {verb} an opponent, for example\n"
+        f"    {command(words)}\n"
+        f"the opponents: {listing()}"
+    )
+
+
 def _play(
     path: Path,
     seat: int | None,
     seed: int | None,
     save: str | None,
     resume: str | None,
+    vs: list[Item] | None,
 ) -> int:
     try:
         game, space = load(str(path))
@@ -359,6 +431,7 @@ def _play(
     if seat is not None and not 0 <= seat < seats:
         return _cannot(f"{path} seats 0..{seats - 1}; --seat {seat} names no seat at this table")
     history: list[Any] = []
+    on_file: dict[int, str] | None = None
     if resume is not None:
         saved = read_saved(Path(resume), game_identity(game))
         if isinstance(saved, str):
@@ -378,7 +451,28 @@ def _play(
                 f"cannot resume {resume}: it was played at seat {saved.seat}, and "
                 f"{path} seats 0..{seats - 1}"
             )
-        seat, seed, history = saved.seat, saved.seed, saved.history
+        read = recorded(saved.opponents, seats, saved.seat, str(path))
+        if isinstance(read, str):
+            return _cannot(f"cannot resume {resume}: {read}")
+        seat, seed, history, on_file = saved.seat, saved.seed, saved.history, read
+    person = 0 if seat is None else seat
+    if vs is None and on_file is not None:
+        opponents = on_file
+    else:
+        chosen = seated(vs or [], seats, person, str(path))
+        if isinstance(chosen, str):
+            return _cannot(chosen if resume is None else f"cannot resume {resume}: {chosen}")
+        if on_file is not None:
+            if chosen != on_file:
+                return _cannot(
+                    f"cannot resume {resume}: it was played with {as_flags(on_file)}, and "
+                    "--vs does not name the same opponents; leave --vs out to go on with it"
+                )
+            opponents = on_file
+        elif isinstance(chosen, Unnamed):
+            return _cannot(_unnamed(path, seat, seed, save, vs or [], chosen))
+        else:
+            opponents = chosen
     save_to = Path(save) if save is not None else None if resume is None else Path(resume)
     if save_to is not None:
         refusal = unwritable(save_to)
@@ -388,8 +482,9 @@ def _play(
         str(path),
         game,
         space,
-        0 if seat is None else seat,
+        person,
         random.randrange(2**31) if seed is None else seed,
+        opponents,
         history,
         sys.stdin,
         sys.stdout,
