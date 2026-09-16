@@ -261,6 +261,30 @@ def test_the_subsample_is_deterministic_for_a_fixed_seed(
     assert first, "nothing was selected at all — the fixture has no windows"
 
 
+def test_a_cells_subsample_does_not_depend_on_the_other_cells_in_the_file(
+    windows_dicts: list[dict[str, Any]]
+) -> None:
+    """A cell's subsample is a pure function of ITS windows and the seed. An
+    archive grows one cell at a time and is scored cell by cell, so a
+    selection that consumed generator state for the cells sorted before it
+    would draw a different sample from the full archive than from the cell's
+    own windows — and the registered sample would depend on when the cell was
+    scored. red under: one `random.Random(subsample_seed)` shared across the
+    matchups of one run."""
+    shallow = _shallowest(windows_dicts, 4 * SHALLOW)
+    earlier = [{**w, "matchup": "aaa_first"} for w in shallow]
+    kwargs: dict[str, Any] = dict(
+        per_cell=6, subsample_seed=42, ess_floor=20.0,
+        min_proposals=200, max_proposals=800, check_count=0,
+        game_path=CHEAT_PATH, observer_agent=None,
+    )
+    alone, _ = gap_posterior.run(shallow, **kwargs)
+    with_earlier, _ = gap_posterior.run(earlier + shallow, **kwargs)
+    cell = shallow[0]["matchup"]
+    assert alone == [r for r in with_earlier if r["matchup"] == cell]
+    assert alone, "nothing was selected at all — the fixture has no windows"
+
+
 def test_the_adaptive_budget_stops_at_the_floor_or_the_cap(
     windows_dicts: list[dict[str, Any]]
 ) -> None:

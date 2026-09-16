@@ -12,10 +12,11 @@ before any R1-fires window is drawn, up to `--per-cell`. When abstains are the
 scarcer class in a cell — the common shape, since most standing claims are not
 provably false — this exhausts them first rather than spending budget
 proportionally, so the primary subset is the one the budget targets; any
-leftover budget draws from R1-fires. Both strata are sampled with
-`random.Random(--subsample-seed)`, advanced once per matchup in sorted
-matchup order, so the subsample is a pure function of the windows file and the
-seed regardless of dict iteration order.
+leftover budget draws from R1-fires. Both strata are sampled from a
+`random.Random(--subsample-seed)` seeded afresh for each matchup, so a cell's
+subsample is a pure function of its own windows and the seed: an archive that
+is scored cell by cell as it grows draws the same sample for a cell whether
+the windows file holds that cell alone or every cell promoted so far.
 
 `gap_sampler.estimate` runs with an ADAPTIVE proposal budget per window:
 start at `--min-proposals`, double while the effective sample size is under
@@ -192,12 +193,14 @@ def run(
     for w in windows:
         by_matchup.setdefault(w["matchup"], []).append(w)
 
-    rng = random.Random(subsample_seed)
     out: list[dict[str, Any]] = []
     log: list[str] = []
     for matchup in sorted(by_matchup):
+        # Seeded per matchup, never shared across them: a generator advanced
+        # by the cells sorted earlier would make this cell's sample depend on
+        # which other cells the file happens to hold.
         chosen, counts = _select(
-            by_matchup[matchup], per_cell, rng, observer_agent, max_depth
+            by_matchup[matchup], per_cell, random.Random(subsample_seed), observer_agent, max_depth
         )
         log.append(
             f"{matchup}: eligible={counts['eligible']} "
