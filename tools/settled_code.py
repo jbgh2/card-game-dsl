@@ -29,6 +29,10 @@ OpenSpiel-readiness proofs. Each is one coverage context, so a module's
 column says which oracle executes it, not merely which imports it. The
 proofs run under the development selection (`-m "not slow"`): the dropped
 seeds replay the same lines, and this is a measurement, never a green.
+Every process a suite starts is measured -- the goldens run the engine in a
+child interpreter, and the workers under `-n` are children too -- through
+coverage's subprocess patch, so a column counts what the oracle executes,
+not what the parent pytest process happened to run.
 
 Contract (decisions.md "Closed-domain completeness")
 ---------------------------------------------------
@@ -37,8 +41,9 @@ Assumes:      the git history of the working tree, the tracker's open issues
               `coverage json --show-contexts` over the ORACLES runs --
               nothing maintained by hand.
 Establishes:  a deterministic text for a given tree, issue list, coverage
-              file and date: every engine module exactly once, sorted by
-              path within its section.
+              file and date: every engine module exactly once, in path order
+              -- the report never orders by age, since age is the fact most
+              easily mistaken for a rank.
 Now illegal:  a copy of this output under version control; an oracle run
               anywhere but through ORACLES, so the columns and the registry
               cannot disagree.
@@ -308,9 +313,7 @@ class Report:
             + " open issues |",
             "|---|---:|---:|---:|---:|---:|" + "---:|" * len(ORACLES) + "---|",
         ]
-        for r in sorted(
-            self.rows, key=lambda r: (-(r.focused_age_days(self.now) or -1), r.path)
-        ):
+        for r in sorted(self.rows, key=lambda r: r.path):
             age = r.age_days(self.now)
             focused = r.focused_age_days(self.now)
             frac = r.covered_fraction()
@@ -354,7 +357,7 @@ class Report:
             )
             both = sorted(r.path for r in thin if r.issues)
             out.append(
-                f"- both thin and named -- a refactor here has a reason and no oracle ({len(both)}): "
+                f"- both thin and named -- a refactor here has a reason and thin oracle cover ({len(both)}): "
                 + (", ".join(both) or "none")
             )
         else:
@@ -388,15 +391,35 @@ def report(
     return Report(rows, now, measured=coverage is not None)
 
 
-def measure(out_dir: pathlib.Path, root: pathlib.Path = ROOT) -> pathlib.Path:
+def coverage_config(name: str, out_dir: pathlib.Path) -> str:
+    """The coverage configuration one oracle runs under. `patch = subprocess`
+    is what makes a child interpreter -- a golden's capture process, an
+    xdist worker -- write its own data file, which `combine` then folds in;
+    without it a column counts only the parent pytest process."""
+    return (
+        "[run]\n"
+        f"source = {ENGINE}\n"
+        f"data_file = {out_dir / ('.coverage.' + name)}\n"
+        "parallel = true\n"
+        f"context = {name}\n"
+        "patch = subprocess\n"
+    )
+
+
+def measure(
+    out_dir: pathlib.Path, root: pathlib.Path = ROOT, workers: int = 0
+) -> pathlib.Path:
     """Run every ORACLES selection under coverage, one context each, and
-    write `coverage.json` with contexts into `out_dir`. Serial by design:
-    a worker process under `-n` is not measured."""
+    write `coverage.json` with contexts into `out_dir`. `workers` > 0 runs
+    each suite under `-n workers`; the workers are measured through the
+    subprocess patch like any other child."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob(".coverage*"):
         old.unlink()
     py = sys.executable
     for name, selection in ORACLES.items():
+        rc = out_dir / f"coveragerc.{name}"
+        rc.write_text(coverage_config(name, out_dir))
         args = [
             a
             for pat in selection
@@ -406,15 +429,15 @@ def measure(out_dir: pathlib.Path, root: pathlib.Path = ROOT) -> pathlib.Path:
                 else [pat]
             )
         ]
+        if workers > 0:
+            args += ["-n", str(workers)]
         subprocess.run(
             [
                 py,
                 "-m",
                 "coverage",
                 "run",
-                f"--data-file={out_dir / ('.coverage.' + name)}",
-                f"--context={name}",
-                f"--source={ENGINE}",
+                f"--rcfile={rc}",
                 "-m",
                 "pytest",
                 *args,
@@ -425,6 +448,7 @@ def measure(out_dir: pathlib.Path, root: pathlib.Path = ROOT) -> pathlib.Path:
             cwd=root,
             check=False,
         )
+    parts = sorted(str(p) for p in out_dir.glob(".coverage.*"))
     subprocess.run(
         [
             py,
@@ -433,7 +457,7 @@ def measure(out_dir: pathlib.Path, root: pathlib.Path = ROOT) -> pathlib.Path:
             "combine",
             "--keep",
             f"--data-file={out_dir / '.coverage'}",
-            *(str(p) for p in sorted(out_dir.glob(".coverage.*"))),
+            *parts,
         ],
         cwd=root,
         check=True,
@@ -472,10 +496,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-issues", action="store_true", help="skip the tracker (offline)"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        metavar="N",
+        help="run each oracle under -n N while measuring (0 = serial)",
+    )
     ns = parser.parse_args(argv)
     cov_path: pathlib.Path | None = ns.coverage_json
     if ns.measure is not None:
-        cov_path = measure(ns.measure)
+        cov_path = measure(ns.measure, workers=ns.workers)
     coverage_data = json.loads(cov_path.read_text()) if cov_path is not None else None
     issues = [] if ns.no_issues else open_issues()
     now = int(dt.datetime.now(dt.UTC).timestamp())

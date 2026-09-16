@@ -142,12 +142,36 @@ def test_settled_is_focused_age_and_thin_is_any_context() -> None:
     assert [r.path for r in rep.settled()] == ["cardlang/a.py", "cardlang/pkg/b.py"]
     text = rep.render()
     assert (
-        "both thin and named -- a refactor here has a reason and no oracle (1): cardlang/a.py"
+        "both thin and named -- a refactor here has a reason and thin oracle cover (1): cardlang/a.py"
         in text
     )
     assert "thin under the oracles (1): cardlang/a.py" in text
     assert "named by an open issue (1): cardlang/a.py" in text
     assert text == rep.render()  # deterministic
+
+
+def test_rows_render_in_path_order_never_by_age() -> None:
+    old = sc.History(NOW - 300 * DAY, NOW - 300 * DAY, 0, 1)
+    young = sc.History(NOW - 1 * DAY, NOW - 1 * DAY, 1, 1)
+    rows = (
+        sc.Row("cardlang/z.py", 1, old, None, ()),
+        sc.Row("cardlang/a.py", 1, young, None, ()),
+    )
+    text = sc.Report(rows, NOW, measured=False).render()
+    assert text.index("| cardlang/a.py |") < text.index("| cardlang/z.py |")
+
+
+def test_every_oracle_run_measures_its_child_processes(tmp_path: pathlib.Path) -> None:
+    """Reddened by dropping `patch = subprocess` from the configuration: the
+    goldens' capture interpreter and every `-n` worker would then go
+    unmeasured, and a column would count the parent process alone (measured
+    2026-09-16 on the goldens: 6% of the engine from the parent, 65% with
+    the children)."""
+    for name in sc.ORACLES:
+        cfg = sc.coverage_config(name, tmp_path)
+        assert "patch = subprocess" in cfg
+        assert f"context = {name}" in cfg
+        assert "parallel = true" in cfg
 
 
 def test_unmeasured_report_says_so_instead_of_deriving_thin() -> None:
