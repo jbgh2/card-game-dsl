@@ -558,19 +558,20 @@ class ActionSpace:
 
     def block_of(self, aid: int) -> str:
         """Which of `BLOCKS` numbers `aid`. Partitions
-        `0..num_distinct_actions` exactly, on the same boundaries as `decode`,
-        which raises on an out-of-range id."""
-        if 0 <= aid < self._name_base:
+        `0..num_distinct_actions` exactly, on `decode`'s own boundaries — and
+        an id outside the space is refused by asking `decode` for it, so the
+        space has one refusal for that and not two spellings of it."""
+        if not 0 <= aid < self.num_distinct_actions:
+            self.decode(aid)
+        if aid < self._name_base:
             return "card"
-        if self._name_base <= aid < self._int_base:
+        if aid < self._int_base:
             return "name"
-        if self._int_base <= aid < self._offering_base:
+        if aid < self._offering_base:
             return "integer"
-        if self._offering_base <= aid < self._combo_base:
+        if aid < self._combo_base:
             return "offering"
-        if self._combo_base <= aid < self.num_distinct_actions:
-            return "combination"
-        raise ValueError(f"action {aid} out of range 0..{self.num_distinct_actions - 1}")
+        return "combination"
 
     def verb_of(self, aid: int) -> str:
         """The move-type name `aid` denotes, at the granularity the encoding

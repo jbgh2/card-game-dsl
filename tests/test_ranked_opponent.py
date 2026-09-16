@@ -23,6 +23,12 @@ domain:          Dispositions: every block `encoding.BLOCKS` declares, crossed
                  uniform draw it delegates to. Legality and purity over every
                  registered game come from the row pins in
                  tests/test_play_opponents.py, which `ranked` joins as a row.
+                 The chooser-level ranking instrument (`tests/playout_policy.py`)
+                 stays where it is and is not a second definition of this one:
+                 it classifies Candidate VALUES at the runtime seam, and its
+                 pin reconciles that domain against `runtime.observe.render`
+                 and the OpenSpiel encoder — checks on the runtime's own
+                 decision values, which nothing here covers.
 registry:        blocks: `cardlang.openspiel.encoding.BLOCKS`; opponents:
                  `cardlang.openspiel.seat_policy.OPPONENTS`; games:
                  `cardlang.openspiel.registry.GAMES`; the declarations it
@@ -47,14 +53,17 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
-import pytest
-
 from cardlang.openspiel.encoding import BLOCKS
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.ranked import DISPOSITIONS, RankedSeatPolicy
 from cardlang.openspiel.registry import GAMES
 from cardlang.openspiel.replay import LiveLine, load
-from cardlang.openspiel.seat_policy import OPPONENTS, FirstSeatPolicy, SeatBinding, UniformSeatPolicy
+from cardlang.openspiel.seat_policy import (
+    OPPONENTS,
+    FirstSeatPolicy,
+    SeatBinding,
+    UniformSeatPolicy,
+)
 from cardlang.runtime.errors import GameDescriptionError
 from tests.test_play_session import FIXTURES, _path
 

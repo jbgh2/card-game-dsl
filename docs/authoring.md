@@ -145,7 +145,13 @@ you play through is what an agent trained on the game plays through.
 rest=random` names one and fills the rest. There is no default: a game with
 other seats and no `--vs` is refused before it is dealt, and the refusal names
 the seats, shows a command that seats them, and lists every opponent, as
-`cardlang play --help` does. An opponent that always takes the first pick
+`cardlang play --help` does. `ranked` is the one that plays: it orders its
+cards by your `ranking:`, takes a trick with the cheapest card that takes it
+where your `winner:` clause wants the score high and sheds where it wants it
+low, and answers a numbered choice near the strength of the hand it holds. A
+decision your game states nothing about — which side of an offer is the wager
+(issue #703) — it draws at random, and the header says which opponent is at
+which seat. An opponent that always takes the first pick
 repeats itself, so a table where every seat does, you included, can run a game
 past its `max_length`, and that refusal blames the game (issue #698).
 

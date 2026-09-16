@@ -44,7 +44,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from cardlang.ast import nodes as n
-from cardlang.openspiel.encoding import ActionSpace
 from cardlang.openspiel.infostate import SeatView
 from cardlang.openspiel.seat_policy import SeatBinding, UniformSeatPolicy
 from cardlang.runtime.values import Card

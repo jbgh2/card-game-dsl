@@ -137,6 +137,16 @@ item can repeat one exchange until the game's `max_length` refuses it (issue
 #698; what the bound means for a legally unbounded line is
 [open-questions/unbounded-lines-and-max-length.md](../open-questions/unbounded-lines-and-max-length.md)).
 
+`ranked` is the opponent that plays (`openspiel/ranked.py`). It reads the seat's
+view and the game's own declarations and nothing else: the declared ranking
+orders its cards, the `winner:` clause says which way the score runs, and the
+library type of a zone says which of the view's cards are the trick's and which
+are its own. What it does with each block of action ids is a table beside it,
+and the blocks it does not rank it draws, which the table states — an offering's
+two sides are not distinguishable from anything a game declares today (issue
+#703), so it draws there rather than guessing. That is why Tichu, whose calls
+are exactly that decision, is played as a uniform draw plays it.
+
 The pin is `tests/test_live_line.py`. Along every registered game's line, at
 sampled picks, the line asks the seat the adapter's replay pauses at, over the
 same legal ids, with the same zones and log. Cut anywhere and played again, it
